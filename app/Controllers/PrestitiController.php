@@ -423,7 +423,13 @@ class PrestitiController
             try {
                 $integrity = new DataIntegrity($db);
                 $integrity->recalculateBookAvailability($libro_id);
-                $integrity->validateAndUpdateLoan($newLoanId);
+                $validation = $integrity->validateAndUpdateLoan($newLoanId);
+                if (!($validation['success'] ?? false)) {
+                    SecureLogger::warning(__('Validazione prestito fallita (post-creazione)'), [
+                        'loan_id' => $newLoanId,
+                        'message' => $validation['message'] ?? null,
+                    ]);
+                }
             } catch (\Throwable $e) {
                 SecureLogger::warning(__('DataIntegrity warning (store loan)'), ['error' => $e->getMessage()]);
             }

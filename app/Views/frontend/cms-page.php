@@ -1,6 +1,6 @@
 <?php
 /** @var string $title */
-/** @var string $content */
+/** @var string|null $content */
 /** @var string|null $image */
 
 $additional_css = "
@@ -146,7 +146,7 @@ ob_start();
                 <?php endif; ?>
 
                 <div class="cms-content">
-                    <?= \App\Support\HtmlHelper::sanitizeHtml($content) ?>
+                    <?= \App\Support\HtmlHelper::sanitizeHtml($content ?? '') ?>
                 </div>
             </div>
         </div>

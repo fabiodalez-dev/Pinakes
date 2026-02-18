@@ -98,7 +98,6 @@ class UtentiApiController
             2 => 'u.telefono',     // Telefono
             3 => 'u.tipo_utente',  // Ruolo
             4 => 'u.stato',        // Stato
-            5 => 'u.id'            // Actions (fallback to id)
         ];
 
         // Parse order parameter from DataTables

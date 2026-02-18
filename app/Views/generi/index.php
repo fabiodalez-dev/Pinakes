@@ -1,6 +1,7 @@
 <?php
 /** @var array $generiPrincipali */
 /** @var int $totalGeneri */
+/** @var array $sottogeneri */
 ?>
 <!-- Modern Genres Management Interface -->
 <div class="min-h-screen bg-gray-50 py-6">

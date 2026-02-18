@@ -3055,7 +3055,7 @@ class LibriController
         }
         $decoded = json_decode($body, true);
         if (!is_array($decoded)) {
-            error_log('[LibriController] parseRequestBody: JSON decode failed: ' . json_last_error_msg());
+            SecureLogger::warning('parseRequestBody: JSON decode failed', ['error' => json_last_error_msg()]);
             return [];
         }
         return $decoded;

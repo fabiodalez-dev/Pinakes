@@ -671,7 +671,7 @@ $pageTitle = __('Editor Classificazione Dewey');
                 return;
             }
 
-            let html = '<div class="p-6"><h3 class="text-lg font-semibold mb-4"><?= __('Backup disponibili') ?></h3>';
+            let html = '<div class="p-6"><h3 class="text-lg font-semibold mb-4"><?= htmlspecialchars(__('Backup disponibili'), ENT_QUOTES, 'UTF-8') ?></h3>';
             html += '<div class="space-y-2 max-h-64 overflow-y-auto">';
             result.backups.forEach(b => {
                 // Sanitize values for safe HTML insertion
@@ -685,12 +685,12 @@ $pageTitle = __('Editor Classificazione Dewey');
                     </div>
                     <button class="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                             data-filename="${safeFilename}" data-action="restore">
-                        <?= __('Ripristina') ?>
+                        <?= htmlspecialchars(__('Ripristina'), ENT_QUOTES, 'UTF-8') ?>
                     </button>
                 </div>`;
             });
             html += '</div>';
-            html += '<div class="mt-4 flex justify-end"><button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" data-action="close-modal"><?= __('Chiudi') ?></button></div></div>';
+            html += '<div class="mt-4 flex justify-end"><button class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg" data-action="close-modal"><?= htmlspecialchars(__('Chiudi'), ENT_QUOTES, 'UTF-8') ?></button></div></div>';
 
             // Safe: html built from escapeHtml/encodeURIComponent-sanitized values above
             modalContent.innerHTML = html;

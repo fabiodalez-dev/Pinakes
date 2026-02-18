@@ -74,11 +74,11 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                                     <input type="color"
                                            name="colors[primary]"
                                            id="color-primary"
-                                           value="<?= htmlspecialchars($colors['primary'] ?? '#d70161') ?>"
+                                           value="<?= htmlspecialchars($colors['primary'] ?? '#d70161', ENT_QUOTES, 'UTF-8') ?>"
                                            class="h-12 w-20 rounded-lg cursor-pointer border-2 border-gray-300">
                                     <input type="text"
                                            id="color-primary-text"
-                                           value="<?= htmlspecialchars($colors['primary'] ?? '#d70161') ?>"
+                                           value="<?= htmlspecialchars($colors['primary'] ?? '#d70161', ENT_QUOTES, 'UTF-8') ?>"
                                            class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 font-mono text-sm"
                                            readonly>
                                 </div>
@@ -94,11 +94,11 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                                     <input type="color"
                                            name="colors[secondary]"
                                            id="color-secondary"
-                                           value="<?= htmlspecialchars($colors['secondary'] ?? '#111827') ?>"
+                                           value="<?= htmlspecialchars($colors['secondary'] ?? '#111827', ENT_QUOTES, 'UTF-8') ?>"
                                            class="h-12 w-20 rounded-lg cursor-pointer border-2 border-gray-300">
                                     <input type="text"
                                            id="color-secondary-text"
-                                           value="<?= htmlspecialchars($colors['secondary'] ?? '#111827') ?>"
+                                           value="<?= htmlspecialchars($colors['secondary'] ?? '#111827', ENT_QUOTES, 'UTF-8') ?>"
                                            class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 font-mono text-sm"
                                            readonly>
                                 </div>
@@ -114,11 +114,11 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                                     <input type="color"
                                            name="colors[button]"
                                            id="color-button"
-                                           value="<?= htmlspecialchars($colors['button'] ?? '#d70262') ?>"
+                                           value="<?= htmlspecialchars($colors['button'] ?? '#d70262', ENT_QUOTES, 'UTF-8') ?>"
                                            class="h-12 w-20 rounded-lg cursor-pointer border-2 border-gray-300">
                                     <input type="text"
                                            id="color-button-hex"
-                                           value="<?= htmlspecialchars($colors['button'] ?? '#d70262') ?>"
+                                           value="<?= htmlspecialchars($colors['button'] ?? '#d70262', ENT_QUOTES, 'UTF-8') ?>"
                                            class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 font-mono text-sm"
                                            readonly>
                                 </div>
@@ -133,11 +133,11 @@ $pageTitle = __('Personalizza Tema') . ': ' . $theme['name'];
                                     <input type="color"
                                            name="colors[button_text]"
                                            id="color-button-text"
-                                           value="<?= htmlspecialchars($colors['button_text'] ?? '#ffffff') ?>"
+                                           value="<?= htmlspecialchars($colors['button_text'] ?? '#ffffff', ENT_QUOTES, 'UTF-8') ?>"
                                            class="h-12 w-20 rounded-lg cursor-pointer border-2 border-gray-300">
                                     <input type="text"
                                            id="color-button-text-value"
-                                           value="<?= htmlspecialchars($colors['button_text'] ?? '#ffffff') ?>"
+                                           value="<?= htmlspecialchars($colors['button_text'] ?? '#ffffff', ENT_QUOTES, 'UTF-8') ?>"
                                            class="flex-1 px-3 py-2 border rounded-lg bg-gray-50 font-mono text-sm"
                                            readonly>
                                     <button type="button"
@@ -299,7 +299,7 @@ function checkContrast() {
     .then(data => {
         // Check for CSRF/session errors
         if (data.error || data.code) {
-            alert(data.error || '<?= addslashes(__("Errore di sicurezza")) ?>');
+            alert(data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG) ?>);
             if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
                 setTimeout(() => window.location.reload(), 2000);
             }
@@ -351,7 +351,7 @@ function hexToRgb(hex) {
 }
 
 function resetToDefaults() {
-    if (!confirm('<?= addslashes(__("Ripristinare i colori?")) ?>')) return;
+    if (!confirm(<?= json_encode(__("Ripristinare i colori?"), JSON_HEX_TAG) ?>)) return;
 
     fetch(window.BASE_PATH + '/admin/themes/<?= (int)$theme['id'] ?>/reset', {
         method: 'POST',
@@ -365,7 +365,7 @@ function resetToDefaults() {
     .then(data => {
         // Check for CSRF/session errors
         if (data.error || data.code) {
-            alert(data.error || '<?= addslashes(__("Errore di sicurezza")) ?>');
+            alert(data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG) ?>);
             if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
                 setTimeout(() => window.location.reload(), 2000);
             }

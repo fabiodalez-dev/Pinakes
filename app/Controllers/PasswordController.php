@@ -9,6 +9,7 @@ use App\Support\Mailer;
 use App\Support\EmailService;
 use App\Support\RouteTranslator;
 use App\Support\RateLimiter;
+use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -58,7 +59,13 @@ class PasswordController
             $stmt->execute();
             $stmt->close();
 
-            $resetUrl = absoluteUrl(RouteTranslator::route('reset_password')) . '?token=' . urlencode($resetToken);
+            $envUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
+            if (is_string($envUrl) && $envUrl !== '') {
+                $resetUrl = rtrim($envUrl, '/') . RouteTranslator::route('reset_password') . '?token=' . urlencode($resetToken);
+            } else {
+                SecureLogger::warning('Password reset URL generated without APP_CANONICAL_URL — relies on Host header');
+                $resetUrl = absoluteUrl(RouteTranslator::route('reset_password')) . '?token=' . urlencode($resetToken);
+            }
             $name = trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? ''));
             $subject = 'Recupera la tua password';
             $html = '<h2>Recupera la tua password</h2>' .

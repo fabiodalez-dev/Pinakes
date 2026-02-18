@@ -173,9 +173,9 @@ $resetPasswordRoute = route_path('reset_password');
 
   if (passwordInput) {
     const labels = {
-      weak: <?= json_encode(__('Debole'), JSON_HEX_TAG) ?>,
-      medium: <?= json_encode(__('Media'), JSON_HEX_TAG) ?>,
-      strong: <?= json_encode(__('Forte'), JSON_HEX_TAG) ?>
+      weak: <?= json_encode(__('Debole'), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
+      medium: <?= json_encode(__('Media'), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
+      strong: <?= json_encode(__('Forte'), JSON_HEX_TAG | JSON_HEX_AMP) ?>
     };
     passwordInput.addEventListener('input', function() {
       const password = this.value;

@@ -372,7 +372,7 @@ $profileReservationCoverUrl = static function (array $item): string {
           <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
             <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                  alt="<?php echo App\Support\HtmlHelper::e(($p['titolo'] ?? __('Libro')) . ' - ' . __('Copertina')); ?>"
-                 onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                 onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
           </a>
           <div class="item-info">
             <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -433,7 +433,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                   onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -505,7 +505,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                   onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -574,7 +574,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                   onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -651,7 +651,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                   onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($r['libro_titolo'] ?? ''); ?></a></h3>

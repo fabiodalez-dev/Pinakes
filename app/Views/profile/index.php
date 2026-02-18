@@ -523,7 +523,7 @@
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    fetch(window.BASE_PATH + '/api/profile/sessions', { credentials: 'same-origin', signal: controller.signal })
+    fetch((window.BASE_PATH || '') + '/api/profile/sessions', { credentials: 'same-origin', signal: controller.signal })
       .then(response => response.json())
       .then(data => {
         clearTimeout(timeoutId);
@@ -593,7 +593,7 @@
   window.revokeSession = function(sessionId) {
     if (!confirm(translations.confirmRevoke)) return;
 
-    fetch(window.BASE_PATH + '/api/profile/sessions/revoke', {
+    fetch((window.BASE_PATH || '') + '/api/profile/sessions/revoke', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {
@@ -617,7 +617,7 @@
   window.revokeAllSessions = function() {
     if (!confirm(translations.confirmRevokeAll)) return;
 
-    fetch(window.BASE_PATH + '/api/profile/sessions/revoke-all', {
+    fetch((window.BASE_PATH || '') + '/api/profile/sessions/revoke-all', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {

@@ -181,12 +181,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyInstance.on('upload-success', (file, response) => {
             const body = response?.body || {};
-            const uploadedUrl = body.uploadURL || `/uploads/digital/${encodeURIComponent(file.name)}`;
+            const storedUrl = body.uploadURL || `/uploads/digital/${encodeURIComponent(file.name)}`;
+            const displayLinkUrl = body.uploadURL || (window.BASE_PATH || '') + `/uploads/digital/${encodeURIComponent(file.name)}`;
             const hiddenInput = document.getElementById(inputId);
             const displayInput = document.getElementById(displayId);
 
-            if (hiddenInput) hiddenInput.value = uploadedUrl;
-            if (displayInput) displayInput.value = uploadedUrl;
+            if (hiddenInput) hiddenInput.value = storedUrl;
+            if (displayInput) displayInput.value = storedUrl;
 
             if (resultEl) {
                 resultEl.classList.remove('hidden');
@@ -218,7 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 wrapper.appendChild(infoDiv);
 
                 const link = document.createElement('a');
-                link.href = uploadedUrl;
+                link.href = displayLinkUrl;
                 link.target = '_blank';
                 link.className = 'text-xs text-purple-600 hover:underline';
                 link.textContent = '<?= __("Apri file") ?>';

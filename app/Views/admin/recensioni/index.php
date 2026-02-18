@@ -349,9 +349,10 @@ function toggleSection(section) {
             this.disabled = true;
 
             try {
+                const basePath = window.BASE_PATH || '';
                 const url = endpoint
-                    ? `${window.BASE_PATH}/admin/recensioni/${reviewId}/${endpoint}`
-                    : `${window.BASE_PATH}/admin/recensioni/${reviewId}`;
+                    ? `${basePath}/admin/recensioni/${reviewId}/${endpoint}`
+                    : `${basePath}/admin/recensioni/${reviewId}`;
                 const response = await fetch(url, {
                     method: method || 'POST',
                     credentials: 'same-origin',

@@ -104,34 +104,48 @@ class CopyController
         if ($prestito && $statoCorrente === 'prestato' && $stato === 'disponibile') {
             $prestitoId = (int) $prestito['id'];
 
-            // Chiudi il prestito
-            $stmt = $db->prepare("
-                UPDATE prestiti
-                SET stato = 'completato',
-                    attivo = 0,
-                    data_restituzione = CURDATE(),
-                    updated_at = NOW()
-                WHERE id = ?
-            ");
-            $stmt->bind_param('i', $prestitoId);
-            $stmt->execute();
-            $stmt->close();
+            $db->begin_transaction();
+            try {
+                // Chiudi il prestito
+                $stmt = $db->prepare("
+                    UPDATE prestiti
+                    SET stato = 'completato',
+                        attivo = 0,
+                        data_restituzione = CURDATE(),
+                        updated_at = NOW()
+                    WHERE id = ?
+                ");
+                $stmt->bind_param('i', $prestitoId);
+                $stmt->execute();
+                $stmt->close();
+
+                // Aggiorna la copia nello stesso transaction
+                $stmt = $db->prepare("UPDATE copie SET stato = ?, note = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->bind_param('ssi', $stato, $note, $copyId);
+                $stmt->execute();
+                $stmt->close();
+
+                $db->commit();
+            } catch (\Throwable $e) {
+                $db->rollback();
+                throw $e;
+            }
 
             $_SESSION['success_message'] = __('Prestito chiuso automaticamente. La copia è ora disponibile.');
-        }
+        } else {
+            // GESTIONE ALTRI STATI
+            // Blocca modifiche se c'è un prestito attivo (eccetto cambio a disponibile già gestito)
+            if ($prestito) {
+                $_SESSION['error_message'] = __('Impossibile modificare una copia attualmente in prestito. Prima termina il prestito o imposta lo stato su "Disponibile" per chiuderlo automaticamente.');
+                return $response->withHeader('Location', url("/admin/libri/{$libroId}"))->withStatus(302);
+            }
 
-        // GESTIONE ALTRI STATI
-        // Blocca modifiche se c'è un prestito attivo (eccetto cambio a disponibile già gestito)
-        if ($prestito && !($statoCorrente === 'prestato' && $stato === 'disponibile')) {
-            $_SESSION['error_message'] = __('Impossibile modificare una copia attualmente in prestito. Prima termina il prestito o imposta lo stato su "Disponibile" per chiuderlo automaticamente.');
-            return $response->withHeader('Location', url("/admin/libri/{$libroId}"))->withStatus(302);
+            // Aggiorna la copia
+            $stmt = $db->prepare("UPDATE copie SET stato = ?, note = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param('ssi', $stato, $note, $copyId);
+            $stmt->execute();
+            $stmt->close();
         }
-
-        // Aggiorna la copia
-        $stmt = $db->prepare("UPDATE copie SET stato = ?, note = ?, updated_at = NOW() WHERE id = ?");
-        $stmt->bind_param('ssi', $stato, $note, $copyId);
-        $stmt->execute();
-        $stmt->close();
 
         // Case 2 & 9: Handle Copy Status Changes
         try {

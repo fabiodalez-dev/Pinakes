@@ -911,7 +911,7 @@ function loadLatestBooks(page = 1) {
         grid.innerHTML = '<div class=\"loading-placeholder\"><div class=\"spinner-border text-primary\" role=\"status\"><span class=\"visually-hidden\">' + i18n.loading + '</span></div><p class=\"mt-3\">' + i18n.loadingBooks + '</p></div>';
     }
 
-    fetch(window.BASE_PATH + '/api/home/latest?page=' + page)
+    fetch((window.BASE_PATH || '') + '/api/home/latest?page=' + page)
         .then(response => response.json())
         .then(data => {
             if (page === 1) {

@@ -448,7 +448,7 @@ $profileRoute = route_path('profile');
               if ($scadenza === false || $scadenza === 0) {
                   $giorni_rimanenti = 0;
                   $scaduto = false;
-                  $in_scadenza = true;
+                  $in_scadenza = false;
               } else {
                   $giorni_rimanenti = (int)ceil(($scadenza - $oggi) / 86400);
                   $scaduto = $giorni_rimanenti < 0;

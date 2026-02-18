@@ -126,7 +126,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         ?>
         <div class="p-4 flex items-center justify-center bg-gray-50">
           <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
-               onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'"
+               onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'"
                alt="<?php echo htmlspecialchars(($libro['titolo'] ?? 'Libro') . ' - Copertina', ENT_QUOTES, 'UTF-8'); ?>"
                class="max-h-80 object-contain rounded-lg shadow" />
         </div>
@@ -1126,7 +1126,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   </div>
 
   <!-- FullCalendar (same as dashboard) -->
-  <script src="<?= assetUrl('fullcalendar.min.js') ?>"></script>
+  <script src="<?= htmlspecialchars(assetUrl('fullcalendar.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
   <?php
   // Prepare calendar events for each copy's loan
   $copyColors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];

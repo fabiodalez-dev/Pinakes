@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     });
 
-    filteredCount.textContent = visibleCount === 1 ? '<?= addslashes(__("1 evento")) ?>' : visibleCount + ' <?= addslashes(__("eventi")) ?>';
+    filteredCount.textContent = visibleCount === 1 ? <?= json_encode(__("1 evento"), JSON_HEX_TAG) ?> : visibleCount + ' ' + <?= json_encode(__("eventi"), JSON_HEX_TAG) ?>;
   }
 
   filterType.addEventListener('change', applyFilters);

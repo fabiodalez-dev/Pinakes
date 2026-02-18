@@ -434,7 +434,7 @@ $jsonLd = [
     'organizer' => [
         '@type' => 'Organization',
         'name' => ConfigStore::get('app.name'),
-        'url' => $baseUrl,
+        'url' => (string)($baseUrl ?? ''),
     ],
 ];
 if (!empty($event['featured_image'])) {

@@ -1,5 +1,5 @@
 <?php
-/** @var string $pageContent */
+/** @var string|null $pageContent */
 
 use App\Support\HtmlHelper;
 
@@ -68,7 +68,7 @@ ob_start();
             <div class="cookie-divider"></div>
         </div>
         <div class="cookie-content">
-            <?= HtmlHelper::sanitizeHtml($pageContent); ?>
+            <?= HtmlHelper::sanitizeHtml($pageContent ?? ''); ?>
         </div>
     </div>
 </section>

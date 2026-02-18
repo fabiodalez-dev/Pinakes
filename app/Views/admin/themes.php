@@ -152,7 +152,7 @@ $pageTitle = __('Gestione Temi');
 
 <script>
 function activateTheme(themeId) {
-    if (!confirm('<?= addslashes(__("Attivare questo tema?")) ?>')) {
+    if (!confirm(<?= json_encode(__("Attivare questo tema?"), JSON_HEX_TAG) ?>)) {
         return;
     }
 
@@ -162,7 +162,7 @@ function activateTheme(themeId) {
         credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-Token': '<?= Csrf::ensureToken() ?>'
+            'X-CSRF-Token': <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>
         }
     })
     .then(r => r.json())
@@ -170,12 +170,12 @@ function activateTheme(themeId) {
         if (data.success) {
             window.location.reload();
         } else {
-            alert(data.message || '<?= addslashes(__("Errore durante l'attivazione")) ?>');
+            alert(data.message || <?= json_encode(__("Errore durante l'attivazione"), JSON_HEX_TAG) ?>);
         }
     })
     .catch(err => {
         console.error(err);
-        alert('<?= addslashes(__("Errore di rete")) ?>');
+        alert(<?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>);
     });
 }
 </script>

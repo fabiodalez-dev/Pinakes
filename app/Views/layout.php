@@ -574,14 +574,14 @@ $htmlLang = substr($currentLocale, 0, 2);
                       id="user-menu-arrow"></i>
                   </button>
                   <div id="user-menu-dropdown"
-                    class="absolute right-0 mt-2 w-56 sm:w-56 w-48 bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50 max-w-[calc(100vw-2rem)]">
+                    class="absolute right-0 mt-2 w-48 sm:w-56 bg-white border border-gray-200 rounded-2xl shadow-2xl hidden z-50 max-w-[calc(100vw-2rem)]">
                     <div class="p-2">
-                      <a href="<?= route_path('profile') ?>"
+                      <a href="<?= htmlspecialchars(route_path('profile'), ENT_QUOTES, 'UTF-8') ?>"
                         class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                         <i class="fas fa-user-cog w-4 h-4"></i>
                         <span class="text-sm"><?= __("Profilo") ?></span>
                       </a>
-                      <a href="<?= route_path('wishlist') ?>"
+                      <a href="<?= htmlspecialchars(route_path('wishlist'), ENT_QUOTES, 'UTF-8') ?>"
                         class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-700 no-underline">
                         <i class="fas fa-heart w-4 h-4"></i>
                         <span class="text-sm"><?= __("Preferiti") ?></span>
@@ -604,7 +604,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         </a>
                       <?php endif; ?>
                       <hr class="my-2 border-gray-200">
-                      <a href="<?= route_path('logout') ?>"
+                      <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>"
                         class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600 no-underline">
                         <i class="fas fa-sign-out-alt w-4 h-4"></i>
                         <span class="text-sm"><?= __("Esci") ?></span>
@@ -612,16 +612,16 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </div>
                   </div>
                 <?php else: ?>
-                  <a href="<?= route_path('login') ?>"
+                  <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>"
                     class="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 hidden sm:inline-flex items-center">
                     <i class="fas fa-sign-in-alt mr-2"></i> <?= __("Accedi") ?>
                   </a>
-                  <a href="<?= route_path('register') ?>"
+                  <a href="<?= htmlspecialchars(route_path('register'), ENT_QUOTES, 'UTF-8') ?>"
                     class="px-4 py-2 bg-gray-900 text-white rounded-xl hover:bg-gray-800 ml-2 hidden sm:inline-flex items-center">
                     <i class="fas fa-user-plus mr-2"></i> <?= __("Registrati") ?>
                   </a>
                   <div class="sm:hidden">
-                    <a href="<?= route_path('login') ?>" class="p-2 rounded-xl hover:bg-gray-100"><i
+                    <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="p-2 rounded-xl hover:bg-gray-100"><i
                         class="fas fa-sign-in-alt"></i></a>
                   </div>
                 <?php endif; ?>
