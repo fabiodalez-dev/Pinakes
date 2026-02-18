@@ -106,10 +106,7 @@ use App\Support\HtmlHelper;
                   </span>
                   <div class="flex flex-wrap items-center gap-2">
                     <?php if (!empty($notification['link'])): ?>
-                    <?php
-                    $rawNotifLink = $notification['link'];
-                    $notifLink = preg_match('#^(https?:)?//#', $rawNotifLink) ? $rawNotifLink : url($rawNotifLink);
-                    ?>
+                    <?php $notifLink = url($notification['link']); ?>
                     <a href="<?php echo HtmlHelper::e($notifLink); ?>"
                        class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50">
                       <i class="fas fa-arrow-right text-xs"></i>

@@ -11,7 +11,7 @@ $resetPasswordRoute = route_path('reset_password');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= __('Resetta Password') ?> - <?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?></title>
-    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
+    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
     <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
     <link href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
@@ -173,9 +173,9 @@ $resetPasswordRoute = route_path('reset_password');
 
   if (passwordInput) {
     const labels = {
-      weak: <?= json_encode(__('Debole')) ?>,
-      medium: <?= json_encode(__('Media')) ?>,
-      strong: <?= json_encode(__('Forte')) ?>
+      weak: <?= json_encode(__('Debole'), JSON_HEX_TAG) ?>,
+      medium: <?= json_encode(__('Media'), JSON_HEX_TAG) ?>,
+      strong: <?= json_encode(__('Forte'), JSON_HEX_TAG) ?>
     };
     passwordInput.addEventListener('input', function() {
       const password = this.value;

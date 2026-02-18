@@ -480,14 +480,14 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const loanId = parseInt(this.dataset.loanId, 10);
             Swal.fire({
-                title: '<?= __("Conferma Restituzione") ?>',
-                text: '<?= __("Confermi la restituzione di questo libro?") ?>',
+                title: <?= json_encode(__("Conferma Restituzione"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Confermi la restituzione di questo libro?"), JSON_HEX_TAG) ?>,
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#10B981',
                 cancelButtonColor: '#6B7280',
-                confirmButtonText: '<?= __("Restituisci") ?>',
-                cancelButtonText: '<?= __("Annulla") ?>'
+                confirmButtonText: <?= json_encode(__("Restituisci"), JSON_HEX_TAG) ?>,
+                cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
             }).then((result) => {
                 if (result.isConfirmed) {
                     fetch(window.BASE_PATH + '/admin/loans/return', {
@@ -504,23 +504,23 @@ document.addEventListener('DOMContentLoaded', function() {
                             throw new Error('HTTP ' + response.status);
                         }
                         if (!response.headers.get('content-type')?.includes('application/json')) {
-                            throw new Error('<?= __("Risposta del server non valida") ?>');
+                            throw new Error(<?= json_encode(__("Risposta del server non valida"), JSON_HEX_TAG) ?>);
                         }
                         return response.json();
                     })
                     .then(data => {
                         if (data.success) {
                             Swal.fire({
-                                title: '<?= __("Libro Restituito") ?>',
-                                text: data.message || '<?= __("Il prestito è stato chiuso con successo.") ?>',
+                                title: <?= json_encode(__("Libro Restituito"), JSON_HEX_TAG) ?>,
+                                text: data.message || <?= json_encode(__("Il prestito è stato chiuso con successo."), JSON_HEX_TAG) ?>,
                                 icon: 'success'
                             }).then(() => location.reload());
                         } else {
-                            Swal.fire('<?= __("Errore") ?>', data.message || '<?= __("Errore durante la restituzione") ?>', 'error');
+                            Swal.fire(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, data.message || <?= json_encode(__("Errore durante la restituzione"), JSON_HEX_TAG) ?>, 'error');
                         }
                     })
                     .catch(() => {
-                        Swal.fire('<?= __("Errore") ?>', '<?= __("Errore di connessione") ?>', 'error');
+                        Swal.fire(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, <?= json_encode(__("Errore di connessione"), JSON_HEX_TAG) ?>, 'error');
                     });
                 }
             });
@@ -532,14 +532,14 @@ document.addEventListener('DOMContentLoaded', function() {
         btn.addEventListener('click', function() {
             const reservationId = parseInt(this.dataset.reservationId, 10);
             Swal.fire({
-                title: '<?= __("Annulla Prenotazione") ?>',
-                text: '<?= __("Sei sicuro di voler annullare questa prenotazione?") ?>',
+                title: <?= json_encode(__("Annulla Prenotazione"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Sei sicuro di voler annullare questa prenotazione?"), JSON_HEX_TAG) ?>,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#EF4444',
                 cancelButtonColor: '#6B7280',
-                confirmButtonText: '<?= __("Annulla Prenotazione") ?>',
-                cancelButtonText: '<?= __("Chiudi") ?>'
+                confirmButtonText: <?= json_encode(__("Annulla Prenotazione"), JSON_HEX_TAG) ?>,
+                cancelButtonText: <?= json_encode(__("Chiudi"), JSON_HEX_TAG) ?>
             }).then((result) => {
                 if (result.isConfirmed) {
                     fetch(window.BASE_PATH + '/admin/loans/cancel-reservation', {
@@ -556,22 +556,22 @@ document.addEventListener('DOMContentLoaded', function() {
                             throw new Error('HTTP ' + response.status);
                         }
                         if (!response.headers.get('content-type')?.includes('application/json')) {
-                            throw new Error('<?= __("Risposta del server non valida") ?>');
+                            throw new Error(<?= json_encode(__("Risposta del server non valida"), JSON_HEX_TAG) ?>);
                         }
                         return response.json();
                     })
                     .then(data => {
                         if (data.success) {
                             Swal.fire({
-                                title: '<?= __("Prenotazione Annullata") ?>',
+                                title: <?= json_encode(__("Prenotazione Annullata"), JSON_HEX_TAG) ?>,
                                 icon: 'success'
                             }).then(() => location.reload());
                         } else {
-                            Swal.fire('<?= __("Errore") ?>', data.message || '<?= __("Errore durante l\'annullamento") ?>', 'error');
+                            Swal.fire(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, data.message || <?= json_encode(__("Errore durante l'annullamento"), JSON_HEX_TAG) ?>, 'error');
                         }
                     })
                     .catch(() => {
-                        Swal.fire('<?= __("Errore") ?>', '<?= __("Errore di connessione") ?>', 'error');
+                        Swal.fire(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, <?= json_encode(__("Errore di connessione"), JSON_HEX_TAG) ?>, 'error');
                     });
                 }
             });

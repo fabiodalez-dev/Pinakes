@@ -352,7 +352,7 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(data, type, row) {
           if (!data) return '<span class="text-gray-400 text-sm">N/A</span>';
           const emailText = escapeHtml(decodeHtml(String(data)));
-          return `<a href="mailto:${encodeURIComponent(data)}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${emailText}</a>`;
+          return `<a href="mailto:${emailText}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${emailText}</a>`;
         }
       },
       {
@@ -360,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(data, type, row) {
           if (!data) return '<span class="text-gray-400 text-sm">N/A</span>';
           const telText = escapeHtml(decodeHtml(String(data)));
-          return `<a href="tel:${encodeURIComponent(data)}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${telText}</a>`;
+          return `<a href="tel:${telText}" class="text-blue-600 hover:text-blue-800 text-sm hover:underline">${telText}</a>`;
         }
       },
       {

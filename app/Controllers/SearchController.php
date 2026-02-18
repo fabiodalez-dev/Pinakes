@@ -406,7 +406,8 @@ class SearchController
         $res = $stmt->get_result();
 
         while ($row = $res->fetch_assoc()) {
-            $biografia = $row['biografia'] ? substr(strip_tags(HtmlHelper::decode($row['biografia'])), 0, 100) . '...' : '';
+            $bioText = strip_tags(HtmlHelper::decode($row['biografia'] ?? ''));
+            $biografia = $bioText !== '' ? (mb_strlen($bioText) > 100 ? mb_substr($bioText, 0, 100) . '...' : $bioText) : '';
 
             $results[] = [
                 'id' => $row['id'],

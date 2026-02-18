@@ -164,7 +164,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <meta name="csrf-token"
         content="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>" />
     <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
-    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
+    <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
     <!-- CSS moderno e minimale -->
     <link href="<?= assetUrl('/vendor.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">

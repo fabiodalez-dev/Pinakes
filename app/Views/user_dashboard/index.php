@@ -429,7 +429,7 @@ $profileRoute = route_path('profile');
             <h3><?= __("Nessun prestito attivo") ?></h3>
             <p><?= __("Non hai prestiti in corso al momento.") ?></p>
             <div class="action-buttons">
-              <a href="<?= $catalogRoute ?>" class="btn-outline">
+              <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline">
                 <i class="fas fa-search"></i>
                 <?= __("Esplora il catalogo") ?>
               </a>
@@ -500,21 +500,21 @@ $profileRoute = route_path('profile');
       <h2><?= __("Azioni Veloci") ?></h2>
     </div>
     <div class="action-buttons">
-      <a href="<?= $catalogRoute ?>" class="btn-outline">
+      <a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline">
         <i class="fas fa-search"></i>
         <?= __("Cerca Libri") ?>
       </a>
       <?php if (!$isCatalogueMode): ?>
-      <a href="<?= $wishlistRoute ?>" class="btn-outline">
+      <a href="<?= htmlspecialchars($wishlistRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline">
         <i class="fas fa-heart"></i>
         <?= __("I Miei Preferiti") ?>
       </a>
-      <a href="<?= $reservationsRoute ?>" class="btn-outline">
+      <a href="<?= htmlspecialchars($reservationsRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline">
         <i class="fas fa-bookmark"></i>
         <?= __("Le Mie Prenotazioni") ?>
       </a>
       <?php endif; ?>
-      <a href="<?= $profileRoute ?>" class="btn-outline">
+      <a href="<?= htmlspecialchars($profileRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-outline">
         <i class="fas fa-user"></i>
         <?= __("Il Mio Profilo") ?>
       </a>

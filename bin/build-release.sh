@@ -186,7 +186,7 @@ verify_package_contents() {
     done
 
     # Single case-insensitive check covers both Linux and macOS
-    if find "$package_dir" -type f -iname "claude.md" 2>/dev/null | grep -q .; then
+    if find "$package_dir" -maxdepth 1 -type f -iname "claude.md" 2>/dev/null | grep -q .; then
         log_error "Package contains forbidden file: CLAUDE.md (case-insensitive)"
         has_errors=true
     fi

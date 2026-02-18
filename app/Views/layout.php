@@ -26,7 +26,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   <title><?php echo HtmlHelper::e($appName); ?> - Sistema di Gestione Bibliotecaria</title>
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
   <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
-  <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath()) ?>;</script>
+  <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
   <link rel="stylesheet" href="<?= assetUrl('vendor.css') ?>?v=<?= $appVersion ?>" />
   <link rel="stylesheet" href="<?= assetUrl('flatpickr-custom.css') ?>?v=<?= $appVersion ?>" />
   <link rel="stylesheet" href="<?= assetUrl('main.css') ?>?v=<?= $appVersion ?>" />

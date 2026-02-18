@@ -9,7 +9,7 @@ SET @exists := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
                   AND INDEX_NAME   = 'idx_libri_updated_at');
 SET @sql := IF(@exists = 0,
     'ALTER TABLE `libri` ADD KEY `idx_libri_updated_at` (`updated_at`)',
-    'SELECT ''Index idx_libri_updated_at already exists — skipping''');
+    'DO 0 /* idx_libri_updated_at already exists — skipping */');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
