@@ -4,15 +4,15 @@
 /** @var array $pastPrestiti */
 use App\Support\Csrf;
 
-function profileReservationBookUrl(array $item): string {
+$profileReservationBookUrl = static function (array $item): string {
     return book_url([
         'libro_id' => $item['libro_id'] ?? null,
         'libro_titolo' => $item['titolo'] ?? ($item['libro_titolo'] ?? ''),
         'autore' => $item['autore'] ?? ($item['libro_autore'] ?? ''),
     ]);
-}
+};
 
-function profileReservationCoverUrl(array $item): string {
+$profileReservationCoverUrl = static function (array $item): string {
     $cover = (string)($item['copertina_url'] ?? $item['libro_copertina'] ?? '');
     if ($cover === '' && !empty($item['copertina'])) {
         $cover = (string)$item['copertina'];
@@ -28,7 +28,7 @@ function profileReservationCoverUrl(array $item): string {
         return $cover;
     }
     return url($cover);
-}
+};
 ?>
 <!-- Link star-rating.js CSS -->
 <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.css'), ENT_QUOTES, 'UTF-8') ?>">
@@ -365,17 +365,17 @@ function profileReservationCoverUrl(array $item): string {
 
   <div class="items-grid">
     <?php foreach ($pendingRequests as $p):
-      $cover = profileReservationCoverUrl($p);
+      $cover = $profileReservationCoverUrl($p);
     ?>
       <div class="item-card">
         <div class="item-inner">
-          <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+          <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
             <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                  alt="<?php echo App\Support\HtmlHelper::e(($p['titolo'] ?? __('Libro')) . ' - ' . __('Copertina')); ?>"
                  onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
           </a>
           <div class="item-info">
-            <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
+            <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
             <div class="item-badges">
               <div class="badge" style="background: #fef3c7; color: #78350f; border: 1px solid #fcd34d;">
                 <i class="fas fa-clock" style="color: #f59e0b;"></i>
@@ -419,7 +419,7 @@ function profileReservationCoverUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($activePrestiti as $p):
-        $cover = profileReservationCoverUrl($p);
+        $cover = $profileReservationCoverUrl($p);
 
         $scadenza = $p['data_scadenza'] ?? '';
         $dataPrestito = $p['data_prestito'] ?? '';
@@ -430,13 +430,13 @@ function profileReservationCoverUrl(array $item): string {
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+            <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
                    onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <?php if ($isScheduled): ?>
                 <div class="badge badge-scheduled">
@@ -498,17 +498,17 @@ function profileReservationCoverUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($items as $p):
-        $cover = profileReservationCoverUrl($p);
+        $cover = $profileReservationCoverUrl($p);
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+            <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
                    onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge badge-position">
                   <i class="fas fa-sort-numeric-up"></i>
@@ -556,7 +556,7 @@ function profileReservationCoverUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($pastPrestiti as $p):
-        $cover = profileReservationCoverUrl($p);
+        $cover = $profileReservationCoverUrl($p);
 
         $statusLabels = [
           'restituito' => __('Restituito'),
@@ -571,13 +571,13 @@ function profileReservationCoverUrl(array $item): string {
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+            <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
                    onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge badge-status">
                   <i class="fas fa-check-circle"></i>
@@ -631,7 +631,7 @@ function profileReservationCoverUrl(array $item): string {
   <?php else: ?>
     <div class="items-grid">
       <?php foreach ($myReviews as $r):
-        $cover = profileReservationCoverUrl($r);
+        $cover = $profileReservationCoverUrl($r);
 
         $statusLabels = [
           'pendente' => __('In attesa di approvazione'),
@@ -648,13 +648,13 @@ function profileReservationCoverUrl(array $item): string {
       ?>
         <div class="item-card">
           <div class="item-inner">
-            <a href="<?php echo htmlspecialchars(profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
+            <a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
                    onerror="this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
-              <h3 class="item-title"><a href="<?php echo htmlspecialchars(profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($r['libro_titolo'] ?? ''); ?></a></h3>
+              <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($r['libro_titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge" style="<?php echo htmlspecialchars($statusColor, ENT_QUOTES, 'UTF-8'); ?>">
                   <i class="fas fa-info-circle"></i>

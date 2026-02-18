@@ -1,5 +1,6 @@
 <?php
 /** @var int $pendingCount */
+/** @var array $pendingReviews */
 /** @var array $approvedReviews */
 /** @var array $rejectedReviews */
 use App\Support\HtmlHelper;

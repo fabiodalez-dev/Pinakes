@@ -455,7 +455,8 @@ if ($presetUserId > 0) {
         }
 
         // Use same API as frontend
-        fetch(window.BASE_PATH + '/api/libro/' + bookId + '/availability')
+        const safeBookId = parseInt(bookId, 10);
+        fetch(window.BASE_PATH + '/api/libro/' + safeBookId + '/availability')
           .then(function(response) {
             if (!response.ok) throw new Error('Failed to fetch availability');
             return response.json();
@@ -538,7 +539,7 @@ if ($presetUserId > 0) {
               const statusIcon = isAvailable ? 'fa-check-circle' : 'fa-clock';
               const countColor = isAvailable ? '#16a34a' : '#92400e';
 
-              return '<div class="suggestion-item" data-id="' + item.id + '" data-copies="' + copieDisponibili + '" data-total="' + copieTotali + '">' +
+              return '<div class="suggestion-item" data-id="' + parseInt(item.id, 10) + '" data-copies="' + copieDisponibili + '" data-total="' + copieTotali + '">' +
                 '<div style="display: flex; align-items: center; gap: 0.5rem;">' +
                 '<i class="fas ' + statusIcon + '" style="color: ' + iconColor + ';"></i>' +
                 '<span style="flex: 1;">' + escapeHtml(item.label) + '</span>' +
@@ -546,7 +547,7 @@ if ($presetUserId > 0) {
                 '</div>' +
                 '</div>';
             }
-            return '<div class="suggestion-item" data-id="' + item.id + '">' + escapeHtml(item.label) + '</div>';
+            return '<div class="suggestion-item" data-id="' + parseInt(item.id, 10) + '">' + escapeHtml(item.label) + '</div>';
           }).join('');
 
           suggestEl.style.display = 'block';

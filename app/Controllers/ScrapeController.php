@@ -650,7 +650,7 @@ class ScrapeController
         }
 
         // Remove calls older than 60 seconds
-        $data['calls'] = array_filter($data['calls'], fn($timestamp) => ($now - $timestamp) < 60);
+        $data['calls'] = array_values(array_filter($data['calls'], fn($timestamp) => ($now - $timestamp) < 60));
 
         // Check if rate limit exceeded
         if (\count($data['calls']) >= $maxCallsPerMinute) {

@@ -1,6 +1,7 @@
 <?php
 /** @var string $title */
 /** @var string $content */
+/** @var string|null $image */
 
 $additional_css = "
 <style>

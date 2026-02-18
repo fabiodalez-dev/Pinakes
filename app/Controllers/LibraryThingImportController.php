@@ -95,7 +95,7 @@ class LibraryThingImportController
             $_SESSION['error'] = $result['message'];
         }
 
-        return $response->withHeader('Location', url('/admin/plugins/librarything'))->withStatus(302);
+        return $response->withHeader('Location', url('/admin/plugins/librarything'))->withStatus(303);
     }
 
     /**
@@ -112,7 +112,7 @@ class LibraryThingImportController
             $_SESSION['error'] = $result['message'];
         }
 
-        return $response->withHeader('Location', url('/admin/plugins/librarything'))->withStatus(302);
+        return $response->withHeader('Location', url('/admin/plugins/librarything'))->withStatus(303);
     }
 
     /**

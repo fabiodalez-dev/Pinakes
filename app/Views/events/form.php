@@ -96,7 +96,7 @@ $pageTitle = $isEdit ? __("Modifica Evento") : __("Crea Nuovo Evento");
           <label class="block text-sm font-medium text-gray-700"><?= __("Immagine in Evidenza") ?></label>
           <?php if ($isEdit && !empty($event['featured_image'])): ?>
             <div class="relative rounded-2xl overflow-hidden h-64 bg-gray-100">
-              <?php $featuredSrc = str_starts_with($event['featured_image'], 'http') ? $event['featured_image'] : url($event['featured_image']); ?>
+              <?php $featuredSrc = preg_match('#^https?://#', $event['featured_image']) ? $event['featured_image'] : url($event['featured_image']); ?>
               <img src="<?= htmlspecialchars($featuredSrc, ENT_QUOTES, 'UTF-8') ?>" alt="<?= HtmlHelper::e($event['title']) ?>" class="w-full h-full object-cover">
               <div class="absolute inset-0 flex items-center justify-center" style="background: rgba(0, 0, 0, 0.4);">
                 <span class="text-white text-sm font-medium"><?= __("Immagine attuale") ?></span>

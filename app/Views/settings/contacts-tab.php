@@ -1,6 +1,7 @@
 <?php
 /** @var string $activeTab */
 /** @var string $csrfToken */
+/** @var array $contactSettings */
 use App\Support\HtmlHelper;
 ?>
 <section data-settings-panel="contacts" class="settings-panel <?php echo $activeTab === 'contacts' ? 'block' : 'hidden'; ?>">

@@ -155,7 +155,7 @@ class SearchController
                 }
 
                 $rows[] = [
-                    'id' => $r['id'],
+                    'id' => (int)$r['id'],
                     'label' => $label,
                     'isbn' => $isbn,
                     'copie_disponibili' => (int)$r['copie_disponibili'],

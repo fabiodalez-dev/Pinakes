@@ -168,7 +168,7 @@ function viewMessage(id) {
               <?= __("Rispondi") ?>
             </button>
             ${!data.is_archived ? `
-            <button onclick="archiveMessage(${data.id})" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-600 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
+            <button onclick="archiveMessage(${parseInt(data.id, 10)})" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-600 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-archive"></i>
               <?= __("Archivia") ?>
             </button>

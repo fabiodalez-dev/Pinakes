@@ -10,11 +10,11 @@ $getBookStatusBadge = static function ($book) {
     $available = ($book['copie_disponibili'] ?? 0) > 0;
     $reserved = !$available && ($book['stato'] ?? '') === 'prenotato';
     if ($available) {
-        echo '<span class="book-status-badge status-available">' . __("Disponibile");
+        echo '<span class="book-status-badge status-available">' . HtmlHelper::e(__("Disponibile"));
     } elseif ($reserved) {
-        echo '<span class="book-status-badge status-reserved">' . __("Prenotato");
+        echo '<span class="book-status-badge status-reserved">' . HtmlHelper::e(__("Prenotato"));
     } else {
-        echo '<span class="book-status-badge status-borrowed">' . __("In prestito");
+        echo '<span class="book-status-badge status-borrowed">' . HtmlHelper::e(__("In prestito"));
     }
     // Hook: Allow plugins to add icons to status badge (e.g., eBook/audio icons)
     do_action('book.badge.digital_icons', $book);

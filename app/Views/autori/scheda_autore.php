@@ -255,7 +255,7 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
                 if ($cover === '' && !empty($libro['copertina'])) { $cover = (string)$libro['copertina']; }
                 if ($cover !== '' && strncmp($cover, 'uploads/', 8) === 0) { $cover = '/' . $cover; }
                 if ($cover === '') { $cover = '/uploads/copertine/placeholder.jpg'; }
-                $cover = str_starts_with($cover, 'http') ? $cover : url($cover);
+                $cover = preg_match('#^https?://#', $cover) ? $cover : url($cover);
               ?>
               <article class="group bg-white border border-gray-200 rounded-2xl overflow-hidden hover:border-gray-300 hover:shadow-xl transition-all duration-300">
                 <div class="relative h-52 bg-gray-100 overflow-hidden">
