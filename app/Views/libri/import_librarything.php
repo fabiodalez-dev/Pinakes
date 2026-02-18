@@ -420,11 +420,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyLt.use(UppyDragDrop, {
             target: '#uppy-lt-upload',
-            note: '<?= addslashes(__("File TSV/CSV da LibraryThing (max 10MB)")) ?>',
+            note: <?= json_encode(__("File TSV/CSV da LibraryThing (max 10MB)"), JSON_HEX_TAG) ?>,
             locale: {
                 strings: {
-                    dropPasteFiles: '<?= addslashes(__("Trascina qui il file TSV o %{browse}")) ?>',
-                    browse: '<?= addslashes(__("seleziona file")) ?>'
+                    dropPasteFiles: <?= json_encode(__("Trascina qui il file TSV o %{browse}"), JSON_HEX_TAG) ?>,
+                    browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
                 }
             }
         });
@@ -459,11 +459,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Errore Upload")) ?>',
+                    title: <?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>,
                     text: error.message
                 });
             } else {
-                alert('<?= addslashes(__("Errore:")) ?> ' + error.message);
+                alert(<?= json_encode(__("Errore:"), JSON_HEX_TAG) ?> + ' ' + error.message);
             }
         });
 
@@ -493,13 +493,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show progress container
         progressContainer.classList.remove('hidden');
         submitBtn.disabled = true;
-        submitBtn.textContent = '<?= addslashes(__("Importazione in corso...")) ?>';
+        submitBtn.textContent = <?= json_encode(__("Importazione in corso..."), JSON_HEX_TAG) ?>;
 
         const csrfToken = formData.get('csrf_token');
 
         try {
             // Step 1: Prepare import (validate and save file)
-            updateProgress(10, '<?= addslashes(__("Caricamento file...")) ?>', '');
+            updateProgress(10, <?= json_encode(__("Caricamento file..."), JSON_HEX_TAG) ?>, '');
 
             const prepareResponse = await fetch(window.BASE_PATH + '/admin/libri/import/librarything/prepare', {
                 method: 'POST',
@@ -517,7 +517,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error(prepareData.error || '<?= __("Errore durante la preparazione") ?>');
             }
 
-            updateProgress(20, '<?= addslashes(__("File caricato, inizio processing...")) ?>', '');
+            updateProgress(20, <?= json_encode(__("File caricato, inizio processing..."), JSON_HEX_TAG) ?>, '');
 
             const importId = prepareData.import_id;
             const totalRows = prepareData.total_rows;
@@ -528,7 +528,7 @@ document.addEventListener('DOMContentLoaded', function() {
             while (currentRow < totalRows) {
                 const nextRow = Math.min(currentRow + chunkSize, totalRows);
                 const percent = 20 + Math.round((currentRow / totalRows) * 80);
-                updateProgress(percent, `<?= addslashes(__("Elaborazione libri")) ?> ${currentRow + 1}-${nextRow}...`, `${currentRow}/${totalRows}`);
+                updateProgress(percent, <?= json_encode(__("Elaborazione libri"), JSON_HEX_TAG) ?> + ` ${currentRow + 1}-${nextRow}...`, `${currentRow}/${totalRows}`);
 
                 const chunkResponse = await fetch(window.BASE_PATH + '/admin/libri/import/librarything/chunk', {
                     method: 'POST',
@@ -571,7 +571,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             // Step 3: Get final results
-            updateProgress(100, '<?= addslashes(__("Completato!")) ?>', '');
+            updateProgress(100, <?= json_encode(__("Completato!"), JSON_HEX_TAG) ?>, '');
 
             const resultsResponse = await fetch(window.BASE_PATH + '/admin/libri/import/librarything/results');
             if (!resultsResponse.ok) {
@@ -602,12 +602,12 @@ document.addEventListener('DOMContentLoaded', function() {
     function showError(message) {
         const submitBtn = document.getElementById('submitBtn');
         submitBtn.disabled = false;
-        submitBtn.textContent = '<?= addslashes(__("Importa Libri")) ?>';
+        submitBtn.textContent = <?= json_encode(__("Importa Libri"), JSON_HEX_TAG) ?>;
 
         if (window.Swal) {
             Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                 text: message
             });
         } else {

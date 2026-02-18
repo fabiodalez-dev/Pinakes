@@ -876,7 +876,7 @@ function copyToClipboard(text, button) {
       button.innerHTML = originalHTML;
     }, 2000);
   }).catch(err => {
-    alert('<?= addslashes(__("Errore nella copia:")) ?> ' + err);
+    alert(<?= json_encode(__("Errore nella copia:"), JSON_HEX_TAG) ?> + ' ' + err);
   });
 }
 

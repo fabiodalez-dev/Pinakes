@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded', function() {
     data: {
       labels: monthLabels,
       datasets: [{
-        label: '<?= addslashes(__("Prestiti")) ?>',
+        label: <?= json_encode(__("Prestiti"), JSON_HEX_TAG) ?>,
         data: monthValues,
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -349,11 +349,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const loansByStatusData = <?php echo json_encode($loansByStatus); ?>;
   const statusLabels = loansByStatusData.map(item => {
     const labels = {
-      'in_corso': '<?= addslashes(__("In Corso")) ?>',
-      'pendente': '<?= addslashes(__("Pendente")) ?>',
-      'in_ritardo': '<?= addslashes(__("In Ritardo")) ?>',
-      'perso': '<?= addslashes(__("Perso")) ?>',
-      'danneggiato': '<?= addslashes(__("Danneggiato")) ?>'
+      'in_corso': <?= json_encode(__("In Corso"), JSON_HEX_TAG) ?>,
+      'pendente': <?= json_encode(__("Pendente"), JSON_HEX_TAG) ?>,
+      'in_ritardo': <?= json_encode(__("In Ritardo"), JSON_HEX_TAG) ?>,
+      'perso': <?= json_encode(__("Perso"), JSON_HEX_TAG) ?>,
+      'danneggiato': <?= json_encode(__("Danneggiato"), JSON_HEX_TAG) ?>
     };
     return labels[item.stato] || item.stato;
   });
@@ -377,7 +377,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loansByStatusWrapper.innerHTML = `
       <div class="flex h-full w-full flex-col items-center justify-center gap-3 text-slate-400">
         <i class="fas fa-chart-pie text-4xl"></i>
-        <p class="text-sm"><?= addslashes(__("Nessun prestito disponibile per generare il grafico")) ?></p>
+        <p class="text-sm"><?= htmlspecialchars(__("Nessun prestito disponibile per generare il grafico"), ENT_QUOTES, 'UTF-8') ?></p>
       </div>
     `;
   } else if (loansByStatusCanvas) {

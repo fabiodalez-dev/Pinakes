@@ -951,7 +951,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     uppyManualUpdate.use(UppyDragDrop, {
         target: '#uppy-manual-update',
-        note: '<?= addslashes(__("File ZIP del pacchetto di aggiornamento (max 50MB)")) ?>'
+        note: <?= json_encode(__("File ZIP del pacchetto di aggiornamento (max 50MB)"), JSON_HEX_TAG) ?>
     });
 
     uppyManualUpdate.on('file-added', (file) => {

@@ -173,7 +173,7 @@ function markAllAsRead() {
 }
 
 function deleteNotification(id) {
-  if (confirm('<?= addslashes(__("Sei sicuro di voler eliminare questa notifica?")) ?>')) {
+  if (confirm(<?= json_encode(__("Sei sicuro di voler eliminare questa notifica?"), JSON_HEX_TAG) ?>)) {
     csrfFetch(`${window.BASE_PATH}/admin/notifications/${id}`, { method: 'DELETE' })
       .then(response => response.json())
       .then(data => {

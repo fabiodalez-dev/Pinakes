@@ -626,7 +626,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
                   <span><?= $deadline ? format_date($deadline, false, '/') : __('Non specificata') ?></span>
                 </div>
               </div>
-              <form method="post" action="<?= htmlspecialchars(url('/reservation/cancel'), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirm('<?= addslashes(__('Annullare questa prenotazione?')) ?>');">
+              <form method="post" action="<?= htmlspecialchars(url('/reservation/cancel'), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__('Annullare questa prenotazione?'), JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>);">
                 <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
                 <input type="hidden" name="reservation_id" value="<?= (int)$reservation['id']; ?>">
                 <button type="submit" class="btn-cancel">
@@ -967,7 +967,7 @@ document.addEventListener('DOMContentLoaded', () => {
         Swal.fire({
           icon: 'error',
           title: __('Errore'),
-          text: result.message || '<?= addslashes(__("Impossibile inviare la recensione.")) ?>',
+          text: result.message || <?= json_encode(__("Impossibile inviare la recensione."), JSON_HEX_TAG) ?>,
           confirmButtonText: __('OK')
         });
       }

@@ -1184,7 +1184,7 @@ ob_start();
                         <div class="filter-options" id="genres-filter">
                             <?php if($genre_display['level'] > 0): ?>
                             <div class="filter-back-container">
-                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere', '<?= $genre_display['level'] === 1 ? '' : addslashes($genre_display['parent']['nome'] ?? '') ?>'); return false;" title="<?= __("Torna alla categoria superiore") ?>">
+                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere', <?= htmlspecialchars(json_encode($genre_display['level'] === 1 ? '' : ($genre_display['parent']['nome'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>); return false;" title="<?= __("Torna alla categoria superiore") ?>">
                                     <i class="fas fa-arrow-left"></i>
                                     <span><?= __("Torna alla categoria superiore") ?></span>
                                 </a>
@@ -1196,7 +1196,7 @@ ob_start();
                                     <?php if (($genere['cnt'] ?? 0) > 0): ?>
                                     <a href="#"
                                        class="filter-option count"
-                                       onclick="updateFilter('genere', '<?= addslashes($genere['nome']) ?>'); return false;"
+                                       onclick="updateFilter('genere', <?= htmlspecialchars(json_encode($genere['nome'], JSON_HEX_TAG | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>); return false;"
                                        title="<?= htmlspecialchars($genere['nome']) ?>">
                                         <span><?= htmlspecialchars($genere['nome']) ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
@@ -1216,7 +1216,7 @@ ob_start();
                                     ?>
                                     <a href="#"
                                        class="filter-option count"
-                                       onclick="updateFilter('genere', '<?= addslashes($genere['nome']) ?>'); return false;"
+                                       onclick="updateFilter('genere', <?= htmlspecialchars(json_encode($genere['nome'], JSON_HEX_TAG | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>); return false;"
                                        title="<?= htmlspecialchars($genere['nome']) ?>">
                                         <span><?= htmlspecialchars($displayName) ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
@@ -1237,7 +1237,7 @@ ob_start();
                             <?php foreach($filter_options['editori'] as $editore): ?>
                                 <a href="#"
                                    class="filter-option count <?= ($filters['editore'] ?? '') == $editore['nome'] ? 'active' : '' ?>"
-                                   onclick="updateFilter('editore', '<?= addslashes($editore['nome']) ?>'); return false;">
+                                   onclick="updateFilter('editore', <?= htmlspecialchars(json_encode($editore['nome'], JSON_HEX_TAG | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>); return false;">
                                     <span><?= htmlspecialchars(html_entity_decode($editore['nome'], ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?></span>
                                     <span class="count-badge"><?= $editore['cnt'] ?></span>
                                 </a>

@@ -1434,7 +1434,7 @@ ob_start();
                     <?php if (!empty($book['editore'])): ?>
                         <p class="mb-2 opacity-75">
                             <i class="fas fa-building me-2"></i>
-                            <a href="<?= route_path('publisher') ?>/<?= urlencode(html_entity_decode($book['editore'] ?? '', ENT_QUOTES, 'UTF-8')) ?>" class="text-decoration-none text-dark">
+                            <a href="<?= htmlspecialchars(route_path('publisher') . '/' . urlencode(html_entity_decode($book['editore'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none text-dark">
                                 <?= htmlspecialchars(html_entity_decode($book['editore'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                             </a>
                         </p>
@@ -1444,7 +1444,7 @@ ob_start();
 
                     <div class="authors-list" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
-                            <a href="<?= route_path('author') ?>/<?= urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')) ?>" class="text-decoration-none">
+                            <a href="<?= htmlspecialchars(route_path('author') . '/' . urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none">
                                 <span class="author-item role-<?= $author['ruolo'] ?>">
                                     <?= htmlspecialchars(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                                     <?php if ($author['ruolo'] !== 'principale'): ?>
@@ -2174,7 +2174,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const data = await res.json();
       setFavUI(!!data.favorite);
     } catch (e) {
-      alert('<?= addslashes(__("Errore nell\'aggiornare i preferiti.")) ?>');
+      alert(<?= json_encode(__("Errore nell'aggiornare i preferiti."), JSON_HEX_TAG) ?>);
     }
   });
 });
@@ -2552,7 +2552,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(pageUrl)
           .then(function() {
-            showCopyNotification(copyLinkBtn, '<?= addslashes(__("Link copiato!")) ?>');
+            showCopyNotification(copyLinkBtn, <?= json_encode(__("Link copiato!"), JSON_HEX_TAG) ?>);
           })
           .catch(function(err) {
             console.error('Errore nella copia:', err);
@@ -2577,7 +2577,7 @@ document.addEventListener('DOMContentLoaded', function() {
       textArea.select();
       document.execCommand('copy');
       document.body.removeChild(textArea);
-      showCopyNotification(button, '<?= addslashes(__("Link copiato!")) ?>');
+      showCopyNotification(button, <?= json_encode(__("Link copiato!"), JSON_HEX_TAG) ?>);
     } catch (err) {
       console.error('Fallback copy error:', err);
       alert('Link: ' + text);

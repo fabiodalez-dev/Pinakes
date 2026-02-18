@@ -709,11 +709,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyHero.use(UppyDragDrop, {
             target: '#uppy-hero-upload',
-            note: '<?= addslashes(__("Immagini JPG, PNG o WebP (max 5MB)")) ?>',
+            note: <?= json_encode(__("Immagini JPG, PNG o WebP (max 5MB)"), JSON_HEX_TAG) ?>,
             locale: {
                 strings: {
-                    dropPasteFiles: '<?= addslashes(__("Trascina qui l\'immagine di sfondo o %{browse}")) ?>',
-                    browse: '<?= addslashes(__("seleziona file")) ?>'
+                    dropPasteFiles: <?= json_encode(__("Trascina qui l'immagine di sfondo o %{browse}"), JSON_HEX_TAG) ?>,
+                    browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
                 }
             }
         });

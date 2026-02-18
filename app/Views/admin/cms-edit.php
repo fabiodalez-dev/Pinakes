@@ -190,13 +190,13 @@ document.addEventListener('DOMContentLoaded', function() {
      ],
      toolbar: 'undo redo | styles | bold italic underline strikethrough | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image | removeformat | help',
      style_formats: [
-       { title: '<?= addslashes(__("Paragraph")) ?>', format: 'p' },
-       { title: '<?= addslashes(__("Heading 1")) ?>', format: 'h1' },
-       { title: '<?= addslashes(__("Heading 2")) ?>', format: 'h2' },
-       { title: '<?= addslashes(__("Heading 3")) ?>', format: 'h3' },
-       { title: '<?= addslashes(__("Heading 4")) ?>', format: 'h4' },
-       { title: '<?= addslashes(__("Heading 5")) ?>', format: 'h5' },
-       { title: '<?= addslashes(__("Heading 6")) ?>', format: 'h6' }
+       { title: <?= json_encode(__("Paragraph"), JSON_HEX_TAG) ?>, format: 'p' },
+       { title: <?= json_encode(__("Heading 1"), JSON_HEX_TAG) ?>, format: 'h1' },
+       { title: <?= json_encode(__("Heading 2"), JSON_HEX_TAG) ?>, format: 'h2' },
+       { title: <?= json_encode(__("Heading 3"), JSON_HEX_TAG) ?>, format: 'h3' },
+       { title: <?= json_encode(__("Heading 4"), JSON_HEX_TAG) ?>, format: 'h4' },
+       { title: <?= json_encode(__("Heading 5"), JSON_HEX_TAG) ?>, format: 'h5' },
+       { title: <?= json_encode(__("Heading 6"), JSON_HEX_TAG) ?>, format: 'h6' }
      ],
      content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.6; }',
      branding: false,
@@ -228,11 +228,11 @@ document.addEventListener('DOMContentLoaded', function() {
     proudlyDisplayPoweredByUppy: false,
     locale: {
       strings: {
-        dropPasteImport: '<?= addslashes(__("Trascina qui l'immagine, %{browse} o importa da")) ?>',
-        browse: '<?= addslashes(__("sfoglia")) ?>',
+        dropPasteImport: <?= json_encode(__("Trascina qui l'immagine, %{browse} o importa da"), JSON_HEX_TAG) ?>,
+        browse: <?= json_encode(__("sfoglia"), JSON_HEX_TAG) ?>,
         uploadXFiles: {
-          0: '<?= addslashes(__("Carica %{smart_count} file")) ?>',
-          1: '<?= addslashes(__("Carica %{smart_count} file")) ?>'
+          0: <?= json_encode(__("Carica %{smart_count} file"), JSON_HEX_TAG) ?>,
+          1: <?= json_encode(__("Carica %{smart_count} file"), JSON_HEX_TAG) ?>
         }
       }
     }

@@ -158,11 +158,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Campo Obbligatorio")) ?>',
-                    text: '<?= addslashes(__("Il nome dell\'editore è obbligatorio.")) ?>'
+                    title: <?= json_encode(__("Campo Obbligatorio"), JSON_HEX_TAG) ?>,
+                    text: <?= json_encode(__("Il nome dell'editore è obbligatorio."), JSON_HEX_TAG) ?>
                 });
             } else {
-                alert('<?= addslashes(__("Il nome dell\'editore è obbligatorio.")) ?>');
+                alert(<?= json_encode(__("Il nome dell'editore è obbligatorio."), JSON_HEX_TAG) ?>);
             }
             return;
         }
@@ -173,11 +173,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("URL Non Valido")) ?>',
-                    text: '<?= addslashes(__("Il sito web deve essere un URL valido (es. https://www.esempio.com).")) ?>'
+                    title: <?= json_encode(__("URL Non Valido"), JSON_HEX_TAG) ?>,
+                    text: <?= json_encode(__("Il sito web deve essere un URL valido (es. https://www.esempio.com)."), JSON_HEX_TAG) ?>
                 });
             } else {
-                alert('<?= addslashes(__("Il sito web deve essere un URL valido.")) ?>');
+                alert(<?= json_encode(__("Il sito web deve essere un URL valido."), JSON_HEX_TAG) ?>);
             }
             return;
         }
@@ -188,32 +188,32 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Email Non Valida")) ?>',
-                    text: '<?= addslashes(__("L\'indirizzo email deve essere valido.")) ?>'
+                    title: <?= json_encode(__("Email Non Valida"), JSON_HEX_TAG) ?>,
+                    text: <?= json_encode(__("L'indirizzo email deve essere valido."), JSON_HEX_TAG) ?>
                 });
             } else {
-                alert('<?= addslashes(__("L\'indirizzo email deve essere valido.")) ?>');
+                alert(<?= json_encode(__("L'indirizzo email deve essere valido."), JSON_HEX_TAG) ?>);
             }
             return;
         }
-        
+
         // Show confirmation dialog
         if (window.Swal) {
             const result = await Swal.fire({
-                title: '<?= addslashes(__("Conferma Aggiornamento")) ?>',
-                text: '<?= addslashes(__("Sei sicuro di voler aggiornare l\'editore")) ?> "' + nome + '"?',
+                title: <?= json_encode(__("Conferma Aggiornamento"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Sei sicuro di voler aggiornare l'editore"), JSON_HEX_TAG) ?> + ' "' + nome + '"?',
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: '<?= addslashes(__("Sì, Aggiorna")) ?>',
-                cancelButtonText: '<?= addslashes(__("Annulla")) ?>',
+                confirmButtonText: <?= json_encode(__("Sì, Aggiorna"), JSON_HEX_TAG) ?>,
+                cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
                 reverseButtons: true
             });
-            
+
             if (result.isConfirmed) {
                 // Show loading
                 Swal.fire({
-                    title: '<?= addslashes(__("Aggiornamento in corso...")) ?>',
-                    text: '<?= addslashes(__("Attendere prego")) ?>',
+                    title: <?= json_encode(__("Aggiornamento in corso..."), JSON_HEX_TAG) ?>,
+                    text: <?= json_encode(__("Attendere prego"), JSON_HEX_TAG) ?>,
                     allowOutsideClick: false,
                     showConfirmButton: false,
                     willOpen: () => {
@@ -225,7 +225,7 @@ function initializeFormValidation() {
                 form.submit();
             }
         } else {
-            if (confirm('<?= addslashes(__("Sei sicuro di voler aggiornare l\'editore")) ?> "' + nome + '"?')) {
+            if (confirm(<?= json_encode(__("Sei sicuro di voler aggiornare l'editore"), JSON_HEX_TAG) ?> + ' "' + nome + '"?')) {
                 form.submit();
             }
         }

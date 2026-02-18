@@ -27,10 +27,10 @@ $htmlLang = substr($currentLocale, 0, 2);
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
   <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
   <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
-  <link rel="stylesheet" href="<?= assetUrl('vendor.css') ?>?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="<?= assetUrl('flatpickr-custom.css') ?>?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="<?= assetUrl('main.css') ?>?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="<?= assetUrl('css/swal-theme.css') ?>?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
   <script>
     (function () {
       if (typeof window.__ !== 'function') {
@@ -714,12 +714,12 @@ $htmlLang = substr($currentLocale, 0, 2);
       return translated;
     };
   </script>
-  <script src="<?= assetUrl('vendor.bundle.js') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= assetUrl('flatpickr-init.js') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= assetUrl('main.bundle.js') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= assetUrl('js/csrf-helper.js') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= assetUrl('js/swal-config.js') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= assetUrl('tinymce/tinymce.min.js') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
   <script>
 
     function escapeHtml(value) {

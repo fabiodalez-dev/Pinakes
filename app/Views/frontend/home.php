@@ -861,12 +861,12 @@ $additional_js = "
 <script>
 // Traduzioni per JavaScript
 const i18n = {
-    loading: '" . addslashes(__("Caricamento...")) . "',
-    loadingBooks: '" . addslashes(__("Caricamento libri...")) . "',
-    loadingCategories: '" . addslashes(__("Caricamento categorie...")) . "',
-    errorLoadingBooks: '" . addslashes(__("Errore nel caricamento dei libri")) . "',
-    exploreByCategory: '" . addslashes(__("Esplora per Categoria")) . "',
-    viewAllCategories: '" . addslashes(__("Visualizza Tutte le Categorie")) . "'
+    loading: " . json_encode(__("Caricamento..."), JSON_HEX_TAG) . ",
+    loadingBooks: " . json_encode(__("Caricamento libri..."), JSON_HEX_TAG) . ",
+    loadingCategories: " . json_encode(__("Caricamento categorie..."), JSON_HEX_TAG) . ",
+    errorLoadingBooks: " . json_encode(__("Errore nel caricamento dei libri"), JSON_HEX_TAG) . ",
+    exploreByCategory: " . json_encode(__("Esplora per Categoria"), JSON_HEX_TAG) . ",
+    viewAllCategories: " . json_encode(__("Visualizza Tutte le Categorie"), JSON_HEX_TAG) . "
 };
 
 let currentLatestPage = 1;

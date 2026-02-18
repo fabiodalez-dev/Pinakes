@@ -22,7 +22,7 @@
         <input type="email" autocomplete="email" name="email" required aria-required="true" class="form-input" />
       </div>
       <div class="flex items-center justify-between">
-        <a href="<?= route_path('login') ?>" class="text-sm text-blue-600 hover:underline"><?= __('Torna al login') ?></a>
+        <a href="<?= htmlspecialchars(route_path('login'), ENT_QUOTES, 'UTF-8') ?>" class="text-sm text-blue-600 hover:underline"><?= __('Torna al login') ?></a>
         <button type="submit" class="btn-primary inline-flex items-center">
           <i class="fas fa-paper-plane mr-2"></i>
           <?= __('Invia link') ?>

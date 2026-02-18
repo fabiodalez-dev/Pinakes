@@ -140,11 +140,11 @@ function initializeFormValidation() {
             if (window.Swal) {
                 Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Campo Obbligatorio")) ?>',
-                    text: '<?= addslashes(__("Il nome dell\'autore è obbligatorio.")) ?>'
+                    title: <?= json_encode(__("Campo Obbligatorio"), JSON_HEX_TAG) ?>,
+                    text: <?= json_encode(__("Il nome dell'autore è obbligatorio."), JSON_HEX_TAG) ?>
                 });
             } else {
-                alert('<?= addslashes(__("Il nome dell\'autore è obbligatorio.")) ?>');
+                alert(<?= json_encode(__("Il nome dell'autore è obbligatorio."), JSON_HEX_TAG) ?>);
             }
             return;
         }
@@ -158,11 +158,11 @@ function initializeFormValidation() {
                 if (window.Swal) {
                     Swal.fire({
                         icon: 'error',
-                        title: '<?= addslashes(__("Date Non Valide")) ?>',
-                        text: '<?= addslashes(__("La data di nascita deve essere precedente alla data di morte.")) ?>'
+                        title: <?= json_encode(__("Date Non Valide"), JSON_HEX_TAG) ?>,
+                        text: <?= json_encode(__("La data di nascita deve essere precedente alla data di morte."), JSON_HEX_TAG) ?>
                     });
                 } else {
-                    alert('<?= addslashes(__("La data di nascita deve essere precedente alla data di morte.")) ?>');
+                    alert(<?= json_encode(__("La data di nascita deve essere precedente alla data di morte."), JSON_HEX_TAG) ?>);
                 }
                 return;
             }
@@ -171,20 +171,20 @@ function initializeFormValidation() {
         // Show confirmation dialog
         if (window.Swal) {
             const result = await Swal.fire({
-                title: '<?= addslashes(__("Conferma Salvataggio")) ?>',
-                text: '<?= addslashes(__("Sei sicuro di voler salvare l\'autore \"%s\"?")) ?>'.replace('%s', nome),
+                title: <?= json_encode(__("Conferma Salvataggio"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Sei sicuro di voler salvare l'autore \"%s\"?"), JSON_HEX_TAG) ?>.replace('%s', nome),
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonText: '<?= addslashes(__("Sì, Salva")) ?>',
-                cancelButtonText: '<?= addslashes(__("Annulla")) ?>',
+                confirmButtonText: <?= json_encode(__("Sì, Salva"), JSON_HEX_TAG) ?>,
+                cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
                 reverseButtons: true
             });
 
             if (result.isConfirmed) {
                 // Show loading
                 Swal.fire({
-                    title: '<?= addslashes(__("Salvataggio in corso...")) ?>',
-                    text: '<?= addslashes(__("Attendere prego")) ?>',
+                    title: <?= json_encode(__("Salvataggio in corso..."), JSON_HEX_TAG) ?>,
+                    text: <?= json_encode(__("Attendere prego"), JSON_HEX_TAG) ?>,
                     allowOutsideClick: false,
                     showConfirmButton: false,
                     willOpen: () => {
@@ -196,7 +196,7 @@ function initializeFormValidation() {
                 form.submit();
             }
         } else {
-            if (confirm('<?= addslashes(__("Sei sicuro di voler salvare l\'autore \"%s\"?")) ?>'.replace('%s', nome))) {
+            if (confirm(<?= json_encode(__("Sei sicuro di voler salvare l'autore \"%s\"?"), JSON_HEX_TAG) ?>.replace('%s', nome))) {
                 form.submit();
             }
         }

@@ -519,7 +519,7 @@ $profileReservationCoverUrl = static function (array $item): string {
                   <span><?= !empty($p['data_scadenza_prenotazione']) ? format_date($p['data_scadenza_prenotazione'], false, '/') : __('Non specificata') ?></span>
                 </div>
               </div>
-              <form method="post" action="<?= htmlspecialchars(url('/reservation/cancel'), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirm('<?= htmlspecialchars(addslashes(__('Annullare questa prenotazione?')), ENT_QUOTES, 'UTF-8') ?>')">
+              <form method="post" action="<?= htmlspecialchars(url('/reservation/cancel'), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__('Annullare questa prenotazione?'), JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>)">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="reservation_id" value="<?php echo (int)$p['id']; ?>">
                 <button type="submit" class="btn-cancel">
@@ -755,7 +755,7 @@ function openReviewModal(bookId, bookTitle) {
       },
       clearable: false,
       maxStars: 5,
-      tooltip: '<?= addslashes(__('Seleziona la valutazione')) ?>'
+      tooltip: <?= json_encode(__('Seleziona la valutazione'), JSON_HEX_TAG) ?>
     });
   }
 }

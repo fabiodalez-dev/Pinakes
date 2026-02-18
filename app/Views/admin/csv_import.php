@@ -382,11 +382,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyCsv.use(UppyDragDrop, {
             target: '#uppy-csv-upload',
-            note: '<?= addslashes(__("File CSV (max 10MB)")) ?>',
+            note: <?= json_encode(__("File CSV (max 10MB)"), JSON_HEX_TAG) ?>,
             locale: {
                 strings: {
-                    dropPasteFiles: '<?= addslashes(__("Trascina qui il file CSV o %{browse}")) ?>',
-                    browse: '<?= addslashes(__("seleziona file")) ?>'
+                    dropPasteFiles: <?= json_encode(__("Trascina qui il file CSV o %{browse}"), JSON_HEX_TAG) ?>,
+                    browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
                 }
             }
         });
@@ -421,11 +421,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Errore Upload")) ?>',
+                    title: <?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>,
                     text: error.message
                 });
             } else {
-                alert('<?= addslashes(__("Errore:")) ?> ' + error.message);
+                alert(<?= json_encode(__("Errore:") . " ", JSON_HEX_TAG) ?> + error.message);
             }
         });
 
@@ -455,7 +455,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Show progress container
         progressContainer.classList.remove('hidden');
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= addslashes(__("Importazione in corso...")) ?>';
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(__("Importazione in corso..."), JSON_HEX_TAG) ?>;
 
         // Use XMLHttpRequest for progress monitoring
         const xhr = new XMLHttpRequest();
@@ -463,7 +463,7 @@ document.addEventListener('DOMContentLoaded', function() {
         xhr.upload.addEventListener('progress', function(e) {
             if (e.lengthComputable) {
                 const uploadPercent = Math.round((e.loaded / e.total) * 20); // Upload is first 20%
-                updateProgress(uploadPercent, '<?= addslashes(__("Caricamento file...")) ?>', `${Math.round(e.loaded / 1024)} KB / ${Math.round(e.total / 1024)} KB`);
+                updateProgress(uploadPercent, <?= json_encode(__("Caricamento file..."), JSON_HEX_TAG) ?>, `${Math.round(e.loaded / 1024)} KB / ${Math.round(e.total / 1024)} KB`);
             }
         });
 
@@ -473,10 +473,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     const response = JSON.parse(xhr.responseText);
                     if (response.success && response.total_rows !== undefined) {
                         // Chunked processing mode
-                        updateProgress(20, '<?= addslashes(__("File caricato, inizio processing...")) ?>', '');
+                        updateProgress(20, <?= json_encode(__("File caricato, inizio processing..."), JSON_HEX_TAG) ?>, '');
                         processChunks(response.total_rows, response.chunk_size || 10, response.enable_scraping);
                     } else if (response.redirect) {
-                        updateProgress(100, '<?= addslashes(__("Completato!")) ?>', '');
+                        updateProgress(100, <?= json_encode(__("Completato!"), JSON_HEX_TAG) ?>, '');
                         window.location.href = response.redirect;
                     } else if (response.error) {
                         showError(response.error);
@@ -486,12 +486,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.location.reload();
                 }
             } else {
-                showError('<?= addslashes(__("Errore durante l\'importazione (HTTP")) ?> ' + xhr.status + ')');
+                showError(<?= json_encode(__("Errore durante l'importazione (HTTP"), JSON_HEX_TAG) ?> + ' ' + xhr.status + ')');
             }
         });
 
         xhr.addEventListener('error', function() {
-            showError('<?= addslashes(__("Errore di connessione durante l\'importazione")) ?>');
+            showError(<?= json_encode(__("Errore di connessione durante l'importazione"), JSON_HEX_TAG) ?>);
         });
 
         xhr.open('POST', form.action, true);
@@ -519,7 +519,7 @@ document.addEventListener('DOMContentLoaded', function() {
         function processNextChunk() {
             if (currentRow >= totalRows) {
                 // Complete!
-                updateProgress(100, '<?= addslashes(__("Completato!")) ?>', '');
+                updateProgress(100, <?= json_encode(__("Completato!"), JSON_HEX_TAG) ?>, '');
                 setTimeout(() => {
                     let message = `Import completato: ${stats.imported} nuovi, ${stats.updated} aggiornati`;
                     if (stats.authors_created > 0) message += `, ${stats.authors_created} autori creati`;
@@ -538,10 +538,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (stats.error_details.length > 0) {
                         const maxShow = 10;
                         const shown = stats.error_details.slice(0, maxShow);
-                        message += '<br><br><strong><?= addslashes(__("Errori durante l\'import")) ?>:</strong><ul style="text-align:left;margin-top:8px;font-size:0.9em">';
+                        message += '<br><br><strong>' + <?= json_encode(__("Errori durante l'import"), JSON_HEX_TAG) ?> + ':</strong><ul style="text-align:left;margin-top:8px;font-size:0.9em">';
                         shown.forEach(e => { message += `<li>${escapeHtml(e)}</li>`; });
                         if (stats.error_details.length > maxShow) {
-                            message += `<li><em>... <?= addslashes(__("e altri")) ?> ${stats.error_details.length - maxShow} <?= addslashes(__("errori")) ?></em></li>`;
+                            message += `<li><em>... ${<?= json_encode(__("e altri"), JSON_HEX_TAG) ?>} ${stats.error_details.length - maxShow} ${<?= json_encode(__("errori"), JSON_HEX_TAG) ?>}</em></li>`;
                         }
                         message += '</ul>';
                     }
@@ -549,9 +549,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (window.Swal) {
                         Swal.fire({
                             icon: stats.errors > 0 ? 'warning' : 'success',
-                            title: '<?= addslashes(__("Import Completato")) ?>',
+                            title: <?= json_encode(__("Import Completato"), JSON_HEX_TAG) ?>,
                             html: message,
-                            confirmButtonText: '<?= addslashes(__("OK")) ?>'
+                            confirmButtonText: <?= json_encode(__("OK"), JSON_HEX_TAG) ?>
                         }).then(() => window.location.reload());
                     } else {
                         alert(message.replace(/<[^>]*>/g, ''));
@@ -565,7 +565,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const remaining = Math.max(0, totalRows - currentRow);
             const size = Math.min(chunkSize, remaining);
             const percent = 20 + Math.round((currentRow / totalRows) * 80);
-            updateProgress(percent, `<?= addslashes(__("Processing righe")) ?> ${currentRow}-${Math.min(currentRow + size, totalRows)}...`, '');
+            updateProgress(percent, `${<?= json_encode(__("Processing righe"), JSON_HEX_TAG) ?>} ${currentRow}-${Math.min(currentRow + size, totalRows)}...`, '');
 
             fetch(BASE_PATH + '/admin/libri/import/chunk', {
                 method: 'POST',
@@ -596,12 +596,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     currentRow += size;
                     processNextChunk();
                 } else {
-                    showError(data.error || '<?= addslashes(__("Errore durante il processing")) ?>');
+                    showError(data.error || <?= json_encode(__("Errore durante il processing"), JSON_HEX_TAG) ?>);
                 }
             })
             .catch(err => {
                 console.error('Chunk processing error:', err);
-                showError('<?= addslashes(__("Errore di connessione durante il processing")) ?>');
+                showError(<?= json_encode(__("Errore di connessione durante il processing"), JSON_HEX_TAG) ?>);
             });
         }
 
@@ -618,13 +618,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     const percent = Math.round((data.current / data.total) * 80) + 20; // 20-100%
                     updateProgress(
                         percent,
-                        `<?= addslashes(__("Importazione libro")) ?> ${data.current}/${data.total}...`,
+                        `${<?= json_encode(__("Importazione libro"), JSON_HEX_TAG) ?>} ${data.current}/${data.total}...`,
                         data.current_book || ''
                     );
                     pollInterval = setTimeout(() => pollProgress(), 500);
                 } else if (data.status === 'completed') {
                     clearTimeout(pollInterval);
-                    updateProgress(100, '<?= addslashes(__("Completato!")) ?>', '');
+                    updateProgress(100, <?= json_encode(__("Completato!"), JSON_HEX_TAG) ?>, '');
                 }
             })
             .catch(err => {
@@ -643,16 +643,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function showError(message) {
         const submitBtn = document.getElementById('submitBtn');
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i><?= addslashes(__("Importa")) ?>';
+        submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i>' + <?= json_encode(__("Importa"), JSON_HEX_TAG) ?>;
 
         if (window.Swal) {
             Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                 text: message
             });
         } else {
-            alert('<?= addslashes(__("Errore:")) ?> ' + message);
+            alert(<?= json_encode(__("Errore:") . " ", JSON_HEX_TAG) ?> + message);
         }
 
         document.getElementById('import-progress-container').classList.add('hidden');

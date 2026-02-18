@@ -412,10 +412,10 @@ document.addEventListener('DOMContentLoaded', function() {
       ],
       toolbar: 'undo redo | blocks | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table | removeformat | code fullscreen help',
       style_formats: [
-        { title: '<?= addslashes(__('Paragrafo')) ?>', format: 'p' },
-        { title: '<?= addslashes(__('Titolo 1')) ?>', format: 'h1' },
-        { title: '<?= addslashes(__('Titolo 2')) ?>', format: 'h2' },
-        { title: '<?= addslashes(__('Titolo 3')) ?>', format: 'h3' }
+        { title: <?= json_encode(__('Paragrafo'), JSON_HEX_TAG) ?>, format: 'p' },
+        { title: <?= json_encode(__('Titolo 1'), JSON_HEX_TAG) ?>, format: 'h1' },
+        { title: <?= json_encode(__('Titolo 2'), JSON_HEX_TAG) ?>, format: 'h2' },
+        { title: <?= json_encode(__('Titolo 3'), JSON_HEX_TAG) ?>, format: 'h3' }
       ],
       content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 16px; line-height: 1.6; }',
       branding: false,
@@ -442,11 +442,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
       uppyEvent.use(UppyDragDrop, {
         target: '#uppy-event-upload',
-        note: '<?= addslashes(__("Immagini JPG, PNG o WebP (max 5MB)")) ?>',
+        note: <?= json_encode(__("Immagini JPG, PNG o WebP (max 5MB)"), JSON_HEX_TAG) ?>,
         locale: {
           strings: {
-            dropPasteFiles: '<?= addslashes(__("Trascina qui l\'immagine o %{browse}")) ?>',
-            browse: '<?= addslashes(__("seleziona file")) ?>'
+            dropPasteFiles: <?= json_encode(__("Trascina qui l'immagine o %{browse}"), JSON_HEX_TAG) ?>,
+            browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
           }
         }
       });
@@ -465,7 +465,7 @@ document.addEventListener('DOMContentLoaded', function() {
           previewImage.src = e.target?.result || '';
           previewWrapper.classList.remove('hidden');
           if (previewText) {
-            previewText.textContent = '<?= addslashes(__("Anteprima immagine caricata")) ?>';
+            previewText.textContent = <?= json_encode(__("Anteprima immagine caricata"), JSON_HEX_TAG) ?>;
           }
         };
         reader.readAsDataURL(fileObj);
@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       uppyEvent.on('restriction-failed', (file, error) => {
         console.error('Upload restriction failed:', error);
-        alert('<?= addslashes(__("Errore")) ?>: ' + error.message);
+        alert(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?> + ': ' + error.message);
       });
     }
   } catch (error) {

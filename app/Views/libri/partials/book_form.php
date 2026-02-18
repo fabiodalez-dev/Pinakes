@@ -4166,7 +4166,7 @@ function initBookTinyMCE() {
         branding: false,
         promotion: false,
         statusbar: true,
-        placeholder: '<?= addslashes(__("Descrizione del libro...")) ?>',
+        placeholder: <?= json_encode(__("Descrizione del libro..."), JSON_HEX_TAG) ?>,
         setup: function (editor) {
             editor.on('change keyup setcontent', () => {});
         }

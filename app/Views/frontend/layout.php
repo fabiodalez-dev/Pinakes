@@ -167,10 +167,10 @@ $htmlLang = substr($currentLocale, 0, 2);
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
     <!-- CSS moderno e minimale -->
-    <link href="<?= assetUrl('/vendor.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">
-    <link href="<?= assetUrl('/flatpickr-custom.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">
-    <link href="<?= assetUrl('/main.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">
-    <link href="<?= assetUrl('/css/swal-theme.css') ?>?v=<?= $appVersion ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
 
     <style>
         :root {
@@ -1296,7 +1296,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php endif; ?>
 
     <!-- Silktide Consent Manager CSS -->
-    <link rel="stylesheet" href="<?= assetUrl('/css/silktide-consent-manager.css') ?>">
+    <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('/css/silktide-consent-manager.css'), ENT_QUOTES, 'UTF-8') ?>">
     <script>
         window.__ = window.__ || function (key) { return key; };
     </script>
@@ -1390,7 +1390,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                                                 <?= __('Il mio profilo') ?>
                                             </a>
                                             <div class="user-dropdown-divider"></div>
-                                            <a href="<?= route_path('logout') ?>" class="logout-link" role="menuitem">
+                                            <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" class="logout-link" role="menuitem">
                                                 <i class="fas fa-sign-out-alt"></i>
                                                 <?= __('Esci') ?>
                                             </a>
@@ -1571,10 +1571,10 @@ $htmlLang = substr($currentLocale, 0, 2);
     </footer>
 
     <!-- Scripts -->
-    <script src="<?= assetUrl('/vendor.bundle.js') ?>?v=<?= $appVersion ?>"></script>
-    <script src="<?= assetUrl('/flatpickr-init.js') ?>?v=<?= $appVersion ?>" defer></script>
-    <script src="<?= assetUrl('/main.bundle.js') ?>?v=<?= $appVersion ?>" defer></script>
-    <script src="<?= assetUrl('/js/swal-config.js') ?>?v=<?= $appVersion ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('/vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>"></script>
+    <script src="<?= htmlspecialchars(assetUrl('/flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('/js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
     <script>
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {

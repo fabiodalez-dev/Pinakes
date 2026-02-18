@@ -375,7 +375,7 @@ php cron/automatic-notifications.php
   </div>
 </div>
 
-<script src="<?= assetUrl('tinymce/tinymce.min.js') ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <script>
 // Global __ function for JavaScript (MUST be defined before DOM elements use it)
 if (typeof window.__ === 'undefined') {
@@ -413,13 +413,13 @@ tinymce.init({
   branding: false,
   relative_urls: false,
   style_formats: [
-    { title: '<?= addslashes(__("Paragraph")) ?>', format: 'p' },
-    { title: '<?= addslashes(__("Heading 1")) ?>', format: 'h1' },
-    { title: '<?= addslashes(__("Heading 2")) ?>', format: 'h2' },
-    { title: '<?= addslashes(__("Heading 3")) ?>', format: 'h3' },
-    { title: '<?= addslashes(__("Heading 4")) ?>', format: 'h4' },
-    { title: '<?= addslashes(__("Heading 5")) ?>', format: 'h5' },
-    { title: '<?= addslashes(__("Heading 6")) ?>', format: 'h6' }
+    { title: <?= json_encode(__("Paragraph"), JSON_HEX_TAG) ?>, format: 'p' },
+    { title: <?= json_encode(__("Heading 1"), JSON_HEX_TAG) ?>, format: 'h1' },
+    { title: <?= json_encode(__("Heading 2"), JSON_HEX_TAG) ?>, format: 'h2' },
+    { title: <?= json_encode(__("Heading 3"), JSON_HEX_TAG) ?>, format: 'h3' },
+    { title: <?= json_encode(__("Heading 4"), JSON_HEX_TAG) ?>, format: 'h4' },
+    { title: <?= json_encode(__("Heading 5"), JSON_HEX_TAG) ?>, format: 'h5' },
+    { title: <?= json_encode(__("Heading 6"), JSON_HEX_TAG) ?>, format: 'h6' }
   ],
   setup: function(editor) {
     editor.on('init', function() {
@@ -501,14 +501,14 @@ document.getElementById('template-form').addEventListener('submit', async functi
     });
 
     if (response.ok) {
-      alert('<?= addslashes(__("Template aggiornato con successo!")) ?>');
+      alert(<?= json_encode(__("Template aggiornato con successo!"), JSON_HEX_TAG) ?>);
       closeTemplateEditor();
     } else {
-      alert('<?= addslashes(__("Errore nell'aggiornamento del template")) ?>');
+      alert(<?= json_encode(__("Errore nell'aggiornamento del template"), JSON_HEX_TAG) ?>);
     }
   } catch (error) {
     console.error('Error:', error);
-    alert('<?= addslashes(__("Errore: ")) ?>' + error.message);
+    alert(<?= json_encode(__("Errore: "), JSON_HEX_TAG) ?> + error.message);
   }
 });
 

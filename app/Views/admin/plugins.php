@@ -980,8 +980,8 @@ $pluginSettings = $pluginSettings ?? [];
         if (hasValidationError) {
             Swal.fire({
                 icon: 'warning',
-                title: '<?= addslashes(__("Attenzione")) ?>',
-                text: '<?= addslashes(__("Compila nome e URL per tutti i server.")) ?>'
+                title: <?= json_encode(__("Attenzione"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Compila nome e URL per tutti i server."), JSON_HEX_TAG) ?>
             });
             return;
         }
@@ -1007,7 +1007,7 @@ $pluginSettings = $pluginSettings ?? [];
             if (result.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: '<?= addslashes(__("Successo")) ?>',
+                    title: <?= json_encode(__("Successo"), JSON_HEX_TAG) ?>,
                     text: result.message
                 });
                 window.location.reload();
@@ -1017,16 +1017,16 @@ $pluginSettings = $pluginSettings ?? [];
         } catch (error) {
             Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                 text: error.message
             });
         }
     }
     // merged script
     const googleBooksModalTexts = {
-        titleSuffix: '<?= addslashes(__("Google Books API")) ?>',
-        hasKey: '<?= addslashes(__("Una chiave è già salvata. Inserisci un nuovo valore per aggiornarla oppure lascia vuoto per rimuoverla.")) ?>',
-        noKey: '<?= addslashes(__("Se non imposti la chiave, il plugin utilizzerà esclusivamente Open Library.")) ?>'
+        titleSuffix: <?= json_encode(__("Google Books API"), JSON_HEX_TAG) ?>,
+        hasKey: <?= json_encode(__("Una chiave è già salvata. Inserisci un nuovo valore per aggiornarla oppure lascia vuoto per rimuoverla."), JSON_HEX_TAG) ?>,
+        noKey: <?= json_encode(__("Se non imposti la chiave, il plugin utilizzerà esclusivamente Open Library."), JSON_HEX_TAG) ?>
     };
     const pluginSettingsModal = document.getElementById('pluginSettingsModal');
     const pluginSettingsTitle = document.getElementById('pluginSettingsTitle');
@@ -1047,8 +1047,8 @@ $pluginSettings = $pluginSettings ?? [];
         if (typeof window.Uppy === 'undefined' || typeof window.UppyDashboard === 'undefined') {
             Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
-                text: '<?= addslashes(__("Librerie di upload non caricate. Ricarica la pagina.")) ?>'
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Librerie di upload non caricate. Ricarica la pagina."), JSON_HEX_TAG) ?>
             });
             return;
         }
@@ -1071,13 +1071,13 @@ $pluginSettings = $pluginSettings ?? [];
             proudlyDisplayPoweredByUppy: false,
             locale: {
                 strings: {
-                    dropPasteFiles: '<?= addslashes(__("Trascina qui il file ZIP del plugin o %{browse}")) ?>',
-                    browse: '<?= addslashes(__("seleziona")) ?>',
-                    uploadComplete: '<?= addslashes(__("Caricamento completato")) ?>',
-                    uploadFailed: '<?= addslashes(__("Caricamento fallito")) ?>',
-                    complete: '<?= addslashes(__("Completato")) ?>',
-                    uploading: '<?= addslashes(__("Caricamento in corso...")) ?>',
-                    error: '<?= addslashes(__("Errore")) ?>',
+                    dropPasteFiles: <?= json_encode(__("Trascina qui il file ZIP del plugin o %{browse}"), JSON_HEX_TAG) ?>,
+                    browse: <?= json_encode(__("seleziona"), JSON_HEX_TAG) ?>,
+                    uploadComplete: <?= json_encode(__("Caricamento completato"), JSON_HEX_TAG) ?>,
+                    uploadFailed: <?= json_encode(__("Caricamento fallito"), JSON_HEX_TAG) ?>,
+                    complete: <?= json_encode(__("Completato"), JSON_HEX_TAG) ?>,
+                    uploading: <?= json_encode(__("Caricamento in corso..."), JSON_HEX_TAG) ?>,
+                    error: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                 }
             }
         });
@@ -1118,8 +1118,8 @@ $pluginSettings = $pluginSettings ?? [];
         if (!selectedFile) {
             Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
-                text: '<?= addslashes(__("Seleziona un file ZIP del plugin.")) ?>'
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Seleziona un file ZIP del plugin."), JSON_HEX_TAG) ?>
             });
             return;
         }
@@ -1129,7 +1129,7 @@ $pluginSettings = $pluginSettings ?? [];
         formData.append('plugin_file', selectedFile.data);
 
         this.disabled = true;
-        this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= addslashes(__("Installazione in corso...")) ?>';
+        this.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(__("Installazione in corso..."), JSON_HEX_TAG) ?>;
 
         try {
             const response = await fetch(window.BASE_PATH + '/admin/plugins/upload', {
@@ -1146,37 +1146,37 @@ $pluginSettings = $pluginSettings ?? [];
             if (result.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: '<?= addslashes(__("Successo")) ?>',
+                    title: <?= json_encode(__("Successo"), JSON_HEX_TAG) ?>,
                     text: result.message
                 });
                 window.location.reload();
             } else {
                 await Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Errore")) ?>',
+                    title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                     text: result.message
                 });
             }
         } catch (error) {
             await Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
-                text: '<?= addslashes(__("Errore durante l\'installazione del plugin.")) ?>'
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Errore durante l'installazione del plugin."), JSON_HEX_TAG) ?>
             });
         } finally {
             this.disabled = false;
-            this.innerHTML = '<i class="fas fa-upload mr-2"></i><?= addslashes(__("Installa Plugin")) ?>';
+            this.innerHTML = '<i class="fas fa-upload mr-2"></i>' + <?= json_encode(__("Installa Plugin"), JSON_HEX_TAG) ?>;
         }
     });
 
     async function activatePlugin(pluginId) {
         const result = await Swal.fire({
-            title: '<?= addslashes(__("Conferma")) ?>',
-            text: '<?= addslashes(__("Vuoi attivare questo plugin?")) ?>',
+            title: <?= json_encode(__("Conferma"), JSON_HEX_TAG) ?>,
+            text: <?= json_encode(__("Vuoi attivare questo plugin?"), JSON_HEX_TAG) ?>,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: '<?= addslashes(__("Sì, attiva")) ?>',
-            cancelButtonText: '<?= addslashes(__("Annulla")) ?>',
+            confirmButtonText: <?= json_encode(__("Sì, attiva"), JSON_HEX_TAG) ?>,
+            cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
             confirmButtonColor: '#000000'
         });
 
@@ -1202,34 +1202,34 @@ $pluginSettings = $pluginSettings ?? [];
             if (data.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: '<?= addslashes(__("Successo")) ?>',
+                    title: <?= json_encode(__("Successo"), JSON_HEX_TAG) ?>,
                     text: data.message
                 });
                 window.location.reload();
             } else {
                 await Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Errore")) ?>',
+                    title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                     text: data.message
                 });
             }
         } catch (error) {
             await Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
-                text: '<?= addslashes(__("Errore durante l\'attivazione del plugin.")) ?>'
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Errore durante l'attivazione del plugin."), JSON_HEX_TAG) ?>
             });
         }
     }
 
     async function deactivatePlugin(pluginId) {
         const result = await Swal.fire({
-            title: '<?= addslashes(__("Conferma")) ?>',
-            text: '<?= addslashes(__("Vuoi disattivare questo plugin?")) ?>',
+            title: <?= json_encode(__("Conferma"), JSON_HEX_TAG) ?>,
+            text: <?= json_encode(__("Vuoi disattivare questo plugin?"), JSON_HEX_TAG) ?>,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: '<?= addslashes(__("Sì, disattiva")) ?>',
-            cancelButtonText: '<?= addslashes(__("Annulla")) ?>',
+            confirmButtonText: <?= json_encode(__("Sì, disattiva"), JSON_HEX_TAG) ?>,
+            cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
             confirmButtonColor: '#6b7280'
         });
 
@@ -1255,22 +1255,22 @@ $pluginSettings = $pluginSettings ?? [];
             if (data.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: '<?= addslashes(__("Successo")) ?>',
+                    title: <?= json_encode(__("Successo"), JSON_HEX_TAG) ?>,
                     text: data.message
                 });
                 window.location.reload();
             } else {
                 await Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Errore")) ?>',
+                    title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                     text: data.message
                 });
             }
         } catch (error) {
             await Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
-                text: '<?= addslashes(__("Errore durante la disattivazione del plugin.")) ?>'
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Errore durante la disattivazione del plugin."), JSON_HEX_TAG) ?>
             });
         }
     }
@@ -1278,13 +1278,12 @@ $pluginSettings = $pluginSettings ?? [];
     async function uninstallPlugin(pluginId, pluginName) {
         const escapedName = escapeHtml(pluginName);
         const result = await Swal.fire({
-            title: '<?= addslashes(__("Conferma Disinstallazione")) ?>',
-            html: `<?= addslashes(__("Sei sicuro di voler disinstallare")) ?> <strong>${escapedName}</strong>?<br><br>
-               <span class="text-sm text-red-600"><?= addslashes(__("Questa azione eliminerà tutti i dati del plugin e non può essere annullata.")) ?></span>`,
+            title: <?= json_encode(__("Conferma Disinstallazione"), JSON_HEX_TAG) ?>,
+            html: <?= json_encode(__("Sei sicuro di voler disinstallare"), JSON_HEX_TAG) ?> + ' <strong>' + escapedName + '</strong>?<br><br><span class="text-sm text-red-600">' + <?= json_encode(__("Questa azione eliminerà tutti i dati del plugin e non può essere annullata."), JSON_HEX_TAG) ?> + '</span>',
             icon: 'error',
             showCancelButton: true,
-            confirmButtonText: '<?= addslashes(__("Sì, disinstalla")) ?>',
-            cancelButtonText: '<?= addslashes(__("Annulla")) ?>',
+            confirmButtonText: <?= json_encode(__("Sì, disinstalla"), JSON_HEX_TAG) ?>,
+            cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
             confirmButtonColor: '#dc2626'
         });
 
@@ -1310,22 +1309,22 @@ $pluginSettings = $pluginSettings ?? [];
             if (data.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: '<?= addslashes(__("Successo")) ?>',
+                    title: <?= json_encode(__("Successo"), JSON_HEX_TAG) ?>,
                     text: data.message
                 });
                 window.location.reload();
             } else {
                 await Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Errore")) ?>',
+                    title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                     text: data.message
                 });
             }
         } catch (error) {
             await Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
-                text: '<?= addslashes(__("Errore durante la disinstallazione del plugin.")) ?>'
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Errore durante la disinstallazione del plugin."), JSON_HEX_TAG) ?>
             });
         }
     }
@@ -1396,8 +1395,8 @@ $pluginSettings = $pluginSettings ?? [];
             if (data.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: '<?= addslashes(__("Successo")) ?>',
-                    text: '<?= addslashes(__("Chiave Google Books aggiornata.")) ?>'
+                    title: <?= json_encode(__("Successo"), JSON_HEX_TAG) ?>,
+                    text: <?= json_encode(__("Chiave Google Books aggiornata."), JSON_HEX_TAG) ?>
                 });
                 closePluginSettingsModal();
                 // Reload to show updated status
@@ -1405,16 +1404,16 @@ $pluginSettings = $pluginSettings ?? [];
             } else {
                 await Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Errore")) ?>',
-                    text: data.message || '<?= addslashes(__("Impossibile aggiornare la chiave Google Books.")) ?>'
+                    title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                    text: data.message || <?= json_encode(__("Impossibile aggiornare la chiave Google Books."), JSON_HEX_TAG) ?>
                 });
             }
         } catch (error) {
             console.error('💥 Error:', error);
             await Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
-                text: '<?= addslashes(__("Errore durante l\'aggiornamento della chiave Google Books.")) ?>'
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Errore durante l'aggiornamento della chiave Google Books."), JSON_HEX_TAG) ?>
             });
         } finally {
             if (submitButton) {
@@ -1446,9 +1445,9 @@ $pluginSettings = $pluginSettings ?? [];
         const apiKeyHelper = document.getElementById('apiKeyHelper');
         if (apiKeyHelper) {
             if (hasConfig) {
-                apiKeyHelper.innerHTML = '<i class="fas fa-info-circle mr-1"></i><?= addslashes(__("Lascia vuoto per mantenere la chiave esistente. Inserisci un nuovo valore per aggiornarla.")) ?>';
+                apiKeyHelper.innerHTML = '<i class="fas fa-info-circle mr-1"></i>' + <?= json_encode(__("Lascia vuoto per mantenere la chiave esistente. Inserisci un nuovo valore per aggiornarla."), JSON_HEX_TAG) ?>;
             } else {
-                apiKeyHelper.innerHTML = '<i class="fas fa-shield-alt mr-1"></i><?= addslashes(__("L\'API key viene criptata con AES-256-GCM prima di essere salvata.")) ?>';
+                apiKeyHelper.innerHTML = '<i class="fas fa-shield-alt mr-1"></i>' + <?= json_encode(__("L'API key viene criptata con AES-256-GCM prima di essere salvata."), JSON_HEX_TAG) ?>;
             }
         }
 
@@ -1527,8 +1526,8 @@ $pluginSettings = $pluginSettings ?? [];
             if (data.success) {
                 await Swal.fire({
                     icon: 'success',
-                    title: '<?= addslashes(__("Successo")) ?>',
-                    text: '<?= addslashes(__("Impostazioni API Book Scraper salvate correttamente.")) ?>'
+                    title: <?= json_encode(__("Successo"), JSON_HEX_TAG) ?>,
+                    text: <?= json_encode(__("Impostazioni API Book Scraper salvate correttamente."), JSON_HEX_TAG) ?>
                 });
                 closeApiBookScraperModal();
                 // Reload to show updated status
@@ -1536,16 +1535,16 @@ $pluginSettings = $pluginSettings ?? [];
             } else {
                 await Swal.fire({
                     icon: 'error',
-                    title: '<?= addslashes(__("Errore")) ?>',
-                    text: data.message || '<?= addslashes(__("Impossibile salvare le impostazioni.")) ?>'
+                    title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                    text: data.message || <?= json_encode(__("Impossibile salvare le impostazioni."), JSON_HEX_TAG) ?>
                 });
             }
         } catch (error) {
             console.error('💥 Error:', error);
             await Swal.fire({
                 icon: 'error',
-                title: '<?= addslashes(__("Errore")) ?>',
-                text: '<?= addslashes(__("Errore durante il salvataggio delle impostazioni.")) ?>'
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Errore durante il salvataggio delle impostazioni."), JSON_HEX_TAG) ?>
             });
         } finally {
             if (submitButton) {
