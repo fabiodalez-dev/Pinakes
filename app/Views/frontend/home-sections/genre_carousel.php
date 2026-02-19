@@ -66,7 +66,7 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
                              alt="<?php echo htmlspecialchars($book['titolo'], ENT_QUOTES, 'UTF-8'); ?>"
                              class="carousel-book-cover"
                              loading="lazy"
-                             onerror="this.onerror=null;this.src='<?php echo htmlspecialchars($defaultCoverUrl, ENT_QUOTES, 'UTF-8'); ?>'">
+                             onerror="this.onerror=null;this.src=<?php echo htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8'); ?>">
         <div class="carousel-book-info">
                             <h3 class="carousel-book-title">
                                 <?php echo htmlspecialchars($book['titolo'], ENT_QUOTES, 'UTF-8'); ?>

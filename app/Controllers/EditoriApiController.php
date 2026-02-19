@@ -14,8 +14,8 @@ class EditoriApiController
     {
         $q = $request->getQueryParams();
         $draw = (int) ($q['draw'] ?? 0);
-        $start = (int) ($q['start'] ?? 0);
-        $length = (int) ($q['length'] ?? 10);
+        $start  = max(0, (int) ($q['start'] ?? 0));
+        $length = max(1, min(500, (int) ($q['length'] ?? 10)));
 
         $search_text = trim((string) ($q['search_text'] ?? ''));
         $search_sito = trim((string) ($q['search_sito'] ?? ''));

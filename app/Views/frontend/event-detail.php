@@ -427,7 +427,6 @@ $jsonLd = [
     '@context' => 'https://schema.org',
     '@type' => 'Event',
     'name' => $event['title'],
-    'startDate' => ($event['event_date'] ?? '') . (!empty($event['event_time']) ? 'T' . $event['event_time'] : ''),
     'description' => strip_tags($event['content'] ?? ''),
     'eventStatus' => 'https://schema.org/EventScheduled',
     'eventAttendanceMode' => 'https://schema.org/OfflineEventAttendanceMode',
@@ -437,6 +436,9 @@ $jsonLd = [
         'url' => (string)($baseUrl ?? ''),
     ],
 ];
+if (!empty($event['event_date'])) {
+    $jsonLd['startDate'] = $event['event_date'] . (!empty($event['event_time']) ? 'T' . $event['event_time'] : '');
+}
 if (!empty($event['featured_image'])) {
     $jsonLd['image'] = absoluteUrl($event['featured_image']);
 }

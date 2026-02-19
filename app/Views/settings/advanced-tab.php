@@ -654,12 +654,12 @@ use App\Support\HtmlHelper;
                   </div>
                   <div class="mt-3">
                     <button type="button"
-                            onclick="toggleApiKeyVisibility('key-<?php echo $key['id']; ?>')"
+                            onclick="toggleApiKeyVisibility('key-<?php echo (int)$key['id']; ?>')"
                             class="text-xs text-gray-700 hover:text-black font-medium">
                       <i class="fas fa-eye mr-1"></i>
-                      <span id="key-<?php echo $key['id']; ?>-toggle-text"><?= __("Mostra API Key") ?></span>
+                      <span id="key-<?php echo (int)$key['id']; ?>-toggle-text"><?= __("Mostra API Key") ?></span>
                     </button>
-                    <div id="key-<?php echo $key['id']; ?>" class="hidden mt-2 p-3 bg-gray-900 rounded-lg">
+                    <div id="key-<?php echo (int)$key['id']; ?>" class="hidden mt-2 p-3 bg-gray-900 rounded-lg">
                       <code class="text-xs text-green-400 font-mono break-all"><?php echo HtmlHelper::e($key['api_key']); ?></code>
                       <button type="button"
                               onclick="copyToClipboard('<?php echo HtmlHelper::e($key['api_key']); ?>', this)"

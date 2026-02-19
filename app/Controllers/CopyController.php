@@ -171,7 +171,9 @@ class CopyController
         $integrity = new \App\Support\DataIntegrity($db);
         $integrity->recalculateBookAvailability($libroId);
 
-        $_SESSION['success_message'] = __('Stato della copia aggiornato con successo.');
+        if (!isset($_SESSION['success_message'])) {
+            $_SESSION['success_message'] = __('Stato della copia aggiornato con successo.');
+        }
         return $response->withHeader('Location', url("/admin/libri/{$libroId}"))->withStatus(302);
     }
 

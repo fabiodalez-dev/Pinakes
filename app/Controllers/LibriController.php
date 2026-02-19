@@ -1768,7 +1768,8 @@ class LibriController
         ");
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
         $prestitiCount = (int) ($row['count'] ?? 0);
         $stmt->close();
 
@@ -1781,7 +1782,8 @@ class LibriController
         ");
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
         $prenotazioniCount = (int) ($row['count'] ?? 0);
         $stmt->close();
 

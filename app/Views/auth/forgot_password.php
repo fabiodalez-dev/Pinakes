@@ -1,4 +1,4 @@
-<?php $forgotPasswordRoute = route_path('forgot_password'); ?>
+<?php $forgotPasswordRoute = htmlspecialchars(route_path('forgot_password'), ENT_QUOTES, 'UTF-8'); ?>
 <div class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-md mx-auto px-4 sm:px-6 lg:px-8">
     <div class="mb-6">

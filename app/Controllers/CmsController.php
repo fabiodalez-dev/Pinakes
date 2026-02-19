@@ -24,7 +24,7 @@ class CmsController
         if ($correctSlug !== null) {
             // Redirect 301 to correct localized slug
             return $response
-                ->withHeader('Location', '/' . $correctSlug)
+                ->withHeader('Location', url('/' . $correctSlug))
                 ->withStatus(301);
         }
 

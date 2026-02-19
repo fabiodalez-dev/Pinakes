@@ -530,6 +530,8 @@ if ($presetUserId > 0) {
           }
 
           suggestEl.innerHTML = items.map(function(item) {
+            const itemId = parseInt(item.id, 10);
+            if (isNaN(itemId)) return '';
             if (isBook) {
               const copieDisponibili = item.copie_disponibili || 0;
               const copieTotali = item.copie_totali || 0;
@@ -539,7 +541,7 @@ if ($presetUserId > 0) {
               const statusIcon = isAvailable ? 'fa-check-circle' : 'fa-clock';
               const countColor = isAvailable ? '#16a34a' : '#92400e';
 
-              return '<div class="suggestion-item" data-id="' + parseInt(item.id, 10) + '" data-copies="' + copieDisponibili + '" data-total="' + copieTotali + '">' +
+              return '<div class="suggestion-item" data-id="' + itemId + '" data-copies="' + copieDisponibili + '" data-total="' + copieTotali + '">' +
                 '<div style="display: flex; align-items: center; gap: 0.5rem;">' +
                 '<i class="fas ' + statusIcon + '" style="color: ' + iconColor + ';"></i>' +
                 '<span style="flex: 1;">' + escapeHtml(item.label) + '</span>' +
@@ -547,7 +549,7 @@ if ($presetUserId > 0) {
                 '</div>' +
                 '</div>';
             }
-            return '<div class="suggestion-item" data-id="' + parseInt(item.id, 10) + '">' + escapeHtml(item.label) + '</div>';
+            return '<div class="suggestion-item" data-id="' + itemId + '">' + escapeHtml(item.label) + '</div>';
           }).join('');
 
           suggestEl.style.display = 'block';
@@ -555,7 +557,7 @@ if ($presetUserId > 0) {
 
         function escapeHtml(str) {
           if (!str) return '';
-          return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+          return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
         }
 
         inputEl.addEventListener('input', function() {

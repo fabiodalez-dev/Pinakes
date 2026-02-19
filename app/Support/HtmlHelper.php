@@ -248,6 +248,10 @@ class HtmlHelper
         $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
 
         if ($canonicalUrl && $canonicalUrl !== '') {
+            // Validate that URL has a scheme
+            if (!preg_match('#^https?://#i', $canonicalUrl)) {
+                $canonicalUrl = 'https://' . $canonicalUrl;
+            }
             return rtrim($canonicalUrl, '/');
         }
 

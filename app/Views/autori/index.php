@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
     stateDuration: 60 * 60 * 24,
     dom: '<"top"l>rt<"bottom"ip><"clear">',
     ajax: {
-      url: window.BASE_PATH + '/api/autori',
+      url: (window.BASE_PATH || '') + '/api/autori',
       type: 'GET',
       data: function(d) {
         d.search_nome = document.getElementById('search_nome').value;
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const nome = escapeHtml(row.nome) || '<?= __("Autore sconosciuto") ?>';
           const bio = row.biografia ? `<p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${escapeHtml(row.biografia.substring(0, 80))}...</p>` : '';
           return `<div>
-            <a href="${window.BASE_PATH}/admin/autori/${parseInt(row.id, 10)}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline">${nome}</a>
+            <a href="${window.BASE_PATH || ''}/admin/autori/${parseInt(row.id, 10)}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline">${nome}</a>
             ${bio}
           </div>`;
         }
@@ -305,10 +305,10 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(data) {
           const id = parseInt(data, 10);
           return `<div class="flex items-center justify-center gap-0.5">
-            <a href="${window.BASE_PATH}/admin/autori/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
+            <a href="${window.BASE_PATH || ''}/admin/autori/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
               <i class="fas fa-eye text-xs"></i>
             </a>
-            <a href="${window.BASE_PATH}/admin/autori/modifica/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
+            <a href="${window.BASE_PATH || ''}/admin/autori/modifica/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
               <i class="fas fa-edit text-xs"></i>
             </a>
             <button onclick="deleteAuthor(${id})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
@@ -459,7 +459,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const ids = Array.from(selectedAuthors);
 
     try {
-      const response = await fetch(window.BASE_PATH + '/api/autori/bulk-delete', {
+      const response = await fetch((window.BASE_PATH || '') + '/api/autori/bulk-delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
@@ -504,7 +504,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // First get the names of selected authors
     try {
-      const response = await fetch(window.BASE_PATH + '/api/autori/bulk-export', {
+      const response = await fetch((window.BASE_PATH || '') + '/api/autori/bulk-export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
@@ -564,7 +564,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (!formValues) return;
 
       // Perform the merge
-      const mergeResponse = await fetch(window.BASE_PATH + '/api/autori/merge', {
+      const mergeResponse = await fetch((window.BASE_PATH || '') + '/api/autori/merge', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({
@@ -618,7 +618,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const ids = Array.from(selectedAuthors);
 
     try {
-      const response = await fetch(window.BASE_PATH + '/api/autori/bulk-export', {
+      const response = await fetch((window.BASE_PATH || '') + '/api/autori/bulk-export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ ids })
@@ -675,7 +675,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
         const form = document.createElement('form');
         form.method = 'POST';
-        form.action = `${window.BASE_PATH}/admin/autori/delete/${id}`;
+        form.action = `${window.BASE_PATH || ''}/admin/autori/delete/${id}`;
         const inp = document.createElement('input');
         inp.type = 'hidden';
         inp.name = 'csrf_token';

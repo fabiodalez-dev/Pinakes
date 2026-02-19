@@ -401,7 +401,7 @@ function initTinyMCE() {
 // TinyMCE Configuration
 tinymce.init({
   selector: '#template-body',
-  base_url: '<?= assetUrl("tinymce") ?>',
+  base_url: <?= json_encode(assetUrl("tinymce"), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
   suffix: '.min',
   model: 'dom',
   license_key: 'gpl',

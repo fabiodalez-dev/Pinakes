@@ -233,7 +233,7 @@ class AuthorRepository
         if ($searchForm !== '') {
             // Extract individual words for LIKE matching
             $words = explode(' ', $searchForm);
-            // Build LIKE conditions for each word (case-insensitive via collation)
+            // Build LIKE conditions for each word (case-insensitive via LOWER())
             $conditions = [];
             $params = [];
             foreach ($words as $word) {

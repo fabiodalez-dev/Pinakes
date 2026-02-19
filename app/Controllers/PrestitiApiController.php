@@ -14,8 +14,8 @@ class PrestitiApiController
     {
         $q = $request->getQueryParams();
         $draw = (int)($q['draw'] ?? 0);
-        $start = (int)($q['start'] ?? 0);
-        $length = (int)($q['length'] ?? 10);
+        $start  = max(0, (int)($q['start'] ?? 0));
+        $length = max(1, min(500, (int)($q['length'] ?? 10)));
         $utente_id = (int)($q['utente_id'] ?? 0);
         $libro_id = (int)($q['libro_id'] ?? 0);
         $attivo = trim((string)($q['attivo'] ?? ''));

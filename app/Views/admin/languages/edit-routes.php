@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Check starts with /
             if (!value.startsWith('/')) {
-                alert('<?= __("Tutte le route devono iniziare con") ?> "/" ');
+                alert(<?= json_encode(__("Tutte le route devono iniziare con") . ' "/"', JSON_HEX_TAG) ?>);
                 input.focus();
                 e.preventDefault();
                 hasErrors = true;
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Check no spaces
             if (/\s/.test(value)) {
-                alert('<?= __("Le route non possono contenere spazi") ?>: ' + value);
+                alert(<?= json_encode(__("Le route non possono contenere spazi") . ": ", JSON_HEX_TAG) ?> + value);
                 input.focus();
                 e.preventDefault();
                 hasErrors = true;
@@ -273,7 +273,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const submitButtons = form.querySelectorAll('button[type="submit"]');
             submitButtons.forEach(btn => {
                 btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <?= __("Salvataggio...") ?>';
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + <?= json_encode(__("Salvataggio..."), JSON_HEX_TAG) ?>;
             });
         }
     });

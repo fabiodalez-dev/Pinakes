@@ -884,7 +884,9 @@ class LoanApprovalController
 
             // Recalculate availability AFTER reassignment
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, true);
+            if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 
@@ -999,7 +1001,9 @@ class LoanApprovalController
 
             // Recalculate book availability
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, true);
+            if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 

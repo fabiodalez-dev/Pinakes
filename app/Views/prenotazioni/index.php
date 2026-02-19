@@ -88,7 +88,7 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-  async function fetchJSON(url){ const r = await fetch(url); return r.json(); }
+  async function fetchJSON(url){ const r = await fetch(url); if (!r.ok) throw new Error(r.status); return r.json(); }
   function setupAutocomplete(inputId, suggestId, fetchUrl, onPick){
     const input = document.getElementById(inputId);
     const ul = document.getElementById(suggestId);
@@ -124,11 +124,11 @@ document.addEventListener('DOMContentLoaded', function(){
     input.addEventListener('blur', ()=> setTimeout(()=>{ ul.classList.remove('show'); }, 200));
   }
 
-  setupAutocomplete('admin_filter_libro','admin_filter_libro_suggest', window.BASE_PATH + '/api/search/libri?q=', it=>{
+  setupAutocomplete('admin_filter_libro','admin_filter_libro_suggest', (window.BASE_PATH || '') + '/api/search/libri?q=', it=>{
     document.getElementById('libro_id').value = it.id;
     document.getElementById('admin_filter_libro').value = it.label;
   });
-  setupAutocomplete('admin_filter_utente','admin_filter_utente_suggest', window.BASE_PATH + '/api/search/utenti?q=', it=>{
+  setupAutocomplete('admin_filter_utente','admin_filter_utente_suggest', (window.BASE_PATH || '') + '/api/search/utenti?q=', it=>{
     document.getElementById('utente_id').value = it.id;
     document.getElementById('admin_filter_utente').value = it.label;
   });

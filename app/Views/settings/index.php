@@ -652,7 +652,7 @@ $activeTab = $activeTab ?? 'general';
     if (window.tinymce) {
       tinymce.init({
         selector: 'textarea.tinymce-editor',
-        base_url: <?= json_encode(assetUrl('tinymce')) ?>,
+        base_url: <?= json_encode(assetUrl('tinymce'), JSON_HEX_TAG | JSON_HEX_AMP) ?>,
         suffix: '.min',
         model: 'dom',
         license_key: 'gpl',

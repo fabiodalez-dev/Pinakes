@@ -1179,7 +1179,11 @@ $htmlLang = substr($currentLocale, 0, 2);
 
             const isUnread = !notif.is_read;
             const hasLink = Boolean(notif.link) && !/^javascript:/i.test(String(notif.link));
-            const rawLink = hasLink ? (String(notif.link).startsWith('http') ? String(notif.link) : window.BASE_PATH + String(notif.link)) : '';
+            const basePath = window.BASE_PATH || '';
+            const link = String(notif.link || '');
+            const rawLink = hasLink
+              ? (link.startsWith('http') ? link : (basePath && link.startsWith('/') && !link.startsWith(basePath + '/') && link !== basePath ? basePath + link : link))
+              : '';
             const escapedLink = hasLink ? escapeHtml(rawLink) : '';
 
             if (hasLink) {

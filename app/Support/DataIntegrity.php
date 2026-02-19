@@ -1152,7 +1152,7 @@ class DataIntegrity {
                 continue;
             }
             // Verifica se la tabella esiste (escape LIKE metacharacters)
-            $escapedTable = str_replace(['_', '%'], ['\\_', '\\%'], $table);
+            $escapedTable = str_replace(['%', '_'], ['\\%', '\\_'], $table);
             $tableCheck = $this->db->query("SHOW TABLES LIKE '$escapedTable'");
             if (!$tableCheck || $tableCheck->num_rows === 0) {
                 continue; // Salta tabelle che non esistono

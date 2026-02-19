@@ -508,13 +508,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (!prepareResponse.ok) {
                 const errorText = await prepareResponse.text();
-                throw new Error(errorText || '<?= __("Errore HTTP durante la preparazione") ?>');
+                throw new Error(errorText || <?= json_encode(__("Errore HTTP durante la preparazione"), JSON_HEX_TAG) ?>);
             }
 
             const prepareData = await prepareResponse.json();
 
             if (!prepareData.success) {
-                throw new Error(prepareData.error || '<?= __("Errore durante la preparazione") ?>');
+                throw new Error(prepareData.error || <?= json_encode(__("Errore durante la preparazione"), JSON_HEX_TAG) ?>);
             }
 
             updateProgress(20, <?= json_encode(__("File caricato, inizio processing..."), JSON_HEX_TAG) ?>, '');
@@ -554,11 +554,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     const responseText = await chunkResponse.text();
                     chunkData = JSON.parse(responseText);
                 } catch (jsonError) {
-                    throw new Error('<?= __("Risposta non valida dal server (timeout o errore)") ?>');
+                    throw new Error(<?= json_encode(__("Risposta non valida dal server (timeout o errore)"), JSON_HEX_TAG) ?>);
                 }
 
                 if (!chunkData.success) {
-                    throw new Error(chunkData.error || '<?= __("Errore durante l\'elaborazione") ?>');
+                    throw new Error(chunkData.error || <?= json_encode(__("Errore durante l'elaborazione"), JSON_HEX_TAG) ?>);
                 }
 
                 // Update progress
@@ -575,7 +575,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const resultsResponse = await fetch(window.BASE_PATH + '/admin/libri/import/librarything/results');
             if (!resultsResponse.ok) {
-                throw new Error('<?= __("Errore nel recupero dei risultati") ?>');
+                throw new Error(<?= json_encode(__("Errore nel recupero dei risultati"), JSON_HEX_TAG) ?>);
             }
             const resultsData = await resultsResponse.json();
 
@@ -584,11 +584,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.location.href = resultsData.redirect;
                 }, 500);
             } else {
-                throw new Error('<?= __("Errore durante il completamento") ?>');
+                throw new Error(<?= json_encode(__("Errore durante il completamento"), JSON_HEX_TAG) ?>);
             }
 
         } catch (error) {
-            showError('<?= __("Errore") ?>: ' + error.message);
+            showError(<?= json_encode(__("Errore") . ": ", JSON_HEX_TAG) ?> + error.message);
         }
     });
 

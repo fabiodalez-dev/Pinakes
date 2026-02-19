@@ -182,7 +182,7 @@ foreach ($jsTranslationKeys as $key) {
 ?>
 <script>
 (function() {
-    const translations = <?= json_encode($jsTranslations, JSON_UNESCAPED_UNICODE); ?>;
+    const translations = <?= json_encode($jsTranslations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
     window.APP_TRANSLATIONS = Object.assign(window.APP_TRANSLATIONS || {}, translations);
     if (typeof window.__ !== 'function') {
         window.__ = function(key) {

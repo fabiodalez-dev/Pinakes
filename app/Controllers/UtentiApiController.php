@@ -14,8 +14,8 @@ class UtentiApiController
     {
         $q = $request->getQueryParams();
         $draw = (int)($q['draw'] ?? 0);
-        $start = (int)($q['start'] ?? 0);
-        $length = (int)($q['length'] ?? 10);
+        $start  = max(0, (int)($q['start'] ?? 0));
+        $length = max(1, min(500, (int)($q['length'] ?? 10)));
         $search_value = trim((string)($q['search_text'] ?? ($q['search_value'] ?? '')));
 
         $base = "FROM utenti u";

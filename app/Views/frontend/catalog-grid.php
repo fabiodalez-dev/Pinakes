@@ -35,7 +35,7 @@ $getBookStatusBadge = static function ($book) {
                     <img class="book-image"
                          src="<?= htmlspecialchars($absoluteCoverUrl, ENT_QUOTES, 'UTF-8') ?>"
                          alt="<?= htmlspecialchars($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
-                         onerror="this.onerror=null;this.src='<?= htmlspecialchars($defaultCoverUrl, ENT_QUOTES, 'UTF-8') ?>'">
+                         onerror="this.onerror=null;this.src=<?= htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8') ?>">
                 </a>
                 <?= $getBookStatusBadge($book) ?>
             </div>

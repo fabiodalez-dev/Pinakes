@@ -2039,7 +2039,7 @@ ob_start();
                         }
                         ?>
                         <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
-                            <?php $relatedCover = ($related['copertina_url'] ?? '') ?: '/uploads/copertine/placeholder.jpg'; ?>
+                            <?php $relatedCover = ($related['copertina_url'] ?? '') ?: ($related['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg'; ?>
                             <img src="<?= htmlspecialchars(url($relatedCover), ENT_QUOTES, 'UTF-8') ?>"
                                  alt="<?= htmlspecialchars($relatedCoverAlt, ENT_QUOTES, 'UTF-8') ?>"
                                  class="related-book-image">

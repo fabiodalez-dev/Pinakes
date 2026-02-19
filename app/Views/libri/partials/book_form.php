@@ -2223,6 +2223,7 @@ function initializeSuggestCollocazione() {
     const sid = parseInt(document.getElementById('sottogenere_select')?.value || '0', 10) || 0;
     try {
       const res = await fetch(`${window.BASE_PATH}/api/collocazione/suggerisci?genere_id=${gid}&sottogenere_id=${sid}`);
+      if (!res.ok) throw new Error('Network error');
       const data = await res.json();
       if (data && data.scaffale_id) {
         const scaffaleSel = document.querySelector('select[name="scaffale_id"]');
@@ -4117,7 +4118,7 @@ document.head.appendChild(style);
 let tinyMceInitAttempts = 0;
 const TINYMCE_MAX_RETRIES = 8;
 if (typeof window.TINYMCE_BASE === 'undefined') {
-    window.TINYMCE_BASE = <?= json_encode(assetUrl("tinymce")) ?>;
+    window.TINYMCE_BASE = <?= json_encode(assetUrl("tinymce"), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
 }
 const TINYMCE_BASE = window.TINYMCE_BASE;
 

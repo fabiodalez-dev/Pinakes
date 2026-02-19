@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', function() {
     scrollX: true,
     autoWidth: false,
     ajax: {
-      url: window.BASE_PATH + '/api/utenti',
+      url: (window.BASE_PATH || '') + '/api/utenti',
       type: 'GET',
       data: function(d) {
         return {
@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const userId = encodeURIComponent(String(row.id ?? ''));
 
           return `
-            <a href="${window.BASE_PATH}/admin/utenti/dettagli/${userId}"
+            <a href="${window.BASE_PATH || ''}/admin/utenti/dettagli/${userId}"
                class="block hover:bg-blue-50 -m-2 p-2 rounded transition-colors duration-200">
               <div class="font-semibold text-gray-900 text-base">
                 ${nomeCompleto}
@@ -382,7 +382,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const iconClass = roleIcon[data] || 'fas fa-user';
           return `<span class="px-2 py-1 rounded-full text-xs font-medium ${colorClass} inline-flex items-center gap-1">
             <i class="${iconClass}"></i>
-            ${data || 'N/D'}
+            ${escapeHtml(data) || 'N/D'}
           </span>`;
         }
       },
@@ -403,7 +403,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const iconClass = statusIcon[data] || 'fas fa-question-circle';
           return `<span class="px-2 py-1 rounded-full text-xs font-medium ${colorClass} inline-flex items-center gap-1">
             <i class="${iconClass}"></i>
-            ${data || 'N/D'}
+            ${escapeHtml(data) || 'N/D'}
           </span>`;
         }
       },
@@ -415,12 +415,12 @@ document.addEventListener('DOMContentLoaded', function() {
           const id = encodeURIComponent(String(data ?? ''));
           return `
             <div class="flex items-center gap-1">
-              <a href="${window.BASE_PATH}/admin/utenti/dettagli/${id}"
+              <a href="${window.BASE_PATH || ''}/admin/utenti/dettagli/${id}"
                  class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
                  title="<?= __("Visualizza dettagli") ?>">
                 <i class="fas fa-eye text-sm"></i>
               </a>
-              <a href="${window.BASE_PATH}/admin/utenti/modifica/${id}"
+              <a href="${window.BASE_PATH || ''}/admin/utenti/modifica/${id}"
                  class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200"
                  title="<?= __("Modifica") ?>">
                 <i class="fas fa-edit text-sm"></i>
@@ -555,7 +555,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (result.isConfirmed) {
           // Make DELETE request
           const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-          fetch(`${window.BASE_PATH}/admin/utenti/delete/${userId}`, {
+          fetch(`${window.BASE_PATH || ''}/admin/utenti/delete/${userId}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/x-www-form-urlencoded',
@@ -582,7 +582,7 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
       if (confirm(__('Sei sicuro di voler eliminare questo utente?'))) {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        fetch(`${window.BASE_PATH}/admin/utenti/delete/${userId}`, {
+        fetch(`${window.BASE_PATH || ''}/admin/utenti/delete/${userId}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -660,7 +660,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
 
       // Redirect to server-side export endpoint with filters
-      const url = window.BASE_PATH + '/admin/utenti/export/csv' + (params.toString() ? '?' + params.toString() : '');
+      const url = (window.BASE_PATH || '') + '/admin/utenti/export/csv' + (params.toString() ? '?' + params.toString() : '');
       window.location.href = url;
     });
 
