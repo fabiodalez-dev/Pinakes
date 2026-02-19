@@ -677,7 +677,7 @@ $pluginSettings = $pluginSettings ?? [];
 </div>
 
 <script>
-    const csrfToken = '<?= \App\Support\Csrf::ensureToken() ?>';
+    const csrfToken = <?= json_encode(\App\Support\Csrf::ensureToken(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
     // XSS protection helper
     function escapeHtml(str) {

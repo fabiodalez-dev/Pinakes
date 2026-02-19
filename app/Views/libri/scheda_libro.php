@@ -401,7 +401,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 (async function() {
                   const codeEl = document.getElementById('dewey_code_display');
                   const nameEl = document.getElementById('dewey_name_display');
-                  const code = <?php echo json_encode($libro['classificazione_dewey'] ?? ''); ?>;
+                  const code = <?php echo json_encode($libro['classificazione_dewey'] ?? '', JSON_HEX_TAG); ?>;
                   if (!codeEl || !nameEl || !code) return;
 
                   // Se è nel vecchio formato (300-340-347), prendi solo l'ultimo valore

@@ -614,7 +614,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!str) return '';
     const div = document.createElement('div');
     div.textContent = str;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   const editLabel = <?= json_encode(__('Modifica'), JSON_HEX_TAG) ?>;

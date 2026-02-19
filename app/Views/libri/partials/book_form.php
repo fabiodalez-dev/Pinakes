@@ -893,9 +893,9 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
 <script src="<?= htmlspecialchars(assetUrl('star-rating/dist/star-rating.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 
 <script>
-const FORM_MODE = <?php echo json_encode($mode); ?>;
+const FORM_MODE = <?php echo json_encode($mode, JSON_HEX_TAG); ?>;
 const INITIAL_BOOK = <?php echo $initialDataJsonRaw; ?>;
-const CSRF_TOKEN = <?php echo json_encode($csrfToken); ?>;
+const CSRF_TOKEN = <?php echo json_encode($csrfToken, JSON_HEX_TAG); ?>;
 
 // i18n translations for JavaScript - Inject PHP translations into JS
 // Merge global translations (from layout) with local fallbacks; global wins if defined
@@ -3114,7 +3114,7 @@ function showAlternativesPanel(alternatives) {
 function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function escapeAttr(str) {

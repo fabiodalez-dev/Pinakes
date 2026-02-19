@@ -611,7 +611,7 @@ document.addEventListener('DOMContentLoaded', function() {
   function escapeHtml(value) {
     var div = document.createElement('div');
     div.textContent = value ?? '';
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   // Initialize export buttons

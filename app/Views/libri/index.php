@@ -1057,7 +1057,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (window.Swal) {
       Swal.fire({
         title: <?= json_encode(__("Eliminare i libri selezionati?"), JSON_HEX_TAG) ?>,
-        text: `${<?= json_encode(__("Stai per eliminare"), JSON_HEX_TAG) ?>} ${selectedBooks.size} ${<?= json_encode(__("libri. Questa azione non può essere annullata."), JSON_HEX_TAG) ?>}`,
+        text: <?= json_encode(__("Stai per eliminare %d libri. Questa azione non può essere annullata."), JSON_HEX_TAG) ?>.replace('%d', selectedBooks.size),
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',

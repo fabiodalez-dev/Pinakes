@@ -283,7 +283,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   // Loans Per Month Chart
-  const loansByMonthData = <?php echo json_encode($loansByMonth); ?>;
+  const loansByMonthData = <?php echo json_encode($loansByMonth, JSON_HEX_TAG); ?>;
   const locale = <?= json_encode(str_replace('_', '-', $_SESSION['locale'] ?? 'it-IT'), JSON_HEX_TAG | JSON_HEX_AMP) ?>;
   const monthLabels = loansByMonthData.map(item => {
     const parts = item.mese.split('-');
@@ -346,7 +346,7 @@ document.addEventListener('DOMContentLoaded', function() {
   });
 
   // Loans By Status Chart
-  const loansByStatusData = <?php echo json_encode($loansByStatus); ?>;
+  const loansByStatusData = <?php echo json_encode($loansByStatus, JSON_HEX_TAG); ?>;
   const statusLabels = loansByStatusData.map(item => {
     const labels = {
       'in_corso': <?= json_encode(__("In Corso"), JSON_HEX_TAG) ?>,

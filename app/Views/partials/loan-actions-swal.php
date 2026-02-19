@@ -40,7 +40,7 @@ $loanActionTranslations = array_merge([
 ?>
 <script>
 (function() {
-  const t = <?= json_encode($loanActionTranslations, JSON_UNESCAPED_UNICODE); ?>;
+  const t = <?= json_encode($loanActionTranslations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
   
   // Extend the existing global window.__ function to include loan action translations
   if (typeof window.__ === 'function') {

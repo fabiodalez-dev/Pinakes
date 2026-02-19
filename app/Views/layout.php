@@ -694,7 +694,7 @@ $htmlLang = substr($currentLocale, 0, 2);
       $translations = json_decode($translationsContent, true) ?? [];
     }
     ?>
-    window.i18nTranslations = <?= json_encode($translations, JSON_UNESCAPED_UNICODE | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
+    window.i18nTranslations = <?= json_encode($translations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
     window.userIsAdminOrStaff = <?= json_encode($isAdminOrStaff) ?>;
 
     // Override translation helper function to use i18nTranslations (overrides head fallback)
@@ -725,7 +725,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     function escapeHtml(value) {
       const div = document.createElement('div');
       div.textContent = value ?? '';
-      return div.innerHTML;
+      return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
     }
 
     // Locale-aware date formatting (matches PHP format_date helper)

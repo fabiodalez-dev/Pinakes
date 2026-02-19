@@ -2126,7 +2126,7 @@ foreach ($jsTranslationKeys as $key) {
 ?>
 <script>
 (function() {
-  const newTranslations = <?= json_encode($jsTranslations, JSON_UNESCAPED_UNICODE); ?>;
+  const newTranslations = <?= json_encode($jsTranslations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
   window.APP_TRANSLATIONS = Object.assign(window.APP_TRANSLATIONS || {}, newTranslations);
   window.__ = function(key) {
     const dict = window.APP_TRANSLATIONS || newTranslations;
