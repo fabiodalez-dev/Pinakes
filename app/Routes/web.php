@@ -1878,28 +1878,8 @@ return function (App $app): void {
         return $response->withHeader('Content-Type', 'application/json');
     });
 
-    // API for frontend calendar availability (used by book-detail.php)
-    // Delegates to ReservationsController::getBookAvailabilityData() to ensure
-    // calendar and reservation logic use the same calculation (pickup_deadline, etc.)
-    $app->get('/api/libro/{id:\d+}/availability', function ($request, $response, $args) use ($app) {
-        $db = $app->getContainer()->get('db');
-        $bookId = (int)$args['id'];
-
-        $controller = new \App\Controllers\ReservationsController($db);
-        $availability = $controller->getBookAvailabilityData($bookId, date('Y-m-d'), 180);
-
-        $data = [
-            'success' => true,
-            'availability' => [
-                'unavailable_dates' => $availability['unavailable_dates'] ?? [],
-                'earliest_available' => $availability['earliest_available'] ?? date('Y-m-d'),
-                'days' => $availability['days'] ?? []
-            ]
-        ];
-
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
-        return $response->withHeader('Content-Type', 'application/json');
-    });
+    // NOTE: /api/libro/{id}/availability is registered via $registerRouteIfUnique
+    // in the translated routes block below (line ~2147) to avoid duplicate route errors.
 
     $app->get('/api/search/collocazione', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
@@ -2146,8 +2126,19 @@ return function (App $app): void {
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('api_book', $locale) . '/{id:\d+}/availability', function ($request, $response, $args) use ($app) {
             $db = $app->getContainer()->get('db');
+            $bookId = (int)$args['id'];
             $controller = new \App\Controllers\ReservationsController($db);
-            return $controller->getBookAvailability($request, $response, $args);
+            $availability = $controller->getBookAvailabilityData($bookId, date('Y-m-d'), 180);
+            $data = [
+                'success' => true,
+                'availability' => [
+                    'unavailable_dates' => $availability['unavailable_dates'] ?? [],
+                    'earliest_available' => $availability['earliest_available'] ?? date('Y-m-d'),
+                    'days' => $availability['days'] ?? []
+                ]
+            ];
+            $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json');
         });
 
         $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('api_book', $locale) . '/{id:\d+}/reservation', function ($request, $response, $args) use ($app) {
