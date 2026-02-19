@@ -1077,11 +1077,11 @@ function initializeUppy() {
 
         uppy.use(UppyDragDrop, {
             target: '#uppy-upload',
-            note: '<?= __("Trascina qui la copertina del libro o clicca per selezionare") ?>',
+            note: <?= json_encode(__("Trascina qui la copertina del libro o clicca per selezionare"), JSON_HEX_TAG) ?>,
             locale: {
                 strings: {
-                    dropPasteFiles: '<?= __("Trascina qui la copertina del libro o %{browse}") ?>',
-                    browse: '<?= __("seleziona file") ?>'
+                    dropPasteFiles: <?= json_encode(__("Trascina qui la copertina del libro o %{browse}"), JSON_HEX_TAG) ?>,
+                    browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
                 }
             }
         });
@@ -1185,7 +1185,7 @@ function removeCoverImage() {
     container.innerHTML = `
         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800 flex items-center gap-2" role="alert">
             <i class="fas fa-info-circle"></i>
-            <span><?= __("La copertina verrà rimossa al salvataggio del libro") ?></span>
+            <span>${<?= json_encode(__("La copertina verrà rimossa al salvataggio del libro"), JSON_HEX_TAG) ?>}</span>
         </div>
     `;
 }
@@ -1205,10 +1205,10 @@ function initializeChoicesJS() {
             addItems: true,
             duplicateItemsAllowed: false,
             placeholder: true,
-            placeholderValue: '<?= __("Cerca autori esistenti o aggiungine di nuovi...") ?>',
-            noChoicesText: '<?= __("Nessun autore trovato, premi Invio per aggiungerne uno nuovo") ?>',
-            itemSelectText: '<?= __("Clicca per selezionare") ?>',
-            addItemText: (value) => `<?= __('Aggiungi') ?> <b>"${value}"</b> <?= __('come nuovo autore') ?>`,
+            placeholderValue: <?= json_encode(__("Cerca autori esistenti o aggiungine di nuovi..."), JSON_HEX_TAG) ?>,
+            noChoicesText: <?= json_encode(__("Nessun autore trovato, premi Invio per aggiungerne uno nuovo"), JSON_HEX_TAG) ?>,
+            itemSelectText: <?= json_encode(__("Clicca per selezionare"), JSON_HEX_TAG) ?>,
+            addItemText: (value) => `${<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>} <b>"${value}"</b> ${<?= json_encode(__('come nuovo autore'), JSON_HEX_TAG) ?>}`,
             maxItemText: (maxItemCount) => `Solo ${maxItemCount} autori possono essere aggiunti`,
             shouldSort: false,
             searchResultLimit: -1,
@@ -1529,7 +1529,7 @@ async function initializeDewey() {
 
     // Reset navigazione
     container.innerHTML = '';
-    breadcrumb.innerHTML = '<i class="fas fa-home"></i> <span><?= __("Nessuna selezione") ?></span>';
+    breadcrumb.innerHTML = `<i class="fas fa-home"></i> <span>${<?= json_encode(__("Nessuna selezione"), JSON_HEX_TAG) ?>}</span>`;
     loadLevel(null, 0);
   };
 
@@ -1999,13 +1999,13 @@ function initializeAutocomplete() {
         if (isNew) {
             chip.classList.add('bg-primary-600', 'text-white', 'border-primary-500');
             if (editoreHint) {
-                editoreHint.textContent = `<?= __("Nuovo editore:") ?> ${displayLabel}`;
+                editoreHint.textContent = `${<?= json_encode(__("Nuovo editore:"), JSON_HEX_TAG) ?>} ${displayLabel}`;
             }
         } else {
             chip.classList.add('bg-slate-900', 'text-slate-100', 'border-slate-700');
             if (editoreHint) {
                 const suffix = publisherId ? ` (ID: ${publisherId})` : '';
-                editoreHint.textContent = `<?= __("Editore selezionato:") ?> ${displayLabel}${suffix}`;
+                editoreHint.textContent = `${<?= json_encode(__("Editore selezionato:"), JSON_HEX_TAG) ?>} ${displayLabel}${suffix}`;
             }
         }
 
@@ -2019,7 +2019,7 @@ function initializeAutocomplete() {
 
         const badge = document.createElement('span');
         badge.className = `text-xs px-2 py-0.5 rounded-full ${isNew ? 'bg-primary-700 text-primary-100' : 'bg-slate-700 text-slate-200'}`;
-        badge.textContent = isNew ? '<?= __("Da creare") ?>' : '<?= __("Esistente") ?>';
+        badge.textContent = isNew ? <?= json_encode(__("Da creare"), JSON_HEX_TAG) ?> : <?= json_encode(__("Esistente"), JSON_HEX_TAG) ?>;
         labelContainer.appendChild(badge);
 
         chip.appendChild(labelContainer);
@@ -2063,7 +2063,7 @@ function initializeAutocomplete() {
         },
         (query) => {
             if (editoreHint) {
-                editoreHint.textContent = `<?= __("Nessun editore trovato per") ?> "${query}" — <?= __("premi Invio per crearne uno nuovo.") ?>`;
+                editoreHint.textContent = `${<?= json_encode(__("Nessun editore trovato per"), JSON_HEX_TAG) ?>} "${query}" — ${<?= json_encode(__("premi Invio per crearne uno nuovo."), JSON_HEX_TAG) ?>}`;
             }
         },
         (rawValue) => {
@@ -2305,7 +2305,7 @@ function initializeCollocationFilters() {
           collocazionePreview.value = data.collocazione;
         }
       } catch (error) {
-        console.error('<?= __("Impossibile aggiornare la posizione automatica") ?>', error);
+        console.error(<?= json_encode(__("Impossibile aggiornare la posizione automatica"), JSON_HEX_TAG) ?>, error);
       }
     } else {
       if (!posizioneInput.dataset.manual || force) {
@@ -2352,7 +2352,7 @@ function initializeCollocationFilters() {
       if (window.Toast && posizioneInput.value) {
         window.Toast.fire({
           icon: 'success',
-          title: `<?= __("Posizione generata:") ?> ${posizioneInput.value}`
+          title: `${<?= json_encode(__("Posizione generata:"), JSON_HEX_TAG) ?>} ${posizioneInput.value}`
         });
       }
     });
@@ -2362,11 +2362,11 @@ function initializeCollocationFilters() {
     const sid = normalizeNumber(scaffaleSel.value);
     if (sid > 0) {
       const ms = MENSOLE.filter(m => m.scaffale_id === sid);
-      fillOptions(mensolaSel, ms, '<?= __("Seleziona mensola...") ?>', m => `<?= __("Livello") ?> ${m.numero_livello}`);
+      fillOptions(mensolaSel, ms, <?= json_encode(__("Seleziona mensola..."), JSON_HEX_TAG) ?>, m => `${<?= json_encode(__("Livello"), JSON_HEX_TAG) ?>} ${m.numero_livello}`);
       mensolaSel.disabled = false;
       mensolaSel.removeAttribute('disabled');
     } else {
-      fillOptions(mensolaSel, [], '<?= __("Seleziona prima uno scaffale...") ?>', null);
+      fillOptions(mensolaSel, [], <?= json_encode(__("Seleziona prima uno scaffale..."), JSON_HEX_TAG) ?>, null);
       mensolaSel.disabled = true;
       mensolaSel.setAttribute('disabled', 'disabled');
     }
@@ -2545,7 +2545,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
 
                         const text = document.createElement('span');
                         text.textContent = item.isCreate
-                            ? `<?= __("Crea nuovo") ?> "${item.label}"`
+                            ? `${<?= json_encode(__("Crea nuovo"), JSON_HEX_TAG) ?>} "${item.label}"`
                             : item.label || '';
 
                         li.appendChild(icon);
@@ -2581,7 +2581,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
                     li.appendChild(icon);
 
                     const text = document.createElement('span');
-                    text.textContent = `<?= __("Crea nuovo") ?> "${fallback}"`;
+                    text.textContent = `${<?= json_encode(__("Crea nuovo"), JSON_HEX_TAG) ?>} "${fallback}"`;
                     li.appendChild(text);
 
                     li.addEventListener('click', () => {
@@ -3056,32 +3056,32 @@ function showAlternativesPanel(alternatives) {
 
         // Show key fields from this source (using data-* attributes for event delegation)
         if (sourceData.title && typeof sourceData.title === 'string') {
-            html += `<div><span class="font-medium"><?= __("Titolo:") ?></span> ${escapeHtml(sourceData.title)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}"><?= __("Usa") ?></button></div>`;
+            html += `<div><span class="font-medium">${<?= json_encode(__("Titolo:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(sourceData.title)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="titolo" data-value="${escapeAttr(sourceData.title)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
         }
         if (sourceData.publisher && typeof sourceData.publisher === 'string') {
-            html += `<div><span class="font-medium"><?= __("Editore:") ?></span> ${escapeHtml(sourceData.publisher)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}"><?= __("Usa") ?></button></div>`;
+            html += `<div><span class="font-medium">${<?= json_encode(__("Editore:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(sourceData.publisher)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-publisher" data-publisher="${escapeAttr(sourceData.publisher)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
         }
         // Show cover only if it's not an SBN/LibraryThing cover (requires API key)
         // Also sanitize URL to prevent javascript: and other unsafe protocols
         const safeImage = sanitizeUrl(sourceData.image);
         if (safeImage && !safeImage.includes('librarything.com/devkey')) {
-            html += `<div><span class="font-medium"><?= __("Copertina:") ?></span>
-                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline"><?= __("Vedi") ?></a>
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}"><?= __("Usa") ?></button></div>`;
+            html += `<div><span class="font-medium">${<?= json_encode(__("Copertina:"), JSON_HEX_TAG) ?>}</span>
+                <a href="${escapeAttr(safeImage)}" target="_blank" rel="noopener noreferrer" class="text-gray-800 hover:underline">${<?= json_encode(__("Vedi"), JSON_HEX_TAG) ?>}</a>
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-cover" data-cover="${escapeAttr(safeImage)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
         }
         if (sourceData.description && typeof sourceData.description === 'string') {
             const shortDesc = sourceData.description.substring(0, 100) + (sourceData.description.length > 100 ? '...' : '');
-            html += `<div><span class="font-medium"><?= __("Descrizione:") ?></span> ${escapeHtml(shortDesc)}
-                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}"><?= __("Usa") ?></button></div>`;
+            html += `<div><span class="font-medium">${<?= json_encode(__("Descrizione:"), JSON_HEX_TAG) ?>}</span> ${escapeHtml(shortDesc)}
+                <button type="button" class="ml-2 text-gray-800 hover:underline apply-alt-value" data-field="descrizione" data-value="${escapeAttr(sourceData.description)}">${<?= json_encode(__("Usa"), JSON_HEX_TAG) ?>}</button></div>`;
         }
 
         html += `</div></div>`;
     }
 
     if (html === '') {
-        html = `<p class="text-gray-500"><?= __("Nessuna alternativa disponibile") ?></p>`;
+        html = `<p class="text-gray-500">${<?= json_encode(__("Nessuna alternativa disponibile"), JSON_HEX_TAG) ?>}</p>`;
     }
 
     content.innerHTML = html;
@@ -3817,8 +3817,8 @@ function displayScrapedCover(imageUrl) {
                 <div class="text-gray-400 mb-2">
                     <i class="fas fa-image text-3xl"></i>
                 </div>
-                <p class="text-sm text-gray-600 mb-2"><?= __("Anteprima non disponibile") ?></p>
-                <p class="text-xs text-gray-500 mb-3"><?= __("L'immagine verrà scaricata al salvataggio") ?></p>
+                <p class="text-sm text-gray-600 mb-2">${<?= json_encode(__("Anteprima non disponibile"), JSON_HEX_TAG) ?>}</p>
+                <p class="text-xs text-gray-500 mb-3">${<?= json_encode(__("L'immagine verrà scaricata al salvataggio"), JSON_HEX_TAG) ?>}</p>
                 <a href="${escapeAttr(imageSrc)}" target="_blank" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${escapeHtml(imageUrl)}</a>
             </div>
         `;
@@ -3834,7 +3834,7 @@ function displayScrapedCover(imageUrl) {
             <div class="flex items-center gap-4">
                 <div class="flex items-center gap-2 text-sm text-gray-600">
                     <i class="fas fa-globe text-gray-600"></i>
-                    <span><?= __("Copertina recuperata automaticamente") ?></span>
+                    <span>${<?= json_encode(__("Copertina recuperata automaticamente"), JSON_HEX_TAG) ?>}</span>
                 </div>
                 <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                     <i class="fas fa-trash"></i>

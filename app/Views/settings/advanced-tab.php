@@ -861,17 +861,17 @@ function toggleApiKeyVisibility(keyId) {
   const toggleText = document.getElementById(keyId + '-toggle-text');
   if (element.classList.contains('hidden')) {
     element.classList.remove('hidden');
-    toggleText.textContent = '<?= __("Nascondi API Key") ?>';
+    toggleText.textContent = <?= json_encode(__("Nascondi API Key"), JSON_HEX_TAG) ?>;
   } else {
     element.classList.add('hidden');
-    toggleText.textContent = '<?= __("Mostra API Key") ?>';
+    toggleText.textContent = <?= json_encode(__("Mostra API Key"), JSON_HEX_TAG) ?>;
   }
 }
 
 function copyToClipboard(text, button) {
   navigator.clipboard.writeText(text).then(() => {
     const originalHTML = button.innerHTML;
-    button.innerHTML = '<i class="fas fa-check"></i> <?= __("Copiato!") ?>';
+    button.innerHTML = '<i class="fas fa-check"></i> ' + <?= json_encode(__("Copiato!"), JSON_HEX_TAG) ?>;
     setTimeout(() => {
       button.innerHTML = originalHTML;
     }, 2000);

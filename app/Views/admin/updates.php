@@ -483,8 +483,8 @@ const csrfToken = <?= json_encode(Csrf::ensureToken()) ?>;
 async function checkForUpdatesManual() {
     try {
         Swal.fire({
-            title: '<?= __("Controllo aggiornamenti") ?>',
-            text: '<?= __("Verifica in corso...") ?>',
+            title: <?= json_encode(__("Controllo aggiornamenti"), JSON_HEX_TAG) ?>,
+            text: <?= json_encode(__("Verifica in corso..."), JSON_HEX_TAG) ?>,
             allowOutsideClick: false,
             showConfirmButton: false,
             didOpen: () => Swal.showLoading()
@@ -496,27 +496,27 @@ async function checkForUpdatesManual() {
         if (data.available) {
             Swal.fire({
                 icon: 'info',
-                title: '<?= __("Aggiornamento disponibile!") ?>',
-                text: `<?= __("Versione") ?> ${data.latest} <?= __("disponibile") ?>.`,
-                confirmButtonText: '<?= __("OK") ?>'
+                title: <?= json_encode(__("Aggiornamento disponibile!"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Versione"), JSON_HEX_TAG) ?> + ` ${data.latest} ` + <?= json_encode(__("disponibile") . ".", JSON_HEX_TAG) ?>,
+                confirmButtonText: <?= json_encode(__("OK"), JSON_HEX_TAG) ?>
             }).then(() => location.reload());
         } else if (data.error) {
             Swal.fire({
                 icon: 'error',
-                title: '<?= __("Errore") ?>',
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                 text: data.error
             });
         } else {
             Swal.fire({
                 icon: 'success',
-                title: '<?= __("Nessun aggiornamento") ?>',
-                text: '<?= __("Non è stato trovato alcun aggiornamento") ?>'
+                title: <?= json_encode(__("Nessun aggiornamento"), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__("Non è stato trovato alcun aggiornamento"), JSON_HEX_TAG) ?>
             });
         }
     } catch (error) {
         Swal.fire({
             icon: 'error',
-            title: '<?= __("Errore") ?>',
+            title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
             text: error.message
         });
     }
@@ -525,18 +525,18 @@ async function checkForUpdatesManual() {
 async function createBackup() {
     try {
         const result = await Swal.fire({
-            title: '<?= __("Creare backup?") ?>',
-            text: '<?= __("Verrà creato un backup completo del database.") ?>',
+            title: <?= json_encode(__("Creare backup?"), JSON_HEX_TAG) ?>,
+            text: <?= json_encode(__("Verrà creato un backup completo del database."), JSON_HEX_TAG) ?>,
             icon: 'question',
             showCancelButton: true,
-            confirmButtonText: '<?= __("Crea Backup") ?>',
-            cancelButtonText: '<?= __("Annulla") ?>'
+            confirmButtonText: <?= json_encode(__("Crea Backup"), JSON_HEX_TAG) ?>,
+            cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
         });
 
         if (!result.isConfirmed) return;
 
         Swal.fire({
-            title: '<?= __("Creazione backup...") ?>',
+            title: <?= json_encode(__("Creazione backup..."), JSON_HEX_TAG) ?>,
             allowOutsideClick: false,
             showConfirmButton: false,
             didOpen: () => Swal.showLoading()
@@ -555,7 +555,7 @@ async function createBackup() {
         if (data.success) {
             Swal.fire({
                 icon: 'success',
-                title: '<?= __("Backup creato!") ?>',
+                title: <?= json_encode(__("Backup creato!"), JSON_HEX_TAG) ?>,
                 text: data.message,
                 timer: 1500,
                 showConfirmButton: false
@@ -564,14 +564,14 @@ async function createBackup() {
         } else {
             Swal.fire({
                 icon: 'error',
-                title: '<?= __("Errore") ?>',
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                 text: data.error
             });
         }
     } catch (error) {
         Swal.fire({
             icon: 'error',
-            title: '<?= __("Errore") ?>',
+            title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
             text: error.message
         });
     }
@@ -579,12 +579,12 @@ async function createBackup() {
 
 async function startUpdate(version) {
     const result = await Swal.fire({
-        title: '<?= __("Conferma aggiornamento") ?>',
-        text: `<?= __("Stai per aggiornare Pinakes alla versione") ?> v${version}. <?= __("Verrà creato automaticamente un backup prima dell'aggiornamento.") ?>`,
+        title: <?= json_encode(__("Conferma aggiornamento"), JSON_HEX_TAG) ?>,
+        text: <?= json_encode(__("Stai per aggiornare Pinakes alla versione"), JSON_HEX_TAG) ?> + ` v${version}. ` + <?= json_encode(__("Verrà creato automaticamente un backup prima dell'aggiornamento."), JSON_HEX_TAG) ?>,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: '<?= __("Aggiorna") ?>',
-        cancelButtonText: '<?= __("Annulla") ?>',
+        confirmButtonText: <?= json_encode(__("Aggiorna"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
         confirmButtonColor: '#16a34a'
     });
 
@@ -637,15 +637,15 @@ async function startUpdate(version) {
 
             document.getElementById('updateIcon').innerHTML = '<i class="fas fa-check-circle text-green-600 text-3xl"></i>';
             document.getElementById('updateIcon').className = 'w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4';
-            document.getElementById('updateTitle').textContent = '<?= __("Aggiornamento completato!") ?>';
-            document.getElementById('updateMessage').textContent = '<?= __("Pinakes è stato aggiornato con successo.") ?>';
+            document.getElementById('updateTitle').textContent = <?= json_encode(__("Aggiornamento completato!"), JSON_HEX_TAG) ?>;
+            document.getElementById('updateMessage').textContent = <?= json_encode(__("Pinakes è stato aggiornato con successo."), JSON_HEX_TAG) ?>;
         } else {
             // Mark failed step with error indicator
             setStepFailed('download');
             document.getElementById('updateIcon').innerHTML = '<i class="fas fa-times-circle text-red-600 text-3xl"></i>';
             document.getElementById('updateIcon').className = 'w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4';
-            document.getElementById('updateTitle').textContent = '<?= __("Aggiornamento fallito") ?>';
-            document.getElementById('updateMessage').textContent = data.error || '<?= __("Si è verificato un errore.") ?>';
+            document.getElementById('updateTitle').textContent = <?= json_encode(__("Aggiornamento fallito"), JSON_HEX_TAG) ?>;
+            document.getElementById('updateMessage').textContent = data.error || <?= json_encode(__("Si è verificato un errore."), JSON_HEX_TAG) ?>;
         }
 
         document.getElementById('updateActions').classList.remove('hidden');
@@ -653,10 +653,10 @@ async function startUpdate(version) {
     } catch (error) {
         document.getElementById('updateIcon').innerHTML = '<i class="fas fa-times-circle text-red-600 text-3xl"></i>';
         document.getElementById('updateIcon').className = 'w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4';
-        document.getElementById('updateTitle').textContent = '<?= __("Errore") ?>';
+        document.getElementById('updateTitle').textContent = <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>;
         document.getElementById('updateMessage').innerHTML = escapeHtml(error.message) +
             '<br><br><button onclick="clearMaintenanceMode()" class="mt-2 px-4 py-2 text-sm bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200">' +
-            '<i class="fas fa-unlock mr-1"></i><?= __("Disattiva modalità manutenzione") ?></button>';
+            '<i class="fas fa-unlock mr-1"><\/i>' + <?= json_encode(__("Disattiva modalità manutenzione"), JSON_HEX_TAG) ?> + '</button>';
         document.getElementById('updateActions').classList.remove('hidden');
     }
 }
@@ -708,7 +708,7 @@ async function clearMaintenanceMode() {
         if (data.success) {
             Swal.fire({
                 icon: 'success',
-                title: '<?= __("Manutenzione disattivata") ?>',
+                title: <?= json_encode(__("Manutenzione disattivata"), JSON_HEX_TAG) ?>,
                 text: data.message,
                 timer: 2000,
                 showConfirmButton: false
@@ -716,14 +716,14 @@ async function clearMaintenanceMode() {
         } else {
             Swal.fire({
                 icon: 'error',
-                title: '<?= __("Errore") ?>',
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                 text: data.error
             });
         }
     } catch (error) {
         Swal.fire({
             icon: 'error',
-            title: '<?= __("Errore") ?>',
+            title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
             text: error.message
         });
     }
@@ -741,7 +741,7 @@ async function loadBackups() {
             <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <i class="fas fa-spinner fa-spin text-gray-400 text-xl"></i>
             </div>
-            <p class="text-gray-600"><?= __("Caricamento backup...") ?></p>
+            <p class="text-gray-600">${<?= json_encode(__("Caricamento backup..."), JSON_HEX_TAG) ?>}</p>
         </div>
     `;
 
@@ -764,8 +764,8 @@ async function loadBackups() {
                     <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
                         <i class="fas fa-database text-gray-400 text-2xl"></i>
                     </div>
-                    <h3 class="text-lg font-medium text-gray-900 mb-2"><?= __("Nessun backup disponibile") ?></h3>
-                    <p class="text-gray-600"><?= __("Crea un backup manuale o attendi il prossimo aggiornamento.") ?></p>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">${<?= json_encode(__("Nessun backup disponibile"), JSON_HEX_TAG) ?>}</h3>
+                    <p class="text-gray-600">${<?= json_encode(__("Crea un backup manuale o attendi il prossimo aggiornamento."), JSON_HEX_TAG) ?>}</p>
                 </div>
             `;
             return;
@@ -776,10 +776,10 @@ async function loadBackups() {
                 <table class="w-full">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Nome File") ?></th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Data") ?></th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Dimensione") ?></th>
-                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Azioni") ?></th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Nome File"), JSON_HEX_TAG) ?>}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Data"), JSON_HEX_TAG) ?>}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Dimensione"), JSON_HEX_TAG) ?>}</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Azioni"), JSON_HEX_TAG) ?>}</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
@@ -807,12 +807,12 @@ async function loadBackups() {
                         <button data-backup="${escapeHtml(backup.name)}" data-action="download"
                             class="btn-backup-download inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 mr-2">
                             <i class="fas fa-download mr-1"></i>
-                            <?= __("Scarica") ?>
+                            ${<?= json_encode(__("Scarica"), JSON_HEX_TAG) ?>}
                         </button>
                         <button data-backup="${escapeHtml(backup.name)}" data-action="delete"
                             class="btn-backup-delete inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded-lg hover:bg-red-200">
                             <i class="fas fa-trash mr-1"></i>
-                            <?= __("Elimina") ?>
+                            ${<?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>}
                         </button>
                     </td>
                 </tr>
@@ -838,12 +838,12 @@ async function loadBackups() {
 
 async function deleteBackup(backupName) {
     const result = await Swal.fire({
-        title: '<?= __("Eliminare questo backup?") ?>',
+        title: <?= json_encode(__("Eliminare questo backup?"), JSON_HEX_TAG) ?>,
         text: backupName,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: '<?= __("Elimina") ?>',
-        cancelButtonText: '<?= __("Annulla") ?>',
+        confirmButtonText: <?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
         confirmButtonColor: '#dc2626'
     });
 
@@ -851,7 +851,7 @@ async function deleteBackup(backupName) {
 
     try {
         Swal.fire({
-            title: '<?= __("Eliminazione in corso...") ?>',
+            title: <?= json_encode(__("Eliminazione in corso..."), JSON_HEX_TAG) ?>,
             allowOutsideClick: false,
             showConfirmButton: false,
             didOpen: () => Swal.showLoading()
@@ -870,7 +870,7 @@ async function deleteBackup(backupName) {
         if (data.success) {
             Swal.fire({
                 icon: 'success',
-                title: '<?= __("Backup eliminato") ?>',
+                title: <?= json_encode(__("Backup eliminato"), JSON_HEX_TAG) ?>,
                 text: data.message,
                 timer: 1500,
                 showConfirmButton: false
@@ -879,14 +879,14 @@ async function deleteBackup(backupName) {
         } else {
             Swal.fire({
                 icon: 'error',
-                title: '<?= __("Errore") ?>',
+                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
                 text: data.error
             });
         }
     } catch (error) {
         Swal.fire({
             icon: 'error',
-            title: '<?= __("Errore") ?>',
+            title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
             text: error.message
         });
     }
@@ -969,20 +969,20 @@ async function submitManualUpdate() {
     if (!uploadedFile) {
         Swal.fire({
             icon: 'error',
-            title: '<?= __("Errore") ?>',
-            text: '<?= __("Seleziona un file ZIP da caricare") ?>'
+            title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+            text: <?= json_encode(__("Seleziona un file ZIP da caricare"), JSON_HEX_TAG) ?>
         });
         return;
     }
 
     const sanitizedName = escapeHtml(uploadedFile.name);
     const result = await Swal.fire({
-        title: '<?= __("Avviare l\'aggiornamento manuale?") ?>',
-        html: `<?= __("Verrà installato il pacchetto:") ?><br><code class="text-sm bg-gray-100 px-2 py-1 rounded">${sanitizedName}</code><br><br><?= __("Prima dell'installazione verrà creato automaticamente un backup del database.") ?>`,
+        title: <?= json_encode(__("Avviare l'aggiornamento manuale?"), JSON_HEX_TAG) ?>,
+        html: <?= json_encode(__("Verrà installato il pacchetto:"), JSON_HEX_TAG) ?> + `<br><code class="text-sm bg-gray-100 px-2 py-1 rounded">${sanitizedName}<\/code><br><br>` + <?= json_encode(__("Prima dell'installazione verrà creato automaticamente un backup del database."), JSON_HEX_TAG) ?>,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: '<?= __("Avvia Aggiornamento") ?>',
-        cancelButtonText: '<?= __("Annulla") ?>',
+        confirmButtonText: <?= json_encode(__("Avvia Aggiornamento"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
         confirmButtonColor: '#16a34a'
     });
 
@@ -993,7 +993,7 @@ async function submitManualUpdate() {
     const originalText = btnText.textContent;
 
     submitBtn.disabled = true;
-    btnText.textContent = '<?= __("Caricamento...") ?>';
+    btnText.textContent = <?= json_encode(__("Caricamento..."), JSON_HEX_TAG) ?>;
 
     try {
         // Upload the file
@@ -1002,7 +1002,7 @@ async function submitManualUpdate() {
         formData.append('csrf_token', csrfToken);
 
         Swal.fire({
-            title: '<?= __("Caricamento pacchetto...") ?>',
+            title: <?= json_encode(__("Caricamento pacchetto..."), JSON_HEX_TAG) ?>,
             html: '<div class="swal2-progress-bar"><div></div></div>',
             allowOutsideClick: false,
             showConfirmButton: false,
@@ -1028,29 +1028,29 @@ async function submitManualUpdate() {
         }
 
         // Start update process
-        btnText.textContent = '<?= __("Installazione...") ?>';
+        btnText.textContent = <?= json_encode(__("Installazione..."), JSON_HEX_TAG) ?>;
 
         Swal.fire({
-            title: '<?= __("Installazione in corso...") ?>',
+            title: <?= json_encode(__("Installazione in corso..."), JSON_HEX_TAG) ?>,
             html: `
                 <div class="mb-4">
-                    <p class="text-sm text-gray-600 mb-2"><?= __("L'aggiornamento può richiedere alcuni minuti. Non chiudere questa pagina.") ?></p>
+                    <p class="text-sm text-gray-600 mb-2">${<?= json_encode(__("L'aggiornamento può richiedere alcuni minuti. Non chiudere questa pagina."), JSON_HEX_TAG) ?>}</p>
                     <div class="bg-gray-100 rounded-lg p-4 space-y-2 text-sm text-left">
                         <div class="flex items-center gap-2">
                             <i class="fas fa-spinner fa-spin text-green-600"></i>
-                            <span><?= __("Creazione backup database...") ?></span>
+                            <span>${<?= json_encode(__("Creazione backup database..."), JSON_HEX_TAG) ?>}</span>
                         </div>
                         <div class="flex items-center gap-2 text-gray-400">
                             <i class="far fa-circle"></i>
-                            <span><?= __("Estrazione pacchetto...") ?></span>
+                            <span>${<?= json_encode(__("Estrazione pacchetto..."), JSON_HEX_TAG) ?>}</span>
                         </div>
                         <div class="flex items-center gap-2 text-gray-400">
                             <i class="far fa-circle"></i>
-                            <span><?= __("Installazione file...") ?></span>
+                            <span>${<?= json_encode(__("Installazione file..."), JSON_HEX_TAG) ?>}</span>
                         </div>
                         <div class="flex items-center gap-2 text-gray-400">
                             <i class="far fa-circle"></i>
-                            <span><?= __("Completamento...") ?></span>
+                            <span>${<?= json_encode(__("Completamento..."), JSON_HEX_TAG) ?>}</span>
                         </div>
                     </div>
                 </div>
@@ -1080,8 +1080,8 @@ async function submitManualUpdate() {
         if (installData.success) {
             Swal.fire({
                 icon: 'success',
-                title: '<?= __("Aggiornamento completato!") ?>',
-                html: `<p>${escapeHtml(installData.message)}</p><p class="text-sm text-gray-600 mt-2"><?= __("La pagina verrà ricaricata automaticamente...") ?></p>`,
+                title: <?= json_encode(__("Aggiornamento completato!"), JSON_HEX_TAG) ?>,
+                html: `<p>${escapeHtml(installData.message)}</p><p class="text-sm text-gray-600 mt-2">${<?= json_encode(__("La pagina verrà ricaricata automaticamente..."), JSON_HEX_TAG) ?>}</p>`,
                 timer: 3000,
                 showConfirmButton: false
             }).then(() => {
@@ -1098,7 +1098,7 @@ async function submitManualUpdate() {
     } catch (error) {
         Swal.fire({
             icon: 'error',
-            title: '<?= __("Errore") ?>',
+            title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
             text: error.message
         });
         btnText.textContent = originalText;

@@ -616,13 +616,13 @@ document.addEventListener('DOMContentLoaded', function() {
           if (!row) return '<span class="text-gray-400">-</span>';
           const statusMeta = getStatusMeta(row.stato);
 
-          let tooltip = escapeHtml(row.stato || '<?= __("Sconosciuto") ?>');
+          let tooltip = escapeHtml(row.stato || <?= json_encode(__("Sconosciuto"), JSON_HEX_TAG) ?>);
           if (row.prestito_info) {
             const utente = escapeHtml(row.prestito_info.utente);
             const scadenza = escapeHtml(row.prestito_info.scadenza);
-            tooltip += `\n<?= __("Utente") ?>: ${utente}\n<?= __("Scadenza") ?>: ${scadenza}`;
+            tooltip += `\n${<?= json_encode(__("Utente"), JSON_HEX_TAG) ?>}: ${utente}\n${<?= json_encode(__("Scadenza"), JSON_HEX_TAG) ?>}: ${scadenza}`;
             if (row.prestito_info.in_ritardo) {
-              tooltip += `\n<?= __("IN RITARDO") ?>`;
+              tooltip += `\n${<?= json_encode(__("IN RITARDO"), JSON_HEX_TAG) ?>}`;
             }
           }
 
@@ -734,13 +734,13 @@ document.addEventListener('DOMContentLoaded', function() {
           const safeActionId = parseInt(data, 10);
           if (!Number.isFinite(safeActionId)) return '<span class="text-gray-400">-</span>';
           return `<div class="flex items-center justify-center gap-0.5">
-            <a href="${window.BASE_PATH}/admin/libri/${safeActionId}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
+            <a href="${window.BASE_PATH}/admin/libri/${safeActionId}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(__('Visualizza'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
               <i class="fas fa-eye text-xs"></i>
             </a>
-            <a href="${window.BASE_PATH}/admin/libri/modifica/${safeActionId}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
+            <a href="${window.BASE_PATH}/admin/libri/modifica/${safeActionId}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(__('Modifica'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
               <i class="fas fa-edit text-xs"></i>
             </a>
-            <button onclick="deleteBook(${safeActionId})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
+            <button onclick="deleteBook(${safeActionId})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-500 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(__('Elimina'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}">
               <i class="fas fa-trash text-xs"></i>
             </button>
           </div>`;
@@ -806,20 +806,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const autore = document.getElementById('filter_autore').value;
     if (autore && document.getElementById('autore_id').value) {
-      filters.push({ key: 'autore', label: `<?= __("Autore") ?>: ${autore}`, icon: 'fa-user' });
+      filters.push({ key: 'autore', label: `${<?= json_encode(__("Autore"), JSON_HEX_TAG) ?>}: ${autore}`, icon: 'fa-user' });
     }
 
     const editore = document.getElementById('filter_editore').value;
     if (editore && document.getElementById('editore_filter').value) {
-      filters.push({ key: 'editore', label: `<?= __("Editore") ?>: ${editore}`, icon: 'fa-building' });
+      filters.push({ key: 'editore', label: `${<?= json_encode(__("Editore"), JSON_HEX_TAG) ?>}: ${editore}`, icon: 'fa-building' });
     }
 
     const stato = document.getElementById('stato_filter').value;
-    if (stato) filters.push({ key: 'stato_filter', label: `<?= __("Stato") ?>: ${stato}`, icon: 'fa-info-circle' });
+    if (stato) filters.push({ key: 'stato_filter', label: `${<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>}: ${stato}`, icon: 'fa-info-circle' });
 
     const genere = document.getElementById('filter_genere').value;
     if (genere && document.getElementById('genere_id').value) {
-      filters.push({ key: 'genere', label: `<?= __("Genere") ?>: ${genere}`, icon: 'fa-tags' });
+      filters.push({ key: 'genere', label: `${<?= json_encode(__("Genere"), JSON_HEX_TAG) ?>}: ${genere}`, icon: 'fa-tags' });
     }
 
     if (filters.length === 0) {
@@ -893,7 +893,7 @@ document.addEventListener('DOMContentLoaded', function() {
       suggest.innerHTML = '';
 
       if (data.length === 0) {
-        suggest.innerHTML = '<li class="px-3 py-2 text-gray-400 text-sm"><?= __("Nessun risultato") ?></li>';
+        suggest.innerHTML = `<li class="px-3 py-2 text-gray-400 text-sm">${<?= json_encode(__("Nessun risultato"), JSON_HEX_TAG) ?>}</li>`;
       } else {
         data.slice(0, 6).forEach(item => {
           const li = document.createElement('li');
@@ -974,7 +974,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Show progress dialog
     if (window.Swal) {
       Swal.fire({
-        title: '<?= __("Scaricamento copertine...") ?>',
+        title: <?= json_encode(__("Scaricamento copertine..."), JSON_HEX_TAG) ?>,
         html: `<div class="text-sm text-gray-600"><span id="cover-progress">0</span> / ${ids.length}</div>`,
         allowOutsideClick: false,
         allowEscapeKey: false,
@@ -1030,16 +1030,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Show result
     if (window.Swal) {
       let message = '';
-      if (fetched > 0) message += `<?= __("Copertine scaricate:") ?> ${fetched}\n`;
-      if (alreadyHasCover > 0) message += `<?= __("Già presenti:") ?> ${alreadyHasCover}\n`;
-      if (noIsbn > 0) message += `<?= __("Impossibile scaricare (libro senza ISBN):") ?> ${noIsbn}\n`;
-      if (notFound > 0) message += `<?= __("Copertina non trovata online:") ?> ${notFound}\n`;
-      if (errors > 0) message += `<?= __("Errori:") ?> ${errors}`;
+      if (fetched > 0) message += `${<?= json_encode(__("Copertine scaricate:"), JSON_HEX_TAG) ?>} ${fetched}\n`;
+      if (alreadyHasCover > 0) message += `${<?= json_encode(__("Già presenti:"), JSON_HEX_TAG) ?>} ${alreadyHasCover}\n`;
+      if (noIsbn > 0) message += `${<?= json_encode(__("Impossibile scaricare (libro senza ISBN):"), JSON_HEX_TAG) ?>} ${noIsbn}\n`;
+      if (notFound > 0) message += `${<?= json_encode(__("Copertina non trovata online:"), JSON_HEX_TAG) ?>} ${notFound}\n`;
+      if (errors > 0) message += `${<?= json_encode(__("Errori:"), JSON_HEX_TAG) ?>} ${errors}`;
 
       Swal.fire({
         icon: fetched > 0 ? 'success' : 'info',
-        title: '<?= __("Completato") ?>',
-        text: message.trim() || '<?= __("Nessuna copertina da scaricare") ?>',
+        title: <?= json_encode(__("Completato"), JSON_HEX_TAG) ?>,
+        text: message.trim() || <?= json_encode(__("Nessuna copertina da scaricare"), JSON_HEX_TAG) ?>,
         timer: 4000,
         showConfirmButton: false
       });
@@ -1056,14 +1056,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     if (window.Swal) {
       Swal.fire({
-        title: '<?= __("Eliminare i libri selezionati?") ?>',
-        text: `<?= __("Stai per eliminare") ?> ${selectedBooks.size} <?= __("libri. Questa azione non può essere annullata.") ?>`,
+        title: <?= json_encode(__("Eliminare i libri selezionati?"), JSON_HEX_TAG) ?>,
+        text: `${<?= json_encode(__("Stai per eliminare"), JSON_HEX_TAG) ?>} ${selectedBooks.size} ${<?= json_encode(__("libri. Questa azione non può essere annullata."), JSON_HEX_TAG) ?>}`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
         cancelButtonColor: '#6b7280',
-        confirmButtonText: '<?= __("Sì, elimina") ?>',
-        cancelButtonText: '<?= __("Annulla") ?>'
+        confirmButtonText: <?= json_encode(__("Sì, elimina"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
       }).then(async (result) => {
         if (result.isConfirmed) {
           const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
@@ -1077,20 +1077,20 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             const data = await response.json().catch(() => ({
               success: false,
-              error: '<?= __("Errore nel parsing della risposta") ?>'
+              error: <?= json_encode(__("Errore nel parsing della risposta"), JSON_HEX_TAG) ?>
             }));
 
             if (response.ok && data.success) {
-              Swal.fire({ icon: 'success', title: '<?= __("Eliminati") ?>', text: data.message || `${ids.length} <?= __("libri eliminati") ?>`, timer: 2000, showConfirmButton: false });
+              Swal.fire({ icon: 'success', title: <?= json_encode(__("Eliminati"), JSON_HEX_TAG) ?>, text: data.message || `${ids.length} ${<?= json_encode(__("libri eliminati"), JSON_HEX_TAG) ?>}`, timer: 2000, showConfirmButton: false });
               selectedBooks.clear();
               table.ajax.reload();
               updateBulkActionsBar();
             } else {
-              Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: data.error || data.message });
+              Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: data.error || data.message });
             }
           } catch (err) {
             console.error(err);
-            Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Errore di connessione") ?>' });
+            Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: <?= json_encode(__("Errore di connessione"), JSON_HEX_TAG) ?> });
           }
         }
       });
@@ -1156,7 +1156,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const img = escapeHtml(/^(https?:)?\/\//.test(rawImg) ? rawImg : window.BASE_PATH + rawImg);
       const statusClass = getStatusMeta(book.stato).cls;
       const autori = escapeHtml(book.autori || '');
-      const titolo = escapeHtml(book.titolo || '<?= __("Senza titolo") ?>');
+      const titolo = escapeHtml(book.titolo || <?= json_encode(__("Senza titolo"), JSON_HEX_TAG) ?>);
       const anno = escapeHtml(book.anno_pubblicazione_formatted || '');
       const safeBookId = parseInt(book.id, 10);
       const bookHref = Number.isFinite(safeBookId) ? `${window.BASE_PATH}/admin/libri/${safeBookId}` : '#';
@@ -1225,14 +1225,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     if (window.Swal) {
       Swal.fire({
-        title: '<?= __("Sei sicuro?") ?>',
-        text: '<?= __("Questa azione non può essere annullata!") ?>',
+        title: <?= json_encode(__("Sei sicuro?"), JSON_HEX_TAG) ?>,
+        text: <?= json_encode(__("Questa azione non può essere annullata!"), JSON_HEX_TAG) ?>,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
         cancelButtonColor: '#6b7280',
-        confirmButtonText: '<?= __("Sì, elimina") ?>',
-        cancelButtonText: '<?= __("Annulla") ?>'
+        confirmButtonText: <?= json_encode(__("Sì, elimina"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
       }).then((result) => {
         if (result.isConfirmed) {
           const form = document.createElement('form');
@@ -1263,8 +1263,8 @@ document.addEventListener('DOMContentLoaded', function() {
             ${autori ? `<p class="text-sm text-gray-600 mt-1">${autori}</p>` : ''}
             ${editore ? `<p class="text-sm text-gray-500">${editore}</p>` : ''}
             <div class="flex gap-2 mt-4">
-              <a href="${window.BASE_PATH}/admin/libri/${bookId}" class="flex-1 px-4 py-2 bg-gray-800 text-white text-center rounded-lg text-sm hover:bg-gray-700"><?= __("Dettagli") ?></a>
-              <a href="${window.BASE_PATH}/admin/libri/modifica/${bookId}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 text-center rounded-lg text-sm hover:bg-gray-200"><?= __("Modifica") ?></a>
+              <a href="${window.BASE_PATH}/admin/libri/${bookId}" class="flex-1 px-4 py-2 bg-gray-800 text-white text-center rounded-lg text-sm hover:bg-gray-700">${<?= json_encode(__("Dettagli"), JSON_HEX_TAG) ?>}</a>
+              <a href="${window.BASE_PATH}/admin/libri/modifica/${bookId}" class="flex-1 px-4 py-2 bg-gray-100 text-gray-800 text-center rounded-lg text-sm hover:bg-gray-200">${<?= json_encode(__("Modifica"), JSON_HEX_TAG) ?>}</a>
             </div>
           </div>
         `,

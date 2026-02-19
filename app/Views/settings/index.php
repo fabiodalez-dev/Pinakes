@@ -661,13 +661,13 @@ $activeTab = $activeTab ?? 'general';
         plugins: 'link lists table code autoresize',
         toolbar: 'undo redo | styles | bold italic underline | alignleft aligncenter alignright | bullist numlist | link table | code',
         style_formats: [
-          { title: __('Paragraph'), format: 'p' },
-          { title: __('Heading 1'), format: 'h1' },
-          { title: __('Heading 2'), format: 'h2' },
-          { title: __('Heading 3'), format: 'h3' },
-          { title: __('Heading 4'), format: 'h4' },
-          { title: __('Heading 5'), format: 'h5' },
-          { title: __('Heading 6'), format: 'h6' }
+          { title: <?= json_encode(__('Paragraph'), JSON_HEX_TAG) ?>, format: 'p' },
+          { title: <?= json_encode(__('Heading 1'), JSON_HEX_TAG) ?>, format: 'h1' },
+          { title: <?= json_encode(__('Heading 2'), JSON_HEX_TAG) ?>, format: 'h2' },
+          { title: <?= json_encode(__('Heading 3'), JSON_HEX_TAG) ?>, format: 'h3' },
+          { title: <?= json_encode(__('Heading 4'), JSON_HEX_TAG) ?>, format: 'h4' },
+          { title: <?= json_encode(__('Heading 5'), JSON_HEX_TAG) ?>, format: 'h5' },
+          { title: <?= json_encode(__('Heading 6'), JSON_HEX_TAG) ?>, format: 'h6' }
         ],
         branding: false,
         relative_urls: false,
@@ -722,12 +722,12 @@ $activeTab = $activeTab ?? 'general';
         previewImage.src = src;
         previewWrapper.classList.remove('hidden');
         previewImage.classList.remove('hidden');
-        previewLabel.textContent = '<?= __("Anteprima logo") ?>';
+        previewLabel.textContent = <?= json_encode(__("Anteprima logo"), JSON_HEX_TAG) ?>;
         currentLogoPreviewSrc = src;
       } else {
         previewImage.src = '';
         previewImage.classList.add('hidden');
-        previewLabel.textContent = '<?= __("Nessun logo caricato") ?>';
+        previewLabel.textContent = <?= json_encode(__("Nessun logo caricato"), JSON_HEX_TAG) ?>;
         previewWrapper.classList.add('hidden');
         currentLogoPreviewSrc = '';
       }
@@ -777,11 +777,11 @@ $activeTab = $activeTab ?? 'general';
 
         uppyLogo.use(UppyDragDrop, {
           target: '#uppy-logo-upload',
-          note: '<?= __("PNG, SVG, JPG o WebP (max 2MB)") ?>',
+          note: <?= json_encode(__("PNG, SVG, JPG o WebP (max 2MB)"), JSON_HEX_TAG) ?>,
           locale: {
             strings: {
-              dropPasteFiles: '<?= __("Trascina qui il logo o %{browse}") ?>',
-              browse: '<?= __("seleziona file") ?>'
+              dropPasteFiles: <?= json_encode(__("Trascina qui il logo o %{browse}"), JSON_HEX_TAG) ?>,
+              browse: <?= json_encode(__("seleziona file"), JSON_HEX_TAG) ?>
             }
           }
         });
@@ -878,11 +878,11 @@ $activeTab = $activeTab ?? 'general';
           if (typeof Swal !== 'undefined') {
             Swal.fire({
               icon: 'error',
-              title: '<?= __("Errore Upload") ?>',
+              title: <?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>,
               text: error.message
             });
           } else {
-            alert('<?= __("Errore: ") ?>' + error.message);
+            alert(<?= json_encode(__("Errore: "), JSON_HEX_TAG) ?> + error.message);
           }
         });
       } catch (error) {

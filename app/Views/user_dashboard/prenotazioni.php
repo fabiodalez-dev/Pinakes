@@ -855,7 +855,7 @@ document.addEventListener('DOMContentLoaded', () => {
       },
       clearable: false,
       maxStars: 5,
-      tooltip: '<?= __('Seleziona la valutazione') ?>'
+      tooltip: <?= json_encode(__('Seleziona la valutazione'), JSON_HEX_TAG) ?>
     });
   }
 

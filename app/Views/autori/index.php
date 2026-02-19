@@ -235,7 +235,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return d;
       },
       dataSrc: function(json) {
-        document.getElementById('total-badge').textContent = (json.recordsFiltered || 0).toLocaleString() + ' <?= __("autori") ?>';
+        document.getElementById('total-badge').textContent = (json.recordsFiltered || 0).toLocaleString() + ' ' + <?= json_encode(__("autori"), JSON_HEX_TAG) ?>;
         return json.data;
       }
     },
@@ -257,7 +257,7 @@ document.addEventListener('DOMContentLoaded', function() {
         width: '250px',
         className: 'align-middle',
         render: function(_, __, row) {
-          const nome = escapeHtml(row.nome) || '<?= __("Autore sconosciuto") ?>';
+          const nome = escapeHtml(row.nome) || <?= json_encode(__("Autore sconosciuto"), JSON_HEX_TAG) ?>;
           const bio = row.biografia ? `<p class="text-xs text-gray-500 mt-0.5 line-clamp-1">${escapeHtml(row.biografia.substring(0, 80))}...</p>` : '';
           return `<div>
             <a href="${window.BASE_PATH || ''}/admin/autori/${parseInt(row.id, 10)}" class="font-medium text-gray-900 hover:text-gray-700 hover:underline">${nome}</a>
@@ -305,13 +305,13 @@ document.addEventListener('DOMContentLoaded', function() {
         render: function(data) {
           const id = parseInt(data, 10);
           return `<div class="flex items-center justify-center gap-0.5">
-            <a href="${window.BASE_PATH || ''}/admin/autori/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Visualizza') ?>">
+            <a href="${window.BASE_PATH || ''}/admin/autori/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(__('Visualizza'), JSON_HEX_TAG) ?>}">
               <i class="fas fa-eye text-xs"></i>
             </a>
-            <a href="${window.BASE_PATH || ''}/admin/autori/modifica/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="<?= __('Modifica') ?>">
+            <a href="${window.BASE_PATH || ''}/admin/autori/modifica/${id}" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-all" title="${<?= json_encode(__('Modifica'), JSON_HEX_TAG) ?>}">
               <i class="fas fa-edit text-xs"></i>
             </a>
-            <button onclick="deleteAuthor(${id})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="<?= __('Elimina') ?>">
+            <button onclick="deleteAuthor(${id})" class="w-7 h-7 inline-flex items-center justify-center text-gray-500 hover:text-red-600 hover:bg-red-50 rounded transition-all" title="${<?= json_encode(__('Elimina'), JSON_HEX_TAG) ?>}">
               <i class="fas fa-trash text-xs"></i>
             </button>
           </div>`;
@@ -361,13 +361,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (nome) filters.push({ key: 'search_nome', label: `"${escapeHtml(nome)}"`, icon: 'fa-search' });
 
     const naz = document.getElementById('search_nazionalita').value;
-    if (naz) filters.push({ key: 'search_nazionalita', label: `<?= __("Nazionalità") ?>: ${escapeHtml(naz)}`, icon: 'fa-flag' });
+    if (naz) filters.push({ key: 'search_nazionalita', label: `${<?= json_encode(__("Nazionalità") . ": ", JSON_HEX_TAG) ?>}${escapeHtml(naz)}`, icon: 'fa-flag' });
 
     const libri = document.getElementById('filter_libri_count').value;
-    if (libri) filters.push({ key: 'filter_libri_count', label: `<?= __("Libri") ?>: ${libri}`, icon: 'fa-book' });
+    if (libri) filters.push({ key: 'filter_libri_count', label: `${<?= json_encode(__("Libri") . ": ", JSON_HEX_TAG) ?>}${libri}`, icon: 'fa-book' });
 
     const pseudo = document.getElementById('search_pseudonimo').value;
-    if (pseudo) filters.push({ key: 'search_pseudonimo', label: `<?= __("Pseudonimo") ?>: ${escapeHtml(pseudo)}`, icon: 'fa-id-card' });
+    if (pseudo) filters.push({ key: 'search_pseudonimo', label: `${<?= json_encode(__("Pseudonimo") . ": ", JSON_HEX_TAG) ?>}${escapeHtml(pseudo)}`, icon: 'fa-id-card' });
 
     if (filters.length === 0) {
       container.classList.add('hidden');
@@ -443,14 +443,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (selectedAuthors.size === 0) return;
 
     const confirmed = await Swal.fire({
-      title: '<?= __("Conferma eliminazione") ?>',
-      text: `<?= __("Stai per eliminare") ?> ${selectedAuthors.size} <?= __("autori. Questa azione non può essere annullata.") ?>`,
+      title: <?= json_encode(__("Conferma eliminazione"), JSON_HEX_TAG) ?>,
+      text: <?= json_encode(__("Stai per eliminare"), JSON_HEX_TAG) ?> + ' ' + selectedAuthors.size + ' ' + <?= json_encode(__("autori. Questa azione non può essere annullata."), JSON_HEX_TAG) ?>,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',
       cancelButtonColor: '#6b7280',
-      confirmButtonText: '<?= __("Sì, elimina") ?>',
-      cancelButtonText: '<?= __("Annulla") ?>'
+      confirmButtonText: <?= json_encode(__("Sì, elimina"), JSON_HEX_TAG) ?>,
+      cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
     });
 
     if (!confirmed.isConfirmed) return;
@@ -466,25 +466,25 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'HTTP ' + response.status }));
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: errorData.error || errorData.message || '<?= __("Errore del server") ?>' });
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: errorData.error || errorData.message || <?= json_encode(__("Errore del server"), JSON_HEX_TAG) ?> });
         return;
       }
       const data = await response.json().catch(() => ({
         success: false,
-        error: '<?= __("Errore nel parsing della risposta") ?>'
+        error: <?= json_encode(__("Errore nel parsing della risposta"), JSON_HEX_TAG) ?>
       }));
 
       if (data.success) {
-        Swal.fire({ icon: 'success', title: '<?= __("Eliminati") ?>', text: data.message, timer: 2000, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: <?= json_encode(__("Eliminati"), JSON_HEX_TAG) ?>, text: data.message, timer: 2000, showConfirmButton: false });
         selectedAuthors.clear();
         updateBulkActionsBar();
         table.ajax.reload();
       } else {
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: data.error || data.message });
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: data.error || data.message });
       }
     } catch (err) {
       console.error(err);
-      Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Errore di connessione") ?>' });
+      Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: <?= json_encode(__("Errore di connessione"), JSON_HEX_TAG) ?> });
     }
   });
 
@@ -493,8 +493,8 @@ document.addEventListener('DOMContentLoaded', function() {
     if (selectedAuthors.size < 2) {
       Swal.fire({
         icon: 'warning',
-        title: '<?= __("Seleziona almeno 2 autori") ?>',
-        text: '<?= __("Per unire gli autori devi selezionarne almeno 2.") ?>'
+        title: <?= json_encode(__("Seleziona almeno 2 autori"), JSON_HEX_TAG) ?>,
+        text: <?= json_encode(__("Per unire gli autori devi selezionarne almeno 2."), JSON_HEX_TAG) ?>
       });
       return;
     }
@@ -511,48 +511,48 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'HTTP ' + response.status }));
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: errorData.error || errorData.message || '<?= __("Errore del server") ?>' });
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: errorData.error || errorData.message || <?= json_encode(__("Errore del server"), JSON_HEX_TAG) ?> });
         return;
       }
       const result = await response.json().catch(() => ({
         success: false,
-        error: '<?= __("Risposta del server non valida") ?>'
+        error: <?= json_encode(__("Risposta del server non valida"), JSON_HEX_TAG) ?>
       }));
 
       if (!result.success || !result.data) {
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Impossibile recuperare i dati degli autori") ?>' });
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: <?= json_encode(__("Impossibile recuperare i dati degli autori"), JSON_HEX_TAG) ?> });
         return;
       }
 
       // Build options for the select
       let optionsHtml = result.data.map(a =>
-        `<option value="${a.id}">${escapeHtml(a.nome)}${a.libri_count ? ` (${a.libri_count} <?= __("libri") ?>)` : ''}</option>`
+        `<option value="${a.id}">${escapeHtml(a.nome)}${a.libri_count ? ` (${a.libri_count} ${<?= json_encode(__("libri"), JSON_HEX_TAG) ?>})` : ''}</option>`
       ).join('');
 
       const { value: formValues } = await Swal.fire({
-        title: '<?= __("Unisci autori") ?>',
+        title: <?= json_encode(__("Unisci autori"), JSON_HEX_TAG) ?>,
         html: `
           <div class="text-left">
-            <p class="text-sm text-gray-600 mb-4"><?= __("Stai per unire") ?> ${ids.length} <?= __("autori. Tutti i libri verranno assegnati all'autore risultante.") ?></p>
+            <p class="text-sm text-gray-600 mb-4">${<?= json_encode(__("Stai per unire"), JSON_HEX_TAG) ?>} ${ids.length} ${<?= json_encode(__("autori. Tutti i libri verranno assegnati all'autore risultante."), JSON_HEX_TAG) ?>}</p>
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1"><?= __("Autore principale") ?></label>
+              <label class="block text-sm font-medium text-gray-700 mb-1">${<?= json_encode(__("Autore principale"), JSON_HEX_TAG) ?>}</label>
               <select id="swal-primary-author" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                 ${optionsHtml}
               </select>
-              <p class="text-xs text-gray-500 mt-1"><?= __("I libri degli altri autori verranno assegnati a questo") ?></p>
+              <p class="text-xs text-gray-500 mt-1">${<?= json_encode(__("I libri degli altri autori verranno assegnati a questo"), JSON_HEX_TAG) ?>}</p>
             </div>
             <div class="mb-4">
-              <label class="block text-sm font-medium text-gray-700 mb-1"><?= __("Nuovo nome (opzionale)") ?></label>
-              <input id="swal-new-name" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="<?= __("Lascia vuoto per mantenere il nome attuale") ?>">
-              <p class="text-xs text-gray-500 mt-1"><?= __("Se compilato, l'autore principale verrà rinominato") ?></p>
+              <label class="block text-sm font-medium text-gray-700 mb-1">${<?= json_encode(__("Nuovo nome (opzionale)"), JSON_HEX_TAG) ?>}</label>
+              <input id="swal-new-name" type="text" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" placeholder="${<?= json_encode(__("Lascia vuoto per mantenere il nome attuale"), JSON_HEX_TAG) ?>}">
+              <p class="text-xs text-gray-500 mt-1">${<?= json_encode(__("Se compilato, l'autore principale verrà rinominato"), JSON_HEX_TAG) ?>}</p>
             </div>
           </div>
         `,
         showCancelButton: true,
         confirmButtonColor: '#3b82f6',
         cancelButtonColor: '#6b7280',
-        confirmButtonText: '<?= __("Unisci") ?>',
-        cancelButtonText: '<?= __("Annulla") ?>',
+        confirmButtonText: <?= json_encode(__("Unisci"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
         preConfirm: () => {
           return {
             primaryId: parseInt(document.getElementById('swal-primary-author').value),
@@ -579,21 +579,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const errorData = await mergeResponse.json().catch(() => ({ message: 'HTTP ' + mergeResponse.status }));
         Swal.fire({
           icon: 'error',
-          title: '<?= __("Errore") ?>',
-          text: errorData.message || errorData.error || '<?= __("Errore del server") ?>'
+          title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
+          text: errorData.message || errorData.error || <?= json_encode(__("Errore del server"), JSON_HEX_TAG) ?>
         });
         return;
       }
 
       const mergeResult = await mergeResponse.json().catch(() => ({
         success: false,
-        error: '<?= __("Risposta del server non valida") ?>'
+        error: <?= json_encode(__("Risposta del server non valida"), JSON_HEX_TAG) ?>
       }));
 
       if (mergeResult.success) {
         Swal.fire({
           icon: 'success',
-          title: '<?= __("Autori uniti") ?>',
+          title: <?= json_encode(__("Autori uniti"), JSON_HEX_TAG) ?>,
           text: mergeResult.message,
           timer: 2000,
           showConfirmButton: false
@@ -602,11 +602,11 @@ document.addEventListener('DOMContentLoaded', function() {
         updateBulkActionsBar();
         table.ajax.reload();
       } else {
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: mergeResult.error || mergeResult.message || '<?= __("Errore sconosciuto") ?>' });
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: mergeResult.error || mergeResult.message || <?= json_encode(__("Errore sconosciuto"), JSON_HEX_TAG) ?> });
       }
     } catch (err) {
       console.error(err);
-      Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: err.message || '<?= __("Errore di connessione") ?>' });
+      Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: err.message || <?= json_encode(__("Errore di connessione"), JSON_HEX_TAG) ?> });
     }
   });
 
@@ -625,21 +625,21 @@ document.addEventListener('DOMContentLoaded', function() {
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'HTTP ' + response.status }));
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: errorData.error || errorData.message || '<?= __("Errore del server") ?>' });
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: errorData.error || errorData.message || <?= json_encode(__("Errore del server"), JSON_HEX_TAG) ?> });
         return;
       }
       const result = await response.json().catch(() => ({
         success: false,
-        error: '<?= __("Errore nel parsing della risposta") ?>'
+        error: <?= json_encode(__("Errore nel parsing della risposta"), JSON_HEX_TAG) ?>
       }));
 
       if (!result.success) {
-        Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: result.error || result.message || '<?= __("Errore sconosciuto") ?>' });
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: result.error || result.message || <?= json_encode(__("Errore sconosciuto"), JSON_HEX_TAG) ?> });
         return;
       }
 
       // Generate CSV from server data
-      let csvContent = '<?= __("Nome") ?>,<?= __("Pseudonimo") ?>,<?= __("Nazionalità") ?>,<?= __("N. Libri") ?>\n';
+      let csvContent = <?= json_encode(__("Nome") . "," . __("Pseudonimo") . "," . __("Nazionalità") . "," . __("N. Libri") . "\n", JSON_HEX_TAG) ?>;
       result.data.forEach(row => {
         const nome = (row.nome || '').replace(/"/g, '""');
         const pseudo = (row.pseudonimo || '').replace(/"/g, '""');
@@ -655,21 +655,21 @@ document.addEventListener('DOMContentLoaded', function() {
       link.click();
     } catch (err) {
       console.error(err);
-      Swal.fire({ icon: 'error', title: '<?= __("Errore") ?>', text: '<?= __("Errore di connessione") ?>' });
+      Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: <?= json_encode(__("Errore di connessione"), JSON_HEX_TAG) ?> });
     }
   });
 
   // Single delete
   window.deleteAuthor = function(id) {
     Swal.fire({
-      title: '<?= __("Sei sicuro?") ?>',
-      text: '<?= __("Questa azione non può essere annullata!") ?>',
+      title: <?= json_encode(__("Sei sicuro?"), JSON_HEX_TAG) ?>,
+      text: <?= json_encode(__("Questa azione non può essere annullata!"), JSON_HEX_TAG) ?>,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',
       cancelButtonColor: '#6b7280',
-      confirmButtonText: '<?= __("Sì, elimina!") ?>',
-      cancelButtonText: '<?= __("Annulla") ?>'
+      confirmButtonText: <?= json_encode(__("Sì, elimina!"), JSON_HEX_TAG) ?>,
+      cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
     }).then((result) => {
       if (result.isConfirmed) {
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';

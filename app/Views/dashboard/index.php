@@ -901,10 +901,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 right: 'dayGridMonth,dayGridWeek,listWeek'
             },
             buttonText: {
-                today: '<?= __("Oggi") ?>',
-                month: '<?= __("Mese") ?>',
-                week: '<?= __("Settimana") ?>',
-                list: '<?= __("Lista") ?>'
+                today: <?= json_encode(__("Oggi"), JSON_HEX_TAG) ?>,
+                month: <?= json_encode(__("Mese"), JSON_HEX_TAG) ?>,
+                week: <?= json_encode(__("Settimana"), JSON_HEX_TAG) ?>,
+                list: <?= json_encode(__("Lista"), JSON_HEX_TAG) ?>
             },
             // Responsive settings
             handleWindowResize: true,
@@ -922,14 +922,14 @@ document.addEventListener('DOMContentLoaded', function() {
             ) ?>,
             eventClick: function(info) {
                 const props = info.event.extendedProps;
-                const typeLabel = props.type === 'prenotazione' ? '<?= __("Prenotazione") ?>' : '<?= __("Prestito") ?>';
+                const typeLabel = props.type === 'prenotazione' ? <?= json_encode(__("Prenotazione"), JSON_HEX_TAG) ?> : <?= json_encode(__("Prestito"), JSON_HEX_TAG) ?>;
                 const statusLabels = {
-                    'in_corso': '<?= __("In corso") ?>',
-                    'prenotato': '<?= __("Programmato") ?>',
-                    'da_ritirare': '<?= __("Da Ritirare") ?>',
-                    'in_ritardo': '<?= __("Scaduto") ?>',
-                    'pendente': '<?= __("In attesa") ?>',
-                    'attiva': '<?= __("Attiva") ?>'
+                    'in_corso': <?= json_encode(__("In corso"), JSON_HEX_TAG) ?>,
+                    'prenotato': <?= json_encode(__("Programmato"), JSON_HEX_TAG) ?>,
+                    'da_ritirare': <?= json_encode(__("Da Ritirare"), JSON_HEX_TAG) ?>,
+                    'in_ritardo': <?= json_encode(__("Scaduto"), JSON_HEX_TAG) ?>,
+                    'pendente': <?= json_encode(__("In attesa"), JSON_HEX_TAG) ?>,
+                    'attiva': <?= json_encode(__("Attiva"), JSON_HEX_TAG) ?>
                 };
                 const statusLabel = statusLabels[props.status] || props.status;
 
@@ -943,15 +943,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         title: escapeHtml(info.event.title),
                         html: `
                             <div class="text-left">
-                                <p><strong><?= __("Tipo") ?>:</strong> ${escapeHtml(typeLabel)}</p>
-                                <p><strong><?= __("Utente") ?>:</strong> ${escapeHtml(props.user)}</p>
-                                <p><strong><?= __("Stato") ?>:</strong> ${escapeHtml(statusLabel)}</p>
-                                <p><strong><?= __("Dal") ?>:</strong> ${formatDateLocale(start)}</p>
-                                <p><strong><?= __("Al") ?>:</strong> ${formatDateLocale(end)}</p>
+                                <p><strong>${<?= json_encode(__("Tipo"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(typeLabel)}</p>
+                                <p><strong>${<?= json_encode(__("Utente"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(props.user)}</p>
+                                <p><strong>${<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(statusLabel)}</p>
+                                <p><strong>${<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>}:</strong> ${formatDateLocale(start)}</p>
+                                <p><strong>${<?= json_encode(__("Al"), JSON_HEX_TAG) ?>}:</strong> ${formatDateLocale(end)}</p>
                             </div>
                         `,
                         icon: 'info',
-                        confirmButtonText: '<?= __("Chiudi") ?>'
+                        confirmButtonText: <?= json_encode(__("Chiudi"), JSON_HEX_TAG) ?>
                     });
                 } else {
                     alert(`${escapeHtml(info.event.title)}\n${escapeHtml(typeLabel)} - ${escapeHtml(statusLabel)}\n${escapeHtml(props.user)}`);

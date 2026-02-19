@@ -1304,10 +1304,10 @@ $htmlLang = substr($currentLocale, 0, 2);
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
 
-      if (diffMins < 1) return '<?= __("Adesso") ?>';
-      if (diffMins < 60) return `${diffMins} <?= __("minuti fa") ?>`;
-      if (diffHours < 24) return `${diffHours} <?= __("ore fa") ?>`;
-      if (diffDays === 1) return '<?= __("Ieri") ?>';
+      if (diffMins < 1) return <?= json_encode(__("Adesso"), JSON_HEX_TAG) ?>;
+      if (diffMins < 60) return `${diffMins} ${<?= json_encode(__("minuti fa"), JSON_HEX_TAG) ?>}`;
+      if (diffHours < 24) return `${diffHours} ${<?= json_encode(__("ore fa"), JSON_HEX_TAG) ?>}`;
+      if (diffDays === 1) return <?= json_encode(__("Ieri"), JSON_HEX_TAG) ?>;
       return formatDateLocale(date);
     }
 

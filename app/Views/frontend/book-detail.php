@@ -2487,12 +2487,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await res.json();
             if (res.ok && result.success) {
               await updateReservationsBadge();
-              alert('<?= __("Prenotazione effettuata per ") ?>' + date);
+              alert(<?= json_encode(__("Prenotazione effettuata per "), JSON_HEX_TAG) ?> + date);
             } else {
-              alert('<?= __("Errore: ") ?>' + (result.message || '<?= __("Impossibile creare la prenotazione") ?>'));
+              alert(<?= json_encode(__("Errore: "), JSON_HEX_TAG) ?> + (result.message || <?= json_encode(__("Impossibile creare la prenotazione"), JSON_HEX_TAG) ?>));
             }
           } catch(_) {
-            alert('<?= __("Errore nella prenotazione") ?>');
+            alert(<?= json_encode(__("Errore nella prenotazione"), JSON_HEX_TAG) ?>);
           }
         }
       }

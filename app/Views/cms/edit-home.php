@@ -1038,7 +1038,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
       });
 
-      statusEl.textContent = '<?= __("Salvataggio in corso...") ?>';
+      statusEl.textContent = <?= json_encode(__("Salvataggio in corso..."), JSON_HEX_TAG) ?>;
       statusEl.className = 'mt-4 text-sm text-blue-600';
 
       fetch(window.BASE_PATH + '/admin/cms/home/reorder', {
@@ -1054,7 +1054,7 @@ document.addEventListener('DOMContentLoaded', function() {
       .then(data => {
         // Check for CSRF/session errors from middleware
         if (data.error || data.code) {
-          statusEl.textContent = '✗ ' + (data.error || '<?= __("Errore di sicurezza") ?>');
+          statusEl.textContent = '\u2717 ' + (data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG) ?>);
           statusEl.className = 'mt-4 text-sm text-red-600';
 
           // Handle session expiration - reload page to get new CSRF token
@@ -1067,7 +1067,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         if (data.success) {
-          statusEl.textContent = '✓ <?= __("Ordine salvato con successo!") ?>';
+          statusEl.textContent = '\u2713 ' + <?= json_encode(__("Ordine salvato con successo!"), JSON_HEX_TAG) ?>;
           statusEl.className = 'mt-4 text-sm text-green-600';
           // Update order numbers in UI
           items.forEach((item, index) => {
@@ -1080,13 +1080,13 @@ document.addEventListener('DOMContentLoaded', function() {
             statusEl.textContent = '';
           }, 3000);
         } else {
-          statusEl.textContent = '✗ ' + (data.message || '<?= __("Errore durante il salvataggio") ?>');
+          statusEl.textContent = '\u2717 ' + (data.message || <?= json_encode(__("Errore durante il salvataggio"), JSON_HEX_TAG) ?>);
           statusEl.className = 'mt-4 text-sm text-red-600';
         }
       })
       .catch(err => {
         console.error(err);
-        statusEl.textContent = '✗ <?= __("Errore di rete") ?>';
+        statusEl.textContent = '\u2717 ' + <?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>;
         statusEl.className = 'mt-4 text-sm text-red-600';
       });
     }
@@ -1113,7 +1113,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
           // Check for CSRF/session errors from middleware
           if (data.error || data.code) {
-            statusEl.textContent = '✗ ' + (data.error || '<?= __("Errore di sicurezza") ?>');
+            statusEl.textContent = '\u2717 ' + (data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG) ?>);
             statusEl.className = 'mt-4 text-sm text-red-600';
             // Revert checkbox
             toggle.checked = !toggle.checked;
@@ -1128,13 +1128,13 @@ document.addEventListener('DOMContentLoaded', function() {
           }
 
           if (data.success) {
-            statusEl.textContent = '✓ <?= __("Visibilità aggiornata!") ?>';
+            statusEl.textContent = '\u2713 ' + <?= json_encode(__("Visibilità aggiornata!"), JSON_HEX_TAG) ?>;
             statusEl.className = 'mt-4 text-sm text-green-600';
             setTimeout(() => {
               statusEl.textContent = '';
             }, 2000);
           } else {
-            statusEl.textContent = '✗ ' + (data.message || '<?= __("Errore durante l\'aggiornamento") ?>');
+            statusEl.textContent = '\u2717 ' + (data.message || <?= json_encode(__("Errore durante l'aggiornamento"), JSON_HEX_TAG) ?>);
             statusEl.className = 'mt-4 text-sm text-red-600';
             // Revert checkbox
             toggle.checked = !toggle.checked;
@@ -1142,7 +1142,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(err => {
           console.error(err);
-          statusEl.textContent = '✗ <?= __("Errore di rete") ?>';
+          statusEl.textContent = '\u2717 ' + <?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>;
           statusEl.className = 'mt-4 text-sm text-red-600';
           // Revert checkbox
           this.checked = !this.checked;

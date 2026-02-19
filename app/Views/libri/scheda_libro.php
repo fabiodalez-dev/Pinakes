@@ -1218,10 +1218,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   right: 'dayGridMonth,dayGridWeek,listWeek'
               },
               buttonText: {
-                  today: '<?= __("Oggi") ?>',
-                  month: '<?= __("Mese") ?>',
-                  week: '<?= __("Settimana") ?>',
-                  list: '<?= __("Lista") ?>'
+                  today: <?= json_encode(__("Oggi"), JSON_HEX_TAG) ?>,
+                  month: <?= json_encode(__("Mese"), JSON_HEX_TAG) ?>,
+                  week: <?= json_encode(__("Settimana"), JSON_HEX_TAG) ?>,
+                  list: <?= json_encode(__("Lista"), JSON_HEX_TAG) ?>
               },
               // Responsive settings
               handleWindowResize: true,
@@ -1248,14 +1248,14 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                           title: escapeHtml(info.event.title),
                           html: `
                               <div class="text-left">
-                                  <p><strong><?= __("Copia") ?>:</strong> ${escapeHtml(props.inventario)}</p>
-                                  <p><strong><?= __("Stato") ?>:</strong> ${escapeHtml(props.statusLabel)}</p>
-                                  <p><strong><?= __("Dal") ?>:</strong> ${formatDateLocale(start)}</p>
-                                  <p><strong><?= __("Al") ?>:</strong> ${formatDateLocale(end)}</p>
+                                  <p><strong>${<?= json_encode(__("Copia"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(props.inventario)}</p>
+                                  <p><strong>${<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>}:</strong> ${escapeHtml(props.statusLabel)}</p>
+                                  <p><strong>${<?= json_encode(__("Dal"), JSON_HEX_TAG) ?>}:</strong> ${formatDateLocale(start)}</p>
+                                  <p><strong>${<?= json_encode(__("Al"), JSON_HEX_TAG) ?>}:</strong> ${formatDateLocale(end)}</p>
                               </div>
                           `,
                           icon: 'info',
-                          confirmButtonText: '<?= __("Chiudi") ?>'
+                          confirmButtonText: <?= json_encode(__("Chiudi"), JSON_HEX_TAG) ?>
                       });
                   } else {
                       alert(`${escapeHtml(info.event.title)}\n${escapeHtml(props.statusLabel)}`);
