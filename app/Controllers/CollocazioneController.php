@@ -14,7 +14,14 @@ class CollocazioneController
         $repo = new \App\Models\CollocationRepository($db);
         $scaffali = $repo->getScaffali();
         $mensole = $repo->getMensole();
-        $posizioni = $repo->getPosizioni();
+
+        // Count books that have a collocazione assigned (not posizioni table rows)
+        $posizioniUsate = 0;
+        $cntResult = $db->query("SELECT COUNT(*) as cnt FROM libri WHERE scaffale_id IS NOT NULL AND mensola_id IS NOT NULL AND posizione_progressiva IS NOT NULL AND deleted_at IS NULL");
+        if ($cntResult) {
+            $row = $cntResult->fetch_assoc();
+            $posizioniUsate = (int) ($row['cnt'] ?? 0);
+        }
 
         ob_start();
         require __DIR__ . '/../Views/collocazione/index.php';
@@ -37,13 +44,16 @@ class CollocazioneController
         $ordine = (int) ($data['ordine'] ?? 0);
         if ($codice === '') {
             $_SESSION['error_message'] = __('Codice scaffale obbligatorio');
-            return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
         }
         try {
             (new \App\Models\CollocationRepository($db))->createScaffale(['codice' => $codice, 'nome' => $nome, 'ordine' => $ordine]);
             $_SESSION['success_message'] = __('Scaffale creato');
+        } catch (\RuntimeException $e) {
+            // Duplicate check from repository — message is already user-friendly and translated
+            $_SESSION['error_message'] = $e->getMessage();
+            error_log("Scaffale creation failed: " . $e->getMessage());
         } catch (\mysqli_sql_exception $e) {
-            // Check if it's a duplicate entry error (errno 1062)
             if ($e->getCode() === 1062 || stripos($e->getMessage(), 'Duplicate entry') !== false) {
                 $_SESSION['error_message'] = sprintf(__('Il codice scaffale "%s" esiste già. Usa un codice diverso.'), $codice);
             } else {
@@ -54,7 +64,7 @@ class CollocazioneController
             $_SESSION['error_message'] = __('Impossibile creare lo scaffale. Riprova più tardi.');
             error_log("Scaffale creation failed: " . $e->getMessage());
         }
-        return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
     }
 
     public function createMensola(Request $request, Response $response, mysqli $db): Response
@@ -67,7 +77,7 @@ class CollocazioneController
         $genera_n = max(0, (int) ($data['genera_posizioni'] ?? 0));
         if ($scaffale_id <= 0) {
             $_SESSION['error_message'] = __('Scaffale obbligatorio');
-            return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
         }
         try {
             $repo = new \App\Models\CollocationRepository($db);
@@ -90,7 +100,7 @@ class CollocazioneController
             $_SESSION['error_message'] = __('Impossibile creare la mensola. Riprova più tardi.');
             error_log("Mensola creation failed: " . $e->getMessage());
         }
-        return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
     }
 
     public function deleteScaffale(Request $request, Response $response, mysqli $db, int $id): Response
@@ -105,7 +115,7 @@ class CollocazioneController
 
         if ((int) $row['cnt'] > 0) {
             $_SESSION['error_message'] = __('Impossibile eliminare: lo scaffale contiene mensole');
-            return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
         }
 
         // Check if scaffale has books (excluding soft-deleted)
@@ -117,7 +127,7 @@ class CollocazioneController
 
         if ((int) $row['cnt'] > 0) {
             $_SESSION['error_message'] = __('Impossibile eliminare: lo scaffale contiene libri');
-            return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
         }
 
         // Delete scaffale
@@ -126,7 +136,7 @@ class CollocazioneController
         $stmt->execute();
 
         $_SESSION['success_message'] = __('Scaffale eliminato');
-        return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
     }
 
     public function deleteMensola(Request $request, Response $response, mysqli $db, int $id): Response
@@ -141,7 +151,7 @@ class CollocazioneController
 
         if ((int) $row['cnt'] > 0) {
             $_SESSION['error_message'] = __('Impossibile eliminare: la mensola contiene libri');
-            return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
         }
 
         // Delete mensola
@@ -150,7 +160,7 @@ class CollocazioneController
         $stmt->execute();
 
         $_SESSION['success_message'] = __('Mensola eliminata');
-        return $response->withHeader('Location', '/admin/collocazione')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
     }
 
     public function sort(Request $request, Response $response, mysqli $db): Response

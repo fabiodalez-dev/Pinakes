@@ -114,6 +114,9 @@ class LibriController
             return $url; // Not an external URL, return as-is
         }
 
+        // Fix HTML-encoded ampersands from Google Books API URLs
+        $url = html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
         $parsedUrl = parse_url($url);
         $host = strtolower($parsedUrl['host'] ?? '');
 
@@ -135,13 +138,14 @@ class LibriController
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
-                ...(defined('CURLOPT_PROTOCOLS_STR')
-                    ? [CURLOPT_PROTOCOLS_STR => 'https,http']
-                    : [CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]),
-                ...(defined('CURLOPT_REDIR_PROTOCOLS_STR')
-                    ? [CURLOPT_REDIR_PROTOCOLS_STR => 'https,http']
-                    : [CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]),
             ]);
+            if (defined('CURLOPT_PROTOCOLS_STR')) {
+                curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'https,http');
+                curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS_STR, 'https,http');
+            } else {
+                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
+                curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
+            }
             curl_exec($ch);
             $contentLength = (int) curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
             curl_close($ch);
@@ -167,13 +171,14 @@ class LibriController
                 CURLOPT_SSL_VERIFYPEER => true,
                 CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_USERAGENT => 'BibliotecaCoverBot/1.0',
-                ...(defined('CURLOPT_PROTOCOLS_STR')
-                    ? [CURLOPT_PROTOCOLS_STR => 'https,http']
-                    : [CURLOPT_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]),
-                ...(defined('CURLOPT_REDIR_PROTOCOLS_STR')
-                    ? [CURLOPT_REDIR_PROTOCOLS_STR => 'https,http']
-                    : [CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS | CURLPROTO_HTTP]),
             ]);
+            if (defined('CURLOPT_PROTOCOLS_STR')) {
+                curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'https,http');
+                curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS_STR, 'https,http');
+            } else {
+                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
+                curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
+            }
 
             $imageData = curl_exec($ch);
             $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -1524,6 +1529,10 @@ class LibriController
     {
         if (!$url)
             return;
+
+        // Fix HTML-encoded ampersands from Google Books API URLs
+        $url = html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
         $this->logCoverDebug('handleCoverUrl.start', ['bookId' => $bookId, 'url' => $url]);
 
         // Security: Validate URL against whitelist for external downloads

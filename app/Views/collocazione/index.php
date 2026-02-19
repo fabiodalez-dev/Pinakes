@@ -1,6 +1,6 @@
 <?php
 /** @var array $scaffali */
-/** @var array $posizioni */
+/** @var int $posizioniUsate */
 /** @var array $mensole */
 ?>
 <link href="<?= htmlspecialchars(assetUrl('css/sortable.min.css'), ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
@@ -156,7 +156,7 @@
           <div class="flex items-center justify-between">
             <div>
               <p class="text-sm text-gray-600"><?= __("Posizioni usate") ?></p>
-              <p class="text-2xl font-bold text-gray-900"><?php echo count($posizioni); ?></p>
+              <p class="text-2xl font-bold text-gray-900"><?php echo $posizioniUsate; ?></p>
             </div>
             <i class="fas fa-bookmark text-3xl text-gray-300"></i>
           </div>

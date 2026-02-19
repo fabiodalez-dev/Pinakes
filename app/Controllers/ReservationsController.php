@@ -106,18 +106,13 @@ class ReservationsController
 
             // For approved states, use the actual loan period
             // 'prenotato': future loan - block from data_prestito to data_scadenza
-            // 'da_ritirare': ready for pickup - block until pickup_deadline (shorter window)
+            // 'da_ritirare': ready for pickup - block until data_scadenza (copy is committed)
             // 'in_corso'/'in_ritardo': active loan - block until data_scadenza or data_restituzione
             if ($loanStatus === 'da_ritirare') {
-                // For 'da_ritirare', prioritize pickup_deadline (shorter blocking window)
-                $pickupDeadline = $loan['pickup_deadline'] ?? null;
-                if ($pickupDeadline) {
-                    $endDateLoan = substr($pickupDeadline, 0, 10); // Extract date part
-                } else {
-                    // Fallback: data_scadenza or 7 days from start
-                    $endDateLoan = $loan['data_scadenza']
-                        ?? (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
-                }
+                // Block the full loan period: the copy is committed to this user
+                // even though they haven't picked it up yet
+                $endDateLoan = $loan['data_scadenza']
+                    ?? (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
             } else {
                 // For other states: data_restituzione > data_scadenza > null
                 $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;

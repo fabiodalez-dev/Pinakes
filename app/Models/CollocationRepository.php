@@ -158,7 +158,7 @@ class CollocationRepository
         $chk->execute();
         $exists = $chk->get_result()->fetch_assoc();
         if ($exists) {
-            throw new \RuntimeException('Scaffale con questo codice già esistente');
+            throw new \RuntimeException(sprintf(__('Il codice scaffale "%s" esiste già. Usa un codice diverso.'), $codice));
         }
 
         // Check duplicate by lettera
@@ -167,7 +167,7 @@ class CollocationRepository
         $chk->execute();
         $exists = $chk->get_result()->fetch_assoc();
         if ($exists) {
-            throw new \RuntimeException('Scaffale con questa lettera già esistente');
+            throw new \RuntimeException(sprintf(__('La lettera "%s" è già utilizzata da un altro scaffale. Usa un codice diverso.'), $lettera));
         }
 
         $stmt = $this->db->prepare("INSERT INTO scaffali (codice, nome, lettera, ordine) VALUES (?, ?, ?, ?)");
