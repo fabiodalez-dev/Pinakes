@@ -168,7 +168,11 @@
                             'missing_due_date' => 'fas fa-calendar-times text-purple-500',
                             'status_mismatch' => 'fas fa-exclamation-triangle text-blue-500',
                             'overlap_reservation_loan' => 'fas fa-calendar-minus text-red-500',
-                            'overlap_reservation_reservation' => 'fas fa-calendar-exclamation text-orange-500'
+                            'overlap_reservation_reservation' => 'fas fa-calendar-exclamation text-orange-500',
+                            'expired_reservation' => 'fas fa-clock text-yellow-600',
+                            'queue_position_gap' => 'fas fa-sort-numeric-up text-indigo-500',
+                            'stale_pending_loan' => 'fas fa-hourglass-half text-amber-500',
+                            'terminated_loan_active' => 'fas fa-ban text-red-600'
                         ];
 
                         $typeLabels = [
@@ -178,7 +182,11 @@
                             'missing_due_date' => __('Scadenza Mancante'),
                             'status_mismatch' => __('Stato Incongruente'),
                             'overlap_reservation_loan' => __('Prenotazione sovrapposta a prestito'),
-                            'overlap_reservation_reservation' => __('Prenotazioni sovrapposte')
+                            'overlap_reservation_reservation' => __('Prenotazioni sovrapposte'),
+                            'expired_reservation' => __('Prenotazione Scaduta'),
+                            'queue_position_gap' => __('Gap nella Coda Prenotazioni'),
+                            'stale_pending_loan' => __('Prestito Pendente Stale'),
+                            'terminated_loan_active' => __('Prestito Terminato ancora Attivo')
                         ];
 
                         foreach ($dbIssues as $issue):
@@ -567,8 +575,8 @@ async function createMissingIndexes() {
         Swal.close();
 
         let message = result.message || '';
-        if (result.success && result.created && result.created.length > 0) {
-            message += '\n\n' + <?= json_encode(__("Indici creati:")) ?> + ' ' + result.created.length;
+        if (result.success && result.created && result.created > 0) {
+            message += '\n\n' + <?= json_encode(__("Indici creati:")) ?> + ' ' + result.created;
         }
         if (result.errors && result.errors.length > 0) {
             message += '\n\n' + <?= json_encode(__("Errori:")) ?> + ' ' + result.errors.length;

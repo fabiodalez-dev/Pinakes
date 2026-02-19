@@ -49,7 +49,7 @@ class MaintenanceController
                 'report' => $report
             ];
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $result = [
                 'success' => false,
                 'message' => __("Errore durante la correzione:") . ' ' . $e->getMessage(),
@@ -76,7 +76,7 @@ class MaintenanceController
                 'details' => $result
             ]));
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __("Errore durante il ricalcolo:") . ' ' . $e->getMessage()
@@ -120,7 +120,7 @@ class MaintenanceController
                 'results' => $results
             ]));
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __("Errore durante la manutenzione:") . ' ' . $e->getMessage(),
@@ -146,10 +146,12 @@ class MaintenanceController
             $response->getBody()->write(json_encode([
                 'success' => true,
                 'message' => sprintf(__("%d indici creati con successo"), $result['created']),
-                'details' => $result
+                'created' => $result['created'],
+                'details' => $result['details'] ?? [],
+                'errors' => $result['errors'] ?? []
             ]));
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __("Errore durante la creazione degli indici:") . ' ' . $e->getMessage()
@@ -193,7 +195,7 @@ class MaintenanceController
                 'errors' => $result['errors'] ?? []
             ]));
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __("Errore durante la creazione delle tabelle:") . ' ' . $e->getMessage()
@@ -277,7 +279,7 @@ class MaintenanceController
                 'message' => __("Configurazione aggiornata con successo!")
             ]));
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __("Errore durante l'applicazione del fix:") . ' ' . $e->getMessage()
