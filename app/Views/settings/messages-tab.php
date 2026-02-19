@@ -215,7 +215,7 @@ function markAllAsRead() {
 }
 
 function replyToMessage(email) {
-  window.location.href = `mailto:${email}`;
+  window.location.href = `mailto:${encodeURIComponent(email)}`;
 }
 
 function escapeHtml(text) {

@@ -488,7 +488,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($request), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($request['titolo'] ?? ''); ?></a></h3>
@@ -545,7 +545,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
@@ -612,7 +612,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($reservation), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($reservation['titolo'] ?? ''); ?></a></h3>
@@ -678,7 +678,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($loan), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($loan['titolo'] ?? ''); ?></a></h3>
@@ -744,7 +744,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
         <div class="item-card">
           <div class="item-inner">
             <a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
-              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg';">
+              <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>" alt="Copertina" loading="lazy" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg';">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?= htmlspecialchars(reservationBookUrl($review), ENT_QUOTES, 'UTF-8'); ?>"><?= HtmlHelper::e($review['libro_titolo'] ?? ''); ?></a></h3>

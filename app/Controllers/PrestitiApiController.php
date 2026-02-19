@@ -153,10 +153,10 @@ class PrestitiApiController
         $res = $stmt->get_result();
         $rows = [];
         while ($r = $res->fetch_assoc()) {
-            $actions = '<a class="text-blue-600" href="'.htmlspecialchars(url('/admin/prestiti/dettagli/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.__('Dettagli').'</a>';
-            $actions .= ' | <a class="text-orange-600" href="'.htmlspecialchars(url('/admin/prestiti/modifica/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.__('Modifica').'</a>';
+            $actions = '<a class="text-blue-600" href="'.htmlspecialchars(url('/admin/prestiti/dettagli/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars(__('Dettagli'), ENT_QUOTES, 'UTF-8').'</a>';
+            $actions .= ' | <a class="text-orange-600" href="'.htmlspecialchars(url('/admin/prestiti/modifica/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars(__('Modifica'), ENT_QUOTES, 'UTF-8').'</a>';
             if ((int)$r['attivo'] === 1) {
-                $actions .= ' | <a class="text-green-600" href="'.htmlspecialchars(url('/admin/prestiti/restituito/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.__('Restituito').'</a>';
+                $actions .= ' | <a class="text-green-600" href="'.htmlspecialchars(url('/admin/prestiti/restituito/'.(int)$r['id']), ENT_QUOTES, 'UTF-8').'">'.htmlspecialchars(__('Restituito'), ENT_QUOTES, 'UTF-8').'</a>';
             }
             $rows[] = [
                 'id' => (int)$r['id'],

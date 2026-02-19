@@ -250,6 +250,7 @@ class HtmlHelper
         if ($canonicalUrl && $canonicalUrl !== '') {
             // Validate that URL has a scheme
             if (!preg_match('#^https?://#i', $canonicalUrl)) {
+                error_log('[HtmlHelper] APP_CANONICAL_URL missing scheme, prepending https://: ' . $canonicalUrl);
                 $canonicalUrl = 'https://' . $canonicalUrl;
             }
             return rtrim($canonicalUrl, '/');

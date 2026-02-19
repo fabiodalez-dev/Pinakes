@@ -662,7 +662,7 @@ use App\Support\HtmlHelper;
                     <div id="key-<?php echo (int)$key['id']; ?>" class="hidden mt-2 p-3 bg-gray-900 rounded-lg">
                       <code class="text-xs text-green-400 font-mono break-all"><?php echo HtmlHelper::e($key['api_key']); ?></code>
                       <button type="button"
-                              onclick="copyToClipboard('<?php echo HtmlHelper::e($key['api_key']); ?>', this)"
+                              onclick="copyToClipboard(<?php echo htmlspecialchars(json_encode($key['api_key'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, this)"
                               class="ml-2 text-xs text-gray-300 hover:text-white">
                         <i class="fas fa-copy"></i> <?= __("Copia") ?>
                       </button>
@@ -705,7 +705,7 @@ use App\Support\HtmlHelper;
             <div class="bg-gray-900 rounded-xl p-4">
               <code class="text-sm text-green-400 font-mono break-all"><?php echo HtmlHelper::e($apiEndpoint); ?></code>
               <button type="button"
-                      onclick="copyToClipboard('<?php echo HtmlHelper::e($apiEndpoint); ?>', this)"
+                      onclick="copyToClipboard(<?php echo htmlspecialchars(json_encode($apiEndpoint, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, this)"
                       class="ml-2 text-xs text-gray-300 hover:text-white">
                 <i class="fas fa-copy"></i> <?= __("Copia") ?>
               </button>

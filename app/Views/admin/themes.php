@@ -157,7 +157,7 @@ function activateTheme(themeId) {
     }
 
     const basePath = window.BASE_PATH || '';
-    fetch(`${basePath}/admin/themes/${themeId}/activate`, {
+    fetch(`${basePath}/admin/themes/${parseInt(themeId, 10)}/activate`, {
         method: 'POST',
         credentials: 'same-origin',
         headers: {

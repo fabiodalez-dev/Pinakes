@@ -372,7 +372,7 @@ $profileReservationCoverUrl = static function (array $item): string {
           <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
             <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                  alt="<?php echo App\Support\HtmlHelper::e(($p['titolo'] ?? __('Libro')) . ' - ' . __('Copertina')); ?>"
-                 onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                 onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
           </a>
           <div class="item-info">
             <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -433,7 +433,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                   onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -464,7 +464,7 @@ $profileReservationCoverUrl = static function (array $item): string {
                 <span><?= __('Già recensito') ?></span>
               </button>
               <?php elseif (!$isScheduled): ?>
-              <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, '<?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?>')">
+              <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, <?php echo htmlspecialchars(json_encode($p['titolo'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>)">
                 <i class="fas fa-star"></i>
                 <span><?= __('Lascia una recensione') ?></span>
               </button>
@@ -505,7 +505,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                   onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
@@ -574,14 +574,14 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                   onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($p), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?></a></h3>
               <div class="item-badges">
                 <div class="badge badge-status">
                   <i class="fas fa-check-circle"></i>
-                  <span><?= $statusLabel ?></span>
+                  <span><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
                 <?php if (!empty($p['data_restituzione'])): ?>
                 <div class="badge badge-date">
@@ -596,7 +596,7 @@ $profileReservationCoverUrl = static function (array $item): string {
                 <span><?= __('Già recensito') ?></span>
               </button>
               <?php else: ?>
-              <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, '<?php echo App\Support\HtmlHelper::e($p['titolo'] ?? ''); ?>')">
+              <button class="btn-review" onclick="openReviewModal(<?php echo (int)$p['libro_id']; ?>, <?php echo htmlspecialchars(json_encode($p['titolo'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>)">
                 <i class="fas fa-star"></i>
                 <span><?= __('Lascia una recensione') ?></span>
               </button>
@@ -651,7 +651,7 @@ $profileReservationCoverUrl = static function (array $item): string {
             <a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>" class="item-cover">
               <img src="<?php echo htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                    alt="<?= __('Copertina') ?>"
-                   onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                   onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             </a>
             <div class="item-info">
               <h3 class="item-title"><a href="<?php echo htmlspecialchars($profileReservationBookUrl($r), ENT_QUOTES, 'UTF-8'); ?>"><?php echo App\Support\HtmlHelper::e($r['libro_titolo'] ?? ''); ?></a></h3>
@@ -698,7 +698,7 @@ $profileReservationCoverUrl = static function (array $item): string {
     <div id="reviewBookTitle" style="font-size: 1.125rem; color: #6b7280; margin-bottom: 1.5rem;"></div>
     <form id="reviewForm">
       <input type="hidden" id="review-book-id" name="libro_id">
-      <input type="hidden" name="csrf_token" value="<?php echo Csrf::ensureToken(); ?>">
+      <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div style="margin-bottom: 1.5rem;">
         <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;"><?= __('Valutazione *') ?></label>

@@ -683,7 +683,7 @@ class PrestitiController
                     $reassignmentService->flushDeferredNotifications();
                 }
             } catch (\Throwable $e) {
-                error_log('[PrestitiController] Flush deferred notifications failed: ' . $e->getMessage());
+                SecureLogger::warning('Flush deferred notifications failed', ['error' => $e->getMessage()]);
             }
             $_SESSION['success_message'] = __('Prestito aggiornato correttamente.');
             $successUrl = $redirectTo ?? '/admin/prestiti?updated=1';

@@ -482,7 +482,7 @@ class CmsController
         }
 
         if (!empty($errors)) {
-            $_SESSION['error_message'] = implode('<br>', $errors);
+            $_SESSION['error_message'] = implode('<br>', array_map(fn($e) => htmlspecialchars($e, ENT_QUOTES, 'UTF-8'), $errors));
         } else {
             $_SESSION['success_message'] = __('Contenuti homepage aggiornati con successo!');
         }

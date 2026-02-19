@@ -58,7 +58,7 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                 <?php foreach ($homeEvents as $event): ?>
                     <?php $eventDateText = $homeEventsFormatDate($event['event_date'] ?? ''); ?>
                     <article class="event-card">
-                        <a href="<?= htmlspecialchars(route_path('events') . '/' . $event['slug'], ENT_QUOTES, 'UTF-8') ?>" class="event-card__thumb">
+                        <a href="<?= htmlspecialchars(route_path('events') . '/' . rawurlencode($event['slug']), ENT_QUOTES, 'UTF-8') ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
                                 <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>"
                                     alt="<?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>">
@@ -73,11 +73,11 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                                 <?= htmlspecialchars($eventDateText, ENT_QUOTES, 'UTF-8') ?>
                             </div>
                             <h3 class="event-card__title">
-                                <a href="<?= htmlspecialchars(route_path('events') . '/' . $event['slug'], ENT_QUOTES, 'UTF-8') ?>">
+                                <a href="<?= htmlspecialchars(route_path('events') . '/' . rawurlencode($event['slug']), ENT_QUOTES, 'UTF-8') ?>">
                                     <?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>
                                 </a>
                             </h3>
-                            <a href="<?= htmlspecialchars(route_path('events') . '/' . $event['slug'], ENT_QUOTES, 'UTF-8') ?>" class="event-card__button">
+                            <a href="<?= htmlspecialchars(route_path('events') . '/' . rawurlencode($event['slug']), ENT_QUOTES, 'UTF-8') ?>" class="event-card__button">
                                 <?= __("Scopri l'evento") ?>
                                 <i class="fas fa-arrow-right"></i>
                             </a>

@@ -21,7 +21,7 @@ class ScrapeController
             return '';
         }
         // Ensure valid UTF-8 first (replace invalid sequences before regex)
-        $text = mb_convert_encoding($text, 'UTF-8', 'UTF-8');
+        $text = mb_scrub($text, 'UTF-8');
         // Remove C1 control characters (0x80-0x9F) including MARC-8 NSB/NSE markers
         $text = preg_replace('/[\x{0080}-\x{009F}]/u', '', $text) ?? $text;
         // Collapse multiple whitespace into single space and trim

@@ -223,7 +223,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                         onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
@@ -315,7 +315,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                         onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
@@ -413,7 +413,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($loan['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                         onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($loan['titolo'] ?? ''); ?></h3>
@@ -551,7 +551,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                     <img src="<?= htmlspecialchars($cover, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?= App\Support\HtmlHelper::e($res['titolo'] ?? 'Copertina libro'); ?>"
                          class="w-20 h-28 object-cover rounded-lg shadow-sm"
-                         onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                         onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
                   </div>
                   <div class="flex-1 min-w-0">
                     <h3 class="font-semibold text-gray-900 mb-2 line-clamp-2"><?= App\Support\HtmlHelper::e($res['titolo'] ?? ''); ?></h3>
@@ -714,7 +714,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                   <img src="<?php echo htmlspecialchars($coverUrl, ENT_QUOTES, 'UTF-8'); ?>"
                        alt="<?php echo App\Support\HtmlHelper::e($libro['titolo'] ?? ''); ?>"
                        class="w-full h-48 object-cover"
-                       onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                       onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
                   <div class="p-4 flex-1">
                     <h3 class="font-semibold text-gray-900 group-hover:text-gray-700 transition-colors truncate">
                       <?php echo App\Support\HtmlHelper::e($libro['titolo'] ?? ''); ?>

@@ -238,7 +238,8 @@ class AuthorRepository
             $params = [];
             foreach ($words as $word) {
                 if (mb_strlen($word, 'UTF-8') >= 2) { // Skip very short words
-                    $conditions[] = "LOWER(nome) LIKE ?";
+                    $conditions[] = "LOWER(nome) LIKE ? ESCAPE '\\'";
+
                     $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $word);
                     $params[] = '%' . $escaped . '%';
                 }

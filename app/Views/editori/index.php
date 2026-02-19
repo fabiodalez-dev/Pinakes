@@ -443,7 +443,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const confirmed = await Swal.fire({
       title: <?= json_encode(__("Conferma eliminazione"), JSON_HEX_TAG) ?>,
-      text: <?= json_encode(__("Stai per eliminare"), JSON_HEX_TAG) ?> + ' ' + selectedPublishers.size + ' ' + <?= json_encode(__("editori. Questa azione non può essere annullata."), JSON_HEX_TAG) ?>,
+      text: <?= json_encode(__("Stai per eliminare %d editori. Questa azione non può essere annullata."), JSON_HEX_TAG) ?>.replace('%d', selectedPublishers.size),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#dc2626',

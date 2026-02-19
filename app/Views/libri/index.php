@@ -643,7 +643,7 @@ document.addEventListener('DOMContentLoaded', function() {
           const imageUrl = escapeHtml(/^(https?:)?\/\//.test(rawUrl) ? rawUrl : window.BASE_PATH + rawUrl);
           const payload = encodeURIComponent(JSON.stringify(row));
           return `<div class="w-12 h-16 mx-auto bg-gray-100 rounded shadow-sm overflow-hidden cursor-pointer hover:opacity-80 transition-opacity js-cover-modal" data-book="${payload}">
-            <img src="${imageUrl}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null; this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'; this.classList.add('p-2', 'object-contain');">
+            <img src="${imageUrl}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null; this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'; this.classList.add('p-2', 'object-contain');">
           </div>`;
         }
       },
@@ -1164,7 +1164,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="group relative bg-white rounded-lg border border-gray-200 overflow-hidden hover:shadow-md transition-shadow h-full flex flex-col">
           <a href="${bookHref}" class="flex flex-col h-full">
             <div class="aspect-[2/3] bg-gray-100 relative flex-shrink-0">
-              <img src="${img}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+              <img src="${img}" alt="" class="w-full h-full object-cover" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
               <span class="absolute top-2 right-2 w-3 h-3 rounded-full ${statusClass} ring-2 ring-white"></span>
             </div>
             <div class="p-3 mt-auto">
@@ -1258,7 +1258,7 @@ document.addEventListener('DOMContentLoaded', function() {
       Swal.fire({
         html: `
           <div class="text-left">
-            <img src="${img}" class="w-full max-h-96 object-contain rounded-lg mb-4" onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+            <img src="${img}" class="w-full max-h-96 object-contain rounded-lg mb-4" onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
             <h3 class="font-semibold text-lg">${titolo}</h3>
             ${autori ? `<p class="text-sm text-gray-600 mt-1">${autori}</p>` : ''}
             ${editore ? `<p class="text-sm text-gray-500">${editore}</p>` : ''}

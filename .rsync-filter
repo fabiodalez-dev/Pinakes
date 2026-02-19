@@ -132,10 +132,10 @@
 - /tests/
 - /test/
 - /coverage/
-- .nyc_output/
-- .coverage
+- /.nyc_output/
+- /.coverage
 - /htmlcov/
-- .playwright-mcp/
+- /.playwright-mcp/
 
 # Development files
 - *.log

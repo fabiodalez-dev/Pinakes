@@ -176,7 +176,7 @@
                         <img src="<?php echo htmlspecialchars(url($book['copertina_url']), ENT_QUOTES, 'UTF-8'); ?>"
                              alt="<?php echo App\Support\HtmlHelper::e($book['titolo'] . ' - Copertina'); ?>"
                              class="w-10 h-14 object-cover rounded shadow-sm"
-                             onerror="this.onerror=null;this.src=window.BASE_PATH+'/uploads/copertine/placeholder.jpg'">
+                             onerror="this.onerror=null;this.src=(window.BASE_PATH||'')+'/uploads/copertine/placeholder.jpg'">
                       <?php endif; ?>
                       <div>
                         <a href="<?= htmlspecialchars(url('/admin/libri/' . (int)$book['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">

@@ -325,6 +325,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return json.data;
       }
     },
+    // i18n constants for JS template literals (avoid raw PHP in template strings)
+    const i18nViewDetails = <?= json_encode(__("Visualizza dettagli"), JSON_HEX_TAG) ?>;
+    const i18nEdit = <?= json_encode(__("Modifica"), JSON_HEX_TAG) ?>;
+    const i18nDelete = <?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>;
+
     columns: [
       {
         data: 'nome',
@@ -417,17 +422,17 @@ document.addEventListener('DOMContentLoaded', function() {
             <div class="flex items-center gap-1">
               <a href="${window.BASE_PATH || ''}/admin/utenti/dettagli/${id}"
                  class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200"
-                 title="<?= __("Visualizza dettagli") ?>">
+                 title="${i18nViewDetails}">
                 <i class="fas fa-eye text-sm"></i>
               </a>
               <a href="${window.BASE_PATH || ''}/admin/utenti/modifica/${id}"
                  class="p-2 text-yellow-600 hover:bg-yellow-50 rounded-lg transition-colors duration-200"
-                 title="<?= __("Modifica") ?>">
+                 title="${i18nEdit}">
                 <i class="fas fa-edit text-sm"></i>
               </a>
               <button onclick="deleteUser(${Number(data)})"
                       class="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors duration-200"
-                      title="<?= __("Elimina") ?>">
+                      title="${i18nDelete}">
                 <i class="fas fa-trash text-sm"></i>
               </button>
             </div>`;
@@ -687,7 +692,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (typeof window.jspdf === 'undefined') {
         // Load jsPDF if not available
         const script = document.createElement('script');
-        script.src = '<?= assetUrl("js/jspdf.umd.min.js") ?>';
+        script.src = <?= json_encode(assetUrl("js/jspdf.umd.min.js"), JSON_HEX_TAG) ?>;
         script.onload = function() {
           generatePDF(currentData);
         };

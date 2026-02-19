@@ -401,10 +401,10 @@
 
 <script>
 // Shared translation constants
-const MAINT_PROCESSING = <?= json_encode(__("Elaborazione...")) ?>;
-const MAINT_DONE = <?= json_encode(__("Operazione completata")) ?>;
-const MAINT_FAIL = <?= json_encode(__("Operazione fallita")) ?>;
-const MAINT_COMM_ERR = <?= json_encode(__("Errore di comunicazione con il server")) ?>;
+const MAINT_PROCESSING = <?= json_encode(__("Elaborazione..."), JSON_HEX_TAG) ?>;
+const MAINT_DONE = <?= json_encode(__("Operazione completata"), JSON_HEX_TAG) ?>;
+const MAINT_FAIL = <?= json_encode(__("Operazione fallita"), JSON_HEX_TAG) ?>;
+const MAINT_COMM_ERR = <?= json_encode(__("Errore di comunicazione con il server"), JSON_HEX_TAG) ?>;
 
 async function recalculateAvailability() {
     Swal.fire({
