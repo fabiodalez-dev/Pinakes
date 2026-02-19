@@ -108,12 +108,12 @@ class PrestitiController
         }
 
         if ($utente_id <= 0 || $libro_id <= 0) {
-            return $response->withHeader('Location', '/admin/prestiti/crea?error=missing_fields')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=missing_fields')->withStatus(302);
         }
 
         // Verifica che la data di scadenza sia successiva alla data di prestito
         if (strtotime($data_scadenza) <= strtotime($data_prestito)) {
-            return $response->withHeader('Location', '/admin/prestiti/crea?error=invalid_dates')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=invalid_dates')->withStatus(302);
         }
 
         $db->begin_transaction();
@@ -135,7 +135,7 @@ class PrestitiController
             if ($dupStmt->get_result()->num_rows > 0) {
                 $dupStmt->close();
                 $db->rollback();
-                return $response->withHeader('Location', '/admin/prestiti/crea?error=duplicate_reservation')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=duplicate_reservation')->withStatus(302);
             }
             $dupStmt->close();
 
@@ -149,7 +149,7 @@ class PrestitiController
 
             if (!$book) {
                 $db->rollback();
-                return $response->withHeader('Location', '/admin/prestiti/crea?error=book_not_found')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=book_not_found')->withStatus(302);
             }
 
             // Check if loan starts today (immediate loan) or in the future (scheduled loan)
@@ -204,7 +204,7 @@ class PrestitiController
                 $totalOccupied = $overlappingLoans + $overlappingReservations;
                 if ($totalOccupied >= $totalCopies) {
                     $db->rollback();
-                    return $response->withHeader('Location', '/admin/prestiti/crea?error=no_copies_available')->withStatus(302);
+                    return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=no_copies_available')->withStatus(302);
                 }
 
                 // Find a copy without overlapping loans for the requested period
@@ -272,7 +272,7 @@ class PrestitiController
                 if ($totalOccupied >= $totalCopies) {
                     // No slots available at book level
                     $db->rollback();
-                    return $response->withHeader('Location', '/admin/prestiti/crea?error=no_copies_available')->withStatus(302);
+                    return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=no_copies_available')->withStatus(302);
                 }
 
                 // Step 4: Find a specific copy without overlapping assigned loans
@@ -305,7 +305,7 @@ class PrestitiController
 
             if (!$selectedCopy) {
                 $db->rollback();
-                return $response->withHeader('Location', '/admin/prestiti/crea?error=no_copies_available')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=no_copies_available')->withStatus(302);
             }
 
             // Lock selected copy and re-check overlap to prevent race conditions
@@ -329,7 +329,7 @@ class PrestitiController
 
             if ($overlapCopy) {
                 $db->rollback();
-                return $response->withHeader('Location', '/admin/prestiti/crea?error=no_copies_available')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=no_copies_available')->withStatus(302);
             }
 
             $processedBy = null;
@@ -535,7 +535,7 @@ class PrestitiController
         $updateData['processed_by'] = $processedBy;
 
         $repo->update($id, $updateData);
-        return $response->withHeader('Location', '/admin/prestiti')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/prestiti'))->withStatus(302);
     }
     public function close(Request $request, Response $response, mysqli $db, int $id): Response
     {
@@ -545,7 +545,7 @@ class PrestitiController
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\LoanRepository($db);
         $repo->close($id);
-        return $response->withHeader('Location', '/admin/prestiti')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/prestiti'))->withStatus(302);
     }
 
     public function returnForm(Request $request, Response $response, mysqli $db, int $id): Response
@@ -598,7 +598,7 @@ class PrestitiController
 
         $allowed_status = ['restituito', 'in_ritardo', 'perso', 'danneggiato'];
         if (!in_array($nuovo_stato, $allowed_status)) {
-            return $response->withHeader('Location', '/admin/prestiti/restituito/' . $id . '?error=invalid_status')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/prestiti/restituito/' . $id) . '?error=invalid_status')->withStatus(302);
         }
 
         $data_restituzione = date('Y-m-d');
@@ -616,7 +616,7 @@ class PrestitiController
 
             if (!$loan) {
                 $db->rollback();
-                return $response->withHeader('Location', '/admin/prestiti?error=loan_not_found')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/prestiti') . '?error=loan_not_found')->withStatus(302);
             }
 
             $libro_id = $loan['libro_id'];
@@ -686,7 +686,7 @@ class PrestitiController
                 SecureLogger::warning('Flush deferred notifications failed', ['error' => $e->getMessage()]);
             }
             $_SESSION['success_message'] = __('Prestito aggiornato correttamente.');
-            $successUrl = $redirectTo ?? '/admin/prestiti?updated=1';
+            $successUrl = $redirectTo ?? (url('/admin/prestiti') . '?updated=1');
             return $response->withHeader('Location', $successUrl)->withStatus(302);
 
         } catch (Exception $e) {
@@ -696,7 +696,7 @@ class PrestitiController
                 $separator = strpos($redirectTo, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', $redirectTo . $separator . 'error=update_failed')->withStatus(302);
             }
-            return $response->withHeader('Location', '/admin/prestiti/restituito/' . $id . '?error=update_failed')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/prestiti/restituito/' . $id) . '?error=update_failed')->withStatus(302);
         }
     }
 
@@ -770,7 +770,7 @@ class PrestitiController
                 'error' => $e->getMessage()
             ]);
             return $response
-                ->withHeader('Location', '/admin/prestiti/dettagli/' . $id . '?error=pdf_failed')
+                ->withHeader('Location', url('/admin/prestiti/dettagli/' . $id) . '?error=pdf_failed')
                 ->withStatus(302);
         }
     }
@@ -797,7 +797,7 @@ class PrestitiController
 
         if ($result->num_rows === 0) {
             $stmt->close();
-            $errorUrl = $redirectTo ?? '/admin/prestiti';
+            $errorUrl = $redirectTo ?? url('/admin/prestiti');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', $errorUrl . $separator . 'error=loan_not_found')->withStatus(302);
         }
@@ -807,7 +807,7 @@ class PrestitiController
 
         // Check if loan is active
         if ((int) $loan['attivo'] !== 1) {
-            $errorUrl = $redirectTo ?? '/admin/prestiti';
+            $errorUrl = $redirectTo ?? url('/admin/prestiti');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', $errorUrl . $separator . 'error=loan_not_active')->withStatus(302);
         }
@@ -815,7 +815,7 @@ class PrestitiController
         // Check if loan is overdue
         $isLate = ($loan['stato'] === 'in_ritardo');
         if ($isLate) {
-            $errorUrl = $redirectTo ?? '/admin/prestiti';
+            $errorUrl = $redirectTo ?? url('/admin/prestiti');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', $errorUrl . $separator . 'error=loan_overdue')->withStatus(302);
         }
@@ -824,7 +824,7 @@ class PrestitiController
         $maxRenewals = 3;
         $currentRenewals = (int) $loan['renewals'];
         if ($currentRenewals >= $maxRenewals) {
-            $errorUrl = $redirectTo ?? '/admin/prestiti';
+            $errorUrl = $redirectTo ?? url('/admin/prestiti');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', $errorUrl . $separator . 'error=max_renewals')->withStatus(302);
         }
@@ -851,19 +851,19 @@ class PrestitiController
             // Re-validate loan state after acquiring lock (may have changed since initial fetch)
             if (!$lockedLoan || (int) $lockedLoan['attivo'] !== 1) {
                 $db->rollback();
-                $errorUrl = $redirectTo ?? '/admin/prestiti';
+                $errorUrl = $redirectTo ?? url('/admin/prestiti');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', $errorUrl . $separator . 'error=loan_not_active')->withStatus(302);
             }
             if ($lockedLoan['stato'] === 'in_ritardo') {
                 $db->rollback();
-                $errorUrl = $redirectTo ?? '/admin/prestiti';
+                $errorUrl = $redirectTo ?? url('/admin/prestiti');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', $errorUrl . $separator . 'error=loan_overdue')->withStatus(302);
             }
             if ((int) $lockedLoan['renewals'] >= $maxRenewals) {
                 $db->rollback();
-                $errorUrl = $redirectTo ?? '/admin/prestiti';
+                $errorUrl = $redirectTo ?? url('/admin/prestiti');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', $errorUrl . $separator . 'error=max_renewals')->withStatus(302);
             }
@@ -927,7 +927,7 @@ class PrestitiController
             $totalOccupied = 1 + $overlappingLoans + $overlappingReservations; // 1 = current loan being renewed
             if ($totalOccupied > $totalCopies) {
                 $db->rollback();
-                $errorUrl = $redirectTo ?? '/admin/prestiti';
+                $errorUrl = $redirectTo ?? url('/admin/prestiti');
                 $separator = strpos($errorUrl, '?') === false ? '?' : '&';
                 return $response->withHeader('Location', $errorUrl . $separator . 'error=extension_conflicts')->withStatus(302);
             }
@@ -956,7 +956,7 @@ class PrestitiController
             $db->commit();
             $_SESSION['success_message'] = __('Prestito rinnovato correttamente. Nuova scadenza: %s', format_date($newDueDate, false, '/'));
 
-            $successUrl = $redirectTo ?? '/admin/prestiti';
+            $successUrl = $redirectTo ?? url('/admin/prestiti');
             $separator = strpos($successUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', $successUrl . $separator . 'renewed=1')->withStatus(302);
 
@@ -964,7 +964,7 @@ class PrestitiController
             $db->rollback();
             SecureLogger::error(__('Rinnovo prestito fallito'), ['loan_id' => $id, 'error' => $e->getMessage()]);
 
-            $errorUrl = $redirectTo ?? '/admin/prestiti';
+            $errorUrl = $redirectTo ?? url('/admin/prestiti');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', $errorUrl . $separator . 'error=renewal_failed')->withStatus(302);
         }

@@ -415,7 +415,7 @@
   </div>
 </div>
 
-<script src="<?= htmlspecialchars(assetUrl('js/sortable.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
+<script src="<?= htmlspecialchars(assetUrl('vendor/sortablejs/Sortable.min.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 <script>
 // Global __ function for JavaScript inline handlers (onsubmit, onclick, etc.)
 if (typeof window.__ === 'undefined') {
@@ -617,6 +617,8 @@ document.addEventListener('DOMContentLoaded', function() {
     return div.innerHTML;
   }
 
+  const editLabel = <?= json_encode(__('Modifica'), JSON_HEX_TAG) ?>;
+
   function renderBooks(books) {
     const tbody = document.getElementById('collocation-tbody');
 
@@ -629,7 +631,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const bookId = parseInt(book.id, 10);
       // Validate book ID to prevent invalid URLs
       const editLink = Number.isFinite(bookId) && bookId > 0
-        ? `<a href="${window.BASE_PATH}/admin/libri/modifica/${bookId}" class="text-gray-600 hover:text-gray-900" title="<?= __("Modifica") ?>"><i class="fas fa-edit"></i></a>`
+        ? `<a href="${window.BASE_PATH}/admin/libri/modifica/${bookId}" class="text-gray-600 hover:text-gray-900" title="${editLabel}"><i class="fas fa-edit"></i></a>`
         : '<span class="text-gray-400" title="ID non valido"><i class="fas fa-edit"></i></span>';
 
       return `

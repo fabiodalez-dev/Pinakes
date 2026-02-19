@@ -64,12 +64,7 @@ class FrontendController
         $stmt_ordered->close();
 
         // Determine sort order for latest books section
-        $latestBooksSort = isset($sectionsOrdered['latest_books_title']['content'])
-            ? $sectionsOrdered['latest_books_title']['content']
-            : 'created_at';
-        if (!in_array($latestBooksSort, ['created_at', 'updated_at'], true)) {
-            $latestBooksSort = 'created_at';
-        }
+        $latestBooksSort = $this->getLatestBooksSort($db);
 
         // Query per gli ultimi 10 libri inseriti
         $query_slider = "
@@ -1020,15 +1015,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         switch ($section) {
             case 'latest':
                 // Read sort preference from CMS settings
-                $sortStmt = $db->prepare("SELECT content FROM home_content WHERE section_key = 'latest_books_title' LIMIT 1");
-                $sortStmt->execute();
-                $sortResult = $sortStmt->get_result();
-                $sortRow = $sortResult->fetch_assoc();
-                $latestSort = $sortRow['content'] ?? 'created_at';
-                $sortStmt->close();
-                if (!in_array($latestSort, ['created_at', 'updated_at'], true)) {
-                    $latestSort = 'created_at';
-                }
+                $latestSort = $this->getLatestBooksSort($db);
 
                 // Ultimi libri aggiunti
                 $query = "
@@ -1445,6 +1432,19 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         return (int)$row['is_active'] === 1;
+    }
+
+    /**
+     * Get the sort column for the "latest books" section from CMS settings.
+     */
+    private function getLatestBooksSort(\mysqli $db): string
+    {
+        $stmt = $db->prepare("SELECT content FROM home_content WHERE section_key = 'latest_books_title' LIMIT 1");
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        $sort = $row['content'] ?? 'created_at';
+        return in_array($sort, ['created_at', 'updated_at'], true) ? $sort : 'created_at';
     }
 
     /**

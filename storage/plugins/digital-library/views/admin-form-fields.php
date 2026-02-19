@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 link.href = displayLinkUrl;
                 link.target = '_blank';
                 link.className = 'text-xs text-purple-600 hover:underline';
-                link.textContent = '<?= __("Apri file") ?>';
+                link.textContent = <?= json_encode(__("Apri file")) ?>;
                 wrapper.appendChild(link);
 
                 resultEl.appendChild(wrapper);

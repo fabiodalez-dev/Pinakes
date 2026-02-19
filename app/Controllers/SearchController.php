@@ -448,7 +448,7 @@ class SearchController
         $res = $stmt->get_result();
 
         while ($row = $res->fetch_assoc()) {
-            $indirizzo = $row['indirizzo'] ? substr(strip_tags(HtmlHelper::decode($row['indirizzo'])), 0, 100) . '...' : '';
+            $indirizzo = $row['indirizzo'] ? mb_substr(strip_tags(HtmlHelper::decode($row['indirizzo'])), 0, 100) . '...' : '';
 
             $results[] = [
                 'id' => $row['id'],

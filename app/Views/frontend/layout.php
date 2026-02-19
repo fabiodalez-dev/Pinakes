@@ -1,5 +1,5 @@
 <?php $content = $content ?? '';
-$footerDescription = $footerDescription ?? null;
+// $footerDescription is always set from ConfigStore (line ~16). For custom OG description, use $ogDescription.
 $ogTitle = $ogTitle ?? null;
 $twitterCard = $twitterCard ?? null;
 

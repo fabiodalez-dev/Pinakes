@@ -297,6 +297,11 @@ document.addEventListener('DOMContentLoaded', function() {
     return;
   }
 
+  // i18n constants for JS template literals (avoid raw PHP in template strings)
+  const i18nViewDetails = <?= json_encode(__("Visualizza dettagli"), JSON_HEX_TAG) ?>;
+  const i18nEdit = <?= json_encode(__("Modifica"), JSON_HEX_TAG) ?>;
+  const i18nDelete = <?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>;
+
   // Initialize DataTable with modern features
   const table = new DataTable('#utenti-table', {
     processing: true,
@@ -325,11 +330,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return json.data;
       }
     },
-    // i18n constants for JS template literals (avoid raw PHP in template strings)
-    const i18nViewDetails = <?= json_encode(__("Visualizza dettagli"), JSON_HEX_TAG) ?>;
-    const i18nEdit = <?= json_encode(__("Modifica"), JSON_HEX_TAG) ?>;
-    const i18nDelete = <?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>;
-
     columns: [
       {
         data: 'nome',

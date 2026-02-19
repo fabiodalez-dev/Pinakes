@@ -11,6 +11,7 @@
 
 declare(strict_types=1);
 
+use App\Support\Csrf;
 use App\Support\HookManager;
 use App\Support\I18n;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -181,7 +182,7 @@ class DeweyEditorPlugin
 
     public function renderEditor(Request $_request, Response $response): Response
     {
-        $csrfToken = $_SESSION['csrf_token'] ?? '';
+        $csrfToken = Csrf::ensureToken();
 
         // Render the view content
         ob_start();

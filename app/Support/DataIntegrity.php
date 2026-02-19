@@ -131,6 +131,7 @@ class DataIntegrity {
             if ($insideTransaction) {
                 throw $e;
             }
+            $results['updated'] = 0;
             $this->db->rollback();
         }
 
@@ -1294,7 +1295,7 @@ class DataIntegrity {
             $columnDefs = [];
             foreach ($columns as $col) {
                 if ($prefixLength !== null) {
-                    $columnDefs[] = "`$col`($prefixLength)";
+                    $columnDefs[] = "`$col`(" . (int) $prefixLength . ")";
                 } else {
                     $columnDefs[] = "`$col`";
                 }

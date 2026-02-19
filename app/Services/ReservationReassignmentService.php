@@ -449,7 +449,7 @@ class ReservationReassignmentService
 
         $isbn = $data['isbn13'] ?: $data['isbn10'] ?: '';
 
-        $bookLink = book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore_principale' => $author['nome'] ?? '']);
+        $bookLink = book_url(['id' => $data['libro_id'], 'titolo' => $data['libro_titolo'] ?? '', 'autore' => $author['nome'] ?? '']);
 
         $variables = [
             'utente_nome' => $data['utente_nome'] ?: __('Utente'),

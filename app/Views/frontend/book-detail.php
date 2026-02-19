@@ -2025,13 +2025,13 @@ ob_start();
                         $relatedPublisher = html_entity_decode($related['editore'] ?? '', ENT_QUOTES, 'UTF-8');
                         $relatedAltParts = [];
                         if ($relatedTitle !== '') {
-                            $relatedAltParts[] = 'Copertina del libro "' . $relatedTitle . '"';
+                            $relatedAltParts[] = sprintf(__('Copertina del libro "%s"'), $relatedTitle);
                         }
                         if (!empty($relatedAuthorsList)) {
-                            $relatedAltParts[] = 'di ' . implode(', ', $relatedAuthorsList);
+                            $relatedAltParts[] = sprintf(__('di %s'), implode(', ', $relatedAuthorsList));
                         }
                         if ($relatedPublisher !== '') {
-                            $relatedAltParts[] = 'Editore ' . $relatedPublisher;
+                            $relatedAltParts[] = sprintf(__('Editore %s'), $relatedPublisher);
                         }
                         $relatedCoverAlt = trim(implode(' ', $relatedAltParts));
                         if ($relatedCoverAlt === '') {
@@ -2225,12 +2225,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
           }).then((result) => {
             if (result.isConfirmed) {
-              window.location.href = '<?= $loginRoute ?>?redirect=' + encodeURIComponent(window.location.pathname);
+              window.location.href = <?= json_encode($loginRoute, JSON_HEX_TAG) ?> + '?redirect=' + encodeURIComponent(window.location.pathname);
             }
           });
         } else {
           if (confirm(__('Per richiedere un prestito devi effettuare il login. Vuoi andare alla pagina di login?'))) {
-            window.location.href = '<?= $loginRoute ?>?redirect=' + encodeURIComponent(window.location.pathname);
+            window.location.href = <?= json_encode($loginRoute, JSON_HEX_TAG) ?> + '?redirect=' + encodeURIComponent(window.location.pathname);
           }
         }
         return;

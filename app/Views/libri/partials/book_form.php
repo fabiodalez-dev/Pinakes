@@ -941,7 +941,7 @@ const i18nTranslations = Object.assign({}, window.i18nTranslations || {}, <?= js
     'Si è verificato un errore di rete.' => __("Si è verificato un errore di rete."),
     'ISBN Mancante' => __("ISBN Mancante"),
     'Inserisci un codice ISBN per continuare.' => __("Inserisci un codice ISBN per continuare.")
-], JSON_UNESCAPED_UNICODE) ?>);
+], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>);
 
 // LibraryThing accordion toggle
 function toggleLibraryThingAccordion() {
@@ -1209,7 +1209,7 @@ function initializeChoicesJS() {
             noChoicesText: <?= json_encode(__("Nessun autore trovato, premi Invio per aggiungerne uno nuovo"), JSON_HEX_TAG) ?>,
             itemSelectText: <?= json_encode(__("Clicca per selezionare"), JSON_HEX_TAG) ?>,
             addItemText: (value) => `${<?= json_encode(__('Aggiungi'), JSON_HEX_TAG) ?>} <b>"${value}"</b> ${<?= json_encode(__('come nuovo autore'), JSON_HEX_TAG) ?>}`,
-            maxItemText: (maxItemCount) => `Solo ${maxItemCount} autori possono essere aggiunti`,
+            maxItemText: (maxItemCount) => <?= json_encode(__("Solo %d autori possono essere aggiunti"), JSON_HEX_TAG) ?>.replace('%d', maxItemCount),
             shouldSort: false,
             searchResultLimit: -1,
             searchFloor: 1,
@@ -2953,7 +2953,7 @@ function displayScrapeSourceInfo(data) {
     if (!sourceInfoPanel) return;
 
     // Get source information from response
-    const primarySource = data._primary_source || data.source || <?= json_encode(__("Sconosciuto")) ?>;
+    const primarySource = data._primary_source || data.source || <?= json_encode(__("Sconosciuto"), JSON_HEX_TAG) ?>;
     const sources = data._sources || (data.source ? [data.source] : []);
     const alternatives = data._alternatives || null;
 
@@ -3051,7 +3051,7 @@ function showAlternativesPanel(alternatives) {
         };
 
         html += `<div class="p-3 bg-white rounded border border-blue-100">
-            <div class="font-medium text-blue-800 mb-2">${formatSourceName(source)}</div>
+            <div class="font-medium text-blue-800 mb-2">${escapeHtml(formatSourceName(source))}</div>
             <div class="space-y-1 text-xs text-gray-600">`;
 
         // Show key fields from this source (using data-* attributes for event delegation)

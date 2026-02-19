@@ -80,6 +80,11 @@ class EditoriApiController
             }
         }
         if ($created_from !== '') {
+            $d = \DateTime::createFromFormat('Y-m-d', $created_from);
+            if (!$d || $d->format('Y-m-d') !== $created_from) {
+                $response->getBody()->write(json_encode(['error' => __('Formato data non valido')], JSON_UNESCAPED_UNICODE));
+                return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            }
             $where_prepared .= " AND e.created_at >= ? ";
             $params_for_where[] = $created_from;
             $param_types_for_where .= 's';

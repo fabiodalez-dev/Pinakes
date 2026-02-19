@@ -227,7 +227,7 @@ $forgotPasswordRoute = route_path('forgot_password');
 
         // Se l'utente è stato attivo negli ultimi 5 minuti, refresh del token
         if (minutesInactive < 5) {
-            fetch(<?= json_encode($loginRoute) ?>, {
+            fetch(<?= json_encode($loginRoute, JSON_HEX_TAG | JSON_HEX_AMP) ?>, {
                 method: 'GET',
                 credentials: 'same-origin'
             })
@@ -258,7 +258,7 @@ document.querySelector('form').addEventListener('submit', function(e) {
         return false;
     }
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i><?= __('Accesso in corso...') ?>';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(__('Accesso in corso...'), JSON_HEX_TAG) ?>;
 });
 </script>
 

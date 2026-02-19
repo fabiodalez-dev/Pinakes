@@ -167,7 +167,7 @@ if (!empty($triggerWarnings)):
         <li><i class="fas fa-check-circle"></i> <?= __("Plugin installati e attivati:") ?>
             <strong><?= count($successfulPlugins) ?></strong>
             <?php if (!empty($successfulPlugins)): ?>
-                (<?= implode(', ', array_column($successfulPlugins, 'name')) ?>)
+                (<?= htmlspecialchars(implode(', ', array_column($successfulPlugins, 'name')), ENT_QUOTES, 'UTF-8') ?>)
             <?php endif; ?>
         </li>
     <?php endif; ?>

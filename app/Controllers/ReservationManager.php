@@ -48,7 +48,9 @@ class ReservationManager
         if ($this->inTransaction || $inDbTransaction) {
             return false; // Already in transaction, don't start a new one
         }
-        $this->db->begin_transaction();
+        if (!$this->db->begin_transaction()) {
+            throw new \RuntimeException('Failed to start transaction');
+        }
         $this->inTransaction = true;
         return true;
     }

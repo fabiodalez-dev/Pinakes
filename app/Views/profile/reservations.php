@@ -770,7 +770,7 @@ document.getElementById('reviewForm').addEventListener('submit', async function(
   const data = Object.fromEntries(formData);
 
   try {
-    const response = await fetch(window.BASE_PATH + '/api/user/recensioni', {
+    const response = await fetch((window.BASE_PATH || '') + '/api/user/recensioni', {
       method: 'POST',
       credentials: 'same-origin',
       headers: {

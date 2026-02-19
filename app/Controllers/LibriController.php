@@ -1593,6 +1593,11 @@ class LibriController
                 CURLOPT_SSL_VERIFYHOST => 2,
                 CURLOPT_USERAGENT => 'BibliotecaBot/1.0'
             ]);
+            if (defined('CURLOPT_PROTOCOLS_STR')) {
+                curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'https,http');
+            } else {
+                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
+            }
             curl_exec($ch);
             $contentLength = curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -1634,6 +1639,11 @@ class LibriController
                     return ($downloaded > 2 * 1024 * 1024) ? 1 : 0;
                 }
             ]);
+            if (defined('CURLOPT_PROTOCOLS_STR')) {
+                curl_setopt($ch, CURLOPT_PROTOCOLS_STR, 'https,http');
+            } else {
+                curl_setopt($ch, CURLOPT_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
+            }
             $img = curl_exec($ch);
             $curlError = curl_errno($ch);
             $curlHttpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);

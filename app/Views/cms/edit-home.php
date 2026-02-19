@@ -978,6 +978,10 @@ function toggleAccordion(id) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  if (typeof window.__ === 'undefined') {
+    window.__ = function(key) { return key; };
+  }
+
   if (window.tinymce) {
    tinymce.init({
      selector: '#text_content_body',
@@ -1046,7 +1050,7 @@ document.addEventListener('DOMContentLoaded', function() {
         credentials: 'same-origin',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRF-Token': '<?= Csrf::ensureToken() ?>'
+          'X-CSRF-Token': <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>
         },
         body: JSON.stringify({ order: order })
       })
@@ -1102,7 +1106,7 @@ document.addEventListener('DOMContentLoaded', function() {
             credentials: 'same-origin',
           headers: {
             'Content-Type': 'application/json',
-            'X-CSRF-Token': '<?= Csrf::ensureToken() ?>'
+            'X-CSRF-Token': <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>
           },
           body: JSON.stringify({
             section_id: sectionId,
