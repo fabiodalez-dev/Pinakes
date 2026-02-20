@@ -57,7 +57,7 @@ class CopyRepository
             SELECT c.*,
                    l.titolo as libro_titolo
             FROM copie c
-            JOIN libri l ON c.libro_id = l.id
+            JOIN libri l ON c.libro_id = l.id AND l.deleted_at IS NULL
             WHERE c.id = ?
         ");
         $stmt->bind_param('i', $id);

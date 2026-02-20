@@ -278,7 +278,7 @@ class Updater
                 'error' => null
             ];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore durante controllo aggiornamenti', [
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
@@ -922,7 +922,7 @@ class Updater
                 'error' => null
             ];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore download/estrazione', [
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
@@ -953,7 +953,7 @@ class Updater
 
         try {
             return $this->makeGitHubRequest($url);
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore recupero release per versione', [
                 'version' => $version,
                 'error' => $e->getMessage()
@@ -1017,7 +1017,7 @@ class Updater
                 'error' => null
             ];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore salvataggio pacchetto', [
                 'error' => $e->getMessage()
             ]);
@@ -1227,7 +1227,7 @@ class Updater
             $this->debugLog('INFO', '=== AGGIORNAMENTO MANUALE COMPLETATO ===');
             $this->debugLog('INFO', '========================================');
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'AGGIORNAMENTO MANUALE FALLITO', [
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
@@ -1397,7 +1397,7 @@ class Updater
                 'error' => null
             ];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore durante backup', [
                 'exception' => get_class($e),
                 'message' => $e->getMessage()
@@ -1478,7 +1478,7 @@ class Updater
         try {
             $this->deleteDirectory($backupPath);
             return ['success' => true, 'error' => null];
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -1611,7 +1611,7 @@ class Updater
 
             return ['success' => true, 'error' => null];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore backup database', ['error' => $e->getMessage()]);
 
             if ($handle !== null && is_resource($handle)) {
@@ -1714,7 +1714,7 @@ class Updater
                 'error' => null
             ];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore durante installazione', [
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),
@@ -1728,7 +1728,7 @@ class Updater
                     $this->debugLog('WARNING', 'Tentativo rollback', ['backup' => $appBackupPath]);
                     $this->restoreAppFiles($appBackupPath);
                     $this->debugLog('INFO', 'Rollback completato');
-                } catch (Exception $rollbackError) {
+                } catch (\Throwable $rollbackError) {
                     $this->debugLog('ERROR', 'Rollback fallito', [
                         'error' => $rollbackError->getMessage()
                     ]);
@@ -2079,7 +2079,7 @@ class Updater
                 'error' => null
             ];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore durante migrazioni', [
                 'error' => $e->getMessage(),
                 'executed_so_far' => $executed
@@ -2736,7 +2736,7 @@ class Updater
             $this->debugLog('INFO', '=== AGGIORNAMENTO COMPLETATO CON SUCCESSO ===');
             $this->debugLog('INFO', '========================================');
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'AGGIORNAMENTO FALLITO', [
                 'exception' => get_class($e),
                 'message' => $e->getMessage(),

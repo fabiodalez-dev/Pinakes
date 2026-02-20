@@ -113,7 +113,7 @@ class ThemeManager
 
             $this->db->commit();
             return true;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             error_log("ThemeManager: Error activating theme - " . $e->getMessage());
             return false;

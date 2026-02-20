@@ -147,7 +147,7 @@ function getSectionDisplayName($key) {
           <label class="block text-sm font-medium text-gray-700"><?= __("Immagine di sfondo Hero") ?></label>
           <?php if (!empty($hero['background_image'])): ?>
             <div class="relative rounded-2xl overflow-hidden h-48 bg-gray-100">
-              <img src="<?php echo HtmlHelper::e($hero['background_image']); ?>" alt="Sfondo hero" class="w-full h-full object-cover">
+              <img src="<?php echo htmlspecialchars(url($hero['background_image']), ENT_QUOTES, 'UTF-8'); ?>" alt="Sfondo hero" class="w-full h-full object-cover">
               <div class="absolute inset-0 flex items-center justify-center" style="background: rgba(0, 0, 0, 0.4);">
                 <span class="text-white text-sm font-medium"><?= __("Immagine attuale") ?></span>
               </div>

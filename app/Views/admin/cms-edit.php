@@ -53,7 +53,7 @@
           type="text"
           name="title"
           class="block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4"
-          value="<?= htmlspecialchars($pageData['title']) ?>"
+          value="<?= htmlspecialchars($pageData['title'], ENT_QUOTES, 'UTF-8') ?>"
           required
           placeholder="<?= __("Inserisci il titolo") ?>">
       </div>
@@ -72,7 +72,7 @@
         <div id="image-preview" class="<?= !empty($pageData['image']) ? '' : 'hidden' ?>">
           <img
             id="preview-img"
-            src="<?= htmlspecialchars($pageData['image'] ?? '') ?>"
+            src="<?= htmlspecialchars($pageData['image'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
             alt="<?= __("Anteprima") ?>"
             class="max-w-full h-auto rounded-xl border border-gray-200"
             style="max-height: 300px;">
@@ -90,7 +90,7 @@
           type="hidden"
           name="image"
           id="image-url"
-          value="<?= htmlspecialchars($pageData['image'] ?? '') ?>">
+          value="<?= htmlspecialchars($pageData['image'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
 
         <p class="text-sm text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>

@@ -17,7 +17,7 @@ class LoanRepository
         $sql = "SELECT p.id, l.titolo AS libro_titolo, CONCAT(u.nome,' ',u.cognome) AS utente_nome,
                        u.email as utente_email, p.data_prestito, p.data_scadenza, p.data_restituzione, p.stato, p.attivo
                 FROM prestiti p
-                LEFT JOIN libri l ON p.libro_id = l.id
+                LEFT JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 LEFT JOIN utenti u ON p.utente_id = u.id
                 ORDER BY p.id DESC
                 LIMIT ?";
@@ -44,7 +44,7 @@ class LoanRepository
                         JOIN autori a ON la.autore_id = a.id
                         WHERE la.libro_id = p.libro_id) AS autori
                 FROM prestiti p
-                LEFT JOIN libri l ON p.libro_id = l.id
+                LEFT JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 LEFT JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id=? LIMIT 1";
         $stmt = $this->db->prepare($sql);

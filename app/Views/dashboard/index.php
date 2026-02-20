@@ -969,7 +969,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const copyBtn = document.getElementById('copy-ics-url');
     if (copyBtn) {
         copyBtn.addEventListener('click', function() {
-            const rawUrl = <?= json_encode($icsUrl ?? url('/calendar/events.ics')) ?>;
+            const rawUrl = <?= json_encode($icsUrl ?? url('/calendar/events.ics'), JSON_HEX_TAG) ?>;
             const icsUrl = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') || rawUrl.startsWith('//')
                 ? rawUrl
                 : window.location.origin + rawUrl;
@@ -978,13 +978,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (window.Swal) {
                     Swal.fire({
                         icon: 'success',
-                        title: <?= json_encode(__("Link copiato!")) ?>,
-                        text: <?= json_encode(__("L'URL del calendario è stato copiato negli appunti.")) ?>,
+                        title: <?= json_encode(__("Link copiato!"), JSON_HEX_TAG) ?>,
+                        text: <?= json_encode(__("L'URL del calendario è stato copiato negli appunti."), JSON_HEX_TAG) ?>,
                         timer: 2000,
                         showConfirmButton: false
                     });
                 } else {
-                    alert(<?= json_encode(__("Link copiato!")) ?>);
+                    alert(<?= json_encode(__("Link copiato!"), JSON_HEX_TAG) ?>);
                 }
             };
 

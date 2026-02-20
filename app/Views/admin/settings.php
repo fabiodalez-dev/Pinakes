@@ -440,7 +440,7 @@ const templates = {
   $keys = SettingsMailTemplates::keys();
   foreach ($keys as $index => $key):
     $def = SettingsMailTemplates::get($key);
-    echo '"' . $key . '": ' . json_encode($def);
+    echo '"' . $key . '": ' . json_encode($def, JSON_HEX_TAG);
     if ($index < count($keys) - 1) echo ',';
     echo "\n  ";
   endforeach;

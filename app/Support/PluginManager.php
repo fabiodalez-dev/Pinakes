@@ -572,7 +572,7 @@ class PluginManager
                 'message' => 'Plugin installato con successo.',
                 'plugin_id' => $pluginId
             ];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("❌ [PluginManager] Installation error: " . $e->getMessage());
             error_log("❌ [PluginManager] Stack trace: " . $e->getTraceAsString());
             return [

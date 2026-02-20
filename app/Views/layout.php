@@ -695,7 +695,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     }
     ?>
     window.i18nTranslations = <?= json_encode($translations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
-    window.userIsAdminOrStaff = <?= json_encode($isAdminOrStaff) ?>;
+    window.userIsAdminOrStaff = <?= json_encode($isAdminOrStaff, JSON_HEX_TAG) ?>;
 
     // Override translation helper function to use i18nTranslations (overrides head fallback)
     window.__ = function (key, ...args) {

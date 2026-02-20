@@ -140,8 +140,8 @@ ob_start();
         <div class="row justify-content-center">
             <div class="col-lg-10">
                 <?php if (!empty($image)): ?>
-                    <img src="<?= htmlspecialchars($image) ?>"
-                         alt="<?= htmlspecialchars($title) ?>"
+                    <img src="<?= htmlspecialchars($image, ENT_QUOTES, 'UTF-8') ?>"
+                         alt="<?= htmlspecialchars($title, ENT_QUOTES, 'UTF-8') ?>"
                          class="cms-image">
                 <?php endif; ?>
 

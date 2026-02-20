@@ -618,7 +618,32 @@ class DataIntegrity {
         }
         $stmt->close();
 
-        // 12. Verifica configurazione APP_CANONICAL_URL nel .env
+        // 12. Verifica copie con stato bloccato ma senza prestito attivo corrispondente
+        $stmt = $this->db->prepare("
+            SELECT c.id AS copia_id, c.libro_id, c.stato AS copia_stato, l.titolo
+            FROM copie c
+            JOIN libri l ON l.id = c.libro_id AND l.deleted_at IS NULL
+            WHERE c.stato IN ('prenotato', 'prestato')
+            AND NOT EXISTS (
+                SELECT 1 FROM prestiti p
+                WHERE p.copia_id = c.id AND p.attivo = 1
+                AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'da_ritirare')
+            )
+        ");
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result && $result->num_rows > 0) {
+            while ($row = $result->fetch_assoc()) {
+                $issues[] = [
+                    'type' => 'stale_copy_state',
+                    'message' => \sprintf(__("Copia ID %d del libro '%s' (ID: %d) ha stato '%s' ma nessun prestito attivo la riferisce"), $row['copia_id'], $row['titolo'], $row['libro_id'], $row['copia_stato']),
+                    'severity' => 'error'
+                ];
+            }
+        }
+        $stmt->close();
+
+        // 13. Verifica configurazione APP_CANONICAL_URL nel .env
         $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
         $currentUrl = $this->detectCurrentCanonicalUrl();
 
@@ -865,7 +890,7 @@ class DataIntegrity {
             $stmt = $this->db->prepare("
                 SELECT p.*, l.copie_totali, l.stato as libro_stato
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 WHERE p.id = ?
             ");
             $stmt->bind_param('i', $loanId);

@@ -25,7 +25,7 @@ class DashboardController
             $scheduledLoans = $repo->scheduledLoans(6);
             $reservations = $repo->activeReservations(6);
             $calendarEvents = $repo->calendarEvents();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Handle error gracefully - use empty data
             error_log('Dashboard error: ' . $e->getMessage());
         }

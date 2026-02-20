@@ -254,15 +254,15 @@ if ($presetUserId > 0) {
     document.addEventListener('DOMContentLoaded', function() {
       // Translations
       const i18n = {
-        noResults: <?= json_encode(__("Nessun risultato"), JSON_UNESCAPED_UNICODE) ?>,
-        available: <?= json_encode(__("Disponibile"), JSON_UNESCAPED_UNICODE) ?>,
-        notAvailable: <?= json_encode(__("Non disponibile ora"), JSON_UNESCAPED_UNICODE) ?>,
-        reservable: <?= json_encode(__("Prenotabile per date future"), JSON_UNESCAPED_UNICODE) ?>,
-        copies: <?= json_encode(__("copie"), JSON_UNESCAPED_UNICODE) ?>,
-        firstAvailable: <?= json_encode(__("Prima data disponibile: %s"), JSON_UNESCAPED_UNICODE) ?>,
-        availableOnDate: <?= json_encode(__("Disponibile nella data selezionata"), JSON_UNESCAPED_UNICODE) ?>,
-        notAvailableOnDate: <?= json_encode(__("Non disponibile nella data selezionata"), JSON_UNESCAPED_UNICODE) ?>,
-        selectBook: <?= json_encode(__("Seleziona un libro per vedere la disponibilità"), JSON_UNESCAPED_UNICODE) ?>
+        noResults: <?= json_encode(__("Nessun risultato"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        available: <?= json_encode(__("Disponibile"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        notAvailable: <?= json_encode(__("Non disponibile ora"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        reservable: <?= json_encode(__("Prenotabile per date future"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        copies: <?= json_encode(__("copie"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        firstAvailable: <?= json_encode(__("Prima data disponibile: %s"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        availableOnDate: <?= json_encode(__("Disponibile nella data selezionata"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        notAvailableOnDate: <?= json_encode(__("Non disponibile nella data selezionata"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        selectBook: <?= json_encode(__("Seleziona un libro per vedere la disponibilità"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
       };
 
       // Book availability data

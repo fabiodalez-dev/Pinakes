@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Repositories;
 
 use mysqli;
-use Exception;
 
 class RecensioniRepository
 {
@@ -54,7 +53,7 @@ class RecensioniRepository
 
             return $row['count'] > 0;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error checking if user can review: " . $e->getMessage());
             return false;
         }
@@ -90,7 +89,7 @@ class RecensioniRepository
             $stmt->close();
             return null;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error creating review: " . $e->getMessage());
             return null;
         }
@@ -109,7 +108,7 @@ class RecensioniRepository
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome,
                        u.email as utente_email
                 FROM recensioni r
-                JOIN libri l ON r.libro_id = l.id
+                JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.stato = 'pendente'
                 ORDER BY r.created_at DESC
@@ -126,7 +125,7 @@ class RecensioniRepository
             $stmt->close();
             return $reviews;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error getting pending reviews: " . $e->getMessage());
             return [];
         }
@@ -146,7 +145,7 @@ class RecensioniRepository
                        u.email as utente_email,
                        CONCAT(a.nome, ' ', a.cognome) as approved_by_name
                 FROM recensioni r
-                JOIN libri l ON r.libro_id = l.id
+                JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON r.utente_id = u.id
                 LEFT JOIN utenti a ON r.approved_by = a.id
             ";
@@ -175,7 +174,7 @@ class RecensioniRepository
             $stmt->close();
             return $reviews;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error getting all reviews: " . $e->getMessage());
             return [];
         }
@@ -210,7 +209,7 @@ class RecensioniRepository
             $stmt->close();
             return $reviews;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error getting approved reviews for book: " . $e->getMessage());
             return [];
         }
@@ -251,7 +250,7 @@ class RecensioniRepository
                 'five_star' => (int)($stats['five_star'] ?? 0),
             ];
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error getting review stats: " . $e->getMessage());
             return [
                 'total_reviews' => 0,
@@ -285,7 +284,7 @@ class RecensioniRepository
 
             return $result;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error approving review: " . $e->getMessage());
             return false;
         }
@@ -311,7 +310,7 @@ class RecensioniRepository
 
             return $result;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error rejecting review: " . $e->getMessage());
             return false;
         }
@@ -330,7 +329,7 @@ class RecensioniRepository
 
             return $result;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error deleting review: " . $e->getMessage());
             return false;
         }
@@ -347,7 +346,7 @@ class RecensioniRepository
                        l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome
                 FROM recensioni r
-                JOIN libri l ON r.libro_id = l.id
+                JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.id = ?
             ");
@@ -360,7 +359,7 @@ class RecensioniRepository
 
             return $review ?: null;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error getting review: " . $e->getMessage());
             return null;
         }
@@ -380,7 +379,7 @@ class RecensioniRepository
 
             return (int)($row['count'] ?? 0);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error counting pending reviews: " . $e->getMessage());
             return 0;
         }

@@ -182,7 +182,7 @@ function viewMessage(id) {
     })
     .catch(() => {
       const detail = document.getElementById('message-detail');
-      if (detail) detail.textContent = <?= json_encode(__('Errore durante il caricamento del messaggio.')) ?>;
+      if (detail) detail.textContent = <?= json_encode(__('Errore durante il caricamento del messaggio.'), JSON_HEX_TAG) ?>;
       const modal = document.getElementById('message-modal');
       if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
     });
@@ -195,23 +195,23 @@ function closeMessageModal() {
 }
 
 function deleteMessage(id) {
-  if (confirm(<?= json_encode(__('Sei sicuro di voler eliminare questo messaggio?')) ?>)) {
+  if (confirm(<?= json_encode(__('Sei sicuro di voler eliminare questo messaggio?'), JSON_HEX_TAG) ?>)) {
     csrfFetch(`${window.BASE_PATH}/admin/messages/${id}`, { method: 'DELETE' })
       .then(r => { if (!r.ok) throw new Error('delete failed'); location.reload(); })
-      .catch(() => alert(<?= json_encode(__('Errore durante l\'eliminazione del messaggio.')) ?>));
+      .catch(() => alert(<?= json_encode(__('Errore durante l\'eliminazione del messaggio.'), JSON_HEX_TAG) ?>));
   }
 }
 
 function archiveMessage(id) {
   csrfFetch(`${window.BASE_PATH}/admin/messages/${id}/archive`, { method: 'POST' })
     .then(r => { if (!r.ok) throw new Error('archive failed'); closeMessageModal(); location.reload(); })
-    .catch(() => alert(<?= json_encode(__('Errore durante l\'archiviazione del messaggio.')) ?>));
+    .catch(() => alert(<?= json_encode(__('Errore durante l\'archiviazione del messaggio.'), JSON_HEX_TAG) ?>));
 }
 
 function markAllAsRead() {
   csrfFetch(`${window.BASE_PATH}/admin/messages/mark-all-read`, { method: 'POST' })
     .then(r => { if (!r.ok) throw new Error('mark-all-read failed'); location.reload(); })
-    .catch(() => alert(<?= json_encode(__('Errore durante l\'aggiornamento dei messaggi.')) ?>));
+    .catch(() => alert(<?= json_encode(__('Errore durante l\'aggiornamento dei messaggi.'), JSON_HEX_TAG) ?>));
 }
 
 function replyToMessage(email) {

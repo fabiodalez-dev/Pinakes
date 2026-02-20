@@ -86,7 +86,7 @@ class AuthorRepository
 
     public function countBooks(int $authorId): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM libri_autori WHERE autore_id = ?');
+        $stmt = $this->db->prepare('SELECT COUNT(*) FROM libri_autori la JOIN libri l ON la.libro_id = l.id AND l.deleted_at IS NULL WHERE la.autore_id = ?');
         $stmt->bind_param('i', $authorId);
         $stmt->execute();
         $stmt->bind_result($count);

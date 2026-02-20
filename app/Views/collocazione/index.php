@@ -221,7 +221,7 @@
                         </div>
                         <div class="flex items-center gap-2">
                           <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded"><?= __("Ordine:") ?> <span class="order-label"><?php echo isset($s['ordine']) ? (int)$s['ordine'] : 0; ?></span></span>
-                          <form method="post" action="<?= htmlspecialchars(url('/admin/collocazione/scaffali/' . (int)$s['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questo scaffale? (Solo se vuoto)")) ?>);">
+                          <form method="post" action="<?= htmlspecialchars(url('/admin/collocazione/scaffali/' . (int)$s['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__("Eliminare questo scaffale? (Solo se vuoto)"), JSON_HEX_TAG | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_APOS), ENT_QUOTES, 'UTF-8') ?>);">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                             <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                           </form>
@@ -321,7 +321,7 @@
                       </div>
                       <div class="flex items-center gap-2">
                         <span class="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded mensola-order-label"><?= __("Ordine:") ?> <span class="order-value"><?php echo (int)($m['ordine'] ?? 0); ?></span></span>
-                        <form method="post" action="<?= htmlspecialchars(url('/admin/collocazione/mensole/' . (int)$m['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline" onsubmit="return confirm(<?= json_encode(__("Eliminare questa mensola? (Solo se vuota)")) ?>);">
+                        <form method="post" action="<?= htmlspecialchars(url('/admin/collocazione/mensole/' . (int)$m['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__("Eliminare questa mensola? (Solo se vuota)"), JSON_HEX_TAG | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_APOS), ENT_QUOTES, 'UTF-8') ?>);">
                           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                           <button type="submit" class="text-red-600 hover:text-red-800 text-sm" title="<?= __("Elimina") ?>"><i class="fas fa-trash"></i></button>
                         </form>
@@ -425,8 +425,8 @@ if (typeof window.__ === 'undefined') {
 }
 
 // Pre-translated strings for JavaScript (avoids __() fallback issues)
-const noMensoleMessage = <?= json_encode(__('Nessuna mensola per questo scaffale. Creane una!')) ?>;
-const noBooksMessage = <?= json_encode(__('Nessun libro con collocazione trovato')) ?>;
+const noMensoleMessage = <?= json_encode(__('Nessuna mensola per questo scaffale. Creane una!'), JSON_HEX_TAG) ?>;
+const noBooksMessage = <?= json_encode(__('Nessun libro con collocazione trovato'), JSON_HEX_TAG) ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
 
@@ -448,7 +448,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const payload = {
         type,
         ids,
-        csrf_token: <?= json_encode(App\Support\Csrf::ensureToken()) ?>
+        csrf_token: <?= json_encode(App\Support\Csrf::ensureToken(), JSON_HEX_TAG) ?>
       };
       // Include scaffale_id for mensole sorting (to ensure we only sort within that scaffale)
       if (scaffaleId) {
@@ -464,7 +464,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
     } catch (error) {
       console.error('Error updating order:', error);
-      alert(<?= json_encode(__("Errore nel salvataggio dell'ordine. Ricarica la pagina e riprova.")); ?>);
+      alert(<?= json_encode(__("Errore nel salvataggio dell'ordine. Ricarica la pagina e riprova."), JSON_HEX_TAG); ?>);
     }
   }
 

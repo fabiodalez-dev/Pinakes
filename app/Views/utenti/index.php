@@ -278,7 +278,7 @@ const i18nTranslations = <?= json_encode([
     'Esportazione di tutti i %d utenti' => __("Exporting all %d users"),
     'Totale utenti:' => __("Total users:"),
     'Scorri a destra per vedere tutte le colonne' => __("Scorri a destra per vedere tutte le colonne"),
-], JSON_UNESCAPED_UNICODE) ?>;
+], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 
 // Global translation function for JavaScript
 window.__ = function(key) {
@@ -286,7 +286,7 @@ window.__ = function(key) {
 };
 
 // Set current locale for DataTables language selection
-window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
+window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
 
 document.addEventListener('DOMContentLoaded', function() {

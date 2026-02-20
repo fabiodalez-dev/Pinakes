@@ -103,7 +103,7 @@ class IcsGenerator
                            l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                            u.email, p.updated_at
                     FROM prestiti p
-                    JOIN libri l ON p.libro_id = l.id
+                    JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE p.attivo = 1
                       AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
@@ -151,7 +151,7 @@ class IcsGenerator
                           l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                           u.email, r.updated_at
                    FROM prenotazioni r
-                   JOIN libri l ON r.libro_id = l.id
+                   JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
                    JOIN utenti u ON r.utente_id = u.id
                    WHERE r.stato = 'attiva'
                      AND COALESCE(r.data_fine_richiesta, r.data_scadenza_prenotazione) >= ?

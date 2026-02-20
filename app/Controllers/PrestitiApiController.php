@@ -25,7 +25,7 @@ class PrestitiApiController
         $search_value = trim((string)($q['search_value'] ?? ''));
 
         $base = "FROM prestiti p
-                 LEFT JOIN libri l ON p.libro_id=l.id
+                 LEFT JOIN libri l ON p.libro_id=l.id AND l.deleted_at IS NULL
                  LEFT JOIN utenti u ON p.utente_id=u.id
                  LEFT JOIN utenti staff ON p.processed_by=staff.id";
 

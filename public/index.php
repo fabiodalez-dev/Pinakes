@@ -321,7 +321,7 @@ if (!$isCli) {
     try {
         $db = $container->get('db');
         \App\Support\I18n::loadFromDatabase($db);
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         // Fallback to hardcoded locales if database query fails
         // This prevents errors during installation or if languages table doesn't exist yet
         error_log("Failed to load languages from database: " . $e->getMessage());

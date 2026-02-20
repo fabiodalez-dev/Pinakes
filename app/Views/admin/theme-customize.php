@@ -280,7 +280,7 @@ function updatePreview() {
     btnPrimary.style.borderColor = secondary;
 }
 
-const csrfToken = <?= json_encode(\App\Support\Csrf::ensureToken()) ?>;
+const csrfToken = <?= json_encode(\App\Support\Csrf::ensureToken(), JSON_HEX_TAG) ?>;
 
 function checkContrast() {
     const button = document.getElementById('color-button').value;

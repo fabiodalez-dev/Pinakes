@@ -67,7 +67,7 @@ class DashboardStats
         $rows = [];
         $sql = "SELECT p.*, l.titolo, l.id AS libro_id, CONCAT(u.nome, ' ', u.cognome) AS utente
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato IN ('in_corso','in_ritardo') AND p.attivo = 1";
         $res = $this->db->query($sql);
@@ -84,7 +84,7 @@ class DashboardStats
         $rows = [];
         $sql = "SELECT p.*, l.titolo, l.id AS libro_id, CONCAT(u.nome, ' ', u.cognome) AS utente
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato='in_ritardo' AND p.attivo = 1";
         $res = $this->db->query($sql);
@@ -104,7 +104,7 @@ class DashboardStats
                        CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email,
                        COALESCE(p.origine, 'richiesta') AS origine
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato = 'pendente'
                 ORDER BY p.created_at ASC
@@ -131,7 +131,7 @@ class DashboardStats
                        l.titolo, l.copertina_url,
                        CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato = 'da_ritirare'
                    OR (p.stato = 'prenotato' AND p.data_prestito <= ?)
@@ -159,7 +159,7 @@ class DashboardStats
                        l.titolo, l.copertina_url,
                        CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato = 'prenotato' AND p.data_prestito > ? AND p.attivo = 1
                 ORDER BY p.data_prestito ASC
@@ -185,7 +185,7 @@ class DashboardStats
                        l.titolo, l.copertina_url,
                        CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email
                 FROM prenotazioni r
-                JOIN libri l ON r.libro_id = l.id
+                JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.stato = 'attiva'
                 ORDER BY COALESCE(r.data_inizio_richiesta, r.data_scadenza_prenotazione) ASC
@@ -215,7 +215,7 @@ class DashboardStats
                            l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                            'prestito' AS tipo
                     FROM prestiti p
-                    JOIN libri l ON p.libro_id = l.id
+                    JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE (p.attivo = 1 OR p.stato = 'pendente')
                       AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo', 'pendente')
@@ -245,7 +245,7 @@ class DashboardStats
                           l.titolo, CONCAT(u.nome, ' ', u.cognome) AS utente_nome,
                           'prenotazione' AS tipo
                    FROM prenotazioni r
-                   JOIN libri l ON r.libro_id = l.id
+                   JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
                    JOIN utenti u ON r.utente_id = u.id
                    WHERE r.stato = 'attiva'
                    ORDER BY COALESCE(r.data_inizio_richiesta, r.data_scadenza_prenotazione, r.created_at) ASC";

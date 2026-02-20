@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace App\Support;
 
 use mysqli;
-use Exception;
 use App\Support\ConfigStore;
 use App\Support\RouteTranslator;
 use App\Support\SettingsMailTemplates;
@@ -80,7 +79,7 @@ class NotificationService {
             // Send to admins
             return $this->sendToAdmins('admin_new_registration', $variables);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to notify new user registration: " . $e->getMessage());
             return false;
         }
@@ -114,8 +113,7 @@ class NotificationService {
                 $currentLocale = \App\Support\I18n::getLocale();
                 \App\Support\I18n::setLocale($locale);
 
-                // Use /verify-email (English route) as it's supported in all languages
-                $verifyUrl = absoluteUrl('/verify-email?token=' . urlencode((string)$user['token_verifica_email']));
+                $verifyUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode((string)$user['token_verifica_email']));
                 $buttonText = __('Conferma la tua email');
                 $verifySection = '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($verifyUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . htmlspecialchars($buttonText, ENT_QUOTES, 'UTF-8') . '</a></p>';
 
@@ -134,7 +132,7 @@ class NotificationService {
             ];
             return $this->emailService->sendTemplate($user['email'], 'user_registration_pending', $variables, $locale);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send user registration pending email: " . $e->getMessage());
             return false;
         }
@@ -171,7 +169,7 @@ class NotificationService {
             $locale = \App\Support\I18n::getInstallationLocale();
             return $this->emailService->sendTemplate($user['email'], 'user_account_approved', $variables, $locale);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send user account approved email: " . $e->getMessage());
             return false;
         }
@@ -197,7 +195,7 @@ class NotificationService {
             }
             $stmt->close();
 
-            $verificationUrl = absoluteUrl('/verify-email?token=' . urlencode($token));
+            $verificationUrl = absoluteUrl(RouteTranslator::route('verify_email') . '?token=' . urlencode($token));
 
             $variables = [
                 'nome' => $user['nome'],
@@ -212,7 +210,7 @@ class NotificationService {
             $locale = \App\Support\I18n::getInstallationLocale();
             return $this->emailService->sendTemplate($user['email'], 'user_activation_with_verification', $variables, $locale);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send user activation with verification email: " . $e->getMessage());
             return false;
         }
@@ -245,7 +243,7 @@ class NotificationService {
             $variables = [
                 'nome' => $user['nome'],
                 'cognome' => $user['cognome'],
-                'reset_url' => absoluteUrl('/reset-password?token=' . urlencode((string)$token)),
+                'reset_url' => absoluteUrl(RouteTranslator::route('reset_password') . '?token=' . urlencode((string)$token)),
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
 
@@ -253,7 +251,7 @@ class NotificationService {
             $locale = \App\Support\I18n::getInstallationLocale();
             return $this->emailService->sendTemplate($user['email'], 'user_password_setup', $variables, $locale);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('Failed to send user password setup email: ' . $e->getMessage());
             return false;
         }
@@ -287,7 +285,7 @@ class NotificationService {
                 'nome' => $user['nome'],
                 'cognome' => $user['cognome'],
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca'),
-                'reset_url' => absoluteUrl('/reset-password?token=' . urlencode((string)$token)),
+                'reset_url' => absoluteUrl(RouteTranslator::route('reset_password') . '?token=' . urlencode((string)$token)),
                 'dashboard_url' => absoluteUrl('/admin/dashboard')
             ];
 
@@ -295,7 +293,7 @@ class NotificationService {
             $locale = \App\Support\I18n::getInstallationLocale();
             return $this->emailService->sendTemplate($user['email'], 'admin_invitation', $variables, $locale);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('Failed to send admin invitation: ' . $e->getMessage());
             return false;
         }
@@ -310,7 +308,7 @@ class NotificationService {
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -358,7 +356,7 @@ class NotificationService {
 
             return $emailSent;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to notify loan request: " . $e->getMessage());
             return false;
         }
@@ -381,7 +379,7 @@ class NotificationService {
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(p.data_scadenza, CURDATE()) as giorni_rimasti
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato = 'in_corso'
                   AND p.data_scadenza = DATE_ADD(CURDATE(), INTERVAL ? DAY)
@@ -441,7 +439,7 @@ class NotificationService {
                 }
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send loan expiration warnings: " . $e->getMessage());
         }
 
@@ -462,7 +460,7 @@ class NotificationService {
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
                        DATEDIFF(CURDATE(), p.data_scadenza) as giorni_ritardo
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato IN ('in_corso', 'in_ritardo')
                   AND p.data_scadenza < CURDATE()
@@ -522,7 +520,7 @@ class NotificationService {
                 }
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send overdue loan notifications: " . $e->getMessage());
         }
 
@@ -536,7 +534,7 @@ class NotificationService {
                 SELECT p.id, p.data_scadenza, p.data_prestito, l.titolo AS libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) AS utente_nome, u.email AS utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -568,7 +566,7 @@ class NotificationService {
 
             $this->emailService->sendToAdmins($subject, $body);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('Failed to notify admins about overdue loan: ' . $e->getMessage());
         }
     }
@@ -589,7 +587,7 @@ class NotificationService {
                        GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ') AS autore
                 FROM wishlist w
                 JOIN utenti u ON w.utente_id = u.id
-                JOIN libri l ON w.libro_id = l.id
+                JOIN libri l ON w.libro_id = l.id AND l.deleted_at IS NULL
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE w.libro_id = ?
@@ -651,7 +649,7 @@ class NotificationService {
                 }
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to notify wishlist book availability: " . $e->getMessage());
         }
 
@@ -679,7 +677,7 @@ class NotificationService {
             $results['overdue_notifications'] = $this->sendOverdueLoanNotifications();
             $results['wishlist_notifications'] = $this->checkAndNotifyWishlistAvailability();
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $results['errors'][] = 'Error running automatic notifications: ' . $e->getMessage();
             error_log('Error running automatic notifications: ' . $e->getMessage());
         }
@@ -699,7 +697,7 @@ class NotificationService {
             $stmt = $this->db->prepare("
                 SELECT DISTINCT w.libro_id
                 FROM wishlist w
-                JOIN libri l ON w.libro_id = l.id
+                JOIN libri l ON w.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON w.utente_id = u.id
                 WHERE l.copie_disponibili > 0
                   AND l.stato = 'disponibile'
@@ -723,7 +721,7 @@ class NotificationService {
                 }
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to check wishlist availability: " . $e->getMessage());
         }
 
@@ -853,7 +851,7 @@ class NotificationService {
                 $this->db->query("ALTER TABLE prestiti ADD COLUMN overdue_notification_sent BOOLEAN DEFAULT 0");
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to add notification columns: " . $e->getMessage());
         }
     }
@@ -868,7 +866,7 @@ class NotificationService {
                 $this->db->query("ALTER TABLE wishlist ADD COLUMN notified BOOLEAN DEFAULT 0");
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to add wishlist notification column: " . $e->getMessage());
         }
     }
@@ -898,7 +896,7 @@ class NotificationService {
             error_log("Sent notification to $sentCount admins");
             return $sentCount > 0;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send to admins: " . $e->getMessage());
             return false;
         }
@@ -913,7 +911,7 @@ class NotificationService {
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -943,7 +941,7 @@ class NotificationService {
 
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_approved', $variables);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send loan approved notification: " . $e->getMessage());
             return false;
         }
@@ -958,7 +956,7 @@ class NotificationService {
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -980,7 +978,7 @@ class NotificationService {
 
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_rejected', $variables);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send loan rejected notification: " . $e->getMessage());
             return false;
         }
@@ -1010,7 +1008,7 @@ class NotificationService {
 
             return $this->emailService->sendTemplate($userEmail, 'loan_rejected', $variables);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send loan rejected notification (direct): " . $e->getMessage());
             return false;
         }
@@ -1025,7 +1023,7 @@ class NotificationService {
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -1056,7 +1054,7 @@ class NotificationService {
 
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_ready', $variables);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send pickup ready notification: " . $e->getMessage());
             return false;
         }
@@ -1071,7 +1069,7 @@ class NotificationService {
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -1093,7 +1091,7 @@ class NotificationService {
 
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_expired', $variables);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send pickup expired notification: " . $e->getMessage());
             return false;
         }
@@ -1108,7 +1106,7 @@ class NotificationService {
                 SELECT p.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ?
             ");
@@ -1130,7 +1128,7 @@ class NotificationService {
 
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_cancelled', $variables);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send pickup cancelled notification: " . $e->getMessage());
             return false;
         }
@@ -1291,7 +1289,7 @@ class NotificationService {
 
         try {
             $date = new \DateTime($timestamp);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return '';
         }
 
@@ -1430,7 +1428,7 @@ class NotificationService {
                 SELECT r.*, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM recensioni r
-                JOIN libri l ON r.libro_id = l.id
+                JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON r.utente_id = u.id
                 WHERE r.id = ?
             ");
@@ -1478,7 +1476,7 @@ class NotificationService {
 
             return $emailSent;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to notify new review: " . $e->getMessage());
             return false;
         }

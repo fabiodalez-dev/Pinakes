@@ -94,7 +94,7 @@ class EmailService {
             $this->mailer->XMailer = ' '; // Hide X-Mailer header
             $this->mailer->ContentType = 'text/html'; // Explicit HTML content type
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('Email setup failed: ' . $e->getMessage());
         }
     }
@@ -119,7 +119,7 @@ class EmailService {
                     $defaults[$row['setting_key']] = $row['setting_value'];
                 }
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log('Failed to load email settings: ' . $e->getMessage());
         }
 
@@ -146,7 +146,7 @@ class EmailService {
 
             return $this->sendEmail($to, $subject, $body, '', $locale);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send template email '{$templateName}' to {$to}: " . $e->getMessage());
             return false;
         }
@@ -164,7 +164,7 @@ class EmailService {
 
             return $this->mailer->send();
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send email to {$to}: " . $e->getMessage());
             return false;
         }
@@ -189,7 +189,7 @@ class EmailService {
                 }
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send admin emails: " . $e->getMessage());
         }
 
@@ -240,7 +240,7 @@ class EmailService {
             // Fallback to default templates
             return $this->getDefaultTemplate($templateName);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to get template {$templateName}: " . $e->getMessage());
             return $this->getDefaultTemplate($templateName);
         }
@@ -560,7 +560,7 @@ class EmailService {
             ";
             return $this->db->query($sql) !== false;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to create email_templates table: " . $e->getMessage());
             return false;
         }
@@ -585,7 +585,7 @@ class EmailService {
             ";
             return $this->db->query($sql) !== false;
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to create system_settings table: " . $e->getMessage());
             return false;
         }

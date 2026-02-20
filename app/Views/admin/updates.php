@@ -477,7 +477,7 @@ $changelog ??= [];
 </div>
 
 <script>
-const csrfToken = <?= json_encode(Csrf::ensureToken()) ?>;
+const csrfToken = <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
 
 async function checkForUpdatesManual() {

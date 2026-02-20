@@ -491,22 +491,22 @@
 
 <script>
 (function() {
-  const csrfToken = <?= json_encode(App\Support\Csrf::ensureToken()) ?>;
+  const csrfToken = <?= json_encode(App\Support\Csrf::ensureToken(), JSON_HEX_TAG) ?>;
   const translations = {
-    loading: <?= json_encode(__("Caricamento sessioni...")) ?>,
-    noSessions: <?= json_encode(__("Nessuna sessione attiva. Le sessioni vengono create quando accedi con 'Ricordami' selezionato.")) ?>,
-    currentSession: <?= json_encode(__("Sessione corrente")) ?>,
-    lastUsed: <?= json_encode(__("Ultimo utilizzo")) ?>,
-    created: <?= json_encode(__("Creata")) ?>,
-    expires: <?= json_encode(__("Scade")) ?>,
-    revoke: <?= json_encode(__("Disconnetti")) ?>,
-    revokeAll: <?= json_encode(__("Disconnetti tutti")) ?>,
-    confirmRevoke: <?= json_encode(__("Vuoi disconnettere questo dispositivo?")) ?>,
-    confirmRevokeAll: <?= json_encode(__("Vuoi disconnettere tutti i dispositivi? Dovrai effettuare nuovamente l'accesso su ogni dispositivo.")) ?>,
-    error: <?= json_encode(__("Si è verificato un errore. Riprova.")) ?>,
-    unknown: <?= json_encode(__("Dispositivo sconosciuto")) ?>,
-    activeSessions: <?= json_encode(__("sessioni attive")) ?>,
-    timeout: <?= json_encode(__("La richiesta ha impiegato troppo tempo. Riprova.")) ?>
+    loading: <?= json_encode(__("Caricamento sessioni..."), JSON_HEX_TAG) ?>,
+    noSessions: <?= json_encode(__("Nessuna sessione attiva. Le sessioni vengono create quando accedi con 'Ricordami' selezionato."), JSON_HEX_TAG) ?>,
+    currentSession: <?= json_encode(__("Sessione corrente"), JSON_HEX_TAG) ?>,
+    lastUsed: <?= json_encode(__("Ultimo utilizzo"), JSON_HEX_TAG) ?>,
+    created: <?= json_encode(__("Creata"), JSON_HEX_TAG) ?>,
+    expires: <?= json_encode(__("Scade"), JSON_HEX_TAG) ?>,
+    revoke: <?= json_encode(__("Disconnetti"), JSON_HEX_TAG) ?>,
+    revokeAll: <?= json_encode(__("Disconnetti tutti"), JSON_HEX_TAG) ?>,
+    confirmRevoke: <?= json_encode(__("Vuoi disconnettere questo dispositivo?"), JSON_HEX_TAG) ?>,
+    confirmRevokeAll: <?= json_encode(__("Vuoi disconnettere tutti i dispositivi? Dovrai effettuare nuovamente l'accesso su ogni dispositivo."), JSON_HEX_TAG) ?>,
+    error: <?= json_encode(__("Si è verificato un errore. Riprova."), JSON_HEX_TAG) ?>,
+    unknown: <?= json_encode(__("Dispositivo sconosciuto"), JSON_HEX_TAG) ?>,
+    activeSessions: <?= json_encode(__("sessioni attive"), JSON_HEX_TAG) ?>,
+    timeout: <?= json_encode(__("La richiesta ha impiegato troppo tempo. Riprova."), JSON_HEX_TAG) ?>
   };
 
   function formatDate(dateStr) {

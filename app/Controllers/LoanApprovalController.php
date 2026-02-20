@@ -7,7 +7,6 @@ use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DataIntegrity;
-use Exception;
 use function __;
 
 class LoanApprovalController
@@ -23,7 +22,7 @@ class LoanApprovalController
                    p.data_scadenza as data_richiesta_fine,
                    COALESCE(p.origine, 'richiesta') as origine
             FROM prestiti p
-            JOIN libri l ON p.libro_id = l.id
+            JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'pendente'
             ORDER BY p.created_at ASC
@@ -43,7 +42,7 @@ class LoanApprovalController
                    p.pickup_deadline,
                    COALESCE(p.origine, 'richiesta') as origine
             FROM prestiti p
-            JOIN libri l ON p.libro_id = l.id
+            JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.attivo = 1
               AND (p.stato = 'da_ritirare'
@@ -65,7 +64,7 @@ class LoanApprovalController
                    p.data_scadenza as data_richiesta_fine,
                    COALESCE(p.origine, 'richiesta') as origine
             FROM prestiti p
-            JOIN libri l ON p.libro_id = l.id
+            JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             JOIN utenti u ON p.utente_id = u.id
             WHERE p.stato = 'prenotato' AND p.data_prestito > ? AND p.attivo = 1
             ORDER BY p.data_prestito ASC
@@ -83,7 +82,7 @@ class LoanApprovalController
                    p.data_scadenza as data_richiesta_fine,
                    c.numero_inventario as copia_inventario
             FROM prestiti p
-            JOIN libri l ON p.libro_id = l.id
+            JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             JOIN utenti u ON p.utente_id = u.id
             LEFT JOIN copie c ON p.copia_id = c.id
             WHERE p.stato = 'in_corso' AND p.attivo = 1
@@ -102,7 +101,7 @@ class LoanApprovalController
                    c.numero_inventario as copia_inventario,
                    DATEDIFF(?, p.data_scadenza) as giorni_ritardo
             FROM prestiti p
-            JOIN libri l ON p.libro_id = l.id
+            JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             JOIN utenti u ON p.utente_id = u.id
             LEFT JOIN copie c ON p.copia_id = c.id
             WHERE p.stato = 'in_ritardo' AND p.attivo = 1
@@ -124,7 +123,7 @@ class LoanApprovalController
                     AND r2.stato = 'attiva'
                     AND r2.created_at < r.created_at) as posizione_coda
             FROM prenotazioni r
-            JOIN libri l ON r.libro_id = l.id
+            JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
             JOIN utenti u ON r.utente_id = u.id
             WHERE r.stato = 'attiva'
             ORDER BY r.created_at ASC
@@ -403,7 +402,7 @@ class LoanApprovalController
                     // Immediate loan (da_ritirare): send pickup ready notification with deadline
                     $notificationService->sendPickupReadyNotification($loanId);
                 }
-            } catch (Exception $notifError) {
+            } catch (\Throwable $notifError) {
                 error_log("Error sending approval notification for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail the approval if notification fails
             }
@@ -416,7 +415,7 @@ class LoanApprovalController
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             error_log("Errore approvazione prestito {$loanId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
@@ -458,7 +457,7 @@ class LoanApprovalController
                 SELECT p.libro_id, p.utente_id, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
                 FROM prestiti p
-                JOIN libri l ON p.libro_id = l.id
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id = ? AND p.stato = 'pendente'
                 FOR UPDATE
@@ -515,7 +514,7 @@ class LoanApprovalController
                     $bookTitle,
                     $reason
                 );
-            } catch (\Exception $notifError) {
+            } catch (\Throwable $notifError) {
                 error_log("[rejectLoan] Notification error for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail - deletion already committed
             }
@@ -526,7 +525,7 @@ class LoanApprovalController
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             error_log("[rejectLoan] Error: " . $e->getMessage());
             $response->getBody()->write(json_encode([
@@ -655,7 +654,7 @@ class LoanApprovalController
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             error_log("[confirmPickup] Error for loan {$loanId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
@@ -772,7 +771,7 @@ class LoanApprovalController
             try {
                 $notificationService = new \App\Support\NotificationService($db);
                 $notificationService->sendPickupCancelledNotification($loanId, $reason);
-            } catch (\Exception $notifError) {
+            } catch (\Throwable $notifError) {
                 error_log("[cancelPickup] Notification error for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail - cancellation already committed
             }
@@ -783,7 +782,7 @@ class LoanApprovalController
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             error_log("[cancelPickup] Error for loan {$loanId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
@@ -877,7 +876,7 @@ class LoanApprovalController
                     $reassignmentService = new \App\Services\ReservationReassignmentService($db);
                     $reassignmentService->setExternalTransaction(true);
                     $reassignmentService->reassignOnReturn($copiaId);
-                } catch (Exception $e) {
+                } catch (\Throwable $e) {
                     error_log("[returnLoan] Reassignment error for copy {$copiaId}: " . $e->getMessage());
                 }
             }
@@ -917,7 +916,7 @@ class LoanApprovalController
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             error_log("[returnLoan] Error for loan {$loanId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
@@ -1013,7 +1012,7 @@ class LoanApprovalController
             ]));
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             error_log("[cancelReservation] Error for reservation {$reservationId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([

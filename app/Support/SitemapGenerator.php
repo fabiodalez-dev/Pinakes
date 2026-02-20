@@ -393,7 +393,7 @@ class SitemapGenerator
     {
         try {
             $url->setLastMod(new \DateTimeImmutable($date));
-        } catch (\Exception $exception) {
+        } catch (\Throwable $exception) {
             // Ignore invalid dates
         }
     }
@@ -423,7 +423,7 @@ class SitemapGenerator
                 }
                 $result->free();
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Fallback to default locale only
             $this->activeLocales = ['it_IT'];
             $this->defaultLocale = 'it_IT';

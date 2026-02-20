@@ -1292,7 +1292,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             });
         }
 
-        const isCatalogueMode = <?= json_encode($isCatalogueMode) ?>;
+        const isCatalogueMode = <?= json_encode($isCatalogueMode, JSON_HEX_TAG) ?>;
 
         document.addEventListener('DOMContentLoaded', function () {
             // Initialize keyboard shortcuts

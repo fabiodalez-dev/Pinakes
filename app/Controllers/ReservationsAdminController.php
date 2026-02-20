@@ -20,7 +20,7 @@ class ReservationsAdminController
         $sql = "SELECT p.id, p.libro_id, p.utente_id, p.data_prenotazione, p.data_scadenza_prenotazione, p.queue_position, p.stato,
                        l.titolo AS libro_titolo, CONCAT(u.nome,' ',u.cognome) AS utente_nome
                 FROM prenotazioni p 
-                JOIN libri l ON l.id=p.libro_id 
+                JOIN libri l ON l.id=p.libro_id AND l.deleted_at IS NULL
                 JOIN utenti u ON u.id=p.utente_id";
         $conds = [];
         $types = '';
@@ -81,7 +81,7 @@ class ReservationsAdminController
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
     {
         $stmt = $db->prepare("SELECT p.*, l.titolo AS libro_titolo, CONCAT(u.nome,' ',u.cognome) AS utente_nome 
-                               FROM prenotazioni p JOIN libri l ON l.id=p.libro_id JOIN utenti u ON u.id=p.utente_id
+                               FROM prenotazioni p JOIN libri l ON l.id=p.libro_id AND l.deleted_at IS NULL JOIN utenti u ON u.id=p.utente_id
                                WHERE p.id=?");
         $stmt->bind_param('i', $id);
         $stmt->execute();

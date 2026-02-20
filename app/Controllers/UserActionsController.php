@@ -75,7 +75,7 @@ class UserActionsController
                        l.titolo, l.copertina_url,
                        EXISTS(SELECT 1 FROM recensioni r WHERE r.libro_id = pr.libro_id AND r.utente_id = ?) as has_review
                 FROM prestiti pr
-                JOIN libri l ON l.id = pr.libro_id
+                JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
                 WHERE pr.utente_id = ? AND pr.attivo = 0 AND pr.stato != 'prestato'
                 ORDER BY pr.data_restituzione DESC, pr.data_prestito DESC
                 LIMIT 20";
@@ -92,7 +92,7 @@ class UserActionsController
         // Le mie recensioni
         $sql = "SELECT r.*, l.titolo as libro_titolo, l.copertina_url as libro_copertina
                 FROM recensioni r
-                JOIN libri l ON l.id = r.libro_id
+                JOIN libri l ON l.id = r.libro_id AND l.deleted_at IS NULL
                 WHERE r.utente_id = ?
                 ORDER BY r.created_at DESC";
         $stmt = $db->prepare($sql);
@@ -471,7 +471,7 @@ class UserActionsController
             try {
                 $notificationService = new \App\Support\NotificationService($db);
                 $notificationService->notifyLoanRequest($newLoanId);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 SecureLogger::warning(__('Notifica richiesta prestito fallita'), ['error' => $e->getMessage()]);
             }
 
@@ -593,7 +593,7 @@ class UserActionsController
             }
             $stmt->close();
             $db->rollback();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             SecureLogger::error(__('Errore prenotazione'), ['error' => $e->getMessage()]);
         }

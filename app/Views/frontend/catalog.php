@@ -46,7 +46,7 @@ $seoSchema = json_encode([
         ],
         "query-input" => "required name=search_term_string"
     ]
-], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
 
 // Load theme colors for catalog-specific styles
 $themeManager = $container->get('themeManager');
@@ -1167,7 +1167,7 @@ ob_start();
                             <input type="text"
                                    id="search-input"
                                    placeholder="<?= __("Cerca titoli, autori, ISBN...") ?>"
-                                   value="<?= htmlspecialchars($filters['search'] ?? '') ?>"
+                                   value="<?= htmlspecialchars($filters['search'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
                                    onkeyup="debounceSearch(this.value)">
                             <svg class="svg-inline--fa fa-magnifying-glass" data-prefix="fas" data-icon="magnifying-glass" role="img" viewBox="0 0 512 512" aria-hidden="true">
                                 <path fill="currentColor" d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 352a144 144 0 1 0 0-288 144 144 0 1 0 0 288z"></path>
@@ -1197,8 +1197,8 @@ ob_start();
                                     <a href="#"
                                        class="filter-option count"
                                        onclick="updateFilter('genere', <?= htmlspecialchars(json_encode($genere['nome'], JSON_HEX_TAG | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>); return false;"
-                                       title="<?= htmlspecialchars($genere['nome']) ?>">
-                                        <span><?= htmlspecialchars($genere['nome']) ?></span>
+                                       title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <span><?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
                                     </a>
                                     <?php endif; ?>
@@ -1217,8 +1217,8 @@ ob_start();
                                     <a href="#"
                                        class="filter-option count"
                                        onclick="updateFilter('genere', <?= htmlspecialchars(json_encode($genere['nome'], JSON_HEX_TAG | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8') ?>); return false;"
-                                       title="<?= htmlspecialchars($genere['nome']) ?>">
-                                        <span><?= htmlspecialchars($displayName) ?></span>
+                                       title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
+                                        <span><?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
                                     </a>
                                     <?php endif; ?>
@@ -1457,9 +1457,9 @@ $i18nTranslations = [
     // Errors
     'errore_caricamento' => __('Errore nel caricamento. Riprova.')
 ];
-$i18nJson = json_encode($i18nTranslations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-$catalogRouteJs = json_encode($catalogRoute, JSON_UNESCAPED_SLASHES);
-$apiCatalogRouteJs = json_encode($apiCatalogRoute, JSON_UNESCAPED_SLASHES);
+$i18nJson = json_encode($i18nTranslations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+$catalogRouteJs = json_encode($catalogRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+$apiCatalogRouteJs = json_encode($apiCatalogRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 
 $additional_js = <<<JS
 <script>

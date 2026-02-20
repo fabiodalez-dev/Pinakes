@@ -160,7 +160,7 @@ final class I18n
             }
 
             return false;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // If database query fails, fall back to hardcoded locales
             return false;
         }

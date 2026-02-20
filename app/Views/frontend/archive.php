@@ -455,7 +455,7 @@ ob_start();
                     <p><i class="fas fa-map-marker-alt"></i><?= htmlspecialchars($archive_info['indirizzo']) ?></p>
                 <?php endif; ?>
                 <?php if (!empty($archive_info['sito_web'])): ?>
-                    <p><i class="fas fa-globe"></i><a href="<?= htmlspecialchars($archive_info['sito_web']) ?>" target="_blank" rel="noopener"><?= htmlspecialchars($archive_info['sito_web']) ?></a></p>
+                    <p><i class="fas fa-globe"></i><a href="<?= htmlspecialchars($archive_info['sito_web'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"><?= htmlspecialchars($archive_info['sito_web']) ?></a></p>
                 <?php endif; ?>
             </div>
         <?php endif; ?>

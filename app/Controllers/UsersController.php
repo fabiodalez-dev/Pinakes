@@ -560,7 +560,7 @@ class UsersController
         $loanStmt = $db->prepare("
             SELECT p.id, p.data_prestito, p.data_scadenza, p.data_restituzione, p.stato, l.titolo as libro_titolo
             FROM prestiti p
-            JOIN libri l ON p.libro_id = l.id
+            JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             WHERE p.utente_id = ?
             ORDER BY p.data_prestito DESC
         ");

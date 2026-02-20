@@ -7,7 +7,6 @@ use mysqli;
 use App\Support\NotificationService;
 use App\Support\RouteTranslator;
 use App\Support\SecureLogger;
-use Exception;
 
 /**
  * Servizio per la riassegnazione automatica delle prenotazioni.
@@ -57,7 +56,7 @@ class ReservationReassignmentService
                 } elseif ($notification['type'] === 'copy_unavailable') {
                     $this->notifyUserCopyUnavailable($notification['prestitoId'], $notification['reason'] ?? 'unknown');
                 }
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 SecureLogger::error(__('Errore invio notifica differita'), [
                     'type' => $notification['type'],
                     'prestito_id' => $notification['prestitoId'],
@@ -204,7 +203,7 @@ class ReservationReassignmentService
                 $this->notifyUserCopyAvailable((int) $reservation['id']);
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
             SecureLogger::error(__('Errore riassegnazione copia'), [
                 'libro_id' => $libroId,
@@ -288,7 +287,7 @@ class ReservationReassignmentService
                 // Riassegnazione completata con successo
                 return;
 
-            } catch (Exception $e) {
+            } catch (\Throwable $e) {
                 $this->rollbackIfOwned($ownTransaction);
                 SecureLogger::error(__('Errore riassegnazione copia persa'), [
                     'copia_id' => $copiaId,
@@ -338,7 +337,7 @@ class ReservationReassignmentService
                 $this->notifyUserCopyUnavailable($reservationId, 'lost_copy');
             }
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
             SecureLogger::error(__('Errore gestione copia non disponibile'), [
                 'reservation_id' => $reservationId,
@@ -418,7 +417,7 @@ class ReservationReassignmentService
                    l.titolo as libro_titolo, l.isbn13, l.isbn10
             FROM prestiti p
             JOIN utenti u ON p.utente_id = u.id
-            JOIN libri l ON p.libro_id = l.id
+            JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             WHERE p.id = ?
         ");
         $stmt->bind_param('i', $prestitoId);
@@ -488,7 +487,7 @@ class ReservationReassignmentService
                    l.titolo as libro_titolo
             FROM prestiti p
             JOIN utenti u ON p.utente_id = u.id
-            JOIN libri l ON p.libro_id = l.id
+            JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
             WHERE p.id = ?
         ");
         $stmt->bind_param('i', $prestitoId);

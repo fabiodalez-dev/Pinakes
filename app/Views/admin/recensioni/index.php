@@ -41,7 +41,7 @@ use App\Support\HtmlHelper;
                         <div class="flex gap-4">
                             <div class="flex-shrink-0">
                                 <?php if (!empty($review['libro_copertina'])): ?>
-                                <img src="<?php echo HtmlHelper::e($review['libro_copertina']); ?>"
+                                <img src="<?php echo htmlspecialchars(url($review['libro_copertina']), ENT_QUOTES, 'UTF-8'); ?>"
                                      class="w-20 h-28 object-cover rounded-lg shadow-sm"
                                      alt="<?php echo HtmlHelper::e($review['libro_titolo']); ?>">
                                 <?php else: ?>
@@ -144,7 +144,7 @@ use App\Support\HtmlHelper;
                                 <div class="flex items-start gap-3">
                                     <div class="flex-shrink-0">
                                         <?php if (!empty($review['libro_copertina'])): ?>
-                                        <img src="<?php echo HtmlHelper::e($review['libro_copertina']); ?>"
+                                        <img src="<?php echo htmlspecialchars(url($review['libro_copertina']), ENT_QUOTES, 'UTF-8'); ?>"
                                              class="w-12 h-18 object-cover rounded-lg"
                                              alt="<?php echo HtmlHelper::e($review['libro_titolo']); ?>">
                                         <?php else: ?>
@@ -211,7 +211,7 @@ use App\Support\HtmlHelper;
                                 <div class="flex items-start gap-3">
                                     <div class="flex-shrink-0">
                                         <?php if (!empty($review['libro_copertina'])): ?>
-                                        <img src="<?php echo HtmlHelper::e($review['libro_copertina']); ?>"
+                                        <img src="<?php echo htmlspecialchars(url($review['libro_copertina']), ENT_QUOTES, 'UTF-8'); ?>"
                                              class="w-12 h-18 object-cover rounded-lg"
                                              alt="<?php echo HtmlHelper::e($review['libro_titolo']); ?>">
                                         <?php else: ?>
@@ -266,34 +266,34 @@ function toggleSection(section) {
 (function() {
     // Pre-translated strings from PHP for proper i18n support
     const i18n = {
-        conferma: <?= json_encode(__('Conferma')) ?>,
-        annulla: <?= json_encode(__('Annulla')) ?>,
-        confermiOperazione: <?= json_encode(__("Confermi l'operazione?")) ?>,
-        operazioneCompletata: <?= json_encode(__('Operazione completata')) ?>,
-        errore: <?= json_encode(__('Errore')) ?>,
-        operazioneNonRiuscita: <?= json_encode(__('Operazione non riuscita')) ?>,
-        erroreComunicazione: <?= json_encode(__('errore di comunicazione con il server')) ?>,
+        conferma: <?= json_encode(__('Conferma'), JSON_HEX_TAG) ?>,
+        annulla: <?= json_encode(__('Annulla'), JSON_HEX_TAG) ?>,
+        confermiOperazione: <?= json_encode(__("Confermi l'operazione?"), JSON_HEX_TAG) ?>,
+        operazioneCompletata: <?= json_encode(__('Operazione completata'), JSON_HEX_TAG) ?>,
+        errore: <?= json_encode(__('Errore'), JSON_HEX_TAG) ?>,
+        operazioneNonRiuscita: <?= json_encode(__('Operazione non riuscita'), JSON_HEX_TAG) ?>,
+        erroreComunicazione: <?= json_encode(__('errore di comunicazione con il server'), JSON_HEX_TAG) ?>,
         // Approve
-        recensioneApprovata: <?= json_encode(__('Recensione approvata')) ?>,
-        recensioneApprovataText: <?= json_encode(__('La recensione è stata approvata e pubblicata con successo.')) ?>,
-        approvaRecensione: <?= json_encode(__('Approva recensione')) ?>,
-        approvaRecensioneText: <?= json_encode(__('Vuoi approvare questa recensione e renderla visibile sul sito?')) ?>,
-        approva: <?= json_encode(__('Approva')) ?>,
-        impossibileApprovare: <?= json_encode(__('Impossibile approvare la recensione')) ?>,
+        recensioneApprovata: <?= json_encode(__('Recensione approvata'), JSON_HEX_TAG) ?>,
+        recensioneApprovataText: <?= json_encode(__('La recensione è stata approvata e pubblicata con successo.'), JSON_HEX_TAG) ?>,
+        approvaRecensione: <?= json_encode(__('Approva recensione'), JSON_HEX_TAG) ?>,
+        approvaRecensioneText: <?= json_encode(__('Vuoi approvare questa recensione e renderla visibile sul sito?'), JSON_HEX_TAG) ?>,
+        approva: <?= json_encode(__('Approva'), JSON_HEX_TAG) ?>,
+        impossibileApprovare: <?= json_encode(__('Impossibile approvare la recensione'), JSON_HEX_TAG) ?>,
         // Reject
-        recensioneRifiutata: <?= json_encode(__('Recensione rifiutata')) ?>,
-        recensioneRifiutataText: <?= json_encode(__('La recensione è stata rifiutata e non sarà pubblicata.')) ?>,
-        rifiutaRecensione: <?= json_encode(__('Rifiuta recensione')) ?>,
-        rifiutaRecensioneText: <?= json_encode(__("Vuoi rifiutare questa recensione? L'utente verrà avvisato dell'esito.")) ?>,
-        rifiuta: <?= json_encode(__('Rifiuta')) ?>,
-        impossibileRifiutare: <?= json_encode(__('Impossibile rifiutare la recensione')) ?>,
+        recensioneRifiutata: <?= json_encode(__('Recensione rifiutata'), JSON_HEX_TAG) ?>,
+        recensioneRifiutataText: <?= json_encode(__('La recensione è stata rifiutata e non sarà pubblicata.'), JSON_HEX_TAG) ?>,
+        rifiutaRecensione: <?= json_encode(__('Rifiuta recensione'), JSON_HEX_TAG) ?>,
+        rifiutaRecensioneText: <?= json_encode(__("Vuoi rifiutare questa recensione? L'utente verrà avvisato dell'esito."), JSON_HEX_TAG) ?>,
+        rifiuta: <?= json_encode(__('Rifiuta'), JSON_HEX_TAG) ?>,
+        impossibileRifiutare: <?= json_encode(__('Impossibile rifiutare la recensione'), JSON_HEX_TAG) ?>,
         // Delete
-        recensioneEliminata: <?= json_encode(__('Recensione eliminata')) ?>,
-        recensioneEliminataText: <?= json_encode(__('La recensione è stata eliminata definitivamente.')) ?>,
-        eliminaRecensione: <?= json_encode(__('Elimina recensione')) ?>,
-        eliminaRecensioneText: <?= json_encode(__('Vuoi eliminare definitivamente questa recensione? Questa azione non può essere annullata.')) ?>,
-        elimina: <?= json_encode(__('Elimina')) ?>,
-        impossibileEliminare: <?= json_encode(__('Impossibile eliminare la recensione')) ?>
+        recensioneEliminata: <?= json_encode(__('Recensione eliminata'), JSON_HEX_TAG) ?>,
+        recensioneEliminataText: <?= json_encode(__('La recensione è stata eliminata definitivamente.'), JSON_HEX_TAG) ?>,
+        eliminaRecensione: <?= json_encode(__('Elimina recensione'), JSON_HEX_TAG) ?>,
+        eliminaRecensioneText: <?= json_encode(__('Vuoi eliminare definitivamente questa recensione? Questa azione non può essere annullata.'), JSON_HEX_TAG) ?>,
+        elimina: <?= json_encode(__('Elimina'), JSON_HEX_TAG) ?>,
+        impossibileEliminare: <?= json_encode(__('Impossibile eliminare la recensione'), JSON_HEX_TAG) ?>
     };
 
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';

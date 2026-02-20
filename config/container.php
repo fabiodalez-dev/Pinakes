@@ -132,7 +132,7 @@ $containerDefinitions = [
             
             return $mysqli;
             
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $errorContext = [
                 'hostname' => $hostname,
                 'port' => $cfg['port'],

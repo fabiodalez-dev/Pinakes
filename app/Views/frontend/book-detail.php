@@ -1424,7 +1424,7 @@ ob_start();
     <div class="container">
         <div class="row align-items-center book-hero-content" id="book-hero-content">
             <div class="col-lg-4 text-center mb-4 mb-lg-0" id="book-cover-container">
-                <img src="<?= htmlspecialchars($bookCover) ?>"
+                <img src="<?= htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') ?>"
                      alt="<?= htmlspecialchars($coverAlt, ENT_QUOTES, 'UTF-8') ?>"
                      class="book-cover-large img-fluid"
                      id="book-cover-image">
@@ -2087,7 +2087,7 @@ $seoTitle = $metaTitle;
 $seoDescription = $metaDescription;
 $seoImage = $ogImage;
 $seoCanonical = $canonicalUrl;
-$seoSchema = json_encode([$bookSchema, $breadcrumbSchema, $organizationSchema], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+$seoSchema = json_encode([$bookSchema, $breadcrumbSchema, $organizationSchema], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
 
 $content = ob_get_clean();
 include 'layout.php';
@@ -2191,9 +2191,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const isLogged = <?php echo $isLoggedJs ? 'true' : 'false'; ?>;
     const meta = document.querySelector('meta[name="csrf-token"]');
     const csrf = meta ? meta.getAttribute('content') : '';
-    const successRangeTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE); ?>;
-    const successOneMonthTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%s</strong> per 1 mese'), JSON_UNESCAPED_UNICODE); ?>;
-    const successFootnote = <?php echo json_encode(__('Riceverai una conferma via email appena la richiesta sarà approvata.'), JSON_UNESCAPED_UNICODE); ?>;
+    const successRangeTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%1$s</strong> al <strong>%2$s</strong>'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const successOneMonthTpl = <?php echo json_encode(__('Richiesta di prestito dal <strong>%s</strong> per 1 mese'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
+    const successFootnote = <?php echo json_encode(__('Riceverai una conferma via email appena la richiesta sarà approvata.'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG); ?>;
 
     async function updateReservationsBadge() {
       const badge = document.getElementById('nav-res-count');

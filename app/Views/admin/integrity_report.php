@@ -172,7 +172,8 @@
                             'expired_reservation' => 'fas fa-clock text-yellow-600',
                             'queue_position_gap' => 'fas fa-sort-numeric-up text-indigo-500',
                             'stale_pending_loan' => 'fas fa-hourglass-half text-amber-500',
-                            'terminated_loan_active' => 'fas fa-ban text-red-600'
+                            'terminated_loan_active' => 'fas fa-ban text-red-600',
+                            'stale_copy_state' => 'fas fa-ghost text-red-500'
                         ];
 
                         $typeLabels = [
@@ -186,7 +187,8 @@
                             'expired_reservation' => __('Prenotazione Scaduta'),
                             'queue_position_gap' => __('Gap nella Coda Prenotazioni'),
                             'stale_pending_loan' => __('Prestito Pendente Stale'),
-                            'terminated_loan_active' => __('Prestito Terminato ancora Attivo')
+                            'terminated_loan_active' => __('Prestito Terminato ancora Attivo'),
+                            'stale_copy_state' => __('Stato Copia Stale')
                         ];
 
                         foreach ($dbIssues as $issue):
@@ -439,12 +441,12 @@ async function recalculateAvailability() {
 
 async function fixIssues() {
     const confirmResult = await Swal.fire({
-        title: <?= json_encode(__("Confermi?")) ?>,
-        text: <?= json_encode(__("Vuoi correggere automaticamente i problemi di integrità rilevati?")) ?>,
+        title: <?= json_encode(__("Confermi?"), JSON_HEX_TAG) ?>,
+        text: <?= json_encode(__("Vuoi correggere automaticamente i problemi di integrità rilevati?"), JSON_HEX_TAG) ?>,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: <?= json_encode(__("Sì, correggi")) ?>,
-        cancelButtonText: <?= json_encode(__("Annulla")) ?>
+        confirmButtonText: <?= json_encode(__("Sì, correggi"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -473,12 +475,12 @@ async function fixIssues() {
 
 async function performMaintenance() {
     const confirmResult = await Swal.fire({
-        title: <?= json_encode(__("Confermi?")) ?>,
-        text: <?= json_encode(__("Vuoi eseguire la manutenzione completa del sistema? Questa operazione potrebbe richiedere alcuni minuti.")) ?>,
+        title: <?= json_encode(__("Confermi?"), JSON_HEX_TAG) ?>,
+        text: <?= json_encode(__("Vuoi eseguire la manutenzione completa del sistema? Questa operazione potrebbe richiedere alcuni minuti."), JSON_HEX_TAG) ?>,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: <?= json_encode(__("Sì, esegui")) ?>,
-        cancelButtonText: <?= json_encode(__("Annulla")) ?>
+        confirmButtonText: <?= json_encode(__("Sì, esegui"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -506,17 +508,17 @@ async function performMaintenance() {
 }
 
 async function applyConfigFix(issueType, fixValue) {
-    const processingTitle = <?= json_encode(__("Applicazione del fix...")) ?>;
-    const doneTitle = <?= json_encode(__("Fix applicato")) ?>;
+    const processingTitle = <?= json_encode(__("Applicazione del fix..."), JSON_HEX_TAG) ?>;
+    const doneTitle = <?= json_encode(__("Fix applicato"), JSON_HEX_TAG) ?>;
 
-    const confirmTextTemplate = <?= json_encode(__("Vuoi impostare APP_CANONICAL_URL a:")) ?>;
+    const confirmTextTemplate = <?= json_encode(__("Vuoi impostare APP_CANONICAL_URL a:"), JSON_HEX_TAG) ?>;
     const confirmResult = await Swal.fire({
-        title: <?= json_encode(__("Confermi?")) ?>,
+        title: <?= json_encode(__("Confermi?"), JSON_HEX_TAG) ?>,
         text: `${confirmTextTemplate}\n${fixValue}`,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: <?= json_encode(__("Sì, applica")) ?>,
-        cancelButtonText: <?= json_encode(__("Annulla")) ?>
+        confirmButtonText: <?= json_encode(__("Sì, applica"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -551,15 +553,15 @@ async function applyConfigFix(issueType, fixValue) {
 }
 
 async function createMissingIndexes() {
-    const processingTitle = <?= json_encode(__("Creazione indici...")) ?>;
+    const processingTitle = <?= json_encode(__("Creazione indici..."), JSON_HEX_TAG) ?>;
 
     const confirmResult = await Swal.fire({
-        title: <?= json_encode(__("Confermi?")) ?>,
-        text: <?= json_encode(__("Vuoi creare gli indici mancanti? Questa operazione migliorerà le performance del database.")) ?>,
+        title: <?= json_encode(__("Confermi?"), JSON_HEX_TAG) ?>,
+        text: <?= json_encode(__("Vuoi creare gli indici mancanti? Questa operazione migliorerà le performance del database."), JSON_HEX_TAG) ?>,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: <?= json_encode(__("Sì, crea indici")) ?>,
-        cancelButtonText: <?= json_encode(__("Annulla")) ?>
+        confirmButtonText: <?= json_encode(__("Sì, crea indici"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -576,10 +578,10 @@ async function createMissingIndexes() {
 
         let message = result.message || '';
         if (result.success && result.created && result.created > 0) {
-            message += '\n\n' + <?= json_encode(__("Indici creati:")) ?> + ' ' + result.created;
+            message += '\n\n' + <?= json_encode(__("Indici creati:"), JSON_HEX_TAG) ?> + ' ' + result.created;
         }
         if (result.errors && result.errors.length > 0) {
-            message += '\n\n' + <?= json_encode(__("Errori:")) ?> + ' ' + result.errors.length;
+            message += '\n\n' + <?= json_encode(__("Errori:"), JSON_HEX_TAG) ?> + ' ' + result.errors.length;
         }
 
         Swal.fire({
@@ -596,15 +598,15 @@ async function createMissingIndexes() {
 }
 
 async function createMissingSystemTables() {
-    const processingTitle = <?= json_encode(__("Creazione tabelle...")) ?>;
+    const processingTitle = <?= json_encode(__("Creazione tabelle..."), JSON_HEX_TAG) ?>;
 
     const confirmResult = await Swal.fire({
-        title: <?= json_encode(__("Confermi?")) ?>,
-        text: <?= json_encode(__("Vuoi creare le tabelle di sistema mancanti? Queste sono necessarie per il sistema di aggiornamento.")) ?>,
+        title: <?= json_encode(__("Confermi?"), JSON_HEX_TAG) ?>,
+        text: <?= json_encode(__("Vuoi creare le tabelle di sistema mancanti? Queste sono necessarie per il sistema di aggiornamento."), JSON_HEX_TAG) ?>,
         icon: 'question',
         showCancelButton: true,
-        confirmButtonText: <?= json_encode(__("Sì, crea tabelle")) ?>,
-        cancelButtonText: <?= json_encode(__("Annulla")) ?>
+        confirmButtonText: <?= json_encode(__("Sì, crea tabelle"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>
     });
     if (!confirmResult.isConfirmed) return;
 
@@ -621,10 +623,10 @@ async function createMissingSystemTables() {
 
         let message = result.message || '';
         if (result.success && result.created && result.created > 0) {
-            message += '\n\n' + <?= json_encode(__("Tabelle create:")) ?> + ' ' + result.created;
+            message += '\n\n' + <?= json_encode(__("Tabelle create:"), JSON_HEX_TAG) ?> + ' ' + result.created;
         }
         if (result.errors && result.errors.length > 0) {
-            message += '\n\n' + <?= json_encode(__("Errori:")) ?> + ' ' + result.errors.length;
+            message += '\n\n' + <?= json_encode(__("Errori:"), JSON_HEX_TAG) ?> + ' ' + result.errors.length;
         }
 
         Swal.fire({

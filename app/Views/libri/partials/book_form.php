@@ -1003,19 +1003,19 @@ const bookFormI18n = {
 };
 
 const bookFormMessages = {
-    uploadReady: <?= json_encode(__('File "%s" pronto per l\'upload')) ?>,
-    authorAlreadySelected: <?= json_encode(__('Autore "%s" è già selezionato')) ?>,
-    authorReady: <?= json_encode(__('Autore "%s" pronto per essere creato')) ?>,
-    publisherSelected: <?= json_encode(__('Editore "%s" selezionato')) ?>,
-    publisherReady: <?= json_encode(__('Editore "%s" pronto per essere creato')) ?>,
-    publisherPlaceholder: <?= json_encode(__('Cerca editore esistente o inserisci nuovo...')) ?>,
-    priceImported: <?= json_encode(__('Prezzo "%s" importato')) ?>
+    uploadReady: <?= json_encode(__('File "%s" pronto per l\'upload'), JSON_HEX_TAG) ?>,
+    authorAlreadySelected: <?= json_encode(__('Autore "%s" è già selezionato'), JSON_HEX_TAG) ?>,
+    authorReady: <?= json_encode(__('Autore "%s" pronto per essere creato'), JSON_HEX_TAG) ?>,
+    publisherSelected: <?= json_encode(__('Editore "%s" selezionato'), JSON_HEX_TAG) ?>,
+    publisherReady: <?= json_encode(__('Editore "%s" pronto per essere creato'), JSON_HEX_TAG) ?>,
+    publisherPlaceholder: <?= json_encode(__('Cerca editore esistente o inserisci nuovo...'), JSON_HEX_TAG) ?>,
+    priceImported: <?= json_encode(__('Prezzo "%s" importato'), JSON_HEX_TAG) ?>
 };
 
 const isbnImportMessages = {
-    invalidResponse: <?= json_encode(__('Risposta non valida dal servizio ISBN.')) ?>,
-    genericError: <?= json_encode(__('Impossibile importare i dati per questo ISBN.')) ?>,
-    notFound: <?= json_encode(__('ISBN non trovato nelle fonti disponibili.')) ?>
+    invalidResponse: <?= json_encode(__('Risposta non valida dal servizio ISBN.'), JSON_HEX_TAG) ?>,
+    genericError: <?= json_encode(__('Impossibile importare i dati per questo ISBN.'), JSON_HEX_TAG) ?>,
+    notFound: <?= json_encode(__('ISBN non trovato nelle fonti disponibili.'), JSON_HEX_TAG) ?>
 };
 
 // Global variables
@@ -1541,7 +1541,7 @@ async function initializeDewey() {
       if (window.Toast) {
         window.Toast.fire({
           icon: 'warning',
-          title: <?= json_encode(__("Inserisci un codice Dewey")) ?>
+          title: <?= json_encode(__("Inserisci un codice Dewey"), JSON_HEX_TAG) ?>
         });
       }
       return;
@@ -1551,8 +1551,8 @@ async function initializeDewey() {
       if (window.Toast) {
         window.Toast.fire({
           icon: 'error',
-          title: <?= json_encode(__("Formato codice non valido")) ?>,
-          text: <?= json_encode(__("Usa formato: 599 oppure 599.9 oppure 599.93")) ?>
+          title: <?= json_encode(__("Formato codice non valido"), JSON_HEX_TAG) ?>,
+          text: <?= json_encode(__("Usa formato: 599 oppure 599.9 oppure 599.93"), JSON_HEX_TAG) ?>
         });
       }
       return;
@@ -1604,7 +1604,7 @@ async function initializeDewey() {
 
     if (!hasSelection) {
       const noSel = document.createElement('span');
-      noSel.textContent = <?= json_encode(__("Nessuna selezione")) ?>;
+      noSel.textContent = <?= json_encode(__("Nessuna selezione"), JSON_HEX_TAG) ?>;
       breadcrumb.appendChild(noSel);
     }
   };
@@ -1638,7 +1638,7 @@ async function initializeDewey() {
 
       const opt0 = document.createElement('option');
       opt0.value = '';
-      opt0.textContent = <?= json_encode(__("Seleziona...")) ?>;
+      opt0.textContent = <?= json_encode(__("Seleziona..."), JSON_HEX_TAG) ?>;
       select.appendChild(opt0);
 
       items.forEach(item => {
@@ -2241,11 +2241,11 @@ function initializeSuggestCollocazione() {
         info.textContent = data.collocazione ? `Suggerito: ${data.collocazione}` : `Suggerito scaffale #${data.scaffale_id}`;
         if (window.Toast) window.Toast.fire({icon: 'success', title: __('Collocazione suggerita') });
       } else {
-        info.textContent = <?= json_encode(__("Nessun suggerimento disponibile")) ?>;
+        info.textContent = <?= json_encode(__("Nessun suggerimento disponibile"), JSON_HEX_TAG) ?>;
         if (window.Toast) window.Toast.fire({icon: 'info', title: __('Nessun suggerimento') });
       }
     } catch (e) {
-      info.textContent = <?= json_encode(__("Errore suggerimento")) ?>;
+      info.textContent = <?= json_encode(__("Errore suggerimento"), JSON_HEX_TAG) ?>;
     }
   });
 }
@@ -2524,7 +2524,7 @@ function setupEnhancedAutocomplete(inputId, suggestId, fetchUrl, onSelect, onEmp
                 if (combined.length === 0) {
                     const emptyLi = document.createElement('li');
                     emptyLi.className = 'px-4 py-2 text-gray-500';
-                    emptyLi.textContent = <?= json_encode(__("Nessun risultato trovato")) ?>;
+                    emptyLi.textContent = <?= json_encode(__("Nessun risultato trovato"), JSON_HEX_TAG) ?>;
                     suggestions.appendChild(emptyLi);
                 } else {
                     combined.forEach((item, index) => {
@@ -3804,7 +3804,7 @@ function displayScrapedCover(imageUrl) {
     }
 
     img.src = imageSrc;
-    img.alt = <?= json_encode(__("Copertina recuperata automaticamente")) ?>;
+    img.alt = <?= json_encode(__("Copertina recuperata automaticamente"), JSON_HEX_TAG) ?>;
     img.className = 'max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm';
     
     img.onload = function() {

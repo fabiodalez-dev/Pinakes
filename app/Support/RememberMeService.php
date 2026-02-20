@@ -482,7 +482,7 @@ class RememberMeService
             } else {
                 self::$tableExistsCache = $result->num_rows > 0;
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("[RememberMeService] tableExists exception: " . $e->getMessage());
             self::$tableExistsCache = false;
         }

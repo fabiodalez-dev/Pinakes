@@ -442,7 +442,7 @@ class PrestitiController
                 $infoStmt = $db->prepare("
                     SELECT l.titolo, CONCAT(u.nome, ' ', u.cognome) as utente_nome
                     FROM prestiti p
-                    JOIN libri l ON p.libro_id = l.id
+                    JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                     JOIN utenti u ON p.utente_id = u.id
                     WHERE p.id = ?
                 ");
@@ -473,7 +473,7 @@ class PrestitiController
 
             return $response->withHeader('Location', $redirectUrl)->withStatus(302);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             // Se il messaggio di errore contiene un riferimento a un prestito già attivo
             if (strpos($e->getMessage(), 'Esiste già un prestito attivo per questo libro') !== false) {
@@ -561,7 +561,7 @@ class PrestitiController
                    prestiti.data_prestito, prestiti.data_scadenza, prestiti.data_restituzione,
                    prestiti.stato, prestiti.note
             FROM prestiti
-            LEFT JOIN libri ON prestiti.libro_id = libri.id
+            LEFT JOIN libri ON prestiti.libro_id = libri.id AND libri.deleted_at IS NULL
             LEFT JOIN utenti ON prestiti.utente_id = utenti.id
             WHERE prestiti.id = ?
         ");
@@ -666,7 +666,7 @@ class PrestitiController
                     $reassignmentService = new \App\Services\ReservationReassignmentService($db);
                     $reassignmentService->setExternalTransaction(true);
                     $reassignmentService->reassignOnReturn($copia_id);
-                } catch (\Exception $e) {
+                } catch (\Throwable $e) {
                     SecureLogger::error(__('Riassegnazione copia fallita'), ['copia_id' => $copia_id, 'error' => $e->getMessage()]);
                 }
 
@@ -689,7 +689,7 @@ class PrestitiController
             $successUrl = $redirectTo ?? (url('/admin/prestiti') . '?updated=1');
             return $response->withHeader('Location', $successUrl)->withStatus(302);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             SecureLogger::error(__('Errore elaborazione restituzione'), ['loan_id' => $id, 'error' => $e->getMessage()]);
             if ($redirectTo) {
@@ -711,7 +711,7 @@ class PrestitiController
                    utenti.email AS utente_email,
                    CONCAT(staff.nome, ' ', staff.cognome) AS processed_by_name
             FROM prestiti 
-            LEFT JOIN libri ON prestiti.libro_id = libri.id 
+            LEFT JOIN libri ON prestiti.libro_id = libri.id AND libri.deleted_at IS NULL
             LEFT JOIN utenti ON prestiti.utente_id = utenti.id
             LEFT JOIN utenti staff ON prestiti.processed_by = staff.id
             WHERE prestiti.id = ?
@@ -960,7 +960,7 @@ class PrestitiController
             $separator = strpos($successUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', $successUrl . $separator . 'renewed=1')->withStatus(302);
 
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             SecureLogger::error(__('Rinnovo prestito fallito'), ['loan_id' => $id, 'error' => $e->getMessage()]);
 
@@ -1050,7 +1050,7 @@ class PrestitiController
                     c.numero_inventario AS copia_inventario,
                     CONCAT(staff.nome, ' ', staff.cognome) AS processed_by_name
                 FROM prestiti p
-                LEFT JOIN libri l ON p.libro_id = l.id
+                LEFT JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 LEFT JOIN utenti u ON p.utente_id = u.id
                 LEFT JOIN copie c ON p.copia_id = c.id
                 LEFT JOIN utenti staff ON p.processed_by = staff.id
