@@ -79,7 +79,7 @@ class OpenLibraryPlugin
     private function registerHooks(): void
     {
         if ($this->db === null || $this->pluginId === null) {
-            error_log('[OpenLibrary] Cannot register hooks: missing DB or plugin ID');
+            \App\Support\SecureLogger::warning('[OpenLibrary] Cannot register hooks: missing DB or plugin ID');
             return;
         }
 
@@ -100,7 +100,7 @@ class OpenLibraryPlugin
             );
 
             if ($stmt === false) {
-                error_log("[OpenLibrary] Failed to prepare statement: " . $this->db->error);
+                \App\Support\SecureLogger::error("[OpenLibrary] Failed to prepare statement: " . $this->db->error);
                 continue;
             }
 
@@ -108,7 +108,7 @@ class OpenLibraryPlugin
             $stmt->bind_param('isssi', $this->pluginId, $hookName, $callbackClass, $method, $priority);
 
             if (!$stmt->execute()) {
-                error_log("[OpenLibrary] Failed to register hook {$hookName}: " . $stmt->error);
+                \App\Support\SecureLogger::error("[OpenLibrary] Failed to register hook {$hookName}: " . $stmt->error);
             }
 
             $stmt->close();
@@ -300,9 +300,9 @@ class OpenLibraryPlugin
             // Merge with existing data
             return $this->mergeBookData($existing, $openLibraryData, 'open-library');
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Log error but don't fail - pass through existing data
-            error_log('OpenLibrary Plugin Error: ' . $e->getMessage());
+            \App\Support\SecureLogger::error('OpenLibrary Plugin Error: ' . $e->getMessage());
             return $existing;
         }
     }
@@ -515,9 +515,9 @@ class OpenLibraryPlugin
             }
 
             return null;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Gracefully handle errors - don't break the app
-            error_log("[OpenLibrary] Goodreads cover API error: " . $e->getMessage());
+            \App\Support\SecureLogger::warning("[OpenLibrary] Goodreads cover API error: " . $e->getMessage());
             return null;
         }
     }
@@ -559,8 +559,8 @@ class OpenLibraryPlugin
             }
 
             return null;
-        } catch (\Exception $e) {
-            error_log("[OpenLibrary] Error fetching Goodreads cover from $apiUrl: " . $e->getMessage());
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning("[OpenLibrary] Error fetching Goodreads cover from $apiUrl: " . $e->getMessage());
             return null;
         }
     }
@@ -1004,11 +1004,11 @@ class OpenLibraryPlugin
             ?? null;
 
         if ($rawKey !== null && empty($_ENV['PLUGIN_ENCRYPTION_KEY']) && !getenv('PLUGIN_ENCRYPTION_KEY')) {
-            error_log('[OpenLibrary] WARNING: Using APP_KEY as fallback for plugin encryption. Set PLUGIN_ENCRYPTION_KEY for isolation.');
+            \App\Support\SecureLogger::warning('[OpenLibrary] Using APP_KEY as fallback for plugin encryption. Set PLUGIN_ENCRYPTION_KEY for isolation.');
         }
 
         if (!$rawKey || $rawKey === '') {
-            error_log('[OpenLibrary] Encryption key not found, cannot decrypt setting');
+            \App\Support\SecureLogger::error('[OpenLibrary] Encryption key not found, cannot decrypt setting');
             return null;
         }
 
@@ -1017,7 +1017,7 @@ class OpenLibraryPlugin
         // Remove "ENC:" prefix and decode
         $payload = base64_decode(substr($encryptedValue, 4), true);
         if ($payload === false || strlen($payload) <= 28) {
-            error_log('[OpenLibrary] Invalid encrypted payload');
+            \App\Support\SecureLogger::error('[OpenLibrary] Invalid encrypted payload');
             return null;
         }
 
@@ -1029,12 +1029,12 @@ class OpenLibraryPlugin
         try {
             $plaintext = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
             if ($plaintext === false) {
-                error_log('[OpenLibrary] Failed to decrypt setting value');
+                \App\Support\SecureLogger::error('[OpenLibrary] Failed to decrypt setting value');
                 return null;
             }
             return $plaintext;
         } catch (\Throwable $e) {
-            error_log('[OpenLibrary] Decryption exception: ' . $e->getMessage());
+            \App\Support\SecureLogger::error('[OpenLibrary] Decryption exception: ' . $e->getMessage());
             return null;
         }
     }

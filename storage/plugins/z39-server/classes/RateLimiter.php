@@ -43,7 +43,7 @@ class RateLimiter
             $cleanupStmt->execute();
             $cleanupStmt->close();
         } else {
-            error_log("[RateLimiter] Failed to prepare cleanup statement: " . $this->db->error);
+            \App\Support\SecureLogger::error("[RateLimiter] Failed to prepare cleanup statement: " . $this->db->error);
         }
 
         $now = date('Y-m-d H:i:s');
@@ -61,7 +61,7 @@ class RateLimiter
 
         if (!$stmt) {
             // If prepare fails, allow request but log error
-            error_log("[RateLimiter] Failed to prepare statement: " . $this->db->error);
+            \App\Support\SecureLogger::error("[RateLimiter] Failed to prepare statement: " . $this->db->error);
             return true;
         }
 
@@ -80,7 +80,7 @@ class RateLimiter
         ");
 
         if (!$checkStmt) {
-            error_log("[RateLimiter] Failed to prepare check statement: " . $this->db->error);
+            \App\Support\SecureLogger::error("[RateLimiter] Failed to prepare check statement: " . $this->db->error);
             return true;
         }
 

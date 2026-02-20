@@ -144,10 +144,10 @@ class SRUServer
             $this->updateAccessLog($responseTime, 200);
 
             return $response;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $responseTime = (int) ((microtime(true) - $startTime) * 1000);
             // SECURITY FIX: Log detailed error internally, don't expose to client
-            error_log("[SRU Server] Error in handleRequest: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[SRU Server] Error in handleRequest: " . $e->getMessage());
             $this->updateAccessLog($responseTime, 500, 'Internal error');
 
             return $this->errorResponse(1, 'An internal error occurred. Please contact the administrator.', $version);
@@ -339,11 +339,11 @@ class SRUServer
             return $this->errorResponse(10, $e->getMessage(), $version);
         } catch (\Z39Server\Exceptions\DatabaseException $e) {
             // SECURITY FIX: Don't expose database error details
-            error_log("[SRU Server] Database error in searchRetrieve: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[SRU Server] Database error in searchRetrieve: " . $e->getMessage());
             return $this->errorResponse(1, 'A database error occurred. Please try again later.', $version);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // SECURITY FIX: Don't expose system error details
-            error_log("[SRU Server] Error in searchRetrieve: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[SRU Server] Error in searchRetrieve: " . $e->getMessage());
             return $this->errorResponse(1, 'An error occurred while processing your request.', $version);
         }
     }
@@ -380,11 +380,11 @@ class SRUServer
             return $this->errorResponse(10, $e->getMessage(), $version);
         } catch (\Z39Server\Exceptions\DatabaseException $e) {
             // SECURITY FIX: Don't expose database error details
-            error_log("[SRU Server] Database error in scan: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[SRU Server] Database error in scan: " . $e->getMessage());
             return $this->errorResponse(1, 'A database error occurred. Please try again later.', $version);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // SECURITY FIX: Don't expose system error details
-            error_log("[SRU Server] Error in scan: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[SRU Server] Error in scan: " . $e->getMessage());
             return $this->errorResponse(1, 'An error occurred while scanning the index.', $version);
         }
     }
@@ -502,9 +502,9 @@ class SRUServer
             foreach ($records as &$record) {
                 $record['copies'] = $copiesByBook[$record['id']] ?? [];
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // If copy fetch fails, just continue without copies
-            error_log("SRU Server: Failed to fetch copies: " . $e->getMessage());
+            \App\Support\SecureLogger::warning("SRU Server: Failed to fetch copies: " . $e->getMessage());
         }
     }
 

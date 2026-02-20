@@ -51,7 +51,7 @@ class ApiBookScraperPlugin
 
         $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ? AND is_active = 1 LIMIT 1");
         if (!$stmt) {
-            error_log('[ApiBookScraperPlugin] Failed to prepare statement for autoLoadPluginId: ' . $this->db->error);
+            \App\Support\SecureLogger::error('[ApiBookScraperPlugin] Failed to prepare statement for autoLoadPluginId: ' . $this->db->error);
             return;
         }
 
@@ -59,14 +59,14 @@ class ApiBookScraperPlugin
         $stmt->bind_param('s', $pluginName);
 
         if (!$stmt->execute()) {
-            error_log('[ApiBookScraperPlugin] Failed to execute autoLoadPluginId query: ' . $stmt->error);
+            \App\Support\SecureLogger::error('[ApiBookScraperPlugin] Failed to execute autoLoadPluginId query: ' . $stmt->error);
             $stmt->close();
             return;
         }
 
         $result = $stmt->get_result();
         if (!$result) {
-            error_log('[ApiBookScraperPlugin] Failed to get result in autoLoadPluginId: ' . $stmt->error);
+            \App\Support\SecureLogger::error('[ApiBookScraperPlugin] Failed to get result in autoLoadPluginId: ' . $stmt->error);
             $stmt->close();
             return;
         }
@@ -134,13 +134,13 @@ class ApiBookScraperPlugin
     private function registerHooks(): void
     {
         if ($this->db === null || $this->pluginId === null) {
-            error_log('[ApiBookScraper] Cannot register hooks: missing DB or plugin ID');
+            \App\Support\SecureLogger::warning('[ApiBookScraper] Cannot register hooks: missing DB or plugin ID');
             return;
         }
 
         // Se il plugin non è abilitato, non registrare gli hooks
         if (!$this->enabled || empty($this->apiEndpoint) || empty($this->apiKey)) {
-            error_log('[ApiBookScraper] Plugin not enabled or missing configuration');
+            \App\Support\SecureLogger::warning('[ApiBookScraper] Plugin not enabled or missing configuration');
             return;
         }
 
@@ -162,7 +162,7 @@ class ApiBookScraperPlugin
             );
 
             if (!$stmt) {
-                error_log('[ApiBookScraper] Failed to prepare statement: ' . $this->db->error);
+                \App\Support\SecureLogger::error('[ApiBookScraper] Failed to prepare statement: ' . $this->db->error);
                 continue;
             }
 
@@ -170,7 +170,7 @@ class ApiBookScraperPlugin
             $stmt->bind_param('isssi', $this->pluginId, $hookName, $className, $method, $priority);
 
             if (!$stmt->execute()) {
-                error_log('[ApiBookScraper] Failed to register hook ' . $hookName . ': ' . $stmt->error);
+                \App\Support\SecureLogger::error('[ApiBookScraper] Failed to register hook ' . $hookName . ': ' . $stmt->error);
             }
 
             $stmt->close();
@@ -349,7 +349,7 @@ class ApiBookScraperPlugin
 
             return $existing; // Pass through existing data unchanged
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->log('error', "Errore scraping ISBN $isbn: " . $e->getMessage(), [
                 'isbn' => $isbn,
                 'error' => $e->getMessage()
@@ -496,7 +496,7 @@ class ApiBookScraperPlugin
     private function log(string $level, string $message, array $context = []): void
     {
         if (!$this->pluginId || !$this->db) {
-            error_log("[ApiBookScraper] $level: $message");
+            \App\Support\SecureLogger::debug("[ApiBookScraper] $level: $message");
             return;
         }
 

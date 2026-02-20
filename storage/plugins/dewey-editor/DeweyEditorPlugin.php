@@ -71,7 +71,7 @@ class DeweyEditorPlugin
         // Create backup directory
         if (!is_dir($this->backupDir)) {
             if (!mkdir($this->backupDir, 0755, true)) {
-                error_log("Dewey Editor: impossibile creare directory backup: {$this->backupDir}");
+                \App\Support\SecureLogger::warning("Dewey Editor: impossibile creare directory backup: {$this->backupDir}");
             }
         }
     }
@@ -84,7 +84,7 @@ class DeweyEditorPlugin
     public function onActivate(): void
     {
         if ($this->pluginId === null) {
-            error_log('[DeweyEditor] pluginId non impostato, impossibile registrare i hook.');
+            \App\Support\SecureLogger::warning('[DeweyEditor] pluginId non impostato, impossibile registrare i hook.');
             return;
         }
 
@@ -103,7 +103,7 @@ class DeweyEditorPlugin
             );
 
             if ($stmt === false) {
-                error_log("[DeweyEditor] Failed to prepare statement: " . $this->db->error);
+                \App\Support\SecureLogger::error("[DeweyEditor] Failed to prepare statement: " . $this->db->error);
                 continue;
             }
 
@@ -111,7 +111,7 @@ class DeweyEditorPlugin
             $stmt->bind_param('isssi', $this->pluginId, $hookName, $callbackClass, $method, $priority);
 
             if (!$stmt->execute()) {
-                error_log("[DeweyEditor] Failed to register hook {$hookName}: " . $stmt->error);
+                \App\Support\SecureLogger::error("[DeweyEditor] Failed to register hook {$hookName}: " . $stmt->error);
             }
 
             $stmt->close();
@@ -599,7 +599,7 @@ class DeweyEditorPlugin
     {
         if (!is_dir($this->backupDir)) {
             if (!mkdir($this->backupDir, 0755, true)) {
-                error_log("Dewey Editor: impossibile creare directory backup: {$this->backupDir}");
+                \App\Support\SecureLogger::warning("Dewey Editor: impossibile creare directory backup: {$this->backupDir}");
                 return;
             }
         }
@@ -612,7 +612,7 @@ class DeweyEditorPlugin
         $timestamp = date('Ymd_His');
         $backupPath = $this->backupDir . "/dewey_{$locale}_{$timestamp}.json";
         if (!copy($sourcePath, $backupPath)) {
-            error_log("Dewey Editor: impossibile creare backup: {$backupPath}");
+            \App\Support\SecureLogger::warning("Dewey Editor: impossibile creare backup: {$backupPath}");
             return;
         }
 
@@ -636,7 +636,7 @@ class DeweyEditorPlugin
         $toDelete = array_slice($files, self::MAX_BACKUPS);
         foreach ($toDelete as $file) {
             if (!unlink($file)) {
-                error_log("Dewey Editor: impossibile eliminare vecchio backup: {$file}");
+                \App\Support\SecureLogger::warning("Dewey Editor: impossibile eliminare vecchio backup: {$file}");
             }
         }
     }

@@ -371,7 +371,7 @@ class DigitalLibraryPlugin
         $user = $_SESSION['user'] ?? null;
         $role = $user['tipo_utente'] ?? '';
         if (!$user || !in_array($role, ['admin', 'staff'], true)) {
-            error_log('[Digital Library] Upload rejected: No valid admin/staff session');
+            \App\Support\SecureLogger::warning('[Digital Library] Upload rejected: No valid admin/staff session');
             return $this->json($response, ['success' => false, 'message' => __('Accesso negato.')], 403);
         }
 
@@ -387,13 +387,13 @@ class DigitalLibraryPlugin
         ]);
 
         if (!\App\Support\Csrf::validate($csrfToken)) {
-            error_log('[Digital Library] Upload rejected: Invalid CSRF token');
+            \App\Support\SecureLogger::warning('[Digital Library] Upload rejected: Invalid CSRF token');
             return $this->json($response, ['success' => false, 'message' => __('Token CSRF non valido.')], 400);
         }
 
         $uploadedFiles = $request->getUploadedFiles();
         if (empty($uploadedFiles['file'])) {
-            error_log('[Digital Library] Upload rejected: No file in request');
+            \App\Support\SecureLogger::warning('[Digital Library] Upload rejected: No file in request');
             return $this->json($response, ['success' => false, 'message' => __('Nessun file caricato.')], 400);
         }
 

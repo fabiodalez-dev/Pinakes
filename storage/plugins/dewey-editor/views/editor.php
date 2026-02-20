@@ -157,8 +157,8 @@ $pageTitle = __('Editor Classificazione Dewey');
     'use strict';
 
     const BASE_PATH = (window.BASE_PATH || '').replace(/\/$/, '');
-    const CSRF_TOKEN = <?= json_encode($csrfToken) ?>;
-    let currentLocale = <?= json_encode($defaultLocale) ?>;
+    const CSRF_TOKEN = <?= json_encode($csrfToken, JSON_HEX_TAG) ?>;
+    let currentLocale = <?= json_encode($defaultLocale, JSON_HEX_TAG) ?>;
     let deweyData = null;
     let originalData = null;
     let hasChanges = false;
@@ -186,7 +186,7 @@ $pageTitle = __('Editor Classificazione Dewey');
         tabBtns.forEach(btn => {
             btn.addEventListener('click', () => {
                 if (hasChanges) {
-                    if (!confirm(<?= json_encode(__('Hai modifiche non salvate. Vuoi continuare e perderle?')) ?>)) {
+                    if (!confirm(<?= json_encode(__('Hai modifiche non salvate. Vuoi continuare e perderle?'), JSON_HEX_TAG) ?>)) {
                         return;
                     }
                 }
@@ -209,19 +209,19 @@ $pageTitle = __('Editor Classificazione Dewey');
         let importMode = 'replace';
         importBtn.addEventListener('click', async () => {
             const { value: mode } = await Swal.fire({
-                title: <?= json_encode(__('Modalità di importazione')) ?>,
+                title: <?= json_encode(__('Modalità di importazione'), JSON_HEX_TAG) ?>,
                 input: 'radio',
                 inputOptions: {
-                    'merge': <?= json_encode(__('Merge - Aggiungi e aggiorna (mantiene dati esistenti)')) ?>,
-                    'replace': <?= json_encode(__('Sostituisci - Sovrascrivi tutto')) ?>
+                    'merge': <?= json_encode(__('Merge - Aggiungi e aggiorna (mantiene dati esistenti)'), JSON_HEX_TAG) ?>,
+                    'replace': <?= json_encode(__('Sostituisci - Sovrascrivi tutto'), JSON_HEX_TAG) ?>
                 },
                 inputValue: 'merge',
                 showCancelButton: true,
-                confirmButtonText: <?= json_encode(__('Seleziona file')) ?>,
-                cancelButtonText: <?= json_encode(__('Annulla')) ?>,
+                confirmButtonText: <?= json_encode(__('Seleziona file'), JSON_HEX_TAG) ?>,
+                cancelButtonText: <?= json_encode(__('Annulla'), JSON_HEX_TAG) ?>,
                 inputValidator: (value) => {
                     if (!value) {
-                        return <?= json_encode(__('Seleziona una modalità')) ?>;
+                        return <?= json_encode(__('Seleziona una modalità'), JSON_HEX_TAG) ?>;
                     }
                 }
             });
@@ -275,7 +275,7 @@ $pageTitle = __('Editor Classificazione Dewey');
                 hasChanges = false;
                 saveBtn.disabled = true;
             } else {
-                const errorMsg = result.error || <?= json_encode(__('Errore nel caricamento.')) ?>;
+                const errorMsg = result.error || <?= json_encode(__('Errore nel caricamento.'), JSON_HEX_TAG) ?>;
                 treeContainer.innerHTML = `<div class="text-center text-red-500 py-8">
                     <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
                     <p>${escapeHtml(errorMsg)}</p>
@@ -435,13 +435,13 @@ $pageTitle = __('Editor Classificazione Dewey');
 
     function confirmDelete(node) {
         Swal.fire({
-            title: <?= json_encode(__('Sei sicuro?')) ?>,
-            text: `${<?= json_encode(__('Vuoi eliminare')) ?>} ${node.code} - ${node.name}?`,
+            title: <?= json_encode(__('Sei sicuro?'), JSON_HEX_TAG) ?>,
+            text: `${<?= json_encode(__('Vuoi eliminare'), JSON_HEX_TAG) ?>} ${node.code} - ${node.name}?`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#dc2626',
-            cancelButtonText: <?= json_encode(__('Annulla')) ?>,
-            confirmButtonText: <?= json_encode(__('Elimina')) ?>
+            cancelButtonText: <?= json_encode(__('Annulla'), JSON_HEX_TAG) ?>,
+            confirmButtonText: <?= json_encode(__('Elimina'), JSON_HEX_TAG) ?>
         }).then((result) => {
             if (result.isConfirmed) {
                 deleteNode(node.code);
@@ -452,7 +452,7 @@ $pageTitle = __('Editor Classificazione Dewey');
     function saveEditHandler(code) {
         const name = document.getElementById('edit-name').value.trim();
         if (name.length < 2) {
-            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Il nome deve avere almeno 2 caratteri.')) ?>, 'error');
+            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, <?= json_encode(__('Il nome deve avere almeno 2 caratteri.'), JSON_HEX_TAG) ?>, 'error');
             return;
         }
 
@@ -471,25 +471,25 @@ $pageTitle = __('Editor Classificazione Dewey');
 
         // Validate code format
         if (!/^[0-9]{3}\.[0-9]{1,4}$/.test(code)) {
-            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Formato codice non valido. Usa: XXX.Y (es. 599.1)')) ?>, 'error');
+            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, <?= json_encode(__('Formato codice non valido. Usa: XXX.Y (es. 599.1)'), JSON_HEX_TAG) ?>, 'error');
             return;
         }
 
         // Check code starts with parent base (first 3 digits of the main class)
         const baseCode = parentCode.includes('.') ? parentCode.split('.')[0] : parentCode;
         if (!code.startsWith(baseCode)) {
-            Swal.fire(<?= json_encode(__('Errore')) ?>, `<?= __('Il codice deve iniziare con le stesse tre cifre della classe principale') ?> (${baseCode})`, 'error');
+            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, `<?= __('Il codice deve iniziare con le stesse tre cifre della classe principale') ?> (${baseCode})`, 'error');
             return;
         }
 
         // Check uniqueness
         if (findNode(deweyData, code)) {
-            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Questo codice esiste già.')) ?>, 'error');
+            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, <?= json_encode(__('Questo codice esiste già.'), JSON_HEX_TAG) ?>, 'error');
             return;
         }
 
         if (name.length < 2) {
-            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Il nome deve avere almeno 2 caratteri.')) ?>, 'error');
+            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, <?= json_encode(__('Il nome deve avere almeno 2 caratteri.'), JSON_HEX_TAG) ?>, 'error');
             return;
         }
 
@@ -569,13 +569,13 @@ $pageTitle = __('Editor Classificazione Dewey');
                 hasChanges = false;
                 Swal.fire({
                     icon: 'success',
-                    title: <?= json_encode(__('Salvato')) ?>,
+                    title: <?= json_encode(__('Salvato'), JSON_HEX_TAG) ?>,
                     text: result.message
                 });
             } else {
                 Swal.fire({
                     icon: 'error',
-                    title: <?= json_encode(__('Errore')) ?>,
+                    title: <?= json_encode(__('Errore'), JSON_HEX_TAG) ?>,
                     text: result.error
                 });
             }
@@ -583,8 +583,8 @@ $pageTitle = __('Editor Classificazione Dewey');
             console.error('Save error:', error);
             Swal.fire({
                 icon: 'error',
-                title: <?= json_encode(__('Errore')) ?>,
-                text: <?= json_encode(__('Errore di connessione.')) ?>
+                title: <?= json_encode(__('Errore'), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__('Errore di connessione.'), JSON_HEX_TAG) ?>
             });
         }
 
@@ -599,12 +599,12 @@ $pageTitle = __('Editor Classificazione Dewey');
         // Warn about unsaved changes
         if (hasChanges) {
             const swalResult = await Swal.fire({
-                title: <?= json_encode(__('Modifiche non salvate')) ?>,
-                text: <?= json_encode(__('Hai modifiche non salvate che andranno perse. Continuare?')) ?>,
+                title: <?= json_encode(__('Modifiche non salvate'), JSON_HEX_TAG) ?>,
+                text: <?= json_encode(__('Hai modifiche non salvate che andranno perse. Continuare?'), JSON_HEX_TAG) ?>,
                 icon: 'warning',
                 showCancelButton: true,
-                confirmButtonText: <?= json_encode(__('Continua')) ?>,
-                cancelButtonText: <?= json_encode(__('Annulla')) ?>
+                confirmButtonText: <?= json_encode(__('Continua'), JSON_HEX_TAG) ?>,
+                cancelButtonText: <?= json_encode(__('Annulla'), JSON_HEX_TAG) ?>
             });
             if (!swalResult.isConfirmed) {
                 importFile.value = '';
@@ -632,8 +632,8 @@ $pageTitle = __('Editor Classificazione Dewey');
 
             if (result.success) {
                 const title = mode === 'merge'
-                    ? <?= json_encode(__('Merge completato')) ?>
-                    : <?= json_encode(__('Importato')) ?>;
+                    ? <?= json_encode(__('Merge completato'), JSON_HEX_TAG) ?>
+                    : <?= json_encode(__('Importato'), JSON_HEX_TAG) ?>;
                 Swal.fire(title, result.message, 'success');
                 loadData(currentLocale);
             } else {
@@ -649,13 +649,13 @@ $pageTitle = __('Editor Classificazione Dewey');
                 }
                 Swal.fire({
                     icon: 'error',
-                    title: <?= json_encode(__('Errore')) ?>,
+                    title: <?= json_encode(__('Errore'), JSON_HEX_TAG) ?>,
                     text: lines.join('\n')
                 });
             }
         } catch (error) {
             console.error('Import error:', error);
-            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Errore di connessione.')) ?>, 'error');
+            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, <?= json_encode(__('Errore di connessione.'), JSON_HEX_TAG) ?>, 'error');
         }
 
         importFile.value = '';
@@ -667,7 +667,7 @@ $pageTitle = __('Editor Classificazione Dewey');
             const result = await response.json();
 
             if (!result.success || !result.backups.length) {
-                Swal.fire(<?= json_encode(__('Backup')) ?>, <?= json_encode(__('Nessun backup disponibile.')) ?>, 'info');
+                Swal.fire(<?= json_encode(__('Backup'), JSON_HEX_TAG) ?>, <?= json_encode(__('Nessun backup disponibile.'), JSON_HEX_TAG) ?>, 'info');
                 return;
             }
 
@@ -705,23 +705,23 @@ $pageTitle = __('Editor Classificazione Dewey');
             modalBackdrop.classList.remove('hidden');
         } catch (error) {
             console.error('Backups error:', error);
-            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Errore nel caricamento dei backup.')) ?>, 'error');
+            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, <?= json_encode(__('Errore nel caricamento dei backup.'), JSON_HEX_TAG) ?>, 'error');
         }
     }
 
     async function restoreBackupHandler(filename) {
         // Build warning message including unsaved changes if any
         const warningText = hasChanges
-            ? <?= json_encode(__('Hai modifiche non salvate. I dati attuali verranno sostituiti.')) ?>
-            : <?= json_encode(__('I dati attuali verranno sostituiti.')) ?>;
+            ? <?= json_encode(__('Hai modifiche non salvate. I dati attuali verranno sostituiti.'), JSON_HEX_TAG) ?>
+            : <?= json_encode(__('I dati attuali verranno sostituiti.'), JSON_HEX_TAG) ?>;
 
         const swalResult = await Swal.fire({
-            title: <?= json_encode(__('Ripristinare questo backup?')) ?>,
+            title: <?= json_encode(__('Ripristinare questo backup?'), JSON_HEX_TAG) ?>,
             text: warningText,
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonText: <?= json_encode(__('Ripristina')) ?>,
-            cancelButtonText: <?= json_encode(__('Annulla')) ?>
+            confirmButtonText: <?= json_encode(__('Ripristina'), JSON_HEX_TAG) ?>,
+            cancelButtonText: <?= json_encode(__('Annulla'), JSON_HEX_TAG) ?>
         });
 
         if (!swalResult.isConfirmed) return;
@@ -740,14 +740,14 @@ $pageTitle = __('Editor Classificazione Dewey');
 
             if (result.success) {
                 closeModal();
-                Swal.fire(<?= json_encode(__('Ripristinato')) ?>, result.message, 'success');
+                Swal.fire(<?= json_encode(__('Ripristinato'), JSON_HEX_TAG) ?>, result.message, 'success');
                 loadData(currentLocale);
             } else {
-                Swal.fire(<?= json_encode(__('Errore')) ?>, result.error, 'error');
+                Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, result.error, 'error');
             }
         } catch (error) {
             console.error('Restore error:', error);
-            Swal.fire(<?= json_encode(__('Errore')) ?>, <?= json_encode(__('Errore di connessione.')) ?>, 'error');
+            Swal.fire(<?= json_encode(__('Errore'), JSON_HEX_TAG) ?>, <?= json_encode(__('Errore di connessione.'), JSON_HEX_TAG) ?>, 'error');
         }
     }
 

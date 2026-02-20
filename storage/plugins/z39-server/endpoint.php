@@ -195,7 +195,7 @@ function decryptSettingValue(string $encrypted): ?string
     $decoded = base64_decode($payload);
 
     if ($decoded === false || strlen($decoded) < 28) {
-        error_log('[Z39 SRU Endpoint] Invalid encrypted payload');
+        \App\Support\SecureLogger::error('[Z39 SRU Endpoint] Invalid encrypted payload');
         return null;
     }
 
@@ -207,7 +207,7 @@ function decryptSettingValue(string $encrypted): ?string
         ?? null;
 
     if ($rawKey === null || $rawKey === '') {
-        error_log('[Z39 SRU Endpoint] Cannot decrypt: PLUGIN_ENCRYPTION_KEY not available');
+        \App\Support\SecureLogger::error('[Z39 SRU Endpoint] Cannot decrypt: PLUGIN_ENCRYPTION_KEY not available');
         return null;
     }
 
@@ -224,7 +224,7 @@ function decryptSettingValue(string $encrypted): ?string
 
         return $decrypted !== false ? $decrypted : null;
     } catch (\Throwable $e) {
-        error_log('[Z39 SRU Endpoint] Decryption error: ' . $e->getMessage());
+        \App\Support\SecureLogger::error('[Z39 SRU Endpoint] Decryption error: ' . $e->getMessage());
         return null;
     }
 }

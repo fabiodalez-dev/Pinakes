@@ -102,14 +102,14 @@ document.addEventListener('DOMContentLoaded', function() {
         if ('mediaSession' in navigator) {
             // Set metadata for OS-level display (lock screen, notifications, media keys)
             navigator.mediaSession.metadata = new MediaMetadata({
-                title: <?= json_encode($bookTitle, JSON_UNESCAPED_UNICODE) ?>,
-                artist: <?= json_encode($book['autori_nomi'] ?? 'Audiobook', JSON_UNESCAPED_UNICODE) ?>,
+                title: <?= json_encode($bookTitle, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+                artist: <?= json_encode($book['autori_nomi'] ?? 'Audiobook', JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
                 album: 'Biblioteca',
                 artwork: [
                     <?php if (!empty($book['copertina_url'])): ?>
-                    { src: <?= json_encode(url($book['copertina_url']), JSON_UNESCAPED_UNICODE) ?>, sizes: '512x512', type: 'image/jpeg' }
+                    { src: <?= json_encode(url($book['copertina_url']), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>, sizes: '512x512', type: 'image/jpeg' }
                     <?php else: ?>
-                    { src: <?= json_encode(url('/uploads/copertine/placeholder.jpg'), JSON_UNESCAPED_UNICODE) ?>, sizes: '512x512', type: 'image/jpeg' }
+                    { src: <?= json_encode(url('/uploads/copertine/placeholder.jpg'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>, sizes: '512x512', type: 'image/jpeg' }
                     <?php endif; ?>
                 ]
             });
