@@ -49,20 +49,20 @@ class CollocazioneController
         try {
             (new \App\Models\CollocationRepository($db))->createScaffale(['codice' => $codice, 'nome' => $nome, 'ordine' => $ordine]);
             $_SESSION['success_message'] = __('Scaffale creato');
-        } catch (\RuntimeException $e) {
-            // Duplicate check from repository — message is already user-friendly and translated
-            $_SESSION['error_message'] = $e->getMessage();
-            error_log("Scaffale creation failed: " . $e->getMessage());
         } catch (\mysqli_sql_exception $e) {
             if ($e->getCode() === 1062 || stripos($e->getMessage(), 'Duplicate entry') !== false) {
                 $_SESSION['error_message'] = sprintf(__('Il codice scaffale "%s" esiste già. Usa un codice diverso.'), $codice);
             } else {
                 $_SESSION['error_message'] = __('Impossibile creare lo scaffale. Riprova più tardi.');
             }
-            error_log("Scaffale creation failed: " . $e->getMessage());
+            \App\Support\SecureLogger::warning("Scaffale creation failed: " . $e->getMessage());
+        } catch (\RuntimeException $e) {
+            // Duplicate check from repository — message is already user-friendly and translated
+            $_SESSION['error_message'] = $e->getMessage();
+            \App\Support\SecureLogger::warning("Scaffale creation failed: " . $e->getMessage());
         } catch (\Throwable $e) {
             $_SESSION['error_message'] = __('Impossibile creare lo scaffale. Riprova più tardi.');
-            error_log("Scaffale creation failed: " . $e->getMessage());
+            \App\Support\SecureLogger::error("Scaffale creation failed: " . $e->getMessage());
         }
         return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
     }
@@ -95,10 +95,10 @@ class CollocazioneController
             } else {
                 $_SESSION['error_message'] = __('Impossibile creare la mensola. Riprova più tardi.');
             }
-            error_log("Mensola creation failed: " . $e->getMessage());
+            \App\Support\SecureLogger::warning("Mensola creation failed: " . $e->getMessage());
         } catch (\Throwable $e) {
             $_SESSION['error_message'] = __('Impossibile creare la mensola. Riprova più tardi.');
-            error_log("Mensola creation failed: " . $e->getMessage());
+            \App\Support\SecureLogger::error("Mensola creation failed: " . $e->getMessage());
         }
         return $response->withHeader('Location', url('/admin/collocazione'))->withStatus(302);
     }

@@ -537,18 +537,16 @@ use App\Support\HtmlHelper;
   <?php
     use App\Models\ApiKeyRepository;
     $apiKeyRepo = new ApiKeyRepository($GLOBALS['db'] ?? $db ?? null);
-    if ($apiKeyRepo !== null && method_exists($apiKeyRepo, 'ensureTable')) {
-      try {
-        $apiKeyRepo->ensureTable();
-      } catch (\Throwable $e) {
-        error_log('Failed to ensure API keys table: ' . $e->getMessage());
-      }
+    try {
+      $apiKeyRepo->ensureTable();
+    } catch (\Throwable $e) {
+      \App\Support\SecureLogger::warning('Failed to ensure API keys table: ' . $e->getMessage());
     }
     $apiKeys = [];
     try {
-      $apiKeys = $apiKeyRepo !== null ? $apiKeyRepo->getAll() : [];
+      $apiKeys = $apiKeyRepo->getAll();
     } catch (\Throwable $e) {
-      error_log('Failed to get API keys: ' . $e->getMessage());
+      \App\Support\SecureLogger::warning('Failed to get API keys: ' . $e->getMessage());
     }
     $apiEnabled = ($advancedSettings['api_enabled'] ?? '0') === '1';
     $apiEndpoint = \App\Controllers\SeoController::resolveBaseUrl() . '/api/public/books/search';

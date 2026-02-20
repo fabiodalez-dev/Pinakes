@@ -995,11 +995,10 @@ class PluginManager
         }
 
         $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
-            ?? getenv('PLUGIN_ENCRYPTION_KEY')
+            ?? (getenv('PLUGIN_ENCRYPTION_KEY') ?: null)
             ?? $_ENV['APP_KEY']
-            ?? getenv('APP_KEY')
-            ?? null;
-        if ($rawKey && $rawKey !== '') {
+            ?? (getenv('APP_KEY') ?: null);
+        if ($rawKey) {
             $this->cachedEncryptionKey = hash('sha256', (string)$rawKey, true);
         } else {
             $this->cachedEncryptionKey = null;
@@ -1252,9 +1251,9 @@ class PluginManager
             return true;
         }
 
-        // If the class name suggests it's a wrapper (ends with Plugin and has __call)
+        // If the class name suggests it's a wrapper (ends with Plugin) — __call already confirmed above
         $className = $reflection->getShortName();
-        if (str_ends_with($className, 'Plugin') && method_exists($pluginInstance, '__call')) {
+        if (str_ends_with($className, 'Plugin')) {
             return true;
         }
 

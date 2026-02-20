@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.8.2-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.9-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -23,7 +23,50 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.8.2
+## What's New in v0.4.9
+
+### 🔒 Subfolder Support, Security Hardening & Code Quality
+
+**Full Subfolder Installation Support:**
+- **Install in any subdirectory** — Pinakes now runs correctly under paths like `/library/` or `/biblioteca/`, not just domain root
+- **Dynamic base path detection** — `url()`, `absoluteUrl()`, and `route_path()` helpers automatically resolve the correct base path
+- **Notification emails** — All email URLs use `absoluteUrl()` to generate correct full links regardless of installation path
+- **JavaScript `window.BASE_PATH`** — Frontend code properly prefixes raw paths for AJAX, notifications, and API calls
+- **Sitemap and SEO** — Canonical URLs, Schema.org metadata, and sitemap generation all respect base path
+
+**Configurable Homepage Sort Order** (#59):
+- **Latest Books section** — Admins can now choose sort order (newest first, alphabetical, random) from Settings
+
+**Comprehensive Security Hardening** (177 files, 18 code review rounds):
+- **XSS prevention** — Replaced all `addslashes()` with `json_encode()` + `htmlspecialchars()` across 29 view files
+- **Safe JS translations** — ~176 raw PHP translations in JavaScript replaced with `json_encode(, JSON_HEX_TAG)` across 14 views
+- **HTML attribute escaping** — Hardened `escapeHtml()` quote escaping + `JSON_HEX_TAG` across 12 view files
+- **Route translation** — Replaced all hardcoded URL paths with `RouteTranslator::route()` / `route_path()` for locale-aware routing
+- **Plugin audit** — `Exception` → `Throwable`, `error_log()` → `SecureLogger`, `JSON_HEX_TAG` on all JSON output in plugins
+
+**Bug Fixes:**
+- **Book availability** — Corrected availability calculation and reservation status display (#53, #56, #58)
+- **Duplicate API route** — Removed duplicate `/api/libro/{id}/availability` route causing 500 errors
+- **Integrity report** — Fixed missing issue types, response format mismatch, and `Exception` → `Throwable`
+- **Collocazione** — Fixed shelf/location bugs + cURL, reservation, and author controller issues
+- **Admin URLs** — Added `/admin` prefix to user DataTables action URLs, BASE_PATH to review fetch URLs
+- **Email paths** — Fixed double base path in email book URLs, migrated to `absoluteUrl()`
+- **Subfolder maintenance** — Resolved 503 error on maintenance mode + nested form in admin settings
+- **Release packaging** — Added ZIP verification step to prevent missing TinyMCE files (#44)
+
+**Code Quality:**
+- **18 CodeRabbit review rounds** — Addressed findings across 400+ file touches
+- **Proactive security hardening** — 9 pattern categories across 49 files
+- **56 code quality issues** resolved in 3 core files
+- **Soft-delete gaps** — Additional `deleted_at IS NULL` filters on missed queries
+- **Error handling** — Consistent `\Throwable` usage across all catch blocks (strict_types compatibility)
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.8.2</strong> - Illustrator Field, Multi-Language & BCE Dates</summary>
 
 ### 🎨 Illustrator Field, Multi-Language & BCE Dates
 
@@ -43,21 +86,13 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **`anno_pubblicazione` now SIGNED** — range expanded from 0–65535 to -32768–32767, supporting ancient texts (e.g., The Odyssey, -800)
 - **Form validation** — Book form accepts `min="-9999"` for historical works
 
-**Installer Fixes:**
-- **Session persistence fix** — Installer now uses same `storage/sessions/` path as main app, preventing session loss between steps on macOS/Linux
-- **Output buffering** — Step 3 (database installation) uses `ob_start()`/`ob_end_clean()` to prevent broken redirects
-
 **Bug Fixes:**
-- **CSV import duplicate inventory numbers** — New `inventoryNumberExists()` check with automatic suffix (`-2`, `-3`, ...) prevents unique constraint violations on re-import
-- **Publisher API & detail page** — Fixed phantom `e.citta` column reference, improved publisher card layout
+- **CSV import duplicate inventory numbers** — New `inventoryNumberExists()` check with automatic suffix prevents unique constraint violations on re-import
+- **Publisher API & detail page** — Fixed phantom `e.citta` column reference
 - **Loan PDF generator** — Fixed rendering issues in loan receipt generation
-- **Loans UI** — Fixed display inconsistencies in loan management views
 - **Z39 Server plugin** — SRU client fixes, bumped to v1.2.1
-- **Theme fallback** — Fixed edge case when selected theme is unavailable
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.8.1</strong> - Import Logging & Auto-Update</summary>
@@ -149,18 +184,6 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Loan workflow stability** — Additional fixes to copy state transitions during approval/rejection
 
 </details>
-
-<details>
-<summary><strong>v0.4.7</strong> - Stability & Bug Fixes</summary>
-
-### Stability & Bug Fixes
-
-- **Copy state protection** — Fixed issue where copy state could incorrectly change during loan approval
-- **Pickup workflow refinement** — `reserved` and `ready_for_pickup` states now correctly keep copies as `available`
-- **MaintenanceService improvements** — Expired pickup handling no longer resurrects non-restorable copies
-
-</details>
-
 
 ---
 

@@ -25,8 +25,8 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
 // SEO ottimizzato
 $bookTitle = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
 $bookAuthor = !empty($authors) ? html_entity_decode($authors[0]['nome'] ?? '', ENT_QUOTES, 'UTF-8') : '';
-$bookDescription = !empty($book['descrizione']) ? html_entity_decode($book['descrizione'] ?? '', ENT_QUOTES, 'UTF-8') : '';
-$bookPublisher = !empty($book['editore']) ? html_entity_decode($book['editore'] ?? '', ENT_QUOTES, 'UTF-8') : '';
+$bookDescription = !empty($book['descrizione']) ? html_entity_decode($book['descrizione'], ENT_QUOTES, 'UTF-8') : '';
+$bookPublisher = !empty($book['editore']) ? html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8') : '';
 $bookYear = $book['anno_pubblicazione'] ?? '';
 $bookISBN = $book['isbn13'] ?? $book['isbn10'] ?? '';
 $bookPrice = !empty($book['prezzo']) ? number_format($book['prezzo'], 2) : '';
@@ -1434,8 +1434,8 @@ ob_start();
                     <?php if (!empty($book['editore'])): ?>
                         <p class="mb-2 opacity-75">
                             <i class="fas fa-building me-2"></i>
-                            <a href="<?= htmlspecialchars(route_path('publisher') . '/' . urlencode(html_entity_decode($book['editore'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none text-dark">
-                                <?= htmlspecialchars(html_entity_decode($book['editore'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
+                            <a href="<?= htmlspecialchars(route_path('publisher') . '/' . urlencode(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none text-dark">
+                                <?= htmlspecialchars(html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8')) ?>
                             </a>
                         </p>
                     <?php endif; ?>
@@ -1457,7 +1457,7 @@ ob_start();
 
                     <?php if (!empty($book['genere'])): ?>
                     <div class="genre-tags">
-                        <a href="<?= $catalogRoute ?>?genere=<?= urlencode(html_entity_decode($book['genere'] ?? '', ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
+                        <a href="<?= $catalogRoute ?>?genere=<?= urlencode(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
                             <i class="fas fa-tags me-1"></i><?= htmlspecialchars($bookGenre) ?>
                         </a>
                     </div>
@@ -1738,7 +1738,7 @@ ob_start();
 
                     // Show only if visible, has value, and has label
                     // Note: Don't use empty() as it excludes numeric zero values
-                    if ($isVisible && isset($book[$fieldName]) && $book[$fieldName] !== '' && $book[$fieldName] !== null && isset($ltFieldLabels[$fieldName])) {
+                    if ($isVisible && isset($book[$fieldName]) && $book[$fieldName] !== '' && isset($ltFieldLabels[$fieldName])) {
                         $visibleLtFields[$fieldName] = [
                             'label' => $ltFieldLabels[$fieldName],
                             'value' => $book[$fieldName]
@@ -1755,7 +1755,7 @@ ob_start();
                     <div class="details-grid">
                         <?php
                         // Split fields into two columns
-                        $half = ceil(count($visibleLtFields) / 2);
+                        $half = (int) ceil(count($visibleLtFields) / 2);
                         $column1 = array_slice($visibleLtFields, 0, $half, true);
                         $column2 = array_slice($visibleLtFields, $half, null, true);
                         ?>
@@ -1945,7 +1945,7 @@ ob_start();
                         <?php if (!empty($book['editore'])): ?>
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Editore") ?></div>
-                            <div class="meta-value"><?= htmlspecialchars($book['editore'] ?? '') ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['editore']) ?></div>
                         </div>
                         <?php endif; ?>
 

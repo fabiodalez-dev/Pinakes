@@ -716,7 +716,7 @@ class DataIntegrity {
 
         $base = $scheme . '://' . $host;
         $defaultPorts = ['http' => 80, 'https' => 443];
-        if ($port !== null && ($defaultPorts[$scheme] ?? null) !== $port) {
+        if ($port !== null && $defaultPorts[$scheme] !== $port) {
             $base .= ':' . $port;
         }
 

@@ -294,12 +294,12 @@ class SettingsController
      */
     private function handleLogoUpload(array $file): array
     {
-        $tmpPath = $file['tmp_name'] ?? '';
+        $tmpPath = $file['tmp_name'];
         if ($tmpPath === '' || !is_uploaded_file($tmpPath)) {
             return ['success' => false, 'message' => 'Upload logo non valido.'];
         }
 
-        $size = (int) ($file['size'] ?? 0);
+        $size = (int) $file['size'];
         if ($size > 2 * 1024 * 1024) {
             return ['success' => false, 'message' => 'Il logo supera il limite massimo di 2MB.'];
         }

@@ -116,7 +116,7 @@ class EditorsController
             }
             $_SESSION['error_message'] = __('Impossibile eliminare l\'editore: sono presenti libri associati.');
             $referer = $request->getHeaderLine('Referer');
-            $target = (is_string($referer) && str_contains($referer, '/admin/editori')) ? $referer : '/admin/editori';
+            $target = str_contains($referer, '/admin/editori') ? $referer : '/admin/editori';
             return $response->withHeader('Location', $target)->withStatus(302);
         }
 

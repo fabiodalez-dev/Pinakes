@@ -197,7 +197,6 @@ class ScrapeController
                     // Check if fallback value is empty or missing
                     $fallbackEmpty = !isset($fallbackData[$key])
                         || $fallbackData[$key] === ''
-                        || $fallbackData[$key] === null
                         || $fallbackData[$key] === [];
                     if ($valueNotEmpty && $fallbackEmpty) {
                         $fallbackData[$key] = $value;

@@ -104,7 +104,7 @@ class CoverController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        $mimeType = $imageInfo['mime'] ?? '';
+        $mimeType = $imageInfo['mime'];
         $extension = match ($mimeType) {
             'image/jpeg', 'image/jpg' => 'jpg',
             'image/png' => 'png',
@@ -222,7 +222,7 @@ class CoverController
             throw new \RuntimeException(__('Immagine troppo grande da processare.'));
         }
 
-        $mimeType = $imageInfo['mime'] ?? '';
+        $mimeType = $imageInfo['mime'];
         $extension = match ($mimeType) {
             'image/jpeg', 'image/jpg' => 'jpg',
             'image/png' => 'png',

@@ -178,14 +178,11 @@ class QueryCache
     public static function set(string $key, mixed $value, int $ttl = 300): bool
     {
         $hashedKey = self::hashKey($key);
-        $success = true;
 
         // Also write to APCu if available
-        if (self::hasApcu()) {
-            $success = apcu_store($hashedKey, $value, $ttl) && $success;
-        }
+        $apcuOk = !self::hasApcu() || apcu_store($hashedKey, $value, $ttl);
 
-        $success = self::setToFile($hashedKey, $value, $ttl) && $success;
+        $success = self::setToFile($hashedKey, $value, $ttl) && $apcuOk;
 
         return $success;
     }

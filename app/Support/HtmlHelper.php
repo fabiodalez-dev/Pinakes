@@ -250,7 +250,7 @@ class HtmlHelper
         // Usa sempre APP_CANONICAL_URL se configurato
         $canonicalUrl = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: false;
 
-        if ($canonicalUrl && $canonicalUrl !== '') {
+        if ($canonicalUrl) {
             // Validate that URL has a scheme
             if (!preg_match('#^https?://#i', $canonicalUrl)) {
                 error_log('[HtmlHelper] APP_CANONICAL_URL missing scheme, prepending https://: ' . $canonicalUrl);
@@ -288,7 +288,7 @@ class HtmlHelper
         $baseUrl = $protocol . '://' . $host;
         if ($port !== null) {
             $defaultPorts = ['http' => 80, 'https' => 443];
-            if (!isset($defaultPorts[$protocol]) || $defaultPorts[$protocol] !== $port) {
+            if ($defaultPorts[$protocol] !== $port) {
                 $baseUrl .= ':' . $port;
             }
         }

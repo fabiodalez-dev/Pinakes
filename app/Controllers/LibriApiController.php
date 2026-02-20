@@ -274,7 +274,7 @@ class LibriApiController
                 // Use the already formatted position
                 $row['posizione_display'] = $row['collocazione'] !== ''
                     ? $row['collocazione']
-                    : ($row['posizione_scaffale'] ?? 'N/D');
+                    : $row['posizione_scaffale'];
 
                 $data[] = $row;
             }

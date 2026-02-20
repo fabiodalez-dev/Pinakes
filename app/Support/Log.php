@@ -246,8 +246,8 @@ class Log
             return strtolower($asyncEnabled) === 'true';
         }
 
-        // Default: enabled in production, disabled in development
-        return !self::shouldLogDebug();
+        // Default: enabled in production (we already returned false for debug mode above)
+        return true;
     }
 
     /**

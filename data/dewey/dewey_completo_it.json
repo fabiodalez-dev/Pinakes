@@ -7345,7 +7345,28 @@
                         "code": "891.7",
                         "name": "Letteratura russa",
                         "level": 4,
-                        "children": []
+                        "children": [
+                            {
+                                "code": "891.73",
+                                "name": "",
+                                "level": 5,
+                                "children": [
+                                    {
+                                        "code": "891.734",
+                                        "name": "",
+                                        "level": 6,
+                                        "children": [
+                                            {
+                                                "code": "891.7342",
+                                                "name": "Narrativa Russa, 1917-1945",
+                                                "level": 7,
+                                                "children": []
+                                            }
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
                     },
                     {
                         "code": "892",

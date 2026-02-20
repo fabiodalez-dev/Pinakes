@@ -123,9 +123,9 @@ class MaintenanceService
         // Run automatic notifications
         try {
             $notificationResults = $this->runNotifications();
-            $results['expiration_warnings'] = $notificationResults['expiration_warnings'] ?? 0;
-            $results['overdue_notifications'] = $notificationResults['overdue_notifications'] ?? 0;
-            $results['wishlist_notifications'] = $notificationResults['wishlist_notifications'] ?? 0;
+            $results['expiration_warnings'] = $notificationResults['expiration_warnings'];
+            $results['overdue_notifications'] = $notificationResults['overdue_notifications'];
+            $results['wishlist_notifications'] = $notificationResults['wishlist_notifications'];
         } catch (\Throwable $e) {
             $results['errors'][] = 'runNotifications: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore notifiche'), ['error' => $e->getMessage()]);

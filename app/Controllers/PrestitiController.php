@@ -679,7 +679,7 @@ class PrestitiController
 
             // Send deferred notifications after commit
             try {
-                if (isset($reassignmentService) && $reassignmentService) {
+                if (isset($reassignmentService)) {
                     $reassignmentService->flushDeferredNotifications();
                 }
             } catch (\Throwable $e) {

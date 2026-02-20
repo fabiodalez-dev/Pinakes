@@ -42,9 +42,9 @@ class ReservationManager
      */
     private function beginTransactionIfNeeded(): bool
     {
-        // Also check DB-level transaction state via server_status bitmask
-        // (SERVER_STATUS_IN_TRANS = bit 0) to detect external transactions
-        $inDbTransaction = (bool) ($this->db->server_status & 1);
+        // Detect nested transaction via @@autocommit (0 = inside transaction)
+        $result = $this->db->query("SELECT @@autocommit as ac");
+        $inDbTransaction = $result instanceof \mysqli_result && (int) ($result->fetch_assoc()['ac'] ?? 1) === 0;
         if ($this->inTransaction || $inDbTransaction) {
             return false; // Already in transaction, don't start a new one
         }
@@ -503,7 +503,8 @@ class ReservationManager
             $fallbackStmt = $this->db->prepare("SELECT IFNULL(copie_totali, 1) AS copie_totali FROM libri WHERE id = ? AND deleted_at IS NULL");
             $fallbackStmt->bind_param('i', $bookId);
             $fallbackStmt->execute();
-            $fallbackRow = $fallbackStmt->get_result()?->fetch_assoc();
+            $fallbackResult = $fallbackStmt->get_result();
+            $fallbackRow = $fallbackResult !== false ? $fallbackResult->fetch_assoc() : null;
             $fallbackStmt->close();
 
             // If book doesn't exist or is soft-deleted, return false

@@ -11,12 +11,11 @@ use App\Support\RateLimiter;
 
 class RateLimitMiddleware implements MiddlewareInterface
 {
-    private int $maxAttempts;
     private int $window; // in seconds
 
     public function __construct(int $maxAttempts = 10, int $window = 900) // 15 minutes default
     {
-        $this->maxAttempts = $maxAttempts;
+        // $maxAttempts reserved for future per-middleware configuration
         $this->window = $window;
     }
 

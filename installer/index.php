@@ -376,18 +376,30 @@ function renderHeader($currentStep, $stepTitle) {
                 <p><?= __("Segui l'installazione guidata per completare la configurazione.") ?></p>
             </div>
 
-            <div class="installer-progress">
+            <div class="installer-progress" data-current="<?= $currentStep ?>">
                 <?php foreach ($steps as $num => $label): ?>
                     <?php
                         $isActive = $num === $currentStep;
                         $isCompleted = in_array($num, $completedSteps, true);
                     ?>
-                    <div class="progress-step <?= $isActive ? 'active' : '' ?> <?= $isCompleted ? 'completed' : '' ?>">
+                    <div class="progress-step <?= $isActive ? 'active' : '' ?> <?= $isCompleted ? 'completed' : '' ?>" data-step="<?= $num ?>">
                         <div class="step-node"><?= str_pad((string)($num + 1), 2, '0', STR_PAD_LEFT) ?></div>
                         <div class="step-label"><?= htmlspecialchars($label) ?></div>
                     </div>
                 <?php endforeach; ?>
             </div>
+            <script>
+            (function(){
+                var c = document.querySelector('.installer-progress');
+                if (!c) return;
+                var cur = parseInt(c.dataset.current, 10);
+                var steps = c.querySelectorAll('.progress-step');
+                steps.forEach(function(s) {
+                    var n = parseInt(s.dataset.step, 10);
+                    if (n === cur - 1 || n === cur + 1) s.classList.add('adjacent');
+                });
+            })();
+            </script>
 
             <div class="installer-body">
     <?php

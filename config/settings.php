@@ -36,10 +36,10 @@ if (isset($_ENV['DISPLAY_ERRORS'])) {
 // Supports: $db_config array and other PHP ini tweaks.
 $local = __DIR__ . '/../config.local.php';
 if (is_file($local)) {
-    // Isolate scope and import known variables
+    /** @var array|null $db_config */
     $db_config = null;
     include $local;
-    if (is_array($db_config ?? null)) {
+    if (is_array($db_config)) {
         $settings['db'] = array_merge($settings['db'], $db_config);
     }
 }

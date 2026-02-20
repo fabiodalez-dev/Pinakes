@@ -121,7 +121,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     ?>
 
     <!-- Open Graph Meta Tags -->
-    <?php if ($ogTitle !== null): ?>
+    <?php if ($ogTitle !== ''): ?>
         <meta property="og:title" content="<?= htmlspecialchars($ogTitle) ?>">
         <meta property="og:description" content="<?= htmlspecialchars($ogDescription) ?>">
         <meta property="og:image" content="<?= htmlspecialchars($ogImage) ?>">
@@ -131,7 +131,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php endif; ?>
 
     <!-- Twitter Card Meta Tags -->
-    <?php if ($twitterCard !== null): ?>
+    <?php if ($twitterCard !== ''): ?>
         <meta name="twitter:card" content="<?= htmlspecialchars($twitterCard) ?>">
         <meta name="twitter:title" content="<?= htmlspecialchars($twitterTitle) ?>">
         <meta name="twitter:description" content="<?= htmlspecialchars($twitterDescription) ?>">

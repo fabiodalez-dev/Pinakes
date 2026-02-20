@@ -428,7 +428,7 @@ final class ConfigStore
                 if (isset($raw['email']['from_name'])) {
                     self::$dbSettingsCache['mail']['from_name'] = (string) $raw['email']['from_name'];
                 }
-                self::$dbSettingsCache['mail']['smtp'] = self::$dbSettingsCache['mail']['smtp'] ?? [];
+                self::$dbSettingsCache['mail']['smtp'] = [];
                 $smtpMap = [
                     'smtp_host' => 'host',
                     'smtp_port' => 'port',

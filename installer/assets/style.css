@@ -500,11 +500,48 @@ body {
     }
 
     .installer-progress {
-        flex-direction: column;
-        gap: 18px;
+        flex-direction: row;
+        justify-content: center;
+        gap: 0;
+        overflow: hidden;
+        padding: 20px 16px 24px;
     }
 
+    /* Hide all steps by default on mobile */
+    .progress-step {
+        display: none;
+        flex: 0 0 auto;
+        min-width: 80px;
+        max-width: 100px;
+    }
+
+    /* Show current step */
+    .progress-step.active {
+        display: block;
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    /* Show adjacent steps (prev/next) via data attributes */
+    .progress-step.adjacent {
+        display: block;
+        opacity: 0.35;
+        transform: scale(0.85);
+    }
+
+    /* Hide connecting lines on mobile */
     .progress-step:not(:last-child)::after {
         display: none;
+    }
+
+    /* Smaller nodes for adjacent steps */
+    .progress-step.adjacent .step-node {
+        width: 36px;
+        height: 36px;
+        font-size: 0.75rem;
+    }
+
+    .progress-step.adjacent .step-label {
+        font-size: 0.7rem;
     }
 }

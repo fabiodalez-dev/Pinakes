@@ -91,9 +91,7 @@ $containerDefinitions = [
             foreach ($attempts as $attempt) {
                 try {
                     $mysqli = $attempt();
-                    if ($mysqli instanceof mysqli) {
-                        break;
-                    }
+                    break;
                 } catch (\mysqli_sql_exception $connectionException) {
                     $connectionErrors[] = $connectionException->getMessage();
                     $mysqli = null;

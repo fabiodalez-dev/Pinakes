@@ -1,5 +1,5 @@
 <?php
-/** @var array $container */
+/** @var \Psr\Container\ContainerInterface $container */
 /** @var array $genre_display */
 /** @var array $filter_options */
 /** @var ?int $total_books */

@@ -157,7 +157,7 @@ class AutoriController
             }
             $_SESSION['error_message'] = __('Impossibile eliminare l\'autore: sono presenti libri associati.');
             $referer = $request->getHeaderLine('Referer');
-            $target = (is_string($referer) && str_contains($referer, '/admin/autori')) ? $referer : '/admin/autori';
+            $target = str_contains($referer, '/admin/autori') ? $referer : '/admin/autori';
             return $response->withHeader('Location', $target)->withStatus(302);
         }
 

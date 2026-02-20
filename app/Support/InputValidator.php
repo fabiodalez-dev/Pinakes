@@ -56,7 +56,8 @@ class InputValidator
             case 'url':
                 return filter_var($value, FILTER_VALIDATE_URL) ?: '';
             case 'date':
-                return date('Y-m-d', strtotime($value)) ?: null;
+                $ts = strtotime($value);
+                return $ts !== false ? date('Y-m-d', $ts) : null;
             default:
                 return is_string($value) ? trim($value) : $value;
         }
