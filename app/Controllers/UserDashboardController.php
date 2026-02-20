@@ -93,7 +93,7 @@ class UserDashboardController
             }
             $stmt->close();
             
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log('UserDashboard error: ' . $e->getMessage());
         }
 
@@ -216,7 +216,7 @@ class UserDashboardController
             }
             $stmt->close();
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log('Prenotazioni error: ' . $e->getMessage());
         }
 

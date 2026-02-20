@@ -407,7 +407,7 @@ class UpdateController
                 'error' => $result['error']
             ], 500);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log('[UpdateController] Upload failed: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return $this->jsonResponse($response, [
                 'success' => false,

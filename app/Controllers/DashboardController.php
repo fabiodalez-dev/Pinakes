@@ -26,8 +26,8 @@ class DashboardController
             $reservations = $repo->activeReservations(6);
             $calendarEvents = $repo->calendarEvents();
         } catch (\Throwable $e) {
-            // Handle error gracefully - use empty data
-            error_log('Dashboard error: ' . $e->getMessage());
+            \App\Support\SecureLogger::error('Dashboard data loading failed: ' . $e->getMessage());
+            $_SESSION['error_message'] = __('Alcuni dati della dashboard non sono disponibili. Verifica la connessione al database.');
         }
 
         // ICS file URL (dynamic generation)

@@ -130,7 +130,7 @@ class LanguagesController
             return $response
                 ->withHeader('Location', '/admin/languages')
                 ->withStatus(302);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $_SESSION['flash_error'] = __("Errore nella creazione:") . " " . $e->getMessage();
             return $response
                 ->withHeader('Location', '/admin/languages/create')
@@ -247,7 +247,7 @@ class LanguagesController
             return $response
                 ->withHeader('Location', '/admin/languages')
                 ->withStatus(302);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $_SESSION['flash_error'] = __("Errore nell'aggiornamento:") . " " . $e->getMessage();
             return $response
                 ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit')
@@ -285,7 +285,7 @@ class LanguagesController
             }
 
             $_SESSION['flash_success'] = __("Lingua eliminata con successo");
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $_SESSION['flash_error'] = __("Errore nell'eliminazione:") . " " . $e->getMessage();
         }
 
@@ -317,7 +317,7 @@ class LanguagesController
 
             $statusText = $newStatus ? __("attivata") : __("disattivata");
             $_SESSION['flash_success'] = __("Lingua") . " " . $statusText . " " . __("con successo");
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $_SESSION['flash_error'] = __("Errore nell'operazione:") . " " . $e->getMessage();
         }
 
@@ -348,7 +348,7 @@ class LanguagesController
             $languageModel->setDefault($code);
             $this->synchronizeGlobalLocale($db, $code);
             $_SESSION['flash_success'] = __("Lingua predefinita impostata con successo");
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $_SESSION['flash_error'] = __("Errore nell'operazione:") . " " . $e->getMessage();
         }
 
@@ -392,7 +392,7 @@ class LanguagesController
                     try {
                         $languageModel->updateStats($code, $totalKeys, $translatedKeys);
                         $updated++;
-                    } catch (\Exception $e) {
+                    } catch (\Throwable $e) {
                         $errors[] = $lang['code'] . ': ' . $e->getMessage();
                     }
                 }
@@ -759,7 +759,7 @@ class LanguagesController
             return $response
                 ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit-routes')
                 ->withStatus(302);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $_SESSION['flash_error'] = __("Errore nell'aggiornamento:") . " " . $e->getMessage();
             return $response
                 ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit-routes')

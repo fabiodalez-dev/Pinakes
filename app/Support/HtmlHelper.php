@@ -217,7 +217,10 @@ class HtmlHelper
         $canonicalUrl = $canonicalUrl !== false ? (string) $canonicalUrl : '';
         if ($canonicalUrl !== '') {
             $path = parse_url($canonicalUrl, PHP_URL_PATH);
-            if ($path !== null && $path !== '' && $path !== '/') {
+            if ($path === false) {
+                error_log('[HtmlHelper] APP_CANONICAL_URL is malformed, cannot parse path: ' . $canonicalUrl);
+                // Fall through to SCRIPT_NAME detection
+            } elseif ($path !== null && $path !== '' && $path !== '/') {
                 $basePath = rtrim($path, '/');
                 return $basePath;
             }

@@ -220,7 +220,7 @@ class CmsAdminController
         // SECURITY: Generate cryptographically secure random filename
         try {
             $randomSuffix = bin2hex(random_bytes(16));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("CRITICAL: random_bytes() failed - system entropy exhausted");
             $payload = json_encode(['error' => __('Errore del server. Riprova più tardi.')] );
             $response->getBody()->write($payload);
@@ -245,7 +245,7 @@ class CmsAdminController
             $uploadedFile->moveTo($targetPath);
             // SECURITY: Set secure file permissions
             @chmod($targetPath, 0644);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Image upload error: " . $e->getMessage());
             $payload = json_encode(['error' => __('Caricamento non riuscito. Riprova.')]);
             $response->getBody()->write($payload);

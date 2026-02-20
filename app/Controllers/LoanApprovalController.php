@@ -7,6 +7,7 @@ use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DataIntegrity;
+use App\Support\SecureLogger;
 use function __;
 
 class LoanApprovalController
@@ -403,7 +404,7 @@ class LoanApprovalController
                     $notificationService->sendPickupReadyNotification($loanId);
                 }
             } catch (\Throwable $notifError) {
-                error_log("Error sending approval notification for loan {$loanId}: " . $notifError->getMessage());
+                \App\Support\SecureLogger::warning("Approval notification failed for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail the approval if notification fails
             }
 
@@ -417,7 +418,7 @@ class LoanApprovalController
 
         } catch (\Throwable $e) {
             $db->rollback();
-            error_log("Errore approvazione prestito {$loanId}: " . $e->getMessage());
+            \App\Support\SecureLogger::error("Loan approval failed for loan {$loanId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __('Errore interno durante l\'approvazione')
@@ -515,7 +516,7 @@ class LoanApprovalController
                     $reason
                 );
             } catch (\Throwable $notifError) {
-                error_log("[rejectLoan] Notification error for loan {$loanId}: " . $notifError->getMessage());
+                \App\Support\SecureLogger::warning("[rejectLoan] Notification error for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail - deletion already committed
             }
 
@@ -527,7 +528,7 @@ class LoanApprovalController
 
         } catch (\Throwable $e) {
             $db->rollback();
-            error_log("[rejectLoan] Error: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[rejectLoan] Error: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __('Errore nel rifiuto della richiesta')
@@ -592,7 +593,7 @@ class LoanApprovalController
             // Block if no copy assigned (data integrity issue - legacy/migration problem)
             if (empty($loan['copia_id'])) {
                 $db->rollback();
-                error_log("[confirmPickup] ERROR: Loan {$loanId} has no assigned copy - cannot confirm pickup");
+                \App\Support\SecureLogger::error("[confirmPickup] Loan {$loanId} has no assigned copy - cannot confirm pickup");
                 $response->getBody()->write(json_encode([
                     'success' => false,
                     'message' => __('Prestito senza copia assegnata - contattare l\'amministratore')
@@ -638,7 +639,7 @@ class LoanApprovalController
                     $copyRepo->updateStatus($copiaId, 'prestato');
                 } elseif ($copyResult) {
                     // Log anomaly: loan confirmed but copy in invalid state - requires manual review
-                    error_log("[confirmPickup] WARNING: Loan {$loanId} confirmed but copy {$copiaId} is in state '{$copyResult['stato']}' - requires manual review");
+                    \App\Support\SecureLogger::warning("[confirmPickup] Loan {$loanId} confirmed but copy {$copiaId} is in state '{$copyResult['stato']}' - requires manual review");
                 }
             }
 
@@ -656,7 +657,7 @@ class LoanApprovalController
 
         } catch (\Throwable $e) {
             $db->rollback();
-            error_log("[confirmPickup] Error for loan {$loanId}: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[confirmPickup] Error for loan {$loanId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __('Errore durante la conferma del ritiro')
@@ -754,7 +755,7 @@ class LoanApprovalController
                     // Advance reservation queue: promote next waiting user for this copy
                     $reassignmentService->reassignOnReturn($copiaId);
                 } elseif ($copyResult) {
-                    error_log("[cancelPickup] WARNING: Copy {$copiaId} in state '{$copyResult['stato']}' not reset to disponibile");
+                    \App\Support\SecureLogger::warning("[cancelPickup] Copy {$copiaId} in state '{$copyResult['stato']}' not reset to disponibile");
                 }
             }
 
@@ -772,7 +773,7 @@ class LoanApprovalController
                 $notificationService = new \App\Support\NotificationService($db);
                 $notificationService->sendPickupCancelledNotification($loanId, $reason);
             } catch (\Throwable $notifError) {
-                error_log("[cancelPickup] Notification error for loan {$loanId}: " . $notifError->getMessage());
+                \App\Support\SecureLogger::warning("[cancelPickup] Notification error for loan {$loanId}: " . $notifError->getMessage());
                 // Don't fail - cancellation already committed
             }
 
@@ -784,7 +785,7 @@ class LoanApprovalController
 
         } catch (\Throwable $e) {
             $db->rollback();
-            error_log("[cancelPickup] Error for loan {$loanId}: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[cancelPickup] Error for loan {$loanId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __('Errore durante l\'annullamento del ritiro')
@@ -877,7 +878,7 @@ class LoanApprovalController
                     $reassignmentService->setExternalTransaction(true);
                     $reassignmentService->reassignOnReturn($copiaId);
                 } catch (\Throwable $e) {
-                    error_log("[returnLoan] Reassignment error for copy {$copiaId}: " . $e->getMessage());
+                    \App\Support\SecureLogger::warning("[returnLoan] Reassignment error for copy {$copiaId}: " . $e->getMessage());
                 }
             }
 
@@ -907,7 +908,7 @@ class LoanApprovalController
                     $notificationService->notifyWishlistBookAvailability($libroId);
                 }
             } catch (\Throwable $e) {
-                error_log("[returnLoan] Wishlist notify error for book {$libroId}: " . $e->getMessage());
+                \App\Support\SecureLogger::warning("[returnLoan] Wishlist notify error for book {$libroId}: " . $e->getMessage());
             }
 
             $response->getBody()->write(json_encode([
@@ -918,7 +919,7 @@ class LoanApprovalController
 
         } catch (\Throwable $e) {
             $db->rollback();
-            error_log("[returnLoan] Error for loan {$loanId}: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[returnLoan] Error for loan {$loanId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __('Errore durante la restituzione')
@@ -1014,7 +1015,7 @@ class LoanApprovalController
 
         } catch (\Throwable $e) {
             $db->rollback();
-            error_log("[cancelReservation] Error for reservation {$reservationId}: " . $e->getMessage());
+            \App\Support\SecureLogger::error("[cancelReservation] Error for reservation {$reservationId}: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'message' => __('Errore durante l\'annullamento della prenotazione')

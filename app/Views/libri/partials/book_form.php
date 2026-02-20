@@ -1256,7 +1256,7 @@ function initializeChoicesJS() {
                         authorsChoice.setChoices(newChoices, 'value', 'label', false);
                     }
                 } catch (e) {
-                    // Silent fail — client-side search still works as fallback
+                    console.error('Server-side author search failed:', e);
                 }
             }, 300);
         });
@@ -2284,6 +2284,16 @@ function initializeCollocationFilters() {
     });
   }
 
+  let lastScaffaleCode = '';
+  let lastMensolaLevel = 0;
+
+  function updatePreviewLocal() {
+    const pos = Number.parseInt(posizioneInput.value, 10);
+    if (collocazionePreview && lastScaffaleCode && lastMensolaLevel > 0 && pos > 0) {
+      collocazionePreview.value = `${lastScaffaleCode}-${lastMensolaLevel}-${String(pos).padStart(2, '0')}`;
+    }
+  }
+
   async function updateAutoPosition(force = false) {
     const sid = normalizeNumber(scaffaleSel.value);
     const mid = normalizeNumber(mensolaSel.value);
@@ -2298,11 +2308,17 @@ function initializeCollocationFilters() {
         const res = await fetch(`${window.BASE_PATH}/api/collocazione/next?${params.toString()}`);
         if (!res.ok) return;
         const data = await res.json();
+        if (data.scaffale_code) lastScaffaleCode = data.scaffale_code;
+        if (data.mensola_level) lastMensolaLevel = data.mensola_level;
         if (!posizioneInput.dataset.manual || force) {
           posizioneInput.value = data.next_position ?? '';
         }
-        if (data.collocazione) {
-          collocazionePreview.value = data.collocazione;
+        if (!posizioneInput.dataset.manual || force) {
+          if (data.collocazione) {
+            collocazionePreview.value = data.collocazione;
+          }
+        } else {
+          updatePreviewLocal();
         }
       } catch (error) {
         console.error(<?= json_encode(__("Impossibile aggiornare la posizione automatica"), JSON_HEX_TAG) ?>, error);
@@ -2312,6 +2328,8 @@ function initializeCollocationFilters() {
         posizioneInput.value = '';
       }
       collocazionePreview.value = '';
+      lastScaffaleCode = '';
+      lastMensolaLevel = 0;
     }
   }
 
@@ -2320,6 +2338,7 @@ function initializeCollocationFilters() {
       delete posizioneInput.dataset.manual;
     } else {
       posizioneInput.dataset.manual = '1';
+      updatePreviewLocal();
     }
   });
 
@@ -2383,6 +2402,12 @@ function initializeCollocationFilters() {
     const initialScaffale = normalizeNumber(INITIAL_BOOK.scaffale_id || 0);
     const initialMensola = normalizeNumber(INITIAL_BOOK.mensola_id || 0);
     const initialPosizione = normalizeNumber(INITIAL_BOOK.posizione_progressiva || 0);
+    // Initialize scaffale code/mensola level from existing collocazione for instant preview
+    const initialColl = (INITIAL_BOOK.collocazione || '').split('-');
+    if (initialColl.length === 3) {
+      lastScaffaleCode = initialColl[0];
+      lastMensolaLevel = Number.parseInt(initialColl[1], 10) || 0;
+    }
 
     if (initialScaffale) {
       scaffaleSel.value = String(initialScaffale);
@@ -3243,7 +3268,7 @@ function initializeIsbnImport() {
                             }
                         }
                     } catch (isbnErr) {
-                        // Silent fail for ISBN population
+                        console.error('ISBN population failed:', isbnErr);
                     }
                 }
 
@@ -3627,7 +3652,7 @@ function initializeIsbnImport() {
                     }
                 }
             } catch (err) {
-                // Silent fail
+                console.error('ISBN field population failed:', err);
             }
 
             // Handle year (anno_pubblicazione) - numeric year for filtering/sorting

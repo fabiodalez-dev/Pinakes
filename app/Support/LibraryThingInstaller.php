@@ -158,7 +158,7 @@ class LibraryThingInstaller
 
             return ['success' => true, 'message' => __('Plugin LibraryThing installato con successo')];
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             error_log('[LibraryThing Installer] Installation failed: ' . $e->getMessage());
             return ['success' => false, 'message' => __('Errore durante l\'installazione: ') . $e->getMessage()];
@@ -238,7 +238,7 @@ class LibraryThingInstaller
 
             return ['success' => true, 'message' => __('Plugin LibraryThing disinstallato con successo')];
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             error_log('[LibraryThing Installer] Uninstallation failed: ' . $e->getMessage());
             return ['success' => false, 'message' => __('Errore durante la disinstallazione: ') . $e->getMessage()];

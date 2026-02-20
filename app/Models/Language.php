@@ -294,7 +294,7 @@ class Language
 
             $this->db->commit();
             return true;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             throw new \Exception("Failed to set default language: " . $e->getMessage());
         }

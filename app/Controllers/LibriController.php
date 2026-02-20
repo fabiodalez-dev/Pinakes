@@ -230,6 +230,10 @@ class LibriController
             // Create image resource and save
             $image = imagecreatefromstring($imageData);
             if ($image === false) {
+                SecureLogger::warning('Cover image processing failed: imagecreatefromstring returned false', [
+                    'url' => $url,
+                    'data_length' => strlen($imageData),
+                ]);
                 return $url;
             }
 
@@ -240,6 +244,11 @@ class LibriController
             imagedestroy($image);
 
             if (!$saveResult) {
+                SecureLogger::warning('Cover image save failed', [
+                    'url' => $url,
+                    'filepath' => $filepath,
+                    'extension' => $extension,
+                ]);
                 return $url;
             }
 
@@ -480,6 +489,10 @@ class LibriController
     public function store(Request $request, Response $response, mysqli $db): Response
     {
         $data = $this->parseRequestBody($request);
+        if ($data === null) {
+            $_SESSION['error_message'] = __('Impossibile leggere i dati del modulo. Riprova.');
+            return $response->withHeader('Location', url('/admin/libri/crea'))->withStatus(302);
+        }
         // CSRF validated by CsrfMiddleware
 
         // SECURITY: Debug logging rimosso per prevenire information disclosure
@@ -886,7 +899,7 @@ class LibriController
             $collRepo = new \App\Models\CollocationRepository($db);
             if ($fields['scaffale_id'] && $fields['mensola_id']) {
                 $pos = $fields['posizione_progressiva'] ?? null;
-                if ($pos === null || $pos <= 0 || $collRepo->isProgressivaOccupied($fields['scaffale_id'], $fields['mensola_id'], $pos)) {
+                if ($pos === null || $pos <= 0) {
                     $pos = $collRepo->computeNextProgressiva($fields['scaffale_id'], $fields['mensola_id']);
                 }
                 $fields['posizione_progressiva'] = $pos;
@@ -981,6 +994,10 @@ class LibriController
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
         $data = $this->parseRequestBody($request);
+        if ($data === null) {
+            $_SESSION['error_message'] = __('Impossibile leggere i dati del modulo. Riprova.');
+            return $response->withHeader('Location', url('/admin/libri/modifica/' . $id))->withStatus(302);
+        }
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\BookRepository($db);
         $currentBook = $repo->getById($id);
@@ -1282,8 +1299,6 @@ class LibriController
             if ($fields['scaffale_id'] && $fields['mensola_id']) {
                 $pos = $fields['posizione_progressiva'] ?? null;
                 if ($pos === null || $pos <= 0) {
-                    $pos = $collRepo->computeNextProgressiva($fields['scaffale_id'], $fields['mensola_id'], $id);
-                } elseif ($collRepo->isProgressivaOccupied($fields['scaffale_id'], $fields['mensola_id'], $pos, $id)) {
                     $pos = $collRepo->computeNextProgressiva($fields['scaffale_id'], $fields['mensola_id'], $id);
                 }
                 $fields['posizione_progressiva'] = $pos;
@@ -1812,7 +1827,11 @@ class LibriController
         }
 
         $repo = new \App\Models\BookRepository($db);
-        $repo->delete($id);
+        $deleted = $repo->delete($id);
+        if (!$deleted) {
+            $_SESSION['error_message'] = __('Errore durante l\'eliminazione del libro. Riprova.');
+            return $response->withHeader('Location', url('/admin/libri/' . $id))->withStatus(302);
+        }
         return $response->withHeader('Location', url('/admin/libri'))->withStatus(302);
     }
 
@@ -3064,7 +3083,10 @@ class LibriController
         $stmt->close();
     }
 
-    private function parseRequestBody(Request $request): array
+    /**
+     * @return array<string, mixed>|null Returns null if body cannot be parsed
+     */
+    private function parseRequestBody(Request $request): ?array
     {
         $parsed = $request->getParsedBody();
         if ($parsed !== null) {
@@ -3072,12 +3094,15 @@ class LibriController
         }
         $body = (string) $request->getBody();
         if ($body === '') {
-            return [];
+            return null;
         }
         $decoded = json_decode($body, true);
         if (!is_array($decoded)) {
-            SecureLogger::warning('parseRequestBody: JSON decode failed', ['error' => json_last_error_msg()]);
-            return [];
+            SecureLogger::warning('parseRequestBody: JSON decode failed', [
+                'error' => json_last_error_msg(),
+                'body_length' => strlen($body),
+            ]);
+            return null;
         }
         return $decoded;
     }

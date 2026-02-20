@@ -175,7 +175,7 @@ class ContactController
             $mailer = new \App\Support\Mailer();
             $mailer->send($notificationEmail, $subject, $body);
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Errore invio email contatto: " . $e->getMessage());
         }
     }
@@ -194,7 +194,7 @@ class ContactController
                 $this->sanitizeMailField($nome . ' ' . $cognome),
                 $this->sanitizeMailField($email)
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Errore creazione notifica in-app: " . $e->getMessage());
         }
     }

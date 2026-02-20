@@ -299,7 +299,7 @@ class AutoriApiController
 
             // Commit transaction
             $db->commit();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
             AppLog::error('autori.bulk_delete.transaction_failed', ['error' => $e->getMessage()]);
             $response->getBody()->write(json_encode([

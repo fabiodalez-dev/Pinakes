@@ -875,6 +875,7 @@ class BookRepository
     {
         $stmt = $this->db->prepare('SELECT numero_livello FROM mensole WHERE id=? LIMIT 1');
         if (!$stmt) {
+            error_log('[BookRepository] getMensolaLevel prepare failed: ' . $this->db->error);
             return null;
         }
         $stmt->bind_param('i', $mensolaId);
@@ -909,8 +910,9 @@ class BookRepository
     {
         // Internal SOFT DELETE
         // Nullify unique identifiers to avoid blocking new books with the same ISBN/EAN
+        // Also clear collocazione fields to free the shelf position
         // Does not delete related records (kept for history/integrity)
-        $stmt = $this->db->prepare('UPDATE libri SET deleted_at = NOW(), isbn10 = NULL, isbn13 = NULL, ean = NULL WHERE id=?');
+        $stmt = $this->db->prepare('UPDATE libri SET deleted_at = NOW(), isbn10 = NULL, isbn13 = NULL, ean = NULL, scaffale_id = NULL, mensola_id = NULL, posizione_progressiva = NULL, collocazione = NULL WHERE id=?');
         $stmt->bind_param('i', $id);
         return $stmt->execute();
     }

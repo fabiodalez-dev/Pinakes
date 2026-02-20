@@ -218,7 +218,7 @@ class LibraryThingImportController
             ], JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (file_exists($savedPath)) {
                 unlink($savedPath);
             }
@@ -400,7 +400,7 @@ class LibraryThingImportController
                                 $this->enrichBookWithScrapedData($db, $bookId, $parsedData, $scrapedData);
                                 $importData['scraped']++;
                             }
-                        } catch (\Exception $scrapeError) {
+                        } catch (\Throwable $scrapeError) {
                             $this->log("[processChunk] Scraping failed for ISBN {$parsedData['isbn13']}: " . $scrapeError->getMessage());
                             $importData['errors'][] = [
                                 'line' => $lineNumber,

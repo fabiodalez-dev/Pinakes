@@ -166,7 +166,7 @@ class ReservationManager
             $this->commitIfOwned($ownTransaction);
             return false;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
             error_log("processBookAvailability error: " . $e->getMessage());
             return false;
@@ -348,7 +348,7 @@ class ReservationManager
             $this->commitIfOwned($ownTransaction);
             return $loanId;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
             error_log("Failed to create loan from reservation: " . $e->getMessage());
             return false;
@@ -446,7 +446,7 @@ class ReservationManager
 
             return $success;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Failed to send reservation notification: " . $e->getMessage());
             return false;
         }
@@ -618,7 +618,7 @@ class ReservationManager
             $this->commitIfOwned($ownTransaction);
             return $cancelledCount;
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
             error_log("cancelExpiredReservations error: " . $e->getMessage());
             return 0;

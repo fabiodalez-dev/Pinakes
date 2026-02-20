@@ -419,7 +419,7 @@ class SRUServer
             LEFT JOIN scaffali s ON p.scaffale_id = s.id
             LEFT JOIN mensole m ON p.mensola_id = m.id
             LEFT JOIN copie c ON l.id = c.libro_id
-            WHERE {$whereClause}
+            WHERE l.deleted_at IS NULL AND ({$whereClause})
             GROUP BY l.id
         ";
 
@@ -902,9 +902,9 @@ class SRUServer
                 case 'bath.isbn':
                     $stmt = $this->db->prepare("
                         SELECT value AS term, COUNT(*) AS frequency FROM (
-                            SELECT isbn10 AS value FROM libri WHERE isbn10 <> '' AND isbn10 LIKE ?
+                            SELECT isbn10 AS value FROM libri WHERE deleted_at IS NULL AND isbn10 <> '' AND isbn10 LIKE ?
                             UNION ALL
-                            SELECT isbn13 AS value FROM libri WHERE isbn13 <> '' AND isbn13 LIKE ?
+                            SELECT isbn13 AS value FROM libri WHERE deleted_at IS NULL AND isbn13 <> '' AND isbn13 LIKE ?
                         ) AS isbns
                         GROUP BY value
                         ORDER BY value

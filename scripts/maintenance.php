@@ -226,7 +226,7 @@ if ($lastAvailabilityCheck < $oneDayAgo) {
     echo "Recalculating book availability (daily)...\n";
 
     // Count books to decide method
-    $countResult = $db->query("SELECT COUNT(*) as total FROM libri");
+    $countResult = $db->query("SELECT COUNT(*) as total FROM libri WHERE deleted_at IS NULL");
     if (!$countResult) {
         error_log("Maintenance: Failed to count books: " . $db->error);
         echo "✗ Could not retrieve book count, skipping availability recalculation\n\n";

@@ -262,7 +262,7 @@ class LoanPdfGenerator
         $tz = ConfigStore::get('app.timezone', 'Europe/Rome');
         try {
             $timezone = new \DateTimeZone($tz);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $timezone = new \DateTimeZone('Europe/Rome');
         }
         $now = new \DateTime('now', $timezone);
