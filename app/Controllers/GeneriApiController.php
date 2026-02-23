@@ -135,7 +135,7 @@ class GeneriApiController
                 // Cycle detection: walk ancestor chain to prevent A→B→A
                 if ($newParent !== null) {
                     $ancestorId = $newParent;
-                    $depth = 10;
+                    $depth = 100;
                     $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
                     while ($ancestorId > 0 && $depth-- > 0) {
                         if ($ancestorId === $id) {

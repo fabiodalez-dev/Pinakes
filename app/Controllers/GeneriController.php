@@ -102,27 +102,29 @@ class GeneriController
             if (isset($data['parent_id'])) {
                 $newParent = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
                 // Prevent setting self as parent
-                if ($newParent !== $id) {
-                    // Cycle detection: walk ancestor chain to prevent A→B→A
-                    if ($newParent !== null) {
-                        $ancestorId = $newParent;
-                        $depth = 10;
-                        $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
-                        while ($ancestorId > 0 && $depth-- > 0) {
-                            if ($ancestorId === $id) {
-                                $aStmt->close();
-                                $_SESSION['error_message'] = __('Impossibile: si creerebbe un ciclo.');
-                                return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
-                            }
-                            $aStmt->bind_param('i', $ancestorId);
-                            $aStmt->execute();
-                            $aRow = $aStmt->get_result()->fetch_assoc();
-                            $ancestorId = $aRow ? (int)($aRow['parent_id'] ?? 0) : 0;
-                        }
-                        $aStmt->close();
-                    }
-                    $updateData['parent_id'] = $newParent;
+                if ($newParent === $id) {
+                    $_SESSION['error_message'] = __('Un genere non può essere genitore di sé stesso.');
+                    return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
                 }
+                // Cycle detection: walk ancestor chain to prevent A→B→A
+                if ($newParent !== null) {
+                    $ancestorId = $newParent;
+                    $depth = 100;
+                    $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+                    while ($ancestorId > 0 && $depth-- > 0) {
+                        if ($ancestorId === $id) {
+                            $aStmt->close();
+                            $_SESSION['error_message'] = __('Impossibile: si creerebbe un ciclo.');
+                            return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
+                        }
+                        $aStmt->bind_param('i', $ancestorId);
+                        $aStmt->execute();
+                        $aRow = $aStmt->get_result()->fetch_assoc();
+                        $ancestorId = $aRow ? (int)($aRow['parent_id'] ?? 0) : 0;
+                    }
+                    $aStmt->close();
+                }
+                $updateData['parent_id'] = $newParent;
             }
 
             if (!$repo->update($id, $updateData)) {
@@ -149,7 +151,8 @@ class GeneriController
             $_SESSION['success_message'] = __('Genere eliminato con successo!');
             return $response->withHeader('Location', '/admin/generi')->withStatus(302);
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = __('Errore nell\'eliminazione: ') . $e->getMessage();
+            \App\Support\SecureLogger::error('GeneriController::destroy error', ['id' => $id, 'message' => $e->getMessage()]);
+            $_SESSION['error_message'] = __('Errore nell\'eliminazione del genere.');
             return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
         }
     }
@@ -178,7 +181,8 @@ class GeneriController
             $_SESSION['success_message'] = __('Generi uniti con successo!') . $detail;
             return $response->withHeader('Location', "/admin/generi/{$targetId}")->withStatus(302);
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = __('Errore nell\'unione: ') . $e->getMessage();
+            \App\Support\SecureLogger::error('GeneriController::merge error', ['id' => $id, 'target' => $targetId, 'message' => $e->getMessage()]);
+            $_SESSION['error_message'] = __('Errore nell\'unione dei generi.');
             return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
         }
     }

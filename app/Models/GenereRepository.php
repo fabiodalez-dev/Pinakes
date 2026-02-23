@@ -208,13 +208,7 @@ class GenereRepository
         }
         $aStmt->close();
 
-        // Transaction safety: detect if already inside a transaction
-        $acResult = $this->db->query("SELECT @@autocommit as ac");
-        $wasInTransaction = ((int)$acResult->fetch_assoc()['ac'] === 0);
-
-        if (!$wasInTransaction) {
-            $this->db->begin_transaction();
-        }
+        $this->db->begin_transaction();
 
         try {
             // Rename conflicting children before moving
@@ -272,15 +266,11 @@ class GenereRepository
                 throw new \RuntimeException('Errore nella cancellazione del genere di origine');
             }
 
-            if (!$wasInTransaction) {
-                $this->db->commit();
-            }
+            $this->db->commit();
 
             return ['children_moved' => $childrenMoved, 'books_updated' => $booksUpdated];
         } catch (\Throwable $e) {
-            if (!$wasInTransaction) {
-                $this->db->rollback();
-            }
+            $this->db->rollback();
             throw $e;
         }
     }
