@@ -69,8 +69,8 @@ $genereName = $genere['nome'] ?? 'Genere';
                 <option value=""><?= __("— Nessuno (genere principale) —") ?></option>
                 <?php foreach ($allGeneri as $g): ?>
                   <?php if ((int)$g['id'] === $genereId) continue; ?>
-                  <?php if ($g['parent_id'] !== null) continue; ?>
-                  <option value="<?= (int)$g['id'] ?>"<?= ((int)($genere['parent_id'] ?? 0) === (int)$g['id']) ? ' selected' : '' ?>><?= HtmlHelper::e($g['nome']) ?></option>
+                  <?php $label = $g['nome'] . (!empty($g['parent_nome']) ? " ({$g['parent_nome']})" : ''); ?>
+                  <option value="<?= (int)$g['id'] ?>"<?= ((int)($genere['parent_id'] ?? 0) === (int)$g['id']) ? ' selected' : '' ?>><?= HtmlHelper::e($label) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>

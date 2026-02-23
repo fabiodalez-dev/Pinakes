@@ -192,6 +192,22 @@ class GenereRepository
             throw new \InvalidArgumentException('Genere di destinazione non trovato');
         }
 
+        // Prevent merging into a descendant (would create cycles)
+        $ancestorId = $targetId;
+        $depth = 20;
+        $aStmt = $this->db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+        while ($ancestorId > 0 && $depth-- > 0) {
+            if ($ancestorId === $sourceId) {
+                $aStmt->close();
+                throw new \InvalidArgumentException('Impossibile unire un genere con un suo discendente');
+            }
+            $aStmt->bind_param('i', $ancestorId);
+            $aStmt->execute();
+            $row = $aStmt->get_result()->fetch_assoc();
+            $ancestorId = $row ? (int)($row['parent_id'] ?? 0) : 0;
+        }
+        $aStmt->close();
+
         // Transaction safety: detect if already inside a transaction
         $acResult = $this->db->query("SELECT @@autocommit as ac");
         $wasInTransaction = ((int)$acResult->fetch_assoc()['ac'] === 0);

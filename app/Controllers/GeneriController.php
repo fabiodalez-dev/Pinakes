@@ -143,7 +143,9 @@ class GeneriController
         $repo = new GenereRepository($db);
 
         try {
-            $repo->delete($id);
+            if (!$repo->delete($id)) {
+                throw new \RuntimeException('delete() returned false');
+            }
             $_SESSION['success_message'] = __('Genere eliminato con successo!');
             return $response->withHeader('Location', '/admin/generi')->withStatus(302);
         } catch (\Throwable $e) {
