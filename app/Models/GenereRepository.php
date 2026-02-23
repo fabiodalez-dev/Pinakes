@@ -215,9 +215,9 @@ class GenereRepository
                 }
             }
 
-            // Move children from source to target
-            $stmt = $this->db->prepare("UPDATE generi SET parent_id = ? WHERE parent_id = ?");
-            $stmt->bind_param('ii', $targetId, $sourceId);
+            // Move children from source to target (exclude target itself to prevent self-referencing)
+            $stmt = $this->db->prepare("UPDATE generi SET parent_id = ? WHERE parent_id = ? AND id != ?");
+            $stmt->bind_param('iii', $targetId, $sourceId, $targetId);
             $stmt->execute();
             $childrenMoved = $stmt->affected_rows;
 

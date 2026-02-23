@@ -152,10 +152,14 @@ $genereName = $genere['nome'] ?? 'Genere';
                   <option value=""><?= __("— Seleziona —") ?></option>
                   <?php
                   $grouped = [];
+                  $orphanChildren = [];
                   foreach ($allGeneri as $g) {
                       if ((int)$g['id'] === $genereId) continue;
                       if ($g['parent_id'] === null) {
                           $grouped[(int)$g['id']]['_self'] = $g;
+                      } elseif ((int)$g['parent_id'] === $genereId) {
+                          // Children of the current genre — show as top-level in merge dropdown
+                          $orphanChildren[] = $g;
                       } else {
                           $grouped[(int)$g['parent_id']]['_children'][] = $g;
                       }
@@ -175,6 +179,10 @@ $genereName = $genere['nome'] ?? 'Genere';
                   <?php
                       endif;
                   endforeach;
+                  // Show children of the current genre as standalone options
+                  foreach ($orphanChildren as $oc): ?>
+                    <option value="<?= (int)$oc['id'] ?>"><?= HtmlHelper::e($oc['nome']) ?></option>
+                  <?php endforeach;
                   ?>
                 </select>
               </div>

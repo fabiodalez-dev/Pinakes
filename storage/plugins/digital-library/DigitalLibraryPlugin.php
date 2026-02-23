@@ -498,7 +498,7 @@ class DigitalLibraryPlugin
             $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
             \App\Support\SecureLogger::error('[Digital Library] JSON encode failed', ['message' => $e->getMessage()]);
-            $json = json_encode(['success' => false, 'message' => 'Internal error']);
+            $json = json_encode(['success' => false, 'message' => 'Internal error']) ?: '{"success":false,"message":"Internal error"}';
         }
         $response->getBody()->write($json);
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);

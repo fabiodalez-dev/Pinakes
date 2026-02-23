@@ -901,7 +901,7 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (key === 'autore') { document.getElementById('filter_autore').value = ''; document.getElementById('autore_id').value = ''; }
     else if (key === 'editore') { document.getElementById('filter_editore').value = ''; document.getElementById('editore_filter').value = ''; }
     else if (key === 'stato_filter') document.getElementById('stato_filter').value = '';
-    else if (key === 'genere') { document.getElementById('filter_genere').value = ''; document.getElementById('genere_id').value = ''; }
+    else if (key === 'genere') { document.getElementById('filter_genere').value = ''; document.getElementById('genere_id').value = ''; genereUrlFilter = 0; sottogenereUrlFilter = 0; }
     table.ajax.reload();
     updateActiveFilters();
   }
@@ -945,6 +945,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Clear hidden ID and reload table when input is cleared
         if (hidden && hidden.value) {
           hidden.value = '';
+          // Also reset URL genre filters when genre autocomplete is cleared
+          if (hiddenId === 'genere_id') {
+            genereUrlFilter = 0;
+            sottogenereUrlFilter = 0;
+          }
           table.ajax.reload();
           updateActiveFilters();
         }
