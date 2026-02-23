@@ -133,17 +133,19 @@ class GeneriApiController
                     if ($newParent !== null) {
                         $ancestorId = $newParent;
                         $depth = 10;
+                        $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
                         while ($ancestorId > 0 && $depth-- > 0) {
                             if ($ancestorId === $id) {
+                                $aStmt->close();
                                 $response->getBody()->write(json_encode(['error' => __('Impossibile: si creerebbe un ciclo.')]));
                                 return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
                             }
-                            $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
                             $aStmt->bind_param('i', $ancestorId);
                             $aStmt->execute();
                             $aRow = $aStmt->get_result()->fetch_assoc();
                             $ancestorId = $aRow ? (int)($aRow['parent_id'] ?? 0) : 0;
                         }
+                        $aStmt->close();
                     }
                     $updateData['parent_id'] = $newParent;
                 }

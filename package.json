@@ -4,7 +4,7 @@
   "description": "Pinakes - Sistema open-source per la gestione di biblioteche",
   "main": "index.js",
   "scripts": {
-    "test": "npx playwright test --config=tests/playwright.config.js",
+    "test": "playwright test --config=tests/playwright.config.js",
     "build": "cd frontend && npm run build",
     "dev": "cd frontend && npm run start",
     "postinstall": "node scripts/copy-vendor-assets.js"

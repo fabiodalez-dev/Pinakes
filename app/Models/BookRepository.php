@@ -1018,9 +1018,9 @@ class BookRepository
             // Cascade: radice = this genre, genere/sotto = not set
             $row['radice_id'] = $chain[0]['id'];
             $row['radice_nome'] = $chain[0]['nome'];
-            // genere_id stays as-is in l.* but cascade won't find it in L2 children
-            // Override for correct cascade behavior
+            $row['genere_nome'] = null;
             $row['genere_id_cascade'] = 0;
+            $row['sottogenere_nome'] = null;
             $row['sottogenere_id_cascade'] = 0;
         } elseif ($chainLen === 2) {
             // genere_id points to L2 genre — standard case

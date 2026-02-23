@@ -433,6 +433,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const urlParams = new URLSearchParams(window.location.search);
   const initialGenere = parseInt(urlParams.get('genere') || urlParams.get('genere_filter') || '0', 10) || 0;
   const initialSottogenere = parseInt(urlParams.get('sottogenere') || urlParams.get('sottogenere_filter') || '0', 10) || 0;
+  let genereUrlFilter = initialGenere;
+  let sottogenereUrlFilter = initialSottogenere;
   const initialKeywords = urlParams.get('keywords') || '';
   const initialCollana = urlParams.get('collana') || '';
   let collanaFilter = initialCollana;
@@ -474,6 +476,8 @@ document.addEventListener('DOMContentLoaded', function() {
       closeBtn.appendChild(closeIcon);
       closeBtn.addEventListener('click', function() {
         collanaFilter = '';
+        genereUrlFilter = 0;
+        sottogenereUrlFilter = 0;
         banner.remove();
         table.ajax.reload();
       });
@@ -628,8 +632,8 @@ document.addEventListener('DOMContentLoaded', function() {
           pub_from: document.getElementById('pub_from').value,
           autore_id: document.getElementById('autore_id').value || 0,
           editore_filter: document.getElementById('editore_filter').value || 0,
-          genere_filter: document.getElementById('genere_id').value || initialGenere || 0,
-          sottogenere_filter: initialSottogenere || 0,
+          genere_filter: document.getElementById('genere_id').value || genereUrlFilter || 0,
+          sottogenere_filter: sottogenereUrlFilter || 0,
           posizione_id: document.getElementById('posizione_id').value || 0,
           anno_from: document.getElementById('anno_from').value,
           anno_to: document.getElementById('anno_to').value,
@@ -913,6 +917,8 @@ document.addEventListener('DOMContentLoaded', function() {
       if (el) el.value = '';
     });
     collanaFilter = '';
+    genereUrlFilter = 0;
+    sottogenereUrlFilter = 0;
     const urlBanner = document.getElementById('url-filter-flash');
     if (urlBanner) urlBanner.remove();
     selectedBooks.clear();
