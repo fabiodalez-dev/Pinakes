@@ -265,7 +265,7 @@ class DigitalLibraryPlugin
      */
     public function renderAudioPlayer(array $book): void
     {
-        if (!empty($book['audio_url'] ?? '')) {
+        if (!empty($book['audio_url'])) {
             include __DIR__ . '/views/frontend-player.php';
         }
     }
@@ -375,7 +375,12 @@ class DigitalLibraryPlugin
                 default => __('Errore durante il caricamento del file.') . ' (code: ' . $errorCode . ')',
             };
 
-            return $this->json($response, ['success' => false, 'message' => $message], 400);
+            $status = match ($errorCode) {
+                UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE => 500,
+                default => 400,
+            };
+
+            return $this->json($response, ['success' => false, 'message' => $message], $status);
         }
 
         // Validate size / mime
@@ -489,7 +494,13 @@ class DigitalLibraryPlugin
      */
     private function json($response, array $data, int $status = 200)
     {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG));
+        try {
+            $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            \App\Support\SecureLogger::error('[Digital Library] JSON encode failed', ['message' => $e->getMessage()]);
+            $json = json_encode(['success' => false, 'message' => 'Internal error']);
+        }
+        $response->getBody()->write($json);
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

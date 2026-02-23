@@ -129,6 +129,22 @@ class GeneriApiController
             if (isset($data['parent_id'])) {
                 $newParent = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
                 if ($newParent !== $id) {
+                    // Cycle detection: walk ancestor chain to prevent A→B→A
+                    if ($newParent !== null) {
+                        $ancestorId = $newParent;
+                        $depth = 10;
+                        while ($ancestorId > 0 && $depth-- > 0) {
+                            if ($ancestorId === $id) {
+                                $response->getBody()->write(json_encode(['error' => __('Impossibile: si creerebbe un ciclo.')]));
+                                return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+                            }
+                            $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+                            $aStmt->bind_param('i', $ancestorId);
+                            $aStmt->execute();
+                            $aRow = $aStmt->get_result()->fetch_assoc();
+                            $ancestorId = $aRow ? (int)($aRow['parent_id'] ?? 0) : 0;
+                        }
+                    }
                     $updateData['parent_id'] = $newParent;
                 }
             }
@@ -141,7 +157,12 @@ class GeneriApiController
             ], JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Throwable $e) {
-            $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
+            if ($e instanceof \InvalidArgumentException) {
+                $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
+                return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            }
+            \App\Support\SecureLogger::error('GeneriApiController::update error', ['id' => $id, 'message' => $e->getMessage()]);
+            $response->getBody()->write(json_encode(['error' => __('Errore interno durante l\'aggiornamento.')]));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
     }

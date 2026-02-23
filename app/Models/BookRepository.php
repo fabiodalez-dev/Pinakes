@@ -982,8 +982,8 @@ class BookRepository
         $currentId = $genereId;
         $maxDepth = 5; // safety limit
 
+        $stmt = $this->db->prepare('SELECT id, nome, parent_id FROM generi WHERE id = ?');
         while ($currentId > 0 && $maxDepth-- > 0) {
-            $stmt = $this->db->prepare('SELECT id, nome, parent_id FROM generi WHERE id = ?');
             $stmt->bind_param('i', $currentId);
             $stmt->execute();
             $genre = $stmt->get_result()->fetch_assoc();
@@ -993,6 +993,7 @@ class BookRepository
             array_unshift($chain, $genre); // prepend: root first
             $currentId = (int)($genre['parent_id'] ?? 0);
         }
+        $stmt->close();
 
         // Also resolve sottogenere_id chain if present
         $sottogenereId = (int)($row['sottogenere_id'] ?? 0);
@@ -1000,6 +1001,17 @@ class BookRepository
         // Map chain to the 3-level cascade based on where genere_id sits
         // chain[0] = root (L1), chain[1] = genre (L2), chain[2] = subgenre (L3)
         $chainLen = count($chain);
+
+        if ($chainLen === 0) {
+            // genre_id points to a deleted/missing genre — clear cascade fields
+            $row['radice_id'] = 0;
+            $row['radice_nome'] = null;
+            $row['genere_nome'] = null;
+            $row['genere_id_cascade'] = 0;
+            $row['sottogenere_nome'] = null;
+            $row['sottogenere_id_cascade'] = 0;
+            return;
+        }
 
         if ($chainLen === 1) {
             // genere_id points to a ROOT genre (L1)
@@ -1017,7 +1029,7 @@ class BookRepository
             $row['genere_nome'] = $chain[1]['nome'];
             $row['genere_id_cascade'] = $chain[1]['id'];
             $row['sottogenere_id_cascade'] = $sottogenereId;
-        } elseif ($chainLen >= 3) {
+        } else {
             // genere_id points to L3+ — stored at a deeper level
             // Map: root=chain[0], genre=chain[1], sotto=genere_id
             $row['radice_id'] = $chain[0]['id'];

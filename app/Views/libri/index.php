@@ -435,6 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
   const initialSottogenere = parseInt(urlParams.get('sottogenere') || urlParams.get('sottogenere_filter') || '0', 10) || 0;
   const initialKeywords = urlParams.get('keywords') || '';
   const initialCollana = urlParams.get('collana') || '';
+  let collanaFilter = initialCollana;
 
   // Pre-fill search from ?keywords= URL parameter (keyword links from book detail)
   if (initialKeywords) {
@@ -471,7 +472,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const closeIcon = document.createElement('i');
       closeIcon.className = 'fas fa-times';
       closeBtn.appendChild(closeIcon);
-      closeBtn.addEventListener('click', function() { banner.remove(); });
+      closeBtn.addEventListener('click', function() {
+        collanaFilter = '';
+        banner.remove();
+        table.ajax.reload();
+      });
       banner.appendChild(msg);
       banner.appendChild(closeBtn);
       const target = document.getElementById('table-view')?.closest('.bg-white.rounded-xl');
@@ -628,7 +633,7 @@ document.addEventListener('DOMContentLoaded', function() {
           posizione_id: document.getElementById('posizione_id').value || 0,
           anno_from: document.getElementById('anno_from').value,
           anno_to: document.getElementById('anno_to').value,
-          collana: initialCollana
+          collana: collanaFilter
         };
       },
       dataSrc: function(json) {
@@ -907,6 +912,9 @@ document.addEventListener('DOMContentLoaded', function() {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+    collanaFilter = '';
+    const urlBanner = document.getElementById('url-filter-flash');
+    if (urlBanner) urlBanner.remove();
     selectedBooks.clear();
     table.ajax.reload();
     updateActiveFilters();

@@ -221,17 +221,21 @@ class GenereRepository
             $stmt->execute();
             $childrenMoved = $stmt->affected_rows;
 
+            // Count distinct books referencing source (before updates, to avoid double-counting)
+            $stmt = $this->db->prepare("SELECT COUNT(DISTINCT id) as cnt FROM libri WHERE (genere_id = ? OR sottogenere_id = ?) AND deleted_at IS NULL");
+            $stmt->bind_param('ii', $sourceId, $sourceId);
+            $stmt->execute();
+            $booksUpdated = (int)$stmt->get_result()->fetch_assoc()['cnt'];
+
             // Update books: genere_id
             $stmt = $this->db->prepare("UPDATE libri SET genere_id = ? WHERE genere_id = ? AND deleted_at IS NULL");
             $stmt->bind_param('ii', $targetId, $sourceId);
             $stmt->execute();
-            $booksUpdated = $stmt->affected_rows;
 
             // Update books: sottogenere_id
             $stmt = $this->db->prepare("UPDATE libri SET sottogenere_id = ? WHERE sottogenere_id = ? AND deleted_at IS NULL");
             $stmt->bind_param('ii', $targetId, $sourceId);
             $stmt->execute();
-            $booksUpdated += $stmt->affected_rows;
 
             // Delete source genre
             $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
