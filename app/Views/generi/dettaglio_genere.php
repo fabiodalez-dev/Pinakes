@@ -151,38 +151,64 @@ $genereName = $genere['nome'] ?? 'Genere';
                 <select id="merge_target_id" name="target_id" class="form-input" required>
                   <option value=""><?= __("— Seleziona —") ?></option>
                   <?php
-                  $grouped = [];
-                  $orphanChildren = [];
+                  // Build tree map: id → node with children array
+                  $nodeMap = [];
+                  $roots = [];
                   foreach ($allGeneri as $g) {
                       if ((int)$g['id'] === $genereId) continue;
-                      if ($g['parent_id'] === null) {
-                          $grouped[(int)$g['id']]['_self'] = $g;
-                      } elseif ((int)$g['parent_id'] === $genereId) {
-                          // Children of the current genre — show as top-level in merge dropdown
-                          $orphanChildren[] = $g;
+                      $nodeMap[(int)$g['id']] = $g;
+                      $nodeMap[(int)$g['id']]['_children'] = [];
+                  }
+                  foreach ($nodeMap as $nid => &$node) {
+                      $pid = $node['parent_id'] !== null ? (int)$node['parent_id'] : null;
+                      // Treat children of current genre (or orphans) as roots
+                      if ($pid === null || $pid === $genereId || !isset($nodeMap[$pid])) {
+                          $roots[] = $nid;
                       } else {
-                          $grouped[(int)$g['parent_id']]['_children'][] = $g;
+                          $nodeMap[$pid]['_children'][] = $nid;
                       }
                   }
-                  foreach ($grouped as $gid => $group):
-                      if (isset($group['_self'])):
-                          $parentG = $group['_self'];
+                  unset($node);
+
+                  // Flatten tree into indented option list
+                  $flatOptions = [];
+                  $stack = [];
+                  foreach (array_reverse($roots) as $rid) {
+                      $stack[] = [$rid, 0];
+                  }
+                  while ($stack) {
+                      [$nid, $depth] = array_pop($stack);
+                      $n = $nodeMap[$nid];
+                      $indent = str_repeat('  ', $depth);
+                      $prefix = $depth > 0 ? $indent . '└ ' : '';
+                      $flatOptions[] = ['id' => $nid, 'label' => $prefix . $n['nome'], 'isRoot' => ($depth === 0)];
+                      foreach (array_reverse($n['_children']) as $cid) {
+                          $stack[] = [$cid, $depth + 1];
+                      }
+                  }
+
+                  // Render: group consecutive root+children under optgroups
+                  $inGroup = false;
+                  foreach ($flatOptions as $i => $opt):
+                      if ($opt['isRoot']):
+                          if ($inGroup) { echo '</optgroup>'; }
+                          // Check if this root has children (next item is not a root)
+                          $hasChildren = isset($flatOptions[$i + 1]) && !$flatOptions[$i + 1]['isRoot'];
+                          if ($hasChildren):
+                              $inGroup = true;
                   ?>
-                  <optgroup label="<?= HtmlHelper::e($parentG['nome']) ?>">
-                    <option value="<?= (int)$parentG['id'] ?>"><?= HtmlHelper::e($parentG['nome']) ?></option>
-                    <?php if (!empty($group['_children'])): ?>
-                      <?php foreach ($group['_children'] as $childG): ?>
-                        <option value="<?= (int)$childG['id'] ?>">  └ <?= HtmlHelper::e($childG['nome']) ?></option>
-                      <?php endforeach; ?>
-                    <?php endif; ?>
-                  </optgroup>
-                  <?php
-                      endif;
+                  <optgroup label="<?= HtmlHelper::e($nodeMap[$opt['id']]['nome']) ?>">
+                    <option value="<?= (int)$opt['id'] ?>"><?= HtmlHelper::e($nodeMap[$opt['id']]['nome']) ?></option>
+                  <?php       else:
+                              $inGroup = false;
+                  ?>
+                    <option value="<?= (int)$opt['id'] ?>"><?= HtmlHelper::e($nodeMap[$opt['id']]['nome']) ?></option>
+                  <?php       endif;
+                      else: ?>
+                    <option value="<?= (int)$opt['id'] ?>"><?= HtmlHelper::e($opt['label']) ?></option>
+                  <?php   endif;
                   endforeach;
-                  // Show children of the current genre as standalone options
-                  foreach ($orphanChildren as $oc): ?>
-                    <option value="<?= (int)$oc['id'] ?>"><?= HtmlHelper::e($oc['nome']) ?></option>
-                  <?php endforeach;
+                  if ($inGroup) { echo '</optgroup>'; }
                   ?>
                 </select>
               </div>

@@ -478,8 +478,12 @@ document.addEventListener('DOMContentLoaded', function() {
         collanaFilter = '';
         genereUrlFilter = 0;
         sottogenereUrlFilter = 0;
+        if (initialKeywords) {
+          document.getElementById('search_text').value = '';
+        }
         banner.remove();
         table.ajax.reload();
+        updateActiveFilters();
       });
       banner.appendChild(msg);
       banner.appendChild(closeBtn);
@@ -987,6 +991,8 @@ document.addEventListener('DOMContentLoaded', function() {
   setupAutocomplete('filter_genere', 'filter_genere_suggest', 'genere_id', window.BASE_PATH + '/api/search/generi?q=', item => {
     document.getElementById('genere_id').value = item.id;
     document.getElementById('filter_genere').value = item.label;
+    genereUrlFilter = 0;
+    sottogenereUrlFilter = 0;
   });
   setupAutocomplete('filter_posizione', 'filter_posizione_suggest', 'posizione_id', window.BASE_PATH + '/api/search/collocazione?q=', item => {
     document.getElementById('posizione_id').value = item.id;

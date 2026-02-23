@@ -128,30 +128,34 @@ class GeneriApiController
             $updateData = ['nome' => $nome];
             if (isset($data['parent_id'])) {
                 $newParent = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
-                if ($newParent !== $id) {
-                    // Cycle detection: walk ancestor chain to prevent A→B→A
-                    if ($newParent !== null) {
-                        $ancestorId = $newParent;
-                        $depth = 10;
-                        $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
-                        while ($ancestorId > 0 && $depth-- > 0) {
-                            if ($ancestorId === $id) {
-                                $aStmt->close();
-                                $response->getBody()->write(json_encode(['error' => __('Impossibile: si creerebbe un ciclo.')], JSON_UNESCAPED_UNICODE));
-                                return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
-                            }
-                            $aStmt->bind_param('i', $ancestorId);
-                            $aStmt->execute();
-                            $aRow = $aStmt->get_result()->fetch_assoc();
-                            $ancestorId = $aRow ? (int)($aRow['parent_id'] ?? 0) : 0;
-                        }
-                        $aStmt->close();
-                    }
-                    $updateData['parent_id'] = $newParent;
+                if ($newParent === $id) {
+                    $response->getBody()->write(json_encode(['error' => __('Un genere non può essere genitore di sé stesso.')], JSON_UNESCAPED_UNICODE));
+                    return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
                 }
+                // Cycle detection: walk ancestor chain to prevent A→B→A
+                if ($newParent !== null) {
+                    $ancestorId = $newParent;
+                    $depth = 10;
+                    $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+                    while ($ancestorId > 0 && $depth-- > 0) {
+                        if ($ancestorId === $id) {
+                            $aStmt->close();
+                            $response->getBody()->write(json_encode(['error' => __('Impossibile: si creerebbe un ciclo.')], JSON_UNESCAPED_UNICODE));
+                            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+                        }
+                        $aStmt->bind_param('i', $ancestorId);
+                        $aStmt->execute();
+                        $aRow = $aStmt->get_result()->fetch_assoc();
+                        $ancestorId = $aRow ? (int)($aRow['parent_id'] ?? 0) : 0;
+                    }
+                    $aStmt->close();
+                }
+                $updateData['parent_id'] = $newParent;
             }
 
-            $repo->update($id, $updateData);
+            if (!$repo->update($id, $updateData)) {
+                throw new \RuntimeException('update() returned false');
+            }
             $response->getBody()->write(json_encode([
                 'id' => $id,
                 'nome' => $nome,

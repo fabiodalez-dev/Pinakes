@@ -59,7 +59,16 @@ class DigitalLibraryPlugin
         // Create .htaccess for security
         $htaccess = $uploadsDir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            file_put_contents($htaccess, "# Protect directory listing\nOptions -Indexes\n");
+            file_put_contents($htaccess, implode("\n", [
+                '# Protect directory listing',
+                'Options -Indexes',
+                '# Deny execution of any server-side scripts',
+                '<FilesMatch "\.(php\d?|phtml|phar|pl|py|cgi|sh)$">',
+                '    Order Deny,Allow',
+                '    Deny from all',
+                '</FilesMatch>',
+                '',
+            ]));
         }
 
         // Register hooks in database
@@ -77,6 +86,9 @@ class DigitalLibraryPlugin
         }
 
         $stmt = $this->db->prepare("DELETE FROM plugin_hooks WHERE plugin_id = ?");
+        if ($stmt === false) {
+            return;
+        }
         $stmt->bind_param("i", $this->pluginId);
         $stmt->execute();
         $stmt->close();
@@ -93,13 +105,13 @@ class DigitalLibraryPlugin
         }
 
         $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'file_url'");
-        if ($result->num_rows === 0) {
+        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
             // Add file_url column if missing
             $this->db->query("ALTER TABLE libri ADD COLUMN file_url VARCHAR(500) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie");
         }
 
         $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'audio_url'");
-        if ($result->num_rows === 0) {
+        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
             // Add audio_url column if missing
             $this->db->query("ALTER TABLE libri ADD COLUMN audio_url VARCHAR(500) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url");
         }
@@ -182,6 +194,7 @@ class DigitalLibraryPlugin
             $result = $stmt->get_result();
 
             if ($result->num_rows === 0) {
+                $stmt->close(); // close SELECT stmt before reassignment
                 // Insert new hook
                 $stmt = $this->db->prepare("
                     INSERT INTO plugin_hooks
@@ -391,19 +404,22 @@ class DigitalLibraryPlugin
 
         $allowedMime = ($type === 'audio')
             ? ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/x-m4a', 'audio/wav']
-            : ['application/pdf', 'application/epub+zip', 'application/octet-stream'];
+            : ['application/pdf', 'application/epub+zip'];
+
+        // Always validate extension regardless of reported MIME type
+        $filename = strtolower($file->getClientFilename());
+        $validExt = ($type === 'audio')
+            ? ['mp3', 'm4a', 'ogg', 'wav']
+            : ['pdf', 'epub'];
+        $ext = pathinfo($filename, PATHINFO_EXTENSION);
+        if (!in_array($ext, $validExt, true)) {
+            return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
+        }
 
         $clientMediaType = $file->getClientMediaType();
         if (!in_array($clientMediaType, $allowedMime, true)) {
-            // Allow by extension as fallback
-            $filename = strtolower($file->getClientFilename());
-            $validExt = ($type === 'audio')
-                ? ['mp3', 'm4a', 'ogg', 'wav']
-                : ['pdf', 'epub'];
-            $ext = pathinfo($filename, PATHINFO_EXTENSION);
-            if (!in_array($ext, $validExt, true)) {
-                return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
-            }
+            // Extension already validated above — allow if extension is safe
+            // (browsers may report wrong MIME for valid files)
         }
 
         $uploadsDir = realpath(__DIR__ . '/../../../public/uploads/digital');

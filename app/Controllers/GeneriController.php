@@ -125,10 +125,13 @@ class GeneriController
                 }
             }
 
-            $repo->update($id, $updateData);
+            if (!$repo->update($id, $updateData)) {
+                throw new \RuntimeException('update() returned false');
+            }
             $_SESSION['success_message'] = __('Genere aggiornato con successo!');
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = __('Errore nell\'aggiornamento del genere: ') . $e->getMessage();
+            \App\Support\SecureLogger::error('GeneriController::update error', ['id' => $id, 'message' => $e->getMessage()]);
+            $_SESSION['error_message'] = __('Errore nell\'aggiornamento del genere.');
         }
 
         return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);

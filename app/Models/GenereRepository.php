@@ -209,6 +209,13 @@ class GenereRepository
             foreach ($sourceChildren as $child) {
                 if (in_array($child['nome'], $targetChildNames, true)) {
                     $newName = $child['nome'] . ' (ex ' . $source['nome'] . ')';
+                    // If the renamed version also collides, add a counter
+                    $counter = 2;
+                    while (in_array($newName, $targetChildNames, true)) {
+                        $newName = $child['nome'] . ' (ex ' . $source['nome'] . ' ' . $counter . ')';
+                        $counter++;
+                    }
+                    $targetChildNames[] = $newName;
                     $stmt = $this->db->prepare("UPDATE generi SET nome = ? WHERE id = ?");
                     $stmt->bind_param('si', $newName, $child['id']);
                     $stmt->execute();
@@ -221,26 +228,33 @@ class GenereRepository
             $stmt->execute();
             $childrenMoved = $stmt->affected_rows;
 
-            // Count distinct books referencing source (before updates, to avoid double-counting)
-            $stmt = $this->db->prepare("SELECT COUNT(DISTINCT id) as cnt FROM libri WHERE (genere_id = ? OR sottogenere_id = ?) AND deleted_at IS NULL");
+            // If target was a child of source, reparent target to source's parent
+            $sourceParent = $source['parent_id'] !== null ? (int)$source['parent_id'] : null;
+            $stmt = $this->db->prepare("UPDATE generi SET parent_id = ? WHERE id = ? AND parent_id = ?");
+            $stmt->bind_param('iii', $sourceParent, $targetId, $sourceId);
+            $stmt->execute();
+
+            // Count distinct books referencing source (including soft-deleted, since we delete the genre row)
+            $stmt = $this->db->prepare("SELECT COUNT(DISTINCT id) as cnt FROM libri WHERE genere_id = ? OR sottogenere_id = ?");
             $stmt->bind_param('ii', $sourceId, $sourceId);
             $stmt->execute();
             $booksUpdated = (int)$stmt->get_result()->fetch_assoc()['cnt'];
 
-            // Update books: genere_id
-            $stmt = $this->db->prepare("UPDATE libri SET genere_id = ? WHERE genere_id = ? AND deleted_at IS NULL");
+            // Update ALL books (including soft-deleted) to prevent dangling FK references
+            $stmt = $this->db->prepare("UPDATE libri SET genere_id = ? WHERE genere_id = ?");
             $stmt->bind_param('ii', $targetId, $sourceId);
             $stmt->execute();
 
-            // Update books: sottogenere_id
-            $stmt = $this->db->prepare("UPDATE libri SET sottogenere_id = ? WHERE sottogenere_id = ? AND deleted_at IS NULL");
+            $stmt = $this->db->prepare("UPDATE libri SET sottogenere_id = ? WHERE sottogenere_id = ?");
             $stmt->bind_param('ii', $targetId, $sourceId);
             $stmt->execute();
 
             // Delete source genre
             $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
             $stmt->bind_param('i', $sourceId);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nella cancellazione del genere di origine');
+            }
 
             if (!$wasInTransaction) {
                 $this->db->commit();
