@@ -15,26 +15,25 @@ declare(strict_types=1);
  * - Optional and fully disableable
  *
  * @package Pinakes\Plugins\DigitalLibrary
- * @version 1.0.0
+ * @version 1.1.0
  */
 class DigitalLibraryPlugin
 {
     private ?\mysqli $db = null;
-    private ?object $hookManager = null;
     private int $pluginId = 0;
-    private array $settings = [];
     private static bool $routesRegistered = false;
 
     /**
      * Constructor
      *
      * @param \mysqli|null $db Database connection
-     * @param object|null $hookManager Hook manager instance
+     * @param object|null $hookManager Hook manager instance (part of plugin API contract)
+     *
+     * @phpstan-ignore constructor.unusedParameter
      */
     public function __construct(?\mysqli $db = null, ?object $hookManager = null)
     {
         $this->db = $db;
-        $this->hookManager = $hookManager;
     }
 
     /**
@@ -43,33 +42,7 @@ class DigitalLibraryPlugin
     public function setPluginId(int $pluginId): void
     {
         $this->pluginId = $pluginId;
-        $this->loadSettings();
         $this->registerHooks();
-    }
-
-    /**
-     * Load plugin settings from database
-     */
-    private function loadSettings(): void
-    {
-        if (!$this->db || $this->pluginId === 0) {
-            return;
-        }
-
-        $stmt = $this->db->prepare("
-            SELECT setting_key, setting_value
-            FROM plugin_settings
-            WHERE plugin_id = ?
-        ");
-        $stmt->bind_param("i", $this->pluginId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        while ($row = $result->fetch_assoc()) {
-            $this->settings[$row['setting_key']] = $row['setting_value'];
-        }
-
-        $stmt->close();
     }
 
     /**
@@ -240,10 +213,6 @@ class DigitalLibraryPlugin
      */
     public function registerRoutes($app): void
     {
-        if (!$app) {
-            return;
-        }
-
         // Prevent duplicate registration
         if (self::$routesRegistered) {
             return;
@@ -296,7 +265,7 @@ class DigitalLibraryPlugin
      */
     public function renderAudioPlayer(array $book): void
     {
-        if ($this->hasAudiobook($book)) {
+        if (!empty($book['audio_url'] ?? '')) {
             include __DIR__ . '/views/frontend-player.php';
         }
     }
@@ -332,35 +301,8 @@ class DigitalLibraryPlugin
     }
 
     // ========================================================================
-    // Helper Methods
+    // Upload Handler
     // ========================================================================
-
-    /**
-     * Check if book has eBook file
-     */
-    private function hasEbook(array $book): bool
-    {
-        return !empty($book['file_url'] ?? '');
-    }
-
-    /**
-     * Check if book has audiobook file
-     */
-    private function hasAudiobook(array $book): bool
-    {
-        return !empty($book['audio_url'] ?? '');
-    }
-
-    /**
-     * Get safe file URL
-     */
-    private function getSafeUrl(?string $url): string
-    {
-        if (empty($url)) {
-            return '';
-        }
-        return htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-    }
 
     /**
      * Handle AJAX upload request
@@ -413,7 +355,27 @@ class DigitalLibraryPlugin
         ]);
 
         if ($file->getError() !== UPLOAD_ERR_OK) {
-            return $this->json($response, ['success' => false, 'message' => __('Errore durante il caricamento del file.')], 400);
+            $errorCode = $file->getError();
+            \App\Support\SecureLogger::warning('[Digital Library] Upload failed', [
+                'error_code' => $errorCode,
+                'filename' => $file->getClientFilename(),
+                'php_upload_max' => ini_get('upload_max_filesize') ?: 'unknown',
+                'php_post_max' => ini_get('post_max_size') ?: 'unknown'
+            ]);
+
+            $message = match ($errorCode) {
+                UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => sprintf(
+                    __('Il file supera il limite di upload di PHP (%s). Aumenta upload_max_filesize e post_max_size nella configurazione PHP.'),
+                    ini_get('upload_max_filesize') ?: '?'
+                ),
+                UPLOAD_ERR_PARTIAL => __('Il file è stato caricato solo parzialmente. Riprova.'),
+                UPLOAD_ERR_NO_FILE => __('Nessun file caricato.'),
+                UPLOAD_ERR_NO_TMP_DIR => __('Cartella temporanea mancante sul server. Contatta l\'amministratore di sistema.'),
+                UPLOAD_ERR_CANT_WRITE => __('Impossibile scrivere il file su disco. Controlla i permessi della cartella temporanea.'),
+                default => __('Errore durante il caricamento del file.') . ' (code: ' . $errorCode . ')',
+            };
+
+            return $this->json($response, ['success' => false, 'message' => $message], 400);
         }
 
         // Validate size / mime
@@ -465,6 +427,10 @@ class DigitalLibraryPlugin
         ]);
     }
 
+    // ========================================================================
+    // Asset Serving
+    // ========================================================================
+
     /**
      * Serve plugin assets (CSS/JS) from storage safely
      */
@@ -500,6 +466,10 @@ class DigitalLibraryPlugin
             ->withHeader('Cache-Control', 'public, max-age=31536000');
     }
 
+    // ========================================================================
+    // Private Helpers
+    // ========================================================================
+
     /**
      * Generate safe filename
      */
@@ -519,7 +489,7 @@ class DigitalLibraryPlugin
      */
     private function json($response, array $data, int $status = 200)
     {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG));
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

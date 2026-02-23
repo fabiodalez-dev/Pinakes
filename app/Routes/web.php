@@ -1345,6 +1345,24 @@ return function (App $app): void {
         return $controller->show($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
 
+    $app->post('/admin/generi/{id:\d+}/modifica', function ($request, $response, $args) use ($app) {
+        $controller = new GeneriController();
+        $db = $app->getContainer()->get('db');
+        return $controller->update($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/generi/{id:\d+}/unisci', function ($request, $response, $args) use ($app) {
+        $controller = new GeneriController();
+        $db = $app->getContainer()->get('db');
+        return $controller->merge($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/generi/{id:\d+}/elimina', function ($request, $response, $args) use ($app) {
+        $controller = new GeneriController();
+        $db = $app->getContainer()->get('db');
+        return $controller->destroy($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Collocazione (protected admin)
     $app->get('/admin/collocazione', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
@@ -1919,6 +1937,11 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->getSottogeneri($request, $response, $db);
     });
+    $app->post('/api/generi/{id:\d+}', function ($request, $response, $args) use ($app) {
+        $controller = new GeneriApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->update($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     // Editor delete route
 
     // API per scraping dati libro tramite ISBN - PROTETTO: Solo admin e staff

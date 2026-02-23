@@ -84,6 +84,82 @@ class GeneriController
         }
     }
 
+    public function update(Request $request, Response $response, \mysqli $db, int $id): Response
+    {
+        $data = $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+        $repo = new GenereRepository($db);
+
+        $genere = $repo->getById($id);
+        if (!$genere) {
+            return $response->withStatus(404);
+        }
+
+        try {
+            $updateData = ['nome' => trim((string)($data['nome'] ?? ''))];
+
+            // Allow moving to a different parent (but not if it would create a cycle)
+            if (isset($data['parent_id'])) {
+                $newParent = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
+                // Prevent setting self as parent
+                if ($newParent !== $id) {
+                    $updateData['parent_id'] = $newParent;
+                }
+            }
+
+            $repo->update($id, $updateData);
+            $_SESSION['success_message'] = __('Genere aggiornato con successo!');
+        } catch (\Throwable $e) {
+            $_SESSION['error_message'] = __('Errore nell\'aggiornamento del genere: ') . $e->getMessage();
+        }
+
+        return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
+    }
+
+    public function destroy(Request $request, Response $response, \mysqli $db, int $id): Response
+    {
+        // CSRF validated by CsrfMiddleware
+        $repo = new GenereRepository($db);
+
+        try {
+            $repo->delete($id);
+            $_SESSION['success_message'] = __('Genere eliminato con successo!');
+            return $response->withHeader('Location', '/admin/generi')->withStatus(302);
+        } catch (\Throwable $e) {
+            $_SESSION['error_message'] = __('Errore nell\'eliminazione: ') . $e->getMessage();
+            return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
+        }
+    }
+
+    public function merge(Request $request, Response $response, \mysqli $db, int $id): Response
+    {
+        $data = $request->getParsedBody();
+        $repo = new GenereRepository($db);
+
+        $targetId = (int)($data['target_id'] ?? 0);
+        if ($targetId === 0) {
+            $_SESSION['error_message'] = __('Seleziona un genere di destinazione.');
+            return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
+        }
+
+        try {
+            $stats = $repo->merge($id, $targetId);
+            $parts = [];
+            if ($stats['books_updated'] > 0) {
+                $parts[] = $stats['books_updated'] . ' ' . __('libri aggiornati');
+            }
+            if ($stats['children_moved'] > 0) {
+                $parts[] = $stats['children_moved'] . ' ' . __('sottogeneri spostati');
+            }
+            $detail = !empty($parts) ? ' (' . implode(', ', $parts) . ')' : '';
+            $_SESSION['success_message'] = __('Generi uniti con successo!') . $detail;
+            return $response->withHeader('Location', "/admin/generi/{$targetId}")->withStatus(302);
+        } catch (\Throwable $e) {
+            $_SESSION['error_message'] = __('Errore nell\'unione: ') . $e->getMessage();
+            return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
+        }
+    }
+
     public function show(Request $request, Response $response, \mysqli $db, int $id): Response
     {
         $repo = new GenereRepository($db);
@@ -95,10 +171,12 @@ class GeneriController
 
         // Mostra sempre i figli (se presenti), anche per sottogeneri intermedi
         $children = $repo->getChildren($id);
+        $allGeneri = $repo->getAllFlat();
 
         ob_start();
         $genere = $genere;
         $children = $children;
+        $allGeneri = $allGeneri;
         require __DIR__ . '/../Views/generi/dettaglio_genere.php';
         $content = ob_get_clean();
 

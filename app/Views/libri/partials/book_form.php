@@ -28,8 +28,8 @@ $initialCollocazione = $book['collocazione'] ?? '';
 $initialData = [
     'id' => (int)($book['id'] ?? 0),
     'radice_id' => (int)($book['radice_id'] ?? 0),
-    'genere_id' => (int)($book['genere_id'] ?? 0),
-    'sottogenere_id' => (int)($book['sottogenere_id'] ?? 0),
+    'genere_id' => (int)($book['genere_id_cascade'] ?? $book['genere_id'] ?? 0),
+    'sottogenere_id' => (int)($book['sottogenere_id_cascade'] ?? $book['sottogenere_id'] ?? 0),
     'classificazione_dewey' => $book['classificazione_dewey'] ?? '',
     'editore_id' => (int)($book['editore_id'] ?? 0),
     'editore_nome' => $book['editore_nome'] ?? '',
@@ -2169,9 +2169,14 @@ function initializeGeneriDropdowns() {
         if (!genereApplied && initialGenere > 0) {
           genereSelect.value = String(initialGenere);
           genereApplied = true;
-          genereSelect.dispatchEvent(new Event('change'));
+          // Verify the value was actually set (option exists in the list)
+          if (parseInt(genereSelect.value, 10) === initialGenere) {
+            genereSelect.dispatchEvent(new Event('change'));
+          } else {
+            console.warn('Genre pre-population: initialGenere', initialGenere, 'not found in children of root', rootId);
+          }
         }
-      } catch (e) {}
+      } catch (e) { console.error('Failed to load genres:', e); }
     }
     updatePath();
   });
@@ -2197,7 +2202,7 @@ function initializeGeneriDropdowns() {
           sottogenereSelect.value = String(initialSottogenere);
           sottogenereApplied = true;
         }
-      } catch (e) {}
+      } catch (e) { console.error('Failed to load subgenres:', e); }
     }
     updatePath();
   });

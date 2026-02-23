@@ -433,6 +433,53 @@ document.addEventListener('DOMContentLoaded', function() {
   const urlParams = new URLSearchParams(window.location.search);
   const initialGenere = parseInt(urlParams.get('genere') || urlParams.get('genere_filter') || '0', 10) || 0;
   const initialSottogenere = parseInt(urlParams.get('sottogenere') || urlParams.get('sottogenere_filter') || '0', 10) || 0;
+  const initialKeywords = urlParams.get('keywords') || '';
+  const initialCollana = urlParams.get('collana') || '';
+
+  // Pre-fill search from ?keywords= URL parameter (keyword links from book detail)
+  if (initialKeywords) {
+    document.getElementById('search_text').value = initialKeywords;
+  }
+
+  // Show flash message for active URL filters
+  (function() {
+    const activeUrlFilters = [];
+    if (initialKeywords) {
+      activeUrlFilters.push(<?= json_encode(__("Parola chiave"), JSON_HEX_TAG) ?> + ': \u00AB' + initialKeywords + '\u00BB');
+    }
+    if (initialCollana) {
+      activeUrlFilters.push(<?= json_encode(__("Collana"), JSON_HEX_TAG) ?> + ': \u00AB' + initialCollana + '\u00BB');
+    }
+    if (initialGenere) {
+      activeUrlFilters.push(<?= json_encode(__("Genere"), JSON_HEX_TAG) ?> + ' #' + initialGenere);
+    }
+    if (initialSottogenere) {
+      activeUrlFilters.push(<?= json_encode(__("Sottogenere"), JSON_HEX_TAG) ?> + ' #' + initialSottogenere);
+    }
+    if (activeUrlFilters.length > 0) {
+      const banner = document.createElement('div');
+      banner.id = 'url-filter-flash';
+      banner.className = 'mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-sm text-blue-800';
+      const msg = document.createElement('span');
+      const icon = document.createElement('i');
+      icon.className = 'fas fa-filter mr-2';
+      msg.appendChild(icon);
+      msg.appendChild(document.createTextNode(<?= json_encode(__("Filtro attivo"), JSON_HEX_TAG) ?> + ': ' + activeUrlFilters.join(', ')));
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'ml-4 text-blue-400 hover:text-blue-700 transition-colors';
+      closeBtn.title = <?= json_encode(__("Chiudi"), JSON_HEX_TAG) ?>;
+      const closeIcon = document.createElement('i');
+      closeIcon.className = 'fas fa-times';
+      closeBtn.appendChild(closeIcon);
+      closeBtn.addEventListener('click', function() { banner.remove(); });
+      banner.appendChild(msg);
+      banner.appendChild(closeBtn);
+      const target = document.getElementById('table-view')?.closest('.bg-white.rounded-xl');
+      if (target && target.parentNode) {
+        target.parentNode.insertBefore(banner, target);
+      }
+    }
+  })();
 
   if (typeof DataTable === 'undefined') {
     console.error('DataTable is not loaded!');
@@ -580,7 +627,8 @@ document.addEventListener('DOMContentLoaded', function() {
           sottogenere_filter: initialSottogenere || 0,
           posizione_id: document.getElementById('posizione_id').value || 0,
           anno_from: document.getElementById('anno_from').value,
-          anno_to: document.getElementById('anno_to').value
+          anno_to: document.getElementById('anno_to').value,
+          collana: initialCollana
         };
       },
       dataSrc: function(json) {

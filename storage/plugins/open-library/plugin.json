@@ -2,7 +2,7 @@
   "name": "open-library",
   "display_name": "Open Library Scraper",
   "description": "Integrazione con le API di Open Library (openlibrary.org) per lo scraping di metadati dei libri. Fornisce dati completi su edizioni, opere, autori e copertine ad alta risoluzione.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://openlibrary.org",

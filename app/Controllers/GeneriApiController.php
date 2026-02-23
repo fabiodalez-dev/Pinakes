@@ -103,6 +103,49 @@ class GeneriApiController
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 
+    public function update(Request $request, Response $response, \mysqli $db, int $id): Response
+    {
+        // CSRF validated by CsrfMiddleware
+        $data = $request->getParsedBody();
+        if (empty($data)) {
+            $data = json_decode((string)$request->getBody(), true) ?? [];
+        }
+
+        $nome = trim((string)($data['nome'] ?? ''));
+        if (empty($nome)) {
+            $response->getBody()->write(json_encode(['error' => __('Il nome del genere è obbligatorio.')]));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        $repo = new \App\Models\GenereRepository($db);
+        $genere = $repo->getById($id);
+        if (!$genere) {
+            $response->getBody()->write(json_encode(['error' => __('Genere non trovato.')]));
+            return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+        }
+
+        try {
+            $updateData = ['nome' => $nome];
+            if (isset($data['parent_id'])) {
+                $newParent = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
+                if ($newParent !== $id) {
+                    $updateData['parent_id'] = $newParent;
+                }
+            }
+
+            $repo->update($id, $updateData);
+            $response->getBody()->write(json_encode([
+                'id' => $id,
+                'nome' => $nome,
+                'updated' => true
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json');
+        } catch (\Throwable $e) {
+            $response->getBody()->write(json_encode(['error' => $e->getMessage()]));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+    }
+
     public function listGeneri(Request $request, Response $response, \mysqli $db): Response
     {
         $limit = min(100, (int) ($request->getQueryParams()['limit'] ?? 50));
