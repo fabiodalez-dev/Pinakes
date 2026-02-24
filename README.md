@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.9-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.9.2-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -23,7 +23,34 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.9
+## What's New in v0.4.9.2
+
+### 🏷️ Genre Merge/Rearrange, Book Filters & Packaging Fixes
+
+**Genre Management** (#64):
+- **Genre merge** — Combine two genres into one: moves all books (`genere_id` + `sottogenere_id`) and subgenres to the target, handles name conflicts, deletes the source. Transaction-safe with cycle detection
+- **Genre rearrange** — Move a genre to a different parent (or make it top-level) via a new dropdown in the edit form
+- **Genre API** — New search preview endpoint for genre autocomplete
+
+**Book List Filters:**
+- **Collana (series) filter** — Autocomplete filter in admin book list, URL-driven with clearable active-filters banner
+
+**Plugin Hardening:**
+- **DigitalLibraryPlugin** — `Exception` → `Throwable`, null/empty filename guard, `file_get_contents()` failure guard, `str_starts_with()` for path checks, `JSON_THROW_ON_ERROR` on uploads
+
+**Packaging & Distribution Fixes:**
+- **`.gitattributes` fix** — Anchored `/frontend/` export-ignore to repo root only (was excluding `app/Views/frontend/` from GitHub "Download ZIP")
+- **PHPStan removed from vendor** — PHPStan is now a global dependency, never shipped in release packages or the repository
+
+**Testing:**
+- **74 E2E tests** — Comprehensive Playwright test suite covering admin features, loan/reservation lifecycle, and extra features
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.9</strong> - Subfolder Support, Security Hardening & Code Quality</summary>
 
 ### 🔒 Subfolder Support, Security Hardening & Code Quality
 
@@ -55,15 +82,13 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Release packaging** — Added ZIP verification step to prevent missing TinyMCE files (#44)
 
 **Code Quality:**
-- **18 CodeRabbit review rounds** — Addressed findings across 400+ file touches
+- **31 CodeRabbit review rounds** — Addressed findings across 400+ file touches
 - **Proactive security hardening** — 9 pattern categories across 49 files
 - **56 code quality issues** resolved in 3 core files
 - **Soft-delete gaps** — Additional `deleted_at IS NULL` filters on missed queries
 - **Error handling** — Consistent `\Throwable` usage across all catch blocks (strict_types compatibility)
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.8.2</strong> - Illustrator Field, Multi-Language & BCE Dates</summary>
