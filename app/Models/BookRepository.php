@@ -983,6 +983,9 @@ class BookRepository
         $maxDepth = 5; // safety limit
 
         $stmt = $this->db->prepare('SELECT id, nome, parent_id FROM generi WHERE id = ?');
+        if (!$stmt) {
+            return;
+        }
         while ($currentId > 0 && $maxDepth-- > 0) {
             $stmt->bind_param('i', $currentId);
             $stmt->execute();

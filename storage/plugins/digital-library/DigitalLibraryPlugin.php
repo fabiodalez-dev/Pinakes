@@ -412,7 +412,11 @@ class DigitalLibraryPlugin
             : ['application/pdf', 'application/epub+zip'];
 
         // Always validate extension regardless of reported MIME type
-        $filename = strtolower($file->getClientFilename());
+        $clientFilename = $file->getClientFilename();
+        if ($clientFilename === null || $clientFilename === '') {
+            return $this->json($response, ['success' => false, 'message' => __('Nome file non valido.')], 400);
+        }
+        $filename = strtolower($clientFilename);
         $validExt = ($type === 'audio')
             ? ['mp3', 'm4a', 'ogg', 'wav']
             : ['pdf', 'epub'];
@@ -435,7 +439,7 @@ class DigitalLibraryPlugin
             }
         }
 
-        $safeName = $this->generateSafeFilename($file->getClientFilename(), $type);
+        $safeName = $this->generateSafeFilename($clientFilename, $type);
         $targetPath = rtrim($uploadsDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $safeName;
 
         try {
