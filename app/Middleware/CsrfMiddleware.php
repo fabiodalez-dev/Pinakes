@@ -60,7 +60,7 @@ class CsrfMiddleware implements MiddlewareInterface
             // Valida token con dettaglio del motivo
             $csrfValidation = Csrf::validateWithReason($token);
             if (!$csrfValidation['valid']) {
-                SecureLogger::warning('[CSRF] Validation failed. Reason: ' . $csrfValidation['reason'] . ' Token provided: ' . (is_string($token) ? substr($token, 0, 8) . '...' : '[none]') . ' Session token: ' . (isset($_SESSION['csrf_token']) ? substr($_SESSION['csrf_token'], 0, 8) . '...' : '[none]'));
+                SecureLogger::warning('[CSRF] Validation failed. Reason: ' . $csrfValidation['reason']);
 
                 // Determina se è una richiesta AJAX o form tradizionale
                 $isAjax = $this->isAjaxRequest($request);

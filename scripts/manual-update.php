@@ -21,7 +21,7 @@ $secretKey = getenv('MANUAL_UPDATE_KEY') ?: (
         (function() {
             $env = file_get_contents(__DIR__ . '/../.env');
             preg_match('/^MANUAL_UPDATE_KEY=(.*)$/m', $env, $m);
-            return trim($m[1] ?? '');
+            return trim(trim($m[1] ?? ''), '"\'');
         })() : ''
 );
 
@@ -441,7 +441,10 @@ if (is_dir($migrationsPath)) {
                         $statements = array_filter(array_map('trim', explode(';', $sql)));
 
                         foreach ($statements as $stmt) {
-                            if (strpos($stmt, '--') === 0) continue;
+                            // Strip SQL comment lines (-- ...) while keeping actual SQL
+                            $stmt = preg_replace('/^\s*--.*$/m', '', $stmt);
+                            $stmt = trim($stmt);
+                            if ($stmt === '') continue;
                             if (!$db->query($stmt)) {
                                 $errno = $db->errno;
                                 // Ignore expected idempotent errors:

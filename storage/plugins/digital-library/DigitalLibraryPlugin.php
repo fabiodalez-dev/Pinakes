@@ -416,8 +416,8 @@ class DigitalLibraryPlugin
         }
 
         $allowedMime = ($type === 'audio')
-            ? ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/x-m4a', 'audio/wav']
-            : ['application/pdf', 'application/epub+zip'];
+            ? ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/x-m4a', 'audio/wav', 'audio/x-wav', 'audio/wave']
+            : ['application/pdf', 'application/epub+zip', 'application/zip'];
 
         // Always validate extension regardless of reported MIME type
         $clientFilename = $file->getClientFilename();

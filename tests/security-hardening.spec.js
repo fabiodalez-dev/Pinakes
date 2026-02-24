@@ -1,9 +1,12 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
-const BASE = 'http://localhost:8081';
-const ADMIN_EMAIL = 'fabiodalez@gmail.com';
-const ADMIN_PASS = 'Fa310reds?';
+const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
+
+// Skip all tests when credentials are not configured
+test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'E2E admin credentials not configured (set E2E_ADMIN_EMAIL and E2E_ADMIN_PASS)');
 
 async function loginAsAdmin(page) {
   await page.goto(`${BASE}/admin/dashboard`);

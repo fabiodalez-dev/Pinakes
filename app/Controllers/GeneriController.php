@@ -98,7 +98,12 @@ class GeneriController
         }
 
         try {
-            $updateData = ['nome' => trim((string)($data['nome'] ?? ''))];
+            $nome = trim((string)($data['nome'] ?? ''));
+            if ($nome === '') {
+                $_SESSION['error_message'] = __('Il nome del genere è obbligatorio.');
+                return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
+            }
+            $updateData = ['nome' => $nome];
 
             // Allow moving to a different parent (but not if it would create a cycle)
             if (isset($data['parent_id'])) {
