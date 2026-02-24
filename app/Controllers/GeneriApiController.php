@@ -51,7 +51,7 @@ class GeneriApiController
             }
         }
 
-        $response->getBody()->write(json_encode($results, JSON_UNESCAPED_UNICODE));
+        $response->getBody()->write(json_encode($results, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
@@ -64,7 +64,7 @@ class GeneriApiController
         $parent_id = !empty($data['parent_id']) ? (int) $data['parent_id'] : null;
 
         if (empty($nome)) {
-            $response->getBody()->write(json_encode(['error' => __('Il nome del genere è obbligatorio.')], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Il nome del genere è obbligatorio.')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
@@ -79,7 +79,7 @@ class GeneriApiController
                 'id' => (int) $existing['id'],
                 'nome' => $nome,
                 'exists' => true
-            ]));
+            ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
         }
 
@@ -95,11 +95,11 @@ class GeneriApiController
                 'nome' => $nome,
                 'parent_id' => $parent_id,
                 'created' => true
-            ]));
+            ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
             return $response->withStatus(201)->withHeader('Content-Type', 'application/json');
         }
 
-        $response->getBody()->write(json_encode(['error' => __('Errore nella creazione del genere.')], JSON_UNESCAPED_UNICODE));
+        $response->getBody()->write(json_encode(['error' => __('Errore nella creazione del genere.')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
     }
 
@@ -113,14 +113,14 @@ class GeneriApiController
 
         $nome = trim((string)($data['nome'] ?? ''));
         if (empty($nome)) {
-            $response->getBody()->write(json_encode(['error' => __('Il nome del genere è obbligatorio.')], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Il nome del genere è obbligatorio.')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
         $repo = new \App\Models\GenereRepository($db);
         $genere = $repo->getById($id);
         if (!$genere) {
-            $response->getBody()->write(json_encode(['error' => __('Genere non trovato.')], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Genere non trovato.')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
 
@@ -129,7 +129,7 @@ class GeneriApiController
             if (isset($data['parent_id'])) {
                 $newParent = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
                 if ($newParent === $id) {
-                    $response->getBody()->write(json_encode(['error' => __('Un genere non può essere genitore di sé stesso.')], JSON_UNESCAPED_UNICODE));
+                    $response->getBody()->write(json_encode(['error' => __('Un genere non può essere genitore di sé stesso.')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
                     return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
                 }
                 // Cycle detection: walk ancestor chain to prevent A→B→A
@@ -137,10 +137,15 @@ class GeneriApiController
                     $ancestorId = $newParent;
                     $depth = 100;
                     $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+                    if (!$aStmt) {
+                        \App\Support\SecureLogger::error('GeneriApiController::update prepare() failed');
+                        $response->getBody()->write(json_encode(['error' => __('Errore interno.')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
+                        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+                    }
                     while ($ancestorId > 0 && $depth-- > 0) {
                         if ($ancestorId === $id) {
                             $aStmt->close();
-                            $response->getBody()->write(json_encode(['error' => __('Impossibile: si creerebbe un ciclo.')], JSON_UNESCAPED_UNICODE));
+                            $response->getBody()->write(json_encode(['error' => __('Impossibile: si creerebbe un ciclo.')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
                             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
                         }
                         $aStmt->bind_param('i', $ancestorId);
@@ -160,15 +165,15 @@ class GeneriApiController
                 'id' => $id,
                 'nome' => $nome,
                 'updated' => true
-            ], JSON_UNESCAPED_UNICODE));
+            ], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Throwable $e) {
             if ($e instanceof \InvalidArgumentException) {
-                $response->getBody()->write(json_encode(['error' => $e->getMessage()], JSON_UNESCAPED_UNICODE));
+                $response->getBody()->write(json_encode(['error' => $e->getMessage()], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
                 return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
             }
             \App\Support\SecureLogger::error('GeneriApiController::update error', ['id' => $id, 'message' => $e->getMessage()]);
-            $response->getBody()->write(json_encode(['error' => __('Errore interno durante l\'aggiornamento.')], JSON_UNESCAPED_UNICODE));
+            $response->getBody()->write(json_encode(['error' => __('Errore interno durante l\'aggiornamento.')], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
     }
@@ -211,7 +216,7 @@ class GeneriApiController
             ];
         }
 
-        $response->getBody()->write(json_encode($results, JSON_UNESCAPED_UNICODE));
+        $response->getBody()->write(json_encode($results, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
     }
 
@@ -220,7 +225,7 @@ class GeneriApiController
         $parent_id = (int) ($request->getQueryParams()['parent_id'] ?? 0);
 
         if ($parent_id <= 0) {
-            $response->getBody()->write(json_encode([]));
+            $response->getBody()->write(json_encode([], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
         }
 
@@ -243,8 +248,7 @@ class GeneriApiController
             ];
         }
 
-        $response->getBody()->write(json_encode($results, JSON_UNESCAPED_UNICODE));
+        $response->getBody()->write(json_encode($results, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
     }
 }
-?>

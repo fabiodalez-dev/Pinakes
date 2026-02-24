@@ -6,6 +6,7 @@ namespace App\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Models\GenereRepository;
+use App\Support\SecureLogger;
 
 class GeneriController
 {
@@ -78,8 +79,9 @@ class GeneriController
             $_SESSION['success_message'] = __('Genere creato con successo!');
             return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
 
-        } catch (\Exception $e) {
-            $_SESSION['error_message'] = 'Errore nella creazione del genere: ' . $e->getMessage();
+        } catch (\Throwable $e) {
+            SecureLogger::error('GeneriController::store error: ' . $e->getMessage());
+            $_SESSION['error_message'] = __('Errore nella creazione del genere.');
             return $response->withHeader('Location', '/admin/generi/crea')->withStatus(302);
         }
     }
@@ -111,6 +113,11 @@ class GeneriController
                     $ancestorId = $newParent;
                     $depth = 100;
                     $aStmt = $db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+                    if (!$aStmt) {
+                        \App\Support\SecureLogger::error('GeneriController::update prepare() failed');
+                        $_SESSION['error_message'] = __('Errore interno.');
+                        return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
+                    }
                     while ($ancestorId > 0 && $depth-- > 0) {
                         if ($ancestorId === $id) {
                             $aStmt->close();

@@ -401,7 +401,7 @@ $libri = $data['libri'];
 </div>
 
 <script>
-window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
+window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
   // Dropdown menus for import/export
@@ -781,7 +781,7 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'text-center align-middle',
         render: function(data, type, row) {
           if (!row || !data) return '<span class="text-gray-400">-</span>';
-          return `<span class="text-xs font-mono text-gray-600">${data}</span>`;
+          return `<span class="text-xs font-mono text-gray-600">${escapeHtml(data)}</span>`;
         }
       },
       { // Actions

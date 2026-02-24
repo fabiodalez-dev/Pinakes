@@ -11,6 +11,9 @@
     php_value max_execution_time 300
     php_value max_input_time 300
 </IfModule>
+# Prevent directory listing (information disclosure)
+Options -Indexes
+
 <IfModule mod_rewrite.c>
     Options +FollowSymLinks
     RewriteEngine On

@@ -9,6 +9,7 @@ use App\Models\SettingsRepository;
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 use App\Support\I18n;
+use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -131,7 +132,8 @@ class LanguagesController
                 ->withHeader('Location', '/admin/languages')
                 ->withStatus(302);
         } catch (\Throwable $e) {
-            $_SESSION['flash_error'] = __("Errore nella creazione:") . " " . $e->getMessage();
+            SecureLogger::error('LanguagesController::store error: ' . $e->getMessage());
+            $_SESSION['flash_error'] = __("Errore nella creazione della lingua.");
             return $response
                 ->withHeader('Location', '/admin/languages/create')
                 ->withStatus(302);
@@ -248,7 +250,8 @@ class LanguagesController
                 ->withHeader('Location', '/admin/languages')
                 ->withStatus(302);
         } catch (\Throwable $e) {
-            $_SESSION['flash_error'] = __("Errore nell'aggiornamento:") . " " . $e->getMessage();
+            SecureLogger::error('LanguagesController::update error: ' . $e->getMessage());
+            $_SESSION['flash_error'] = __("Errore nell'aggiornamento della lingua.");
             return $response
                 ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit')
                 ->withStatus(302);
@@ -286,7 +289,8 @@ class LanguagesController
 
             $_SESSION['flash_success'] = __("Lingua eliminata con successo");
         } catch (\Throwable $e) {
-            $_SESSION['flash_error'] = __("Errore nell'eliminazione:") . " " . $e->getMessage();
+            SecureLogger::error('LanguagesController::delete error: ' . $e->getMessage());
+            $_SESSION['flash_error'] = __("Errore nell'eliminazione della lingua.");
         }
 
         return $response
@@ -318,7 +322,8 @@ class LanguagesController
             $statusText = $newStatus ? __("attivata") : __("disattivata");
             $_SESSION['flash_success'] = __("Lingua") . " " . $statusText . " " . __("con successo");
         } catch (\Throwable $e) {
-            $_SESSION['flash_error'] = __("Errore nell'operazione:") . " " . $e->getMessage();
+            SecureLogger::error('LanguagesController::toggleActive error: ' . $e->getMessage());
+            $_SESSION['flash_error'] = __("Errore nell'operazione.");
         }
 
         return $response
@@ -349,7 +354,8 @@ class LanguagesController
             $this->synchronizeGlobalLocale($db, $code);
             $_SESSION['flash_success'] = __("Lingua predefinita impostata con successo");
         } catch (\Throwable $e) {
-            $_SESSION['flash_error'] = __("Errore nell'operazione:") . " " . $e->getMessage();
+            SecureLogger::error('LanguagesController::setDefault error: ' . $e->getMessage());
+            $_SESSION['flash_error'] = __("Errore nell'operazione.");
         }
 
         return $response
@@ -574,13 +580,13 @@ class LanguagesController
             $settingsRepo = new SettingsRepository($db);
             $settingsRepo->set('app', 'locale', $normalized);
         } catch (\Throwable $e) {
-            error_log('[LanguagesController] Unable to save locale in system_settings: ' . $e->getMessage());
+            SecureLogger::error('LanguagesController: Unable to save locale in system_settings: ' . $e->getMessage());
         }
 
         try {
             ConfigStore::set('app.locale', $normalized);
         } catch (\Throwable $e) {
-            error_log('[LanguagesController] Unable to save locale in settings store: ' . $e->getMessage());
+            SecureLogger::error('LanguagesController: Unable to save locale in settings store: ' . $e->getMessage());
         }
 
         $this->updateEnvLocale($normalized);
@@ -760,7 +766,8 @@ class LanguagesController
                 ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit-routes')
                 ->withStatus(302);
         } catch (\Throwable $e) {
-            $_SESSION['flash_error'] = __("Errore nell'aggiornamento:") . " " . $e->getMessage();
+            SecureLogger::error('LanguagesController::updateRoutes error: ' . $e->getMessage());
+            $_SESSION['flash_error'] = __("Errore nell'aggiornamento delle route.");
             return $response
                 ->withHeader('Location', '/admin/languages/' . urlencode($code) . '/edit-routes')
                 ->withStatus(302);

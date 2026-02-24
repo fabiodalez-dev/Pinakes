@@ -266,8 +266,8 @@ document.addEventListener('DOMContentLoaded', function() {
     mergeForm.addEventListener('submit', function(e) {
       var target = document.getElementById('merge_target_id');
       var targetName = target.options[target.selectedIndex].textContent.trim();
-      var msgPrefix = <?= json_encode(__("Sei sicuro di voler unire questo genere con")) ?>;
-      var msgSuffix = <?= json_encode(__("Questa azione è irreversibile.")) ?>;
+      var msgPrefix = <?= json_encode(__("Sei sicuro di voler unire questo genere con"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      var msgSuffix = <?= json_encode(__("Questa azione è irreversibile."), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       if (!confirm(msgPrefix + ' "' + targetName + '"? ' + msgSuffix)) {
         e.preventDefault();
       }

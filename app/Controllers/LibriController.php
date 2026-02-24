@@ -1715,7 +1715,8 @@ class LibriController
                     return;
                 }
             }
-            $ext = pathinfo(parse_url($url, PHP_URL_PATH) ?? 'jpg', PATHINFO_EXTENSION) ?: 'jpg';
+            // Determine extension from magic bytes, not URL (defense against URL spoofing)
+            $ext = $this->getExtensionFromMagicBytes($img) ?? 'jpg';
             $name = 'libro_' . $bookId . '_' . time() . '.' . $ext;
             $dst = $dir . $name;
             if (file_put_contents($dst, $img) !== false) {

@@ -739,7 +739,7 @@ class BookRepository
             $addSet('condition_lt', 's', $data['condition_lt'] ?? null);
         }
 
-        $sql = 'UPDATE libri SET ' . implode(', ', $setParts) . ', updated_at=NOW() WHERE id=?';
+        $sql = 'UPDATE libri SET ' . implode(', ', $setParts) . ', updated_at=NOW() WHERE id=? AND deleted_at IS NULL';
         $stmt = $this->db->prepare($sql);
 
         $bindTypes = implode('', $typeParts) . 'i';

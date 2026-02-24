@@ -891,13 +891,13 @@ function loadStats() {
     fetch(API_CATALOG_ROUTE)
         .then(response => response.json())
         .then(data => {
-            totalBooksEl.innerHTML = data.pagination.total_books;
-            availableBooksEl.innerHTML = '📚';
+            totalBooksEl.textContent = data.pagination.total_books;
+            availableBooksEl.textContent = '\uD83D\uDCDA';
         })
         .catch(error => {
             console.error('Error loading stats:', error);
-            totalBooksEl.innerHTML = '📚';
-            availableBooksEl.innerHTML = '✓';
+            totalBooksEl.textContent = '\uD83D\uDCDA';
+            availableBooksEl.textContent = '\u2713';
         });
 }
 

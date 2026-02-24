@@ -397,7 +397,7 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
 });
 
 // Error middleware (dev-friendly by default; tune in settings)
-$displayErrorDetails = $container->get('settings')['displayErrorDetails'] ?? true;
+$displayErrorDetails = $container->get('settings')['displayErrorDetails'] ?? false;
 $errorMiddleware = $app->addErrorMiddleware($displayErrorDetails, true, true);
 
 // Custom error handler for production mode only (handles both 404 and 500 errors)

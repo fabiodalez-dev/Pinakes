@@ -292,7 +292,8 @@ class CollocazioneController
 
         $stmt = $db->prepare($sql);
         if ($stmt === false) {
-            $response->getBody()->write(json_encode(['error' => __('Errore nella query.'), 'detail' => $db->error], JSON_UNESCAPED_UNICODE));
+            \App\Support\SecureLogger::error('CollocazioneController::getLibri query failed: ' . $db->error);
+            $response->getBody()->write(json_encode(['error' => __('Errore nella query.')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 

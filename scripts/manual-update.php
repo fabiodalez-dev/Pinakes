@@ -15,17 +15,23 @@
  */
 
 // Security: Only allow access from logged-in admin (via session)
-// or with a secret key for emergency access
-$secretKey = 'CHANGE_ME_' . md5(__FILE__);
+// or with a secret key for emergency access (must be set in .env)
+$secretKey = getenv('MANUAL_UPDATE_KEY') ?: (
+    file_exists(__DIR__ . '/../.env') ?
+        (function() {
+            $env = file_get_contents(__DIR__ . '/../.env');
+            preg_match('/^MANUAL_UPDATE_KEY=(.*)$/m', $env, $m);
+            return trim($m[1] ?? '');
+        })() : ''
+);
 
 session_start();
 $isAdmin = isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin';
-$hasKey = isset($_GET['key']) && $_GET['key'] === $secretKey;
+$hasKey = !empty($secretKey) && isset($_GET['key']) && hash_equals($secretKey, $_GET['key']);
 
 if (!$isAdmin && !$hasKey) {
     header('HTTP/1.1 403 Forbidden');
-    echo "Access denied. Please login as admin or use the secret key.";
-    echo "\n\nKey: " . $secretKey;
+    echo "Access denied. Please login as admin or provide a valid MANUAL_UPDATE_KEY.";
     exit;
 }
 
@@ -435,7 +441,7 @@ if (is_dir($migrationsPath)) {
                         $statements = array_filter(array_map('trim', explode(';', $sql)));
 
                         foreach ($statements as $stmt) {
-                            if (empty($stmt) || strpos($stmt, '--') === 0) continue;
+                            if (strpos($stmt, '--') === 0) continue;
                             if (!$db->query($stmt)) {
                                 $errno = $db->errno;
                                 // Ignore expected idempotent errors:

@@ -194,6 +194,10 @@ class DigitalLibraryPlugin
                 SELECT id FROM plugin_hooks
                 WHERE plugin_id = ? AND hook_name = ?
             ");
+            if (!$stmt) {
+                \App\Support\SecureLogger::error('DigitalLibraryPlugin: prepare() failed for hook check', ['hook' => $hook['hook_name']]);
+                continue;
+            }
             $stmt->bind_param("is", $this->pluginId, $hook['hook_name']);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -206,6 +210,10 @@ class DigitalLibraryPlugin
                     (plugin_id, hook_name, callback_class, callback_method, priority, is_active)
                     VALUES (?, ?, ?, ?, ?, ?)
                 ");
+                if (!$stmt) {
+                    \App\Support\SecureLogger::error('DigitalLibraryPlugin: prepare() failed for hook insert', ['hook' => $hook['hook_name']]);
+                    continue;
+                }
                 $stmt->bind_param(
                     "isssii",
                     $this->pluginId,
@@ -425,12 +433,6 @@ class DigitalLibraryPlugin
             return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
         }
 
-        $clientMediaType = $file->getClientMediaType();
-        if (!in_array($clientMediaType, $allowedMime, true)) {
-            // Extension already validated above — allow if extension is safe
-            // (browsers may report wrong MIME for valid files)
-        }
-
         $uploadsDir = realpath(__DIR__ . '/../../../public/uploads/digital');
         if ($uploadsDir === false) {
             $uploadsDir = __DIR__ . '/../../../public/uploads/digital';
@@ -446,6 +448,20 @@ class DigitalLibraryPlugin
             $file->moveTo($targetPath);
         } catch (\Throwable $e) {
             return $this->json($response, ['success' => false, 'message' => __('Impossibile salvare il file.')], 500);
+        }
+
+        // Server-side MIME validation using magic bytes (not client-reported type)
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $detectedMime = $finfo->file($targetPath);
+        if ($detectedMime === false || !in_array($detectedMime, $allowedMime, true)) {
+            // Remove the uploaded file — it failed MIME validation
+            @unlink($targetPath);
+            \App\Support\SecureLogger::warning('[Digital Library] Upload rejected: MIME mismatch', [
+                'expected' => $allowedMime,
+                'detected' => $detectedMime ?: 'unknown',
+                'filename' => $clientFilename,
+            ]);
+            return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
         }
 
         $publicUrl = '/uploads/digital/' . $safeName;

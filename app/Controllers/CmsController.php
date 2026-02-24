@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Controllers;
 
@@ -198,7 +199,7 @@ class CmsController
                             // SECURITY: Secure path handling to prevent directory traversal
                             $baseDir = realpath(__DIR__ . '/../../public/uploads');
                             if ($baseDir === false) {
-                                error_log("Upload base directory not found");
+                                \App\Support\SecureLogger::error('CmsController: Upload base directory not found');
                                 $errors[] = 'Errore di configurazione directory upload.';
                             } else {
                                 $targetDir = $baseDir . '/assets';
@@ -212,8 +213,8 @@ class CmsController
                                 $randomSuffix = '';
                                 try {
                                     $randomSuffix = bin2hex(random_bytes(8));
-                                } catch (\Exception $e) {
-                                    error_log("CRITICAL: random_bytes() failed - system entropy exhausted");
+                                } catch (\Throwable $e) {
+                                    \App\Support\SecureLogger::error('CmsController: random_bytes() failed: ' . $e->getMessage());
                                     $errors[] = 'Errore di sistema. Riprova più tardi.';
                                 }
 
@@ -226,7 +227,7 @@ class CmsController
                                     // SECURITY: Verify final path is within allowed directory
                                     $realUploadPath = realpath(dirname($uploadPath));
                                     if ($realUploadPath === false || strpos($realUploadPath, $baseDir) !== 0) {
-                                        error_log("Path traversal attempt detected");
+                                        \App\Support\SecureLogger::error('CmsController: Path traversal attempt detected');
                                         $errors[] = 'Percorso file non valido.';
                                     } else {
                                         try {
@@ -234,8 +235,8 @@ class CmsController
                                             // SECURITY: Set secure file permissions
                                             @chmod($uploadPath, 0644);
                                             $bgImagePath = '/assets/' . $newFilename;
-                                        } catch (\Exception $e) {
-                                            error_log("Image upload error: " . $e->getMessage());
+                                        } catch (\Throwable $e) {
+                                            \App\Support\SecureLogger::error('CmsController: Image upload error: ' . $e->getMessage());
                                             $errors[] = 'Errore durante l\'upload dell\'immagine. Riprova.';
                                         }
                                     }
@@ -529,9 +530,10 @@ class CmsController
             $response->getBody()->write(json_encode(['success' => true, 'message' => 'Order updated successfully']));
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             $db->rollback();
-            $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+            \App\Support\SecureLogger::error('CmsController::reorderHomeSections error: ' . $e->getMessage());
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore durante il riordinamento delle sezioni.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
     }
@@ -568,8 +570,9 @@ class CmsController
                 $response->getBody()->write(json_encode(['success' => false, 'message' => 'Update failed']));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
-        } catch (\Exception $e) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => $e->getMessage()]));
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('CmsController::toggleSectionVisibility error: ' . $e->getMessage());
+            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore durante l\'aggiornamento della visibilità.')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
     }

@@ -283,7 +283,9 @@ class GenereRepository
             // Move children from source to target (exclude target itself to prevent self-referencing)
             $stmt = $this->db->prepare("UPDATE generi SET parent_id = ? WHERE parent_id = ? AND id != ?");
             $stmt->bind_param('iii', $targetId, $sourceId, $targetId);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nello spostamento dei sottogeneri');
+            }
             $childrenMoved = $stmt->affected_rows;
 
             // If target was a child of source, reparent target to source's parent
@@ -295,22 +297,30 @@ class GenereRepository
                 $stmt = $this->db->prepare("UPDATE generi SET parent_id = ? WHERE id = ? AND parent_id = ?");
                 $stmt->bind_param('iii', $sourceParent, $targetId, $sourceId);
             }
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nel reparenting del genere di destinazione');
+            }
 
             // Count distinct books referencing source (including soft-deleted, since we delete the genre row)
             $stmt = $this->db->prepare("SELECT COUNT(DISTINCT id) as cnt FROM libri WHERE genere_id = ? OR sottogenere_id = ?");
             $stmt->bind_param('ii', $sourceId, $sourceId);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nel conteggio dei libri referenziati');
+            }
             $booksUpdated = (int)$stmt->get_result()->fetch_assoc()['cnt'];
 
             // Update ALL books (including soft-deleted) to prevent dangling FK references
             $stmt = $this->db->prepare("UPDATE libri SET genere_id = ? WHERE genere_id = ?");
             $stmt->bind_param('ii', $targetId, $sourceId);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nell\'aggiornamento del genere dei libri');
+            }
 
             $stmt = $this->db->prepare("UPDATE libri SET sottogenere_id = ? WHERE sottogenere_id = ?");
             $stmt->bind_param('ii', $targetId, $sourceId);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nell\'aggiornamento del sottogenere dei libri');
+            }
 
             // Delete source genre
             $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
