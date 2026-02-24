@@ -25,25 +25,24 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New in v0.4.9.2
 
-### 🏷️ Genre Merge/Rearrange, Book Filters & Packaging Fixes
+### 🏷️ Genre Management, Book Filters & Bug Fixes
 
-**Genre Management** (#64):
-- **Genre merge** — Combine two genres into one: moves all books (`genere_id` + `sottogenere_id`) and subgenres to the target, handles name conflicts, deletes the source. Transaction-safe with cycle detection
-- **Genre rearrange** — Move a genre to a different parent (or make it top-level) via a new dropdown in the edit form
-- **Genre API** — New search preview endpoint for genre autocomplete
+**Genre Management:**
+- **Genre edit** — Existing genres can now be renamed and reorganized from the admin panel
+- **Genre merge** — Combine two genres into one, moving all books and subgenres to the target with automatic name-conflict resolution
+- **Genre rearrange** — Move a genre to a different parent (or make it top-level) via a dropdown in the edit form
+- **Genre autocomplete** — New search-as-you-type for genre selection
 
 **Book List Filters:**
-- **Collana (series) filter** — Autocomplete filter in admin book list, URL-driven with clearable active-filters banner
+- **Collana (series) filter** — Autocomplete filter in admin book list with clearable active-filters banner
 
-**Plugin Hardening:**
-- **DigitalLibraryPlugin** — `Exception` → `Throwable`, null/empty filename guard, `file_get_contents()` failure guard, `str_starts_with()` for path checks, `JSON_THROW_ON_ERROR` on uploads
-
-**Packaging & Distribution Fixes:**
-- **`.gitattributes` fix** — Anchored `/frontend/` export-ignore to repo root only (was excluding `app/Views/frontend/` from GitHub "Download ZIP")
-- **PHPStan removed from vendor** — PHPStan is now a global dependency, never shipped in release packages or the repository
-
-**Testing:**
-- **74 E2E tests** — Comprehensive Playwright test suite covering admin features, loan/reservation lifecycle, and extra features
+**Bug Fixes:**
+- **Installation crash on fresh setup** — Fixed fatal error caused by missing autoloader dependency after first install
+- **Update to v0.4.9 failing** — Fixed release packaging that prevented automatic updates from working correctly
+- **PDF/ePub upload error** — Fixed MIME type validation in Digital Library plugin that rejected valid PDF and ePub files
+- **Author search not finding existing authors** — Fixed author autocomplete matching in the book form
+- **Description field not visible** — Fixed TinyMCE editor not rendering in the book description field
+- **GitHub "Download ZIP" missing pages** — Fixed archive packaging that excluded frontend view files
 
 ---
 
