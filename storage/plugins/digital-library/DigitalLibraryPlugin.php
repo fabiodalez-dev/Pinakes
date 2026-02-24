@@ -228,7 +228,12 @@ class DigitalLibraryPlugin
                     $hook['priority'],
                     $hook['is_active']
                 );
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    \App\Support\SecureLogger::error('[Digital Library] Hook insert failed', [
+                        'hook' => $hook['hook_name'],
+                        'error' => $stmt->error,
+                    ]);
+                }
             }
 
             $stmt->close();
@@ -460,7 +465,11 @@ class DigitalLibraryPlugin
         $detectedMime = $finfo->file($targetPath);
         if ($detectedMime === false || !in_array($detectedMime, $allowedMime, true)) {
             // Remove the uploaded file — it failed MIME validation
-            @unlink($targetPath);
+            if (!unlink($targetPath)) {
+                \App\Support\SecureLogger::error('[Digital Library] Failed to remove MIME-rejected upload', [
+                    'path' => $targetPath,
+                ]);
+            }
             \App\Support\SecureLogger::warning('[Digital Library] Upload rejected: MIME mismatch', [
                 'expected' => $allowedMime,
                 'detected' => $detectedMime ?: 'unknown',
@@ -505,7 +514,7 @@ class DigitalLibraryPlugin
         }
 
         $filePath = realpath($baseRealPath . DIRECTORY_SEPARATOR . $filename);
-        if ($filePath === false || strpos($filePath, $baseRealPath . DIRECTORY_SEPARATOR) !== 0 || !is_file($filePath)) {
+        if ($filePath === false || !str_starts_with($filePath, $baseRealPath . DIRECTORY_SEPARATOR) || !is_file($filePath)) {
             return $response->withStatus(404);
         }
 

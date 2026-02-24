@@ -151,7 +151,7 @@ class GeneriController
         return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
     }
 
-    public function destroy(Request $request, Response $response, \mysqli $db, int $id): Response
+    public function destroy(Request $_request, Response $response, \mysqli $db, int $id): Response
     {
         // CSRF validated by CsrfMiddleware
         $repo = new GenereRepository($db);

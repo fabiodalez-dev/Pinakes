@@ -619,7 +619,7 @@ class LibriApiController
         // Soft-delete: set deleted_at and nullify unique-indexed columns
         // to avoid unique constraint violations on future inserts.
         // Related records are kept for history/integrity (same as single delete).
-        $sql = "UPDATE libri SET deleted_at = NOW(), isbn10 = NULL, isbn13 = NULL, ean = NULL WHERE id IN ($placeholders) AND deleted_at IS NULL";
+        $sql = "UPDATE libri SET deleted_at = NOW(), isbn10 = NULL, isbn13 = NULL, ean = NULL, scaffale_id = NULL, mensola_id = NULL, posizione_progressiva = NULL, collocazione = NULL WHERE id IN ($placeholders) AND deleted_at IS NULL";
         $stmt = $db->prepare($sql);
         if (!$stmt) {
             AppLog::error('libri.bulk_delete.prepare_failed', ['error' => $db->error]);

@@ -7,7 +7,7 @@ module.exports = defineConfig({
   expect: { timeout: 15_000 },
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:8081',
+    baseURL: process.env.APP_URL || 'http://localhost:8081',
     headless: true,
   },
   retries: 0,

@@ -479,7 +479,10 @@ document.addEventListener('DOMContentLoaded', function() {
         genereUrlFilter = 0;
         sottogenereUrlFilter = 0;
         if (initialKeywords) {
-          document.getElementById('search_text').value = '';
+          const searchInput = document.getElementById('search_text');
+          if (searchInput && searchInput.value === initialKeywords) {
+            searchInput.value = '';
+          }
         }
         banner.remove();
         table.ajax.reload();

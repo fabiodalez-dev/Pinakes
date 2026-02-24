@@ -301,6 +301,9 @@ test.describe('Issue #63: Genre Pre-population on Edit', () => {
     });
     const radiceValue = await page.locator('#radice_select').inputValue();
     expect(parseInt(radiceValue, 10)).toBe(0);
+
+    // Cleanup: delete the created book
+    dbQuery(`DELETE FROM libri WHERE id=${bookId}`);
   });
 });
 

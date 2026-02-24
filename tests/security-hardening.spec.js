@@ -37,7 +37,7 @@ test.describe('C-1: manual-update.php access control', () => {
   });
 
   test('returns 403 with wrong key', async ({ request }) => {
-    const resp = await request.get(`${BASE}/manual-update.php?key=wrong_key_12345`);
+    const resp = await request.get(`${BASE}/manual-update.php?key=invalid-test-value`);
     expect([403, 404, 302, 301]).toContain(resp.status());
   });
 
@@ -64,16 +64,22 @@ test.describe('C-2: bulkDelete uses soft-delete', () => {
 
     await page.fill('input[name="titolo"]', testTitle);
     await page.click('button[type="submit"]');
+    // Book form uses SweetAlert2 confirmation — click confirm
+    await page.waitForSelector('.swal2-confirm', { timeout: 5000 });
+    await page.locator('.swal2-confirm').click();
     // Wait for redirect to the book detail or book list
-    await page.waitForURL(/.*libri.*/, { timeout: 10000 });
+    await page.waitForURL(/admin\/libri(?!.*crea)/, { timeout: 15000 });
 
-    // Get the book ID from the DataTables API (more reliable than search)
-    const listResp = await page.request.get(
-      `${BASE}/api/libri?start=0&length=5&search[value]=${encodeURIComponent(testTitle)}`
-    );
-    const listData = await listResp.json();
-    expect(listData.data.length).toBeGreaterThan(0);
-    const bookId = listData.data[0].id;
+    // Get the book ID from the DataTables API — search in page context for proper auth
+    const bookId = await page.evaluate(async (title) => {
+      const resp = await fetch(`/api/libri?start=0&length=100&search[value]=${encodeURIComponent(title)}`, {
+        credentials: 'same-origin'
+      });
+      const data = await resp.json();
+      const match = data.data.find(b => b.titolo === title);
+      return match ? match.id : 0;
+    }, testTitle);
+    expect(bookId).toBeGreaterThan(0);
 
     // Get a fresh CSRF token
     await page.goto(`${BASE}/admin/libri`);
@@ -84,7 +90,10 @@ test.describe('C-2: bulkDelete uses soft-delete', () => {
       headers: { 'Content-Type': 'application/json' },
       data: JSON.stringify({ ids: [bookId], csrf_token: csrf }),
     });
-    expect(delResp.ok()).toBeTruthy();
+    if (!delResp.ok()) {
+      const body = await delResp.text();
+      throw new Error(`bulk-delete returned ${delResp.status()}: ${body.substring(0, 500)}`);
+    }
     const delData = await delResp.json();
     expect(delData.success).toBeTruthy();
     expect(delData.affected).toBe(1);

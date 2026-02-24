@@ -16,14 +16,22 @@
 
 // Security: Only allow access from logged-in admin (via session)
 // or with a secret key for emergency access (must be set in .env)
-$secretKey = getenv('MANUAL_UPDATE_KEY') ?: (
-    file_exists(__DIR__ . '/../.env') ?
-        (function() {
-            $env = file_get_contents(__DIR__ . '/../.env');
-            preg_match('/^MANUAL_UPDATE_KEY=(.*)$/m', $env, $m);
-            return trim(trim($m[1] ?? ''), '"\'');
-        })() : ''
-);
+$secretKey = getenv('MANUAL_UPDATE_KEY') ?: (function () {
+    $paths = [__DIR__ . '/.env', __DIR__ . '/../.env'];
+    foreach ($paths as $path) {
+        if (!file_exists($path)) {
+            continue;
+        }
+        $env = file_get_contents($path);
+        if ($env === false) {
+            continue;
+        }
+        if (preg_match('/^MANUAL_UPDATE_KEY=(.*)$/m', $env, $m)) {
+            return trim(trim($m[1]), '"\'');
+        }
+    }
+    return '';
+})();
 
 session_start();
 $isAdmin = isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin';

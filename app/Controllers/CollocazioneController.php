@@ -363,6 +363,7 @@ class CollocazioneController
 
         $stmt = $db->prepare($sql);
         if ($stmt === false) {
+            \App\Support\SecureLogger::error('CollocazioneController::exportCSV query failed: ' . $db->error);
             $response->getBody()->write(__('Errore nella query.'));
             return $response->withStatus(500);
         }

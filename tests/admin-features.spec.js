@@ -122,6 +122,10 @@ test.describe.serial('Admin Settings: all tabs', () => {
   });
 
   test('Contacts tab: update contact info', async () => {
+    // Save originals
+    const origTitle = dbQuery("SELECT setting_value FROM system_settings WHERE category='contacts' AND setting_key='page_title'");
+    const origEmail = dbQuery("SELECT setting_value FROM system_settings WHERE category='contacts' AND setting_key='contact_email'");
+
     await page.goto(`${BASE}/admin/settings?tab=contacts`);
     await page.waitForLoadState('networkidle');
 
@@ -137,9 +141,15 @@ test.describe.serial('Admin Settings: all tabs', () => {
     // Verify in DB
     const contactEmail = dbQuery("SELECT setting_value FROM system_settings WHERE category='contacts' AND setting_key='contact_email'");
     expect(contactEmail).toContain(RUN_ID);
+
+    // Restore originals
+    if (origTitle) dbQuery(`UPDATE system_settings SET setting_value='${origTitle.replace(/'/g, "\\'")}' WHERE category='contacts' AND setting_key='page_title'`);
+    if (origEmail) dbQuery(`UPDATE system_settings SET setting_value='${origEmail.replace(/'/g, "\\'")}' WHERE category='contacts' AND setting_key='contact_email'`);
   });
 
   test('Privacy tab: update privacy page title', async () => {
+    const origTitle = dbQuery("SELECT setting_value FROM system_settings WHERE category='privacy' AND setting_key='page_title'");
+
     await page.goto(`${BASE}/admin/settings?tab=privacy`);
     await page.waitForLoadState('networkidle');
 
@@ -154,6 +164,9 @@ test.describe.serial('Admin Settings: all tabs', () => {
     // Verify in DB
     const privacyTitle = dbQuery("SELECT setting_value FROM system_settings WHERE category='privacy' AND setting_key='page_title'");
     expect(privacyTitle).toContain(RUN_ID);
+
+    // Restore original
+    if (origTitle) dbQuery(`UPDATE system_settings SET setting_value='${origTitle.replace(/'/g, "\\'")}' WHERE category='privacy' AND setting_key='page_title'`);
   });
 
   test('Labels tab: select a label format', async () => {
@@ -267,6 +280,11 @@ test.describe.serial('CMS: Homepage Editing', () => {
   });
 
   test('Edit hero section title and subtitle', async () => {
+    // Save originals
+    const origTitle = dbQuery("SELECT title FROM home_content WHERE section_key='hero'");
+    const origSubtitle = dbQuery("SELECT subtitle FROM home_content WHERE section_key='hero'");
+    const origButton = dbQuery("SELECT button_text FROM home_content WHERE section_key='hero'");
+
     await page.goto(`${BASE}/admin/cms/home`);
     await page.waitForLoadState('networkidle');
 
@@ -287,6 +305,9 @@ test.describe.serial('CMS: Homepage Editing', () => {
     // Verify in DB
     const dbTitle = dbQuery("SELECT title FROM home_content WHERE section_key='hero'");
     expect(dbTitle).toBe(heroTitle);
+
+    // Restore originals
+    if (origTitle) dbQuery(`UPDATE home_content SET title='${origTitle.replace(/'/g, "\\'")}', subtitle='${(origSubtitle || '').replace(/'/g, "\\'")}', button_text='${(origButton || 'Esplora').replace(/'/g, "\\'")}' WHERE section_key='hero'`);
   });
 
   test('Section visibility toggle via API', async () => {

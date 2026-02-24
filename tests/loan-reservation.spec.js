@@ -109,8 +109,9 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
   // ── Setup ──────────────────────────────────────────────────────────────
   test.beforeAll(async ({ browser }) => {
     // 1. Hash password via PHP
+    const passLiteral = JSON.stringify(TEST_PASS);
     const hash = execFileSync('php', [
-      '-r', "echo password_hash('Test1234!', PASSWORD_DEFAULT);",
+      '-r', `echo password_hash(${passLiteral}, PASSWORD_DEFAULT);`,
     ], { encoding: 'utf-8' }).trim();
 
     // 2. Clean stale test data
