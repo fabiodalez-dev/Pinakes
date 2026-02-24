@@ -465,15 +465,21 @@ document.getElementById('template-selector').addEventListener('change', function
       }
     }, 100);
 
-    // Show placeholders
-    let placeholderHTML = '<ul class="list-disc pl-5">';
+    // Show placeholders using safe DOM methods (no innerHTML with dynamic data)
+    const placeholderContainer = document.getElementById('template-placeholders');
+    placeholderContainer.textContent = '';
+    const ul = document.createElement('ul');
+    ul.className = 'list-disc pl-5';
     if (template.placeholders && template.placeholders.length > 0) {
       template.placeholders.forEach(ph => {
-        placeholderHTML += '<li><code>{{' + ph + '}}</code></li>';
+        const li = document.createElement('li');
+        const code = document.createElement('code');
+        code.textContent = '{{' + ph + '}}';
+        li.appendChild(code);
+        ul.appendChild(li);
       });
     }
-    placeholderHTML += '</ul>';
-    document.getElementById('template-placeholders').innerHTML = placeholderHTML;
+    placeholderContainer.appendChild(ul);
 
     document.getElementById('template-editor').style.display = 'block';
   }

@@ -163,7 +163,7 @@ $editori = $data['editori'];
 </div>
 
 <script>
-window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
+window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 window.__ = function(key) { return key; };
 
 document.addEventListener('DOMContentLoaded', function() {

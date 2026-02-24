@@ -93,18 +93,9 @@ class BookRepository
         if (!$row)
             return null;
 
-        // Normalize genre hierarchy
-        // Query currently returns:
-        // g.nome = Level 3 (sottogenere)
-        // gp.nome = Level 2 (genere) - but labeled as radice_nome
-        // gpp.nome = Level 1 (radice) - labeled as nonno_nome
-        if (!empty($row['nonno_id'])) {
-            // This is a 3-level structure, reorganize the levels:
-            $row['sottogenere_nome'] = $row['genere_nome'];  // Level 3
-            $row['genere_nome'] = $row['radice_nome'];        // Level 2
-            $row['radice_nome'] = $row['nonno_nome'];         // Level 1
-            $row['radice_id'] = $row['nonno_id'];
-        }
+        // Resolve genre hierarchy for the 3-level cascade (Radice → Genere → Sottogenere)
+        // Walk up the tree from genere_id to find the full ancestor chain, then map to cascade levels
+        $this->resolveGenreHierarchy($row);
 
         // authors list (order by ordine_credito if column exists)
         // Whitelist ORDER BY per prevenire SQL injection
@@ -748,7 +739,7 @@ class BookRepository
             $addSet('condition_lt', 's', $data['condition_lt'] ?? null);
         }
 
-        $sql = 'UPDATE libri SET ' . implode(', ', $setParts) . ', updated_at=NOW() WHERE id=?';
+        $sql = 'UPDATE libri SET ' . implode(', ', $setParts) . ', updated_at=NOW() WHERE id=? AND deleted_at IS NULL';
         $stmt = $this->db->prepare($sql);
 
         $bindTypes = implode('', $typeParts) . 'i';
@@ -965,6 +956,92 @@ class BookRepository
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param($types, ...$vals);
         $stmt->execute();
+    }
+
+    /**
+     * Resolve genre hierarchy for the 3-level cascade (Radice → Genere → Sottogenere).
+     *
+     * Walks up the tree from genere_id to find the full ancestor chain,
+     * then maps IDs to the correct cascade levels so the edit form can
+     * pre-populate all three dropdowns.
+     *
+     * @param array<string, mixed> $row Book row (modified in place)
+     */
+    private function resolveGenreHierarchy(array &$row): void
+    {
+        // Default values
+        $row['radice_id'] = $row['radice_id'] ?? 0;
+
+        $genereId = (int)($row['genere_id'] ?? 0);
+        if ($genereId <= 0) {
+            return;
+        }
+
+        // Walk up the tree from genere_id to collect the full ancestor chain
+        $chain = [];
+        $currentId = $genereId;
+        $maxDepth = 5; // safety limit
+
+        $stmt = $this->db->prepare('SELECT id, nome, parent_id FROM generi WHERE id = ?');
+        if (!$stmt) {
+            return;
+        }
+        while ($currentId > 0 && $maxDepth-- > 0) {
+            $stmt->bind_param('i', $currentId);
+            $stmt->execute();
+            $genre = $stmt->get_result()->fetch_assoc();
+            if (!$genre) {
+                break;
+            }
+            array_unshift($chain, $genre); // prepend: root first
+            $currentId = (int)($genre['parent_id'] ?? 0);
+        }
+        $stmt->close();
+
+        // Also resolve sottogenere_id chain if present
+        $sottogenereId = (int)($row['sottogenere_id'] ?? 0);
+
+        // Map chain to the 3-level cascade based on where genere_id sits
+        // chain[0] = root (L1), chain[1] = genre (L2), chain[2] = subgenre (L3)
+        $chainLen = count($chain);
+
+        if ($chainLen === 0) {
+            // genre_id points to a deleted/missing genre — clear cascade fields
+            $row['radice_id'] = 0;
+            $row['radice_nome'] = null;
+            $row['genere_nome'] = null;
+            $row['genere_id_cascade'] = 0;
+            $row['sottogenere_nome'] = null;
+            $row['sottogenere_id_cascade'] = 0;
+            return;
+        }
+
+        if ($chainLen === 1) {
+            // genere_id points to a ROOT genre (L1)
+            // Cascade: radice = this genre, genere/sotto = not set
+            $row['radice_id'] = $chain[0]['id'];
+            $row['radice_nome'] = $chain[0]['nome'];
+            $row['genere_nome'] = null;
+            $row['genere_id_cascade'] = 0;
+            $row['sottogenere_nome'] = null;
+            $row['sottogenere_id_cascade'] = 0;
+        } elseif ($chainLen === 2) {
+            // genere_id points to L2 genre — standard case
+            $row['radice_id'] = $chain[0]['id'];
+            $row['radice_nome'] = $chain[0]['nome'];
+            $row['genere_nome'] = $chain[1]['nome'];
+            $row['genere_id_cascade'] = $chain[1]['id'];
+            $row['sottogenere_id_cascade'] = $sottogenereId;
+        } else {
+            // genere_id points to L3+ — stored at a deeper level
+            // Map: root=chain[0], genre=chain[1], sotto=genere_id
+            $row['radice_id'] = $chain[0]['id'];
+            $row['radice_nome'] = $chain[0]['nome'];
+            $row['genere_nome'] = $chain[1]['nome'];
+            $row['genere_id_cascade'] = $chain[1]['id'];
+            $row['sottogenere_nome'] = $chain[$chainLen - 1]['nome'];
+            $row['sottogenere_id_cascade'] = $chain[$chainLen - 1]['id'];
+        }
     }
 
     private ?array $columnCache = null;

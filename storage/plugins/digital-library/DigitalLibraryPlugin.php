@@ -15,26 +15,25 @@ declare(strict_types=1);
  * - Optional and fully disableable
  *
  * @package Pinakes\Plugins\DigitalLibrary
- * @version 1.0.0
+ * @version 1.1.0
  */
 class DigitalLibraryPlugin
 {
     private ?\mysqli $db = null;
-    private ?object $hookManager = null;
     private int $pluginId = 0;
-    private array $settings = [];
     private static bool $routesRegistered = false;
 
     /**
      * Constructor
      *
      * @param \mysqli|null $db Database connection
-     * @param object|null $hookManager Hook manager instance
+     * @param object|null $hookManager Hook manager instance (part of plugin API contract)
+     *
+     * @phpstan-ignore constructor.unusedParameter
      */
     public function __construct(?\mysqli $db = null, ?object $hookManager = null)
     {
         $this->db = $db;
-        $this->hookManager = $hookManager;
     }
 
     /**
@@ -43,33 +42,7 @@ class DigitalLibraryPlugin
     public function setPluginId(int $pluginId): void
     {
         $this->pluginId = $pluginId;
-        $this->loadSettings();
         $this->registerHooks();
-    }
-
-    /**
-     * Load plugin settings from database
-     */
-    private function loadSettings(): void
-    {
-        if (!$this->db || $this->pluginId === 0) {
-            return;
-        }
-
-        $stmt = $this->db->prepare("
-            SELECT setting_key, setting_value
-            FROM plugin_settings
-            WHERE plugin_id = ?
-        ");
-        $stmt->bind_param("i", $this->pluginId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-
-        while ($row = $result->fetch_assoc()) {
-            $this->settings[$row['setting_key']] = $row['setting_value'];
-        }
-
-        $stmt->close();
     }
 
     /**
@@ -86,7 +59,21 @@ class DigitalLibraryPlugin
         // Create .htaccess for security
         $htaccess = $uploadsDir . '/.htaccess';
         if (!file_exists($htaccess)) {
-            file_put_contents($htaccess, "# Protect directory listing\nOptions -Indexes\n");
+            file_put_contents($htaccess, implode("\n", [
+                '# Protect directory listing',
+                'Options -Indexes',
+                '# Deny execution of any server-side scripts',
+                '<FilesMatch "\.(php\d?|phtml|phar|pl|py|cgi|sh)$">',
+                '    <IfModule mod_authz_core.c>',
+                '        Require all denied',
+                '    </IfModule>',
+                '    <IfModule mod_access_compat.c>',
+                '        Order Deny,Allow',
+                '        Deny from all',
+                '    </IfModule>',
+                '</FilesMatch>',
+                '',
+            ]));
         }
 
         // Register hooks in database
@@ -104,6 +91,9 @@ class DigitalLibraryPlugin
         }
 
         $stmt = $this->db->prepare("DELETE FROM plugin_hooks WHERE plugin_id = ?");
+        if ($stmt === false) {
+            return;
+        }
         $stmt->bind_param("i", $this->pluginId);
         $stmt->execute();
         $stmt->close();
@@ -120,13 +110,13 @@ class DigitalLibraryPlugin
         }
 
         $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'file_url'");
-        if ($result->num_rows === 0) {
+        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
             // Add file_url column if missing
             $this->db->query("ALTER TABLE libri ADD COLUMN file_url VARCHAR(500) DEFAULT NULL COMMENT 'eBook file URL' AFTER note_varie");
         }
 
         $result = $this->db->query("SHOW COLUMNS FROM libri LIKE 'audio_url'");
-        if ($result->num_rows === 0) {
+        if ($result instanceof \mysqli_result && $result->num_rows === 0) {
             // Add audio_url column if missing
             $this->db->query("ALTER TABLE libri ADD COLUMN audio_url VARCHAR(500) DEFAULT NULL COMMENT 'Audiobook file URL' AFTER file_url");
         }
@@ -204,17 +194,31 @@ class DigitalLibraryPlugin
                 SELECT id FROM plugin_hooks
                 WHERE plugin_id = ? AND hook_name = ?
             ");
+            if (!$stmt) {
+                \App\Support\SecureLogger::error('DigitalLibraryPlugin: prepare() failed for hook check', ['hook' => $hook['hook_name']]);
+                continue;
+            }
             $stmt->bind_param("is", $this->pluginId, $hook['hook_name']);
             $stmt->execute();
             $result = $stmt->get_result();
+            if (!$result instanceof \mysqli_result) {
+                \App\Support\SecureLogger::error('DigitalLibraryPlugin: get_result() failed for hook check', ['hook' => $hook['hook_name']]);
+                $stmt->close();
+                continue;
+            }
 
             if ($result->num_rows === 0) {
+                $stmt->close(); // close SELECT stmt before reassignment
                 // Insert new hook
                 $stmt = $this->db->prepare("
                     INSERT INTO plugin_hooks
                     (plugin_id, hook_name, callback_class, callback_method, priority, is_active)
                     VALUES (?, ?, ?, ?, ?, ?)
                 ");
+                if (!$stmt) {
+                    \App\Support\SecureLogger::error('DigitalLibraryPlugin: prepare() failed for hook insert', ['hook' => $hook['hook_name']]);
+                    continue;
+                }
                 $stmt->bind_param(
                     "isssii",
                     $this->pluginId,
@@ -224,7 +228,12 @@ class DigitalLibraryPlugin
                     $hook['priority'],
                     $hook['is_active']
                 );
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    \App\Support\SecureLogger::error('[Digital Library] Hook insert failed', [
+                        'hook' => $hook['hook_name'],
+                        'error' => $stmt->error,
+                    ]);
+                }
             }
 
             $stmt->close();
@@ -240,10 +249,6 @@ class DigitalLibraryPlugin
      */
     public function registerRoutes($app): void
     {
-        if (!$app) {
-            return;
-        }
-
         // Prevent duplicate registration
         if (self::$routesRegistered) {
             return;
@@ -296,7 +301,7 @@ class DigitalLibraryPlugin
      */
     public function renderAudioPlayer(array $book): void
     {
-        if ($this->hasAudiobook($book)) {
+        if (!empty($book['audio_url'])) {
             include __DIR__ . '/views/frontend-player.php';
         }
     }
@@ -332,35 +337,8 @@ class DigitalLibraryPlugin
     }
 
     // ========================================================================
-    // Helper Methods
+    // Upload Handler
     // ========================================================================
-
-    /**
-     * Check if book has eBook file
-     */
-    private function hasEbook(array $book): bool
-    {
-        return !empty($book['file_url'] ?? '');
-    }
-
-    /**
-     * Check if book has audiobook file
-     */
-    private function hasAudiobook(array $book): bool
-    {
-        return !empty($book['audio_url'] ?? '');
-    }
-
-    /**
-     * Get safe file URL
-     */
-    private function getSafeUrl(?string $url): string
-    {
-        if (empty($url)) {
-            return '';
-        }
-        return htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-    }
 
     /**
      * Handle AJAX upload request
@@ -413,7 +391,32 @@ class DigitalLibraryPlugin
         ]);
 
         if ($file->getError() !== UPLOAD_ERR_OK) {
-            return $this->json($response, ['success' => false, 'message' => __('Errore durante il caricamento del file.')], 400);
+            $errorCode = $file->getError();
+            \App\Support\SecureLogger::warning('[Digital Library] Upload failed', [
+                'error_code' => $errorCode,
+                'filename' => $file->getClientFilename(),
+                'php_upload_max' => ini_get('upload_max_filesize') ?: 'unknown',
+                'php_post_max' => ini_get('post_max_size') ?: 'unknown'
+            ]);
+
+            $message = match ($errorCode) {
+                UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => sprintf(
+                    __('Il file supera il limite di upload di PHP (%s). Aumenta upload_max_filesize e post_max_size nella configurazione PHP.'),
+                    ini_get('upload_max_filesize') ?: '?'
+                ),
+                UPLOAD_ERR_PARTIAL => __('Il file è stato caricato solo parzialmente. Riprova.'),
+                UPLOAD_ERR_NO_FILE => __('Nessun file caricato.'),
+                UPLOAD_ERR_NO_TMP_DIR => __('Cartella temporanea mancante sul server. Contatta l\'amministratore di sistema.'),
+                UPLOAD_ERR_CANT_WRITE => __('Impossibile scrivere il file su disco. Controlla i permessi della cartella temporanea.'),
+                default => __('Errore durante il caricamento del file.') . ' (code: ' . $errorCode . ')',
+            };
+
+            $status = match ($errorCode) {
+                UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE => 500,
+                default => 400,
+            };
+
+            return $this->json($response, ['success' => false, 'message' => $message], $status);
         }
 
         // Validate size / mime
@@ -423,20 +426,21 @@ class DigitalLibraryPlugin
         }
 
         $allowedMime = ($type === 'audio')
-            ? ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/x-m4a', 'audio/wav']
-            : ['application/pdf', 'application/epub+zip', 'application/octet-stream'];
+            ? ['audio/mpeg', 'audio/mp4', 'audio/ogg', 'audio/x-m4a', 'audio/wav', 'audio/x-wav', 'audio/wave']
+            : ['application/pdf', 'application/epub+zip', 'application/zip'];
 
-        $clientMediaType = $file->getClientMediaType();
-        if (!in_array($clientMediaType, $allowedMime, true)) {
-            // Allow by extension as fallback
-            $filename = strtolower($file->getClientFilename());
-            $validExt = ($type === 'audio')
-                ? ['mp3', 'm4a', 'ogg', 'wav']
-                : ['pdf', 'epub'];
-            $ext = pathinfo($filename, PATHINFO_EXTENSION);
-            if (!in_array($ext, $validExt, true)) {
-                return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
-            }
+        // Always validate extension regardless of reported MIME type
+        $clientFilename = $file->getClientFilename();
+        if ($clientFilename === null || $clientFilename === '') {
+            return $this->json($response, ['success' => false, 'message' => __('Nome file non valido.')], 400);
+        }
+        $filename = strtolower($clientFilename);
+        $validExt = ($type === 'audio')
+            ? ['mp3', 'm4a', 'ogg', 'wav']
+            : ['pdf', 'epub'];
+        $ext = pathinfo($filename, PATHINFO_EXTENSION);
+        if (!in_array($ext, $validExt, true)) {
+            return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
         }
 
         $uploadsDir = realpath(__DIR__ . '/../../../public/uploads/digital');
@@ -447,13 +451,31 @@ class DigitalLibraryPlugin
             }
         }
 
-        $safeName = $this->generateSafeFilename($file->getClientFilename(), $type);
+        $safeName = $this->generateSafeFilename($clientFilename, $type);
         $targetPath = rtrim($uploadsDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $safeName;
 
         try {
             $file->moveTo($targetPath);
         } catch (\Throwable $e) {
             return $this->json($response, ['success' => false, 'message' => __('Impossibile salvare il file.')], 500);
+        }
+
+        // Server-side MIME validation using magic bytes (not client-reported type)
+        $finfo = new \finfo(FILEINFO_MIME_TYPE);
+        $detectedMime = $finfo->file($targetPath);
+        if ($detectedMime === false || !in_array($detectedMime, $allowedMime, true)) {
+            // Remove the uploaded file — it failed MIME validation
+            if (!unlink($targetPath)) {
+                \App\Support\SecureLogger::error('[Digital Library] Failed to remove MIME-rejected upload', [
+                    'path' => $targetPath,
+                ]);
+            }
+            \App\Support\SecureLogger::warning('[Digital Library] Upload rejected: MIME mismatch', [
+                'expected' => $allowedMime,
+                'detected' => $detectedMime ?: 'unknown',
+                'filename' => $clientFilename,
+            ]);
+            return $this->json($response, ['success' => false, 'message' => __('Formato file non supportato.')], 400);
         }
 
         $publicUrl = '/uploads/digital/' . $safeName;
@@ -464,6 +486,10 @@ class DigitalLibraryPlugin
             'type' => $type
         ]);
     }
+
+    // ========================================================================
+    // Asset Serving
+    // ========================================================================
 
     /**
      * Serve plugin assets (CSS/JS) from storage safely
@@ -488,17 +514,25 @@ class DigitalLibraryPlugin
         }
 
         $filePath = realpath($baseRealPath . DIRECTORY_SEPARATOR . $filename);
-        if ($filePath === false || strpos($filePath, $baseRealPath . DIRECTORY_SEPARATOR) !== 0 || !is_file($filePath)) {
+        if ($filePath === false || !str_starts_with($filePath, $baseRealPath . DIRECTORY_SEPARATOR) || !is_file($filePath)) {
             return $response->withStatus(404);
         }
 
         $mime = $type === 'css' ? 'text/css; charset=UTF-8' : 'application/javascript; charset=UTF-8';
-        $response->getBody()->write((string)file_get_contents($filePath));
+        $contents = file_get_contents($filePath);
+        if ($contents === false) {
+            return $response->withStatus(500);
+        }
+        $response->getBody()->write($contents);
 
         return $response
             ->withHeader('Content-Type', $mime)
             ->withHeader('Cache-Control', 'public, max-age=31536000');
     }
+
+    // ========================================================================
+    // Private Helpers
+    // ========================================================================
 
     /**
      * Generate safe filename
@@ -519,7 +553,13 @@ class DigitalLibraryPlugin
      */
     private function json($response, array $data, int $status = 200)
     {
-        $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        try {
+            $json = json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_THROW_ON_ERROR);
+        } catch (\JsonException $e) {
+            \App\Support\SecureLogger::error('[Digital Library] JSON encode failed', ['message' => $e->getMessage()]);
+            $json = json_encode(['success' => false, 'message' => 'Internal error']) ?: '{"success":false,"message":"Internal error"}';
+        }
+        $response->getBody()->write($json);
         return $response->withHeader('Content-Type', 'application/json')->withStatus($status);
     }
 }

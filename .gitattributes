@@ -3,3 +3,19 @@
 
 # Exclude from release archives (git archive)
 public/installer/assets export-ignore
+tests/ export-ignore
+test/ export-ignore
+.github/ export-ignore
+docs/ export-ignore
+.distignore export-ignore
+frontend/ export-ignore
+node_modules/ export-ignore
+*.log export-ignore
+.DS_Store export-ignore
+.claude/ export-ignore
+.gemini/ export-ignore
+.qoder/ export-ignore
+.cursor/ export-ignore
+.vscode/ export-ignore
+.idea/ export-ignore
+internal/ export-ignore

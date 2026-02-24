@@ -31,6 +31,7 @@ class LibriApiController
         $posizione_id = (int) ($q['posizione_id'] ?? 0);
         $anno_from = trim((string) ($q['anno_from'] ?? ''));
         $anno_to = trim((string) ($q['anno_to'] ?? ''));
+        $collana = trim((string) ($q['collana'] ?? ''));
 
         // Build WHERE clause with prepared statement parameters
         $where = 'WHERE l.deleted_at IS NULL ';
@@ -41,12 +42,13 @@ class LibriApiController
             $nameExpr = $this->hasTableColumn($db, 'autori', 'cognome')
                 ? "CONCAT(a.nome, ' ', a.cognome)"
                 : 'a.nome';
-            $where .= " AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id=a.id WHERE la.libro_id=l.id AND $nameExpr LIKE ?)) ";
+            $where .= " AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.parole_chiave LIKE ? OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id=a.id WHERE la.libro_id=l.id AND $nameExpr LIKE ?)) ";
             $searchParam = '%' . $search_text . '%';
             $params[] = $searchParam;
             $params[] = $searchParam;
             $params[] = $searchParam;
-            $types .= 'sss';
+            $params[] = $searchParam;
+            $types .= 'ssss';
         }
         if ($search_isbn !== '') {
             $where .= " AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?) ";
@@ -57,9 +59,15 @@ class LibriApiController
             $types .= 'sss';
         }
         if ($genere_id) {
-            $where .= ' AND l.genere_id = ?';
+            // Search both genere_id and sottogenere_id, plus children of the selected genre
+            // This handles: root genre → shows all books under its children,
+            // L2 genre → exact match + books with this as sub-genre,
+            // L3 sub-genre → match on sottogenere_id
+            $where .= ' AND (l.genere_id = ? OR l.sottogenere_id = ? OR l.genere_id IN (SELECT id FROM generi WHERE parent_id = ?))';
             $params[] = $genere_id;
-            $types .= 'i';
+            $params[] = $genere_id;
+            $params[] = $genere_id;
+            $types .= 'iii';
         }
         if ($sottogenere_id) {
             $where .= ' AND l.sottogenere_id = ?';
@@ -119,6 +127,11 @@ class LibriApiController
             $where .= " AND l.anno_pubblicazione <= ?";
             $params[] = (int) $anno_to;
             $types .= 'i';
+        }
+        if ($collana !== '') {
+            $where .= " AND l.collana LIKE ?";
+            $params[] = '%' . $collana . '%';
+            $types .= 's';
         }
 
         // Parse DataTables sorting parameters (with robust null checks to avoid notices)
@@ -495,7 +508,7 @@ class LibriApiController
         $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
         $types = str_repeat('i', count($cleanIds));
 
-        $sql = "UPDATE libri SET stato = ? WHERE id IN ($placeholders)";
+        $sql = "UPDATE libri SET stato = ? WHERE id IN ($placeholders) AND deleted_at IS NULL";
         $stmt = $db->prepare($sql);
         if (!$stmt) {
             AppLog::error('libri.bulk_status.prepare_failed', ['error' => $db->error]);
@@ -603,61 +616,32 @@ class LibriApiController
         }
         $checkStmt->close();
 
-        // Start transaction for atomic delete
-        $db->begin_transaction();
-
-        try {
-            // Delete all FK-dependent records in correct order.
-            // prestiti refs both copie.id and libri.id, so must go first.
-            $dependentTables = [
-                'prestiti',      // FK → copie(id), libri(id)
-                'libri_autori',  // FK → libri(id)
-                'libri_donati',  // FK → libri(id)
-                'libri_tag',     // FK → libri(id)
-                'prenotazioni',  // FK → libri(id)
-                'recensioni',    // FK → libri(id)
-                'wishlist',      // FK → libri(id)
-                'copie',         // FK → libri(id)
-            ];
-
-            foreach ($dependentTables as $table) {
-                $delSql = "DELETE FROM `$table` WHERE libro_id IN ($placeholders)";
-                $delStmt = $db->prepare($delSql);
-                if (!$delStmt) {
-                    throw new \Exception("Failed to prepare $table delete: " . $db->error);
-                }
-                $delStmt->bind_param($types, ...$cleanIds);
-                if (!$delStmt->execute()) {
-                    throw new \Exception("Failed to execute $table delete: " . $delStmt->error);
-                }
-                $delStmt->close();
-            }
-
-            // Delete the books
-            $sql = "DELETE FROM libri WHERE id IN ($placeholders)";
-            $stmt = $db->prepare($sql);
-            if (!$stmt) {
-                throw new \Exception('Failed to prepare book delete: ' . $db->error);
-            }
-
-            $stmt->bind_param($types, ...$cleanIds);
-            if (!$stmt->execute()) {
-                throw new \Exception('Failed to execute book delete: ' . $stmt->error);
-            }
-            $affected = $stmt->affected_rows;
-            $stmt->close();
-
-            // Commit transaction
-            $db->commit();
-        } catch (\Throwable $e) {
-            $db->rollback();
-            AppLog::error('libri.bulk_delete.transaction_failed', ['error' => $e->getMessage()]);
+        // Soft-delete: set deleted_at and nullify unique-indexed columns
+        // to avoid unique constraint violations on future inserts.
+        // Related records are kept for history/integrity (same as single delete).
+        $sql = "UPDATE libri SET deleted_at = NOW(), isbn10 = NULL, isbn13 = NULL, ean = NULL, scaffale_id = NULL, mensola_id = NULL, posizione_progressiva = NULL, collocazione = NULL WHERE id IN ($placeholders) AND deleted_at IS NULL";
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            AppLog::error('libri.bulk_delete.prepare_failed', ['error' => $db->error]);
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => __('Errore interno del database')
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
+
+        $stmt->bind_param($types, ...$cleanIds);
+        if (!$stmt->execute()) {
+            AppLog::error('libri.bulk_delete.execute_failed', ['error' => $stmt->error]);
+            $stmt->close();
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error' => __('Errore interno del database')
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+        $affected = $stmt->affected_rows;
+        $stmt->close();
 
         AppLog::info('libri.bulk_delete', ['ids' => $cleanIds, 'affected' => $affected]);
 

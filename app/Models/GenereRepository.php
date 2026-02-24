@@ -85,6 +85,90 @@ class GenereRepository
         return $rows;
     }
 
+    public function update(int $id, array $data): bool
+    {
+        $nome = trim((string)($data['nome'] ?? ''));
+        if (empty($nome)) {
+            throw new \InvalidArgumentException('Nome genere richiesto');
+        }
+
+        $nome = \App\Support\HtmlHelper::decode($nome);
+
+        if (array_key_exists('parent_id', $data)) {
+            $parent_id = !empty($data['parent_id']) ? (int)$data['parent_id'] : null;
+
+            // Prevent self/descendant reparenting
+            if ($parent_id !== null) {
+                if ($parent_id === $id) {
+                    throw new \InvalidArgumentException('Il genere non può essere figlio di sé stesso');
+                }
+                $ancestorId = $parent_id;
+                $seen = [];
+                $aStmt = $this->db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+                if (!$aStmt) {
+                    throw new \RuntimeException('Errore nella preparazione della query di verifica gerarchia');
+                }
+                while ($ancestorId > 0) {
+                    if (isset($seen[$ancestorId])) {
+                        $aStmt->close();
+                        throw new \RuntimeException('Ciclo rilevato nella gerarchia dei generi');
+                    }
+                    $seen[$ancestorId] = true;
+                    if ($ancestorId === $id) {
+                        $aStmt->close();
+                        throw new \InvalidArgumentException('Impossibile spostare il genere sotto un suo discendente');
+                    }
+                    $aStmt->bind_param('i', $ancestorId);
+                    $aStmt->execute();
+                    $row = $aStmt->get_result()->fetch_assoc();
+                    $ancestorId = $row && $row['parent_id'] !== null ? (int)$row['parent_id'] : 0;
+                }
+                $aStmt->close();
+            }
+
+            if ($parent_id === null) {
+                $stmt = $this->db->prepare("UPDATE generi SET nome = ?, parent_id = NULL WHERE id = ?");
+                $stmt->bind_param('si', $nome, $id);
+            } else {
+                $stmt = $this->db->prepare("UPDATE generi SET nome = ?, parent_id = ? WHERE id = ?");
+                $stmt->bind_param('sii', $nome, $parent_id, $id);
+            }
+        } else {
+            // Update name only
+            $stmt = $this->db->prepare("UPDATE generi SET nome = ? WHERE id = ?");
+            $stmt->bind_param('si', $nome, $id);
+        }
+
+        return $stmt->execute();
+    }
+
+    public function delete(int $id): bool
+    {
+        // Check if genre has children
+        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM generi WHERE parent_id = ?");
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];
+
+        if ($count > 0) {
+            throw new \RuntimeException('Impossibile eliminare: il genere ha sottogeneri');
+        }
+
+        // Check if genre is used by any book (including soft-deleted to prevent dangling FK)
+        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE genere_id = ? OR sottogenere_id = ?");
+        $stmt->bind_param('ii', $id, $id);
+        $stmt->execute();
+        $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];
+
+        if ($count > 0) {
+            throw new \RuntimeException('Impossibile eliminare: il genere è usato da libri esistenti');
+        }
+
+        $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
+        $stmt->bind_param('i', $id);
+        return $stmt->execute();
+    }
+
     public function getChildren(int $parent_id): array
     {
         $stmt = $this->db->prepare("
@@ -102,6 +186,156 @@ class GenereRepository
             $rows[] = $row;
         }
         return $rows;
+    }
+
+    /**
+     * @return array<int, array{id: int, nome: string, parent_id: ?int, parent_nome: ?string}>
+     */
+    public function getAllFlat(): array
+    {
+        $result = $this->db->query("
+            SELECT g.id, g.nome, g.parent_id, p.nome AS parent_nome
+            FROM generi g
+            LEFT JOIN generi p ON g.parent_id = p.id
+            ORDER BY COALESCE(p.nome, g.nome), g.parent_id IS NOT NULL, g.nome
+        ");
+
+        if (!$result instanceof \mysqli_result) {
+            return [];
+        }
+
+        $rows = [];
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        return $rows;
+    }
+
+    /**
+     * @return array{children_moved: int, books_updated: int}
+     */
+    public function merge(int $sourceId, int $targetId): array
+    {
+        if ($sourceId === $targetId) {
+            throw new \InvalidArgumentException('Non è possibile unire un genere con sé stesso');
+        }
+
+        $source = $this->getById($sourceId);
+        if (!$source) {
+            throw new \InvalidArgumentException('Genere di origine non trovato');
+        }
+
+        $target = $this->getById($targetId);
+        if (!$target) {
+            throw new \InvalidArgumentException('Genere di destinazione non trovato');
+        }
+
+        // Prevent merging into a descendant (would create cycles)
+        $ancestorId = $targetId;
+        $seen = [];
+        $aStmt = $this->db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+        if (!$aStmt) {
+            throw new \RuntimeException('Errore nella preparazione della query di verifica gerarchia');
+        }
+        while ($ancestorId > 0) {
+            if (isset($seen[$ancestorId])) {
+                $aStmt->close();
+                throw new \RuntimeException('Ciclo rilevato nella gerarchia dei generi');
+            }
+            $seen[$ancestorId] = true;
+            if ($ancestorId === $sourceId) {
+                $aStmt->close();
+                throw new \InvalidArgumentException('Impossibile unire un genere con un suo discendente');
+            }
+            $aStmt->bind_param('i', $ancestorId);
+            $aStmt->execute();
+            $row = $aStmt->get_result()->fetch_assoc();
+            $ancestorId = $row && $row['parent_id'] !== null ? (int)$row['parent_id'] : 0;
+        }
+        $aStmt->close();
+
+        $this->db->begin_transaction();
+
+        try {
+            // Rename conflicting children before moving
+            $sourceChildren = $this->getChildren($sourceId);
+            $targetChildren = $this->getChildren($targetId);
+            $targetChildNames = array_column($targetChildren, 'nome');
+
+            foreach ($sourceChildren as $child) {
+                if (in_array($child['nome'], $targetChildNames, true)) {
+                    $newName = $child['nome'] . ' (ex ' . $source['nome'] . ')';
+                    // If the renamed version also collides, add a counter
+                    $counter = 2;
+                    while (in_array($newName, $targetChildNames, true)) {
+                        $newName = $child['nome'] . ' (ex ' . $source['nome'] . ' ' . $counter . ')';
+                        $counter++;
+                    }
+                    $targetChildNames[] = $newName;
+                    $stmt = $this->db->prepare("UPDATE generi SET nome = ? WHERE id = ?");
+                    $stmt->bind_param('si', $newName, $child['id']);
+                    if (!$stmt->execute()) {
+                        throw new \RuntimeException('Impossibile rinominare il sottogenere in conflitto: ' . $child['nome']);
+                    }
+                }
+            }
+
+            // Move children from source to target (exclude target itself to prevent self-referencing)
+            $stmt = $this->db->prepare("UPDATE generi SET parent_id = ? WHERE parent_id = ? AND id != ?");
+            $stmt->bind_param('iii', $targetId, $sourceId, $targetId);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nello spostamento dei sottogeneri');
+            }
+            $childrenMoved = $stmt->affected_rows;
+
+            // If target was a child of source, reparent target to source's parent
+            $sourceParent = $source['parent_id'] !== null ? (int)$source['parent_id'] : null;
+            if ($sourceParent === null) {
+                $stmt = $this->db->prepare("UPDATE generi SET parent_id = NULL WHERE id = ? AND parent_id = ?");
+                $stmt->bind_param('ii', $targetId, $sourceId);
+            } else {
+                $stmt = $this->db->prepare("UPDATE generi SET parent_id = ? WHERE id = ? AND parent_id = ?");
+                $stmt->bind_param('iii', $sourceParent, $targetId, $sourceId);
+            }
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nel reparenting del genere di destinazione');
+            }
+
+            // Count distinct books referencing source (including soft-deleted, since we delete the genre row)
+            $stmt = $this->db->prepare("SELECT COUNT(DISTINCT id) as cnt FROM libri WHERE genere_id = ? OR sottogenere_id = ?");
+            $stmt->bind_param('ii', $sourceId, $sourceId);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nel conteggio dei libri referenziati');
+            }
+            $booksUpdated = (int)$stmt->get_result()->fetch_assoc()['cnt'];
+
+            // Update ALL books (including soft-deleted) to prevent dangling FK references
+            $stmt = $this->db->prepare("UPDATE libri SET genere_id = ? WHERE genere_id = ?");
+            $stmt->bind_param('ii', $targetId, $sourceId);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nell\'aggiornamento del genere dei libri');
+            }
+
+            $stmt = $this->db->prepare("UPDATE libri SET sottogenere_id = ? WHERE sottogenere_id = ?");
+            $stmt->bind_param('ii', $targetId, $sourceId);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nell\'aggiornamento del sottogenere dei libri');
+            }
+
+            // Delete source genre
+            $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
+            $stmt->bind_param('i', $sourceId);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nella cancellazione del genere di origine');
+            }
+
+            $this->db->commit();
+
+            return ['children_moved' => $childrenMoved, 'books_updated' => $booksUpdated];
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
+        }
     }
 }
 ?>

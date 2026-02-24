@@ -26,7 +26,7 @@ $htmlLang = substr($currentLocale, 0, 2);
   <title><?php echo HtmlHelper::e($appName); ?> - Sistema di Gestione Bibliotecaria</title>
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
   <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
-  <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
+  <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
   <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
@@ -694,7 +694,7 @@ $htmlLang = substr($currentLocale, 0, 2);
       $translations = json_decode($translationsContent, true) ?? [];
     }
     ?>
-    window.i18nTranslations = <?= json_encode($translations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
+    window.i18nTranslations = <?= json_encode($translations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
     window.userIsAdminOrStaff = <?= json_encode($isAdminOrStaff, JSON_HEX_TAG) ?>;
 
     // Override translation helper function to use i18nTranslations (overrides head fallback)
@@ -1304,10 +1304,10 @@ $htmlLang = substr($currentLocale, 0, 2);
       const diffHours = Math.floor(diffMs / 3600000);
       const diffDays = Math.floor(diffMs / 86400000);
 
-      if (diffMins < 1) return <?= json_encode(__("Adesso"), JSON_HEX_TAG) ?>;
-      if (diffMins < 60) return `${diffMins} ${<?= json_encode(__("minuti fa"), JSON_HEX_TAG) ?>}`;
-      if (diffHours < 24) return `${diffHours} ${<?= json_encode(__("ore fa"), JSON_HEX_TAG) ?>}`;
-      if (diffDays === 1) return <?= json_encode(__("Ieri"), JSON_HEX_TAG) ?>;
+      if (diffMins < 1) return <?= json_encode(__("Adesso"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      if (diffMins < 60) return `${diffMins} ${<?= json_encode(__("minuti fa"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}`;
+      if (diffHours < 24) return `${diffHours} ${<?= json_encode(__("ore fa"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>}`;
+      if (diffDays === 1) return <?= json_encode(__("Ieri"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       return formatDateLocale(date);
     }
 
@@ -1472,8 +1472,8 @@ $htmlLang = substr($currentLocale, 0, 2);
   <script>
     (function () {
       const nativeAlert = typeof window.alert === 'function' ? window.alert.bind(window) : null;
-      const alertTitle = <?= json_encode(__('Avviso')) ?>;
-      const alertButton = <?= json_encode(__('OK')) ?>;
+      const alertTitle = <?= json_encode(__('Avviso'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+      const alertButton = <?= json_encode(__('OK'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
       window.alert = function (message) {
         const text = (message === undefined || message === null) ? '' : String(message);

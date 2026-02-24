@@ -248,7 +248,7 @@ $additional_css = "
         left: 0;
         right: 0;
         bottom: 0;
-        background-image: url('" . htmlspecialchars($bookCover) . "');
+        background-image: url('" . htmlspecialchars($bookCover, ENT_QUOTES, 'UTF-8') . "');
         background-size: cover;
         filter: blur(8px);
         opacity: 0.9;
@@ -1458,7 +1458,7 @@ ob_start();
                     <?php if (!empty($book['genere'])): ?>
                     <div class="genre-tags">
                         <a href="<?= $catalogRoute ?>?genere=<?= urlencode(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
-                            <i class="fas fa-tags me-1"></i><?= htmlspecialchars($bookGenre) ?>
+                            <i class="fas fa-tags me-1"></i><?= htmlspecialchars($bookGenre, ENT_QUOTES, 'UTF-8') ?>
                         </a>
                     </div>
                     <?php endif; ?>
@@ -1551,7 +1551,7 @@ ob_start();
                     <?php endif; ?>
                     <?php if (!empty($_GET['reserve_success'])): ?>
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            <i class="fas fa-check-circle me-2"></i><?= __("Prenotazione effettuata con successo") ?><?php if(!empty($_GET['reserve_date'])): ?> <?= __("per il giorno") ?> <strong><?= htmlspecialchars($_GET['reserve_date']) ?></strong><?php endif; ?>.
+                            <i class="fas fa-check-circle me-2"></i><?= __("Prenotazione effettuata con successo") ?><?php if(!empty($_GET['reserve_date'])): ?> <?= __("per il giorno") ?> <strong><?= htmlspecialchars($_GET['reserve_date'], ENT_QUOTES, 'UTF-8') ?></strong><?php endif; ?>.
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     <?php elseif (!empty($_GET['reserve_error'])): ?>
@@ -1615,35 +1615,35 @@ ob_start();
                             <?php if (!empty($book['isbn13'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label">ISBN-13</div>
-                                <div class="meta-value"><?= htmlspecialchars($book['isbn13']) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($book['isbn13'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['isbn10'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label">ISBN-10</div>
-                                <div class="meta-value"><?= htmlspecialchars($book['isbn10']) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($book['isbn10'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['ean'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label">EAN</div>
-                                <div class="meta-value"><?= htmlspecialchars($book['ean']) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($book['ean'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($bookGenre)): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Genere") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($bookGenre) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($bookGenre, ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['lingua'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Lingua") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['lingua']) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($book['lingua'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
@@ -1658,7 +1658,7 @@ ob_start();
                             <?php if (!empty($book['anno_pubblicazione'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Anno di Pubblicazione") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['anno_pubblicazione']) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($book['anno_pubblicazione'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
@@ -1672,35 +1672,35 @@ ob_start();
                             <?php if (!empty($book['numero_pagine'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Numero di Pagine") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['numero_pagine']) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($book['numero_pagine'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['formato'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Formato") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['formato']) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($book['formato'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['dimensioni'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Dimensioni") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['dimensioni']) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($book['dimensioni'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['peso'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Peso") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['peso']) ?> kg</div>
+                                <div class="meta-value"><?= htmlspecialchars($book['peso'], ENT_QUOTES, 'UTF-8') ?> kg</div>
                             </div>
                             <?php endif; ?>
 
                             <?php if (!empty($book['numero_inventario'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Numero Inventario") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['numero_inventario']) ?></div>
+                                <div class="meta-value"><?= htmlspecialchars($book['numero_inventario'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
                         </div>
@@ -1762,7 +1762,7 @@ ob_start();
                         <div class="details-column">
                             <?php foreach ($column1 as $fieldName => $field): ?>
                             <div class="meta-item">
-                                <div class="meta-label"><?= htmlspecialchars($field['label']) ?></div>
+                                <div class="meta-label"><?= htmlspecialchars($field['label'], ENT_QUOTES, 'UTF-8') ?></div>
                                 <div class="meta-value">
                                     <?php if (in_array($fieldName, ['rating'])): ?>
                                         <?php
@@ -1779,7 +1779,7 @@ ob_start();
                                         <?php
                                         $timestamp = strtotime($field['value']);
                                         echo ($timestamp && $timestamp > 0)
-                                            ? htmlspecialchars(date('d/m/Y', $timestamp))
+                                            ? htmlspecialchars(date('d/m/Y', $timestamp), ENT_QUOTES, 'UTF-8')
                                             : '-';
                                         ?>
                                     <?php elseif (in_array($fieldName, ['value'])): ?>
@@ -1787,7 +1787,7 @@ ob_start();
                                     <?php elseif (in_array($fieldName, ['review', 'comment'])): ?>
                                         <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) ?></div>
                                     <?php else: ?>
-                                        <?= htmlspecialchars($field['value']) ?>
+                                        <?= htmlspecialchars($field['value'], ENT_QUOTES, 'UTF-8') ?>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -1796,7 +1796,7 @@ ob_start();
                         <div class="details-column">
                             <?php foreach ($column2 as $fieldName => $field): ?>
                             <div class="meta-item">
-                                <div class="meta-label"><?= htmlspecialchars($field['label']) ?></div>
+                                <div class="meta-label"><?= htmlspecialchars($field['label'], ENT_QUOTES, 'UTF-8') ?></div>
                                 <div class="meta-value">
                                     <?php if (in_array($fieldName, ['rating'])): ?>
                                         <?php
@@ -1813,7 +1813,7 @@ ob_start();
                                         <?php
                                         $timestamp = strtotime($field['value']);
                                         echo ($timestamp && $timestamp > 0)
-                                            ? htmlspecialchars(date('d/m/Y', $timestamp))
+                                            ? htmlspecialchars(date('d/m/Y', $timestamp), ENT_QUOTES, 'UTF-8')
                                             : '-';
                                         ?>
                                     <?php elseif (in_array($fieldName, ['value'])): ?>
@@ -1821,7 +1821,7 @@ ob_start();
                                     <?php elseif (in_array($fieldName, ['review', 'comment'])): ?>
                                         <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($field['value'], false)) ?></div>
                                     <?php else: ?>
-                                        <?= htmlspecialchars($field['value']) ?>
+                                        <?= htmlspecialchars($field['value'], ENT_QUOTES, 'UTF-8') ?>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -1901,7 +1901,7 @@ ob_start();
                                             <i class="fas fa-user"></i>
                                         </div>
                                         <div>
-                                            <div class="fw-bold"><?= htmlspecialchars($review['utente_nome']) ?></div>
+                                            <div class="fw-bold"><?= htmlspecialchars($review['utente_nome'], ENT_QUOTES, 'UTF-8') ?></div>
                                             <div class="text-muted small">
                                                 <i class="fas fa-calendar me-1"></i>
                                                 <?= format_date($review['approved_at'], false, '/') ?>
@@ -1916,11 +1916,11 @@ ob_start();
                                 </div>
 
                                 <?php if (!empty($review['titolo'])): ?>
-                                    <h5 class="review-title fw-bold mb-2"><?= htmlspecialchars($review['titolo']) ?></h5>
+                                    <h5 class="review-title fw-bold mb-2"><?= htmlspecialchars($review['titolo'], ENT_QUOTES, 'UTF-8') ?></h5>
                                 <?php endif; ?>
 
                                 <?php if (!empty($review['descrizione'])): ?>
-                                    <p class="review-text mb-0"><?= nl2br(htmlspecialchars($review['descrizione'])) ?></p>
+                                    <p class="review-text mb-0"><?= nl2br(htmlspecialchars($review['descrizione'], ENT_QUOTES, 'UTF-8')) ?></p>
                                 <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
@@ -1945,7 +1945,7 @@ ob_start();
                         <?php if (!empty($book['editore'])): ?>
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Editore") ?></div>
-                            <div class="meta-value"><?= htmlspecialchars($book['editore']) ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['editore'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                         <?php endif; ?>
 
@@ -1966,7 +1966,7 @@ ob_start();
                         <?php if (!empty($book['collocazione'])): ?>
                         <div class="meta-item">
                             <div class="meta-label"><?= __("Collocazione") ?></div>
-                            <div class="meta-value"><?= htmlspecialchars($book['collocazione']) ?></div>
+                            <div class="meta-value"><?= htmlspecialchars($book['collocazione'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                         <?php endif; ?>
 
@@ -2057,11 +2057,11 @@ ob_start();
                     <div class="related-book-content">
                         <h5 class="related-book-title">
                             <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>">
-                                <?= htmlspecialchars($related['titolo']) ?>
+                                <?= htmlspecialchars($related['titolo'], ENT_QUOTES, 'UTF-8') ?>
                             </a>
                         </h5>
                         <p class="related-book-author">
-                            <?= htmlspecialchars($related['autori'] ?? __('Autore sconosciuto')) ?>
+                            <?= htmlspecialchars($related['autori'] ?? __('Autore sconosciuto'), ENT_QUOTES, 'UTF-8') ?>
                         </p>
                         <div class="related-book-actions">
                             <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>"

@@ -401,7 +401,7 @@ $libri = $data['libri'];
 </div>
 
 <script>
-window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
+window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
 document.addEventListener('DOMContentLoaded', function() {
   // Dropdown menus for import/export
@@ -433,6 +433,69 @@ document.addEventListener('DOMContentLoaded', function() {
   const urlParams = new URLSearchParams(window.location.search);
   const initialGenere = parseInt(urlParams.get('genere') || urlParams.get('genere_filter') || '0', 10) || 0;
   const initialSottogenere = parseInt(urlParams.get('sottogenere') || urlParams.get('sottogenere_filter') || '0', 10) || 0;
+  let genereUrlFilter = initialGenere;
+  let sottogenereUrlFilter = initialSottogenere;
+  const initialKeywords = urlParams.get('keywords') || '';
+  const initialCollana = urlParams.get('collana') || '';
+  let collanaFilter = initialCollana;
+
+  // Pre-fill search from ?keywords= URL parameter (keyword links from book detail)
+  if (initialKeywords) {
+    document.getElementById('search_text').value = initialKeywords;
+  }
+
+  // Show flash message for active URL filters
+  (function() {
+    const activeUrlFilters = [];
+    if (initialKeywords) {
+      activeUrlFilters.push(<?= json_encode(__("Parola chiave"), JSON_HEX_TAG) ?> + ': \u00AB' + initialKeywords + '\u00BB');
+    }
+    if (initialCollana) {
+      activeUrlFilters.push(<?= json_encode(__("Collana"), JSON_HEX_TAG) ?> + ': \u00AB' + initialCollana + '\u00BB');
+    }
+    if (initialGenere) {
+      activeUrlFilters.push(<?= json_encode(__("Genere"), JSON_HEX_TAG) ?> + ' #' + initialGenere);
+    }
+    if (initialSottogenere) {
+      activeUrlFilters.push(<?= json_encode(__("Sottogenere"), JSON_HEX_TAG) ?> + ' #' + initialSottogenere);
+    }
+    if (activeUrlFilters.length > 0) {
+      const banner = document.createElement('div');
+      banner.id = 'url-filter-flash';
+      banner.className = 'mb-4 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between text-sm text-blue-800';
+      const msg = document.createElement('span');
+      const icon = document.createElement('i');
+      icon.className = 'fas fa-filter mr-2';
+      msg.appendChild(icon);
+      msg.appendChild(document.createTextNode(<?= json_encode(__("Filtro attivo"), JSON_HEX_TAG) ?> + ': ' + activeUrlFilters.join(', ')));
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'ml-4 text-blue-400 hover:text-blue-700 transition-colors';
+      closeBtn.title = <?= json_encode(__("Chiudi"), JSON_HEX_TAG) ?>;
+      const closeIcon = document.createElement('i');
+      closeIcon.className = 'fas fa-times';
+      closeBtn.appendChild(closeIcon);
+      closeBtn.addEventListener('click', function() {
+        collanaFilter = '';
+        genereUrlFilter = 0;
+        sottogenereUrlFilter = 0;
+        if (initialKeywords) {
+          const searchInput = document.getElementById('search_text');
+          if (searchInput && searchInput.value === initialKeywords) {
+            searchInput.value = '';
+          }
+        }
+        banner.remove();
+        table.ajax.reload();
+        updateActiveFilters();
+      });
+      banner.appendChild(msg);
+      banner.appendChild(closeBtn);
+      const target = document.getElementById('table-view')?.closest('.bg-white.rounded-xl');
+      if (target && target.parentNode) {
+        target.parentNode.insertBefore(banner, target);
+      }
+    }
+  })();
 
   if (typeof DataTable === 'undefined') {
     console.error('DataTable is not loaded!');
@@ -576,11 +639,12 @@ document.addEventListener('DOMContentLoaded', function() {
           pub_from: document.getElementById('pub_from').value,
           autore_id: document.getElementById('autore_id').value || 0,
           editore_filter: document.getElementById('editore_filter').value || 0,
-          genere_filter: document.getElementById('genere_id').value || initialGenere || 0,
-          sottogenere_filter: initialSottogenere || 0,
+          genere_filter: document.getElementById('genere_id').value || genereUrlFilter || 0,
+          sottogenere_filter: sottogenereUrlFilter || 0,
           posizione_id: document.getElementById('posizione_id').value || 0,
           anno_from: document.getElementById('anno_from').value,
-          anno_to: document.getElementById('anno_to').value
+          anno_to: document.getElementById('anno_to').value,
+          collana: collanaFilter
         };
       },
       dataSrc: function(json) {
@@ -720,7 +784,7 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'text-center align-middle',
         render: function(data, type, row) {
           if (!row || !data) return '<span class="text-gray-400">-</span>';
-          return `<span class="text-xs font-mono text-gray-600">${data}</span>`;
+          return `<span class="text-xs font-mono text-gray-600">${escapeHtml(data)}</span>`;
         }
       },
       { // Actions
@@ -844,7 +908,7 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (key === 'autore') { document.getElementById('filter_autore').value = ''; document.getElementById('autore_id').value = ''; }
     else if (key === 'editore') { document.getElementById('filter_editore').value = ''; document.getElementById('editore_filter').value = ''; }
     else if (key === 'stato_filter') document.getElementById('stato_filter').value = '';
-    else if (key === 'genere') { document.getElementById('filter_genere').value = ''; document.getElementById('genere_id').value = ''; }
+    else if (key === 'genere') { document.getElementById('filter_genere').value = ''; document.getElementById('genere_id').value = ''; genereUrlFilter = 0; sottogenereUrlFilter = 0; }
     table.ajax.reload();
     updateActiveFilters();
   }
@@ -859,6 +923,11 @@ document.addEventListener('DOMContentLoaded', function() {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+    collanaFilter = '';
+    genereUrlFilter = 0;
+    sottogenereUrlFilter = 0;
+    const urlBanner = document.getElementById('url-filter-flash');
+    if (urlBanner) urlBanner.remove();
     selectedBooks.clear();
     table.ajax.reload();
     updateActiveFilters();
@@ -883,6 +952,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Clear hidden ID and reload table when input is cleared
         if (hidden && hidden.value) {
           hidden.value = '';
+          // Also reset URL genre filters when genre autocomplete is cleared
+          if (hiddenId === 'genere_id') {
+            genereUrlFilter = 0;
+            sottogenereUrlFilter = 0;
+          }
           table.ajax.reload();
           updateActiveFilters();
         }
@@ -920,6 +994,8 @@ document.addEventListener('DOMContentLoaded', function() {
   setupAutocomplete('filter_genere', 'filter_genere_suggest', 'genere_id', window.BASE_PATH + '/api/search/generi?q=', item => {
     document.getElementById('genere_id').value = item.id;
     document.getElementById('filter_genere').value = item.label;
+    genereUrlFilter = 0;
+    sottogenereUrlFilter = 0;
   });
   setupAutocomplete('filter_posizione', 'filter_posizione_suggest', 'posizione_id', window.BASE_PATH + '/api/search/collocazione?q=', item => {
     document.getElementById('posizione_id').value = item.id;

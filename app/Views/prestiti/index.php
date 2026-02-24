@@ -323,7 +323,7 @@ function getStatusBadge($status) {
 
 <script>
 // Set current locale for DataTables language selection
-window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale()) ?>;
+window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
 
 function escHtml(str) {

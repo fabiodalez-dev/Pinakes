@@ -1,5 +1,18 @@
+# PHP upload limits (required for Digital Library plugin: eBook up to 100MB, audiobook up to 500MB)
+<IfModule mod_php.c>
+    php_value upload_max_filesize 512M
+    php_value post_max_size 520M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>
+<IfModule mod_php7.c>
+    php_value upload_max_filesize 512M
+    php_value post_max_size 520M
+    php_value max_execution_time 300
+    php_value max_input_time 300
+</IfModule>
 <IfModule mod_rewrite.c>
-    Options +FollowSymLinks
+    Options -Indexes +FollowSymLinks
     RewriteEngine On
 
     # Handle Authorization Header
@@ -37,7 +50,7 @@
 
 # Block access to sensitive files (defense in depth)
 # Even though these files are outside webroot, this prevents misconfiguration attacks
-<FilesMatch "^(\.env|\.env\..+|\.git.*|\.htaccess|composer\.(json|lock)|package(-lock)?\.json|\.installed|version\.json|CLAUDE\.md)$">
+<FilesMatch "^(\.env|\.env\..+|\.git.*|\.htaccess|\.user\.ini|composer\.(json|lock)|package(-lock)?\.json|\.installed|version\.json|CLAUDE\.md)$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

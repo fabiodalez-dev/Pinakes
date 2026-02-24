@@ -8,6 +8,7 @@ use App\Support\ConfigStore;
 use App\Support\ContentSanitizer;
 use App\Support\HtmlHelper;
 use App\Support\SettingsMailTemplates;
+use App\Support\SecureLogger;
 use App\Support\SitemapGenerator;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -627,7 +628,8 @@ class SettingsController
 
             $_SESSION['success_message'] = sprintf(__('Sitemap rigenerata con successo (%d URL).'), $total);
         } catch (\Throwable $exception) {
-            $_SESSION['error_message'] = sprintf(__('Impossibile rigenerare la sitemap: %s'), $exception->getMessage());
+            SecureLogger::error('SettingsController::regenerateSitemap error: ' . $exception->getMessage());
+            $_SESSION['error_message'] = __('Impossibile rigenerare la sitemap.');
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');
@@ -740,7 +742,8 @@ class SettingsController
             $_SESSION['success_message'] = __('API key creata con successo.');
             $_SESSION['new_api_key'] = $newKey['api_key']; // Store for one-time display
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = sprintf(__('Errore nella creazione dell\'API key: %s'), $e->getMessage());
+            SecureLogger::error('SettingsController::createApiKey error: ' . $e->getMessage());
+            $_SESSION['error_message'] = __('Errore nella creazione dell\'API key.');
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');
@@ -757,7 +760,8 @@ class SettingsController
 
             $_SESSION['success_message'] = __('Stato API key aggiornato con successo.');
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = sprintf(__('Errore nell\'aggiornamento dello stato dell\'API key: %s'), $e->getMessage());
+            SecureLogger::error('SettingsController::toggleApiKey error: ' . $e->getMessage());
+            $_SESSION['error_message'] = __('Errore nell\'aggiornamento dello stato dell\'API key.');
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');
@@ -774,7 +778,8 @@ class SettingsController
 
             $_SESSION['success_message'] = __('API key eliminata con successo.');
         } catch (\Throwable $e) {
-            $_SESSION['error_message'] = sprintf(__('Errore nell\'eliminazione dell\'API key: %s'), $e->getMessage());
+            SecureLogger::error('SettingsController::deleteApiKey error: ' . $e->getMessage());
+            $_SESSION['error_message'] = __('Errore nell\'eliminazione dell\'API key.');
         }
 
         return $this->redirect($response, '/admin/settings?tab=advanced');

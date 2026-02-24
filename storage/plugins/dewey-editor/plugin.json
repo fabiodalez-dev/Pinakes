@@ -2,7 +2,7 @@
   "name": "dewey-editor",
   "display_name": "Dewey Classification Editor",
   "description": "Editor visuale per gestire le classificazioni Dewey. Permette di aggiungere, modificare ed eliminare codici decimali, importare/esportare file JSON con validazione automatica.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "",
