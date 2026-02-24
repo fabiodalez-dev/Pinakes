@@ -3,23 +3,30 @@ const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'fabiodalez@gmail.com';
-const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || 'Fa310reds?';
-const TEST_EMAIL  = 'testloan@example.com';
-const TEST_PASS   = 'Test1234!';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
+const TEST_EMAIL  = process.env.E2E_TEST_EMAIL || 'testloan@example.com';
+const TEST_PASS   = process.env.E2E_TEST_PASS  || 'Test1234!';
+
+const DB_USER   = process.env.E2E_DB_USER   || '';
+const DB_PASS   = process.env.E2E_DB_PASS   || '';
+const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
+const DB_NAME   = process.env.E2E_DB_NAME   || '';
+
+// Skip all tests when credentials are not configured
+test.skip(
+  !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME,
+  'E2E credentials not configured (set E2E_ADMIN_EMAIL, E2E_ADMIN_PASS, E2E_DB_USER, E2E_DB_PASS, E2E_DB_NAME)',
+);
 
 /**
  * Execute a MySQL query and return trimmed output.
- * Uses execFileSync (no shell) — all arguments are static test strings.
+ * Uses execFileSync (no shell) — all arguments passed via env vars.
  */
 function dbQuery(sql) {
-  return execFileSync('mysql', [
-    '-u', 'fabiodal_biblioteca_user',
-    '-pZd10)uwziWlK',
-    '-S', '/opt/homebrew/var/mysql/mysql.sock',
-    'fabiodal_biblioteca',
-    '-N', '-B', '-e', sql,
-  ], { encoding: 'utf-8', timeout: 10000 }).trim();
+  const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
+  if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
+  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
 }
 
 /** Return today's date as YYYY-MM-DD. */

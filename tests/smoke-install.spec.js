@@ -2,8 +2,19 @@
 const { test, expect, chromium } = require('@playwright/test');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'fabiodalez@gmail.com';
-const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || 'Fa310reds?';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
+const DB_HOST     = process.env.E2E_DB_HOST     || '';
+const DB_USER     = process.env.E2E_DB_USER     || '';
+const DB_PASS     = process.env.E2E_DB_PASS     || '';
+const DB_NAME     = process.env.E2E_DB_NAME     || '';
+const DB_SOCKET   = process.env.E2E_DB_SOCKET   || '';
+
+// Skip all tests when credentials are not configured
+test.skip(
+  !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME,
+  'E2E credentials not configured (set E2E_ADMIN_EMAIL, E2E_ADMIN_PASS, E2E_DB_USER, E2E_DB_NAME)',
+);
 
 // ────────────────────────────────────────────────────────────────────────
 // Full lifecycle smoke test: fresh install → login → CRUD operations
@@ -44,11 +55,13 @@ test.describe.serial('Smoke: clean install + core operations', () => {
 
   // ── Step 2: Database Configuration ─────────────────────────────────
   test('Installer step 2: configure DB and test connection', async () => {
-    await page.fill('#db_host', 'localhost');
-    await page.fill('#db_username', 'fabiodal_biblioteca_user');
-    await page.fill('#db_password', 'Zd10)uwziWlK');
-    await page.fill('#db_database', 'fabiodal_biblioteca');
-    await page.fill('#db_socket', '/opt/homebrew/var/mysql/mysql.sock');
+    await page.fill('#db_host', DB_HOST || 'localhost');
+    await page.fill('#db_username', DB_USER);
+    await page.fill('#db_password', DB_PASS);
+    await page.fill('#db_database', DB_NAME);
+    if (DB_SOCKET) {
+      await page.fill('#db_socket', DB_SOCKET);
+    }
 
     // Test connection (required to enable Continue button)
     await page.click('#test-connection-btn');

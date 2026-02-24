@@ -8,7 +8,7 @@ test/ export-ignore
 .github/ export-ignore
 docs/ export-ignore
 .distignore export-ignore
-/frontend/ export-ignore
+frontend/ export-ignore
 node_modules/ export-ignore
 *.log export-ignore
 .DS_Store export-ignore

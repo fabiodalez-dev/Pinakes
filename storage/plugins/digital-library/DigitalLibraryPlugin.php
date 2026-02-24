@@ -201,6 +201,11 @@ class DigitalLibraryPlugin
             $stmt->bind_param("is", $this->pluginId, $hook['hook_name']);
             $stmt->execute();
             $result = $stmt->get_result();
+            if (!$result instanceof \mysqli_result) {
+                \App\Support\SecureLogger::error('DigitalLibraryPlugin: get_result() failed for hook check', ['hook' => $hook['hook_name']]);
+                $stmt->close();
+                continue;
+            }
 
             if ($result->num_rows === 0) {
                 $stmt->close(); // close SELECT stmt before reassignment
