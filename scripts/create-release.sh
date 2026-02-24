@@ -65,49 +65,23 @@ echo -e "${GREEN}✓ version.json is correct: $VERSION${NC}"
 echo ""
 
 # ============================================================================
-# STEP 3: Install production dependencies (NO DEV PACKAGES!)
+# STEP 3: Verify autoloader has NO dev dependencies
 # ============================================================================
-echo -e "${YELLOW}[3/9] Installing production dependencies (composer install --no-dev)...${NC}"
+echo -e "${YELLOW}[3/9] Verifying autoloader is clean (no dev deps)...${NC}"
 
-# This is CRITICAL - removes PHPStan and other dev dependencies
-composer install --no-dev --optimize-autoloader --no-interaction
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}❌ ERROR: composer install failed${NC}"
+# PHPStan was removed from composer.json — autoloader should never reference it
+if grep -q "phpstan" vendor/composer/autoload_files.php 2>/dev/null; then
+    echo -e "${RED}❌ ERROR: vendor/composer still references phpstan!${NC}"
+    echo -e "${RED}   Run: composer install --no-dev --optimize-autoloader${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✓ Production dependencies installed (dev packages removed)${NC}"
-echo ""
-
-# ============================================================================
-# STEP 4: Verify PHPStan is NOT present
-# ============================================================================
-echo -e "${YELLOW}[4/9] Verifying PHPStan is removed...${NC}"
-
-if [ -d "vendor/phpstan" ]; then
-    echo -e "${RED}❌ ERROR: vendor/phpstan still exists! composer install --no-dev failed.${NC}"
+if grep -q "phpstan" vendor/composer/autoload_static.php 2>/dev/null; then
+    echo -e "${RED}❌ ERROR: vendor/composer/autoload_static.php references phpstan!${NC}"
     exit 1
 fi
 
-echo -e "${GREEN}✓ PHPStan removed from vendor/${NC}"
-echo ""
-
-# ============================================================================
-# STEP 4.5: Commit production vendor/composer to git
-# ============================================================================
-echo -e "${YELLOW}[4.5/9] Committing production vendor/composer to git...${NC}"
-
-# Check if vendor/composer has changes
-if git diff --quiet vendor/composer/; then
-    echo -e "${GREEN}✓ vendor/composer already up to date${NC}"
-else
-    git add vendor/composer/
-    git commit -m "chore: update vendor/composer with production autoloader (no PHPStan)" --no-verify
-    git push origin main
-    echo -e "${GREEN}✓ Production vendor/composer committed and pushed${NC}"
-fi
-
+echo -e "${GREEN}✓ Autoloader clean (no PHPStan references)${NC}"
 echo ""
 
 # ============================================================================
@@ -255,19 +229,8 @@ echo -e "${GREEN}✓ Release has $ASSETS assets${NC}"
 echo ""
 
 # ============================================================================
-# STEP 10: Restore dev dependencies for local development
+# STEP 10: Done (no dev restore needed — PHPStan is global, not in vendor)
 # ============================================================================
-echo -e "${YELLOW}[FINAL] Restoring dev dependencies for local development...${NC}"
-
-composer install --no-interaction
-
-if [ $? -ne 0 ]; then
-    echo -e "${YELLOW}⚠ Warning: Could not restore dev dependencies${NC}"
-    echo "Run 'composer install' manually"
-else
-    echo -e "${GREEN}✓ Dev dependencies restored${NC}"
-fi
-
 echo ""
 echo -e "${GREEN}============================================${NC}"
 echo -e "${GREEN}✅ RELEASE v${VERSION} CREATED SUCCESSFULLY!${NC}"
