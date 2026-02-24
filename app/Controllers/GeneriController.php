@@ -65,7 +65,7 @@ class GeneriController
 
     public function store(Request $request, Response $response, \mysqli $db): Response
     {
-        $data = $request->getParsedBody();
+        $data = $request->getParsedBody() ?? [];
         // CSRF validated by CsrfMiddleware
         $repo = new GenereRepository($db);
 
@@ -86,7 +86,7 @@ class GeneriController
 
     public function update(Request $request, Response $response, \mysqli $db, int $id): Response
     {
-        $data = $request->getParsedBody();
+        $data = $request->getParsedBody() ?? [];
         // CSRF validated by CsrfMiddleware
         $repo = new GenereRepository($db);
 
@@ -159,7 +159,7 @@ class GeneriController
 
     public function merge(Request $request, Response $response, \mysqli $db, int $id): Response
     {
-        $data = $request->getParsedBody();
+        $data = $request->getParsedBody() ?? [];
         $repo = new GenereRepository($db);
 
         $targetId = (int)($data['target_id'] ?? 0);

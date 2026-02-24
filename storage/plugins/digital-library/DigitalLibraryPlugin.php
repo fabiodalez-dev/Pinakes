@@ -489,7 +489,11 @@ class DigitalLibraryPlugin
         }
 
         $mime = $type === 'css' ? 'text/css; charset=UTF-8' : 'application/javascript; charset=UTF-8';
-        $response->getBody()->write((string)file_get_contents($filePath));
+        $contents = file_get_contents($filePath);
+        if ($contents === false) {
+            return $response->withStatus(500);
+        }
+        $response->getBody()->write($contents);
 
         return $response
             ->withHeader('Content-Type', $mime)

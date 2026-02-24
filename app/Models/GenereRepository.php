@@ -105,6 +105,9 @@ class GenereRepository
                 $ancestorId = $parent_id;
                 $seen = [];
                 $aStmt = $this->db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+                if (!$aStmt) {
+                    throw new \RuntimeException('Errore nella preparazione della query di verifica gerarchia');
+                }
                 while ($ancestorId > 0) {
                     if (isset($seen[$ancestorId])) {
                         $aStmt->close();
@@ -231,6 +234,9 @@ class GenereRepository
         $ancestorId = $targetId;
         $seen = [];
         $aStmt = $this->db->prepare('SELECT parent_id FROM generi WHERE id = ?');
+        if (!$aStmt) {
+            throw new \RuntimeException('Errore nella preparazione della query di verifica gerarchia');
+        }
         while ($ancestorId > 0) {
             if (isset($seen[$ancestorId])) {
                 $aStmt->close();
@@ -282,8 +288,13 @@ class GenereRepository
 
             // If target was a child of source, reparent target to source's parent
             $sourceParent = $source['parent_id'] !== null ? (int)$source['parent_id'] : null;
-            $stmt = $this->db->prepare("UPDATE generi SET parent_id = ? WHERE id = ? AND parent_id = ?");
-            $stmt->bind_param('iii', $sourceParent, $targetId, $sourceId);
+            if ($sourceParent === null) {
+                $stmt = $this->db->prepare("UPDATE generi SET parent_id = NULL WHERE id = ? AND parent_id = ?");
+                $stmt->bind_param('ii', $targetId, $sourceId);
+            } else {
+                $stmt = $this->db->prepare("UPDATE generi SET parent_id = ? WHERE id = ? AND parent_id = ?");
+                $stmt->bind_param('iii', $sourceParent, $targetId, $sourceId);
+            }
             $stmt->execute();
 
             // Count distinct books referencing source (including soft-deleted, since we delete the genre row)

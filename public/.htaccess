@@ -11,13 +11,6 @@
     php_value max_execution_time 300
     php_value max_input_time 300
 </IfModule>
-<IfModule mod_php8.c>
-    php_value upload_max_filesize 512M
-    php_value post_max_size 520M
-    php_value max_execution_time 300
-    php_value max_input_time 300
-</IfModule>
-
 <IfModule mod_rewrite.c>
     Options +FollowSymLinks
     RewriteEngine On
