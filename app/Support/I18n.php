@@ -33,6 +33,7 @@ final class I18n
     private static array $availableLocales = [
         'it_IT' => 'Italiano',
         'en_US' => 'English',
+        'de_DE' => 'Deutsch',
     ];
 
     /**

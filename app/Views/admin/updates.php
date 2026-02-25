@@ -12,6 +12,8 @@ $updateInfo ??= [
 $requirements ??= ['met' => false, 'requirements' => []];
 $history ??= [];
 $changelog ??= [];
+$githubTokenMasked ??= '';
+$hasGithubToken ??= false;
 ?>
 
 <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -111,6 +113,59 @@ $changelog ??= [];
                 </div>
             </div>
             <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- GitHub API Token -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
+        <div class="p-6 border-b border-gray-200">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900"><?= __("Token GitHub API") ?></h2>
+                    <p class="text-sm text-gray-500 mt-1"><?= __("Configura un token per evitare i limiti di rate della GitHub API (60 req/ora → 5000 req/ora)") ?></p>
+                </div>
+                <?php if ($hasGithubToken): ?>
+                <span class="px-3 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-lg">
+                    <i class="fas fa-check-circle mr-1"></i><?= __("Configurato") ?>
+                </span>
+                <?php else: ?>
+                <span class="px-3 py-1 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-lg">
+                    <i class="fas fa-exclamation-circle mr-1"></i><?= __("Non configurato") ?>
+                </span>
+                <?php endif; ?>
+            </div>
+        </div>
+        <div class="p-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                    <label for="github-token" class="block text-sm font-medium text-gray-700 mb-2">
+                        <?= __("Personal Access Token (classic)") ?>
+                    </label>
+                    <div class="flex gap-2">
+                        <input type="password" id="github-token"
+                            placeholder="<?= $hasGithubToken ? HtmlHelper::e($githubTokenMasked) : 'ghp_xxxxxxxxxxxxxxxxxxxx' ?>"
+                            class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm font-mono"
+                            autocomplete="off">
+                        <button onclick="saveGitHubToken()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
+                            <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
+                        </button>
+                        <?php if ($hasGithubToken): ?>
+                        <button onclick="removeGitHubToken()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm">
+                            <i class="fas fa-trash mr-1"></i>
+                        </button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="text-sm text-gray-600 space-y-2">
+                    <p><i class="fas fa-info-circle text-blue-500 mr-1"></i> <?= __("Come ottenere un token:") ?></p>
+                    <ol class="list-decimal ml-5 space-y-1">
+                        <li><?= __("Vai su") ?> <a href="https://github.com/settings/tokens" target="_blank" class="text-green-600 hover:text-green-700 underline">GitHub Settings → Tokens</a></li>
+                        <li><?= __("Clicca \"Generate new token (classic)\"") ?></li>
+                        <li><?= __("Non serve selezionare alcuno scope (il repository è pubblico)") ?></li>
+                        <li><?= __("Copia il token e incollalo qui") ?></li>
+                    </ol>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -479,6 +534,82 @@ $changelog ??= [];
 <script>
 const csrfToken = <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
+
+async function saveGitHubToken() {
+    const input = document.getElementById('github-token');
+    const token = input.value.trim();
+
+    if (!token) {
+        Swal.fire({
+            icon: 'warning',
+            title: <?= json_encode(__("Attenzione"), JSON_HEX_TAG) ?>,
+            text: <?= json_encode(__("Inserisci un token valido"), JSON_HEX_TAG) ?>
+        });
+        return;
+    }
+
+    try {
+        const response = await fetch(window.BASE_PATH + '/admin/updates/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=${encodeURIComponent(token)}`
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: <?= json_encode(__("Salvato"), JSON_HEX_TAG) ?>,
+                text: data.message,
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => location.reload());
+        } else {
+            Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: data.error });
+        }
+    } catch (error) {
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: error.message });
+    }
+}
+
+async function removeGitHubToken() {
+    const result = await Swal.fire({
+        title: <?= json_encode(__("Rimuovere il token?"), JSON_HEX_TAG) ?>,
+        text: <?= json_encode(__("Le richieste API torneranno al limite di 60/ora."), JSON_HEX_TAG) ?>,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: <?= json_encode(__("Rimuovi"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
+        confirmButtonColor: '#dc2626'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        const response = await fetch(window.BASE_PATH + '/admin/updates/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=`
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            Swal.fire({
+                icon: 'success',
+                title: <?= json_encode(__("Rimosso"), JSON_HEX_TAG) ?>,
+                text: data.message,
+                timer: 1500,
+                showConfirmButton: false
+            }).then(() => location.reload());
+        } else {
+            Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: data.error });
+        }
+    } catch (error) {
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: error.message });
+    }
+}
 
 async function checkForUpdatesManual() {
     try {

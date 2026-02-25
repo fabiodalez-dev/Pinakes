@@ -28,6 +28,7 @@ class Updater
     private string $rootPath;
     private string $backupPath;
     private string $tempPath;
+    private string $githubToken = '';
 
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
@@ -112,6 +113,9 @@ class Updater
                 $this->formatBytes((float)$freeSpace));
         }
 
+        // Load GitHub API token from settings (if configured)
+        $this->loadGitHubToken();
+
         $this->debugLog('DEBUG', 'Updater inizializzato', [
             'rootPath' => $this->rootPath,
             'backupPath' => $this->backupPath,
@@ -172,6 +176,93 @@ class Updater
                 }
             }
         }
+    }
+
+    /**
+     * Load GitHub token from system_settings
+     */
+    private function loadGitHubToken(): void
+    {
+        $stmt = $this->db->prepare('SELECT setting_value FROM system_settings WHERE category = ? AND setting_key = ? LIMIT 1');
+        if ($stmt === false) {
+            return;
+        }
+        $cat = 'updater';
+        $key = 'github_token';
+        $stmt->bind_param('ss', $cat, $key);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $value = $result->fetch_column();
+        $stmt->close();
+
+        if (is_string($value) && $value !== '') {
+            $this->githubToken = $value;
+        }
+    }
+
+    /**
+     * Get GitHub API headers, optionally with Authorization
+     * @return array<string>
+     */
+    private function getGitHubHeaders(string $accept = 'application/vnd.github.v3+json'): array
+    {
+        $headers = [
+            'User-Agent: Pinakes-Updater/1.0',
+            'Accept: ' . $accept,
+        ];
+
+        if ($this->githubToken !== '') {
+            $headers[] = 'Authorization: Bearer ' . $this->githubToken;
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Save GitHub API token to system_settings
+     */
+    public function saveGitHubToken(string $token): void
+    {
+        $token = trim($token);
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO system_settings (category, setting_key, setting_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)'
+        );
+        if ($stmt === false) {
+            throw new Exception(__('Errore nel salvataggio del token'));
+        }
+        $cat = 'updater';
+        $key = 'github_token';
+        $stmt->bind_param('sss', $cat, $key, $token);
+        $stmt->execute();
+        $stmt->close();
+
+        $this->githubToken = $token;
+    }
+
+    /**
+     * Get the currently configured GitHub token (masked for display)
+     */
+    public function getGitHubTokenMasked(): string
+    {
+        if ($this->githubToken === '') {
+            return '';
+        }
+
+        $len = strlen($this->githubToken);
+        if ($len <= 8) {
+            return str_repeat('*', $len);
+        }
+
+        return substr($this->githubToken, 0, 4) . str_repeat('*', $len - 8) . substr($this->githubToken, -4);
+    }
+
+    /**
+     * Check if a GitHub token is configured
+     */
+    public function hasGitHubToken(): bool
+    {
+        return $this->githubToken !== '';
     }
 
     /**
@@ -321,10 +412,7 @@ class Updater
             'method' => 'GET'
         ]);
 
-        $headers = [
-            'User-Agent: Pinakes-Updater/1.0',
-            'Accept: application/vnd.github.v3+json'
-        ];
+        $headers = $this->getGitHubHeaders();
 
         $context = stream_context_create([
             'http' => [
@@ -340,7 +428,8 @@ class Updater
         ]);
 
         $this->debugLog('DEBUG', 'Context HTTP creato', [
-            'headers' => $headers,
+            'headers_count' => count($headers),
+            'authenticated' => $this->githubToken !== '',
             'timeout' => 30
         ]);
 
@@ -481,7 +570,7 @@ class Updater
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => 10,
-                CURLOPT_HTTPHEADER => ['User-Agent: Pinakes-Updater/1.0'],
+                CURLOPT_HTTPHEADER => $this->getGitHubHeaders(),
                 CURLOPT_SSL_VERIFYPEER => true,
             ]);
             $curlResult = curl_exec($ch);
@@ -519,7 +608,7 @@ class Updater
                 CURLOPT_TIMEOUT => 30,
                 CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
-                CURLOPT_HTTPHEADER => ['Accept: application/vnd.github.v3+json'],
+                CURLOPT_HTTPHEADER => $this->getGitHubHeaders(),
                 CURLOPT_SSL_VERIFYPEER => true,
             ]);
 
@@ -537,10 +626,7 @@ class Updater
             $context = stream_context_create([
                 'http' => [
                     'method' => 'GET',
-                    'header' => [
-                        'User-Agent: Pinakes-Updater/1.0',
-                        'Accept: application/vnd.github.v3+json'
-                    ],
+                    'header' => $this->getGitHubHeaders(),
                     'timeout' => 30,
                     'ignore_errors' => true
                 ]
@@ -660,7 +746,7 @@ class Updater
                     CURLOPT_TIMEOUT => 300,
                     CURLOPT_CONNECTTIMEOUT => 30,
                     CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
-                    CURLOPT_HTTPHEADER => ['Accept: application/octet-stream'],
+                    CURLOPT_HTTPHEADER => $this->getGitHubHeaders('application/octet-stream'),
                     CURLOPT_SSL_VERIFYPEER => true,
                     CURLOPT_BUFFERSIZE => 1024 * 1024, // 1MB buffer
                 ]);
@@ -696,10 +782,7 @@ class Updater
                 $context = stream_context_create([
                     'http' => [
                         'method' => 'GET',
-                        'header' => [
-                            'User-Agent: Pinakes-Updater/1.0',
-                            'Accept: application/octet-stream'
-                        ],
+                        'header' => $this->getGitHubHeaders('application/octet-stream'),
                         'timeout' => 300,
                         'follow_location' => true,
                         'ignore_errors' => true

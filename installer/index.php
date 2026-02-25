@@ -30,10 +30,15 @@ function __(string $key, mixed ...$args): string {
 
     $message = $key;
 
-    // Load English translations only when needed
-    if ($locale === 'en_US') {
+    // Load translations when not Italian (Italian strings are the keys themselves)
+    if ($locale !== 'it' && $locale !== 'it_IT') {
         if ($translations === null) {
-            $translationFile = dirname(__DIR__) . '/locale/en_US.json';
+            $localeCode = match($locale) {
+                'en', 'en_US' => 'en_US',
+                'de', 'de_DE' => 'de_DE',
+                default => $locale,
+            };
+            $translationFile = dirname(__DIR__) . '/locale/' . $localeCode . '.json';
             if (file_exists($translationFile)) {
                 $json = file_get_contents($translationFile);
                 $translations = json_decode($json, true) ?? [];
@@ -339,7 +344,11 @@ function renderHeader($currentStep, $stepTitle) {
     ];
 
     $lang = $_SESSION['app_locale'] ?? 'it';
-    $htmlLang = $lang === 'en_US' ? 'en' : 'it';
+    $htmlLang = match($lang) {
+        'en_US' => 'en',
+        'de_DE' => 'de',
+        default => 'it',
+    };
     $versionFile = dirname(__DIR__) . '/version.json';
     $versionData = file_exists($versionFile) ? json_decode(file_get_contents($versionFile), true) : null;
     $appVersion = $versionData['version'] ?? '0.1.0';
