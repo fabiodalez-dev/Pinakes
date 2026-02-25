@@ -186,7 +186,9 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
             if (!is_dir(dirname($dstPath))) {
                 mkdir(dirname($dstPath), 0755, true);
             }
-            copy($srcPath, $dstPath);
+            if (!copy($srcPath, $dstPath)) {
+                throw new RuntimeException('Copia file fallita: ' . $srcPath . ' -> ' . $dstPath);
+            }
             $count++;
         }
     }
@@ -447,9 +449,11 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                     if ($stmtSql === '' || str_starts_with($stmtSql, '--')) {
                         continue;
                     }
-                    if (!$db->query($stmtSql)) {
-                        $lastError = $db->error;
-                        $lastErrno = $db->errno;
+                    try {
+                        $db->query($stmtSql);
+                    } catch (\mysqli_sql_exception $ex) {
+                        $lastErrno = (int) $ex->getCode();
+                        $lastError = $ex->getMessage();
                         if (in_array($lastErrno, $ignorableErrors, true)) {
                             continue;
                         }
@@ -459,7 +463,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 }
 
                 if ($migrationFailed) {
-                    $log[] = '[ERROR] Migrazione ' . $migVersion . ' fallita: [' . $lastErrno . '] ' . $lastError;
+                    throw new RuntimeException('Migrazione ' . $migVersion . ' fallita: [' . $lastErrno . '] ' . $lastError);
                 } else {
                     // Record migration
                     $recStmt = $db->prepare("INSERT IGNORE INTO migrations (version, filename, batch) VALUES (?, ?, ?)");

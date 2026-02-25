@@ -5,7 +5,7 @@
 # Pinakes 📚
 
 > **Open-Source Integrated Library System**
-> License: GPL-3  |  Languages: Italian, English, Deutsch
+> License: GPL-3  |  Languages: Italian, English, German
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 

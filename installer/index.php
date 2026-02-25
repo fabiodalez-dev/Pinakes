@@ -345,8 +345,8 @@ function renderHeader($currentStep, $stepTitle) {
 
     $lang = $_SESSION['app_locale'] ?? 'it';
     $htmlLang = match($lang) {
-        'en_US' => 'en',
-        'de_DE' => 'de',
+        'en', 'en_US' => 'en',
+        'de', 'de_DE' => 'de',
         default => 'it',
     };
     $versionFile = dirname(__DIR__) . '/version.json';

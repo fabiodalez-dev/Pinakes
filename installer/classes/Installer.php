@@ -74,7 +74,7 @@ class Installer {
         // Normalize locale:
         // - "it" or "it_IT" -> it_IT
         // - "en" or "en_US" -> en_US
-        $normalizedLocale = strtolower((string)$locale);
+        $normalizedLocale = str_replace('-', '_', strtolower((string)$locale));
         if ($normalizedLocale === 'en' || $normalizedLocale === 'en_us') {
             $normalizedLocale = 'en_US';
         } elseif ($normalizedLocale === 'de' || $normalizedLocale === 'de_de') {
