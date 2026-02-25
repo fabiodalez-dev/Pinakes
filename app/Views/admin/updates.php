@@ -142,10 +142,11 @@ $hasGithubToken ??= false;
                         <?= __("Personal Access Token (classic)") ?>
                     </label>
                     <div class="flex gap-2">
-                        <input type="password" id="github-token"
+                        <input type="<?= $hasGithubToken ? 'text' : 'password' ?>" id="github-token"
                             placeholder="<?= $hasGithubToken ? HtmlHelper::e($githubTokenMasked) : 'ghp_xxxxxxxxxxxxxxxxxxxx' ?>"
                             class="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 text-sm font-mono"
-                            autocomplete="off">
+                            autocomplete="off"
+                            <?= $hasGithubToken ? 'readonly onfocus="this.removeAttribute(\'readonly\');this.type=\'password\';this.value=\'\';this.placeholder=\'ghp_xxxxxxxxxxxxxxxxxxxx\';"' : '' ?>>
                         <button onclick="saveGitHubToken()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm">
                             <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
                         </button>
@@ -286,7 +287,7 @@ $hasGithubToken ??= false;
                             </div>
                             <div>
                                 <p class="font-medium text-gray-900"><?= __("Scarica il pacchetto da GitHub") ?></p>
-                                <p class="mt-1"><?= __("Vai alla") ?> <a href="https://github.com/fabiodalez-dev/Pinakes/releases" target="_blank" class="text-green-600 hover:text-green-700 underline">pagina releases</a> <?= __("e scarica il file") ?> <code class="bg-gray-100 px-1 rounded text-xs">pinakes-vX.X.X.zip</code></p>
+                                <p class="mt-1"><?= __("Vai alla") ?> <a href="https://github.com/fabiodalez-dev/Pinakes/releases" target="_blank" rel="noopener noreferrer" class="text-green-600 hover:text-green-700 underline">pagina releases</a> <?= __("e scarica il file") ?> <code class="bg-gray-100 px-1 rounded text-xs">pinakes-vX.X.X.zip</code></p>
                             </div>
                         </div>
                         <div class="flex items-start gap-3">

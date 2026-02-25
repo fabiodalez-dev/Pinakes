@@ -317,11 +317,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 throw new RuntimeException('Archivio ZIP non valido');
             }
             $entry = str_replace('\\', '/', $entry);
-            if (
-                str_starts_with($entry, '/')
-                || str_contains($entry, '../')
-                || str_contains($entry, '..\\')
-            ) {
+            if (preg_match('#(^/|^\\\\|^[A-Za-z]:/|(^|/)\.\.(/|$))#', $entry)) {
                 throw new RuntimeException('ZIP non valido: contiene percorsi pericolosi');
             }
         }
@@ -440,6 +436,9 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 // Execute SQL statements individually for better error detection
                 $statements = preg_split('/;\s*[\r\n]+/', $sql) ?: [];
                 $migrationFailed = false;
+                // 1060=Duplicate column, 1061=Duplicate key, 1050=Table exists,
+                // 1068=Multiple primary, 1091=Can't DROP
+                $ignorableErrors = [1060, 1061, 1062, 1050, 1068, 1091];
                 $lastError = '';
                 $lastErrno = 0;
 
@@ -451,16 +450,15 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                     if (!$db->query($stmtSql)) {
                         $lastError = $db->error;
                         $lastErrno = $db->errno;
+                        if (in_array($lastErrno, $ignorableErrors, true)) {
+                            continue;
+                        }
                         $migrationFailed = true;
                         break;
                     }
                 }
 
-                // 1060=Duplicate column, 1061=Duplicate key, 1050=Table exists,
-                // 1068=Multiple primary, 1091=Can't DROP
-                $ignorableErrors = [1060, 1061, 1062, 1050, 1068, 1091];
-
-                if ($migrationFailed && !in_array($lastErrno, $ignorableErrors, true)) {
+                if ($migrationFailed) {
                     $log[] = '[ERROR] Migrazione ' . $migVersion . ' fallita: [' . $lastErrno . '] ' . $lastError;
                 } else {
                     // Record migration
