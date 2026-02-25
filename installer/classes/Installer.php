@@ -260,6 +260,9 @@ class Installer {
             'en' => 'en_US',
             'en_us' => 'en_US',
             'en_US' => 'en_US',
+            'de' => 'de_DE',
+            'de_de' => 'de_DE',
+            'de_DE' => 'de_DE',
         ];
         $normalizedLocale = strtolower(str_replace('-', '_', $locale));
         $fullLocale = $localeMap[$normalizedLocale] ?? 'it_IT';
