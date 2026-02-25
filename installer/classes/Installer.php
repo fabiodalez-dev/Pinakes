@@ -77,12 +77,14 @@ class Installer {
         $normalizedLocale = strtolower((string)$locale);
         if ($normalizedLocale === 'en' || $normalizedLocale === 'en_us') {
             $normalizedLocale = 'en_US';
+        } elseif ($normalizedLocale === 'de' || $normalizedLocale === 'de_de') {
+            $normalizedLocale = 'de_DE';
         } elseif ($normalizedLocale === 'it' || $normalizedLocale === 'it_it') {
             $normalizedLocale = 'it_IT';
         }
 
         // Fallback safety
-        if (!in_array($normalizedLocale, ['it_IT', 'en_US'], true)) {
+        if (!in_array($normalizedLocale, ['it_IT', 'en_US', 'de_DE'], true)) {
             $normalizedLocale = 'it_IT';
         }
 
@@ -1099,6 +1101,9 @@ HTACCESS;
         $locale = str_replace('-', '_', strtolower($locale));
         if ($locale === 'en' || $locale === 'en_us') {
             return 'en_US';
+        }
+        if ($locale === 'de' || $locale === 'de_de') {
+            return 'de_DE';
         }
         if ($locale === 'it' || $locale === 'it_it') {
             return 'it_IT';

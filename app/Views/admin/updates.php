@@ -150,7 +150,7 @@ $hasGithubToken ??= false;
                             <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
                         </button>
                         <?php if ($hasGithubToken): ?>
-                        <button onclick="removeGitHubToken()" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm">
+                        <button onclick="removeGitHubToken()" aria-label="<?= __("Rimuovi token GitHub") ?>" title="<?= __("Rimuovi token GitHub") ?>" class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm">
                             <i class="fas fa-trash mr-1"></i>
                         </button>
                         <?php endif; ?>
@@ -159,7 +159,7 @@ $hasGithubToken ??= false;
                 <div class="text-sm text-gray-600 space-y-2">
                     <p><i class="fas fa-info-circle text-blue-500 mr-1"></i> <?= __("Come ottenere un token:") ?></p>
                     <ol class="list-decimal ml-5 space-y-1">
-                        <li><?= __("Vai su") ?> <a href="https://github.com/settings/tokens" target="_blank" class="text-green-600 hover:text-green-700 underline">GitHub Settings → Tokens</a></li>
+                        <li><?= __("Vai su") ?> <a href="https://github.com/settings/tokens" target="_blank" rel="noopener noreferrer" class="text-green-600 hover:text-green-700 underline">GitHub Settings → Tokens</a></li>
                         <li><?= __("Clicca \"Generate new token (classic)\"") ?></li>
                         <li><?= __("Non serve selezionare alcuno scope (il repository è pubblico)") ?></li>
                         <li><?= __("Copia il token e incollalo qui") ?></li>
@@ -551,7 +551,11 @@ async function saveGitHubToken() {
     try {
         const response = await fetch(window.BASE_PATH + '/admin/updates/token', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=${encodeURIComponent(token)}`
         });
 
@@ -589,7 +593,11 @@ async function removeGitHubToken() {
     try {
         const response = await fetch(window.BASE_PATH + '/admin/updates/token', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
             body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=`
         });
 

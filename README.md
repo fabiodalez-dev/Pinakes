@@ -5,7 +5,7 @@
 # Pinakes 📚
 
 > **Open-Source Integrated Library System**
-> License: GPL-3  |  Languages: Italian, English
+> License: GPL-3  |  Languages: Italian, English, Deutsch
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
@@ -43,6 +43,15 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Author search not finding existing authors** — Fixed author autocomplete matching in the book form
 - **Description field not visible** — Fixed TinyMCE editor not rendering in the book description field
 - **GitHub "Download ZIP" missing pages** — Fixed archive packaging that excluded frontend view files
+
+**German Language Support:**
+- **Native Deutsch locale** — Full German translation (4,009 strings) available in the installer
+- **German URL routes** — `/katalog`, `/anmelden`, `/buch`, `/autor`, `/wunschliste`, etc.
+- **Dynamic language registration** — New languages added via Admin → Languages are automatically available without code changes
+
+**Updater Improvements:**
+- **GitHub API token** — Optional personal access token (Admin → Updates) to raise GitHub API rate limits from 60 to 5,000 req/hr
+- **Standalone upgrade script** — `scripts/manual-upgrade.php` for users stuck on old versions
 
 ---
 
@@ -216,7 +225,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 1. **Clone or download** this repository and upload all files to the root directory of your server.
 2. **Visit your site's root URL** in the browser — the guided installer starts automatically.
 3. **Provide database credentials** (database must be empty).
-4. **Select language** (Italian or English).
+4. **Select language** (Italian, English, or Deutsch).
 5. **Configure** organization name, logo, and email notifications.
 6. **Create admin account** and start cataloging.
 
@@ -341,7 +350,7 @@ Automatic emails for:
 **WYSIWYG email template editor** with dynamic tags for record, user, and loan data.
 
 ### Public Catalog (OPAC)
-- **Responsive, multilingual frontend** (Italian + English)
+- **Responsive, multilingual frontend** (Italian, English, Deutsch)
 - **AJAX search** with instant results and relevance ranking
 - **AJAX filters**: genre, publisher, availability, publication year, format
 - **Patrons can leave reviews and ratings** (configurable)
@@ -368,6 +377,7 @@ Automatic emails for:
 - **Orphan cleanup** — Files removed in new versions are deleted from installation
 - **OpCache reset** — Automatic cache invalidation after file updates
 - **Security** — CSRF validation, admin-only access, path traversal protection, Zip Slip prevention
+- **GitHub API token** — Optional personal access token (Admin → Updates) to raise GitHub API rate limits from 60 to 5,000 req/hr
 
 ### Physical Inventory
 - **Hierarchical location model**: shelf, aisle, position

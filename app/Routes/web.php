@@ -37,6 +37,9 @@ return function (App $app): void {
     // Content routes (book, author, publisher, genre) are registered
     // in all languages to support language switching without 404s
     $supportedLocales = array_keys(I18n::getAvailableLocales());
+    if ($supportedLocales === []) {
+        $supportedLocales = [$installationLocale ?: 'it_IT'];
+    }
 
     // Track registered routes to avoid duplicates (some routes are identical across languages)
     $registeredRoutes = [];

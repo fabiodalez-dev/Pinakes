@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Support\Updater;
 use App\Support\Csrf;
+use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -507,6 +508,7 @@ class UpdateController
                     : __('Token GitHub rimosso')
             ]);
         } catch (\Throwable $e) {
+            SecureLogger::error('saveToken failed: ' . $e->getMessage());
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('Errore nel salvataggio del token')

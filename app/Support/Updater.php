@@ -190,8 +190,15 @@ class Updater
         $cat = 'updater';
         $key = 'github_token';
         $stmt->bind_param('ss', $cat, $key);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            $stmt->close();
+            return;
+        }
         $result = $stmt->get_result();
+        if ($result === false) {
+            $stmt->close();
+            return;
+        }
         $value = $result->fetch_column();
         $stmt->close();
 
@@ -234,7 +241,11 @@ class Updater
         $cat = 'updater';
         $key = 'github_token';
         $stmt->bind_param('sss', $cat, $key, $token);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            $error = $this->db->error;
+            $stmt->close();
+            throw new Exception(__('Errore nel salvataggio del token') . ': ' . $error);
+        }
         $stmt->close();
 
         $this->githubToken = $token;

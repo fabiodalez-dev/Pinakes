@@ -27,7 +27,8 @@ define('MAX_ZIP_SIZE', 60 * 1024 * 1024); // 60 MB
 // BOOTSTRAP
 // ============================================================
 error_reporting(E_ALL);
-ini_set('display_errors', '1');
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
 ini_set('max_execution_time', '600');
 ini_set('memory_limit', '512M');
 ini_set('post_max_size', '64M');
@@ -204,7 +205,9 @@ $log = [];
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($requestMethod === 'POST' && isset($_POST['password'])) {
-    if ($_POST['password'] === UPGRADE_PASSWORD) {
+    if (UPGRADE_PASSWORD === 'pinakes2026') {
+        $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
+    } elseif ($_POST['password'] === UPGRADE_PASSWORD) {
         $_SESSION['upgrade_auth'] = true;
     } else {
         $error = 'Password errata.';
@@ -290,11 +293,11 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             if ($exitCode === 0 && is_file($backupFile) && filesize($backupFile) > 100) {
                 $log[] = '[OK] Backup DB creato: ' . basename($backupFile) . ' (' . formatBytes(filesize($backupFile)) . ')';
             } else {
-                $log[] = '[WARN] mysqldump fallito (exit ' . $exitCode . '). Continuo senza backup DB.';
                 @unlink($backupFile);
+                throw new RuntimeException('Backup DB fallito (mysqldump exit ' . $exitCode . '). Upgrade interrotto per sicurezza.');
             }
         } else {
-            $log[] = '[WARN] mysqldump non trovato. Backup DB saltato.';
+            throw new RuntimeException('mysqldump non trovato. Upgrade interrotto per sicurezza (backup obbligatorio).');
         }
 
         // 5. Extract ZIP to temp directory
@@ -307,6 +310,20 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         $res = $zip->open($file['tmp_name']);
         if ($res !== true) {
             throw new RuntimeException('Impossibile aprire il ZIP (errore: ' . $res . ')');
+        }
+        for ($i = 0; $i < $zip->numFiles; $i++) {
+            $entry = $zip->getNameIndex($i);
+            if ($entry === false) {
+                throw new RuntimeException('Archivio ZIP non valido');
+            }
+            $entry = str_replace('\\', '/', $entry);
+            if (
+                str_starts_with($entry, '/')
+                || str_contains($entry, '../')
+                || str_contains($entry, '..\\')
+            ) {
+                throw new RuntimeException('ZIP non valido: contiene percorsi pericolosi');
+            }
         }
         $zip->extractTo($tempDir);
         $zip->close();
@@ -420,24 +437,30 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
 
                 $log[] = '[INFO] Esecuzione migrazione ' . $migVersion . '...';
 
-                // Execute multi-statement SQL
-                if ($db->multi_query($sql)) {
-                    do {
-                        $result = $db->store_result();
-                        if ($result instanceof mysqli_result) {
-                            $result->free();
-                        }
-                    } while ($db->next_result());
+                // Execute SQL statements individually for better error detection
+                $statements = preg_split('/;\s*[\r\n]+/', $sql) ?: [];
+                $migrationFailed = false;
+                $lastError = '';
+                $lastErrno = 0;
+
+                foreach ($statements as $stmtSql) {
+                    $stmtSql = trim($stmtSql);
+                    if ($stmtSql === '' || str_starts_with($stmtSql, '--')) {
+                        continue;
+                    }
+                    if (!$db->query($stmtSql)) {
+                        $lastError = $db->error;
+                        $lastErrno = $db->errno;
+                        $migrationFailed = true;
+                        break;
+                    }
                 }
 
-                // Check for errors (ignore idempotent ones)
-                $lastError = $db->error;
-                $lastErrno = $db->errno;
                 // 1060=Duplicate column, 1061=Duplicate key, 1050=Table exists,
                 // 1068=Multiple primary, 1091=Can't DROP
                 $ignorableErrors = [1060, 1061, 1062, 1050, 1068, 1091];
 
-                if ($lastErrno !== 0 && !in_array($lastErrno, $ignorableErrors, true)) {
+                if ($migrationFailed && !in_array($lastErrno, $ignorableErrors, true)) {
                     $log[] = '[ERROR] Migrazione ' . $migVersion . ' fallita: [' . $lastErrno . '] ' . $lastError;
                 } else {
                     // Record migration
