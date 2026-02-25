@@ -31,8 +31,11 @@ class UpdateController
             $changelog = $updater->getChangelog($updateInfo['current']);
         }
 
+        $githubTokenMasked = $updater->getGitHubTokenMasked();
+        $hasGithubToken = $updater->hasGitHubToken();
+
         ob_start();
-        $data = compact('updateInfo', 'requirements', 'history', 'changelog');
+        $data = compact('updateInfo', 'requirements', 'history', 'changelog', 'githubTokenMasked', 'hasGithubToken');
         require __DIR__ . '/../Views/admin/updates.php';
         $content = ob_get_clean();
 
@@ -477,6 +480,38 @@ class UpdateController
             'success' => false,
             'error' => $result['error']
         ], 500);
+    }
+
+    /**
+     * API: Save GitHub API token
+     */
+    public function saveToken(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        $csrfToken = $data['csrf_token'] ?? '';
+
+        if (!Csrf::validate($csrfToken)) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $token = trim((string) ($data['github_token'] ?? ''));
+
+        try {
+            $updater = new Updater($db);
+            $updater->saveGitHubToken($token);
+
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'message' => $token !== ''
+                    ? __('Token GitHub salvato con successo')
+                    : __('Token GitHub rimosso')
+            ]);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Errore nel salvataggio del token')
+            ], 500);
+        }
     }
 
     /**

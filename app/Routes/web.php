@@ -2840,6 +2840,13 @@ return function (App $app): void {
         return $controller->getLogs($request, $response);
     })->add(new AdminAuthMiddleware());
 
+    // GitHub API token
+    $app->post('/admin/updates/token', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->saveToken($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Manual update - Upload package
     $app->post('/admin/updates/upload', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
