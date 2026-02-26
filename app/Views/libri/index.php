@@ -623,6 +623,18 @@ document.addEventListener('DOMContentLoaded', function() {
     searching: false,
     stateSave: true,
     stateDuration: 60 * 60 * 24,
+    stateLoadCallback: function(settings) {
+      // When URL filters are active, reset saved pagination to page 1
+      // to avoid "Showing 2501 to 44 of 44" when saved state had a high page offset
+      const hasUrlFilter = initialKeywords || initialCollana || initialGenere || initialSottogenere;
+      const raw = localStorage.getItem('DataTables_libri-table_' + window.location.pathname);
+      if (!raw) return null;
+      const state = JSON.parse(raw);
+      if (hasUrlFilter && state) {
+        state.start = 0;
+      }
+      return state;
+    },
     dom: '<"top"l>rt<"bottom"ip><"clear">',
     deferRender: true,
     ajax: {

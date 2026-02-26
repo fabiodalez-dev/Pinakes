@@ -1294,22 +1294,52 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         $genre = $genreResult->fetch_assoc();
+        $genreId = (int) $genre['id'];
+
+        // Collect this genre + all descendants (up to 3 levels)
+        $genreIds = [$genreId];
+        $childStmt = $db->prepare("SELECT id FROM generi WHERE parent_id = ?");
+        $childStmt->bind_param('i', $genreId);
+        $childStmt->execute();
+        $childResult = $childStmt->get_result();
+        while ($child = $childResult->fetch_assoc()) {
+            $genreIds[] = (int) $child['id'];
+        }
+        $childStmt->close();
+
+        // Grandchildren (level 3)
+        if (count($genreIds) > 1) {
+            $childIdsOnly = array_slice($genreIds, 1);
+            $placeholders = implode(',', array_fill(0, count($childIdsOnly), '?'));
+            $gcStmt = $db->prepare("SELECT id FROM generi WHERE parent_id IN ($placeholders)");
+            $types = str_repeat('i', count($childIdsOnly));
+            $gcStmt->bind_param($types, ...$childIdsOnly);
+            $gcStmt->execute();
+            $gcResult = $gcStmt->get_result();
+            while ($gc = $gcResult->fetch_assoc()) {
+                $genreIds[] = (int) $gc['id'];
+            }
+            $gcStmt->close();
+        }
+
+        $genreIds = array_unique($genreIds);
+        $idPlaceholders = implode(',', array_fill(0, count($genreIds), '?'));
+        $idTypes = str_repeat('i', count($genreIds));
 
         // Count total books
         $countQuery = "
             SELECT COUNT(l.id) as total
             FROM libri l
-            JOIN generi g ON l.genere_id = g.id
-            WHERE g.nome = ? AND l.deleted_at IS NULL
+            WHERE l.genere_id IN ($idPlaceholders) AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
-        $stmt->bind_param('s', $genreName);
+        $stmt->bind_param($idTypes, ...$genreIds);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $totalBooks = $row['total'] ?? 0;
         $totalPages = ceil($totalBooks / $limit);
 
-        // Query per i libri del genere
+        // Query per i libri del genere e dei suoi discendenti
         $booksQuery = "
             SELECT l.*,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
@@ -1319,13 +1349,14 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             FROM libri l
             JOIN generi g ON l.genere_id = g.id
             LEFT JOIN editori e ON l.editore_id = e.id
-            WHERE g.nome = ? AND l.deleted_at IS NULL
+            WHERE l.genere_id IN ($idPlaceholders) AND l.deleted_at IS NULL
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
 
         $stmt = $db->prepare($booksQuery);
-        $stmt->bind_param('sii', $genreName, $limit, $offset);
+        $allParams = array_merge($genreIds, [$limit, $offset]);
+        $stmt->bind_param($idTypes . 'ii', ...$allParams);
         $stmt->execute();
         $result = $stmt->get_result();
 

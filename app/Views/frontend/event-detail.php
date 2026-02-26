@@ -18,8 +18,13 @@ $baseUrl = ConfigStore::get('app.canonical_url');
 $contentHtml = ContentSanitizer::normalizeExternalAssets($event['content'] ?? '');
 
 $locale = $_SESSION['locale'] ?? 'it_IT';
-$dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
-$timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
+if (class_exists('IntlDateFormatter')) {
+    $dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+    $timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
+} else {
+    $dateFormatter = null;
+    $timeFormatter = null;
+}
 
 $createDateTime = static function (?string $value, array $formats = []) {
     if (!$value) {
@@ -46,7 +51,7 @@ $formatDate = static function (?string $date) use ($dateFormatter, $createDateTi
         return (string)$date;
     }
 
-    return $dateFormatter->format($dateTime);
+    return $dateFormatter ? $dateFormatter->format($dateTime) : $dateTime->format('j F Y');
 };
 
 $formatTime = static function (?string $time) use ($timeFormatter, $createDateTime) {
@@ -55,7 +60,7 @@ $formatTime = static function (?string $time) use ($timeFormatter, $createDateTi
         return (string)$time;
     }
 
-    return $timeFormatter->format($dateTime);
+    return $timeFormatter ? $timeFormatter->format($dateTime) : $dateTime->format('H:i');
 };
 
 $eventDateFormatted = $formatDate($event['event_date'] ?? null);

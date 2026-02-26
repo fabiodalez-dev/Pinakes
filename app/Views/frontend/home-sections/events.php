@@ -10,7 +10,9 @@ $homeEventsEnabled = $homeEventsEnabled ?? false;
 
 if ($homeEventsEnabled && !empty($homeEvents)):
     $homeEventsLocale = $_SESSION['locale'] ?? 'it_IT';
-    $homeEventsDateFormatter = new \IntlDateFormatter($homeEventsLocale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+    $homeEventsDateFormatter = class_exists('IntlDateFormatter')
+        ? new \IntlDateFormatter($homeEventsLocale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE)
+        : null;
 
     $homeEventsCreateDateTime = static function (?string $value) {
         if (!$value) {
@@ -34,7 +36,7 @@ if ($homeEventsEnabled && !empty($homeEvents)):
         if (!$dateTime) {
             return (string) $value;
         }
-        return $homeEventsDateFormatter->format($dateTime);
+        return $homeEventsDateFormatter ? $homeEventsDateFormatter->format($dateTime) : $dateTime->format('j F Y');
     };
     ?>
     <section class="home-events" aria-label="<?= __("Eventi") ?>">
