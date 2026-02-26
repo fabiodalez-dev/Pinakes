@@ -45,7 +45,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **GitHub "Download ZIP" missing pages** — Fixed archive packaging that excluded frontend view files
 
 **German Language Support:**
-- **Native Deutsch locale** — Full German translation (4,009 strings) available in the installer
+- **Native German locale** — Full German translation (4,009 strings) available in the installer
 - **German URL routes** — `/katalog`, `/anmelden`, `/buch`, `/autor`, `/wunschliste`, etc.
 - **Dynamic language registration** — New languages added via Admin → Languages are automatically available without code changes
 

@@ -33,7 +33,7 @@ function normalizeInstallerLocale(string $locale): string {
 
 // Simple translation function for installer
 function __(string $key, mixed ...$args): string {
-    static $translations = null;
+    static $translationsByLocale = [];
 
     // Get locale from session (defaults to Italian)
     $locale = $_SESSION['app_locale'] ?? 'it';
@@ -42,17 +42,17 @@ function __(string $key, mixed ...$args): string {
 
     // Load translations when not Italian (Italian strings are the keys themselves)
     if ($locale !== 'it' && $locale !== 'it_IT') {
-        if ($translations === null) {
-            $localeCode = normalizeInstallerLocale((string)$locale);
+        $localeCode = normalizeInstallerLocale((string)$locale);
+        if (!isset($translationsByLocale[$localeCode])) {
             $translationFile = dirname(__DIR__) . '/locale/' . $localeCode . '.json';
             if (file_exists($translationFile)) {
                 $json = file_get_contents($translationFile);
-                $translations = json_decode($json, true) ?? [];
+                $translationsByLocale[$localeCode] = json_decode($json, true) ?? [];
             } else {
-                $translations = [];
+                $translationsByLocale[$localeCode] = [];
             }
         }
-        $message = $translations[$key] ?? $key;
+        $message = $translationsByLocale[$localeCode][$key] ?? $key;
     }
 
     // Apply sprintf formatting if args provided

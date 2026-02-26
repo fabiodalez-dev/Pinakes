@@ -203,9 +203,17 @@ class Updater
         $value = $result->fetch_column();
         $stmt->close();
 
-        if (is_string($value) && $value !== '') {
-            $this->githubToken = $this->decryptValue($value);
+        if (!is_string($value) || $value === '') {
+            return;
         }
+
+        $token = trim($this->decryptValue($value));
+        if ($token === '' || preg_match('/[[:cntrl:]]/u', $token)) {
+            SecureLogger::warning('[Updater] Ignoring invalid GitHub token loaded from settings');
+            return;
+        }
+
+        $this->githubToken = $token;
     }
 
     /**

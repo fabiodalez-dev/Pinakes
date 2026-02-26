@@ -497,9 +497,8 @@ class Installer {
                 }
             }
 
-            if (!empty($errors) && count($errors) > 10) {
-                $firstErrors = array_slice($errors, 0, 5);
-                throw new Exception(sprintf(__("Troppi errori durante l'import dei dati (%d errori). Primi errori:\n%s"), count($errors), implode("\n", $firstErrors)));
+            if (!empty($errors)) {
+                throw new Exception(sprintf(__("Errori durante l'import dei dati (%d). Primi errori:\n%s"), count($errors), implode("\n", array_slice($errors, 0, 5))));
             }
         } finally {
             // Always restore FK checks even if execution aborts early

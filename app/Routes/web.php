@@ -2866,7 +2866,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->saveToken($request, $response, $db);
-    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Manual update - Upload package
     $app->post('/admin/updates/upload', function ($request, $response) use ($app) {

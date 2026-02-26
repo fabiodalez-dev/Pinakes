@@ -557,7 +557,10 @@ async function postTokenRequest(tokenValue) {
     return response.json();
 }
 
+let tokenRequestInFlight = false;
+
 async function saveGitHubToken() {
+    if (tokenRequestInFlight) return;
     const input = document.getElementById('github-token');
     const token = input.value.trim();
 
@@ -570,6 +573,7 @@ async function saveGitHubToken() {
         return;
     }
 
+    tokenRequestInFlight = true;
     try {
         const data = await postTokenRequest(token);
 
@@ -586,10 +590,13 @@ async function saveGitHubToken() {
         }
     } catch (error) {
         Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: error.message });
+    } finally {
+        tokenRequestInFlight = false;
     }
 }
 
 async function removeGitHubToken() {
+    if (tokenRequestInFlight) return;
     const result = await Swal.fire({
         title: <?= json_encode(__("Rimuovere il token?"), JSON_HEX_TAG) ?>,
         text: <?= json_encode(__("Le richieste API torneranno al limite di 60/ora."), JSON_HEX_TAG) ?>,
@@ -602,6 +609,7 @@ async function removeGitHubToken() {
 
     if (!result.isConfirmed) return;
 
+    tokenRequestInFlight = true;
     try {
         const data = await postTokenRequest('');
 
@@ -618,6 +626,8 @@ async function removeGitHubToken() {
         }
     } catch (error) {
         Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: error.message });
+    } finally {
+        tokenRequestInFlight = false;
     }
 }
 

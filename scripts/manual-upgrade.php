@@ -302,8 +302,11 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             $safeCmd = implode(' ', array_map('escapeshellarg', $args)) . ' > ' . escapeshellarg($backupFile) . ' 2>&1';
             $cmdOutput = [];
             $exitCode = 0;
-            exec($safeCmd, $cmdOutput, $exitCode);
-            @unlink($defaultsFile);
+            try {
+                exec($safeCmd, $cmdOutput, $exitCode);
+            } finally {
+                @unlink($defaultsFile);
+            }
 
             if ($exitCode === 0 && is_file($backupFile) && filesize($backupFile) > 100) {
                 $log[] = '[OK] Backup DB creato: ' . basename($backupFile) . ' (' . formatBytes(filesize($backupFile)) . ')';
