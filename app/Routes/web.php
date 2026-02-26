@@ -90,20 +90,22 @@ return function (App $app): void {
         return $controller->home($request, $response, $db, $container);
     });
 
-    // Frontend Events routes
-    $app->get('/events', function ($request, $response) use ($app) {
-        $container = $app->getContainer();
-        $controller = new \App\Controllers\FrontendController($container);
-        $db = $container->get('db');
-        return $controller->events($request, $response, $db);
-    });
+    // Frontend Events routes (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('events', $locale), function ($request, $response) use ($app) {
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
+            return $controller->events($request, $response, $db);
+        });
 
-    $app->get('/events/{slug}', function ($request, $response, $args) use ($app) {
-        $container = $app->getContainer();
-        $controller = new \App\Controllers\FrontendController($container);
-        $db = $container->get('db');
-        return $controller->event($request, $response, $db, $args);
-    });
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('events', $locale) . '/{slug}', function ($request, $response, $args) use ($app) {
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
+            return $controller->event($request, $response, $db, $args);
+        });
+    }
 
     $app->get('/health', function ($request, $response) {
         $data = ['status' => 'ok'];

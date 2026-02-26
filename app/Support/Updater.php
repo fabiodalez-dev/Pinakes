@@ -306,6 +306,9 @@ class Updater
     public function saveGitHubToken(string $token): void
     {
         $token = trim($token);
+        if ($token !== '' && preg_match('/[[:cntrl:]]/u', $token)) {
+            throw new Exception(__('Token GitHub non valido: contiene caratteri di controllo'));
+        }
 
         $stmt = $this->db->prepare(
             'INSERT INTO system_settings (category, setting_key, setting_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)'

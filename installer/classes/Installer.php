@@ -478,27 +478,36 @@ class Installer {
         $executedCount = 0;
         $errors = [];
 
-        foreach ($statements as $statement) {
-            $statement = trim($statement);
+        try {
+            foreach ($statements as $statement) {
+                $statement = trim($statement);
 
-            if (empty($statement)) {
-                continue;
-            }
+                if (empty($statement)) {
+                    continue;
+                }
 
-            try {
-                $pdo->exec($statement);
-                $executedCount++;
-            } catch (PDOException $e) {
-                // Collect errors but continue (some INSERTs might fail due to duplicates)
-                if (strpos($e->getMessage(), 'Duplicate entry') === false) {
-                    $errors[] = "Data import error: " . $e->getMessage();
+                try {
+                    $pdo->exec($statement);
+                    $executedCount++;
+                } catch (PDOException $e) {
+                    // Collect errors but continue (some INSERTs might fail due to duplicates)
+                    if (strpos($e->getMessage(), 'Duplicate entry') === false) {
+                        $errors[] = "Data import error: " . $e->getMessage();
+                    }
                 }
             }
-        }
 
-        if (!empty($errors) && count($errors) > 10) {
-            $firstErrors = array_slice($errors, 0, 5);
-            throw new Exception(sprintf(__("Troppi errori durante l'import dei dati (%d errori). Primi errori:\n%s"), count($errors), implode("\n", $firstErrors)));
+            if (!empty($errors) && count($errors) > 10) {
+                $firstErrors = array_slice($errors, 0, 5);
+                throw new Exception(sprintf(__("Troppi errori durante l'import dei dati (%d errori). Primi errori:\n%s"), count($errors), implode("\n", $firstErrors)));
+            }
+        } finally {
+            // Always restore FK checks even if execution aborts early
+            try {
+                $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+            } catch (PDOException $e) {
+                // Ignore — best-effort restore
+            }
         }
 
         return true;

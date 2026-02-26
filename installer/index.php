@@ -21,6 +21,16 @@ if (isset($_GET['reset'])) {
     session_start(); // Start a fresh session
 }
 
+// Normalize locale to canonical form (it_IT, en_US, de_DE)
+function normalizeInstallerLocale(string $locale): string {
+    $locale = str_replace('-', '_', strtolower($locale));
+    return match($locale) {
+        'en', 'en_us' => 'en_US',
+        'de', 'de_de' => 'de_DE',
+        default => 'it_IT',
+    };
+}
+
 // Simple translation function for installer
 function __(string $key, mixed ...$args): string {
     static $translations = null;
@@ -33,11 +43,7 @@ function __(string $key, mixed ...$args): string {
     // Load translations when not Italian (Italian strings are the keys themselves)
     if ($locale !== 'it' && $locale !== 'it_IT') {
         if ($translations === null) {
-            $localeCode = match($locale) {
-                'en', 'en_US' => 'en_US',
-                'de', 'de_DE' => 'de_DE',
-                default => $locale,
-            };
+            $localeCode = normalizeInstallerLocale((string)$locale);
             $translationFile = dirname(__DIR__) . '/locale/' . $localeCode . '.json';
             if (file_exists($translationFile)) {
                 $json = file_get_contents($translationFile);
@@ -343,10 +349,10 @@ function renderHeader($currentStep, $stepTitle) {
         7 => __('Completato')
     ];
 
-    $lang = $_SESSION['app_locale'] ?? 'it';
-    $htmlLang = match($lang) {
-        'en', 'en_US' => 'en',
-        'de', 'de_DE' => 'de',
+    $localeCode = normalizeInstallerLocale((string)($_SESSION['app_locale'] ?? 'it'));
+    $htmlLang = match($localeCode) {
+        'en_US' => 'en',
+        'de_DE' => 'de',
         default => 'it',
     };
     $versionFile = dirname(__DIR__) . '/version.json';
