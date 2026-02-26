@@ -629,7 +629,12 @@ document.addEventListener('DOMContentLoaded', function() {
       const hasUrlFilter = initialKeywords || initialCollana || initialGenere || initialSottogenere;
       const raw = localStorage.getItem('DataTables_libri-table_' + window.location.pathname);
       if (!raw) return null;
-      const state = JSON.parse(raw);
+      let state = null;
+      try {
+        state = JSON.parse(raw);
+      } catch {
+        return null;
+      }
       if (hasUrlFilter && state) {
         state.start = 0;
       }

@@ -424,7 +424,9 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         $criticalFiles = ['.env', 'config.local.php', 'version.json'];
         foreach ($criticalFiles as $cf) {
             if (is_file($rootPath . '/' . $cf)) {
-                copy($rootPath . '/' . $cf, $fileBackupDir . '/' . $cf);
+                if (!copy($rootPath . '/' . $cf, $fileBackupDir . '/' . $cf)) {
+                    throw new RuntimeException('Backup file critico fallito: ' . $cf);
+                }
             }
         }
         $log[] = '[OK] Backup file critici in ' . basename($fileBackupDir);
@@ -487,8 +489,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 // Read and execute migration
                 $sql = file_get_contents($migFile);
                 if ($sql === false) {
-                    $log[] = '[ERROR] Impossibile leggere ' . $filename;
-                    continue;
+                    throw new RuntimeException('Impossibile leggere la migrazione: ' . $filename);
                 }
 
                 $log[] = '[INFO] Esecuzione migrazione ' . $migVersion . '...';
