@@ -244,6 +244,25 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         }
         $log[] = '[OK] File caricato: ' . $file['name'] . ' (' . formatBytes($file['size']) . ')';
 
+        // 1b. Pre-flight checks: permissions, disk space, ZipArchive
+        if (!class_exists('ZipArchive')) {
+            throw new RuntimeException('Estensione ZipArchive non disponibile. Contatta il provider hosting.');
+        }
+
+        $freeSpace = @disk_free_space($rootPath);
+        if ($freeSpace !== false && $freeSpace < 200 * 1024 * 1024) {
+            throw new RuntimeException('Spazio disco insufficiente: ' . formatBytes((int)$freeSpace) . ' disponibili, servono almeno 200 MB.');
+        }
+
+        $writableDirs = ['storage', 'storage/tmp', 'storage/backups', 'app', 'public', 'installer'];
+        foreach ($writableDirs as $dir) {
+            $dirPath = $rootPath . '/' . $dir;
+            if (is_dir($dirPath) && !is_writable($dirPath)) {
+                throw new RuntimeException('Directory non scrivibile: ' . $dir . '. Correggi i permessi prima di continuare.');
+            }
+        }
+        $log[] = '[OK] Pre-flight: permessi, spazio disco, ZipArchive OK';
+
         // 2. Load .env and connect to DB
         $env = loadEnv($rootPath . '/.env');
         if (empty($env['DB_NAME'])) {
@@ -396,6 +415,19 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             'public/sitemap.xml',
             'config.local.php',
         ];
+
+        // 8b. Backup critical files before overwriting
+        $fileBackupDir = $rootPath . '/storage/backups/pre_upgrade_files_' . date('Ymd_His');
+        if (!is_dir($fileBackupDir)) {
+            mkdir($fileBackupDir, 0755, true);
+        }
+        $criticalFiles = ['.env', 'config.local.php', 'version.json'];
+        foreach ($criticalFiles as $cf) {
+            if (is_file($rootPath . '/' . $cf)) {
+                copy($rootPath . '/' . $cf, $fileBackupDir . '/' . $cf);
+            }
+        }
+        $log[] = '[OK] Backup file critici in ' . basename($fileBackupDir);
 
         // 9. Copy new files over existing installation
         $log[] = '[INFO] Copia file in corso (preservando dati utente)...';
