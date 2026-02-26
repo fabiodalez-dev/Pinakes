@@ -272,12 +272,23 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         }
 
         if ($mysqldumpBin) {
+            // Use defaults-extra-file to avoid exposing password in process list
+            $defaultsFile = tempnam(sys_get_temp_dir(), 'pinakes_dump_');
+            if ($defaultsFile === false) {
+                throw new RuntimeException('Impossibile creare file temporaneo per credenziali mysqldump');
+            }
+            file_put_contents($defaultsFile,
+                "[client]\n"
+                . "host=" . ($env['DB_HOST'] ?? 'localhost') . "\n"
+                . "user=" . ($env['DB_USER'] ?? '') . "\n"
+                . "password=" . ($env['DB_PASS'] ?? '') . "\n"
+                . "port=" . (int) ($env['DB_PORT'] ?? 3306) . "\n"
+            );
+            @chmod($defaultsFile, 0600);
+
             $args = [
                 $mysqldumpBin,
-                '--host=' . ($env['DB_HOST'] ?? 'localhost'),
-                '--user=' . ($env['DB_USER'] ?? ''),
-                '--password=' . ($env['DB_PASS'] ?? ''),
-                '--port=' . (int) ($env['DB_PORT'] ?? 3306),
+                '--defaults-extra-file=' . $defaultsFile,
             ];
             if (!empty($env['DB_SOCKET'])) {
                 $args[] = '--socket=' . $env['DB_SOCKET'];
@@ -291,6 +302,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             $cmdOutput = [];
             $exitCode = 0;
             exec($safeCmd, $cmdOutput, $exitCode);
+            @unlink($defaultsFile);
 
             if ($exitCode === 0 && is_file($backupFile) && filesize($backupFile) > 100) {
                 $log[] = '[OK] Backup DB creato: ' . basename($backupFile) . ' (' . formatBytes(filesize($backupFile)) . ')';
@@ -348,7 +360,10 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         $log[] = '[INFO] Versione target: ' . $targetVersion;
 
         if (version_compare($targetVersion, $currentVersion, '<=')) {
-            $log[] = '[WARN] La versione target (' . $targetVersion . ') non e\' piu\' recente della attuale (' . $currentVersion . ')';
+            throw new RuntimeException(
+                'Versione target non valida: ' . $targetVersion . ' (attuale: ' . $currentVersion . '). '
+                . 'Il pacchetto deve essere più recente della versione installata.'
+            );
         }
 
         // 8. Paths to preserve (DO NOT overwrite these)
@@ -445,8 +460,10 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 $lastErrno = 0;
 
                 foreach ($statements as $stmtSql) {
-                    $stmtSql = trim($stmtSql);
-                    if ($stmtSql === '' || str_starts_with($stmtSql, '--')) {
+                    // Strip leading SQL comment lines but keep executable SQL after them
+                    $stmtSql = preg_replace('/^\s*--.*$/m', '', $stmtSql);
+                    $stmtSql = trim((string) $stmtSql);
+                    if ($stmtSql === '') {
                         continue;
                     }
                     try {

@@ -225,7 +225,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 1. **Clone or download** this repository and upload all files to the root directory of your server.
 2. **Visit your site's root URL** in the browser — the guided installer starts automatically.
 3. **Provide database credentials** (database must be empty).
-4. **Select language** (Italian, English, or Deutsch).
+4. **Select language** (Italian, English, or German).
 5. **Configure** organization name, logo, and email notifications.
 6. **Create admin account** and start cataloging.
 
@@ -350,7 +350,7 @@ Automatic emails for:
 **WYSIWYG email template editor** with dynamic tags for record, user, and loan data.
 
 ### Public Catalog (OPAC)
-- **Responsive, multilingual frontend** (Italian, English, Deutsch)
+- **Responsive, multilingual frontend** (Italian, English, German)
 - **AJAX search** with instant results and relevance ranking
 - **AJAX filters**: genre, publisher, availability, publication year, format
 - **Patrons can leave reviews and ratings** (configurable)

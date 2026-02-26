@@ -560,6 +560,13 @@ async function saveGitHubToken() {
             body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=${encodeURIComponent(token)}`
         });
 
+        const ct = response.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            const text = await response.text();
+            console.error('Server returned non-JSON response:', text.substring(0, 500));
+            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
+        }
+
         const data = await response.json();
 
         if (data.success) {
@@ -601,6 +608,13 @@ async function removeGitHubToken() {
             },
             body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=`
         });
+
+        const ct = response.headers.get('content-type') || '';
+        if (!ct.includes('application/json')) {
+            const text = await response.text();
+            console.error('Server returned non-JSON response:', text.substring(0, 500));
+            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
+        }
 
         const data = await response.json();
 

@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Support\SecureLogger;
 use mysqli;
 use Exception;
 use ZipArchive;
@@ -203,7 +204,75 @@ class Updater
         $stmt->close();
 
         if (is_string($value) && $value !== '') {
-            $this->githubToken = $value;
+            $this->githubToken = $this->decryptValue($value);
+        }
+    }
+
+    /**
+     * Encrypt a value for storage (AES-256-GCM)
+     */
+    private function encryptValue(string $plain): string
+    {
+        $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
+            ?? (getenv('PLUGIN_ENCRYPTION_KEY') ?: null)
+            ?? $_ENV['APP_KEY']
+            ?? (getenv('APP_KEY') ?: null);
+
+        if (!$rawKey || $plain === '') {
+            return $plain;
+        }
+
+        try {
+            $key = hash('sha256', (string) $rawKey, true);
+            $iv = random_bytes(12);
+            $tag = '';
+            $ciphertext = openssl_encrypt($plain, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+            if ($ciphertext === false) {
+                return $plain;
+            }
+
+            return 'ENC:' . base64_encode($iv . $tag . $ciphertext);
+        } catch (\Throwable $e) {
+            return $plain;
+        }
+    }
+
+    /**
+     * Decrypt a stored value (backward-compatible with plaintext)
+     */
+    private function decryptValue(string $stored): string
+    {
+        if (!str_starts_with($stored, 'ENC:')) {
+            return $stored; // plaintext (legacy) — returned as-is
+        }
+
+        $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
+            ?? (getenv('PLUGIN_ENCRYPTION_KEY') ?: null)
+            ?? $_ENV['APP_KEY']
+            ?? (getenv('APP_KEY') ?: null);
+
+        if (!$rawKey) {
+            SecureLogger::error('[Updater] Encryption key not available, cannot decrypt token');
+            return '';
+        }
+
+        $payload = base64_decode(substr($stored, 4), true);
+        if ($payload === false || strlen($payload) <= 28) {
+            return '';
+        }
+
+        try {
+            $key = hash('sha256', (string) $rawKey, true);
+            $iv = substr($payload, 0, 12);
+            $tag = substr($payload, 12, 16);
+            $ciphertext = substr($payload, 28);
+
+            $plain = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+            return $plain !== false ? $plain : '';
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Updater] Token decryption failed: ' . $e->getMessage());
+            return '';
         }
     }
 
@@ -240,7 +309,8 @@ class Updater
         }
         $cat = 'updater';
         $key = 'github_token';
-        $stmt->bind_param('sss', $cat, $key, $token);
+        $encrypted = $token !== '' ? $this->encryptValue($token) : '';
+        $stmt->bind_param('sss', $cat, $key, $encrypted);
         if (!$stmt->execute()) {
             $error = $this->db->error;
             $stmt->close();
