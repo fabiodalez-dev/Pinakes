@@ -240,13 +240,27 @@ return function (App $app): void {
         // Example: Italian install shows /profilo but form might POST to /profilo/update (hybrid)
         // instead of the expected /profilo/aggiorna (fully Italian).
         if ($locale === 'it_IT') {
+            // Italian base + English action
             $registerRouteIfUnique('POST', '/profilo/update', function ($request, $response) use ($app) {
                 $db = $app->getContainer()->get('db');
                 $controller = new ProfileController();
                 return $controller->update($request, $response, $db);
             }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
         } elseif ($locale === 'en_US') {
+            // English base + Italian action
             $registerRouteIfUnique('POST', '/profile/aggiorna', function ($request, $response) use ($app) {
+                $db = $app->getContainer()->get('db');
+                $controller = new ProfileController();
+                return $controller->update($request, $response, $db);
+            }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+        } elseif ($locale === 'de_DE') {
+            // German base + English/Italian action
+            $registerRouteIfUnique('POST', '/profil/update', function ($request, $response) use ($app) {
+                $db = $app->getContainer()->get('db');
+                $controller = new ProfileController();
+                return $controller->update($request, $response, $db);
+            }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+            $registerRouteIfUnique('POST', '/profil/aggiorna', function ($request, $response) use ($app) {
                 $db = $app->getContainer()->get('db');
                 $controller = new ProfileController();
                 return $controller->update($request, $response, $db);

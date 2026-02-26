@@ -180,6 +180,10 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
             continue;
         }
 
+        if (is_link($srcPath)) {
+            throw new RuntimeException('Elemento simbolico non consentito nel pacchetto: ' . $srcPath);
+        }
+
         if (is_dir($srcPath)) {
             $count += copyTree($srcPath, $dstPath, $rootDst, $skipRelative);
         } else {

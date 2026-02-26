@@ -324,19 +324,20 @@ class Updater
         if ($stmt === false) {
             throw new Exception(__('Errore nel salvataggio del token'));
         }
-        $cat = 'updater';
-        $key = 'github_token';
-        $encrypted = $token !== '' ? $this->encryptValue($token) : '';
-        if ($token !== '' && !str_starts_with($encrypted, 'ENC:')) {
-            throw new Exception(__('Impossibile cifrare il token GitHub: salvataggio annullato'));
-        }
-        $stmt->bind_param('sss', $cat, $key, $encrypted);
-        if (!$stmt->execute()) {
-            $error = $this->db->error;
+        try {
+            $cat = 'updater';
+            $key = 'github_token';
+            $encrypted = $token !== '' ? $this->encryptValue($token) : '';
+            if ($token !== '' && !str_starts_with($encrypted, 'ENC:')) {
+                throw new Exception(__('Impossibile cifrare il token GitHub: salvataggio annullato'));
+            }
+            $stmt->bind_param('sss', $cat, $key, $encrypted);
+            if (!$stmt->execute()) {
+                throw new Exception(__('Errore nel salvataggio del token') . ': ' . $this->db->error);
+            }
+        } finally {
             $stmt->close();
-            throw new Exception(__('Errore nel salvataggio del token') . ': ' . $error);
         }
-        $stmt->close();
 
         $this->githubToken = $token;
     }
