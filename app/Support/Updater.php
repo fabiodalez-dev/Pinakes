@@ -218,8 +218,11 @@ class Updater
             ?? $_ENV['APP_KEY']
             ?? (getenv('APP_KEY') ?: null);
 
-        if (!$rawKey || $plain === '') {
-            return $plain;
+        if ($plain === '') {
+            return '';
+        }
+        if (!$rawKey) {
+            throw new Exception(__('Chiave di cifratura non configurata (PLUGIN_ENCRYPTION_KEY o APP_KEY)'));
         }
 
         try {
@@ -229,12 +232,15 @@ class Updater
             $ciphertext = openssl_encrypt($plain, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
 
             if ($ciphertext === false) {
-                return $plain;
+                throw new Exception(__('Impossibile cifrare il token GitHub'));
             }
 
             return 'ENC:' . base64_encode($iv . $tag . $ciphertext);
+        } catch (Exception $e) {
+            throw $e;
         } catch (\Throwable $e) {
-            return $plain;
+            SecureLogger::error('[Updater] Token encryption failed: ' . $e->getMessage());
+            throw new Exception(__('Impossibile cifrare il token GitHub'));
         }
     }
 
@@ -310,6 +316,9 @@ class Updater
         $cat = 'updater';
         $key = 'github_token';
         $encrypted = $token !== '' ? $this->encryptValue($token) : '';
+        if ($token !== '' && !str_starts_with($encrypted, 'ENC:')) {
+            throw new Exception(__('Impossibile cifrare il token GitHub: salvataggio annullato'));
+        }
         $stmt->bind_param('sss', $cat, $key, $encrypted);
         if (!$stmt->execute()) {
             $error = $this->db->error;

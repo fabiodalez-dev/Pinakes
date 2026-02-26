@@ -36,7 +36,6 @@ class UpdateController
         $hasGithubToken = $updater->hasGitHubToken();
 
         ob_start();
-        $data = compact('updateInfo', 'requirements', 'history', 'changelog', 'githubTokenMasked', 'hasGithubToken');
         require __DIR__ . '/../Views/admin/updates.php';
         $content = ob_get_clean();
 

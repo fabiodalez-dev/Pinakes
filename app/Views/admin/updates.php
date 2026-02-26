@@ -536,6 +536,27 @@ $hasGithubToken ??= false;
 const csrfToken = <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
 
+async function postTokenRequest(tokenValue) {
+    const response = await fetch(window.BASE_PATH + '/admin/updates/token', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=${encodeURIComponent(tokenValue)}`
+    });
+
+    const ct = response.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+        const text = await response.text();
+        console.error('Server returned non-JSON response:', text.substring(0, 500));
+        throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
+    }
+
+    return response.json();
+}
+
 async function saveGitHubToken() {
     const input = document.getElementById('github-token');
     const token = input.value.trim();
@@ -550,24 +571,7 @@ async function saveGitHubToken() {
     }
 
     try {
-        const response = await fetch(window.BASE_PATH + '/admin/updates/token', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=${encodeURIComponent(token)}`
-        });
-
-        const ct = response.headers.get('content-type') || '';
-        if (!ct.includes('application/json')) {
-            const text = await response.text();
-            console.error('Server returned non-JSON response:', text.substring(0, 500));
-            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
-        }
-
-        const data = await response.json();
+        const data = await postTokenRequest(token);
 
         if (data.success) {
             Swal.fire({
@@ -599,24 +603,7 @@ async function removeGitHubToken() {
     if (!result.isConfirmed) return;
 
     try {
-        const response = await fetch(window.BASE_PATH + '/admin/updates/token', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}&github_token=`
-        });
-
-        const ct = response.headers.get('content-type') || '';
-        if (!ct.includes('application/json')) {
-            const text = await response.text();
-            console.error('Server returned non-JSON response:', text.substring(0, 500));
-            throw new Error(<?= json_encode(__("Il server ha restituito una risposta non valida. Controlla i log per dettagli."), JSON_HEX_TAG) ?>);
-        }
-
-        const data = await response.json();
+        const data = await postTokenRequest('');
 
         if (data.success) {
             Swal.fire({

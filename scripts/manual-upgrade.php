@@ -210,6 +210,7 @@ if ($requestMethod === 'POST' && isset($_POST['password'])) {
     if (UPGRADE_PASSWORD === 'pinakes2026') {
         $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
     } elseif ($_POST['password'] === UPGRADE_PASSWORD) {
+        session_regenerate_id(true);
         $_SESSION['upgrade_auth'] = true;
     } else {
         $error = 'Password errata.';
@@ -335,7 +336,10 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 throw new RuntimeException('ZIP non valido: contiene percorsi pericolosi');
             }
         }
-        $zip->extractTo($tempDir);
+        if (!$zip->extractTo($tempDir)) {
+            $zip->close();
+            throw new RuntimeException('Estrazione ZIP fallita in ' . basename($tempDir));
+        }
         $zip->close();
         $log[] = '[OK] ZIP estratto in directory temporanea';
 
@@ -536,7 +540,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
     } catch (Throwable $e) {
         $error = $e->getMessage();
         $log[] = '[FATAL] ' . $e->getMessage();
-        $log[] = '[TRACE] ' . $e->getFile() . ':' . $e->getLine();
+        error_log('[manual-upgrade] ' . $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
 
         // Try to cleanup temp dir
         if (isset($tempDir) && is_dir($tempDir)) {
