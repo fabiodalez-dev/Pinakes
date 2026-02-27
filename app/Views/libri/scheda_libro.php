@@ -181,7 +181,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               if (!empty($libro['sottogenere_nome'])) $pathParts[] = (string)$libro['sottogenere_nome'];
               $path = implode(' → ', array_map('App\\Support\\HtmlHelper::e', $pathParts));
             ?>
-            <a href="<?= htmlspecialchars(url('/admin/generi/' . (!empty($libro['sottogenere_id']) ? (int)$libro['sottogenere_id'] : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)$libro['radice_id']))), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
+            <a href="<?= htmlspecialchars(url('/admin/libri?genere=' . (!empty($libro['sottogenere_id']) ? (int)$libro['sottogenere_id'] : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)$libro['radice_id']))), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
               <?php echo $path !== '' ? $path : __('Non specificato'); ?>
             </a>
           </div>

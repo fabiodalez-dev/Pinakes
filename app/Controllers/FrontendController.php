@@ -141,7 +141,7 @@ class FrontendController
                     FROM libri l
                     WHERE l.genere_id IN " . $inClause . " AND l.deleted_at IS NULL
                     ORDER BY l.created_at DESC
-                    LIMIT 4
+                    LIMIT 12
                 ";
                 $stmt_genre_books = $db->prepare($query_genre_books);
                 if ($stmt_genre_books === false) {

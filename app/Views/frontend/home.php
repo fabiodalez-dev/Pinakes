@@ -487,9 +487,24 @@ form.hero-search-form {
         font-size: 2rem;
         font-weight: 800;
         color: var(--primary-color);
-        margin: 0;
+        margin: 0 0 0.5rem;
         letter-spacing: -0.02em;
         text-align: center;
+    }
+
+    .genre-carousel-viewall {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        text-decoration: none;
+        transition: opacity 0.2s ease;
+    }
+
+    .genre-carousel-viewall:hover {
+        opacity: 0.7;
     }
 
     .carousel-container {
