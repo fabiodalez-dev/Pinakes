@@ -538,6 +538,7 @@ class LibriController
             'data_pubblicazione' => '',
             'traduttore' => '',
             'illustratore' => '',
+            'numero_pagine' => null,
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -1043,6 +1044,7 @@ class LibriController
             'data_pubblicazione' => '',
             'traduttore' => '',
             'illustratore' => '',
+            'numero_pagine' => null,
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -2527,6 +2529,13 @@ class LibriController
         $genereId = isset($params['genere_id']) && is_numeric($params['genere_id']) ? (int) $params['genere_id'] : 0;
         $autoreId = isset($params['autore_id']) && is_numeric($params['autore_id']) ? (int) $params['autore_id'] : 0;
 
+        // Selected IDs filter (from "Export selected" button)
+        $idsParam = $params['ids'] ?? '';
+        $selectedIds = [];
+        if (!empty($idsParam)) {
+            $selectedIds = array_filter(array_map('intval', explode(',', $idsParam)), fn($id) => $id > 0);
+        }
+
         // Export format options
         $format = $params['format'] ?? 'standard'; // standard, librarything
         $delimiter = $params['delimiter'] ?? ';'; // ;, comma, tab
@@ -2594,6 +2603,13 @@ class LibriController
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
         ";
+
+        if (!empty($selectedIds)) {
+            $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+            $whereClauses[] = "l.id IN ($placeholders)";
+            $bindTypes .= str_repeat('i', count($selectedIds));
+            $bindValues = array_merge($bindValues, $selectedIds);
+        }
 
         $whereClauses[] = "l.deleted_at IS NULL";
 

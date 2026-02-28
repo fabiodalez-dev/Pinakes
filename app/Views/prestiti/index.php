@@ -447,7 +447,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         ],
         order: [], // Empty array = use server default (p.id DESC = most recent first)
-        language: (window.i18nLocale === 'en_US' ? window.DT_LANG_EN : window.DT_LANG_IT),
+        language: window.getDtLanguage(),
         pageLength: 25,
         dom: '<"px-6 py-4"<"flex items-center justify-between"<"flex items-center gap-4"l><"flex-1"f>>>rtip'
     });

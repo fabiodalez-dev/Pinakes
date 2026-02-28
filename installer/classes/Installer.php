@@ -505,7 +505,7 @@ class Installer {
             try {
                 $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
             } catch (PDOException $e) {
-                // Ignore — best-effort restore
+                error_log('[Installer] Failed to restore FOREIGN_KEY_CHECKS=1: ' . $e->getMessage());
             }
         }
 
@@ -1023,7 +1023,7 @@ HTACCESS;
 
         $base = $scheme . '://' . $host;
         $defaultPorts = ['http' => 80, 'https' => 443];
-        if ($port !== null && ($defaultPorts[$scheme] ?? null) !== $port) {
+        if ($port !== null && $defaultPorts[$scheme] !== $port) {
             $base .= ':' . $port;
         }
 

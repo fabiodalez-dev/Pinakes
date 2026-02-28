@@ -350,16 +350,18 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             </div>
             <div>
               <label for="genere_select" class="form-label"><?= __("Genere") ?></label>
-              <select id="genere_select" name="genere_id" class="form-input" disabled data-initial-genere="<?php echo (int)$initialData['genere_id']; ?>">
+              <select id="genere_select" class="form-input" disabled data-initial-genere="<?php echo (int)$initialData['genere_id']; ?>">
                 <option value="0"><?= __("Seleziona prima una radice...") ?></option>
               </select>
+              <input type="hidden" name="genere_id" id="genere_id_hidden" value="<?php echo (int)$initialData['genere_id']; ?>" />
               <p class="text-xs text-gray-500 mt-1" id="genere_hint"><?= __("Genere letterario del libro") ?></p>
             </div>
             <div>
               <label for="sottogenere_select" class="form-label"><?= __("Sottogenere") ?></label>
-              <select id="sottogenere_select" name="sottogenere_id" class="form-input" disabled data-initial-sottogenere="<?php echo (int)$initialData['sottogenere_id']; ?>">
+              <select id="sottogenere_select" class="form-input" disabled data-initial-sottogenere="<?php echo (int)$initialData['sottogenere_id']; ?>">
                 <option value="0"><?= __("Seleziona prima un genere...") ?></option>
               </select>
+              <input type="hidden" name="sottogenere_id" id="sottogenere_id_hidden" value="<?php echo (int)$initialData['sottogenere_id']; ?>" />
               <p class="text-xs text-gray-500 mt-1" id="sottogenere_hint"><?= __("Sottogenere specifico (opzionale)") ?></p>
             </div>
           </div>
@@ -1373,38 +1375,42 @@ function initializeChoicesJS() {
             createAuthorFromInputWithValue(rawValue);
         };
 
-        if (internalInput) {
-            internalInput.addEventListener('keydown', (event) => {
-                if (event.key === 'Enter') {
-                    // Capture input value BEFORE checking dropdown
-                    const currentValue = internalInput.value.trim();
+        // Override Choices.js _onEnterKey to handle new author creation.
+        // Choices.js v11 registers its keydown handler in capture phase on the
+        // outer wrapper, so it fires BEFORE any handler on the inner input.
+        // The only reliable way to intercept is to replace _onEnterKey itself.
+        const originalOnEnterKey = authorsChoice._onEnterKey;
+        authorsChoice._onEnterKey = function(event, hasActiveDropdown) {
+            if (internalInput) {
+                const inputValue = internalInput.value.trim();
+                if (inputValue) {
+                    const dd = wrapper ? wrapper.querySelector('.choices__list--dropdown') : null;
+                    const highlighted = dd ? dd.querySelector('.choices__item--selectable.is-highlighted') : null;
 
-                    if (!currentValue) {
+                    if (!highlighted) {
+                        // No highlighted item (no search results or empty dropdown)
+                        // — create new author directly
+                        event.preventDefault();
+                        createAuthorFromInputWithValue(inputValue);
                         return;
                     }
 
-                    const dropdown = wrapper ? wrapper.querySelector('.choices__list--dropdown') : null;
-                    const dropdownVisible = dropdown && !dropdown.classList.contains('is-hidden');
-                    const highlighted = dropdown ? dropdown.querySelector('.choices__item--selectable.is-highlighted') : null;
+                    // There IS a highlighted item — check if it matches what was typed
+                    const nameEl = highlighted.querySelector('.choices__item-text') || highlighted.childNodes[0];
+                    const highlightedText = (nameEl ? nameEl.textContent : highlighted.textContent).trim().toLowerCase();
+                    const currentText = inputValue.toLowerCase();
 
-
-                    // If there's a highlighted item AND the dropdown is visible, let Choices.js handle it
-                    // BUT only if the highlighted text matches what the user typed (case insensitive)
-                    if (highlighted && dropdownVisible) {
-                        const highlightedText = highlighted.textContent.trim().toLowerCase();
-                        const currentText = currentValue.toLowerCase();
-
-                        if (highlightedText === currentText || highlightedText.startsWith(currentText)) {
-                            return;
-                        } else {
-                        }
+                    if (highlightedText !== currentText && !highlightedText.startsWith(currentText)) {
+                        // Input doesn't match highlighted item — create new author
+                        event.preventDefault();
+                        createAuthorFromInputWithValue(inputValue);
+                        return;
                     }
-
-                    event.preventDefault();
-                    createAuthorFromInputWithValue(currentValue);
+                    // Highlighted text matches input — fall through to let Choices.js select it
                 }
-            });
-        }
+            }
+            return originalOnEnterKey(event, hasActiveDropdown);
+        };
 
         element.addEventListener('addItem', function(event) {
             const value = String(event.detail.value);
@@ -2120,13 +2126,25 @@ function initializeGeneriDropdowns() {
   let genereApplied = false;
   let sottogenereApplied = false;
 
+  const genereHidden = document.getElementById('genere_id_hidden');
+  const sottogenereHidden = document.getElementById('sottogenere_id_hidden');
+
+  const syncHidden = () => {
+    if (genereHidden) genereHidden.value = genereSelect.value || '0';
+    if (sottogenereHidden) sottogenereHidden.value = sottogenereSelect.value || '0';
+  };
+
   const resetGenere = (placeholder) => {
+    // Note: innerHTML here uses escapeHtml() on the placeholder — safe from XSS
     genereSelect.innerHTML = `<option value="0">${escapeHtml(placeholder)}</option>`;
     genereSelect.disabled = true;
+    syncHidden();
   };
   const resetSottogenere = (placeholder) => {
+    // Note: innerHTML here uses escapeHtml() on the placeholder — safe from XSS
     sottogenereSelect.innerHTML = `<option value="0">${escapeHtml(placeholder)}</option>`;
     sottogenereSelect.disabled = true;
+    syncHidden();
   };
 
   // 1) Carica radici (parent_id NULL)
@@ -2169,6 +2187,7 @@ function initializeGeneriDropdowns() {
         if (!genereApplied && initialGenere > 0) {
           genereSelect.value = String(initialGenere);
           genereApplied = true;
+          syncHidden();
           // Verify the value was actually set (option exists in the list)
           if (parseInt(genereSelect.value, 10) === initialGenere) {
             genereSelect.dispatchEvent(new Event('change'));
@@ -2176,6 +2195,7 @@ function initializeGeneriDropdowns() {
             console.warn('Genre pre-population: initialGenere', initialGenere, 'not found in children of root', rootId);
           }
         }
+        syncHidden();
       } catch (e) { console.error('Failed to load genres:', e); }
     }
     updatePath();
@@ -2202,6 +2222,7 @@ function initializeGeneriDropdowns() {
           sottogenereSelect.value = String(initialSottogenere);
           sottogenereApplied = true;
         }
+        syncHidden();
       } catch (e) { console.error('Failed to load subgenres:', e); }
     }
     updatePath();
@@ -2217,6 +2238,10 @@ function initializeGeneriDropdowns() {
     if (sottogenereSelect.value !== '0') parts.push(stext);
     pathEl.textContent = parts.length ? `Percorso: ${parts.join(' → ')}` : '';
   }
+
+  // Keep hidden inputs in sync on any user-driven selection change
+  genereSelect.addEventListener('change', syncHidden);
+  sottogenereSelect.addEventListener('change', syncHidden);
 }
 
 function initializeSuggestCollocazione() {

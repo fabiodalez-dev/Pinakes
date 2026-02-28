@@ -507,6 +507,12 @@ form.hero-search-form {
         opacity: 0.7;
     }
 
+    .genre-carousel-viewall:focus-visible {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+        opacity: 0.85;
+    }
+
     .carousel-container {
         display: grid;
         grid-template-columns: auto 1fr auto;

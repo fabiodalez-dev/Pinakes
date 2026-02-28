@@ -44,7 +44,7 @@ $genreSectionSubtitle = !empty($genreSectionContent['subtitle'])
                 <h2 class="genre-carousel-title">
                     <?php echo htmlspecialchars($genre['nome'], ENT_QUOTES, 'UTF-8'); ?>
                 </h2>
-                <a href="<?php echo htmlspecialchars(route_path('genre') . '/' . urlencode($genre['nome']), ENT_QUOTES, 'UTF-8'); ?>" class="genre-carousel-viewall">
+                <a href="<?php echo htmlspecialchars(route_path('genre') . '/' . rawurlencode($genre['nome']), ENT_QUOTES, 'UTF-8'); ?>" class="genre-carousel-viewall">
                     <?php echo __("Vedi tutti"); ?> <i class="fas fa-arrow-right"></i>
                 </a>
             </div>

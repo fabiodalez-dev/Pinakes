@@ -443,9 +443,9 @@ document.addEventListener('DOMContentLoaded', function() {
     pageLength: 25,
     lengthMenu: [
       [10, 25, 50, 100, -1],
-      [10, 25, 50, 100, "Tutti"]
+      [10, 25, 50, 100, <?= json_encode(__("Tutti"), JSON_HEX_TAG) ?>]
     ],
-  language: (window.i18nLocale === 'en_US' ? window.DT_LANG_EN : window.DT_LANG_IT),
+  language: window.getDtLanguage(),
     initComplete: function() {
 
       // Initialize filter toggle

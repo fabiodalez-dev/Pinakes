@@ -627,7 +627,12 @@ document.addEventListener('DOMContentLoaded', function() {
       // When URL filters are active, reset saved pagination to page 1
       // to avoid "Showing 2501 to 44 of 44" when saved state had a high page offset
       const hasUrlFilter = initialKeywords || initialCollana || initialGenere || initialSottogenere;
-      const raw = localStorage.getItem('DataTables_libri-table_' + window.location.pathname);
+      let raw = null;
+      try {
+        raw = localStorage.getItem('DataTables_libri-table_' + window.location.pathname);
+      } catch {
+        return null;
+      }
       if (!raw) return null;
       let state = null;
       try {
@@ -831,7 +836,7 @@ document.addEventListener('DOMContentLoaded', function() {
     order: [[3, 'asc']],
     pageLength: 25,
     lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-    language: (window.i18nLocale === 'en_US' ? window.DT_LANG_EN : window.DT_LANG_IT),
+    language: window.getDtLanguage(),
     drawCallback: function() {
       // Reattach checkbox handlers
       document.querySelectorAll('.row-select').forEach(cb => {

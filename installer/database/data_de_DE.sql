@@ -278,12 +278,6 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 -- API settings
 ('api', 'enabled', '0', 'API global aktivieren', NOW()),
 
--- CMS settings (already exists, but adding for completeness)
-('cms', 'events_page_enabled', '1', 'Veranstaltungsseite im Frontend aktivieren', NOW())
-ON DUPLICATE KEY UPDATE
-    setting_value = VALUES(setting_value),
-    description = VALUES(description),
-    updated_at = NOW();
 
 -- CMS Pages - German
 INSERT IGNORE INTO `cms_pages` VALUES (1,'about-us','de_DE','Über uns','<h2>Willkommen bei Pinakes</h2>\n<p>Pinakes ist ein modernes, intuitives und vollständig kostenloses Bibliotheksverwaltungssystem. Es wurde entwickelt, um die Katalogisierung von Büchern, die Ausleihverwaltung und die Bibliotheksverwaltung jeder Größe zu vereinfachen.</p>\n\n<h3>🎯 Unsere Mission</h3>\n<p>Bibliotheksverwaltung für alle zugänglich zu machen, ohne Lizenzgebühren oder Einschränkungen. Pinakes ist 100 % Open Source, frei und kostenlos für alle.</p>\n\n<h3>✨ Hauptfunktionen</h3>\n<ul>\n    <li><strong>Intelligente Katalogisierung:</strong> Automatischer Datenimport über ISBN, Organisation nach Kategorien, Autoren und benutzerdefinierten Klassifikationen</li>\n    <li><strong>Ausleihverwaltung:</strong> Vollständiges System zur Verwaltung von Ausleihen, Fristen, Verlängerungen und Rückgaben</li>\n    <li><strong>Automatische Benachrichtigungen:</strong> E-Mail-Erinnerungen für Leihfristen und Benutzerkommunikation</li>\n    <li><strong>Moderne Oberfläche:</strong> Responsives Design, optimiert für Desktop, Tablet und Smartphone</li>\n    <li><strong>100 % Open Source:</strong> Freier Code, anpassbar und ohne versteckte Kosten</li>\n</ul>\n\n<h3>🚀 Warum Pinakes wählen?</h3>\n<p>Pinakes entstand aus dem Bedürfnis, ein professionelles, zuverlässiges und kostenloses Werkzeug für die Verwaltung von Schulbibliotheken, Vereinen und privaten Sammlungen bereitzustellen. Sie müssen kein IT-Experte sein: Die intuitive Benutzeroberfläche ermöglicht es jedem, sofort loszulegen.</p>\n\n<h3>📖 Jetzt loslegen</h3>\n<p>Passen Sie diese Seite mit Informationen über Ihre Bibliothek, Ihr Team und Ihre Dienstleistungen an. Greifen Sie auf das <a href=\"/admin/cms/about-us\">Administrationspanel</a> zu, um diesen Inhalt zu bearbeiten und einzigartig zu gestalten.</p>\n\n<p><em>Dies ist ein Beispielinhalt. Passen Sie ihn an, um die Geschichte Ihrer Bibliothek zu erzählen!</em></p>',NULL,NULL,1,'2025-10-01 10:35:27','2025-10-01 10:35:27');

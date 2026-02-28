@@ -342,6 +342,26 @@ class BookRepository
         if ($this->hasColumn('stato')) {
             $addField('stato', 's', $stato);
         }
+        if ($this->hasColumn('lingua')) {
+            $addField('lingua', 's', $data['lingua'] ?? null);
+        }
+        if ($this->hasColumn('anno_pubblicazione')) {
+            $anno = isset($data['anno_pubblicazione']) && $data['anno_pubblicazione'] !== '' ? (int)$data['anno_pubblicazione'] : null;
+            $addField('anno_pubblicazione', 'i', $anno);
+        }
+        if ($this->hasColumn('edizione')) {
+            $addField('edizione', 's', $data['edizione'] ?? null);
+        }
+        if ($this->hasColumn('traduttore')) {
+            $addField('traduttore', 's', $data['traduttore'] ?? null);
+        }
+        if ($this->hasColumn('illustratore')) {
+            $addField('illustratore', 's', $data['illustratore'] ?? null);
+        }
+        if ($this->hasColumn('numero_pagine')) {
+            $numPagine = isset($data['numero_pagine']) && $data['numero_pagine'] !== '' ? (int)$data['numero_pagine'] : null;
+            $addField('numero_pagine', 'i', $numPagine);
+        }
 
         // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)
         if ($this->hasColumn('review')) {
@@ -645,6 +665,26 @@ class BookRepository
         }
         if ($this->hasColumn('stato')) {
             $addSet('stato', 's', $stato);
+        }
+        if ($this->hasColumn('lingua')) {
+            $addSet('lingua', 's', $data['lingua'] ?? null);
+        }
+        if ($this->hasColumn('anno_pubblicazione')) {
+            $anno = isset($data['anno_pubblicazione']) && $data['anno_pubblicazione'] !== '' ? (int)$data['anno_pubblicazione'] : null;
+            $addSet('anno_pubblicazione', 'i', $anno);
+        }
+        if ($this->hasColumn('edizione')) {
+            $addSet('edizione', 's', $data['edizione'] ?? null);
+        }
+        if ($this->hasColumn('traduttore')) {
+            $addSet('traduttore', 's', $data['traduttore'] ?? null);
+        }
+        if ($this->hasColumn('illustratore')) {
+            $addSet('illustratore', 's', $data['illustratore'] ?? null);
+        }
+        if ($this->hasColumn('numero_pagine')) {
+            $numPagine = isset($data['numero_pagine']) && $data['numero_pagine'] !== '' ? (int)$data['numero_pagine'] : null;
+            $addSet('numero_pagine', 'i', $numPagine);
         }
 
         // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)
