@@ -478,6 +478,7 @@ class Installer {
         $executedCount = 0;
         $errors = [];
 
+        $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
         try {
             foreach ($statements as $statement) {
                 $statement = trim($statement);

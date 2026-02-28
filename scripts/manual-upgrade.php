@@ -31,8 +31,7 @@ ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 ini_set('max_execution_time', '600');
 ini_set('memory_limit', '512M');
-ini_set('post_max_size', '64M');
-ini_set('upload_max_filesize', '64M');
+// Note: upload_max_filesize and post_max_size are PHP_INI_PERDIR — set in php.ini or .htaccess
 
 // Auto-detect root: if script is in scripts/, use parent; if at root level, use __DIR__
 if (is_file(dirname(__DIR__) . '/.env') || is_file(dirname(__DIR__) . '/version.json')) {

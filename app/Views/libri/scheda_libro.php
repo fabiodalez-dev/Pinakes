@@ -181,9 +181,18 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               if (!empty($libro['sottogenere_nome'])) $pathParts[] = (string)$libro['sottogenere_nome'];
               $path = implode(' → ', array_map('App\\Support\\HtmlHelper::e', $pathParts));
             ?>
-            <a href="<?= htmlspecialchars(url('/admin/libri?genere=' . (!empty($libro['sottogenere_id']) ? (int)$libro['sottogenere_id'] : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)$libro['radice_id']))), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
-              <?php echo $path !== '' ? $path : __('Non specificato'); ?>
-            </a>
+            <?php
+              $genreFilterId = !empty($libro['sottogenere_id'])
+                ? (int)$libro['sottogenere_id']
+                : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)($libro['radice_id'] ?? 0));
+            ?>
+            <?php if ($genreFilterId > 0): ?>
+              <a href="<?= htmlspecialchars(url('/admin/libri?genere=' . $genreFilterId), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
+                <?php echo $path !== '' ? $path : __('Non specificato'); ?>
+              </a>
+            <?php else: ?>
+              <span class="text-gray-500"><?= __('Non specificato') ?></span>
+            <?php endif; ?>
           </div>
           <div class="text-base text-gray-600">
             <i class="fas fa-barcode text-gray-400 mr-2"></i>
@@ -483,13 +492,19 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               </dd>
             </div>
             <?php endif; ?>
-            <?php if (!empty($libro['file_url'])): ?>
+            <?php
+              $isSafeUrl = static function (?string $u): bool {
+                  $u = trim((string) $u);
+                  return $u !== '' && preg_match('#^(https?://|/)#i', $u) === 1;
+              };
+            ?>
+            <?php if ($isSafeUrl($libro['file_url'] ?? null)): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("File") ?></dt>
               <dd><a class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors" href="<?php echo htmlspecialchars($libro['file_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-file-alt"></i> <?= __("Apri") ?></a></dd>
             </div>
             <?php endif; ?>
-            <?php if (!empty($libro['audio_url'])): ?>
+            <?php if ($isSafeUrl($libro['audio_url'] ?? null)): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Audio") ?></dt>
               <dd><a class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-500 text-white hover:bg-purple-600 transition-colors" href="<?php echo htmlspecialchars($libro['audio_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-headphones"></i> <?= __("Apri") ?></a></dd>
