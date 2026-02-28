@@ -2531,9 +2531,12 @@ class LibriController
 
         // Selected IDs filter (from "Export selected" button)
         $idsParam = $params['ids'] ?? '';
+        if (is_array($idsParam)) {
+            $idsParam = implode(',', $idsParam);
+        }
         $selectedIds = [];
-        if (!empty($idsParam)) {
-            $selectedIds = array_filter(array_map('intval', explode(',', $idsParam)), fn($id) => $id > 0);
+        if (is_string($idsParam) && $idsParam !== '') {
+            $selectedIds = array_values(array_filter(array_map('intval', explode(',', $idsParam)), fn($id) => $id > 0));
         }
 
         // Export format options

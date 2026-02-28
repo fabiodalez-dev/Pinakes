@@ -1379,7 +1379,7 @@ function initializeChoicesJS() {
         // Choices.js v11 registers its keydown handler in capture phase on the
         // outer wrapper, so it fires BEFORE any handler on the inner input.
         // The only reliable way to intercept is to replace _onEnterKey itself.
-        const originalOnEnterKey = authorsChoice._onEnterKey;
+        const originalOnEnterKey = authorsChoice._onEnterKey.bind(authorsChoice);
         authorsChoice._onEnterKey = function(event, hasActiveDropdown) {
             if (internalInput) {
                 const inputValue = internalInput.value.trim();

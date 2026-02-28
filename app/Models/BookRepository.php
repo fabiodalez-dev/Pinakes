@@ -346,7 +346,8 @@ class BookRepository
             $addField('lingua', 's', $data['lingua'] ?? null);
         }
         if ($this->hasColumn('anno_pubblicazione')) {
-            $anno = isset($data['anno_pubblicazione']) && $data['anno_pubblicazione'] !== '' ? (int)$data['anno_pubblicazione'] : null;
+            $annoRaw = $data['anno_pubblicazione'] ?? null;
+            $anno = (is_numeric($annoRaw) && (int)$annoRaw > 0) ? (int)$annoRaw : null;
             $addField('anno_pubblicazione', 'i', $anno);
         }
         if ($this->hasColumn('edizione')) {
@@ -359,7 +360,8 @@ class BookRepository
             $addField('illustratore', 's', $data['illustratore'] ?? null);
         }
         if ($this->hasColumn('numero_pagine')) {
-            $numPagine = isset($data['numero_pagine']) && $data['numero_pagine'] !== '' ? (int)$data['numero_pagine'] : null;
+            $numPagineRaw = $data['numero_pagine'] ?? null;
+            $numPagine = (is_numeric($numPagineRaw) && (int)$numPagineRaw > 0) ? (int)$numPagineRaw : null;
             $addField('numero_pagine', 'i', $numPagine);
         }
 
@@ -670,7 +672,8 @@ class BookRepository
             $addSet('lingua', 's', $data['lingua'] ?? null);
         }
         if ($this->hasColumn('anno_pubblicazione')) {
-            $anno = isset($data['anno_pubblicazione']) && $data['anno_pubblicazione'] !== '' ? (int)$data['anno_pubblicazione'] : null;
+            $annoRaw = $data['anno_pubblicazione'] ?? null;
+            $anno = (is_numeric($annoRaw) && (int)$annoRaw > 0) ? (int)$annoRaw : null;
             $addSet('anno_pubblicazione', 'i', $anno);
         }
         if ($this->hasColumn('edizione')) {
@@ -683,7 +686,8 @@ class BookRepository
             $addSet('illustratore', 's', $data['illustratore'] ?? null);
         }
         if ($this->hasColumn('numero_pagine')) {
-            $numPagine = isset($data['numero_pagine']) && $data['numero_pagine'] !== '' ? (int)$data['numero_pagine'] : null;
+            $numPagineRaw = $data['numero_pagine'] ?? null;
+            $numPagine = (is_numeric($numPagineRaw) && (int)$numPagineRaw > 0) ? (int)$numPagineRaw : null;
             $addSet('numero_pagine', 'i', $numPagine);
         }
 

@@ -15,8 +15,8 @@ RewriteEngine On
 Options -Indexes
 
 # Exclude installer and scripts from rewrite (allow direct access)
-RewriteCond %{REQUEST_URI} ^/installer/ [NC,OR]
-RewriteCond %{REQUEST_URI} ^/scripts/manual-upgrade\.php$ [NC]
+RewriteCond %{REQUEST_URI} (^|/)installer(/|$) [NC,OR]
+RewriteCond %{REQUEST_URI} (^|/)scripts/manual-upgrade\.php$ [NC]
 RewriteRule ^ - [L]
 
 # Allow direct access to calendar files (.ics) for subscription URLs

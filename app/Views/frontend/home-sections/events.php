@@ -36,7 +36,13 @@ if ($homeEventsEnabled && !empty($homeEvents)):
         if (!$dateTime) {
             return (string) $value;
         }
-        return $homeEventsDateFormatter ? $homeEventsDateFormatter->format($dateTime) : $dateTime->format('j F Y');
+        if ($homeEventsDateFormatter) {
+            $formatted = $homeEventsDateFormatter->format($dateTime);
+            if ($formatted !== false) {
+                return $formatted;
+            }
+        }
+        return $dateTime->format('j F Y');
     };
     ?>
     <section class="home-events" aria-label="<?= __("Eventi") ?>">

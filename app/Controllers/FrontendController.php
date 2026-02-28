@@ -1296,30 +1296,25 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $genre = $genreResult->fetch_assoc();
         $genreId = (int) $genre['id'];
 
-        // Collect this genre + all descendants (up to 3 levels)
+        // Collect this genre + all descendants (any depth via BFS)
         $genreIds = [$genreId];
-        $childStmt = $db->prepare("SELECT id FROM generi WHERE parent_id = ?");
-        $childStmt->bind_param('i', $genreId);
-        $childStmt->execute();
-        $childResult = $childStmt->get_result();
-        while ($child = $childResult->fetch_assoc()) {
-            $genreIds[] = (int) $child['id'];
-        }
-        $childStmt->close();
-
-        // Grandchildren (level 3)
-        if (count($genreIds) > 1) {
-            $childIdsOnly = array_slice($genreIds, 1);
-            $placeholders = implode(',', array_fill(0, count($childIdsOnly), '?'));
-            $gcStmt = $db->prepare("SELECT id FROM generi WHERE parent_id IN ($placeholders)");
-            $types = str_repeat('i', count($childIdsOnly));
-            $gcStmt->bind_param($types, ...$childIdsOnly);
-            $gcStmt->execute();
-            $gcResult = $gcStmt->get_result();
-            while ($gc = $gcResult->fetch_assoc()) {
-                $genreIds[] = (int) $gc['id'];
+        $queue = [$genreId];
+        while (!empty($queue)) {
+            $placeholders = implode(',', array_fill(0, count($queue), '?'));
+            $descStmt = $db->prepare("SELECT id FROM generi WHERE parent_id IN ($placeholders)");
+            $types = str_repeat('i', count($queue));
+            $descStmt->bind_param($types, ...$queue);
+            $descStmt->execute();
+            $descResult = $descStmt->get_result();
+            $queue = [];
+            while ($row = $descResult->fetch_assoc()) {
+                $childId = (int) $row['id'];
+                if (!in_array($childId, $genreIds, true)) {
+                    $genreIds[] = $childId;
+                    $queue[] = $childId;
+                }
             }
-            $gcStmt->close();
+            $descStmt->close();
         }
 
         $genreIds = array_unique($genreIds);

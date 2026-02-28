@@ -132,6 +132,10 @@ function deleteDirectory(string $dir): void
             continue;
         }
         $path = $dir . '/' . $item;
+        if (is_link($path)) {
+            @unlink($path);
+            continue;
+        }
         if (is_dir($path)) {
             deleteDirectory($path);
         } else {
@@ -139,6 +143,46 @@ function deleteDirectory(string $dir): void
         }
     }
     @rmdir($dir);
+}
+
+/**
+ * Split SQL into statements respecting quoted strings.
+ * @return array<string>
+ */
+function splitSqlStatements(string $sql): array
+{
+    $statements = [];
+    $current = '';
+    $inString = false;
+    $length = strlen($sql);
+
+    for ($i = 0; $i < $length; $i++) {
+        $char = $sql[$i];
+        if ($char === "'") {
+            if ($inString && $i + 1 < $length && $sql[$i + 1] === "'") {
+                $current .= "''";
+                $i++;
+                continue;
+            }
+            $inString = !$inString;
+            $current .= $char;
+            continue;
+        }
+        if ($char === ';' && !$inString) {
+            $trimmed = trim($current);
+            if ($trimmed !== '') {
+                $statements[] = $trimmed;
+            }
+            $current = '';
+            continue;
+        }
+        $current .= $char;
+    }
+    $trimmed = trim($current);
+    if ($trimmed !== '') {
+        $statements[] = $trimmed;
+    }
+    return $statements;
 }
 
 /**
@@ -211,9 +255,9 @@ $log = [];
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 if ($requestMethod === 'POST' && isset($_POST['password'])) {
-    if (UPGRADE_PASSWORD === 'pinakes2026') {
+    if (hash_equals('pinakes2026', UPGRADE_PASSWORD)) {
         $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
-    } elseif ($_POST['password'] === UPGRADE_PASSWORD) {
+    } elseif (hash_equals(UPGRADE_PASSWORD, (string) $_POST['password'])) {
         session_regenerate_id(true);
         $_SESSION['upgrade_auth'] = true;
     } else {
@@ -442,7 +486,11 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
 
         if (is_dir($migrationsPath)) {
             $migrationFiles = glob($migrationsPath . '/migrate_*.sql') ?: [];
-            sort($migrationFiles);
+            usort($migrationFiles, static function (string $a, string $b): int {
+                preg_match('/migrate_(.+)\.sql$/', basename($a), $ma);
+                preg_match('/migrate_(.+)\.sql$/', basename($b), $mb);
+                return version_compare($ma[1] ?? '0.0.0', $mb[1] ?? '0.0.0');
+            });
 
             // Ensure migrations table exists
             $db->query("CREATE TABLE IF NOT EXISTS `migrations` (
@@ -494,8 +542,8 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
 
                 $log[] = '[INFO] Esecuzione migrazione ' . $migVersion . '...';
 
-                // Execute SQL statements individually for better error detection
-                $statements = preg_split('/;\s*[\r\n]+/', $sql) ?: [];
+                // Execute SQL statements individually (quote-aware split)
+                $statements = splitSqlStatements($sql);
                 $migrationFailed = false;
                 // 1060=Duplicate column, 1061=Duplicate key, 1050=Table exists,
                 // 1068=Multiple primary, 1091=Can't DROP

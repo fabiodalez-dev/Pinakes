@@ -90,6 +90,20 @@ return function (App $app): void {
         return $controller->home($request, $response, $db, $container);
     });
 
+    // English fallback for events (always available regardless of locale list)
+    $registerRouteIfUnique('GET', '/events', function ($request, $response) use ($app) {
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
+        return $controller->events($request, $response, $db);
+    });
+    $registerRouteIfUnique('GET', '/events/{slug}', function ($request, $response, $args) use ($app) {
+        $container = $app->getContainer();
+        $controller = new \App\Controllers\FrontendController($container);
+        $db = $container->get('db');
+        return $controller->event($request, $response, $db, $args);
+    });
+
     // Frontend Events routes (all language variants)
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('events', $locale), function ($request, $response) use ($app) {
