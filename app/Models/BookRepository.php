@@ -347,7 +347,7 @@ class BookRepository
         }
         if ($this->hasColumn('anno_pubblicazione')) {
             $annoRaw = $data['anno_pubblicazione'] ?? null;
-            $anno = filter_var($annoRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $anno = filter_var($annoRaw, FILTER_VALIDATE_INT);
             $addField('anno_pubblicazione', 'i', $anno === false ? null : $anno);
         }
         if ($this->hasColumn('edizione')) {
@@ -673,7 +673,7 @@ class BookRepository
         }
         if ($this->hasColumn('anno_pubblicazione')) {
             $annoRaw = $data['anno_pubblicazione'] ?? null;
-            $anno = filter_var($annoRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $anno = filter_var($annoRaw, FILTER_VALIDATE_INT);
             $addSet('anno_pubblicazione', 'i', $anno === false ? null : $anno);
         }
         if ($this->hasColumn('edizione')) {

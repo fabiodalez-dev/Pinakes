@@ -746,6 +746,29 @@ class Updater
 
             if ($curlResult !== false && $httpCode >= 200 && $httpCode < 400) {
                 $response = $curlResult;
+            } elseif (in_array($httpCode, [401, 403], true) && $this->githubToken !== '') {
+                // Retry without token on auth failure
+                $this->debugLog('WARNING', 'Releases auth fallito, retry senza token', ['http_code' => $httpCode]);
+                $retryHeaders = [
+                    'User-Agent: Pinakes-Updater/1.0',
+                    'Accept: application/vnd.github.v3+json',
+                ];
+                $ch2 = curl_init($url);
+                curl_setopt_array($ch2, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_TIMEOUT => 30,
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                    CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
+                    CURLOPT_HTTPHEADER => $retryHeaders,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                ]);
+                $retryResult = curl_exec($ch2);
+                $retryCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
+                curl_close($ch2);
+                if ($retryResult !== false && $retryCode >= 200 && $retryCode < 400) {
+                    $response = $retryResult;
+                }
             }
         }
 
@@ -772,9 +795,10 @@ class Updater
 
         $releases = json_decode($response, true);
 
-        if (!is_array($releases)) {
+        if (!is_array($releases) || !array_is_list($releases)) {
             $this->debugLog('ERROR', 'Risposta releases non valida', [
-                'json_error' => json_last_error_msg()
+                'json_error' => json_last_error_msg(),
+                'message' => is_array($releases) ? ($releases['message'] ?? 'non-list array') : 'not array'
             ]);
             return [];
         }
@@ -895,11 +919,38 @@ class Updater
                 ]);
 
                 if ($curlErrno !== 0 || $httpCode >= 400) {
-                    $this->debugLog('WARNING', 'cURL fallito, tentativo con file_get_contents', [
-                        'error' => $curlError,
-                        'http_code' => $httpCode
-                    ]);
-                    $fileContent = false;
+                    // Retry without token on auth failure before falling back
+                    if (in_array($httpCode, [401, 403], true) && $this->githubToken !== '') {
+                        $this->debugLog('WARNING', 'Download auth fallito, retry senza token', ['http_code' => $httpCode]);
+                        $retryHeaders = [
+                            'User-Agent: Pinakes-Updater/1.0',
+                            'Accept: application/octet-stream',
+                        ];
+                        $ch2 = curl_init($downloadUrl);
+                        curl_setopt_array($ch2, [
+                            CURLOPT_RETURNTRANSFER => true,
+                            CURLOPT_FOLLOWLOCATION => true,
+                            CURLOPT_MAXREDIRS => 10,
+                            CURLOPT_TIMEOUT => 300,
+                            CURLOPT_CONNECTTIMEOUT => 30,
+                            CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
+                            CURLOPT_HTTPHEADER => $retryHeaders,
+                            CURLOPT_SSL_VERIFYPEER => true,
+                        ]);
+                        $retryContent = curl_exec($ch2);
+                        $retryCode = (int)(curl_getinfo($ch2, CURLINFO_HTTP_CODE));
+                        curl_close($ch2);
+                        if ($retryContent !== false && $retryCode >= 200 && $retryCode < 400) {
+                            $fileContent = $retryContent;
+                        }
+                    }
+
+                    if ($fileContent === false) {
+                        $this->debugLog('WARNING', 'cURL fallito, tentativo con file_get_contents', [
+                            'error' => $curlError,
+                            'http_code' => $httpCode
+                        ]);
+                    }
                 }
             }
 

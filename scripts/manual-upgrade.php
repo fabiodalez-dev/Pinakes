@@ -348,13 +348,17 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             if ($defaultsFile === false) {
                 throw new RuntimeException('Impossibile creare file temporaneo per credenziali mysqldump');
             }
-            file_put_contents($defaultsFile,
+            $written = file_put_contents($defaultsFile,
                 "[client]\n"
                 . "host=" . ($env['DB_HOST'] ?? 'localhost') . "\n"
                 . "user=" . ($env['DB_USER'] ?? '') . "\n"
                 . "password=" . ($env['DB_PASS'] ?? '') . "\n"
                 . "port=" . (int) ($env['DB_PORT'] ?? 3306) . "\n"
             );
+            if ($written === false || $written === 0) {
+                @unlink($defaultsFile);
+                throw new RuntimeException('Impossibile scrivere il file temporaneo credenziali mysqldump');
+            }
             @chmod($defaultsFile, 0600);
 
             $args = [
