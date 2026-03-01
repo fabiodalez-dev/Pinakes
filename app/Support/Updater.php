@@ -784,6 +784,30 @@ class Updater
             ]);
 
             $response = @file_get_contents($url, false, $context);
+
+            // Retry without token on auth failure
+            /** @var array<int, string> $http_response_header */
+            $status = 0;
+            if (!empty($http_response_header[0]) && preg_match('/HTTP\/\d\.\d\s+(\d+)/', $http_response_header[0], $m)) {
+                $status = (int) $m[1];
+            }
+            if (in_array($status, [401, 403], true) && $this->githubToken !== '') {
+                $savedToken = $this->githubToken;
+                $this->githubToken = '';
+                try {
+                    $context = stream_context_create([
+                        'http' => [
+                            'method' => 'GET',
+                            'header' => $this->getGitHubHeaders(),
+                            'timeout' => 30,
+                            'ignore_errors' => true
+                        ]
+                    ]);
+                    $response = @file_get_contents($url, false, $context);
+                } finally {
+                    $this->githubToken = $savedToken;
+                }
+            }
         }
 
         if (!is_string($response)) {
@@ -919,6 +943,9 @@ class Updater
                 ]);
 
                 if ($curlErrno !== 0 || $httpCode >= 400) {
+                    // Treat HTTP error responses as failures (don't keep error body as valid content)
+                    $fileContent = false;
+
                     // Retry without token on auth failure before falling back
                     if (in_array($httpCode, [401, 403], true) && $this->githubToken !== '') {
                         $this->debugLog('WARNING', 'Download auth fallito, retry senza token', ['http_code' => $httpCode]);
@@ -976,6 +1003,30 @@ class Updater
                     $this->debugLog('DEBUG', 'Response headers download', [
                         'headers' => $http_response_header
                     ]);
+                }
+
+                // Retry without token on auth failure
+                $dlStatus = 0;
+                if (!empty($http_response_header[0]) && preg_match('/HTTP\/\d\.\d\s+(\d+)/', $http_response_header[0], $dlMatch)) {
+                    $dlStatus = (int) $dlMatch[1];
+                }
+                if (in_array($dlStatus, [401, 403], true) && $this->githubToken !== '') {
+                    $savedToken = $this->githubToken;
+                    $this->githubToken = '';
+                    try {
+                        $context = stream_context_create([
+                            'http' => [
+                                'method' => 'GET',
+                                'header' => $this->getGitHubHeaders('application/octet-stream'),
+                                'timeout' => 300,
+                                'follow_location' => true,
+                                'ignore_errors' => true
+                            ]
+                        ]);
+                        $fileContent = @file_get_contents($downloadUrl, false, $context);
+                    } finally {
+                        $this->githubToken = $savedToken;
+                    }
                 }
             }
 

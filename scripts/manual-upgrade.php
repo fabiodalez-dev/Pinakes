@@ -573,8 +573,8 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 $lastErrno = 0;
 
                 foreach ($statements as $stmtSql) {
-                    // Strip leading SQL comment lines but keep executable SQL after them
-                    $stmtSql = preg_replace('/^\s*--.*$/m', '', $stmtSql);
+                    // Strip only leading SQL comment block, preserve inline comments
+                    $stmtSql = preg_replace('/\A(?:\s*--[^\r\n]*(?:\r?\n|$))+/', '', $stmtSql);
                     $stmtSql = trim((string) $stmtSql);
                     if ($stmtSql === '') {
                         continue;

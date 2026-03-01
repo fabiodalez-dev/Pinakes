@@ -8,13 +8,10 @@
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['language'])) {
     $selectedLanguage = $_POST['language'];
 
-    // Validate language
-    // Supported languages:
-    // - it     -> Italian (default)
-    // - en_US  -> English (matches app I18n + en_US.json)
-    $allowedLanguages = ['it', 'en_US', 'de_DE'];
+    // Validate language — use canonical locale codes (it_IT, en_US, de_DE)
+    $allowedLanguages = ['it_IT', 'en_US', 'de_DE'];
     if (!in_array($selectedLanguage, $allowedLanguages, true)) {
-        $selectedLanguage = 'it'; // Fallback to Italian
+        $selectedLanguage = 'it_IT'; // Fallback to Italian
     }
 
     // Save language to session
@@ -59,8 +56,8 @@ renderHeader(0, 'Selezione Lingua');
                     <input
                         type="radio"
                         name="language"
-                        value="it"
-                        <?= $currentLanguage === 'it' ? 'checked' : '' ?>
+                        value="it_IT"
+                        <?= ($currentLanguage === 'it' || $currentLanguage === 'it_IT') ? 'checked' : '' ?>
                         class="language-radio"
                     >
                     <svg width="48" height="24" viewBox="0 0 60 30" style="border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);" aria-hidden="true" focusable="false">

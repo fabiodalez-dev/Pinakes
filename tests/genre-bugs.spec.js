@@ -303,7 +303,8 @@ test.describe('Issue #63: Genre Pre-population on Edit', () => {
     expect(parseInt(radiceValue, 10)).toBe(0);
 
     // Cleanup: soft-delete the created book via admin API
-    await page.request.post(`${BASE}/admin/libri/elimina/${bookId}`);
+    const cleanupResp = await page.request.post(`${BASE}/admin/libri/elimina/${bookId}`);
+    expect([200, 204, 302]).toContain(cleanupResp.status());
   });
 });
 

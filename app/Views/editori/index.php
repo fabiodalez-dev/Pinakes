@@ -317,7 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
     order: [[1, 'asc']],
     pageLength: 25,
     lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-    language: window.getDtLanguage(),
+    language: typeof window.getDtLanguage === 'function' ? window.getDtLanguage() : {},
     drawCallback: function() {
       // Restore checkbox states
       document.querySelectorAll('.row-select').forEach(cb => {

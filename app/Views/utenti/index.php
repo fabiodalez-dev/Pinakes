@@ -445,7 +445,7 @@ document.addEventListener('DOMContentLoaded', function() {
       [10, 25, 50, 100, -1],
       [10, 25, 50, 100, <?= json_encode(__("Tutti"), JSON_HEX_TAG) ?>]
     ],
-    language: window.getDtLanguage(),
+    language: typeof window.getDtLanguage === 'function' ? window.getDtLanguage() : {},
     initComplete: function() {
 
       // Initialize filter toggle
