@@ -1495,6 +1495,8 @@ $htmlLang = substr($currentLocale, 0, 2);
   // Hook: Allow plugins to enqueue scripts before closing body tag
   do_action('assets.footer');
   ?>
+
+  <?php require __DIR__ . '/partials/scroll-to-top.php'; ?>
 </body>
 
 </html>

@@ -2014,6 +2014,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?= $additional_js ?? '' ?>
 
     <?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
+    <?php require __DIR__ . '/../partials/scroll-to-top.php'; ?>
 </body>
 
 </html>
