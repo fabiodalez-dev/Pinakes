@@ -21,7 +21,7 @@
 // CONFIGURATION — change the password before uploading!
 // ============================================================
 define('UPGRADE_PASSWORD', 'pinakes2026');
-define('MAX_ZIP_SIZE', 60 * 1024 * 1024); // 60 MB
+define('MAX_ZIP_SIZE', 512 * 1024 * 1024); // 512 MB (aligned with scripts/.user.ini)
 
 // ============================================================
 // BOOTSTRAP

@@ -254,8 +254,6 @@ class Updater
             }
 
             return 'ENC:' . base64_encode($iv . $tag . $ciphertext);
-        } catch (Exception $e) {
-            throw $e;
         } catch (\Throwable $e) {
             SecureLogger::error('[Updater] Token encryption failed: ' . $e->getMessage());
             throw new Exception(__('Impossibile cifrare il token GitHub'));
@@ -517,7 +515,7 @@ class Updater
     /**
      * Make HTTP request to GitHub API with detailed logging
      */
-    private function makeGitHubRequest(string $url): ?array
+    private function makeGitHubRequest(string $url, bool $allowAuthRetry = true): ?array
     {
         $this->debugLog('DEBUG', 'Preparazione richiesta HTTP', [
             'url' => $url,
@@ -585,6 +583,24 @@ class Updater
         $this->debugLog('INFO', 'Status code HTTP', ['status' => $statusCode]);
 
         if ($statusCode >= 400) {
+            // Retry without token on 401/403 (invalid/revoked token shouldn't block updates)
+            if ($allowAuthRetry && $this->githubToken !== '' && in_array($statusCode, [401, 403], true)) {
+                $errorData = json_decode($response, true);
+                $message = strtolower((string) ($errorData['message'] ?? ''));
+                if (str_contains($message, 'bad credentials') || str_contains($message, 'requires authentication')) {
+                    $this->debugLog('WARNING', 'Token GitHub non valido, retry senza token', [
+                        'status_code' => $statusCode,
+                    ]);
+                    $savedToken = $this->githubToken;
+                    $this->githubToken = '';
+                    try {
+                        return $this->makeGitHubRequest($url, false);
+                    } finally {
+                        $this->githubToken = $savedToken;
+                    }
+                }
+            }
+
             $this->debugLog('ERROR', 'GitHub API ha restituito errore', [
                 'status_code' => $statusCode,
                 'response' => $response,
@@ -592,7 +608,7 @@ class Updater
             ]);
 
             // Decodifica errore GitHub
-            $errorData = json_decode($response, true);
+            $errorData = $errorData ?? json_decode($response, true);
             $errorMessage = $errorData['message'] ?? 'Unknown GitHub error';
 
             throw new Exception("GitHub API error ({$statusCode}): {$errorMessage}");

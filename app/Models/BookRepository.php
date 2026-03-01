@@ -347,8 +347,8 @@ class BookRepository
         }
         if ($this->hasColumn('anno_pubblicazione')) {
             $annoRaw = $data['anno_pubblicazione'] ?? null;
-            $anno = (is_numeric($annoRaw) && (int)$annoRaw > 0) ? (int)$annoRaw : null;
-            $addField('anno_pubblicazione', 'i', $anno);
+            $anno = filter_var($annoRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $addField('anno_pubblicazione', 'i', $anno === false ? null : $anno);
         }
         if ($this->hasColumn('edizione')) {
             $addField('edizione', 's', $data['edizione'] ?? null);
@@ -361,8 +361,8 @@ class BookRepository
         }
         if ($this->hasColumn('numero_pagine')) {
             $numPagineRaw = $data['numero_pagine'] ?? null;
-            $numPagine = (is_numeric($numPagineRaw) && (int)$numPagineRaw > 0) ? (int)$numPagineRaw : null;
-            $addField('numero_pagine', 'i', $numPagine);
+            $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $addField('numero_pagine', 'i', $numPagine === false ? null : $numPagine);
         }
 
         // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)
@@ -673,8 +673,8 @@ class BookRepository
         }
         if ($this->hasColumn('anno_pubblicazione')) {
             $annoRaw = $data['anno_pubblicazione'] ?? null;
-            $anno = (is_numeric($annoRaw) && (int)$annoRaw > 0) ? (int)$annoRaw : null;
-            $addSet('anno_pubblicazione', 'i', $anno);
+            $anno = filter_var($annoRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $addSet('anno_pubblicazione', 'i', $anno === false ? null : $anno);
         }
         if ($this->hasColumn('edizione')) {
             $addSet('edizione', 's', $data['edizione'] ?? null);
@@ -687,8 +687,8 @@ class BookRepository
         }
         if ($this->hasColumn('numero_pagine')) {
             $numPagineRaw = $data['numero_pagine'] ?? null;
-            $numPagine = (is_numeric($numPagineRaw) && (int)$numPagineRaw > 0) ? (int)$numPagineRaw : null;
-            $addSet('numero_pagine', 'i', $numPagine);
+            $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $addSet('numero_pagine', 'i', $numPagine === false ? null : $numPagine);
         }
 
         // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)

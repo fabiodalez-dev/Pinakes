@@ -498,6 +498,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   return $u !== '' && preg_match('#^(https?://|/(?!/))#i', $u) === 1;
               };
               $normalizeHref = static function (string $u): string {
+                  $u = trim($u);
                   return preg_match('#^https?://#i', $u) === 1 ? $u : url($u);
               };
             ?>
