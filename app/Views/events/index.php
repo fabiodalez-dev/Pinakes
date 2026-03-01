@@ -33,13 +33,25 @@ $createDateTime = static function (?string $value, array $formats = []) {
   }
 };
 
-$formatEventDate = static function (?string $value) use ($dateFormatter, $createDateTime) {
+$fallbackDateFormat = match (strtolower(substr($locale, 0, 2))) {
+    'de' => 'd.m.Y',
+    'it' => 'd/m/Y',
+    default => 'Y-m-d',
+};
+
+$formatEventDate = static function (?string $value) use ($dateFormatter, $createDateTime, $fallbackDateFormat) {
   $dateTime = $createDateTime($value, ['Y-m-d']);
   if (!$dateTime) {
     return (string) $value;
   }
 
-  return $dateFormatter ? $dateFormatter->format($dateTime) : $dateTime->format('j F Y');
+  if ($dateFormatter) {
+      $formatted = $dateFormatter->format($dateTime);
+      if ($formatted !== false) {
+          return $formatted;
+      }
+  }
+  return $dateTime->format($fallbackDateFormat);
 };
 
 $formatEventTime = static function (?string $value) use ($timeFormatter, $createDateTime) {
@@ -48,7 +60,13 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
     return (string) $value;
   }
 
-  return $timeFormatter ? $timeFormatter->format($dateTime) : $dateTime->format('H:i');
+  if ($timeFormatter) {
+      $formatted = $timeFormatter->format($dateTime);
+      if ($formatted !== false) {
+          return $formatted;
+      }
+  }
+  return $dateTime->format('H:i');
 };
 ?>
 

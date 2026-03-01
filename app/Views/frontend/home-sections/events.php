@@ -31,7 +31,13 @@ if ($homeEventsEnabled && !empty($homeEvents)):
         }
     };
 
-    $homeEventsFormatDate = static function (?string $value) use ($homeEventsDateFormatter, $homeEventsCreateDateTime) {
+    $homeEventsFallbackDateFormat = match (strtolower(substr($homeEventsLocale, 0, 2))) {
+        'de' => 'd.m.Y',
+        'it' => 'd/m/Y',
+        default => 'Y-m-d',
+    };
+
+    $homeEventsFormatDate = static function (?string $value) use ($homeEventsDateFormatter, $homeEventsCreateDateTime, $homeEventsFallbackDateFormat) {
         $dateTime = $homeEventsCreateDateTime($value);
         if (!$dateTime) {
             return (string) $value;
@@ -42,7 +48,7 @@ if ($homeEventsEnabled && !empty($homeEvents)):
                 return $formatted;
             }
         }
-        return $dateTime->format('j F Y');
+        return $dateTime->format($homeEventsFallbackDateFormat);
     };
     ?>
     <section class="home-events" aria-label="<?= __("Eventi") ?>">

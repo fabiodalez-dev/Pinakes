@@ -191,7 +191,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 <?php echo $path !== '' ? $path : __('Non specificato'); ?>
               </a>
             <?php else: ?>
-              <span class="text-gray-500"><?= __('Non specificato') ?></span>
+              <span class="text-gray-500"><?= $path !== '' ? $path : __('Non specificato') ?></span>
             <?php endif; ?>
           </div>
           <div class="text-base text-gray-600">

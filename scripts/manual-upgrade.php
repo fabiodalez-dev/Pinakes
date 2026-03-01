@@ -6,7 +6,7 @@
  * Upload this file to the root of your Pinakes installation and open it in a browser.
  *
  * Usage:
- *   1. Upload this file to your server root (same level as .env)
+ *   1. Upload this file to your server's scripts/ directory (same installation that contains .env)
  *   2. Open https://yoursite.com/scripts/manual-upgrade.php in your browser
  *   3. Enter the access password, upload the release ZIP, and click Upgrade
  *   4. DELETE this file after upgrading
