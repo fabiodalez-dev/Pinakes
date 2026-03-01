@@ -3,7 +3,7 @@
  * Pinakes Manual Upgrade Script
  *
  * Standalone script to upgrade from v0.4.7.2 (or any older version) to v0.4.9.2+
- * Upload this file to the root of your Pinakes installation and open it in a browser.
+ * Upload this file to the scripts/ directory of your Pinakes installation.
  *
  * Usage:
  *   1. Upload this file to your server's scripts/ directory (same installation that contains .env)
@@ -70,10 +70,14 @@ function loadEnv(string $path): array
         }
         $key = trim(substr($line, 0, $pos));
         $value = trim(substr($line, $pos + 1));
-        // Remove quotes
-        if ((str_starts_with($value, '"') && str_ends_with($value, '"'))
-            || (str_starts_with($value, "'") && str_ends_with($value, "'"))) {
+        // Remove quotes and unescape
+        $isDoubleQuoted = str_starts_with($value, '"') && str_ends_with($value, '"');
+        $isSingleQuoted = str_starts_with($value, "'") && str_ends_with($value, "'");
+        if ($isDoubleQuoted || $isSingleQuoted) {
             $value = substr($value, 1, -1);
+            if ($isDoubleQuoted) {
+                $value = preg_replace('/\\\\(["$\\\\])/', '$1', $value) ?? $value;
+            }
         }
         $vars[$key] = $value;
     }

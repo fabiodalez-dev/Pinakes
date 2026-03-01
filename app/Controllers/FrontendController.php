@@ -1302,6 +1302,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         while (!empty($queue)) {
             $placeholders = implode(',', array_fill(0, count($queue), '?'));
             $descStmt = $db->prepare("SELECT id FROM generi WHERE parent_id IN ($placeholders)");
+            if ($descStmt === false) {
+                break;
+            }
             $types = str_repeat('i', count($queue));
             $descStmt->bind_param($types, ...$queue);
             $descStmt->execute();
@@ -1328,6 +1331,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             WHERE l.genere_id IN ($idPlaceholders) AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
+        if ($stmt === false) {
+            return $this->render404($response);
+        }
         $stmt->bind_param($idTypes, ...$genreIds);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
@@ -1350,6 +1356,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         ";
 
         $stmt = $db->prepare($booksQuery);
+        if ($stmt === false) {
+            return $this->render404($response);
+        }
         $allParams = array_merge($genreIds, [$limit, $offset]);
         $stmt->bind_param($idTypes . 'ii', ...$allParams);
         $stmt->execute();
