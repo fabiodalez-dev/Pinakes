@@ -43,7 +43,7 @@ class App extends RouteCollectorProxy implements RequestHandlerInterface
      *
      * @var string
      */
-    public const VERSION = '4.15.0';
+    public const VERSION = '4.15.1';
 
     protected RouteResolverInterface $routeResolver;
 
