@@ -420,10 +420,24 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         $extractedRoot = $tempDir;
         $items = @scandir($tempDir);
         if ($items !== false) {
-            $dirs = array_filter($items, fn($i) => $i !== '.' && $i !== '..' && is_dir($tempDir . '/' . $i));
-            if (count($dirs) === 1 && is_file($tempDir . '/' . reset($dirs) . '/version.json')) {
-                $extractedRoot = $tempDir . '/' . reset($dirs);
-                $log[] = '[INFO] Rilevata cartella interna: ' . reset($dirs);
+            $dirs = array_filter(
+                $items,
+                fn($i) => $i !== '.' && $i !== '..' && is_dir($tempDir . '/' . $i) && !is_link($tempDir . '/' . $i)
+            );
+            if (count($dirs) === 1) {
+                $candidate = reset($dirs);
+                $candidatePath = $tempDir . '/' . $candidate;
+                $tempReal = realpath($tempDir);
+                $candidateReal = realpath($candidatePath);
+                if (
+                    $tempReal !== false
+                    && $candidateReal !== false
+                    && str_starts_with($candidateReal . '/', rtrim($tempReal, '/') . '/')
+                    && is_file($candidateReal . '/version.json')
+                ) {
+                    $extractedRoot = $candidateReal;
+                    $log[] = '[INFO] Rilevata cartella interna: ' . $candidate;
+                }
             }
         }
 

@@ -507,7 +507,7 @@ class UpdateController
                     : __('Token GitHub rimosso')
             ]);
         } catch (\Throwable $e) {
-            SecureLogger::error('saveToken failed: ' . $e->getMessage());
+            SecureLogger::error('saveToken failed (' . get_class($e) . ')');
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('Errore nel salvataggio del token')

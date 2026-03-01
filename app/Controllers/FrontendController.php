@@ -1297,13 +1297,13 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $genreId = (int) $genre['id'];
 
         // Collect this genre + all descendants (any depth via BFS)
-        $genreIds = [$genreId];
+        $visited = [$genreId => true];
         $queue = [$genreId];
         while (!empty($queue)) {
             $placeholders = implode(',', array_fill(0, count($queue), '?'));
             $descStmt = $db->prepare("SELECT id FROM generi WHERE parent_id IN ($placeholders)");
             if ($descStmt === false) {
-                break;
+                return $this->render404($response);
             }
             $types = str_repeat('i', count($queue));
             $descStmt->bind_param($types, ...$queue);
@@ -1312,15 +1312,15 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             $queue = [];
             while ($row = $descResult->fetch_assoc()) {
                 $childId = (int) $row['id'];
-                if (!in_array($childId, $genreIds, true)) {
-                    $genreIds[] = $childId;
+                if (!isset($visited[$childId])) {
+                    $visited[$childId] = true;
                     $queue[] = $childId;
                 }
             }
             $descStmt->close();
         }
 
-        $genreIds = array_unique($genreIds);
+        $genreIds = array_keys($visited);
         $idPlaceholders = implode(',', array_fill(0, count($genreIds), '?'));
         $idTypes = str_repeat('i', count($genreIds));
 

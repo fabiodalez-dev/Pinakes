@@ -1087,12 +1087,16 @@ HTACCESS;
         // Pattern to match the key with any value (handles empty values too)
         $pattern = '/^' . $escapedKey . '=.*$/m';
 
-        // New line content
-        $replacement = $key . '=' . $value;
+        // New line content (quote the value to handle spaces, #, $, etc.)
+        $replacement = $key . '=' . $this->quoteEnvValue($value);
 
-        // Replace the line
+        // Replace the line (use callback to avoid $ backreference issues)
         if (preg_match($pattern, $envContent)) {
-            $newContent = preg_replace($pattern, $replacement, $envContent);
+            $newContent = preg_replace_callback(
+                $pattern,
+                static fn () => $replacement,
+                $envContent
+            );
         } else {
             // If key doesn't exist, append it
             $newContent = rtrim($envContent) . "\n" . $replacement . "\n";

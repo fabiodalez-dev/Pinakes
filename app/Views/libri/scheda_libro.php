@@ -495,19 +495,22 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php
               $isSafeUrl = static function (?string $u): bool {
                   $u = trim((string) $u);
-                  return $u !== '' && preg_match('#^(https?://|/)#i', $u) === 1;
+                  return $u !== '' && preg_match('#^(https?://|/(?!/))#i', $u) === 1;
+              };
+              $normalizeHref = static function (string $u): string {
+                  return preg_match('#^https?://#i', $u) === 1 ? $u : url($u);
               };
             ?>
             <?php if ($isSafeUrl($libro['file_url'] ?? null)): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("File") ?></dt>
-              <dd><a class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors" href="<?php echo htmlspecialchars($libro['file_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-file-alt"></i> <?= __("Apri") ?></a></dd>
+              <dd><a class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors" href="<?php echo htmlspecialchars($normalizeHref((string) $libro['file_url']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-file-alt"></i> <?= __("Apri") ?></a></dd>
             </div>
             <?php endif; ?>
             <?php if ($isSafeUrl($libro['audio_url'] ?? null)): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Audio") ?></dt>
-              <dd><a class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-500 text-white hover:bg-purple-600 transition-colors" href="<?php echo htmlspecialchars($libro['audio_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-headphones"></i> <?= __("Apri") ?></a></dd>
+              <dd><a class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-500 text-white hover:bg-purple-600 transition-colors" href="<?php echo htmlspecialchars($normalizeHref((string) $libro['audio_url']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-headphones"></i> <?= __("Apri") ?></a></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['created_at'])): ?>

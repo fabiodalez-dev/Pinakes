@@ -207,13 +207,23 @@ class Updater
             return;
         }
 
-        $token = trim($this->decryptValue($value));
+        $storedValue = $value;
+        $token = trim($this->decryptValue($storedValue));
         if ($token === '' || preg_match('/[[:cntrl:]]/u', $token)) {
             SecureLogger::warning('[Updater] Ignoring invalid GitHub token loaded from settings');
             return;
         }
 
         $this->githubToken = $token;
+
+        // Opportunistic migration: re-encrypt legacy plaintext tokens at rest
+        if (!str_starts_with($storedValue, 'ENC:')) {
+            try {
+                $this->saveGitHubToken($token);
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[Updater] Failed to migrate legacy plaintext GitHub token');
+            }
+        }
     }
 
     /**
@@ -297,7 +307,6 @@ class Updater
     private function getGitHubHeaders(string $accept = 'application/vnd.github.v3+json'): array
     {
         $headers = [
-            'User-Agent: Pinakes-Updater/1.0',
             'Accept: ' . $accept,
         ];
 
