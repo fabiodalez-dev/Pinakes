@@ -307,6 +307,7 @@ class Updater
     private function getGitHubHeaders(string $accept = 'application/vnd.github.v3+json'): array
     {
         $headers = [
+            'User-Agent: Pinakes-Updater/1.0',
             'Accept: ' . $accept,
         ];
 

@@ -478,6 +478,7 @@ class Installer {
         $executedCount = 0;
         $errors = [];
 
+        $pdo->beginTransaction();
         $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
         try {
             foreach ($statements as $statement) {
@@ -501,6 +502,13 @@ class Installer {
             if (!empty($errors)) {
                 throw new Exception(sprintf(__("Errori durante l'import dei dati (%d). Primi errori:\n%s"), count($errors), implode("\n", array_slice($errors, 0, 5))));
             }
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
         } finally {
             // Always restore FK checks even if execution aborts early
             try {
