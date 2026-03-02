@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.9.2-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.9.4-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -23,7 +23,49 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.9.2
+## What's New in v0.4.9.4
+
+### 🔊 Audiobook Player, Z39.50/SRU Plugin, Security & Hardening
+
+**Audiobook MP3 Player (#81):**
+- **Frontend player** — Green Audio Player integration on book detail pages with toggle button and styled waveform UI
+- **Admin inline player** — Compact audio preview in admin book detail (no more external tab links)
+- **Conditional asset loading** — GAP CSS/JS loaded only on pages that need it
+
+**Z39.50/SRU Cataloging Plugin (#79):**
+- **Nordic library servers** — Pre-configured SRU sources for Danish, Finnish, Norwegian, and Swedish national libraries
+- **SBN (Italian) integration** — Automatic metadata fetching from the Italian National Library Service
+- **Auto-configuration** — Nordic servers are added on first plugin activation or version upgrade
+
+**Global Keyboard Shortcuts (#73):**
+- **Visible keyboard icon** in admin header toolbar (hidden on mobile)
+- **Shortcuts modal** — Press `?` anywhere to see all available shortcuts
+- **G-prefix navigation** — GitHub-style two-key combos: `G` then `D`/`B`/`A`/`E`/`P`/`U`/`S` to jump to admin pages
+- **Books-page shortcuts** shown conditionally when on `/admin/libri`
+
+**Scroll-to-Top Button (#72):**
+- **Floating button** on admin and public layouts, appears after scrolling down
+
+**Security & Hardening:**
+- **Rate-limit bypass fix** — Action-based rate limiting keys prevent brute-force multiplication via localized URLs
+- **Manual upgrade script hardened** — File-based brute-force throttling, symlink traversal protection, improved SQL parser
+- **Updater redirect handling** — Extracts final HTTP status from redirect chains (fixes auth retry on 301→401)
+- **GitHub token validation** — Returns 400 for control characters in token input
+- **Export query cap** — `selectedIds` capped at 1000 to prevent oversized IN clauses
+- **Accessibility** — `aria-controls`/`aria-expanded` on audio toggle buttons
+
+**Bug Fixes & Polish:**
+- **Installer language selection** — `it_IT` now correctly shows selected styling
+- **PluginManager** — Guarded `execute()`/`get_result()` before `fetch_assoc()` in bundled plugin sync
+- **Updater** — Centralized `getGitHubHeaders()` with `withAuth` flag, eliminating duplicate header arrays
+- **Canonical URL parsing** — Trim host before parsing to handle whitespace in forwarded headers
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.9.2</strong> - Genre Management, Book Filters & Bug Fixes</summary>
 
 ### 🏷️ Genre Management, Book Filters & Bug Fixes
 
@@ -53,9 +95,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **GitHub API token** — Optional personal access token (Admin → Updates) to raise GitHub API rate limits from 60 to 5,000 req/hr
 - **Standalone upgrade script** — `scripts/manual-upgrade.php` for users stuck on old versions
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.9</strong> - Subfolder Support, Security Hardening & Code Quality</summary>
