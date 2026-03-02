@@ -102,6 +102,13 @@ class PluginManager
                     $updStmt->execute();
                     $updStmt->close();
                     error_log("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
+
+                    // Re-register hooks for the upgraded plugin (new hooks may have been added)
+                    try {
+                        $this->runPluginMethod($pluginName, 'onActivate');
+                    } catch (\Throwable $e) {
+                        error_log("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
+                    }
                 }
                 continue;
             }
