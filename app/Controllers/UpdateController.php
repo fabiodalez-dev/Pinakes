@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Support\Updater;
 use App\Support\Csrf;
+use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -31,8 +32,10 @@ class UpdateController
             $changelog = $updater->getChangelog($updateInfo['current']);
         }
 
+        $githubTokenMasked = $updater->getGitHubTokenMasked();
+        $hasGithubToken = $updater->hasGitHubToken();
+
         ob_start();
-        $data = compact('updateInfo', 'requirements', 'history', 'changelog');
         require __DIR__ . '/../Views/admin/updates.php';
         $content = ob_get_clean();
 
@@ -477,6 +480,46 @@ class UpdateController
             'success' => false,
             'error' => $result['error']
         ], 500);
+    }
+
+    /**
+     * API: Save GitHub API token
+     */
+    public function saveToken(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        $csrfToken = $data['csrf_token'] ?? '';
+
+        if (!Csrf::validate($csrfToken)) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $token = trim((string) ($data['github_token'] ?? ''));
+
+        if ($token !== '' && preg_match('/[[:cntrl:]]/u', $token)) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Token GitHub non valido')
+            ], 400);
+        }
+
+        try {
+            $updater = new Updater($db);
+            $updater->saveGitHubToken($token);
+
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'message' => $token !== ''
+                    ? __('Token GitHub salvato con successo')
+                    : __('Token GitHub rimosso')
+            ]);
+        } catch (\Throwable $e) {
+            SecureLogger::error('saveToken failed (' . get_class($e) . ')');
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Errore nel salvataggio del token')
+            ], 500);
+        }
     }
 
     /**

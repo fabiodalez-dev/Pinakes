@@ -146,3 +146,35 @@ window.DT_LANG_EN = {
   buttons: { copy: "Copy", colvis: "Column visibility", excel: "Excel", pdf: "PDF", print: "Print", collection: "Collection" },
   select: { rows: { _: "%d rows selected", 1: "1 row selected" } }
 };
+
+// German translations for DataTables
+window.DT_LANG_DE = {
+  decimal: ",",
+  thousands: ".",
+  emptyTable: "Keine Daten in der Tabelle vorhanden",
+  info: "Anzeige _START_ bis _END_ von _TOTAL_ Einträgen",
+  infoEmpty: "Keine Einträge vorhanden",
+  infoFiltered: "(gefiltert von _MAX_ Einträgen gesamt)",
+  lengthMenu: "_MENU_ Einträge anzeigen",
+  loadingRecords: "Wird geladen...",
+  processing: "Bitte warten...",
+  search: "Suche:",
+  zeroRecords: "Keine passenden Einträge gefunden",
+  paginate: { first: "Erste", last: "Letzte", next: "Nächste", previous: "Vorherige" },
+  aria: {
+    sortAscending: ": aktivieren, um Spalte aufsteigend zu sortieren",
+    sortDescending: ": aktivieren, um Spalte absteigend zu sortieren"
+  },
+  buttons: { copy: "Kopieren", colvis: "Spalten", excel: "Excel", pdf: "PDF", print: "Drucken", collection: "Sammlung" },
+  select: { rows: { _: "%d Zeilen ausgewählt", 1: "1 Zeile ausgewählt" } }
+};
+
+// Locale-to-DataTables-language mapping (fallback: English)
+window.DT_LANG = {
+  'it_IT': window.DT_LANG_IT,
+  'en_US': window.DT_LANG_EN,
+  'de_DE': window.DT_LANG_DE
+};
+window.getDtLanguage = function() {
+  return window.DT_LANG[window.i18nLocale] || window.DT_LANG_EN;
+};

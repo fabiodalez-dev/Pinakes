@@ -10,7 +10,9 @@ $homeEventsEnabled = $homeEventsEnabled ?? false;
 
 if ($homeEventsEnabled && !empty($homeEvents)):
     $homeEventsLocale = $_SESSION['locale'] ?? 'it_IT';
-    $homeEventsDateFormatter = new \IntlDateFormatter($homeEventsLocale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+    $homeEventsDateFormatter = class_exists('IntlDateFormatter')
+        ? new \IntlDateFormatter($homeEventsLocale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE)
+        : null;
 
     $homeEventsCreateDateTime = static function (?string $value) {
         if (!$value) {
@@ -29,12 +31,24 @@ if ($homeEventsEnabled && !empty($homeEvents)):
         }
     };
 
-    $homeEventsFormatDate = static function (?string $value) use ($homeEventsDateFormatter, $homeEventsCreateDateTime) {
+    $homeEventsFallbackDateFormat = match (strtolower(substr($homeEventsLocale, 0, 2))) {
+        'de' => 'd.m.Y',
+        'it' => 'd/m/Y',
+        default => 'Y-m-d',
+    };
+
+    $homeEventsFormatDate = static function (?string $value) use ($homeEventsDateFormatter, $homeEventsCreateDateTime, $homeEventsFallbackDateFormat) {
         $dateTime = $homeEventsCreateDateTime($value);
         if (!$dateTime) {
             return (string) $value;
         }
-        return $homeEventsDateFormatter->format($dateTime);
+        if ($homeEventsDateFormatter) {
+            $formatted = $homeEventsDateFormatter->format($dateTime);
+            if ($formatted !== false) {
+                return $formatted;
+            }
+        }
+        return $dateTime->format($homeEventsFallbackDateFormat);
     };
     ?>
     <section class="home-events" aria-label="<?= __("Eventi") ?>">

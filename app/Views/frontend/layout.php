@@ -172,6 +172,11 @@ $htmlLang = substr($currentLocale, 0, 2);
     <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
     <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
 
+    <?php
+    // Hook: Allow plugins to enqueue assets in the head (e.g., CSS, fonts, meta tags)
+    do_action('assets.head');
+    ?>
+
     <style>
         :root {
             /* Theme colors - Dynamically loaded from database */
@@ -2013,7 +2018,13 @@ $htmlLang = substr($currentLocale, 0, 2);
 
     <?= $additional_js ?? '' ?>
 
+    <?php
+    // Hook: Allow plugins to enqueue assets in the footer (e.g., JS scripts)
+    do_action('assets.footer');
+    ?>
+
     <?php require __DIR__ . '/../partials/cookie-banner.php'; ?>
+    <?php require __DIR__ . '/../partials/scroll-to-top.php'; ?>
 </body>
 
 </html>

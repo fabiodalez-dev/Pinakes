@@ -29,8 +29,13 @@ $twitterDescription = $seoDescription;
 $twitterImage = $ogImage;
 
 $locale = $_SESSION['locale'] ?? 'it_IT';
-$dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
-$timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
+if (class_exists('IntlDateFormatter')) {
+    $dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+    $timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
+} else {
+    $dateFormatter = null;
+    $timeFormatter = null;
+}
 
 $createDateTime = static function (?string $value, array $formats = []) {
     if (!$value) {
@@ -51,13 +56,25 @@ $createDateTime = static function (?string $value, array $formats = []) {
     }
 };
 
-$formatDate = static function (?string $date) use ($dateFormatter, $createDateTime) {
+$fallbackDateFormat = match (strtolower(substr($locale, 0, 2))) {
+    'de' => 'd.m.Y',
+    'it' => 'd/m/Y',
+    default => 'Y-m-d',
+};
+
+$formatDate = static function (?string $date) use ($dateFormatter, $createDateTime, $fallbackDateFormat) {
     $dateTime = $createDateTime($date, ['Y-m-d']);
     if (!$dateTime) {
         return (string)$date;
     }
 
-    return $dateFormatter->format($dateTime);
+    if ($dateFormatter) {
+        $formatted = $dateFormatter->format($dateTime);
+        if ($formatted !== false) {
+            return $formatted;
+        }
+    }
+    return $dateTime->format($fallbackDateFormat);
 };
 
 $formatTime = static function (?string $time) use ($timeFormatter, $createDateTime) {
@@ -66,7 +83,13 @@ $formatTime = static function (?string $time) use ($timeFormatter, $createDateTi
         return (string)$time;
     }
 
-    return $timeFormatter->format($dateTime);
+    if ($timeFormatter) {
+        $formatted = $timeFormatter->format($dateTime);
+        if ($formatted !== false) {
+            return $formatted;
+        }
+    }
+    return $dateTime->format('H:i');
 };
 
 $additional_css = "
@@ -331,10 +354,11 @@ ob_start();
                     <?php
                     $eventDateFormatted = $formatDate($event['event_date'] ?? '');
                     $eventTimeFormatted = $formatTime($event['event_time'] ?? '');
+                    $eventUrl = htmlspecialchars(route_path('events') . '/' . rawurlencode($event['slug']), ENT_QUOTES, 'UTF-8');
 
                     ?>
                     <article class="event-card">
-                        <a href="<?= htmlspecialchars(url('/events/' . $event['slug']), ENT_QUOTES, 'UTF-8') ?>" class="event-card__thumb">
+                        <a href="<?= $eventUrl ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
                                 <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
                             <?php else: ?>
@@ -348,12 +372,12 @@ ob_start();
                                 <?= HtmlHelper::e($eventDateFormatted) ?>
                             </div>
                             <h2 class="event-card__title">
-                                <a href="<?= htmlspecialchars(url('/events/' . $event['slug']), ENT_QUOTES, 'UTF-8') ?>">
+                                <a href="<?= $eventUrl ?>">
                                     <?= HtmlHelper::e($event['title']) ?>
                                 </a>
                             </h2>
                             <div class="event-card__actions">
-                                <a href="<?= htmlspecialchars(url('/events/' . $event['slug']), ENT_QUOTES, 'UTF-8') ?>" class="event-card__button">
+                                <a href="<?= $eventUrl ?>" class="event-card__button">
                                     <?= __("Scopri l'evento") ?>
                                     <i class="fas fa-arrow-right"></i>
                                 </a>

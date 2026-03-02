@@ -538,6 +538,7 @@ class LibriController
             'data_pubblicazione' => '',
             'traduttore' => '',
             'illustratore' => '',
+            'numero_pagine' => null,
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -636,6 +637,9 @@ class LibriController
         $fields['posizione_id'] = null;
         $fields['peso'] = $fields['peso'] !== null && $fields['peso'] !== '' ? (float) $fields['peso'] : null;
         $fields['prezzo'] = $fields['prezzo'] !== null && $fields['prezzo'] !== '' ? (float) $fields['prezzo'] : null;
+        $numPagineRaw = $fields['numero_pagine'] ?? null;
+        $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $fields['numero_pagine'] = ($numPagine === false) ? null : $numPagine;
         if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
         } else {
@@ -1043,6 +1047,7 @@ class LibriController
             'data_pubblicazione' => '',
             'traduttore' => '',
             'illustratore' => '',
+            'numero_pagine' => null,
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -1160,6 +1165,9 @@ class LibriController
         $fields['posizione_id'] = null;
         $fields['peso'] = $fields['peso'] !== null && $fields['peso'] !== '' ? (float) $fields['peso'] : null;
         $fields['prezzo'] = $fields['prezzo'] !== null && $fields['prezzo'] !== '' ? (float) $fields['prezzo'] : null;
+        $numPagineRaw = $fields['numero_pagine'] ?? null;
+        $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $fields['numero_pagine'] = ($numPagine === false) ? null : $numPagine;
 
         // Gestione rimozione copertina
         if (isset($data['remove_cover']) && $data['remove_cover'] === '1') {
@@ -2527,6 +2535,31 @@ class LibriController
         $genereId = isset($params['genere_id']) && is_numeric($params['genere_id']) ? (int) $params['genere_id'] : 0;
         $autoreId = isset($params['autore_id']) && is_numeric($params['autore_id']) ? (int) $params['autore_id'] : 0;
 
+        // Selected IDs filter (from "Export selected" button)
+        $idsParam = $params['ids'] ?? '';
+        $idsRequested = array_key_exists('ids', $params);
+        $selectedIds = [];
+
+        if (is_array($idsParam)) {
+            $flat = [];
+            array_walk_recursive($idsParam, static function ($value) use (&$flat): void {
+                if (is_scalar($value)) {
+                    $flat[] = (string) $value;
+                }
+            });
+            $idsParam = implode(',', $flat);
+        } elseif (!is_string($idsParam)) {
+            $idsParam = '';
+        }
+
+        if ($idsParam !== '') {
+            $selectedIds = array_values(array_unique(array_filter(
+                array_map('intval', explode(',', $idsParam)),
+                static fn (int $id): bool => $id > 0
+            )));
+            $selectedIds = array_slice($selectedIds, 0, 1000);
+        }
+
         // Export format options
         $format = $params['format'] ?? 'standard'; // standard, librarything
         $delimiter = $params['delimiter'] ?? ';'; // ;, comma, tab
@@ -2594,6 +2627,16 @@ class LibriController
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
         ";
+
+        if (!empty($selectedIds)) {
+            $placeholders = implode(',', array_fill(0, count($selectedIds), '?'));
+            $whereClauses[] = "l.id IN ($placeholders)";
+            $bindTypes .= str_repeat('i', count($selectedIds));
+            $bindValues = array_merge($bindValues, $selectedIds);
+        } elseif ($idsRequested) {
+            // Fail closed: explicit selected-export with no valid IDs returns empty dataset
+            $whereClauses[] = "1 = 0";
+        }
 
         $whereClauses[] = "l.deleted_at IS NULL";
 

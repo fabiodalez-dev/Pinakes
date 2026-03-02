@@ -258,6 +258,12 @@ class Z39ServerPlugin
                 'callback_method' => 'addAdminMenuItem',
                 'priority' => 10
             ],
+            // Register SRU sources (so they appear in "sources consulted" lists)
+            [
+                'hook_name' => 'scrape.sources',
+                'callback_method' => 'addSruSources',
+                'priority' => 3
+            ],
             // Register SRU Client for scraping (priority 3 = after Scraping Pro and API Book Scraper)
             // Z39.50/SRU provides excellent metadata but NO covers
             [
@@ -538,6 +544,48 @@ class Z39ServerPlugin
      * Hook: Fetch book metadata from Z39.50/SRU servers and SBN (Italian catalog)
      *
      * Uses intelligent merging to combine data from Z39.50/SBN with existing data
+     * Hook: scrape.sources — Register SRU/SBN as scraping sources
+     * so they appear in the "sources consulted" error messages.
+     *
+     * @param array $sources Current sources list
+     * @param string $isbn ISBN being searched
+     * @return array Updated sources list
+     */
+    public function addSruSources(array $sources, string $isbn): array
+    {
+        // SBN source
+        if ($this->isSettingEnabled('enable_sbn', true)) {
+            $sources['sbn'] = [
+                'name' => 'SBN (OPAC Nazionale)',
+                'priority' => 3,
+                'fields' => ['title', 'author', 'publisher', 'year', 'isbn', 'dewey', 'language', 'pages']
+            ];
+        }
+
+        // SRU servers
+        $serversJson = $this->getSetting('servers', '[]');
+        $servers = json_decode($serversJson, true);
+        if (is_array($servers)) {
+            foreach ($servers as $server) {
+                if (!empty($server['enabled']) && !empty($server['name'])) {
+                    $baseKey = preg_replace('/[^a-z0-9]+/', '_', strtolower($server['name']));
+                    $urlHash = substr(md5($server['url'] ?? ''), 0, 6);
+                    $key = 'sru_' . $baseKey . '_' . $urlHash;
+                    $sources[$key] = [
+                        'name' => $server['name'],
+                        'priority' => 3,
+                        'fields' => ['title', 'author', 'publisher', 'year', 'isbn', 'dewey', 'language', 'pages']
+                    ];
+                }
+            }
+        }
+
+        return $sources;
+    }
+
+    /**
+     * Hook: scrape.fetch.custom — Fetch book metadata via SBN and SRU servers
+     *
      * from other sources, filling empty fields without overwriting existing data.
      *
      * Priority order:

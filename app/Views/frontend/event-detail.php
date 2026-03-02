@@ -18,8 +18,13 @@ $baseUrl = ConfigStore::get('app.canonical_url');
 $contentHtml = ContentSanitizer::normalizeExternalAssets($event['content'] ?? '');
 
 $locale = $_SESSION['locale'] ?? 'it_IT';
-$dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
-$timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
+if (class_exists('IntlDateFormatter')) {
+    $dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+    $timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
+} else {
+    $dateFormatter = null;
+    $timeFormatter = null;
+}
 
 $createDateTime = static function (?string $value, array $formats = []) {
     if (!$value) {
@@ -40,13 +45,25 @@ $createDateTime = static function (?string $value, array $formats = []) {
     }
 };
 
-$formatDate = static function (?string $date) use ($dateFormatter, $createDateTime) {
+$fallbackDateFormat = match (strtolower(substr($locale, 0, 2))) {
+    'de' => 'd.m.Y',
+    'it' => 'd/m/Y',
+    default => 'Y-m-d',
+};
+
+$formatDate = static function (?string $date) use ($dateFormatter, $createDateTime, $fallbackDateFormat) {
     $dateTime = $createDateTime($date, ['Y-m-d']);
     if (!$dateTime) {
         return (string)$date;
     }
 
-    return $dateFormatter->format($dateTime);
+    if ($dateFormatter) {
+        $formatted = $dateFormatter->format($dateTime);
+        if ($formatted !== false) {
+            return $formatted;
+        }
+    }
+    return $dateTime->format($fallbackDateFormat);
 };
 
 $formatTime = static function (?string $time) use ($timeFormatter, $createDateTime) {
@@ -55,7 +72,13 @@ $formatTime = static function (?string $time) use ($timeFormatter, $createDateTi
         return (string)$time;
     }
 
-    return $timeFormatter->format($dateTime);
+    if ($timeFormatter) {
+        $formatted = $timeFormatter->format($dateTime);
+        if ($formatted !== false) {
+            return $formatted;
+        }
+    }
+    return $dateTime->format('H:i');
 };
 
 $eventDateFormatted = $formatDate($event['event_date'] ?? null);
@@ -390,7 +413,7 @@ $stmt->close();
                     $relatedTimeFormatted = $formatTime($relatedEvent['event_time'] ?? null);
                     ?>
                     <article class="related-card">
-                        <a href="<?= HtmlHelper::e(url('/events/' . $relatedEvent['slug'])) ?>" class="related-thumb">
+                        <a href="<?= HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug'])) ?>" class="related-thumb">
                             <?php if (!empty($relatedEvent['featured_image'])): ?>
                                 <img src="<?= HtmlHelper::e(url($relatedEvent['featured_image'])) ?>" alt="<?= HtmlHelper::e($relatedEvent['title']) ?>">
                             <?php endif; ?>
@@ -405,11 +428,11 @@ $stmt->close();
                                 <?php endif; ?>
                             </div>
                             <h3 class="related-title">
-                                <a href="<?= HtmlHelper::e(url('/events/' . $relatedEvent['slug'])) ?>">
+                                <a href="<?= HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug'])) ?>">
                                     <?= HtmlHelper::e($relatedEvent['title']) ?>
                                 </a>
                             </h3>
-                            <a href="<?= HtmlHelper::e(url('/events/' . $relatedEvent['slug'])) ?>" class="related-link">
+                            <a href="<?= HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug'])) ?>" class="related-link">
                                 <?= __("Dettagli evento") ?>
                                 <i class="fas fa-arrow-right"></i>
                             </a>

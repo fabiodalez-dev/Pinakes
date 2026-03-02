@@ -36,7 +36,10 @@ return function (App $app): void {
     // Supported locales for multi-language route variants
     // Content routes (book, author, publisher, genre) are registered
     // in all languages to support language switching without 404s
-    $supportedLocales = ['it_IT', 'en_US'];
+    $supportedLocales = array_keys(I18n::getAvailableLocales());
+    if ($supportedLocales === []) {
+        $supportedLocales = [$installationLocale ?: 'it_IT'];
+    }
 
     // Track registered routes to avoid duplicates (some routes are identical across languages)
     $registeredRoutes = [];
@@ -87,20 +90,36 @@ return function (App $app): void {
         return $controller->home($request, $response, $db, $container);
     });
 
-    // Frontend Events routes
-    $app->get('/events', function ($request, $response) use ($app) {
+    // English fallback for events (always available regardless of locale list)
+    $registerRouteIfUnique('GET', '/events', function ($request, $response) use ($app) {
         $container = $app->getContainer();
         $controller = new \App\Controllers\FrontendController($container);
         $db = $container->get('db');
         return $controller->events($request, $response, $db);
     });
-
-    $app->get('/events/{slug}', function ($request, $response, $args) use ($app) {
+    $registerRouteIfUnique('GET', '/events/{slug}', function ($request, $response, $args) use ($app) {
         $container = $app->getContainer();
         $controller = new \App\Controllers\FrontendController($container);
         $db = $container->get('db');
         return $controller->event($request, $response, $db, $args);
     });
+
+    // Frontend Events routes (all language variants)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('events', $locale), function ($request, $response) use ($app) {
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
+            return $controller->events($request, $response, $db);
+        });
+
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('events', $locale) . '/{slug}', function ($request, $response, $args) use ($app) {
+            $container = $app->getContainer();
+            $controller = new \App\Controllers\FrontendController($container);
+            $db = $container->get('db');
+            return $controller->event($request, $response, $db, $args);
+        });
+    }
 
     $app->get('/health', function ($request, $response) {
         $data = ['status' => 'ok'];
@@ -168,8 +187,7 @@ return function (App $app): void {
         return $response->withHeader('Location', \App\Support\RouteTranslator::route('register'))->withStatus(301);
     });
 
-    // Canonical login route
-    // Login - support both English and localized routes
+    // Login - all language variants + English fallback
     $loginGetHandler = function ($request, $response) {
         // If already logged in, redirect appropriately
         if (!empty($_SESSION['user'])) {
@@ -184,22 +202,28 @@ return function (App $app): void {
         return $controller->loginForm($request, $response);
     };
     $registerRouteIfUnique('GET', '/login', $loginGetHandler); // English fallback (always works)
-    $registerRouteIfUnique('GET', RouteTranslator::route('login'), $loginGetHandler); // Localized route (skipped if same as English)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('login', $locale), $loginGetHandler);
+    }
 
     $loginPostHandler = function ($request, $response) use ($app) {
         $controller = new AuthController();
         return $controller->login($request, $response, $app->getContainer()->get('db'));
     };
-    $registerRouteIfUnique('POST', '/login', $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // English fallback
-    $registerRouteIfUnique('POST', RouteTranslator::route('login'), $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // Localized route (skipped if same as English)
+    $registerRouteIfUnique('POST', '/login', $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'login'), new CsrfMiddleware()]); // English fallback
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('login', $locale), $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'login'), new CsrfMiddleware()]);
+    }
 
-    // Logout - support both English and localized routes
+    // Logout - all language variants + English fallback
     $logoutHandler = function ($request, $response) use ($app) {
         $controller = new AuthController();
         return $controller->logout($request, $response, $app->getContainer()->get('db'));
     };
     $registerRouteIfUnique('GET', '/logout', $logoutHandler); // English fallback
-    $registerRouteIfUnique('GET', RouteTranslator::route('logout'), $logoutHandler); // Localized route (e.g. /esci for Italian)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('logout', $locale), $logoutHandler);
+    }
 
     // User profile (multi-language variants)
     foreach ($supportedLocales as $locale) {
@@ -230,13 +254,27 @@ return function (App $app): void {
         // Example: Italian install shows /profilo but form might POST to /profilo/update (hybrid)
         // instead of the expected /profilo/aggiorna (fully Italian).
         if ($locale === 'it_IT') {
+            // Italian base + English action
             $registerRouteIfUnique('POST', '/profilo/update', function ($request, $response) use ($app) {
                 $db = $app->getContainer()->get('db');
                 $controller = new ProfileController();
                 return $controller->update($request, $response, $db);
             }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
         } elseif ($locale === 'en_US') {
+            // English base + Italian action
             $registerRouteIfUnique('POST', '/profile/aggiorna', function ($request, $response) use ($app) {
+                $db = $app->getContainer()->get('db');
+                $controller = new ProfileController();
+                return $controller->update($request, $response, $db);
+            }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+        } elseif ($locale === 'de_DE') {
+            // German base + English/Italian action
+            $registerRouteIfUnique('POST', '/profil/update', function ($request, $response) use ($app) {
+                $db = $app->getContainer()->get('db');
+                $controller = new ProfileController();
+                return $controller->update($request, $response, $db);
+            }, [new CsrfMiddleware(), new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
+            $registerRouteIfUnique('POST', '/profil/aggiorna', function ($request, $response) use ($app) {
                 $db = $app->getContainer()->get('db');
                 $controller = new ProfileController();
                 return $controller->update($request, $response, $db);
@@ -307,68 +345,79 @@ return function (App $app): void {
         }, [new AuthMiddleware(['admin', 'staff', 'standard', 'premium'])]);
     }
 
-    // Public registration routes (translated)
-    $app->get(RouteTranslator::route('register'), function ($request, $response) {
-        // Redirect logged-in users to dashboard
+    // Public registration routes (all language variants)
+    $registerGetHandler = function ($request, $response) {
         if (!empty($_SESSION['user']['id'])) {
             return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
         }
         $controller = new RegistrationController();
         return $controller->form($request, $response);
-    });
-    $app->post(RouteTranslator::route('register'), function ($request, $response) use ($app) {
-        // Redirect logged-in users to dashboard
+    };
+    $registerPostHandler = function ($request, $response) use ($app) {
         if (!empty($_SESSION['user']['id'])) {
             return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
         }
         $db = $app->getContainer()->get('db');
         $controller = new RegistrationController();
         return $controller->register($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(3, 3600))->add(new CsrfMiddleware()); // 3 attempts per hour
-    $app->get(RouteTranslator::route('register_success'), function ($request, $response) {
+    };
+    $registerSuccessHandler = function ($request, $response) {
         $controller = new RegistrationController();
         return $controller->success($request, $response);
-    });
-    // Email verification - support both English and localized routes
+    };
+    $registerRouteIfUnique('GET', '/register', $registerGetHandler); // English fallback
+    $registerRouteIfUnique('POST', '/register', $registerPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 3600, 'register'), new CsrfMiddleware()]); // English fallback
+    $registerRouteIfUnique('GET', '/register/success', $registerSuccessHandler); // English fallback
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('register', $locale), $registerGetHandler);
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('register', $locale), $registerPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 3600, 'register'), new CsrfMiddleware()]);
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('register_success', $locale), $registerSuccessHandler);
+    }
+
+    // Email verification - all language variants + English fallback
     $verifyEmailHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new RegistrationController();
         return $controller->verifyEmail($request, $response, $db);
     };
     $registerRouteIfUnique('GET', '/verify-email', $verifyEmailHandler); // English fallback
-    $registerRouteIfUnique('GET', RouteTranslator::route('verify_email'), $verifyEmailHandler); // Localized (skipped if same)
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('verify_email', $locale), $verifyEmailHandler);
+    }
 
-    // Password reset - support both English and localized routes
+    // Password reset - all language variants + English fallback
     $forgotPasswordGetHandler = function ($request, $response) {
         $controller = new PasswordController();
         return $controller->forgotForm($request, $response);
     };
-    $registerRouteIfUnique('GET', '/forgot-password', $forgotPasswordGetHandler); // English fallback
-    $registerRouteIfUnique('GET', RouteTranslator::route('forgot_password'), $forgotPasswordGetHandler); // Localized (skipped if same)
-
     $forgotPasswordPostHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->forgot($request, $response, $db);
     };
-    $registerRouteIfUnique('POST', '/forgot-password', $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900), new CsrfMiddleware()]); // English fallback
-    $registerRouteIfUnique('POST', RouteTranslator::route('forgot_password'), $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900), new CsrfMiddleware()]); // Localized (skipped if same)
+    $registerRouteIfUnique('GET', '/forgot-password', $forgotPasswordGetHandler); // English fallback
+    $registerRouteIfUnique('POST', '/forgot-password', $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900, 'forgot_password'), new CsrfMiddleware()]); // English fallback
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('forgot_password', $locale), $forgotPasswordGetHandler);
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('forgot_password', $locale), $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900, 'forgot_password'), new CsrfMiddleware()]);
+    }
 
     $resetPasswordGetHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->resetForm($request, $response, $db);
     };
-    $registerRouteIfUnique('GET', '/reset-password', $resetPasswordGetHandler); // English fallback
-    $registerRouteIfUnique('GET', RouteTranslator::route('reset_password'), $resetPasswordGetHandler); // Localized (skipped if same)
-
     $resetPasswordPostHandler = function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new PasswordController();
         return $controller->reset($request, $response, $db);
     };
-    $registerRouteIfUnique('POST', '/reset-password', $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // English fallback
-    $registerRouteIfUnique('POST', RouteTranslator::route('reset_password'), $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // Localized (skipped if same)
+    $registerRouteIfUnique('GET', '/reset-password', $resetPasswordGetHandler); // English fallback
+    $registerRouteIfUnique('POST', '/reset-password', $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'reset_password'), new CsrfMiddleware()]); // English fallback
+    foreach ($supportedLocales as $locale) {
+        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('reset_password', $locale), $resetPasswordGetHandler);
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('reset_password', $locale), $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'reset_password'), new CsrfMiddleware()]);
+    }
 
     // Frontend user actions: loan/reserve
     $app->post('/user/loan', function ($request, $response) use ($app) {
@@ -2839,6 +2888,13 @@ return function (App $app): void {
         $controller = new \App\Controllers\UpdateController();
         return $controller->getLogs($request, $response);
     })->add(new AdminAuthMiddleware());
+
+    // GitHub API token
+    $app->post('/admin/updates/token', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->saveToken($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Manual update - Upload package
     $app->post('/admin/updates/upload', function ($request, $response) use ($app) {

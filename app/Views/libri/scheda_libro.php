@@ -181,9 +181,18 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               if (!empty($libro['sottogenere_nome'])) $pathParts[] = (string)$libro['sottogenere_nome'];
               $path = implode(' → ', array_map('App\\Support\\HtmlHelper::e', $pathParts));
             ?>
-            <a href="<?= htmlspecialchars(url('/admin/generi/' . (!empty($libro['sottogenere_id']) ? (int)$libro['sottogenere_id'] : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)$libro['radice_id']))), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
-              <?php echo $path !== '' ? $path : __('Non specificato'); ?>
-            </a>
+            <?php
+              $genreFilterId = !empty($libro['sottogenere_id'])
+                ? (int)$libro['sottogenere_id']
+                : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)($libro['radice_id'] ?? 0));
+            ?>
+            <?php if ($genreFilterId > 0): ?>
+              <a href="<?= htmlspecialchars(url('/admin/libri?genere=' . $genreFilterId), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
+                <?php echo $path !== '' ? $path : __('Non specificato'); ?>
+              </a>
+            <?php else: ?>
+              <span class="text-gray-500"><?= $path !== '' ? $path : __('Non specificato') ?></span>
+            <?php endif; ?>
           </div>
           <div class="text-base text-gray-600">
             <i class="fas fa-barcode text-gray-400 mr-2"></i>
@@ -483,16 +492,43 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               </dd>
             </div>
             <?php endif; ?>
-            <?php if (!empty($libro['file_url'])): ?>
+            <?php
+              $isSafeUrl = static function (?string $u): bool {
+                  $u = trim((string) $u);
+                  return $u !== '' && preg_match('#^(https?://|/(?!/))#i', $u) === 1;
+              };
+              $normalizeHref = static function (string $u): string {
+                  $u = trim($u);
+                  return preg_match('#^https?://#i', $u) === 1 ? $u : url($u);
+              };
+            ?>
+            <?php if ($isSafeUrl($libro['file_url'] ?? null)): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("File") ?></dt>
-              <dd><a class="text-gray-700 hover:text-gray-900 hover:underline" href="<?php echo htmlspecialchars($libro['file_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><?= __("Apri") ?></a></dd>
+              <dd><a class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-blue-500 text-white hover:bg-blue-600 transition-colors" href="<?php echo htmlspecialchars($normalizeHref((string) $libro['file_url']), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><i class="fas fa-file-alt"></i> <?= __("Apri") ?></a></dd>
             </div>
             <?php endif; ?>
-            <?php if (!empty($libro['audio_url'])): ?>
+            <?php if ($isSafeUrl($libro['audio_url'] ?? null)): ?>
+            <?php
+              $audioCloseLabel = json_encode(__("Chiudi"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+              $audioOpenLabel  = json_encode(__("Ascolta"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+            ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Audio") ?></dt>
-              <dd><a class="text-gray-700 hover:text-gray-900 hover:underline" href="<?php echo htmlspecialchars($libro['audio_url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener"><?= __("Apri") ?></a></dd>
+              <dd>
+                <button type="button" id="btn-admin-audio-toggle"
+                  aria-controls="admin-audio-player"
+                  aria-expanded="false"
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-500 text-white hover:bg-purple-600 transition-colors"
+                  onclick="var p=document.getElementById('admin-audio-player');if(!p)return;var h=p.classList.contains('hidden');if(h){p.classList.remove('hidden');this.querySelector('span').textContent=<?= $audioCloseLabel ?>;this.setAttribute('aria-expanded','true');}else{p.classList.add('hidden');p.querySelector('audio').pause();this.querySelector('span').textContent=<?= $audioOpenLabel ?>;this.setAttribute('aria-expanded','false');}">
+                  <i class="fas fa-headphones"></i> <span><?= __("Ascolta") ?></span>
+                </button>
+                <div id="admin-audio-player" class="hidden mt-2">
+                  <audio controls preload="metadata" style="height:32px; max-width:280px;">
+                    <source src="<?php echo htmlspecialchars($normalizeHref((string) $libro['audio_url']), ENT_QUOTES, 'UTF-8'); ?>">
+                  </audio>
+                </div>
+              </dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['created_at'])): ?>

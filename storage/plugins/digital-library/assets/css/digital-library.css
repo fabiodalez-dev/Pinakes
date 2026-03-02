@@ -53,19 +53,19 @@
     box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
-.action-buttons .btn-outline-success {
-    color: #16a34a;
-    border-color: #16a34a;
+.action-buttons .btn-outline-dark {
+    color: #1e293b;
+    border-color: #1e293b;
     background: transparent;
     transition: all 0.3s ease;
 }
 
-.action-buttons .btn-outline-success:hover {
-    background: #16a34a;
-    border-color: #16a34a;
+.action-buttons .btn-outline-dark:hover {
+    background: #1e293b;
+    border-color: #1e293b;
     color: #ffffff;
     transform: translateY(-3px);
-    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+    box-shadow: 0 4px 12px rgba(30, 41, 59, 0.3);
 }
 
 /* ==========================================================================
@@ -100,7 +100,7 @@
 }
 
 /* ==========================================================================
-   Green Audio Player Custom Theme
+   Audio Player — Black & White Theme
    ========================================================================== */
 
 .player-digital-library {
@@ -117,20 +117,31 @@
 }
 
 .player-digital-library .play-pause-btn {
-    background-color: #16a34a !important;
+    background-color: #1e293b !important;
     width: 40px;
     height: 40px;
     border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     transition: all 0.2s ease;
 }
 
 .player-digital-library .play-pause-btn:hover {
-    background-color: #15803d !important;
+    background-color: #334155 !important;
     transform: scale(1.1);
 }
 
+.player-digital-library .play-pause-btn svg path {
+    fill: #fff !important;
+}
+
 .player-digital-library .slider .gap-progress {
-    background-color: #16a34a !important;
+    background-color: #1e293b !important;
+}
+
+.player-digital-library .slider .gap-progress .pin {
+    background-color: #1e293b !important;
 }
 
 .player-digital-library .controls__slider {
@@ -140,27 +151,31 @@
 .player-digital-library .controls__current-time,
 .player-digital-library .controls__total-time {
     font-size: 0.875rem;
-    color: #6b7280;
+    color: #475569;
     font-weight: 500;
 }
 
 /* Volume controls */
 .player-digital-library .volume__button {
-    color: #6b7280;
+    color: #475569;
+}
+
+.player-digital-library .volume__button.open path {
+    fill: #1e293b !important;
 }
 
 .player-digital-library .volume__controls .slider .gap-progress {
-    background-color: #16a34a !important;
+    background-color: #1e293b !important;
 }
 
 /* Download button (if enabled) */
 .player-digital-library .download {
-    color: #6b7280;
+    color: #475569;
     transition: color 0.2s ease;
 }
 
 .player-digital-library .download:hover {
-    color: #16a34a;
+    color: #1e293b;
 }
 
 /* ==========================================================================
@@ -186,7 +201,7 @@
 }
 
 #upload-audio-btn:hover {
-    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.3);
+    box-shadow: 0 4px 12px rgba(30, 41, 59, 0.3);
     transform: translateY(-2px);
 }
 
@@ -201,7 +216,7 @@
 
 @media (max-width: 768px) {
     .action-buttons .btn-outline-danger,
-    .action-buttons .btn-outline-success {
+    .action-buttons .btn-outline-dark {
         min-width: 100%;
         margin-bottom: 0.5rem;
     }
@@ -226,7 +241,7 @@
 
 /* Focus states for keyboard navigation */
 .player-accessible *:focus {
-    outline: 2px solid #16a34a;
+    outline: 2px solid #1e293b;
     outline-offset: 2px;
 }
 

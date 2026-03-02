@@ -74,15 +74,17 @@ class Installer {
         // Normalize locale:
         // - "it" or "it_IT" -> it_IT
         // - "en" or "en_US" -> en_US
-        $normalizedLocale = strtolower((string)$locale);
+        $normalizedLocale = str_replace('-', '_', strtolower((string)$locale));
         if ($normalizedLocale === 'en' || $normalizedLocale === 'en_us') {
             $normalizedLocale = 'en_US';
+        } elseif ($normalizedLocale === 'de' || $normalizedLocale === 'de_de') {
+            $normalizedLocale = 'de_DE';
         } elseif ($normalizedLocale === 'it' || $normalizedLocale === 'it_it') {
             $normalizedLocale = 'it_IT';
         }
 
         // Fallback safety
-        if (!in_array($normalizedLocale, ['it_IT', 'en_US'], true)) {
+        if (!in_array($normalizedLocale, ['it_IT', 'en_US', 'de_DE'], true)) {
             $normalizedLocale = 'it_IT';
         }
 
@@ -256,10 +258,10 @@ class Installer {
         $localeMap = [
             'it' => 'it_IT',
             'it_it' => 'it_IT',
-            'it_IT' => 'it_IT',
             'en' => 'en_US',
             'en_us' => 'en_US',
-            'en_US' => 'en_US',
+            'de' => 'de_DE',
+            'de_de' => 'de_DE',
         ];
         $normalizedLocale = strtolower(str_replace('-', '_', $locale));
         $fullLocale = $localeMap[$normalizedLocale] ?? 'it_IT';
@@ -476,27 +478,44 @@ class Installer {
         $executedCount = 0;
         $errors = [];
 
-        foreach ($statements as $statement) {
-            $statement = trim($statement);
+        try {
+            $pdo->beginTransaction();
+            $pdo->exec('SET FOREIGN_KEY_CHECKS=0');
+            foreach ($statements as $statement) {
+                $statement = trim($statement);
 
-            if (empty($statement)) {
-                continue;
-            }
+                if (empty($statement)) {
+                    continue;
+                }
 
-            try {
-                $pdo->exec($statement);
-                $executedCount++;
-            } catch (PDOException $e) {
-                // Collect errors but continue (some INSERTs might fail due to duplicates)
-                if (strpos($e->getMessage(), 'Duplicate entry') === false) {
-                    $errors[] = "Data import error: " . $e->getMessage();
+                try {
+                    $pdo->exec($statement);
+                    $executedCount++;
+                } catch (PDOException $e) {
+                    // Collect errors but continue (some INSERTs might fail due to duplicates)
+                    if (strpos($e->getMessage(), 'Duplicate entry') === false) {
+                        $errors[] = "Data import error: " . $e->getMessage();
+                    }
                 }
             }
-        }
 
-        if (!empty($errors) && count($errors) > 10) {
-            $firstErrors = array_slice($errors, 0, 5);
-            throw new Exception(sprintf(__("Troppi errori durante l'import dei dati (%d errori). Primi errori:\n%s"), count($errors), implode("\n", $firstErrors)));
+            if (!empty($errors)) {
+                throw new Exception(sprintf(__("Errori durante l'import dei dati (%d). Primi errori:\n%s"), count($errors), implode("\n", array_slice($errors, 0, 5))));
+            }
+
+            $pdo->commit();
+        } catch (\Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $e;
+        } finally {
+            // Always restore FK checks even if execution aborts early
+            try {
+                $pdo->exec('SET FOREIGN_KEY_CHECKS=1');
+            } catch (PDOException $e) {
+                error_log('[Installer] Failed to restore FOREIGN_KEY_CHECKS=1: ' . $e->getMessage());
+            }
         }
 
         return true;
@@ -1001,19 +1020,32 @@ HTACCESS;
         }
 
         $port = null;
-        if (str_contains($host, ':')) {
+        $host = trim($host);
+        if (preg_match('/^\[(.+)\](?::(\d+))?$/', $host, $matches)) {
+            // Bracketed IPv6 literal, optionally with port
+            $host = '[' . $matches[1] . ']';
+            $port = isset($matches[2]) ? (int) $matches[2] : null;
+        } elseif (substr_count($host, ':') === 1) {
+            // hostname:port or IPv4:port
             [$hostOnly, $portPart] = explode(':', $host, 2);
             $host = $hostOnly;
             $port = is_numeric($portPart) ? (int)$portPart : null;
-        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_PORT'])) {
-            $port = (int)$_SERVER['HTTP_X_FORWARDED_PORT'];
-        } elseif (isset($_SERVER['SERVER_PORT']) && is_numeric((string)$_SERVER['SERVER_PORT'])) {
-            $port = (int)$_SERVER['SERVER_PORT'];
+        } elseif (strpos($host, ':') !== false) {
+            // Unbracketed IPv6 literal (no explicit port)
+            $host = '[' . trim($host, '[]') . ']';
+        }
+
+        if ($port === null) {
+            if (!empty($_SERVER['HTTP_X_FORWARDED_PORT'])) {
+                $port = (int)$_SERVER['HTTP_X_FORWARDED_PORT'];
+            } elseif (isset($_SERVER['SERVER_PORT']) && is_numeric((string)$_SERVER['SERVER_PORT'])) {
+                $port = (int)$_SERVER['SERVER_PORT'];
+            }
         }
 
         $base = $scheme . '://' . $host;
         $defaultPorts = ['http' => 80, 'https' => 443];
-        if ($port !== null && ($defaultPorts[$scheme] ?? null) !== $port) {
+        if ($port !== null && $defaultPorts[$scheme] !== $port) {
             $base .= ':' . $port;
         }
 
@@ -1076,12 +1108,16 @@ HTACCESS;
         // Pattern to match the key with any value (handles empty values too)
         $pattern = '/^' . $escapedKey . '=.*$/m';
 
-        // New line content
-        $replacement = $key . '=' . $value;
+        // New line content (quote the value to handle spaces, #, $, etc.)
+        $replacement = $key . '=' . $this->quoteEnvValue($value);
 
-        // Replace the line
+        // Replace the line (use callback to avoid $ backreference issues)
         if (preg_match($pattern, $envContent)) {
-            $newContent = preg_replace($pattern, $replacement, $envContent);
+            $newContent = preg_replace_callback(
+                $pattern,
+                static fn () => $replacement,
+                $envContent
+            );
         } else {
             // If key doesn't exist, append it
             $newContent = rtrim($envContent) . "\n" . $replacement . "\n";
@@ -1096,6 +1132,9 @@ HTACCESS;
         $locale = str_replace('-', '_', strtolower($locale));
         if ($locale === 'en' || $locale === 'en_us') {
             return 'en_US';
+        }
+        if ($locale === 'de' || $locale === 'de_de') {
+            return 'de_DE';
         }
         if ($locale === 'it' || $locale === 'it_it') {
             return 'it_IT';

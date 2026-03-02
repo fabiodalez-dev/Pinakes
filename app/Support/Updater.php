@@ -12,6 +12,7 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Support\SecureLogger;
 use mysqli;
 use Exception;
 use ZipArchive;
@@ -28,6 +29,7 @@ class Updater
     private string $rootPath;
     private string $backupPath;
     private string $tempPath;
+    private string $githubToken = '';
 
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
@@ -112,6 +114,9 @@ class Updater
                 $this->formatBytes((float)$freeSpace));
         }
 
+        // Load GitHub API token from settings (if configured)
+        $this->loadGitHubToken();
+
         $this->debugLog('DEBUG', 'Updater inizializzato', [
             'rootPath' => $this->rootPath,
             'backupPath' => $this->backupPath,
@@ -172,6 +177,216 @@ class Updater
                 }
             }
         }
+    }
+
+    /**
+     * Load GitHub token from system_settings
+     */
+    private function loadGitHubToken(): void
+    {
+        $stmt = $this->db->prepare('SELECT setting_value FROM system_settings WHERE category = ? AND setting_key = ? LIMIT 1');
+        if ($stmt === false) {
+            return;
+        }
+        $cat = 'updater';
+        $key = 'github_token';
+        $stmt->bind_param('ss', $cat, $key);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            return;
+        }
+        $result = $stmt->get_result();
+        if ($result === false) {
+            $stmt->close();
+            return;
+        }
+        $value = $result->fetch_column();
+        $stmt->close();
+
+        if (!is_string($value) || $value === '') {
+            return;
+        }
+
+        $storedValue = $value;
+        $token = trim($this->decryptValue($storedValue));
+        if ($token === '' || preg_match('/[[:cntrl:]]/u', $token)) {
+            SecureLogger::warning('[Updater] Ignoring invalid GitHub token loaded from settings');
+            return;
+        }
+
+        $this->githubToken = $token;
+
+        // Opportunistic migration: re-encrypt legacy plaintext tokens at rest
+        if (!str_starts_with($storedValue, 'ENC:')) {
+            try {
+                $this->saveGitHubToken($token);
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[Updater] Failed to migrate legacy plaintext GitHub token');
+            }
+        }
+    }
+
+    /**
+     * Encrypt a value for storage (AES-256-GCM)
+     */
+    private function encryptValue(string $plain): string
+    {
+        $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
+            ?? (getenv('PLUGIN_ENCRYPTION_KEY') ?: null)
+            ?? $_ENV['APP_KEY']
+            ?? (getenv('APP_KEY') ?: null);
+
+        if ($plain === '') {
+            return '';
+        }
+        if (!$rawKey) {
+            throw new Exception(__('Chiave di cifratura non configurata (PLUGIN_ENCRYPTION_KEY o APP_KEY)'));
+        }
+
+        try {
+            $key = hash('sha256', (string) $rawKey, true);
+            $iv = random_bytes(12);
+            $tag = '';
+            $ciphertext = openssl_encrypt($plain, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+            if ($ciphertext === false) {
+                throw new Exception(__('Impossibile cifrare il token GitHub'));
+            }
+
+            return 'ENC:' . base64_encode($iv . $tag . $ciphertext);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Updater] Token encryption failed: ' . $e->getMessage());
+            throw new Exception(__('Impossibile cifrare il token GitHub'));
+        }
+    }
+
+    /**
+     * Decrypt a stored value (backward-compatible with plaintext)
+     */
+    private function decryptValue(string $stored): string
+    {
+        if (!str_starts_with($stored, 'ENC:')) {
+            return $stored; // plaintext (legacy) — returned as-is
+        }
+
+        $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
+            ?? (getenv('PLUGIN_ENCRYPTION_KEY') ?: null)
+            ?? $_ENV['APP_KEY']
+            ?? (getenv('APP_KEY') ?: null);
+
+        if (!$rawKey) {
+            SecureLogger::error('[Updater] Encryption key not available, cannot decrypt token');
+            return '';
+        }
+
+        $payload = base64_decode(substr($stored, 4), true);
+        if ($payload === false || strlen($payload) <= 28) {
+            return '';
+        }
+
+        try {
+            $key = hash('sha256', (string) $rawKey, true);
+            $iv = substr($payload, 0, 12);
+            $tag = substr($payload, 12, 16);
+            $ciphertext = substr($payload, 28);
+
+            $plain = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+            return $plain !== false ? $plain : '';
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Updater] Token decryption failed: ' . $e->getMessage());
+            return '';
+        }
+    }
+
+    /**
+     * Get GitHub API headers, optionally with Authorization
+     * @return array<string>
+     */
+    private function getGitHubHeaders(string $accept = 'application/vnd.github.v3+json', bool $withAuth = true): array
+    {
+        $headers = [
+            'User-Agent: Pinakes-Updater/1.0',
+            'Accept: ' . $accept,
+        ];
+
+        if ($withAuth && $this->githubToken !== '') {
+            $headers[] = 'Authorization: Bearer ' . $this->githubToken;
+        }
+
+        return $headers;
+    }
+
+    /**
+     * Extract final HTTP status code from response headers (handles redirects).
+     * @param array<int, string> $headers
+     */
+    private function extractFinalHttpStatus(array $headers): int
+    {
+        for ($i = count($headers) - 1; $i >= 0; $i--) {
+            if (preg_match('/^HTTP\/\d\.\d\s+(\d+)/', $headers[$i], $m) === 1) {
+                return (int) $m[1];
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * Save GitHub API token to system_settings
+     */
+    public function saveGitHubToken(string $token): void
+    {
+        $token = trim($token);
+        if ($token !== '' && preg_match('/[[:cntrl:]]/u', $token)) {
+            throw new Exception(__('Token GitHub non valido: contiene caratteri di controllo'));
+        }
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO system_settings (category, setting_key, setting_value) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)'
+        );
+        if ($stmt === false) {
+            throw new Exception(__('Errore nel salvataggio del token'));
+        }
+        try {
+            $cat = 'updater';
+            $key = 'github_token';
+            $encrypted = $token !== '' ? $this->encryptValue($token) : '';
+            if ($token !== '' && !str_starts_with($encrypted, 'ENC:')) {
+                throw new Exception(__('Impossibile cifrare il token GitHub: salvataggio annullato'));
+            }
+            $stmt->bind_param('sss', $cat, $key, $encrypted);
+            if (!$stmt->execute()) {
+                throw new Exception(__('Errore nel salvataggio del token') . ': ' . $this->db->error);
+            }
+        } finally {
+            $stmt->close();
+        }
+
+        $this->githubToken = $token;
+    }
+
+    /**
+     * Get the currently configured GitHub token (masked for display)
+     */
+    public function getGitHubTokenMasked(): string
+    {
+        if ($this->githubToken === '') {
+            return '';
+        }
+
+        $len = strlen($this->githubToken);
+        if ($len <= 8) {
+            return str_repeat('*', $len);
+        }
+
+        return substr($this->githubToken, 0, 4) . str_repeat('*', $len - 8) . substr($this->githubToken, -4);
+    }
+
+    /**
+     * Check if a GitHub token is configured
+     */
+    public function hasGitHubToken(): bool
+    {
+        return $this->githubToken !== '';
     }
 
     /**
@@ -314,17 +529,14 @@ class Updater
     /**
      * Make HTTP request to GitHub API with detailed logging
      */
-    private function makeGitHubRequest(string $url): ?array
+    private function makeGitHubRequest(string $url, bool $allowAuthRetry = true): ?array
     {
         $this->debugLog('DEBUG', 'Preparazione richiesta HTTP', [
             'url' => $url,
             'method' => 'GET'
         ]);
 
-        $headers = [
-            'User-Agent: Pinakes-Updater/1.0',
-            'Accept: application/vnd.github.v3+json'
-        ];
+        $headers = $this->getGitHubHeaders();
 
         $context = stream_context_create([
             'http' => [
@@ -340,7 +552,8 @@ class Updater
         ]);
 
         $this->debugLog('DEBUG', 'Context HTTP creato', [
-            'headers' => $headers,
+            'headers_count' => count($headers),
+            'authenticated' => $this->githubToken !== '',
             'timeout' => 30
         ]);
 
@@ -384,6 +597,20 @@ class Updater
         $this->debugLog('INFO', 'Status code HTTP', ['status' => $statusCode]);
 
         if ($statusCode >= 400) {
+            // Retry without token on 401/403 (invalid/revoked token shouldn't block updates)
+            if ($allowAuthRetry && $this->githubToken !== '' && in_array($statusCode, [401, 403], true)) {
+                $this->debugLog('WARNING', 'Auth GitHub fallita, retry senza token', [
+                    'status_code' => $statusCode,
+                ]);
+                $savedToken = $this->githubToken;
+                $this->githubToken = '';
+                try {
+                    return $this->makeGitHubRequest($url, false);
+                } finally {
+                    $this->githubToken = $savedToken;
+                }
+            }
+
             $this->debugLog('ERROR', 'GitHub API ha restituito errore', [
                 'status_code' => $statusCode,
                 'response' => $response,
@@ -481,7 +708,7 @@ class Updater
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => 10,
-                CURLOPT_HTTPHEADER => ['User-Agent: Pinakes-Updater/1.0'],
+                CURLOPT_HTTPHEADER => $this->getGitHubHeaders(),
                 CURLOPT_SSL_VERIFYPEER => true,
             ]);
             $curlResult = curl_exec($ch);
@@ -519,7 +746,7 @@ class Updater
                 CURLOPT_TIMEOUT => 30,
                 CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
-                CURLOPT_HTTPHEADER => ['Accept: application/vnd.github.v3+json'],
+                CURLOPT_HTTPHEADER => $this->getGitHubHeaders(),
                 CURLOPT_SSL_VERIFYPEER => true,
             ]);
 
@@ -529,6 +756,26 @@ class Updater
 
             if ($curlResult !== false && $httpCode >= 200 && $httpCode < 400) {
                 $response = $curlResult;
+            } elseif (in_array($httpCode, [401, 403], true) && $this->githubToken !== '') {
+                // Retry without token on auth failure
+                $this->debugLog('WARNING', 'Releases auth fallito, retry senza token', ['http_code' => $httpCode]);
+                $retryHeaders = $this->getGitHubHeaders('application/vnd.github.v3+json', false);
+                $ch2 = curl_init($url);
+                curl_setopt_array($ch2, [
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_TIMEOUT => 30,
+                    CURLOPT_CONNECTTIMEOUT => 10,
+                    CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
+                    CURLOPT_HTTPHEADER => $retryHeaders,
+                    CURLOPT_SSL_VERIFYPEER => true,
+                ]);
+                $retryResult = curl_exec($ch2);
+                $retryCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
+                curl_close($ch2);
+                if ($retryResult !== false && $retryCode >= 200 && $retryCode < 400) {
+                    $response = $retryResult;
+                }
             }
         }
 
@@ -537,16 +784,34 @@ class Updater
             $context = stream_context_create([
                 'http' => [
                     'method' => 'GET',
-                    'header' => [
-                        'User-Agent: Pinakes-Updater/1.0',
-                        'Accept: application/vnd.github.v3+json'
-                    ],
+                    'header' => $this->getGitHubHeaders(),
                     'timeout' => 30,
                     'ignore_errors' => true
                 ]
             ]);
 
             $response = @file_get_contents($url, false, $context);
+
+            // Retry without token on auth failure
+            /** @var array<int, string> $http_response_header */
+            $status = $this->extractFinalHttpStatus($http_response_header);
+            if (in_array($status, [401, 403], true) && $this->githubToken !== '') {
+                $savedToken = $this->githubToken;
+                $this->githubToken = '';
+                try {
+                    $context = stream_context_create([
+                        'http' => [
+                            'method' => 'GET',
+                            'header' => $this->getGitHubHeaders(),
+                            'timeout' => 30,
+                            'ignore_errors' => true
+                        ]
+                    ]);
+                    $response = @file_get_contents($url, false, $context);
+                } finally {
+                    $this->githubToken = $savedToken;
+                }
+            }
         }
 
         if (!is_string($response)) {
@@ -558,9 +823,10 @@ class Updater
 
         $releases = json_decode($response, true);
 
-        if (!is_array($releases)) {
+        if (!is_array($releases) || !array_is_list($releases)) {
             $this->debugLog('ERROR', 'Risposta releases non valida', [
-                'json_error' => json_last_error_msg()
+                'json_error' => json_last_error_msg(),
+                'message' => is_array($releases) ? ($releases['message'] ?? 'non-list array') : 'not array'
             ]);
             return [];
         }
@@ -660,7 +926,7 @@ class Updater
                     CURLOPT_TIMEOUT => 300,
                     CURLOPT_CONNECTTIMEOUT => 30,
                     CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
-                    CURLOPT_HTTPHEADER => ['Accept: application/octet-stream'],
+                    CURLOPT_HTTPHEADER => $this->getGitHubHeaders('application/octet-stream'),
                     CURLOPT_SSL_VERIFYPEER => true,
                     CURLOPT_BUFFERSIZE => 1024 * 1024, // 1MB buffer
                 ]);
@@ -681,11 +947,38 @@ class Updater
                 ]);
 
                 if ($curlErrno !== 0 || $httpCode >= 400) {
-                    $this->debugLog('WARNING', 'cURL fallito, tentativo con file_get_contents', [
-                        'error' => $curlError,
-                        'http_code' => $httpCode
-                    ]);
+                    // Treat HTTP error responses as failures (don't keep error body as valid content)
                     $fileContent = false;
+
+                    // Retry without token on auth failure before falling back
+                    if (in_array($httpCode, [401, 403], true) && $this->githubToken !== '') {
+                        $this->debugLog('WARNING', 'Download auth fallito, retry senza token', ['http_code' => $httpCode]);
+                        $retryHeaders = $this->getGitHubHeaders('application/octet-stream', false);
+                        $ch2 = curl_init($downloadUrl);
+                        curl_setopt_array($ch2, [
+                            CURLOPT_RETURNTRANSFER => true,
+                            CURLOPT_FOLLOWLOCATION => true,
+                            CURLOPT_MAXREDIRS => 10,
+                            CURLOPT_TIMEOUT => 300,
+                            CURLOPT_CONNECTTIMEOUT => 30,
+                            CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
+                            CURLOPT_HTTPHEADER => $retryHeaders,
+                            CURLOPT_SSL_VERIFYPEER => true,
+                        ]);
+                        $retryContent = curl_exec($ch2);
+                        $retryCode = (int)(curl_getinfo($ch2, CURLINFO_HTTP_CODE));
+                        curl_close($ch2);
+                        if ($retryContent !== false && $retryCode >= 200 && $retryCode < 400) {
+                            $fileContent = $retryContent;
+                        }
+                    }
+
+                    if ($fileContent === false) {
+                        $this->debugLog('WARNING', 'cURL fallito, tentativo con file_get_contents', [
+                            'error' => $curlError,
+                            'http_code' => $httpCode
+                        ]);
+                    }
                 }
             }
 
@@ -696,10 +989,7 @@ class Updater
                 $context = stream_context_create([
                     'http' => [
                         'method' => 'GET',
-                        'header' => [
-                            'User-Agent: Pinakes-Updater/1.0',
-                            'Accept: application/octet-stream'
-                        ],
+                        'header' => $this->getGitHubHeaders('application/octet-stream'),
                         'timeout' => 300,
                         'follow_location' => true,
                         'ignore_errors' => true
@@ -714,6 +1004,36 @@ class Updater
                     $this->debugLog('DEBUG', 'Response headers download', [
                         'headers' => $http_response_header
                     ]);
+                }
+
+                // Retry without token on auth failure
+                /** @var array<int, string> $http_response_header */
+                $dlStatus = $this->extractFinalHttpStatus($http_response_header);
+                if (in_array($dlStatus, [401, 403], true) && $this->githubToken !== '') {
+                    $savedToken = $this->githubToken;
+                    $this->githubToken = '';
+                    try {
+                        $context = stream_context_create([
+                            'http' => [
+                                'method' => 'GET',
+                                'header' => $this->getGitHubHeaders('application/octet-stream'),
+                                'timeout' => 300,
+                                'follow_location' => true,
+                                'ignore_errors' => true
+                            ]
+                        ]);
+                        $retryContent = @file_get_contents($downloadUrl, false, $context);
+                        /** @var array<int, string> $http_response_header */
+                        $retryStatus = $this->extractFinalHttpStatus($http_response_header);
+                        $fileContent = ($retryContent !== false && $retryStatus >= 200 && $retryStatus < 400)
+                            ? $retryContent
+                            : false;
+                    } finally {
+                        $this->githubToken = $savedToken;
+                    }
+                } elseif ($dlStatus >= 400) {
+                    $this->debugLog('ERROR', 'Download HTTP error', ['status' => $dlStatus]);
+                    $fileContent = false;
                 }
             }
 

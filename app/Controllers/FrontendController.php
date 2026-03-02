@@ -141,7 +141,7 @@ class FrontendController
                     FROM libri l
                     WHERE l.genere_id IN " . $inClause . " AND l.deleted_at IS NULL
                     ORDER BY l.created_at DESC
-                    LIMIT 4
+                    LIMIT 12
                 ";
                 $stmt_genre_books = $db->prepare($query_genre_books);
                 if ($stmt_genre_books === false) {
@@ -1294,22 +1294,55 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         $genre = $genreResult->fetch_assoc();
+        $genreId = (int) $genre['id'];
+
+        // Collect this genre + all descendants (any depth via BFS)
+        $visited = [$genreId => true];
+        $queue = [$genreId];
+        while (!empty($queue)) {
+            $placeholders = implode(',', array_fill(0, count($queue), '?'));
+            $descStmt = $db->prepare("SELECT id FROM generi WHERE parent_id IN ($placeholders)");
+            if ($descStmt === false) {
+                error_log('Failed to prepare descendant genre query: ' . $db->error);
+                return $response->withStatus(500);
+            }
+            $types = str_repeat('i', count($queue));
+            $descStmt->bind_param($types, ...$queue);
+            $descStmt->execute();
+            $descResult = $descStmt->get_result();
+            $queue = [];
+            while ($row = $descResult->fetch_assoc()) {
+                $childId = (int) $row['id'];
+                if (!isset($visited[$childId])) {
+                    $visited[$childId] = true;
+                    $queue[] = $childId;
+                }
+            }
+            $descStmt->close();
+        }
+
+        $genreIds = array_keys($visited);
+        $idPlaceholders = implode(',', array_fill(0, count($genreIds), '?'));
+        $idTypes = str_repeat('i', count($genreIds));
 
         // Count total books
         $countQuery = "
             SELECT COUNT(l.id) as total
             FROM libri l
-            JOIN generi g ON l.genere_id = g.id
-            WHERE g.nome = ? AND l.deleted_at IS NULL
+            WHERE l.genere_id IN ($idPlaceholders) AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
-        $stmt->bind_param('s', $genreName);
+        if ($stmt === false) {
+            error_log('Failed to prepare genre count query: ' . $db->error);
+            return $response->withStatus(500);
+        }
+        $stmt->bind_param($idTypes, ...$genreIds);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $totalBooks = $row['total'] ?? 0;
         $totalPages = ceil($totalBooks / $limit);
 
-        // Query per i libri del genere
+        // Query per i libri del genere e dei suoi discendenti
         $booksQuery = "
             SELECT l.*,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
@@ -1319,13 +1352,18 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             FROM libri l
             JOIN generi g ON l.genere_id = g.id
             LEFT JOIN editori e ON l.editore_id = e.id
-            WHERE g.nome = ? AND l.deleted_at IS NULL
+            WHERE l.genere_id IN ($idPlaceholders) AND l.deleted_at IS NULL
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
 
         $stmt = $db->prepare($booksQuery);
-        $stmt->bind_param('sii', $genreName, $limit, $offset);
+        if ($stmt === false) {
+            error_log('Failed to prepare genre books query: ' . $db->error);
+            return $response->withStatus(500);
+        }
+        $allParams = array_merge($genreIds, [$limit, $offset]);
+        $stmt->bind_param($idTypes . 'ii', ...$allParams);
         $stmt->execute();
         $result = $stmt->get_result();
 

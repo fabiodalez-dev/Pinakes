@@ -302,8 +302,9 @@ test.describe('Issue #63: Genre Pre-population on Edit', () => {
     const radiceValue = await page.locator('#radice_select').inputValue();
     expect(parseInt(radiceValue, 10)).toBe(0);
 
-    // Cleanup: delete the created book
-    dbQuery(`DELETE FROM libri WHERE id=${bookId}`);
+    // Cleanup: soft-delete the created book via admin API
+    const cleanupResp = await page.request.post(`${BASE}/admin/libri/elimina/${bookId}`);
+    expect([200, 204, 302]).toContain(cleanupResp.status());
   });
 });
 

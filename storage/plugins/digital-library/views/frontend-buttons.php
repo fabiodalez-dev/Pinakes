@@ -3,6 +3,8 @@
  * Digital Library Plugin - Frontend Buttons
  *
  * Renders download buttons for eBooks and audiobooks in the book detail page.
+ *
+ * @var array<string, mixed> $book
  */
 
 $hasEbook = !empty($book['file_url'] ?? '');
@@ -27,7 +29,7 @@ if (!$hasEbook && !$hasAudiobook) {
 <?php if ($hasAudiobook): ?>
 <button type="button"
         id="btn-toggle-audiobook"
-        class="btn btn-outline-success btn-lg"
+        class="btn btn-outline-dark btn-lg"
         title="<?= __("Ascolta l'audiobook") ?>">
     <i class="fas fa-headphones me-2"></i>
     <?= __("Ascolta Audiobook") ?>
@@ -49,16 +51,16 @@ if (!$hasEbook && !$hasAudiobook) {
     color: #ffffff;
 }
 
-.action-buttons .btn-outline-success {
-    color: var(--success-color) !important;
-    border-color: var(--success-color) !important;
+.action-buttons .btn-outline-dark {
+    color: #1e293b;
+    border-color: #1e293b;
     background: transparent;
 }
 
-.action-buttons .btn-outline-success:hover {
-    background: var(--success-color) !important;
-    border-color: var(--success-color) !important;
-    color: #ffffff !important;
+.action-buttons .btn-outline-dark:hover {
+    background: #1e293b;
+    border-color: #1e293b;
+    color: #ffffff;
 }
 </style>
 

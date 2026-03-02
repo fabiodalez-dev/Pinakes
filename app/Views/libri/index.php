@@ -86,10 +86,6 @@ $libri = $data['libri'];
           <a href="<?= htmlspecialchars(url('/admin/libri/crea'), ENT_QUOTES, 'UTF-8') ?>" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-700 rounded-lg transition-colors duration-200 inline-flex items-center text-sm">
             <i class="fas fa-plus mr-2"></i><?= __("Nuovo Libro") ?>
           </a>
-          <!-- Keyboard Shortcuts Help -->
-          <button id="shortcuts-help" class="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" title="<?= __('Scorciatoie da tastiera') ?>">
-            <i class="fas fa-keyboard"></i>
-          </button>
         </div>
       </div>
       <!-- Mobile Actions -->
@@ -350,56 +346,6 @@ $libri = $data['libri'];
   </div>
 </div>
 
-<!-- Keyboard Shortcuts Modal -->
-<div id="shortcuts-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-  <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
-    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
-      <h3 class="font-semibold text-gray-900 flex items-center gap-2">
-        <i class="fas fa-keyboard text-gray-500"></i>
-        <?= __("Scorciatoie da tastiera") ?>
-      </h3>
-      <button id="close-shortcuts" class="text-gray-400 hover:text-gray-600 transition-colors">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-    <div class="p-4 space-y-3">
-      <div class="flex items-center justify-between text-sm">
-        <span class="text-gray-600"><?= __("Nuova ricerca") ?></span>
-        <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">/</kbd>
-      </div>
-      <div class="flex items-center justify-between text-sm">
-        <span class="text-gray-600"><?= __("Nuovo libro") ?></span>
-        <div class="flex gap-1">
-          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Ctrl</kbd>
-          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">N</kbd>
-        </div>
-      </div>
-      <div class="flex items-center justify-between text-sm">
-        <span class="text-gray-600"><?= __("Cancella filtri") ?></span>
-        <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Esc</kbd>
-      </div>
-      <div class="flex items-center justify-between text-sm">
-        <span class="text-gray-600"><?= __("Seleziona tutti") ?></span>
-        <div class="flex gap-1">
-          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Ctrl</kbd>
-          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">A</kbd>
-        </div>
-      </div>
-      <div class="flex items-center justify-between text-sm">
-        <span class="text-gray-600"><?= __("Cambia vista") ?></span>
-        <div class="flex gap-1">
-          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Ctrl</kbd>
-          <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
-        </div>
-      </div>
-      <div class="flex items-center justify-between text-sm">
-        <span class="text-gray-600"><?= __("Mostra questa guida") ?></span>
-        <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">?</kbd>
-      </div>
-    </div>
-  </div>
-</div>
-
 <script>
 window.i18nLocale = <?= json_encode(\App\Support\I18n::getLocale(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
@@ -623,6 +569,28 @@ document.addEventListener('DOMContentLoaded', function() {
     searching: false,
     stateSave: true,
     stateDuration: 60 * 60 * 24,
+    stateLoadCallback: function(settings) {
+      // When URL filters are active, reset saved pagination to page 1
+      // to avoid "Showing 2501 to 44 of 44" when saved state had a high page offset
+      const hasUrlFilter = initialKeywords || initialCollana || initialGenere || initialSottogenere;
+      let raw = null;
+      try {
+        raw = localStorage.getItem('DataTables_libri-table_' + window.location.pathname);
+      } catch {
+        return null;
+      }
+      if (!raw) return null;
+      let state = null;
+      try {
+        state = JSON.parse(raw);
+      } catch {
+        return null;
+      }
+      if (hasUrlFilter && state) {
+        state.start = 0;
+      }
+      return state;
+    },
     dom: '<"top"l>rt<"bottom"ip><"clear">',
     deferRender: true,
     ajax: {
@@ -814,7 +782,7 @@ document.addEventListener('DOMContentLoaded', function() {
     order: [[3, 'asc']],
     pageLength: 25,
     lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-    language: (window.i18nLocale === 'en_US' ? window.DT_LANG_EN : window.DT_LANG_IT),
+    language: typeof window.getDtLanguage === 'function' ? window.getDtLanguage() : {},
     drawCallback: function() {
       // Reattach checkbox handlers
       document.querySelectorAll('.row-select').forEach(cb => {
@@ -1268,11 +1236,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (e.key === '/') {
       e.preventDefault();
       document.getElementById('search_text').focus();
-    } else if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
-      e.preventDefault();
-      document.getElementById('shortcuts-modal').classList.remove('hidden');
     } else if (e.key === 'Escape') {
-      document.getElementById('shortcuts-modal').classList.add('hidden');
       document.getElementById('clear-filters').click();
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
       e.preventDefault();
@@ -1284,16 +1248,6 @@ document.addEventListener('DOMContentLoaded', function() {
       e.preventDefault();
       setView(currentView === 'table' ? 'grid' : 'table');
     }
-  });
-
-  document.getElementById('shortcuts-help').addEventListener('click', () => {
-    document.getElementById('shortcuts-modal').classList.remove('hidden');
-  });
-  document.getElementById('close-shortcuts').addEventListener('click', () => {
-    document.getElementById('shortcuts-modal').classList.add('hidden');
-  });
-  document.getElementById('shortcuts-modal').addEventListener('click', function(e) {
-    if (e.target === this) this.classList.add('hidden');
   });
 
   // Delete book

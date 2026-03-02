@@ -342,6 +342,28 @@ class BookRepository
         if ($this->hasColumn('stato')) {
             $addField('stato', 's', $stato);
         }
+        if ($this->hasColumn('lingua')) {
+            $addField('lingua', 's', $data['lingua'] ?? null);
+        }
+        if ($this->hasColumn('anno_pubblicazione')) {
+            $annoRaw = $data['anno_pubblicazione'] ?? null;
+            $anno = filter_var($annoRaw, FILTER_VALIDATE_INT);
+            $addField('anno_pubblicazione', 'i', $anno === false ? null : $anno);
+        }
+        if ($this->hasColumn('edizione')) {
+            $addField('edizione', 's', $data['edizione'] ?? null);
+        }
+        if ($this->hasColumn('traduttore')) {
+            $addField('traduttore', 's', $data['traduttore'] ?? null);
+        }
+        if ($this->hasColumn('illustratore')) {
+            $addField('illustratore', 's', $data['illustratore'] ?? null);
+        }
+        if ($this->hasColumn('numero_pagine')) {
+            $numPagineRaw = $data['numero_pagine'] ?? null;
+            $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $addField('numero_pagine', 'i', $numPagine === false ? null : $numPagine);
+        }
 
         // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)
         if ($this->hasColumn('review')) {
@@ -646,6 +668,28 @@ class BookRepository
         if ($this->hasColumn('stato')) {
             $addSet('stato', 's', $stato);
         }
+        if ($this->hasColumn('lingua')) {
+            $addSet('lingua', 's', $data['lingua'] ?? null);
+        }
+        if ($this->hasColumn('anno_pubblicazione')) {
+            $annoRaw = $data['anno_pubblicazione'] ?? null;
+            $anno = filter_var($annoRaw, FILTER_VALIDATE_INT);
+            $addSet('anno_pubblicazione', 'i', $anno === false ? null : $anno);
+        }
+        if ($this->hasColumn('edizione')) {
+            $addSet('edizione', 's', $data['edizione'] ?? null);
+        }
+        if ($this->hasColumn('traduttore')) {
+            $addSet('traduttore', 's', $data['traduttore'] ?? null);
+        }
+        if ($this->hasColumn('illustratore')) {
+            $addSet('illustratore', 's', $data['illustratore'] ?? null);
+        }
+        if ($this->hasColumn('numero_pagine')) {
+            $numPagineRaw = $data['numero_pagine'] ?? null;
+            $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            $addSet('numero_pagine', 'i', $numPagine === false ? null : $numPagine);
+        }
 
         // LibraryThing plugin fields (28 unique - includes dewey_wording, entry_date, barcode)
         if ($this->hasColumn('review')) {
@@ -913,12 +957,27 @@ class BookRepository
         $cols = [];
         foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'collana', 'edizione'] as $c) {
             if ($this->hasColumn($c) && array_key_exists($c, $data) && $data[$c] !== '' && $data[$c] !== null) {
-                $cols[$c] = $data[$c];
+                if ($c === 'numero_pagine') {
+                    $validated = filter_var($data[$c], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+                    if ($validated !== false) {
+                        $cols[$c] = $validated;
+                    }
+                } elseif ($c === 'anno_pubblicazione') {
+                    $validated = filter_var($data[$c], FILTER_VALIDATE_INT);
+                    if ($validated !== false) {
+                        $cols[$c] = $validated;
+                    }
+                } else {
+                    $cols[$c] = $data[$c];
+                }
             }
         }
         // Map scraped_* into columns if present
         if ($this->hasColumn('numero_pagine') && !isset($cols['numero_pagine']) && !empty($data['scraped_pages'])) {
-            $cols['numero_pagine'] = (int) $data['scraped_pages'];
+            $validated = filter_var($data['scraped_pages'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($validated !== false) {
+                $cols['numero_pagine'] = $validated;
+            }
         }
         if ($this->hasColumn('ean') && !isset($cols['ean']) && !empty($data['scraped_ean'])) {
             $cols['ean'] = (string) $data['scraped_ean'];

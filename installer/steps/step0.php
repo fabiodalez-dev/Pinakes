@@ -8,18 +8,19 @@
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['language'])) {
     $selectedLanguage = $_POST['language'];
 
-    // Validate language
-    // Supported languages:
-    // - it     -> Italian (default)
-    // - en_US  -> English (matches app I18n + en_US.json)
-    $allowedLanguages = ['it', 'en_US'];
+    // Validate language — use canonical locale codes (it_IT, en_US, de_DE)
+    $allowedLanguages = ['it_IT', 'en_US', 'de_DE'];
     if (!in_array($selectedLanguage, $allowedLanguages, true)) {
-        $selectedLanguage = 'it'; // Fallback to Italian
+        $selectedLanguage = 'it_IT'; // Fallback to Italian
     }
- 
+
     // Save language to session
     // installer_language is a simple flag used in the UI
-    $_SESSION['installer_language'] = $selectedLanguage === 'en_US' ? 'en' : 'it';
+    $_SESSION['installer_language'] = match($selectedLanguage) {
+        'en_US' => 'en',
+        'de_DE' => 'de',
+        default => 'it',
+    };
     // app_locale is used by the installer __() helper and must match I18n locale codes
     $_SESSION['app_locale'] = $selectedLanguage;
 
@@ -40,24 +41,23 @@ renderHeader(0, 'Selezione Lingua');
 <div style="text-align: center; padding: 40px 20px;">
     <div style="font-size: 64px; margin-bottom: 30px;">🌍</div>
 
-    <h2 class="step-title">Seleziona la Lingua / Select Language</h2>
+    <h2 class="step-title">Seleziona la Lingua / Select Language / Sprache wählen</h2>
     <p class="step-description" style="max-width: 600px; margin: 0 auto 40px;">
         Scegli la lingua per l'installazione e per l'applicazione.<br>
-        Questa sarà la lingua predefinita per tutti gli utenti.<br><br>
         Choose the language for installation and application.<br>
-        This will be the default language for all users.
+        Wählen Sie die Sprache für die Installation und die Anwendung.
     </p>
 
     <form method="POST" action="index.php?step=0" style="max-width: 500px; margin: 0 auto;">
         <div style="display: grid; gap: 20px; margin-bottom: 40px;">
             <!-- Italian Option -->
-            <label class="language-option <?= $currentLanguage === 'it' ? 'selected' : '' ?>">
+            <label class="language-option <?= ($currentLanguage === 'it' || $currentLanguage === 'it_IT') ? 'selected' : '' ?>">
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <input
                         type="radio"
                         name="language"
-                        value="it"
-                        <?= $currentLanguage === 'it' ? 'checked' : '' ?>
+                        value="it_IT"
+                        <?= ($currentLanguage === 'it' || $currentLanguage === 'it_IT') ? 'checked' : '' ?>
                         class="language-radio"
                     >
                     <svg width="48" height="24" viewBox="0 0 60 30" style="border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);" aria-hidden="true" focusable="false">
@@ -106,10 +106,36 @@ renderHeader(0, 'Selezione Lingua');
                     </div>
                 </div>
             </label>
+
+            <!-- German Option -->
+            <label class="language-option <?= $currentLanguage === 'de' ? 'selected' : '' ?>">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <input
+                        type="radio"
+                        name="language"
+                        value="de_DE"
+                        <?= $currentLanguage === 'de' ? 'checked' : '' ?>
+                        class="language-radio"
+                    >
+                    <svg width="48" height="24" viewBox="0 0 60 30" style="border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.15);" aria-hidden="true" focusable="false">
+                        <rect width="60" height="10" fill="#000"/>
+                        <rect y="10" width="60" height="10" fill="#dd0000"/>
+                        <rect y="20" width="60" height="10" fill="#ffcc00"/>
+                    </svg>
+                    <div style="text-align: left; flex: 1;">
+                        <div style="font-size: 18px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">
+                            Deutsch
+                        </div>
+                        <div style="font-size: 13px; color: #64748b;">
+                            Standardsprache für die gesamte Anwendung
+                        </div>
+                    </div>
+                </div>
+            </label>
         </div>
 
         <button type="submit" class="btn btn-primary btn-lg">
-            <?= $currentLanguage === 'it' ? 'Continua' : 'Continue' ?> <i class="fas fa-arrow-right"></i>
+            <?= match($currentLanguage) { 'en' => 'Continue', 'de' => 'Weiter', default => 'Continua' } ?> <i class="fas fa-arrow-right"></i>
         </button>
     </form>
 </div>

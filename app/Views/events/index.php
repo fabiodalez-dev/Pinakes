@@ -6,8 +6,13 @@ use App\Support\HtmlHelper;
 use App\Support\Csrf;
 
 $locale = $_SESSION['locale'] ?? 'it_IT';
-$dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
-$timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
+if (class_exists('IntlDateFormatter')) {
+    $dateFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::LONG, \IntlDateFormatter::NONE);
+    $timeFormatter = new \IntlDateFormatter($locale, \IntlDateFormatter::NONE, \IntlDateFormatter::SHORT);
+} else {
+    $dateFormatter = null;
+    $timeFormatter = null;
+}
 
 $createDateTime = static function (?string $value, array $formats = []) {
   if (!$value) {
@@ -28,13 +33,25 @@ $createDateTime = static function (?string $value, array $formats = []) {
   }
 };
 
-$formatEventDate = static function (?string $value) use ($dateFormatter, $createDateTime) {
+$fallbackDateFormat = match (strtolower(substr($locale, 0, 2))) {
+    'de' => 'd.m.Y',
+    'it' => 'd/m/Y',
+    default => 'Y-m-d',
+};
+
+$formatEventDate = static function (?string $value) use ($dateFormatter, $createDateTime, $fallbackDateFormat) {
   $dateTime = $createDateTime($value, ['Y-m-d']);
   if (!$dateTime) {
     return (string) $value;
   }
 
-  return $dateFormatter->format($dateTime);
+  if ($dateFormatter) {
+      $formatted = $dateFormatter->format($dateTime);
+      if ($formatted !== false) {
+          return $formatted;
+      }
+  }
+  return $dateTime->format($fallbackDateFormat);
 };
 
 $formatEventTime = static function (?string $value) use ($timeFormatter, $createDateTime) {
@@ -43,7 +60,13 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
     return (string) $value;
   }
 
-  return $timeFormatter->format($dateTime);
+  if ($timeFormatter) {
+      $formatted = $timeFormatter->format($dateTime);
+      if ($formatted !== false) {
+          return $formatted;
+      }
+  }
+  return $dateTime->format('H:i');
 };
 ?>
 
