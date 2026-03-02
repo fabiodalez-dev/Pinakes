@@ -957,12 +957,22 @@ class BookRepository
         $cols = [];
         foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'collana', 'edizione'] as $c) {
             if ($this->hasColumn($c) && array_key_exists($c, $data) && $data[$c] !== '' && $data[$c] !== null) {
-                $cols[$c] = $data[$c];
+                if ($c === 'numero_pagine') {
+                    $validated = filter_var($data[$c], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+                    if ($validated !== false) {
+                        $cols[$c] = $validated;
+                    }
+                } else {
+                    $cols[$c] = $data[$c];
+                }
             }
         }
         // Map scraped_* into columns if present
         if ($this->hasColumn('numero_pagine') && !isset($cols['numero_pagine']) && !empty($data['scraped_pages'])) {
-            $cols['numero_pagine'] = (int) $data['scraped_pages'];
+            $validated = filter_var($data['scraped_pages'], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+            if ($validated !== false) {
+                $cols['numero_pagine'] = $validated;
+            }
         }
         if ($this->hasColumn('ean') && !isset($cols['ean']) && !empty($data['scraped_ean'])) {
             $cols['ean'] = (string) $data['scraped_ean'];

@@ -1023,6 +1023,9 @@ class Updater
                     } finally {
                         $this->githubToken = $savedToken;
                     }
+                } elseif ($dlStatus >= 400) {
+                    $this->debugLog('ERROR', 'Download HTTP error', ['status' => $dlStatus]);
+                    $fileContent = false;
                 }
             }
 

@@ -284,11 +284,24 @@ if ($requestMethod === 'POST' && isset($_POST['password'])) {
 
 $authenticated = !empty($_SESSION['upgrade_auth']);
 
+// Generate CSRF token for the upgrade form
+if ($authenticated && empty($_SESSION['upgrade_csrf'])) {
+    $_SESSION['upgrade_csrf'] = bin2hex(random_bytes(32));
+}
+
 // ============================================================
 // PERFORM UPGRADE
 // ============================================================
 
 if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
+    // CSRF validation
+    $submittedToken = $_POST['csrf_token'] ?? '';
+    if (!hash_equals($_SESSION['upgrade_csrf'] ?? '', $submittedToken)) {
+        $error = 'Token CSRF non valido. Ricarica la pagina e riprova.';
+        goto render;
+    }
+    // Regenerate token after use
+    $_SESSION['upgrade_csrf'] = bin2hex(random_bytes(32));
     $log[] = '=== Pinakes Manual Upgrade — ' . date('Y-m-d H:i:s') . ' ===';
 
     try {
@@ -684,6 +697,7 @@ if (is_file($versionFile)) {
     $currentVersion = $vj['version'] ?? '?';
 }
 
+render:
 ?><!DOCTYPE html>
 <html lang="it">
 <head>
@@ -753,6 +767,7 @@ if (is_file($versionFile)) {
             </div>
 
             <form method="post" enctype="multipart/form-data">
+                <input type="hidden" name="csrf_token" value="<?= h($_SESSION['upgrade_csrf'] ?? '') ?>">
                 <label for="zipfile">Pacchetto di aggiornamento (.zip)</label>
                 <input type="file" name="zipfile" id="zipfile" accept=".zip" required>
 

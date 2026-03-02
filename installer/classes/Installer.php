@@ -1029,10 +1029,14 @@ HTACCESS;
             [$hostOnly, $portPart] = explode(':', $host, 2);
             $host = $hostOnly;
             $port = is_numeric($portPart) ? (int)$portPart : null;
-        } elseif (!empty($_SERVER['HTTP_X_FORWARDED_PORT'])) {
-            $port = (int)$_SERVER['HTTP_X_FORWARDED_PORT'];
-        } elseif (isset($_SERVER['SERVER_PORT']) && is_numeric((string)$_SERVER['SERVER_PORT'])) {
-            $port = (int)$_SERVER['SERVER_PORT'];
+        }
+
+        if ($port === null) {
+            if (!empty($_SERVER['HTTP_X_FORWARDED_PORT'])) {
+                $port = (int)$_SERVER['HTTP_X_FORWARDED_PORT'];
+            } elseif (isset($_SERVER['SERVER_PORT']) && is_numeric((string)$_SERVER['SERVER_PORT'])) {
+                $port = (int)$_SERVER['SERVER_PORT'];
+            }
         }
 
         $base = $scheme . '://' . $host;

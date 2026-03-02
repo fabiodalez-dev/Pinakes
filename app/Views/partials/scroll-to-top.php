@@ -25,7 +25,8 @@
   var visible = false;
   btn.setAttribute('aria-hidden', 'true');
   btn.tabIndex = -1;
-  window.addEventListener('scroll', function() {
+
+  function updateVisibility() {
     var show = window.scrollY > 400;
     if (show !== visible) {
       visible = show;
@@ -34,7 +35,10 @@
       btn.setAttribute('aria-hidden', show ? 'false' : 'true');
       btn.tabIndex = show ? 0 : -1;
     }
-  }, { passive: true });
+  }
+
+  updateVisibility();
+  window.addEventListener('scroll', updateVisibility, { passive: true });
 
   btn.addEventListener('click', function() {
     window.scrollTo({ top: 0, behavior: 'smooth' });

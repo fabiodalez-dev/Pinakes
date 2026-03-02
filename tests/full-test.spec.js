@@ -46,7 +46,7 @@ const state = {
 // Helpers
 // ════════════════════════════════════════════════════════════════════════
 
-/** Execute a MySQL query and return trimmed output (injection-safe, no shell). */
+/** Execute a MySQL query and return trimmed output (shell-safe via execFileSync). */
 function dbQuery(sql) {
   const args = ['-N', '-B', '-e', sql];
   if (DB_HOST) args.push('-h', DB_HOST);
