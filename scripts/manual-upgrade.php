@@ -257,13 +257,27 @@ $log = [];
 
 $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
+$maxAttempts = 5;
+$lockSeconds = 300;
+$_SESSION['upgrade_failed_attempts'] = (int) ($_SESSION['upgrade_failed_attempts'] ?? 0);
+$_SESSION['upgrade_lock_until'] = (int) ($_SESSION['upgrade_lock_until'] ?? 0);
+
 if ($requestMethod === 'POST' && isset($_POST['password'])) {
-    if (hash_equals('pinakes2026', UPGRADE_PASSWORD)) {
+    if (time() < $_SESSION['upgrade_lock_until']) {
+        $error = 'Troppi tentativi. Riprova tra qualche minuto.';
+    } elseif (hash_equals('pinakes2026', UPGRADE_PASSWORD)) {
         $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
     } elseif (hash_equals(UPGRADE_PASSWORD, (string) $_POST['password'])) {
         session_regenerate_id(true);
         $_SESSION['upgrade_auth'] = true;
+        $_SESSION['upgrade_failed_attempts'] = 0;
+        $_SESSION['upgrade_lock_until'] = 0;
     } else {
+        $_SESSION['upgrade_failed_attempts']++;
+        if ($_SESSION['upgrade_failed_attempts'] >= $maxAttempts) {
+            $_SESSION['upgrade_lock_until'] = time() + $lockSeconds;
+            $_SESSION['upgrade_failed_attempts'] = 0;
+        }
         $error = 'Password errata.';
     }
 }

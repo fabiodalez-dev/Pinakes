@@ -1375,45 +1375,41 @@ function initializeChoicesJS() {
             createAuthorFromInputWithValue(rawValue);
         };
 
-        // Override Choices.js _onEnterKey to handle new author creation.
-        // Choices.js v11 registers its keydown handler in capture phase on the
-        // outer wrapper, so it fires BEFORE any handler on the inner input.
-        // The only reliable way to intercept is to replace _onEnterKey itself.
-        if (typeof authorsChoice._onEnterKey === 'function') {
-            const originalOnEnterKey = authorsChoice._onEnterKey.bind(authorsChoice);
-            authorsChoice._onEnterKey = function(event, hasActiveDropdown) {
-                if (internalInput) {
-                    const inputValue = internalInput.value.trim();
-                    if (inputValue) {
-                        const dd = wrapper ? wrapper.querySelector('.choices__list--dropdown') : null;
-                        const highlighted = dd ? dd.querySelector('.choices__item--selectable.is-highlighted') : null;
+        // Handle Enter key for new author creation using public DOM events.
+        // Uses capture-phase keydown on the wrapper so it fires before Choices.js
+        // internal handlers, without relying on private _onEnterKey API.
+        const handleAuthorEnter = (event) => {
+            if (event.key !== 'Enter' || !internalInput) return;
+            const inputValue = internalInput.value.trim();
+            if (!inputValue) return;
 
-                        if (!highlighted) {
-                            // No highlighted item (no search results or empty dropdown)
-                            // — create new author directly
-                            event.preventDefault();
-                            createAuthorFromInputWithValue(inputValue);
-                            return;
-                        }
+            const dd = wrapper ? wrapper.querySelector('.choices__list--dropdown') : null;
+            const highlighted = dd ? dd.querySelector('.choices__item--selectable.is-highlighted') : null;
 
-                        // There IS a highlighted item — check if it matches what was typed
-                        const nameEl = highlighted.querySelector('.choices__item-text') || highlighted.childNodes[0];
-                        const highlightedText = (nameEl ? nameEl.textContent : highlighted.textContent).trim().toLowerCase();
-                        const currentText = inputValue.toLowerCase();
+            if (!highlighted) {
+                // No highlighted item — create new author directly
+                event.preventDefault();
+                event.stopPropagation();
+                createAuthorFromInputWithValue(inputValue);
+                return;
+            }
 
-                        if (highlightedText !== currentText && !highlightedText.startsWith(currentText)) {
-                            // Input doesn't match highlighted item — create new author
-                            event.preventDefault();
-                            createAuthorFromInputWithValue(inputValue);
-                            return;
-                        }
-                        // Highlighted text matches input — fall through to let Choices.js select it
-                    }
-                }
-                return originalOnEnterKey(event, hasActiveDropdown);
-            };
-        } else {
-            console.warn('Choices.js _onEnterKey not available; author creation on Enter disabled.');
+            // There IS a highlighted item — check if it matches what was typed
+            const nameEl = highlighted.querySelector('.choices__item-text') || highlighted.childNodes[0];
+            const highlightedText = (nameEl ? nameEl.textContent : highlighted.textContent).trim().toLowerCase();
+            const currentText = inputValue.toLowerCase();
+
+            if (highlightedText !== currentText && !highlightedText.startsWith(currentText)) {
+                // Input doesn't match highlighted item — create new author
+                event.preventDefault();
+                event.stopPropagation();
+                createAuthorFromInputWithValue(inputValue);
+            }
+            // Highlighted text matches input — let Choices.js handle the selection
+        };
+
+        if (wrapper) {
+            wrapper.addEventListener('keydown', handleAuthorEnter, true);
         }
 
         element.addEventListener('addItem', function(event) {

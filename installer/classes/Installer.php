@@ -1020,7 +1020,12 @@ HTACCESS;
         }
 
         $port = null;
-        if (str_contains($host, ':')) {
+        if (preg_match('/^\[(.+)\](?::(\d+))?$/', $host, $matches)) {
+            // Bracketed IPv6 literal, optionally with port
+            $host = '[' . $matches[1] . ']';
+            $port = isset($matches[2]) ? (int) $matches[2] : null;
+        } elseif (substr_count($host, ':') === 1) {
+            // hostname:port or IPv4:port
             [$hostOnly, $portPart] = explode(':', $host, 2);
             $host = $hostOnly;
             $port = is_numeric($portPart) ? (int)$portPart : null;

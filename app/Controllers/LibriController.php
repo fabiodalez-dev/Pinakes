@@ -637,7 +637,9 @@ class LibriController
         $fields['posizione_id'] = null;
         $fields['peso'] = $fields['peso'] !== null && $fields['peso'] !== '' ? (float) $fields['peso'] : null;
         $fields['prezzo'] = $fields['prezzo'] !== null && $fields['prezzo'] !== '' ? (float) $fields['prezzo'] : null;
-        $fields['numero_pagine'] = $fields['numero_pagine'] !== null && $fields['numero_pagine'] !== '' ? max(1, (int) $fields['numero_pagine']) : null;
+        $numPagineRaw = $fields['numero_pagine'] ?? null;
+        $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $fields['numero_pagine'] = ($numPagine === false) ? null : $numPagine;
         if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
         } else {
@@ -1163,7 +1165,9 @@ class LibriController
         $fields['posizione_id'] = null;
         $fields['peso'] = $fields['peso'] !== null && $fields['peso'] !== '' ? (float) $fields['peso'] : null;
         $fields['prezzo'] = $fields['prezzo'] !== null && $fields['prezzo'] !== '' ? (float) $fields['prezzo'] : null;
-        $fields['numero_pagine'] = $fields['numero_pagine'] !== null && $fields['numero_pagine'] !== '' ? max(1, (int) $fields['numero_pagine']) : null;
+        $numPagineRaw = $fields['numero_pagine'] ?? null;
+        $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+        $fields['numero_pagine'] = ($numPagine === false) ? null : $numPagine;
 
         // Gestione rimozione copertina
         if (isset($data['remove_cover']) && $data['remove_cover'] === '1') {

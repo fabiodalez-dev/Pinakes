@@ -1303,7 +1303,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             $placeholders = implode(',', array_fill(0, count($queue), '?'));
             $descStmt = $db->prepare("SELECT id FROM generi WHERE parent_id IN ($placeholders)");
             if ($descStmt === false) {
-                return $this->render404($response);
+                error_log('Failed to prepare descendant genre query: ' . $db->error);
+                return $response->withStatus(500);
             }
             $types = str_repeat('i', count($queue));
             $descStmt->bind_param($types, ...$queue);
@@ -1332,7 +1333,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         ";
         $stmt = $db->prepare($countQuery);
         if ($stmt === false) {
-            return $this->render404($response);
+            error_log('Failed to prepare genre count query: ' . $db->error);
+            return $response->withStatus(500);
         }
         $stmt->bind_param($idTypes, ...$genreIds);
         $stmt->execute();
@@ -1357,7 +1359,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
         $stmt = $db->prepare($booksQuery);
         if ($stmt === false) {
-            return $this->render404($response);
+            error_log('Failed to prepare genre books query: ' . $db->error);
+            return $response->withStatus(500);
         }
         $allParams = array_merge($genreIds, [$limit, $offset]);
         $stmt->bind_param($idTypes . 'ii', ...$allParams);

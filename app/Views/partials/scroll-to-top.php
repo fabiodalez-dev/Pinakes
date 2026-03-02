@@ -2,8 +2,9 @@
 (function() {
   var btn = document.createElement('button');
   btn.id = 'scroll-to-top';
-  btn.setAttribute('aria-label', '<?= __('Torna su') ?>');
-  btn.setAttribute('title', '<?= __('Torna su') ?>');
+  var scrollToTopLabel = <?= json_encode(__('Torna su'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+  btn.setAttribute('aria-label', scrollToTopLabel);
+  btn.setAttribute('title', scrollToTopLabel);
   var icon = document.createElement('i');
   icon.className = 'fas fa-chevron-up text-sm';
   btn.appendChild(icon);

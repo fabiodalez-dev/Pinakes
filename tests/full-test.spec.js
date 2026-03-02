@@ -1998,12 +1998,12 @@ test.describe.serial('Phase 17: Frontend Search', () => {
   });
 
   test('17.4 Genre browsing (#71)', async () => {
-    // Get a genre ID from API
+    // Get a genre name from API (catalog filters by g.nome, not id)
     const resp = await page.request.get(`${BASE}/api/generi?limit=5`);
     if (resp.ok()) {
       const genres = await resp.json();
-      if (genres.length > 0) {
-        await page.goto(`${BASE}/catalogo?genere=${genres[0].id}`);
+      if (genres.length > 0 && genres[0].nome) {
+        await page.goto(`${BASE}/catalogo?genere=${encodeURIComponent(genres[0].nome)}`);
         await page.waitForLoadState('networkidle');
         await expect(page.locator('body')).not.toBeEmpty();
       }
@@ -2270,7 +2270,8 @@ test.describe.serial('Phase 19: Security', () => {
     await page.waitForLoadState('networkidle');
 
     // Should be 404 or redirect — not show the deleted book (accept 3xx and 4xx+)
-    expect(resp.status()).not.toBe(200);
+    const status = resp?.status() ?? 0;
+    expect(status).not.toBe(200);
 
     // Verify not in API results
     const apiResp = await page.request.get(
