@@ -3,6 +3,8 @@
  * Digital Library Plugin - Audio Player
  *
  * Renders Green Audio Player for audiobook playback.
+ *
+ * @var array<string, mixed> $book
  */
 
 if (empty($book['audio_url'] ?? '')) {
@@ -19,7 +21,7 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8
             <!-- Header -->
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <h5 class="card-title mb-0 d-flex align-items-center gap-2">
-                    <i class="fas fa-play-circle" style="font-size: 1.5rem; color: var(--success-color) !important;"></i>
+                    <i class="fas fa-play-circle" style="font-size: 1.5rem; color: #1e293b;"></i>
                     <span class="fw-bold"><?= __("Audiobook") ?></span>
                 </h5>
                 <button type="button"
@@ -76,13 +78,13 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'Audiobook', ENT_QUOTES, 'UTF-8
  * Enables OS-level controls (lock screen, media keys, notifications)
  */
 document.addEventListener('DOMContentLoaded', function() {
-    const audioEl = document.querySelector('.player-digital-library audio');
-    if (!audioEl) return;
+    var preInitAudio = document.querySelector('.player-digital-library audio');
+    if (!preInitAudio) return;
 
     // Wait for Green Audio Player to be available
     if (typeof GreenAudioPlayer === 'undefined') {
         console.warn('Green Audio Player not loaded - using native controls');
-        audioEl.controls = true;
+        preInitAudio.controls = true;
         return;
     }
 
@@ -96,7 +98,42 @@ document.addEventListener('DOMContentLoaded', function() {
             showDownloadButton: false // We have our own download button
         });
 
+        // Re-query audio element — GAP.init() replaces innerHTML, destroying the original node
+        var audioEl = document.querySelector('.player-digital-library audio');
+
         console.log('✓ Green Audio Player initialized successfully');
+
+        // === Global keyboard shortcuts (active when player is visible) ===
+        document.addEventListener('keydown', function(e) {
+            var container = document.getElementById('audiobook-player-container');
+            if (!container || container.style.display === 'none') return;
+            // Skip if user is typing in an input/textarea
+            var tag = (document.activeElement || {}).tagName;
+            if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+            switch (e.key) {
+                case 'ArrowLeft':
+                    audioEl.currentTime = Math.max(audioEl.currentTime - 5, 0);
+                    e.preventDefault();
+                    break;
+                case 'ArrowRight':
+                    if (audioEl.duration) audioEl.currentTime = Math.min(audioEl.currentTime + 5, audioEl.duration);
+                    e.preventDefault();
+                    break;
+                case 'ArrowUp':
+                    audioEl.volume = Math.min(audioEl.volume + 0.05, 1);
+                    e.preventDefault();
+                    break;
+                case 'ArrowDown':
+                    audioEl.volume = Math.max(audioEl.volume - 0.05, 0);
+                    e.preventDefault();
+                    break;
+                case ' ':
+                    if (audioEl.paused) { audioEl.play(); } else { audioEl.pause(); }
+                    e.preventDefault();
+                    break;
+            }
+        });
 
         // === Media Session API Integration ===
         if ('mediaSession' in navigator) {
@@ -182,40 +219,82 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 
 <style>
-/* Green Audio Player Custom Styling */
+/* Audio Player — Black & White Theme */
 .player-digital-library {
     margin: 0;
 }
 
-.player-digital-library .player {
+.player-digital-library.green-audio-player {
     box-shadow: none;
     border-radius: 12px;
     background: #f8f9fa;
     border: 1px solid #e5e7eb;
 }
 
-.player-digital-library .play-pause-btn {
-    background-color: var(--success-color) !important;
+/* Circular play button with triangle inside */
+.player-digital-library .holder .play-pause-btn {
+    width: 40px;
+    height: 40px;
+    background: #1e293b;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s ease;
 }
 
-.player-digital-library .play-pause-btn:hover {
-    background-color: var(--success-color) !important;
-    opacity: 0.9;
+.player-digital-library .holder .play-pause-btn:hover {
+    background: #334155;
 }
 
+.player-digital-library .holder .play-pause-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.player-digital-library .holder .play-pause-btn svg path {
+    fill: #fff;
+}
+
+/* Progress bar */
 .player-digital-library .slider .gap-progress {
-    background-color: var(--success-color) !important;
+    background-color: #1e293b !important;
 }
 
 .player-digital-library .controls__slider {
     background-color: #e5e7eb;
 }
 
-#audiobook-player-container .btn-success,
+.player-digital-library .pin {
+    background-color: #1e293b !important;
+}
+
+/* Time labels */
+.player-digital-library .controls__current-time,
+.player-digital-library .controls__total-time {
+    color: #475569;
+}
+
+/* Volume icon */
+.player-digital-library .volume__speaker {
+    fill: #475569;
+}
+
+.player-digital-library .volume__progress {
+    background-color: #1e293b !important;
+}
+
+/* Download button */
+#audiobook-player-container .btn-success {
+    background-color: #1e293b !important;
+    border-color: #1e293b !important;
+    color: #fff;
+}
+
 #audiobook-player-container .btn-success:hover,
 #audiobook-player-container .btn-success:focus {
-    background-color: var(--success-color) !important;
-    border-color: var(--success-color) !important;
+    background-color: #334155 !important;
+    border-color: #334155 !important;
 }
 
 /* Card Styling */

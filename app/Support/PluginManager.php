@@ -69,24 +69,40 @@ class PluginManager
                 continue;
             }
 
-            // Check if already registered
-            $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ?");
-            $stmt->bind_param('s', $pluginName);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            $exists = $result->num_rows > 0;
-            $stmt->close();
-
-            if ($exists) {
-                continue; // Already registered
-            }
-
             // Read plugin.json
             $json = file_get_contents($jsonPath);
             $pluginMeta = json_decode($json, true);
 
             if (!$pluginMeta || empty($pluginMeta['name'])) {
                 error_log("[PluginManager] Invalid plugin.json for bundled plugin: $pluginName");
+                continue;
+            }
+
+            // Check if already registered
+            $stmt = $this->db->prepare("SELECT id, version FROM plugins WHERE name = ?");
+            $stmt->bind_param('s', $pluginName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $row = $result->fetch_assoc();
+            $stmt->close();
+
+            if ($row) {
+                // Sync version/metadata if disk version is newer
+                $diskVersion = $pluginMeta['version'] ?? '1.0.0';
+                $dbVersion = $row['version'] ?? '0.0.0';
+                if (version_compare($diskVersion, $dbVersion, '>')) {
+                    $updStmt = $this->db->prepare(
+                        "UPDATE plugins SET version = ?, display_name = ?, description = ?, metadata = ? WHERE id = ?"
+                    );
+                    $updDisplayName = $pluginMeta['display_name'] ?? $pluginName;
+                    $updDescription = $pluginMeta['description'] ?? '';
+                    $updMetadata = json_encode($pluginMeta['metadata'] ?? []);
+                    $updId = (int) $row['id'];
+                    $updStmt->bind_param('ssssi', $diskVersion, $updDisplayName, $updDescription, $updMetadata, $updId);
+                    $updStmt->execute();
+                    $updStmt->close();
+                    error_log("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
+                }
                 continue;
             }
 
@@ -1104,6 +1120,9 @@ class PluginManager
      */
     public function loadActivePlugins(): void
     {
+        // Sync bundled plugin versions and register any new ones
+        $this->autoRegisterBundledPlugins();
+
         // Clean up orphan plugins first
         $this->cleanupOrphanPlugins();
 
