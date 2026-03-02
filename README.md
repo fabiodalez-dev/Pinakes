@@ -55,6 +55,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Accessibility** — `aria-controls`/`aria-expanded` on audio toggle buttons
 
 **Bug Fixes & Polish:**
+- **German installer support** — The guided installer now fully supports German (Deutsch) as a third language option alongside Italian and English
 - **Installer language selection** — `it_IT` now correctly shows selected styling
 - **PluginManager** — Guarded `execute()`/`get_result()` before `fetch_assoc()` in bundled plugin sync
 - **Updater** — Centralized `getGitHubHeaders()` with `withAuth` flag, eliminating duplicate header arrays
