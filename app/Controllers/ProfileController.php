@@ -49,6 +49,7 @@ class ProfileController
         $data = (array) ($request->getParsedBody() ?? []);
 
         // CSRF validated by CsrfMiddleware
+        $currentPassword = (string) ($data['current_password'] ?? '');
         $p1 = (string) ($data['password'] ?? '');
         $p2 = (string) ($data['password_confirm'] ?? '');
         if ($p1 === '' || $p1 !== $p2) {
@@ -56,8 +57,20 @@ class ProfileController
             return $response->withHeader('Location', $profileUrl . '?error=invalid')->withStatus(302);
         }
 
-        // Validate password complexity
-        if (strlen($p1) < 8) {
+        // Verify current password
+        $stmt = $db->prepare("SELECT password FROM utenti WHERE id = ?");
+        $stmt->bind_param('i', $uid);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
+        if (!$user || !password_verify($currentPassword, $user['password'])) {
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=wrong_current_password')->withStatus(302);
+        }
+
+        // Validate password length (min 8, max 128 — bcrypt truncates at 72 bytes)
+        if (strlen($p1) < 8 || strlen($p1) > 128) {
             $profileUrl = RouteTranslator::route('profile');
             return $response->withHeader('Location', $profileUrl . '?error=password_too_short')->withStatus(302);
         }
@@ -151,7 +164,7 @@ class ProfileController
             }
             $response->getBody()->write($json);
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("getSessions error for user $uid: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore durante il recupero delle sessioni')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
@@ -196,7 +209,7 @@ class ProfileController
             }
 
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("revokeSession error for user $uid: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca della sessione')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
@@ -231,7 +244,7 @@ class ProfileController
             }
             $response->getBody()->write($json);
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("revokeAllSessions error for user $uid: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca delle sessioni')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);

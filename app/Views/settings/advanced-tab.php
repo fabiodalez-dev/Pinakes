@@ -438,7 +438,7 @@ use App\Support\HtmlHelper;
           <i class="fas fa-link text-gray-400 mt-0.5"></i>
           <div>
             <span class="text-gray-600"><?= __("URL pubblico:") ?></span>
-            <a href="<?php echo HtmlHelper::e($publicSitemapUrl); ?>" class="text-gray-900 hover:text-black underline ml-2" target="_blank"><?php echo HtmlHelper::e($publicSitemapUrl); ?></a>
+            <a href="<?php echo HtmlHelper::e($publicSitemapUrl); ?>" class="text-gray-900 hover:text-black underline ml-2" target="_blank" rel="noopener noreferrer"><?php echo HtmlHelper::e($publicSitemapUrl); ?></a>
           </div>
         </div>
         <div class="flex items-start gap-2 text-sm">

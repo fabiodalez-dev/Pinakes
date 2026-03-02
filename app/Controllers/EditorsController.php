@@ -68,10 +68,23 @@ class EditorsController
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
+        $sitoWeb = trim($data['sito_web'] ?? '');
+        if ($sitoWeb !== '' && !filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
+            $sitoWeb = 'https://' . ltrim($sitoWeb, '/');
+            if (!filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
+                $sitoWeb = '';
+            }
+        }
+        if ($sitoWeb !== '') {
+            $scheme = strtolower((string) parse_url($sitoWeb, PHP_URL_SCHEME));
+            if (!in_array($scheme, ['http', 'https'], true)) {
+                $sitoWeb = '';
+            }
+        }
         $repo = new \App\Models\PublisherRepository($db);
         $id = $repo->create([
             'nome' => trim($data['nome'] ?? ''),
-            'sito_web' => trim($data['sito_web'] ?? ''),
+            'sito_web' => $sitoWeb,
         ]);
         return $response->withHeader('Location', '/admin/editori')->withStatus(302);
     }
@@ -99,10 +112,23 @@ class EditorsController
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
+        $sitoWeb = trim($data['sito_web'] ?? '');
+        if ($sitoWeb !== '' && !filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
+            $sitoWeb = 'https://' . ltrim($sitoWeb, '/');
+            if (!filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
+                $sitoWeb = '';
+            }
+        }
+        if ($sitoWeb !== '') {
+            $scheme = strtolower((string) parse_url($sitoWeb, PHP_URL_SCHEME));
+            if (!in_array($scheme, ['http', 'https'], true)) {
+                $sitoWeb = '';
+            }
+        }
         $repo = new \App\Models\PublisherRepository($db);
         $repo->update($id, [
             'nome' => trim($data['nome'] ?? ''),
-            'sito_web' => trim($data['sito_web'] ?? ''),
+            'sito_web' => $sitoWeb,
         ]);
         return $response->withHeader('Location', '/admin/editori')->withStatus(302);
     }

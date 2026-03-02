@@ -387,9 +387,9 @@ class LoanApprovalController
             // Per 'da_ritirare' e 'prenotato', la copia resta 'prenotato' fino al ritiro
             // La copia diventa 'prestato' SOLO quando si conferma il ritiro
 
-            // Update book availability with integrity check
+            // Update book availability with integrity check (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            $integrity->recalculateBookAvailability($libroId, true);
 
             $db->commit();
 
@@ -501,7 +501,7 @@ class LoanApprovalController
 
             // Update book availability (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($bookId);
+            $integrity->recalculateBookAvailability($bookId, true);
 
             $db->commit();
 
@@ -643,9 +643,9 @@ class LoanApprovalController
                 }
             }
 
-            // Recalculate book availability
+            // Recalculate book availability (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            $integrity->recalculateBookAvailability($libroId, true);
 
             $db->commit();
 
@@ -759,9 +759,9 @@ class LoanApprovalController
                 }
             }
 
-            // Recalculate book availability
+            // Recalculate book availability (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            $integrity->recalculateBookAvailability($libroId, true);
 
             $db->commit();
 

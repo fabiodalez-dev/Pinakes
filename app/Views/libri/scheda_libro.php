@@ -77,12 +77,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <!-- Primo blocco: Stampa etichetta e Visualizza frontend: 50% each su mobile -->
         <div class="flex gap-3 w-full lg:w-auto">
           <!-- Stampa etichetta -->
-          <a href="<?= htmlspecialchars(url('/api/libri/' . (int)$libro['id'] . '/etichetta-pdf'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
+          <a href="<?= htmlspecialchars(url('/api/libri/' . (int)$libro['id'] . '/etichetta-pdf'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-barcode"></i>
             <?= __("Stampa etichetta") ?>
           </a>
           <!-- Visualizza nel frontend -->
-          <a href="<?php echo htmlspecialchars(book_url($libro), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
+          <a href="<?php echo htmlspecialchars(book_url($libro), ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="<?php echo $btnGhost; ?> flex-1 lg:flex-none justify-center">
             <i class="fas fa-eye"></i>
             <?= __("Visualizza") ?>
           </a>

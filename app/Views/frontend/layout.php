@@ -67,7 +67,7 @@ $currentLocale = I18n::getLocale();
 $htmlLang = substr($currentLocale, 0, 2);
 ?>
 <!DOCTYPE html>
-<html lang="<?= $htmlLang ?>">
+<html lang="<?= htmlspecialchars($htmlLang, ENT_QUOTES, 'UTF-8') ?>">
 
 <head>
     <meta charset="UTF-8">
@@ -167,10 +167,10 @@ $htmlLang = substr($currentLocale, 0, 2);
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
     <!-- CSS moderno e minimale -->
-    <link href="<?= htmlspecialchars(assetUrl('/vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
-    <link href="<?= htmlspecialchars(assetUrl('/flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
-    <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
-    <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
+    <link href="<?= htmlspecialchars(assetUrl('/css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" rel="stylesheet">
 
     <?php
     // Hook: Allow plugins to enqueue assets in the head (e.g., CSS, fonts, meta tags)
@@ -1576,10 +1576,10 @@ $htmlLang = substr($currentLocale, 0, 2);
     </footer>
 
     <!-- Scripts -->
-    <script src="<?= htmlspecialchars(assetUrl('/vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>"></script>
-    <script src="<?= htmlspecialchars(assetUrl('/flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-    <script src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-    <script src="<?= htmlspecialchars(assetUrl('/js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('/vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+    <script src="<?= htmlspecialchars(assetUrl('/flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('/main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+    <script src="<?= htmlspecialchars(assetUrl('/js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
     <script>
         // Smooth scrolling
         document.querySelectorAll('a[href^="#"]').forEach(anchor => {

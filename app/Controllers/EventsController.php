@@ -455,7 +455,7 @@ class EventsController
         // SECURITY: Generate secure random filename
         try {
             $randomSuffix = bin2hex(random_bytes(8));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("random_bytes() failed");
             return ['success' => false, 'message' => __('Errore di sistema.')];
         }
@@ -475,7 +475,7 @@ class EventsController
             $uploadedFile->moveTo($uploadPath);
             @chmod($uploadPath, 0644);
             return ['success' => true, 'path' => '/uploads/events/' . $newFilename];
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Image upload error: " . $e->getMessage());
             return ['success' => false, 'message' => __('Errore durante l\'upload.')];
         }

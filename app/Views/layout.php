@@ -18,7 +18,7 @@ $appVersion = $versionData['version'] ?? '0.1.0';
 $currentLocale = I18n::getLocale();
 $htmlLang = substr($currentLocale, 0, 2);
 ?><!doctype html>
-<html lang="<?= $htmlLang ?>">
+<html lang="<?= htmlspecialchars($htmlLang, ENT_QUOTES, 'UTF-8') ?>">
 
 <head>
   <meta charset="utf-8" />
@@ -27,10 +27,10 @@ $htmlLang = substr($currentLocale, 0, 2);
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
   <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
   <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
-  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <script>
     (function () {
       if (typeof window.__ !== 'function') {
@@ -166,7 +166,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
           </a>
 
-          <a href="https://fabiodalez-dev.github.io/Pinakes/" target="_blank" rel="noopener"
+          <a href="https://fabiodalez-dev.github.io/Pinakes/" target="_blank" rel="noopener noreferrer"
             class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
             <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
               <i class="fas fa-book text-sm text-gray-600"></i>
@@ -722,12 +722,12 @@ $htmlLang = substr($currentLocale, 0, 2);
       return translated;
     };
   </script>
-  <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
   <script>
 
     function escapeHtml(value) {

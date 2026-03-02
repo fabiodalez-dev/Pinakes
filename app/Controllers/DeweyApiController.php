@@ -98,7 +98,7 @@ class DeweyApiController
 
             $response->getBody()->write(json_encode($categories, JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Log detailed error internally but don't expose to client
             error_log("Dewey API categories error: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore nel recupero delle categorie.')], JSON_UNESCAPED_UNICODE));
@@ -155,7 +155,7 @@ class DeweyApiController
 
             $response->getBody()->write(json_encode($divisions, JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Log detailed error internally but don't expose to client
             error_log("Dewey API divisions error: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore nel recupero delle divisioni.')], JSON_UNESCAPED_UNICODE));
@@ -218,7 +218,7 @@ class DeweyApiController
 
             $response->getBody()->write(json_encode($specifics, JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Log detailed error internally but don't expose to client
             error_log("Dewey API specifics error: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore nel recupero delle specifiche.')], JSON_UNESCAPED_UNICODE));
@@ -279,7 +279,7 @@ class DeweyApiController
 
             $response->getBody()->write(json_encode($children, JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Dewey API children error: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore nel recupero dei figli.')], JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
@@ -347,7 +347,7 @@ class DeweyApiController
             }
 
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Dewey API search error: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore nella ricerca.')], JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
@@ -392,7 +392,7 @@ class DeweyApiController
 
             $response->getBody()->write(json_encode($path, JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Dewey API path error: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore nel recupero del percorso.')], JSON_UNESCAPED_UNICODE));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);

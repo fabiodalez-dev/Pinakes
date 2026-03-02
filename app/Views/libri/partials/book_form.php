@@ -3874,7 +3874,7 @@ function displayScrapedCover(imageUrl) {
                 </div>
                 <p class="text-sm text-gray-600 mb-2">${<?= json_encode(__("Anteprima non disponibile"), JSON_HEX_TAG) ?>}</p>
                 <p class="text-xs text-gray-500 mb-3">${<?= json_encode(__("L'immagine verrà scaricata al salvataggio"), JSON_HEX_TAG) ?>}</p>
-                <a href="${escapeAttr(imageSrc)}" target="_blank" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${escapeHtml(imageUrl)}</a>
+                <a href="${escapeAttr(imageSrc)}" target="_blank" rel="noopener noreferrer" class="text-xs text-gray-700 hover:text-gray-900 underline break-all">${escapeHtml(imageUrl)}</a>
             </div>
         `;
         return;

@@ -382,7 +382,7 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
         $csp .= "; upgrade-insecure-requests";
     }
 
-    $response = $response->withHeader('X-Frame-Options', 'DENY')
+    $response = $response->withHeader('X-Frame-Options', 'SAMEORIGIN')
         ->withHeader('Content-Security-Policy', $csp)
         ->withHeader('X-Content-Type-Options', 'nosniff')
         ->withHeader('X-XSS-Protection', '1; mode=block')

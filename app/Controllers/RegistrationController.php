@@ -257,7 +257,7 @@ class RegistrationController
                 // Column doesn't exist, add it
                 $db->query("ALTER TABLE utenti ADD COLUMN data_token_verifica datetime DEFAULT NULL AFTER token_verifica_email");
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Log but don't fail - column might already exist or this is a new installation
             error_log("Migration check for data_token_verifica: " . $e->getMessage());
         }
@@ -287,7 +287,7 @@ class RegistrationController
             $stmt->bind_param('isisss', $userId, $consentType, $consentGivenInt, $version, $ipAddress, $userAgent);
             $stmt->execute();
             $stmt->close();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             // Log but don't fail registration if consent logging fails
             error_log("Failed to log consent: " . $e->getMessage());
         }

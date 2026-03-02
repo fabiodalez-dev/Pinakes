@@ -48,7 +48,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
             <?php if ($sitoWeb): ?>
               <p class="mt-3 text-gray-900 text-sm sm:text-base flex items-center gap-2">
                 <i class="fas fa-external-link-alt"></i>
-                <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="underline decoration-gray-400 hover:decoration-gray-600">
+                <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="underline decoration-gray-400 hover:decoration-gray-600">
                   <?php echo HtmlHelper::e($sitoWeb); ?>
                 </a>
               </p>
@@ -127,7 +127,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
               <div>
                 <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Sito web") ?></dt>
                 <dd class="mt-1 text-gray-900 font-medium truncate">
-                  <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-gray-600 hover:underline">
+                  <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:underline">
                     <?php echo HtmlHelper::e($sitoWeb); ?>
                   </a>
                 </dd>
@@ -337,7 +337,7 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
             </h2>
           </div>
           <div class="card-body">
-            <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank"
+            <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer"
                class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white hover:bg-gray-800 font-medium transition-colors">
               <i class="fas fa-external-link-alt"></i>
               <?= __("Visita il sito ufficiale") ?>

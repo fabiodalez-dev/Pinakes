@@ -104,8 +104,8 @@ use App\Support\HtmlHelper;
         <div class="mt-2 text-xs text-gray-500 space-y-1">
           <p><i class="fas fa-info-circle mr-1"></i><strong><?= __("Come ottenere il codice") ?></strong></p>
           <ul class="ml-4 space-y-1">
-            <li>• <a href="https://www.google.com/maps" target="_blank" class="text-blue-600 hover:underline">Google Maps</a>: https://www.google.com/maps/embed?pb=...</li>
-            <li>• <a href="https://www.openstreetmap.org/" target="_blank" class="text-blue-600 hover:underline">OpenStreetMap</a>: https://www.openstreetmap.org/export/embed.html?bbox=...</li>
+            <li>• <a href="https://www.google.com/maps" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">Google Maps</a>: https://www.google.com/maps/embed?pb=...</li>
+            <li>• <a href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">OpenStreetMap</a>: https://www.openstreetmap.org/export/embed.html?bbox=...</li>
           </ul>
         </div>
       </div>
@@ -141,7 +141,7 @@ use App\Support\HtmlHelper;
 
         <p class="text-xs text-gray-500">
           <i class="fas fa-info-circle mr-1"></i>
-          <a href="https://www.google.com/recaptcha/admin" target="_blank" class="text-blue-600 hover:underline"><?= __("Ottieni le chiavi da Google reCAPTCHA") ?></a>
+          <a href="https://www.google.com/recaptcha/admin" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline"><?= __("Ottieni le chiavi da Google reCAPTCHA") ?></a>
         </p>
       </div>
     </div>
@@ -165,7 +165,7 @@ use App\Support\HtmlHelper;
     </div>
 
     <div class="flex justify-end gap-3">
-      <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
+      <a href="<?= htmlspecialchars(route_path('contact'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50 transition-colors">
         <i class="fas fa-eye"></i>
         <?= __("Anteprima") ?>
       </a>

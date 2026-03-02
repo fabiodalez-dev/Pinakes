@@ -38,7 +38,7 @@ if (isset($db)) {
             }
             $stmt->close();
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         // Fallback to default flag if query fails
     }
 }
@@ -56,7 +56,7 @@ if (isset($db)) {
                 ];
             }
         }
-    } catch (Exception $e) {
+    } catch (\Throwable $e) {
         // Fallback to I18n locales only
         foreach ($availableLocales as $code => $name) {
             $languagesData[$code] = [

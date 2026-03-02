@@ -923,7 +923,7 @@ class SRUServer
                     $stmt = $this->db->prepare("
                         SELECT titolo AS term, COUNT(*) AS frequency
                         FROM libri
-                        WHERE titolo <> '' AND titolo LIKE ?
+                        WHERE titolo <> '' AND titolo LIKE ? AND deleted_at IS NULL
                         GROUP BY titolo
                         ORDER BY titolo
                         LIMIT ?

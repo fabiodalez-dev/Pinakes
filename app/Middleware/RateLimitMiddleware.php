@@ -11,12 +11,13 @@ use App\Support\RateLimiter;
 
 class RateLimitMiddleware implements MiddlewareInterface
 {
+    private int $maxAttempts;
     private int $window; // in seconds
     private ?string $actionKey;
 
     public function __construct(int $maxAttempts = 10, int $window = 900, ?string $actionKey = null) // 15 minutes default
     {
-        // $maxAttempts reserved for future per-middleware configuration
+        $this->maxAttempts = $maxAttempts;
         $this->window = $window;
         $this->actionKey = $actionKey;
     }
@@ -28,7 +29,7 @@ class RateLimitMiddleware implements MiddlewareInterface
         $endpoint = $this->actionKey ?? $request->getUri()->getPath();
         $identifier = $ip . ':' . $endpoint;
 
-        if (RateLimiter::isLimited($identifier)) {
+        if (RateLimiter::isLimited($identifier, $this->maxAttempts, $this->window)) {
             $response = new \Slim\Psr7\Response();
             $body = fopen('php://temp', 'r+');
             if ($body === false) {

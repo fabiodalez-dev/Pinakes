@@ -341,9 +341,9 @@ class ReservationManager
             // The copy will be marked as 'prestato' when admin approves the pickup
             // via LoanApprovalController::approveLoan()
 
-            // Update book availability
+            // Update book availability (inside transaction)
             $integrity = new \App\Support\DataIntegrity($this->db);
-            $integrity->recalculateBookAvailability($bookId);
+            $integrity->recalculateBookAvailability($bookId, true);
 
             $this->commitIfOwned($ownTransaction);
             return $loanId;

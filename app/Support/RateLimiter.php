@@ -5,46 +5,32 @@ namespace App\Support;
 
 class RateLimiter
 {
-    private static array $attempts = [];
-    private static array $timestamps = [];
     private const WINDOW = 900; // 15 minutes in seconds
     private const MAX_ATTEMPTS = 10; // Max attempts per window
 
     /**
-     * Check if the request should be rate limited
+     * Check if the request should be rate limited.
+     * Uses file-based storage so state persists across PHP requests.
      */
-    public static function isLimited(string $identifier): bool
+    public static function isLimited(string $identifier, int $maxAttempts = self::MAX_ATTEMPTS, int $window = self::WINDOW): bool
     {
         $currentTime = time();
-        $key = self::getRateLimitKey($identifier);
+        $file = self::getStateFile($identifier);
+        $state = self::readState($file);
 
-        // Clean old entries
-        if (isset(self::$timestamps[$key]) && 
-            ($currentTime - self::$timestamps[$key]) > self::WINDOW) {
-            unset(self::$attempts[$key], self::$timestamps[$key]);
+        // Reset if window expired
+        if ($state['first_attempt'] > 0 && ($currentTime - $state['first_attempt']) > $window) {
+            $state = ['attempts' => 0, 'first_attempt' => 0];
         }
 
-        if (!isset(self::$attempts[$key])) {
-            self::$attempts[$key] = 1;
-            self::$timestamps[$key] = $currentTime;
-            return false;
+        if ($state['attempts'] === 0) {
+            $state['first_attempt'] = $currentTime;
         }
 
-        self::$attempts[$key]++;
-        
-        if (self::$attempts[$key] > self::MAX_ATTEMPTS) {
-            return true; // Rate limit exceeded
-        }
+        $state['attempts']++;
+        self::writeState($file, $state);
 
-        return false;
-    }
-
-    /**
-     * Get rate limit key based on identifier
-     */
-    private static function getRateLimitKey(string $identifier): string
-    {
-        return $identifier;
+        return $state['attempts'] > $maxAttempts;
     }
 
     /**
@@ -52,7 +38,59 @@ class RateLimiter
      */
     public static function reset(string $identifier): void
     {
-        $key = self::getRateLimitKey($identifier);
-        unset(self::$attempts[$key], self::$timestamps[$key]);
+        $file = self::getStateFile($identifier);
+        if (is_file($file)) {
+            @unlink($file);
+        }
+    }
+
+    /**
+     * Get the state file path for a rate limit identifier
+     */
+    private static function getStateFile(string $identifier): string
+    {
+        $dir = sys_get_temp_dir() . '/pinakes_ratelimit';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0700, true);
+        }
+        return $dir . '/' . hash('sha256', $identifier) . '.json';
+    }
+
+    /**
+     * Read rate limit state from file
+     *
+     * @return array{attempts: int, first_attempt: int}
+     */
+    private static function readState(string $file): array
+    {
+        $default = ['attempts' => 0, 'first_attempt' => 0];
+        if (!is_file($file)) {
+            return $default;
+        }
+
+        $raw = @file_get_contents($file);
+        if ($raw === false) {
+            return $default;
+        }
+
+        $data = json_decode($raw, true);
+        if (!is_array($data)) {
+            return $default;
+        }
+
+        return [
+            'attempts' => (int) ($data['attempts'] ?? 0),
+            'first_attempt' => (int) ($data['first_attempt'] ?? 0),
+        ];
+    }
+
+    /**
+     * Write rate limit state to file
+     *
+     * @param array{attempts: int, first_attempt: int} $state
+     */
+    private static function writeState(string $file, array $state): void
+    {
+        @file_put_contents($file, json_encode($state), LOCK_EX);
     }
 }

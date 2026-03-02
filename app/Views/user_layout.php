@@ -63,7 +63,7 @@ if (isset($db)) {
 $currentLocale = I18n::getLocale();
 $htmlLang = substr($currentLocale, 0, 2);
 ?><!doctype html>
-<html lang="<?= $htmlLang ?>">
+<html lang="<?= htmlspecialchars($htmlLang, ENT_QUOTES, 'UTF-8') ?>">
 
 <head>
     <meta charset="utf-8">
@@ -1083,7 +1083,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     return '#';
                 }
                 if (trimmed.startsWith('/') || trimmed.startsWith('http')) {
-                    return trimmed;
+                    return escapeHtml(trimmed);
                 }
                 return '#';
             };

@@ -447,6 +447,11 @@
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label for="current_password" class="form-label"><?= __("Password attuale") ?></label>
+          <input type="password" id="current_password" name="current_password" class="form-input" autocomplete="current-password" required aria-required="true"
+                 placeholder="<?= __("Inserisci la password attuale") ?>">
+        </div>
         <div class="form-group">
           <label for="password" class="form-label"><?= __("Nuova password") ?></label>
           <input type="password" id="password" name="password" class="form-input" autocomplete="new-password" required aria-required="true" aria-describedby="password-error"

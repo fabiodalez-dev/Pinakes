@@ -397,7 +397,7 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Modifica i contenuti della homepage: hero, features, CTA e immagine di sfondo") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
@@ -421,7 +421,7 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Gestisci il contenuto della pagina Chi Siamo con testo e immagine personalizzati") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="<?= htmlspecialchars(route_path('about'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= htmlspecialchars(route_path('about'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>
@@ -445,7 +445,7 @@ $activeTab = $activeTab ?? 'general';
                   <p class="text-sm text-gray-600"><?= __("Gestisci gli eventi della biblioteca: crea, modifica ed elimina eventi con immagini e descrizioni") ?></p>
                   <div class="mt-3 flex items-center gap-2 text-xs text-gray-500">
                     <i class="fas fa-link"></i>
-                    <a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
+                    <a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer" class="hover:text-gray-900 underline"><?= __("Visualizza pagina live") ?></a>
                   </div>
                 </div>
               </div>

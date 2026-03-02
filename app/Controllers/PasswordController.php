@@ -82,7 +82,7 @@ class PasswordController
             try {
                 $emailService = new EmailService($db);
                 $emailService->sendEmail($email, $subject, $html, $name);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 error_log('EmailService failed, falling back to Mailer: ' . $e->getMessage());
                 Mailer::send($email, $subject, $html);
             }
