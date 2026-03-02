@@ -42,6 +42,9 @@ const state = {
   userPass: 'Test1234!',
 };
 
+// Flag: set to true when Phase 1 completes (or app is already installed)
+let appReady = false;
+
 // ════════════════════════════════════════════════════════════════════════
 // Helpers
 // ════════════════════════════════════════════════════════════════════════
@@ -165,6 +168,9 @@ async function requestLoanViaSwal(page, dateISO) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// All phases run serially — failure in any phase stops ALL subsequent phases
+// ════════════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // Phase 1: Installation (Italian) — 8 tests
 // ════════════════════════════════════════════════════════════════════════════
 test.describe.serial('Phase 1: Installation (Italian)', () => {
@@ -179,14 +185,15 @@ test.describe.serial('Phase 1: Installation (Italian)', () => {
     page = await context.newPage();
     // Probe installer availability
     await page.goto(`${BASE}/installer/?step=0`);
-    const radio = page.locator('input[name="language"][value="it"]');
+    const radio = page.locator('input[name="language"][value="it_IT"]');
     installerAvailable = await radio.isVisible({ timeout: 5000 }).catch(() => false);
+    if (!installerAvailable) appReady = true;
   });
   test.afterAll(async () => { await context.close(); });
 
   test('1.1 Step 0: Select Italian language', async () => {
     test.skip(!installerAvailable, 'App already installed — installer not available');
-    await page.locator('input[name="language"][value="it"]').check();
+    await page.locator('input[name="language"][value="it_IT"]').check();
     await page.locator('button[type="submit"]').click();
     await page.waitForURL(/step=1/);
   });
@@ -264,6 +271,7 @@ test.describe.serial('Phase 1: Installation (Italian)', () => {
     await expect(page.locator('.alert-success').first()).toBeVisible({ timeout: 30000 });
     await page.locator('a.btn-primary').click();
     await page.waitForURL(url => !url.toString().includes('installer'), { timeout: 15000 });
+    appReady = true;
   });
 });
 
@@ -277,10 +285,12 @@ test.describe.serial('Phase 2: Login and Dashboard', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('2.1 Admin login', async () => {
     await page.goto(`${BASE}/accedi`);
@@ -332,6 +342,7 @@ test.describe.serial('Phase 3: Manual Book Creation', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
@@ -342,7 +353,8 @@ test.describe.serial('Phase 3: Manual Book Creation', () => {
       dbQuery(`INSERT INTO generi (nome, tipo) VALUES ('Narrativa', 'radice')`);
     }
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('3.1 Navigate to create book form', async () => {
     await page.goto(`${BASE}/admin/libri/crea`);
@@ -531,11 +543,13 @@ test.describe.serial('Phase 4: ISBN Scraping', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('4.1 Enter ISBN and attempt import', async () => {
     await page.goto(`${BASE}/admin/libri/crea`);
@@ -627,11 +641,13 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('5.1 Navigate to plugins page', async () => {
     await page.goto(`${BASE}/admin/plugins`);
@@ -740,11 +756,13 @@ test.describe.serial('Phase 6: Edit Book', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('6.1 Navigate to edit first created book', async () => {
     const bookId = state.createdBookIds[0];
@@ -842,11 +860,13 @@ test.describe.serial('Phase 7: Author Management', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('7.1 Create author 1', async () => {
     await page.goto(`${BASE}/admin/autori/crea`);
@@ -994,11 +1014,13 @@ test.describe.serial('Phase 8: Publisher Management', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('8.1 Create publisher 1', async () => {
     await page.goto(`${BASE}/admin/editori/crea`);
@@ -1091,11 +1113,13 @@ test.describe.serial('Phase 9: Bulk Cover Download', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('9.1 Book list with checkboxes loads', async () => {
     await page.goto(`${BASE}/admin/libri`);
@@ -1130,6 +1154,7 @@ test.describe.serial('Phase 10: CSV/TSV Import & Export', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
@@ -1140,8 +1165,9 @@ test.describe.serial('Phase 10: CSV/TSV Import & Export', () => {
       dbQuery(`UPDATE libri SET deleted_at=NOW(), isbn10=NULL, isbn13=NULL, ean=NULL WHERE titolo LIKE 'CSV_%_${RUN_ID}' AND deleted_at IS NULL`);
       dbQuery(`UPDATE libri SET deleted_at=NOW(), isbn10=NULL, isbn13=NULL, ean=NULL WHERE titolo LIKE 'TSV_%_${RUN_ID}' AND deleted_at IS NULL`);
     } catch {}
-    await context.close();
+    await context?.close();
   });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('10.1 Navigate to import page', async () => {
     await page.goto(`${BASE}/admin/libri/importa`);
@@ -1240,11 +1266,13 @@ test.describe.serial('Phase 11: Settings', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('11.1 General tab: update app name', async () => {
     await page.goto(`${BASE}/admin/settings?tab=general`);
@@ -1341,6 +1369,7 @@ test.describe.serial('Phase 12: CMS and Events', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
@@ -1349,8 +1378,9 @@ test.describe.serial('Phase 12: CMS and Events', () => {
     if (state.eventId > 0) {
       try { dbQuery(`DELETE FROM events WHERE id = ${state.eventId}`); } catch {}
     }
-    await context.close();
+    await context?.close();
   });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('12.1 CMS pages list loads', async () => {
     await page.goto(`${BASE}/admin/cms/home`);
@@ -1454,6 +1484,7 @@ test.describe.serial('Phase 13: Shelf/Location Management', () => {
   const scaffaleCode = `E2E${RUN_ID}`.toUpperCase().slice(0, 20);
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
@@ -1464,8 +1495,9 @@ test.describe.serial('Phase 13: Shelf/Location Management', () => {
       if (state.mensolaId) dbQuery(`DELETE FROM mensole WHERE id = ${state.mensolaId}`);
       if (state.shelfId) dbQuery(`DELETE FROM scaffali WHERE id = ${state.shelfId}`);
     } catch {}
-    await context.close();
+    await context?.close();
   });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('13.1 Create shelf (scaffale)', async () => {
     await page.goto(`${BASE}/admin/collocazione`);
@@ -1570,6 +1602,7 @@ test.describe.serial('Phase 14: Admin Loan', () => {
   let testLoanId = 0;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
@@ -1578,8 +1611,9 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     if (testLoanId) {
       try { dbQuery(`DELETE FROM prestiti WHERE id=${testLoanId}`); } catch {}
     }
-    await context.close();
+    await context?.close();
   });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('14.1 Setup borrower user', async () => {
     const hash = phpHash(state.userPass);
@@ -1705,6 +1739,7 @@ test.describe.serial('Phase 15: User Reservation & Approval', () => {
   let testBookId = 0;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     userCtx = await browser.newContext();
     userPage = await userCtx.newPage();
     adminCtx = await browser.newContext();
@@ -1733,6 +1768,7 @@ test.describe.serial('Phase 15: User Reservation & Approval', () => {
     await userCtx?.close();
     await adminCtx?.close();
   });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('15.1 User login', async () => {
     test.skip(!state.userId, 'No test user');
@@ -1877,6 +1913,7 @@ test.describe.serial('Phase 16: Overlap Prevention', () => {
   let testBookId = 0;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
 
@@ -1900,8 +1937,9 @@ test.describe.serial('Phase 16: Overlap Prevention', () => {
     if (overlapLoanId) {
       try { dbQuery(`DELETE FROM prestiti WHERE id=${overlapLoanId}`); } catch {}
     }
-    await context.close();
+    await context?.close();
   });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('16.1 Create active loan', async () => {
     test.skip(!testBookId || !state.userId, 'Missing book or user');
@@ -1963,10 +2001,12 @@ test.describe.serial('Phase 17: Frontend Search', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('17.1 Search by title', async () => {
     const bookTitle = `E2E Edited Book ${RUN_ID}`;
@@ -2021,11 +2061,13 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('18.1 #53: Danish chars in book title saved correctly', async () => {
     const danishTitle = `Ærø Ødegård ${RUN_ID}`;
@@ -2204,10 +2246,12 @@ test.describe.serial('Phase 19: Security', () => {
   let page;
 
   test.beforeAll(async ({ browser }) => {
+    if (!appReady) return;
     context = await browser.newContext();
     page = await context.newPage();
   });
-  test.afterAll(async () => { await context.close(); });
+  test.afterAll(async () => { await context?.close(); });
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('19.1 Unauthenticated admin access redirects to login', async () => {
     // Fresh context — no cookies
@@ -2292,6 +2336,8 @@ test.describe.serial('Phase 19: Security', () => {
 // Phase 20: Cleanup — delete all test data in FK-safe order
 // ════════════════════════════════════════════════════════════════════════════
 test.describe.serial('Phase 20: Cleanup', () => {
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
+
   test('Clean up all test data', async () => {
     // 1. Delete loans for test user
     if (state.userId) {
