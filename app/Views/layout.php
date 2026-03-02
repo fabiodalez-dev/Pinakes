@@ -546,6 +546,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                 </div>
               </div>
 
+              <!-- Keyboard Shortcuts -->
+              <button id="shortcuts-help"
+                class="hidden md:flex p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
+                title="<?= __('Scorciatoie da tastiera') ?> (?)">
+                <i class="fas fa-keyboard text-lg text-gray-600"></i>
+              </button>
+
               <!-- Settings Button -->
               <a href="<?= htmlspecialchars(url('/admin/settings'), ENT_QUOTES, 'UTF-8') ?>"
                 class="p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
@@ -1397,50 +1404,116 @@ $htmlLang = substr($currentLocale, 0, 2);
 
     // Keyboard shortcuts
     function initializeKeyboardShortcuts() {
+      var gPrefixActive = false;
+      var gPrefixTimer = null;
+      var basePath = window.BASE_PATH || '';
+
+      // G-prefix navigation map
+      var gNavMap = {
+        d: basePath + '/admin/dashboard',
+        b: basePath + '/admin/libri',
+        a: basePath + '/admin/autori',
+        e: basePath + '/admin/editori',
+        p: basePath + '/admin/prestiti',
+        u: basePath + '/admin/utenti',
+        s: basePath + '/admin/settings'
+      };
+
+      // Show/hide books-only shortcuts section based on current page
+      var booksSection = document.getElementById('shortcuts-books-section');
+      if (booksSection && window.location.pathname.indexOf('/admin/libri') !== -1) {
+        booksSection.classList.remove('hidden');
+      }
+
+      // Update modifier key labels for Mac
+      if (navigator.platform && navigator.platform.indexOf('Mac') !== -1) {
+        document.querySelectorAll('[data-mod-key]').forEach(function(el) {
+          el.textContent = '⌘';
+        });
+      }
+
+      // Shortcuts modal helpers
+      function openShortcutsModal() {
+        var modal = document.getElementById('shortcuts-modal');
+        if (modal) modal.classList.remove('hidden');
+      }
+      function closeShortcutsModal() {
+        var modal = document.getElementById('shortcuts-modal');
+        if (modal) modal.classList.add('hidden');
+      }
+
+      // Button click handler
+      var helpBtn = document.getElementById('shortcuts-help');
+      if (helpBtn) {
+        helpBtn.addEventListener('click', openShortcutsModal);
+      }
+
+      // Close button
+      var closeBtn = document.getElementById('close-shortcuts');
+      if (closeBtn) {
+        closeBtn.addEventListener('click', closeShortcutsModal);
+      }
+
+      // Backdrop click
+      var shortcutsModal = document.getElementById('shortcuts-modal');
+      if (shortcutsModal) {
+        shortcutsModal.addEventListener('click', function(e) {
+          if (e.target === this) closeShortcutsModal();
+        });
+      }
+
       document.addEventListener('keydown', function (e) {
-        // Cmd/Ctrl + K to focus search
+        // Ignore if typing in input/textarea/select (except Escape)
+        var tag = e.target.tagName;
+        var isInput = (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable);
+
+        // Cmd/Ctrl + K to focus search (works even in inputs)
         if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
           e.preventDefault();
           e.stopPropagation();
-          const searchInput = document.getElementById('global-search');
+          var searchInput = document.getElementById('global-search');
           if (searchInput) {
             searchInput.focus();
             searchInput.select();
           }
+          return;
         }
 
         // ESC to close all popups
         if (e.key === 'Escape') {
+          // Close shortcuts modal
+          closeShortcutsModal();
+
           // Close SweetAlert2 if open
           if (window.Swal && typeof window.Swal.close === 'function') {
             window.Swal.close();
           }
 
           // Close search results
-          const searchResults = document.getElementById('global-search-results');
+          var searchResults = document.getElementById('global-search-results');
           if (searchResults && !searchResults.classList.contains('hidden')) {
             searchResults.classList.add('hidden');
           }
 
-          const mobileSearchResults = document.getElementById('mobile-search-results');
+          var mobileSearchResults = document.getElementById('mobile-search-results');
           if (mobileSearchResults && !mobileSearchResults.classList.contains('hidden')) {
             mobileSearchResults.classList.add('hidden');
           }
 
           // Close mobile search bar
-          const mobileSearchBar = document.getElementById('mobile-search-bar');
+          var mobileSearchBar = document.getElementById('mobile-search-bar');
           if (mobileSearchBar && !mobileSearchBar.classList.contains('hidden')) {
             mobileSearchBar.classList.add('hidden');
           }
 
           // Close notifications dropdown
-          const notificationsDropdown = document.getElementById('notifications-dropdown');
+          var notificationsDropdown = document.getElementById('notifications-dropdown');
           if (notificationsDropdown && !notificationsDropdown.classList.contains('hidden')) {
             notificationsDropdown.classList.add('hidden');
           }
 
           // Close user menu dropdown
-          const userMenuDropdown = document.getElementById('user-menu-dropdown');
+          var userMenuDropdown = document.getElementById('user-menu-dropdown');
           if (userMenuDropdown && !userMenuDropdown.classList.contains('hidden')) {
             userMenuDropdown.classList.add('hidden');
           }
@@ -1449,6 +1522,37 @@ $htmlLang = substr($currentLocale, 0, 2);
           if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'BUTTON')) {
             document.activeElement.blur();
           }
+          return;
+        }
+
+        // Skip remaining shortcuts when typing in inputs
+        if (isInput) return;
+
+        // ? to open shortcuts modal
+        if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          openShortcutsModal();
+          return;
+        }
+
+        // G-prefix navigation (two-key combo)
+        if (gPrefixActive) {
+          var dest = gNavMap[e.key.toLowerCase()];
+          if (dest) {
+            e.preventDefault();
+            window.location.href = dest;
+          }
+          gPrefixActive = false;
+          clearTimeout(gPrefixTimer);
+          return;
+        }
+
+        if (e.key === 'g' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          gPrefixActive = true;
+          gPrefixTimer = setTimeout(function() {
+            gPrefixActive = false;
+          }, 1000);
+          return;
         }
       });
     }
@@ -1497,6 +1601,132 @@ $htmlLang = substr($currentLocale, 0, 2);
   ?>
 
   <?php require __DIR__ . '/partials/scroll-to-top.php'; ?>
+
+<!-- Keyboard Shortcuts Modal -->
+<div id="shortcuts-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+  <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+    <div class="p-4 border-b border-gray-200 flex items-center justify-between">
+      <h3 class="font-semibold text-gray-900 flex items-center gap-2">
+        <i class="fas fa-keyboard text-gray-500"></i>
+        <?= __("Scorciatoie da tastiera") ?>
+      </h3>
+      <button id="close-shortcuts" class="text-gray-400 hover:text-gray-600 transition-colors">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+    <div class="p-4 space-y-4">
+      <!-- Global Navigation -->
+      <div>
+        <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2"><?= __("Navigazione") ?></h4>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Cerca globale") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono" data-mod-key>Ctrl</kbd>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">K</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Mostra scorciatoie") ?></span>
+            <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">?</kbd>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Chiudi popup") ?></span>
+            <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Esc</kbd>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Vai a Dashboard") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">D</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Vai a Libri") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">B</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Vai a Autori") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">A</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Vai a Editori") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">E</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Vai a Prestiti") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">P</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Vai a Utenti") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">U</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Vai a Impostazioni") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">S</kbd>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Books Page Only -->
+      <div id="shortcuts-books-section" class="hidden">
+        <h4 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2"><?= __("Gestione Libri") ?></h4>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Nuova ricerca") ?></span>
+            <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">/</kbd>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Nuovo libro") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono" data-mod-key>Ctrl</kbd>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">N</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Seleziona tutti") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono" data-mod-key>Ctrl</kbd>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">A</kbd>
+            </div>
+          </div>
+          <div class="flex items-center justify-between text-sm">
+            <span class="text-gray-600"><?= __("Cambia vista") ?></span>
+            <div class="flex gap-1">
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono" data-mod-key>Ctrl</kbd>
+              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 
 </html>
