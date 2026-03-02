@@ -2533,6 +2533,7 @@ class LibriController
 
         // Selected IDs filter (from "Export selected" button)
         $idsParam = $params['ids'] ?? '';
+        $idsRequested = array_key_exists('ids', $params);
         $selectedIds = [];
 
         if (is_array($idsParam)) {
@@ -2627,6 +2628,9 @@ class LibriController
             $whereClauses[] = "l.id IN ($placeholders)";
             $bindTypes .= str_repeat('i', count($selectedIds));
             $bindValues = array_merge($bindValues, $selectedIds);
+        } elseif ($idsRequested) {
+            // Fail closed: explicit selected-export with no valid IDs returns empty dataset
+            $whereClauses[] = "1 = 0";
         }
 
         $whereClauses[] = "l.deleted_at IS NULL";

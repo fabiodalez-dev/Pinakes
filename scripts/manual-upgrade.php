@@ -566,9 +566,10 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 // Execute SQL statements individually (quote-aware split)
                 $statements = splitSqlStatements($sql);
                 $migrationFailed = false;
-                // 1060=Duplicate column, 1061=Duplicate key, 1050=Table exists,
-                // 1068=Multiple primary, 1091=Can't DROP
-                $ignorableErrors = [1060, 1061, 1062, 1050, 1068, 1091];
+                // 1060=Duplicate column, 1061=Duplicate key, 1062=Duplicate entry,
+                // 1050=Table exists, 1068=Multiple primary, 1091=Can't DROP,
+                // 1022=Duplicate key (alt), 1826=Duplicate FK, 1146=Table doesn't exist
+                $ignorableErrors = [1060, 1061, 1062, 1050, 1068, 1091, 1022, 1826, 1146];
                 $lastError = '';
                 $lastErrno = 0;
 

@@ -22,12 +22,16 @@
   });
 
   var visible = false;
+  btn.setAttribute('aria-hidden', 'true');
+  btn.tabIndex = -1;
   window.addEventListener('scroll', function() {
     var show = window.scrollY > 400;
     if (show !== visible) {
       visible = show;
       btn.style.opacity = show ? '1' : '0';
       btn.style.pointerEvents = show ? 'auto' : 'none';
+      btn.setAttribute('aria-hidden', show ? 'false' : 'true');
+      btn.tabIndex = show ? 0 : -1;
     }
   }, { passive: true });
 

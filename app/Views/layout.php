@@ -1433,13 +1433,22 @@ $htmlLang = substr($currentLocale, 0, 2);
       }
 
       // Shortcuts modal helpers
+      var lastShortcutsFocus = null;
       function openShortcutsModal() {
         var modal = document.getElementById('shortcuts-modal');
-        if (modal) modal.classList.remove('hidden');
+        if (!modal) return;
+        lastShortcutsFocus = document.activeElement;
+        modal.classList.remove('hidden');
+        var close = document.getElementById('close-shortcuts');
+        if (close) close.focus();
       }
       function closeShortcutsModal() {
         var modal = document.getElementById('shortcuts-modal');
-        if (modal) modal.classList.add('hidden');
+        if (!modal) return;
+        modal.classList.add('hidden');
+        if (lastShortcutsFocus && typeof lastShortcutsFocus.focus === 'function') {
+          lastShortcutsFocus.focus();
+        }
       }
 
       // Button click handler
@@ -1603,10 +1612,10 @@ $htmlLang = substr($currentLocale, 0, 2);
   <?php require __DIR__ . '/partials/scroll-to-top.php'; ?>
 
 <!-- Keyboard Shortcuts Modal -->
-<div id="shortcuts-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+<div id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
   <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
     <div class="p-4 border-b border-gray-200 flex items-center justify-between">
-      <h3 class="font-semibold text-gray-900 flex items-center gap-2">
+      <h3 id="shortcuts-title" class="font-semibold text-gray-900 flex items-center gap-2">
         <i class="fas fa-keyboard text-gray-500"></i>
         <?= __("Scorciatoie da tastiera") ?>
       </h3>

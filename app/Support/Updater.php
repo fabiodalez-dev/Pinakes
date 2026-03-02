@@ -585,19 +585,15 @@ class Updater
         if ($statusCode >= 400) {
             // Retry without token on 401/403 (invalid/revoked token shouldn't block updates)
             if ($allowAuthRetry && $this->githubToken !== '' && in_array($statusCode, [401, 403], true)) {
-                $errorData = json_decode($response, true);
-                $message = strtolower((string) ($errorData['message'] ?? ''));
-                if (str_contains($message, 'bad credentials') || str_contains($message, 'requires authentication')) {
-                    $this->debugLog('WARNING', 'Token GitHub non valido, retry senza token', [
-                        'status_code' => $statusCode,
-                    ]);
-                    $savedToken = $this->githubToken;
-                    $this->githubToken = '';
-                    try {
-                        return $this->makeGitHubRequest($url, false);
-                    } finally {
-                        $this->githubToken = $savedToken;
-                    }
+                $this->debugLog('WARNING', 'Auth GitHub fallita, retry senza token', [
+                    'status_code' => $statusCode,
+                ]);
+                $savedToken = $this->githubToken;
+                $this->githubToken = '';
+                try {
+                    return $this->makeGitHubRequest($url, false);
+                } finally {
+                    $this->githubToken = $savedToken;
                 }
             }
 
@@ -608,7 +604,7 @@ class Updater
             ]);
 
             // Decodifica errore GitHub
-            $errorData = $errorData ?? json_decode($response, true);
+            $errorData = json_decode($response, true);
             $errorMessage = $errorData['message'] ?? 'Unknown GitHub error';
 
             throw new Exception("GitHub API error ({$statusCode}): {$errorMessage}");

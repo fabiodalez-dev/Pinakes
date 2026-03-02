@@ -48,9 +48,22 @@ const state = {
 
 /** Execute a MySQL query and return trimmed output (injection-safe, no shell). */
 function dbQuery(sql) {
-  const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
-  if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
+  const args = ['-N', '-B', '-e', sql];
+  if (DB_HOST) args.push('-h', DB_HOST);
+  if (DB_SOCKET) args.push('-S', DB_SOCKET);
+  args.push('-u', DB_USER);
+  if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
+  args.push(DB_NAME);
   return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
+}
+
+/** Escape a string for use in a SQL LIKE clause. */
+function escapeSqlLike(value) {
+  return String(value)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/%/g, '\\%')
+    .replace(/_/g, '\\_');
 }
 
 /** Generate a bcrypt hash using PHP CLI. */
@@ -596,7 +609,8 @@ test.describe.serial('Phase 4: ISBN Scraping', () => {
 
     // Store ID if created
     const finalTitle = titleValue || `E2E Scraped Book ${RUN_ID}`;
-    const bookId = dbQuery(`SELECT id FROM libri WHERE titolo LIKE '%${finalTitle.substring(0, 20)}%' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
+    const titleNeedle = escapeSqlLike(finalTitle.substring(0, 20));
+    const bookId = dbQuery(`SELECT id FROM libri WHERE titolo LIKE '%${titleNeedle}%' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
     if (Number(bookId) > 0) {
       state.createdBookIds.push(Number(bookId));
     }
@@ -707,7 +721,8 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
     await page.waitForURL(/admin\/libri(?!.*crea)/, { timeout: 15000 }).catch(() => {});
 
     const finalTitle = titleValue || `E2E ScrapingPro Book ${RUN_ID}`;
-    const bookId = dbQuery(`SELECT id FROM libri WHERE titolo LIKE '%${finalTitle.substring(0, 20)}%' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
+    const titleNeedle = escapeSqlLike(finalTitle.substring(0, 20));
+    const bookId = dbQuery(`SELECT id FROM libri WHERE titolo LIKE '%${titleNeedle}%' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
     if (Number(bookId) > 0) {
       state.createdBookIds.push(Number(bookId));
     }
@@ -2172,7 +2187,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
 
     const pages = dbQuery(`SELECT IFNULL(numero_pagine, 'NULL') FROM libri WHERE id=${bookId}`);
     // 0 pages should be stored as 0 or NULL (normalized)
-    expect(Number(pages)).toBeLessThanOrEqual(0);
+    expect(pages === 'NULL' || Number(pages) <= 0).toBeTruthy();
 
     // Cleanup
     dbQuery(`DELETE FROM libri WHERE id=${bookId}`);
@@ -2204,6 +2219,12 @@ test.describe.serial('Phase 19: Security', () => {
   });
 
   test('19.2 XSS in book title is escaped on display', async () => {
+    let xssDialogTriggered = false;
+    page.once('dialog', async (d) => {
+      xssDialogTriggered = true;
+      await d.dismiss();
+    });
+
     const xssTitle = `<script>alert("xss_${RUN_ID}")</script>`;
     dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili) VALUES ('${xssTitle.replace(/'/g, "\\'")}', 1, 1)`);
     const bookId = dbQuery(`SELECT id FROM libri WHERE titolo LIKE '%xss_${RUN_ID}%' AND deleted_at IS NULL LIMIT 1`);
@@ -2216,10 +2237,7 @@ test.describe.serial('Phase 19: Security', () => {
     expect(bodyHtml).not.toContain(`<script>alert("xss_${RUN_ID}")</script>`);
 
     // Verify no JS alert was triggered
-    const dialogTriggered = await page.evaluate(() => {
-      return window.__xss_triggered || false;
-    });
-    expect(dialogTriggered).toBe(false);
+    expect(xssDialogTriggered).toBe(false);
 
     // Cleanup
     dbQuery(`DELETE FROM libri WHERE id=${bookId}`);
@@ -2251,8 +2269,8 @@ test.describe.serial('Phase 19: Security', () => {
     const resp = await page.goto(`${BASE}/libro/${bookId}`);
     await page.waitForLoadState('networkidle');
 
-    // Should be 404 or redirect — not show the deleted book
-    expect(resp.status()).toBeGreaterThanOrEqual(400);
+    // Should be 404 or redirect — not show the deleted book (accept 3xx and 4xx+)
+    expect(resp.status()).not.toBe(200);
 
     // Verify not in API results
     const apiResp = await page.request.get(
