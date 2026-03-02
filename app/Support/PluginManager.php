@@ -79,7 +79,11 @@ class PluginManager
             }
 
             // Check if already registered
-            $stmt = $this->db->prepare("SELECT id, version FROM plugins WHERE name = ?");
+            $stmt = $this->db->prepare("SELECT id, version, is_active FROM plugins WHERE name = ?");
+            if ($stmt === false) {
+                error_log("[PluginManager] Failed to prepare bundled plugin lookup for $pluginName: " . $this->db->error);
+                continue;
+            }
             $stmt->bind_param('s', $pluginName);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -94,20 +98,30 @@ class PluginManager
                     $updStmt = $this->db->prepare(
                         "UPDATE plugins SET version = ?, display_name = ?, description = ?, metadata = ? WHERE id = ?"
                     );
+                    if ($updStmt === false) {
+                        error_log("[PluginManager] Failed to prepare bundled plugin update for $pluginName: " . $this->db->error);
+                        continue;
+                    }
                     $updDisplayName = $pluginMeta['display_name'] ?? $pluginName;
                     $updDescription = $pluginMeta['description'] ?? '';
                     $updMetadata = json_encode($pluginMeta['metadata'] ?? []);
                     $updId = (int) $row['id'];
                     $updStmt->bind_param('ssssi', $diskVersion, $updDisplayName, $updDescription, $updMetadata, $updId);
-                    $updStmt->execute();
+                    $updated = $updStmt->execute();
                     $updStmt->close();
+                    if (!$updated) {
+                        error_log("[PluginManager] Failed to update bundled plugin $pluginName: " . $this->db->error);
+                        continue;
+                    }
                     error_log("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
 
-                    // Re-register hooks for the upgraded plugin (new hooks may have been added)
-                    try {
-                        $this->runPluginMethod($pluginName, 'onActivate');
-                    } catch (\Throwable $e) {
-                        error_log("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
+                    // Re-register hooks only if plugin is active
+                    if ((int) ($row['is_active'] ?? 0) === 1) {
+                        try {
+                            $this->runPluginMethod($pluginName, 'onActivate');
+                        } catch (\Throwable $e) {
+                            error_log("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
+                        }
                     }
                 }
                 continue;

@@ -413,7 +413,7 @@ $stmt->close();
                     $relatedTimeFormatted = $formatTime($relatedEvent['event_time'] ?? null);
                     ?>
                     <article class="related-card">
-                        <a href="<?= HtmlHelper::e(url('/events/' . $relatedEvent['slug'])) ?>" class="related-thumb">
+                        <a href="<?= HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug'])) ?>" class="related-thumb">
                             <?php if (!empty($relatedEvent['featured_image'])): ?>
                                 <img src="<?= HtmlHelper::e(url($relatedEvent['featured_image'])) ?>" alt="<?= HtmlHelper::e($relatedEvent['title']) ?>">
                             <?php endif; ?>
@@ -428,11 +428,11 @@ $stmt->close();
                                 <?php endif; ?>
                             </div>
                             <h3 class="related-title">
-                                <a href="<?= HtmlHelper::e(url('/events/' . $relatedEvent['slug'])) ?>">
+                                <a href="<?= HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug'])) ?>">
                                     <?= HtmlHelper::e($relatedEvent['title']) ?>
                                 </a>
                             </h3>
-                            <a href="<?= HtmlHelper::e(url('/events/' . $relatedEvent['slug'])) ?>" class="related-link">
+                            <a href="<?= HtmlHelper::e(route_path('events') . '/' . rawurlencode($relatedEvent['slug'])) ?>" class="related-link">
                                 <?= __("Dettagli evento") ?>
                                 <i class="fas fa-arrow-right"></i>
                             </a>

@@ -210,9 +210,9 @@ return function (App $app): void {
         $controller = new AuthController();
         return $controller->login($request, $response, $app->getContainer()->get('db'));
     };
-    $registerRouteIfUnique('POST', '/login', $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // English fallback
+    $registerRouteIfUnique('POST', '/login', $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'login'), new CsrfMiddleware()]); // English fallback
     foreach ($supportedLocales as $locale) {
-        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('login', $locale), $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]);
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('login', $locale), $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'login'), new CsrfMiddleware()]);
     }
 
     // Logout - all language variants + English fallback
@@ -366,11 +366,11 @@ return function (App $app): void {
         return $controller->success($request, $response);
     };
     $registerRouteIfUnique('GET', '/register', $registerGetHandler); // English fallback
-    $registerRouteIfUnique('POST', '/register', $registerPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 3600), new CsrfMiddleware()]); // English fallback
+    $registerRouteIfUnique('POST', '/register', $registerPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 3600, 'register'), new CsrfMiddleware()]); // English fallback
     $registerRouteIfUnique('GET', '/register/success', $registerSuccessHandler); // English fallback
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('register', $locale), $registerGetHandler);
-        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('register', $locale), $registerPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 3600), new CsrfMiddleware()]);
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('register', $locale), $registerPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 3600, 'register'), new CsrfMiddleware()]);
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('register_success', $locale), $registerSuccessHandler);
     }
 
@@ -396,10 +396,10 @@ return function (App $app): void {
         return $controller->forgot($request, $response, $db);
     };
     $registerRouteIfUnique('GET', '/forgot-password', $forgotPasswordGetHandler); // English fallback
-    $registerRouteIfUnique('POST', '/forgot-password', $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900), new CsrfMiddleware()]); // English fallback
+    $registerRouteIfUnique('POST', '/forgot-password', $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900, 'forgot_password'), new CsrfMiddleware()]); // English fallback
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('forgot_password', $locale), $forgotPasswordGetHandler);
-        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('forgot_password', $locale), $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900), new CsrfMiddleware()]);
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('forgot_password', $locale), $forgotPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(3, 900, 'forgot_password'), new CsrfMiddleware()]);
     }
 
     $resetPasswordGetHandler = function ($request, $response) use ($app) {
@@ -413,10 +413,10 @@ return function (App $app): void {
         return $controller->reset($request, $response, $db);
     };
     $registerRouteIfUnique('GET', '/reset-password', $resetPasswordGetHandler); // English fallback
-    $registerRouteIfUnique('POST', '/reset-password', $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]); // English fallback
+    $registerRouteIfUnique('POST', '/reset-password', $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'reset_password'), new CsrfMiddleware()]); // English fallback
     foreach ($supportedLocales as $locale) {
         $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('reset_password', $locale), $resetPasswordGetHandler);
-        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('reset_password', $locale), $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300), new CsrfMiddleware()]);
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('reset_password', $locale), $resetPasswordPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'reset_password'), new CsrfMiddleware()]);
     }
 
     // Frontend user actions: loan/reserve

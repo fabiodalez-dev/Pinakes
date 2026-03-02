@@ -100,6 +100,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Re-query audio element — GAP.init() replaces innerHTML, destroying the original node
         var audioEl = document.querySelector('.player-digital-library audio');
+        if (!audioEl) {
+            audioEl = preInitAudio;
+        }
 
         console.log('✓ Green Audio Player initialized successfully');
 
@@ -213,7 +216,9 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (error) {
         console.error('Failed to initialize Green Audio Player:', error);
         // Fallback to native controls
-        audioEl.controls = true;
+        if (preInitAudio) {
+            preInitAudio.controls = true;
+        }
     }
 });
 </script>

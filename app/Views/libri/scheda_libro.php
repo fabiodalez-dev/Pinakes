@@ -509,12 +509,16 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             </div>
             <?php endif; ?>
             <?php if ($isSafeUrl($libro['audio_url'] ?? null)): ?>
+            <?php
+              $audioCloseLabel = json_encode(__("Chiudi"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+              $audioOpenLabel  = json_encode(__("Ascolta"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+            ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Audio") ?></dt>
               <dd>
                 <button type="button" id="btn-admin-audio-toggle"
                   class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-500 text-white hover:bg-purple-600 transition-colors"
-                  onclick="var p=document.getElementById('admin-audio-player');if(p.classList.contains('hidden')){p.classList.remove('hidden');this.querySelector('span').textContent='<?= __("Chiudi") ?>';}else{p.classList.add('hidden');p.querySelector('audio').pause();this.querySelector('span').textContent='<?= __("Ascolta") ?>';}">
+                  onclick="var p=document.getElementById('admin-audio-player');if(p.classList.contains('hidden')){p.classList.remove('hidden');this.querySelector('span').textContent=<?= $audioCloseLabel ?>;}else{p.classList.add('hidden');p.querySelector('audio').pause();this.querySelector('span').textContent=<?= $audioOpenLabel ?>;}">
                   <i class="fas fa-headphones"></i> <span><?= __("Ascolta") ?></span>
                 </button>
                 <div id="admin-audio-player" class="hidden mt-2">

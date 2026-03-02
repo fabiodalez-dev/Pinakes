@@ -441,7 +441,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 throw new RuntimeException('ZIP non valido: contiene percorsi pericolosi');
             }
         }
-        // Check uncompressed size vs available disk space
+        // Check uncompressed size vs available disk space (re-query: value from pre-flight may be stale)
         $uncompressedBytes = 0;
         for ($j = 0; $j < $zip->numFiles; $j++) {
             $st = $zip->statIndex($j);
@@ -450,11 +450,12 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             }
         }
         $requiredBytes = $uncompressedBytes + (100 * 1024 * 1024); // 100 MB safety margin
-        if ($freeSpace !== false && $freeSpace < $requiredBytes) {
+        $freeSpaceNow = @disk_free_space($rootPath);
+        if ($freeSpaceNow !== false && $freeSpaceNow < $requiredBytes) {
             $zip->close();
             throw new RuntimeException(
                 'Spazio disco insufficiente per estrazione: disponibili '
-                . formatBytes((int) $freeSpace) . ', richiesti almeno '
+                . formatBytes((int) $freeSpaceNow) . ', richiesti almeno '
                 . formatBytes((float) $requiredBytes)
             );
         }

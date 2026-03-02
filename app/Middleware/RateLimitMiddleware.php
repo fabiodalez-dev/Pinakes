@@ -12,20 +12,20 @@ use App\Support\RateLimiter;
 class RateLimitMiddleware implements MiddlewareInterface
 {
     private int $window; // in seconds
+    private ?string $actionKey;
 
-    public function __construct(int $maxAttempts = 10, int $window = 900) // 15 minutes default
+    public function __construct(int $maxAttempts = 10, int $window = 900, ?string $actionKey = null) // 15 minutes default
     {
         // $maxAttempts reserved for future per-middleware configuration
         $this->window = $window;
+        $this->actionKey = $actionKey;
     }
 
     public function process(Request $request, RequestHandler $handler): Response
     {
-        // Determine rate limit identifier based on IP and possibly endpoint
         $ip = $this->getClientIP($request);
-        $endpoint = $request->getUri()->getPath();
-        
-        // For specific endpoints, we might want different rate limits
+        // Use action-based key if provided (prevents bypass via localized URLs)
+        $endpoint = $this->actionKey ?? $request->getUri()->getPath();
         $identifier = $ip . ':' . $endpoint;
 
         if (RateLimiter::isLimited($identifier)) {

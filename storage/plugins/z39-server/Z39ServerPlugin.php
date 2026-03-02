@@ -90,9 +90,6 @@ class Z39ServerPlugin
         if ($result && $row = $result->fetch_assoc()) {
             $this->pluginId = (int) $row['id'];
         }
-
-        // Ensure Nordic SRU servers are configured (auto-upgrade for existing installations)
-        $this->ensureNordicServers();
     }
 
     /**
@@ -571,7 +568,9 @@ class Z39ServerPlugin
         if (is_array($servers)) {
             foreach ($servers as $server) {
                 if (!empty($server['enabled']) && !empty($server['name'])) {
-                    $key = 'sru_' . preg_replace('/[^a-z0-9]+/', '_', strtolower($server['name']));
+                    $baseKey = preg_replace('/[^a-z0-9]+/', '_', strtolower($server['name']));
+                    $urlHash = substr(md5($server['url'] ?? ''), 0, 6);
+                    $key = 'sru_' . $baseKey . '_' . $urlHash;
                     $sources[$key] = [
                         'name' => $server['name'],
                         'priority' => 3,

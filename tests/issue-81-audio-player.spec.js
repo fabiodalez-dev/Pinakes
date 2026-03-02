@@ -27,24 +27,32 @@ test.describe.serial('Issue #81: Audiobook MP3 Player', () => {
   let context;
   let page;
   let testBookId = 0;
+  let originalAudioUrl = null;
   const FAKE_AUDIO_URL = '/uploads/test-audio.mp3';
 
   test.beforeAll(async ({ browser }) => {
     context = await browser.newContext();
     page = await context.newPage();
 
-    // Find a book to use
-    testBookId = Number(dbQuery("SELECT id FROM libri WHERE deleted_at IS NULL LIMIT 1"));
+    // Find a book and preserve its original audio_url
+    const row = dbQuery("SELECT id, COALESCE(audio_url, '') FROM libri WHERE deleted_at IS NULL LIMIT 1");
+    if (row) {
+      const parts = row.split('\t');
+      testBookId = Number(parts[0]);
+      originalAudioUrl = parts[1] || null;
+    }
     if (testBookId) {
-      // Set an audio_url on this book
       dbQuery(`UPDATE libri SET audio_url='${FAKE_AUDIO_URL}' WHERE id=${testBookId}`);
     }
   });
 
   test.afterAll(async () => {
-    // Clean up: remove audio_url
+    // Restore original audio_url
     if (testBookId) {
-      dbQuery(`UPDATE libri SET audio_url=NULL WHERE id=${testBookId}`);
+      const restored = originalAudioUrl === null
+        ? 'NULL'
+        : `'${String(originalAudioUrl).replace(/'/g, "''")}'`;
+      dbQuery(`UPDATE libri SET audio_url=${restored} WHERE id=${testBookId}`);
     }
     await context?.close();
   });
@@ -65,6 +73,9 @@ test.describe.serial('Issue #81: Audiobook MP3 Player', () => {
 
   test('Frontend: Audio player button and container render', async () => {
     test.skip(!testBookId, 'No test book available');
+
+    await page.goto(`${BASE}/libro/${testBookId}`);
+    await page.waitForLoadState('networkidle');
 
     // The toggle button should be visible
     const toggleBtn = page.locator('#btn-toggle-audiobook');
