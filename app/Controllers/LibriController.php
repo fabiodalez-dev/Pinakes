@@ -2557,6 +2557,7 @@ class LibriController
                 array_map('intval', explode(',', $idsParam)),
                 static fn (int $id): bool => $id > 0
             )));
+            $selectedIds = array_slice($selectedIds, 0, 1000);
         }
 
         // Export format options

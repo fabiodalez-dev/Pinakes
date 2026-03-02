@@ -1544,6 +1544,8 @@ $htmlLang = substr($currentLocale, 0, 2);
         // ? to open shortcuts modal
         if (e.key === '?' && !e.ctrlKey && !e.metaKey) {
           e.preventDefault();
+          gPrefixActive = false;
+          clearTimeout(gPrefixTimer);
           openShortcutsModal();
           return;
         }

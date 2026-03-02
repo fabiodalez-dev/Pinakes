@@ -156,22 +156,49 @@ function splitSqlStatements(string $sql): array
 {
     $statements = [];
     $current = '';
-    $inString = false;
+    $inSingle = false;
+    $inDouble = false;
+    $inBacktick = false;
     $length = strlen($sql);
 
     for ($i = 0; $i < $length; $i++) {
         $char = $sql[$i];
-        if ($char === "'") {
-            if ($inString && $i + 1 < $length && $sql[$i + 1] === "'") {
+
+        // Handle backslash escapes inside quoted strings
+        if (($inSingle || $inDouble) && $char === '\\' && $i + 1 < $length) {
+            $current .= $char . $sql[$i + 1];
+            $i++;
+            continue;
+        }
+
+        // Single-quoted string
+        if (!$inDouble && !$inBacktick && $char === "'") {
+            if ($inSingle && $i + 1 < $length && $sql[$i + 1] === "'") {
                 $current .= "''";
                 $i++;
                 continue;
             }
-            $inString = !$inString;
+            $inSingle = !$inSingle;
             $current .= $char;
             continue;
         }
-        if ($char === ';' && !$inString) {
+
+        // Double-quoted string
+        if (!$inSingle && !$inBacktick && $char === '"') {
+            $inDouble = !$inDouble;
+            $current .= $char;
+            continue;
+        }
+
+        // Backtick-quoted identifier
+        if (!$inSingle && !$inDouble && $char === '`') {
+            $inBacktick = !$inBacktick;
+            $current .= $char;
+            continue;
+        }
+
+        // Statement delimiter
+        if ($char === ';' && !$inSingle && !$inDouble && !$inBacktick) {
             $trimmed = trim($current);
             if ($trimmed !== '') {
                 $statements[] = $trimmed;
@@ -234,8 +261,21 @@ function copyTree(string $src, string $dst, string $rootDst, array $skipRelative
         if (is_dir($srcPath)) {
             $count += copyTree($srcPath, $dstPath, $rootDst, $skipRelative);
         } else {
-            if (!is_dir(dirname($dstPath))) {
-                mkdir(dirname($dstPath), 0755, true);
+            $dstDir = dirname($dstPath);
+            if (is_link($dstPath) || is_link($dstDir)) {
+                throw new RuntimeException('Percorso destinazione simbolico non consentito: ' . $dstPath);
+            }
+            if (!is_dir($dstDir) && !mkdir($dstDir, 0755, true) && !is_dir($dstDir)) {
+                throw new RuntimeException('Impossibile creare directory destinazione: ' . $dstDir);
+            }
+            $rootReal = realpath($rootDst);
+            $dstDirReal = realpath($dstDir);
+            if (
+                $rootReal === false
+                || $dstDirReal === false
+                || !str_starts_with($dstDirReal . '/', rtrim($rootReal, '/') . '/')
+            ) {
+                throw new RuntimeException('Percorso destinazione non valido: ' . $dstPath);
             }
             if (!copy($srcPath, $dstPath)) {
                 throw new RuntimeException('Copia file fallita: ' . $srcPath . ' -> ' . $dstPath);
@@ -259,25 +299,36 @@ $requestMethod = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
 $maxAttempts = 5;
 $lockSeconds = 300;
-$_SESSION['upgrade_failed_attempts'] = (int) ($_SESSION['upgrade_failed_attempts'] ?? 0);
-$_SESSION['upgrade_lock_until'] = (int) ($_SESSION['upgrade_lock_until'] ?? 0);
+
+// File-based throttling (not session-scoped, so rotating cookies cannot bypass it)
+$clientKey = hash('sha256', (string) ($_SERVER['REMOTE_ADDR'] ?? 'unknown'));
+$attemptFile = sys_get_temp_dir() . '/pinakes_upgrade_auth_' . $clientKey . '.json';
+$attemptState = ['failed' => 0, 'lock_until' => 0];
+if (is_file($attemptFile)) {
+    $raw = file_get_contents($attemptFile);
+    $decoded = is_string($raw) ? json_decode($raw, true) : null;
+    if (is_array($decoded)) {
+        $attemptState['failed'] = (int) ($decoded['failed'] ?? 0);
+        $attemptState['lock_until'] = (int) ($decoded['lock_until'] ?? 0);
+    }
+}
 
 if ($requestMethod === 'POST' && isset($_POST['password'])) {
-    if (time() < $_SESSION['upgrade_lock_until']) {
+    if (time() < $attemptState['lock_until']) {
         $error = 'Troppi tentativi. Riprova tra qualche minuto.';
     } elseif (hash_equals('pinakes2026', UPGRADE_PASSWORD)) {
         $error = 'SICUREZZA: cambia la password nel file prima di procedere.';
     } elseif (hash_equals(UPGRADE_PASSWORD, (string) $_POST['password'])) {
         session_regenerate_id(true);
         $_SESSION['upgrade_auth'] = true;
-        $_SESSION['upgrade_failed_attempts'] = 0;
-        $_SESSION['upgrade_lock_until'] = 0;
+        @unlink($attemptFile);
     } else {
-        $_SESSION['upgrade_failed_attempts']++;
-        if ($_SESSION['upgrade_failed_attempts'] >= $maxAttempts) {
-            $_SESSION['upgrade_lock_until'] = time() + $lockSeconds;
-            $_SESSION['upgrade_failed_attempts'] = 0;
+        $attemptState['failed']++;
+        if ($attemptState['failed'] >= $maxAttempts) {
+            $attemptState['lock_until'] = time() + $lockSeconds;
+            $attemptState['failed'] = 0;
         }
+        file_put_contents($attemptFile, json_encode($attemptState), LOCK_EX);
         $error = 'Password errata.';
     }
 }

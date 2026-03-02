@@ -51,7 +51,7 @@ renderHeader(0, 'Selezione Lingua');
     <form method="POST" action="index.php?step=0" style="max-width: 500px; margin: 0 auto;">
         <div style="display: grid; gap: 20px; margin-bottom: 40px;">
             <!-- Italian Option -->
-            <label class="language-option <?= $currentLanguage === 'it' ? 'selected' : '' ?>">
+            <label class="language-option <?= ($currentLanguage === 'it' || $currentLanguage === 'it_IT') ? 'selected' : '' ?>">
                 <div style="display: flex; align-items: center; gap: 15px;">
                     <input
                         type="radio"

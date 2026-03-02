@@ -85,8 +85,17 @@ class PluginManager
                 continue;
             }
             $stmt->bind_param('s', $pluginName);
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                error_log("[PluginManager] Failed bundled plugin lookup execute for $pluginName: " . $stmt->error);
+                $stmt->close();
+                continue;
+            }
             $result = $stmt->get_result();
+            if ($result === false) {
+                error_log("[PluginManager] Failed bundled plugin lookup result for $pluginName: " . $stmt->error);
+                $stmt->close();
+                continue;
+            }
             $row = $result->fetch_assoc();
             $stmt->close();
 

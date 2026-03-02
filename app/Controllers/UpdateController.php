@@ -496,6 +496,13 @@ class UpdateController
 
         $token = trim((string) ($data['github_token'] ?? ''));
 
+        if ($token !== '' && preg_match('/[[:cntrl:]]/u', $token)) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Token GitHub non valido')
+            ], 400);
+        }
+
         try {
             $updater = new Updater($db);
             $updater->saveGitHubToken($token);

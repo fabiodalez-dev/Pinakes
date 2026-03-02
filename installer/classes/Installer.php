@@ -1020,6 +1020,7 @@ HTACCESS;
         }
 
         $port = null;
+        $host = trim($host);
         if (preg_match('/^\[(.+)\](?::(\d+))?$/', $host, $matches)) {
             // Bracketed IPv6 literal, optionally with port
             $host = '[' . $matches[1] . ']';

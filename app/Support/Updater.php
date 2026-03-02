@@ -302,18 +302,32 @@ class Updater
      * Get GitHub API headers, optionally with Authorization
      * @return array<string>
      */
-    private function getGitHubHeaders(string $accept = 'application/vnd.github.v3+json'): array
+    private function getGitHubHeaders(string $accept = 'application/vnd.github.v3+json', bool $withAuth = true): array
     {
         $headers = [
             'User-Agent: Pinakes-Updater/1.0',
             'Accept: ' . $accept,
         ];
 
-        if ($this->githubToken !== '') {
+        if ($withAuth && $this->githubToken !== '') {
             $headers[] = 'Authorization: Bearer ' . $this->githubToken;
         }
 
         return $headers;
+    }
+
+    /**
+     * Extract final HTTP status code from response headers (handles redirects).
+     * @param array<int, string> $headers
+     */
+    private function extractFinalHttpStatus(array $headers): int
+    {
+        for ($i = count($headers) - 1; $i >= 0; $i--) {
+            if (preg_match('/^HTTP\/\d\.\d\s+(\d+)/', $headers[$i], $m) === 1) {
+                return (int) $m[1];
+            }
+        }
+        return 0;
     }
 
     /**
@@ -745,10 +759,7 @@ class Updater
             } elseif (in_array($httpCode, [401, 403], true) && $this->githubToken !== '') {
                 // Retry without token on auth failure
                 $this->debugLog('WARNING', 'Releases auth fallito, retry senza token', ['http_code' => $httpCode]);
-                $retryHeaders = [
-                    'User-Agent: Pinakes-Updater/1.0',
-                    'Accept: application/vnd.github.v3+json',
-                ];
+                $retryHeaders = $this->getGitHubHeaders('application/vnd.github.v3+json', false);
                 $ch2 = curl_init($url);
                 curl_setopt_array($ch2, [
                     CURLOPT_RETURNTRANSFER => true,
@@ -783,10 +794,7 @@ class Updater
 
             // Retry without token on auth failure
             /** @var array<int, string> $http_response_header */
-            $status = 0;
-            if (!empty($http_response_header[0]) && preg_match('/HTTP\/\d\.\d\s+(\d+)/', $http_response_header[0], $m)) {
-                $status = (int) $m[1];
-            }
+            $status = $this->extractFinalHttpStatus($http_response_header);
             if (in_array($status, [401, 403], true) && $this->githubToken !== '') {
                 $savedToken = $this->githubToken;
                 $this->githubToken = '';
@@ -945,10 +953,7 @@ class Updater
                     // Retry without token on auth failure before falling back
                     if (in_array($httpCode, [401, 403], true) && $this->githubToken !== '') {
                         $this->debugLog('WARNING', 'Download auth fallito, retry senza token', ['http_code' => $httpCode]);
-                        $retryHeaders = [
-                            'User-Agent: Pinakes-Updater/1.0',
-                            'Accept: application/octet-stream',
-                        ];
+                        $retryHeaders = $this->getGitHubHeaders('application/octet-stream', false);
                         $ch2 = curl_init($downloadUrl);
                         curl_setopt_array($ch2, [
                             CURLOPT_RETURNTRANSFER => true,
@@ -1002,10 +1007,8 @@ class Updater
                 }
 
                 // Retry without token on auth failure
-                $dlStatus = 0;
-                if (!empty($http_response_header[0]) && preg_match('/HTTP\/\d\.\d\s+(\d+)/', $http_response_header[0], $dlMatch)) {
-                    $dlStatus = (int) $dlMatch[1];
-                }
+                /** @var array<int, string> $http_response_header */
+                $dlStatus = $this->extractFinalHttpStatus($http_response_header);
                 if (in_array($dlStatus, [401, 403], true) && $this->githubToken !== '') {
                     $savedToken = $this->githubToken;
                     $this->githubToken = '';
@@ -1020,11 +1023,8 @@ class Updater
                             ]
                         ]);
                         $retryContent = @file_get_contents($downloadUrl, false, $context);
-                        $retryStatus = 0;
                         /** @var array<int, string> $http_response_header */
-                        if (!empty($http_response_header[0]) && preg_match('/HTTP\/\d\.\d\s+(\d+)/', $http_response_header[0], $retryMatch)) {
-                            $retryStatus = (int) $retryMatch[1];
-                        }
+                        $retryStatus = $this->extractFinalHttpStatus($http_response_header);
                         $fileContent = ($retryContent !== false && $retryStatus >= 200 && $retryStatus < 400)
                             ? $retryContent
                             : false;

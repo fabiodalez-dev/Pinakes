@@ -35,11 +35,11 @@ test.describe.serial('Issue #81: Audiobook MP3 Player', () => {
     page = await context.newPage();
 
     // Find a book and preserve its original audio_url
-    const row = dbQuery("SELECT id, COALESCE(audio_url, '') FROM libri WHERE deleted_at IS NULL LIMIT 1");
+    const row = dbQuery("SELECT id, (audio_url IS NULL) AS audio_is_null, COALESCE(audio_url, '') AS audio_url FROM libri WHERE deleted_at IS NULL LIMIT 1");
     if (row) {
-      const parts = row.split('\t');
-      testBookId = Number(parts[0]);
-      originalAudioUrl = parts[1] || null;
+      const [idRaw, isNullRaw, audioUrlRaw = ''] = row.split('\t');
+      testBookId = Number(idRaw);
+      originalAudioUrl = isNullRaw === '1' ? null : audioUrlRaw;
     }
     if (testBookId) {
       dbQuery(`UPDATE libri SET audio_url='${FAKE_AUDIO_URL}' WHERE id=${testBookId}`);

@@ -517,8 +517,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <dt class="text-xs uppercase text-gray-500"><?= __("Audio") ?></dt>
               <dd>
                 <button type="button" id="btn-admin-audio-toggle"
+                  aria-controls="admin-audio-player"
+                  aria-expanded="false"
                   class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-500 text-white hover:bg-purple-600 transition-colors"
-                  onclick="var p=document.getElementById('admin-audio-player');if(p.classList.contains('hidden')){p.classList.remove('hidden');this.querySelector('span').textContent=<?= $audioCloseLabel ?>;}else{p.classList.add('hidden');p.querySelector('audio').pause();this.querySelector('span').textContent=<?= $audioOpenLabel ?>;}">
+                  onclick="var p=document.getElementById('admin-audio-player');if(!p)return;var h=p.classList.contains('hidden');if(h){p.classList.remove('hidden');this.querySelector('span').textContent=<?= $audioCloseLabel ?>;this.setAttribute('aria-expanded','true');}else{p.classList.add('hidden');p.querySelector('audio').pause();this.querySelector('span').textContent=<?= $audioOpenLabel ?>;this.setAttribute('aria-expanded','false');}">
                   <i class="fas fa-headphones"></i> <span><?= __("Ascolta") ?></span>
                 </button>
                 <div id="admin-audio-player" class="hidden mt-2">
