@@ -295,8 +295,9 @@ if ($authenticated && empty($_SESSION['upgrade_csrf'])) {
 
 if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
     // CSRF validation
-    $submittedToken = $_POST['csrf_token'] ?? '';
-    if (!hash_equals($_SESSION['upgrade_csrf'] ?? '', $submittedToken)) {
+    $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+    $sessionToken = (string) ($_SESSION['upgrade_csrf'] ?? '');
+    if (!hash_equals($sessionToken, $submittedToken)) {
         $error = 'Token CSRF non valido. Ricarica la pagina e riprova.';
         goto render;
     }
@@ -440,6 +441,24 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
                 throw new RuntimeException('ZIP non valido: contiene percorsi pericolosi');
             }
         }
+        // Check uncompressed size vs available disk space
+        $uncompressedBytes = 0;
+        for ($j = 0; $j < $zip->numFiles; $j++) {
+            $st = $zip->statIndex($j);
+            if ($st !== false) {
+                $uncompressedBytes += $st['size'];
+            }
+        }
+        $requiredBytes = $uncompressedBytes + (100 * 1024 * 1024); // 100 MB safety margin
+        if ($freeSpace !== false && $freeSpace < $requiredBytes) {
+            $zip->close();
+            throw new RuntimeException(
+                'Spazio disco insufficiente per estrazione: disponibili '
+                . formatBytes((int) $freeSpace) . ', richiesti almeno '
+                . formatBytes((float) $requiredBytes)
+            );
+        }
+
         if (!$zip->extractTo($tempDir)) {
             $zip->close();
             throw new RuntimeException('Estrazione ZIP fallita in ' . basename($tempDir));

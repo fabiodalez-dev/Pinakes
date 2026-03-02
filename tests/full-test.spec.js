@@ -919,7 +919,7 @@ test.describe.serial('Phase 7: Author Management', () => {
     if (await mergeSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
       page.once('dialog', d => d.accept());
       await mergeSelect.selectOption(String(targetId));
-      await page.locator('form[action*="merge"], form[action*="unisci"] button[type="submit"], #merge-author-form button[type="submit"]').first().click();
+      await page.locator('form[action*="merge"] button[type="submit"], form[action*="unisci"] button[type="submit"], #merge-author-form button[type="submit"]').first().click();
       await page.waitForLoadState('networkidle');
 
       // Source should be deleted
@@ -1049,7 +1049,7 @@ test.describe.serial('Phase 8: Publisher Management', () => {
     if (await mergeSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
       page.once('dialog', d => d.accept());
       await mergeSelect.selectOption(String(targetId));
-      await page.locator('form[action*="merge"], form[action*="unisci"] button[type="submit"]').first().click();
+      await page.locator('form[action*="merge"] button[type="submit"], form[action*="unisci"] button[type="submit"]').first().click();
       await page.waitForLoadState('networkidle');
 
       const srcExists = dbQuery(`SELECT COUNT(*) FROM editori WHERE id = ${sourceId}`);

@@ -548,6 +548,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
               <!-- Keyboard Shortcuts -->
               <button id="shortcuts-help"
+                aria-label="<?= __('Scorciatoie da tastiera') ?>"
                 class="hidden md:flex p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
                 title="<?= __('Scorciatoie da tastiera') ?> (?)">
                 <i class="fas fa-keyboard text-lg text-gray-600"></i>
@@ -1490,6 +1491,9 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         // ESC to close all popups
         if (e.key === 'Escape') {
+          gPrefixActive = false;
+          clearTimeout(gPrefixTimer);
+
           // Close shortcuts modal
           closeShortcutsModal();
 
@@ -1619,7 +1623,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         <i class="fas fa-keyboard text-gray-500"></i>
         <?= __("Scorciatoie da tastiera") ?>
       </h3>
-      <button id="close-shortcuts" class="text-gray-400 hover:text-gray-600 transition-colors">
+      <button id="close-shortcuts" aria-label="<?= __('Chiudi') ?>" class="text-gray-400 hover:text-gray-600 transition-colors">
         <i class="fas fa-times"></i>
       </button>
     </div>

@@ -357,7 +357,7 @@ ob_start();
 
                     ?>
                     <article class="event-card">
-                        <a href="<?= htmlspecialchars(url('/events/' . $event['slug']), ENT_QUOTES, 'UTF-8') ?>" class="event-card__thumb">
+                        <a href="<?= htmlspecialchars(route_path('events') . '/' . rawurlencode($event['slug']), ENT_QUOTES, 'UTF-8') ?>" class="event-card__thumb">
                             <?php if (!empty($event['featured_image'])): ?>
                                 <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
                             <?php else: ?>
@@ -371,12 +371,12 @@ ob_start();
                                 <?= HtmlHelper::e($eventDateFormatted) ?>
                             </div>
                             <h2 class="event-card__title">
-                                <a href="<?= htmlspecialchars(url('/events/' . $event['slug']), ENT_QUOTES, 'UTF-8') ?>">
+                                <a href="<?= htmlspecialchars(route_path('events') . '/' . rawurlencode($event['slug']), ENT_QUOTES, 'UTF-8') ?>">
                                     <?= HtmlHelper::e($event['title']) ?>
                                 </a>
                             </h2>
                             <div class="event-card__actions">
-                                <a href="<?= htmlspecialchars(url('/events/' . $event['slug']), ENT_QUOTES, 'UTF-8') ?>" class="event-card__button">
+                                <a href="<?= htmlspecialchars(route_path('events') . '/' . rawurlencode($event['slug']), ENT_QUOTES, 'UTF-8') ?>" class="event-card__button">
                                     <?= __("Scopri l'evento") ?>
                                     <i class="fas fa-arrow-right"></i>
                                 </a>

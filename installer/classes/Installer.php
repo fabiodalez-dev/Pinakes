@@ -1029,6 +1029,9 @@ HTACCESS;
             [$hostOnly, $portPart] = explode(':', $host, 2);
             $host = $hostOnly;
             $port = is_numeric($portPart) ? (int)$portPart : null;
+        } elseif (strpos($host, ':') !== false) {
+            // Unbracketed IPv6 literal (no explicit port)
+            $host = '[' . trim($host, '[]') . ']';
         }
 
         if ($port === null) {

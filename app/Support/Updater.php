@@ -1019,7 +1019,15 @@ class Updater
                                 'ignore_errors' => true
                             ]
                         ]);
-                        $fileContent = @file_get_contents($downloadUrl, false, $context);
+                        $retryContent = @file_get_contents($downloadUrl, false, $context);
+                        $retryStatus = 0;
+                        /** @var array<int, string> $http_response_header */
+                        if (!empty($http_response_header[0]) && preg_match('/HTTP\/\d\.\d\s+(\d+)/', $http_response_header[0], $retryMatch)) {
+                            $retryStatus = (int) $retryMatch[1];
+                        }
+                        $fileContent = ($retryContent !== false && $retryStatus >= 200 && $retryStatus < 400)
+                            ? $retryContent
+                            : false;
                     } finally {
                         $this->githubToken = $savedToken;
                     }

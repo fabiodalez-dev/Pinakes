@@ -962,6 +962,11 @@ class BookRepository
                     if ($validated !== false) {
                         $cols[$c] = $validated;
                     }
+                } elseif ($c === 'anno_pubblicazione') {
+                    $validated = filter_var($data[$c], FILTER_VALIDATE_INT);
+                    if ($validated !== false) {
+                        $cols[$c] = $validated;
+                    }
                 } else {
                     $cols[$c] = $data[$c];
                 }
