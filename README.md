@@ -591,3 +591,9 @@ If Pinakes helps your library, please ⭐ the repository!
 - `app/Views/frontend/catalog.php` – Public catalog filters
 - `app/Controllers/SeoController.php` – Sitemap + robots.txt
 - `storage/plugins/` – Plugin directory (all pre-installed plugins)
+
+---
+
+## Community Projects
+
+- 🐳 **[jbenamy/pinakes-docker](https://github.com/jbenamy/pinakes-docker)** — Community-maintained Docker image. This is an independent project not managed by the Pinakes team — please refer to its own documentation for setup and support.
