@@ -12,13 +12,15 @@ Tutti i file relativi alle lingue si trovano nella cartella `locale/`.
 
 ```
 locale/
-├── en_US.json         # File principale per l'Inglese
 ├── it_IT.json         # File principale per l'Italiano
+├── en_US.json         # File principale per l'Inglese
+├── de_DE.json         # File principale per il Tedesco
+├── routes_it_IT.json  # Traduzioni per gli URL in Italiano
 ├── routes_en_US.json  # Traduzioni per gli URL in Inglese
-└── routes_it_IT.json  # Traduzioni per gli URL in Italiano
+└── routes_de_DE.json  # Traduzioni per gli URL in Tedesco
 ```
 
-### File Principali (`it_IT.json`, `en_US.json`)
+### File Principali (`it_IT.json`, `en_US.json`, `de_DE.json`)
 
 Questi file contengono la maggior parte delle traduzioni. Sono file di tipo **JSON**, che è un formato semplice per associare una "chiave" a un "valore".
 
@@ -47,7 +49,7 @@ Questi file contengono la maggior parte delle traduzioni. Sono file di tipo **JS
 - **Chiave**: `dashboard.title` (identificatore univoco della traduzione)
 - **Valore**: `"Pannello di Controllo"` (il testo che viene mostrato all'utente)
 
-Quando l'utente seleziona l'italiano, il sistema userà `it_IT.json`. Se seleziona l'inglese, userà `en_US.json`.
+Quando l'utente seleziona l'italiano, il sistema userà `it_IT.json`. Se seleziona l'inglese, userà `en_US.json`. Se seleziona il tedesco, userà `de_DE.json`.
 
 ### File delle Rotte (`routes_it_IT.json`, `routes_en_US.json`)
 
@@ -73,6 +75,7 @@ Questi file speciali servono per tradurre gli **URL** (gli indirizzi delle pagin
 Questo permette di avere URL localizzati, come:
 - `http://tuosito.it/admin/libri` (in italiano)
 - `http://tuosito.it/admin/books` (in inglese)
+- `http://tuosito.it/admin/buecher` (in tedesco)
 
 ---
 
@@ -113,7 +116,7 @@ Pensa a una chiave **descrittiva e univoca**. La convenzione è `sezione.nome_de
 - **Chiave finale**: `books.search_by_author`
 
 ### Passo 2: Aggiungi la Chiave ai File JSON
-Apri **entrambi** i file `it_IT.json` e `en_US.json` e aggiungi la nuova chiave con la rispettiva traduzione.
+Apri **tutti** i file di traduzione (`it_IT.json`, `en_US.json`, `de_DE.json`) e aggiungi la nuova chiave con la rispettiva traduzione.
 
 **In `it_IT.json`**:
 ```json
@@ -129,6 +132,15 @@ Apri **entrambi** i file `it_IT.json` e `en_US.json` e aggiungi la nuova chiave 
 {
   ...
   "books.search_by_author": "Search by author",
+  ...
+}
+```
+
+**In `de_DE.json`**:
+```json
+{
+  ...
+  "books.search_by_author": "Nach Autor suchen",
   ...
 }
 ```
@@ -149,8 +161,13 @@ Ora, nel file della vista dove vuoi mostrare il testo, usa la funzione `i18n()` 
 
 ## Gestire le Lingue
 
-### Come Cambiare Lingua
-L'utente può cambiare lingua tramite un selettore presente nell'interfaccia (di solito nell'header o nel footer). Il sistema memorizza la scelta e la applica a tutte le pagine.
+### Lingue Disponibili
+Pinakes include di serie tre lingue complete:
+- **Italiano** (`it_IT`) — 4.000+ stringhe tradotte
+- **English** (`en_US`) — 4.000+ stringhe tradotte
+- **Deutsch** (`de_DE`) — 4.000+ stringhe tradotte
+
+La lingua viene scelta durante l'installazione (Step 0) e diventa la lingua predefinita per tutta l'applicazione.
 
 ### Aggiungere una Nuova Lingua (es. Francese)
 Per aggiungere il supporto a una nuova lingua, per esempio il francese (`fr_FR`):
@@ -199,5 +216,5 @@ R: No, si traducono "stringhe" o frasi intere. Questo rende il contesto più chi
 R: Aiuta a mantenere i file JSON organizzati e a evitare conflitti tra chiavi con lo stesso nome ma usate in contesti diversi (es. `books.title` e `authors.title`).
 
 ---
-*Ultimo aggiornamento: 14 Novembre 2025*
-*Versione guida: 1.0.0*
+*Ultimo aggiornamento: 2 Marzo 2026*
+*Versione guida: 1.1.0 — Aggiunto supporto tedesco (de_DE)*

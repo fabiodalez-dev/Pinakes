@@ -66,9 +66,16 @@ Prima di iniziare, verifica di avere:
 3. **Premi Invio**
 4. **Vedrai**: Una pagina con logo e un bottone "Inizia"
 
-### Passo 4: Segui l'Installer Automatico (7 Step)
+### Passo 4: Segui l'Installer Automatico (8 Step)
 
 L'installer ti guiderà automaticamente. **Non devi fare nulla di tecnico!**
+
+**Step 0: Selezione Lingua**
+```text
+ Scegli la lingua dell'installazione e dell'applicazione
+ Lingue disponibili: Italiano, English, Deutsch
+ La lingua scelta sarà quella predefinita per tutta l'applicazione
+```
 
 **Step 1: Verifica Requisiti**
 ```text
@@ -271,6 +278,6 @@ tuodominio.it/
 
 ---
 
-*Ultimo aggiornamento: 19 Ottobre 2025*
-*Versione: 2.0.0 - Installazione Semplificata*
+*Ultimo aggiornamento: 2 Marzo 2026*
+*Versione: 2.1.0 - Installazione con selezione lingua (IT/EN/DE)*
 *Tempo lettura: 5 minuti | Tempo installazione: 15 minuti*

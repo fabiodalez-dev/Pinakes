@@ -12,6 +12,7 @@
 -  **Completamente gratuito e open-source**
 -  **Funziona in cloud** - Accedi da qualunque dispositivo
 -  **Automatizzato al 100%** - Email, scadenze, notifiche
+-  **Multilingua** - Disponibile in Italiano, Inglese e Tedesco
 -  **Professionale** - Usato da scuole e comuni italiani
 
 ---
@@ -314,8 +315,8 @@ Scegli la tua guida in base a quello che devi fare:
 
 ## Versione e Changelog
 
-**Versione Documentazione**: 1.0.0
-**Data Aggiornamento**: 19 Ottobre 2025
+**Versione Documentazione**: 1.1.0
+**Data Aggiornamento**: 2 Marzo 2026
 **Stato**:  Completo e Aggiornato
 
 ### Cosa Contiene questa Versione
@@ -340,6 +341,6 @@ Siamo felici di averti con noi. Che tu sia un bibliotecario, un admin scolastico
 
 ---
 
-*Documento creato il 19 Ottobre 2025*
-*Pinakes - Documentazione Ufficiale v1.0.0*
-*Lingua: Italiano | User-friendly | Per tutti i livelli*
+*Ultimo aggiornamento: 2 Marzo 2026*
+*Pinakes - Documentazione Ufficiale v1.1.0*
+*Lingue supportate: Italiano, English, Deutsch | User-friendly | Per tutti i livelli*

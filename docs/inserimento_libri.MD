@@ -213,6 +213,17 @@ Il sistema interroga **fonti ufficiali e affidabili** in questo ordine di priori
 - **Affidabilità**: ⭐⭐⭐ (Media)
 - **Lingua**: Internazionale
 
+#### 5⃣ Z39 Server / SRU — Biblioteche Nazionali (Plugin)
+Con il plugin **Z39 Server** attivato, il sistema può interrogare le biblioteche nazionali tramite protocollo **SRU (Search/Retrieve via URL)**:
+
+- **SBN** (Servizio Bibliotecario Nazionale) — Biblioteca nazionale italiana, con estrazione automatica del codice Dewey
+- **DBC** (Dansk BiblioteksCenter) — Biblioteca nazionale danese
+- **HELKA** (Helsinki University Library) — Biblioteca nazionale finlandese
+- **BIBSYS** (Nasjonalbiblioteket) — Biblioteca nazionale norvegese
+- **LIBRIS** (Kungliga biblioteket) — Biblioteca nazionale svedese
+
+I server nordici vengono configurati automaticamente alla prima attivazione del plugin. Questa è una fonte particolarmente utile per libri in lingue scandinave e per ottenere la classificazione Dewey.
+
 ### Processo di Importazione Passo-Passo
 
 Quando clicchi "Importa Dati", ecco cosa succede nei 3-5 secondi di attesa:
