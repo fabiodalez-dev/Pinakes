@@ -485,14 +485,14 @@ Plugins support encrypted secrets and isolated configuration. Install via ZIP up
 
 All plugins are located in `storage/plugins/` and can be managed from **Admin → Plugins**.
 
-### 1. Open Library (`open-library-v1.0.0.zip`)
+### 1. Open Library (`open-library-v1.0.1.zip`)
 - **Metadata scraping** from Open Library API
 - **Fallback to Google Books** when Open Library lacks data
 - **Automatic cover download** with validation
 - **Subject mapping** and language normalization
 - **Configurable priority** and caching options
 
-### 2. Z39 Server (`z39-server-v1.0.0.zip`)
+### 2. Z39 Server (`z39-server-v1.2.3.zip`)
 
 Implements the **SRU (Search/Retrieve via URL)** protocol, the HTTP-based successor to Z39.50, enabling catalog interoperability with library systems worldwide.
 
@@ -530,21 +530,21 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=97888
 
 **Use cases**: Union catalogs, interlibrary loan systems, OPAC federation, copy cataloging workflows, automatic Dewey classification.
 
-### 3. API Book Scraper (`api-book-scraper-v1.0.0.zip`)
+### 3. API Book Scraper (`api-book-scraper-v1.1.1.zip`)
 - **External API integration** for ISBN enrichment
 - **Custom endpoint configuration** (URL, headers, auth)
 - **Response mapping** to Pinakes schema
 - **Retry logic** with exponential backoff
 - **Error logging** and debugging tools
 
-### 4. Digital Library (`digital-library-v1.0.0.zip`)
+### 4. Digital Library (`digital-library-v1.2.0.zip`)
 - **eBook support** (PDF, ePub) with download tracking
 - **Audiobook streaming** (MP3, M4A, OGG) with HTML5 player
 - **Per-item digital asset management** (unlimited files per book)
 - **Access control** (public, logged-in users only, specific roles)
 - **Usage statistics** and download history
 
-### 5. Dewey Editor (`dewey-editor-v1.0.0.zip`)
+### 5. Dewey Editor (`dewey-editor-v1.0.1.zip`)
 
 Complete Dewey Decimal Classification management system with multilingual support, automatic population, and data exchange capabilities.
 
