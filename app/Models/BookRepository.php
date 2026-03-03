@@ -1077,13 +1077,16 @@ class BookRepository
 
         if ($chainLen === 1) {
             // genere_id points to a ROOT genre (L1)
-            // Cascade: radice = this genre, genere/sotto = not set
+            // Cascade: radice = this genre, genere/sotto from sottogenere_id if set
             $row['radice_id'] = $chain[0]['id'];
             $row['radice_nome'] = $chain[0]['nome'];
             $row['genere_nome'] = null;
             $row['genere_id_cascade'] = 0;
-            $row['sottogenere_nome'] = null;
-            $row['sottogenere_id_cascade'] = 0;
+            // Keep sottogenere_nome from SQL JOIN when sottogenere_id is set (#90)
+            if ($sottogenereId <= 0) {
+                $row['sottogenere_nome'] = null;
+            }
+            $row['sottogenere_id_cascade'] = $sottogenereId;
         } elseif ($chainLen === 2) {
             // genere_id points to L2 genre — standard case
             $row['radice_id'] = $chain[0]['id'];

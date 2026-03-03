@@ -2397,6 +2397,32 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const firstHref = await keywordChips.first().getAttribute('href');
     expect(firstHref).toContain('?q=');
   });
+
+  test('18.14 #90: Subgenre visible on admin book detail after edit', async () => {
+    // Find a ROOT genre and one of its direct children
+    // This tests the chainLen===1 path in resolveGenreHierarchy
+    const rootId = dbQuery("SELECT id FROM generi WHERE parent_id IS NULL LIMIT 1");
+    if (!rootId) { test.skip(); return; }
+    const childRow = dbQuery(`SELECT id, nome FROM generi WHERE parent_id = ${rootId} LIMIT 1`);
+    if (!childRow) { test.skip(); return; }
+    const [childId, childName] = childRow.split('\t');
+
+    // Get a book to edit
+    const bookId = state.createdBookIds[0];
+    test.skip(!bookId, 'No book created');
+
+    // Directly set genere_id = root, sottogenere_id = child via DB
+    // This mirrors what the controller normalization does
+    dbQuery(`UPDATE libri SET genere_id=${rootId}, sottogenere_id=${childId} WHERE id=${bookId}`);
+
+    // Navigate to admin book detail page
+    await page.goto(`${BASE}/admin/libri/${bookId}`);
+    await page.waitForLoadState('domcontentloaded');
+
+    // The genre section should display the child genre name
+    const genreText = await page.locator('.fa-layer-group').locator('..').textContent();
+    expect(genreText).toContain(childName);
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════
