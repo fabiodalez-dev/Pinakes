@@ -1708,6 +1708,30 @@ ob_start();
                 </div>
                 <?php endif; ?>
 
+                <?php if (!empty($book['parole_chiave'])): ?>
+                <div class="book-details-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-tags"></i>
+                        <?= __("Parole Chiave") ?>
+                    </h2>
+                    <div class="d-flex flex-wrap gap-2">
+                        <?php
+                        $keywords = array_map('trim', explode(',', $book['parole_chiave']));
+                        foreach ($keywords as $keyword):
+                            if ($keyword === '') continue;
+                        ?>
+                        <a href="<?= htmlspecialchars($catalogRoute . '?q=' . urlencode($keyword), ENT_QUOTES, 'UTF-8') ?>"
+                           class="badge bg-light text-dark border px-3 py-2 text-decoration-none"
+                           style="font-size: 0.85rem; transition: all 0.2s;"
+                           onmouseover="this.style.backgroundColor='#e9ecef'"
+                           onmouseout="this.style.backgroundColor=''">
+                            <i class="fas fa-tag me-1 text-muted"></i><?= HtmlHelper::e($keyword) ?>
+                        </a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                <?php endif; ?>
+
                 <!-- LibraryThing Fields Section -->
                 <?php
                 // Parse LibraryThing visibility settings
