@@ -2315,6 +2315,75 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     // Cleanup
     dbQuery(`DELETE FROM libri WHERE id=${bookId}`);
   });
+
+  test('18.11 #83: Admin search finds books by description', async () => {
+    // Our E2E book has description "Updated description for E2E test"
+    await page.goto(`${BASE}/admin/libri`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const apiResp = await page.request.get(
+      `${BASE}/api/libri?draw=1&start=0&length=10&search[value]=${encodeURIComponent('Updated description')}`
+    );
+    expect(apiResp.ok()).toBeTruthy();
+    const data = await apiResp.json();
+    // Should find at least our test book that has this description
+    expect(data.recordsFiltered).toBeGreaterThan(0);
+  });
+
+  test('18.12 #85: Catalog sort by author works', async () => {
+    // Verify catalog loads with author sorting (uses SUBSTRING_INDEX for surname)
+    const resp = await page.request.get(`${BASE}/catalogo?ordine=author_asc`);
+    expect(resp.ok()).toBeTruthy();
+
+    const resp2 = await page.request.get(`${BASE}/catalogo?ordine=author_desc`);
+    expect(resp2.ok()).toBeTruthy();
+  });
+
+  test('18.13 #86: Keywords visible on public book detail page', async () => {
+    // Find a book with keywords via catalog page — click the first book link
+    await page.goto(`${BASE}/catalogo`);
+    await page.waitForLoadState('domcontentloaded');
+
+    // Find a book card link and navigate to it
+    const bookLink = page.locator('a[href*="/"]').filter({ hasText: /\w+/ }).first();
+    await expect(bookLink).toBeVisible({ timeout: 5000 });
+    const href = await bookLink.getAttribute('href');
+
+    // Check DB: does any book have keywords?
+    const hasKeywords = dbQuery(
+      `SELECT COUNT(*) FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave != '' AND deleted_at IS NULL`
+    );
+    if (Number(hasKeywords) === 0) { test.skip(); return; }
+
+    // Find a book with keywords and navigate to its detail page
+    const bookId = dbQuery(
+      `SELECT id FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave != '' AND deleted_at IS NULL LIMIT 1`
+    );
+    const titolo = dbQuery(`SELECT titolo FROM libri WHERE id=${bookId}`);
+
+    // Use the catalog search to find this specific book, then click into it
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(titolo)}`);
+    await page.waitForLoadState('domcontentloaded');
+
+    // Click the first result that links to a book detail
+    const detailLink = page.locator(`a[href*="/${bookId}"]`).first();
+    if (await detailLink.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await detailLink.click();
+    } else {
+      // Fallback: construct URL directly (author-slug/book-slug/id format)
+      await page.goto(`${BASE}/autore/libro/${bookId}`);
+    }
+    await page.waitForLoadState('domcontentloaded');
+
+    // Verify keyword chips are present
+    const keywordChips = page.locator('.keyword-chip');
+    const chipCount = await keywordChips.count();
+    expect(chipCount).toBeGreaterThan(0);
+
+    // Verify chips link to catalog search
+    const firstHref = await keywordChips.first().getAttribute('href');
+    expect(firstHref).toContain('?q=');
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════
