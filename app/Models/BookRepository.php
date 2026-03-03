@@ -1103,22 +1103,24 @@ class BookRepository
         }
     }
 
-    private ?array $columnCache = null;
+    private static array $columnCacheByDb = [];
     private function hasColumn(string $name): bool
     {
-        if ($this->columnCache === null) {
-            $this->columnCache = [];
+        $dbRes = $this->db->query('SELECT DATABASE()');
+        $dbName = ($dbRes ? (string) ($dbRes->fetch_row()[0] ?? 'default') : 'default');
+        if (!isset(self::$columnCacheByDb[$dbName])) {
+            self::$columnCacheByDb[$dbName] = [];
             $res = $this->db->query('SHOW COLUMNS FROM libri');
             if ($res) {
                 while ($r = $res->fetch_assoc()) {
-                    $this->columnCache[$r['Field']] = true;
+                    self::$columnCacheByDb[$dbName][$r['Field']] = true;
                 }
             }
         }
-        return isset($this->columnCache[$name]);
+        return isset(self::$columnCacheByDb[$dbName][$name]);
     }
 
-    private array $tableColumnCache = [];
+    private static array $tableColumnCache = [];
     private function hasColumnInTable(string $table, string $name): bool
     {
         // Whitelist di tabelle valide per prevenire SQL injection
@@ -1140,8 +1142,8 @@ class BookRepository
             return false;
         }
 
-        if (!isset($this->tableColumnCache[$table])) {
-            $this->tableColumnCache[$table] = [];
+        if (!isset(self::$tableColumnCache[$table])) {
+            self::$tableColumnCache[$table] = [];
             // Usa prepared statement con INFORMATION_SCHEMA
             $stmt = $this->db->prepare('SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
             if ($stmt) {
@@ -1149,12 +1151,12 @@ class BookRepository
                 $stmt->execute();
                 $res = $stmt->get_result();
                 while ($r = $res->fetch_assoc()) {
-                    $this->tableColumnCache[$table][$r['COLUMN_NAME']] = true;
+                    self::$tableColumnCache[$table][$r['COLUMN_NAME']] = true;
                 }
                 $stmt->close();
             }
         }
-        return isset($this->tableColumnCache[$table][$name]);
+        return isset(self::$tableColumnCache[$table][$name]);
     }
 
     // Cache for enum options

@@ -40,7 +40,7 @@ $createDateTime = static function (?string $value, array $formats = []) {
 
     try {
         return new \DateTime($value);
-    } catch (\Exception $e) {
+    } catch (\Throwable $e) {
         return null;
     }
 };

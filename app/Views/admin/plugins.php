@@ -405,7 +405,7 @@ $pluginSettings = $pluginSettings ?? [];
                     </p>
                 </div>
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <a href="https://console.cloud.google.com/apis/library/books.googleapis.com" target="_blank"
+                    <a href="https://console.cloud.google.com/apis/library/books.googleapis.com" target="_blank" rel="noopener noreferrer"
                         class="inline-flex items-center gap-2 text-sm font-medium text-indigo-700 hover:text-indigo-900">
                         <i class="fas fa-external-link-alt text-xs"></i>
                         <?= __("Apri Google Cloud Console") ?>

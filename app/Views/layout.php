@@ -18,7 +18,7 @@ $appVersion = $versionData['version'] ?? '0.1.0';
 $currentLocale = I18n::getLocale();
 $htmlLang = substr($currentLocale, 0, 2);
 ?><!doctype html>
-<html lang="<?= $htmlLang ?>">
+<html lang="<?= htmlspecialchars($htmlLang, ENT_QUOTES, 'UTF-8') ?>">
 
 <head>
   <meta charset="utf-8" />
@@ -27,10 +27,10 @@ $htmlLang = substr($currentLocale, 0, 2);
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
   <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
   <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
-  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
-  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('vendor.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('flatpickr-custom.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('main.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
+  <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('css/swal-theme.css'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" />
   <script>
     (function () {
       if (typeof window.__ !== 'function') {
@@ -115,86 +115,86 @@ $htmlLang = substr($currentLocale, 0, 2);
         </button>
       </div>
 
-      <!-- Quick Actions Section -->
-      <div class="px-4 pb-4 pt-2 border-b border-gray-200">
-        <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Azioni Rapide") ?>
-        </div>
-        <div class="space-y-2 mt-3">
-          <a href="<?= htmlspecialchars(url('/admin/libri/crea'), ENT_QUOTES, 'UTF-8') ?>"
-            class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-              <i class="fas fa-plus text-sm text-gray-600"></i>
-            </div>
-            <div class="ml-3">
-              <div class="font-medium text-sm"><?= __("Nuovo Libro") ?></div>
-              <div class="text-xs text-gray-500"><?= __("Aggiungi alla collezione") ?></div>
-            </div>
-          </a>
+      <!-- Navigation Menu (includes Quick Actions — single scrollable area) -->
+      <nav class="flex-1 px-4 pt-2 pb-24 space-y-2 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
 
-          <?php if (!$isCatalogueMode): ?>
-            <a href="<?= htmlspecialchars(url('/admin/prestiti/crea'), ENT_QUOTES, 'UTF-8') ?>"
+        <!-- Quick Actions Section -->
+        <div class="pb-4 mb-4 border-b border-gray-200">
+          <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wider"><?= __("Azioni Rapide") ?>
+          </div>
+          <div class="space-y-2 mt-3">
+            <a href="<?= htmlspecialchars(url('/admin/libri/crea'), ENT_QUOTES, 'UTF-8') ?>"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-                <i class="fas fa-handshake text-sm text-gray-600"></i>
+                <i class="fas fa-plus text-sm text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium text-sm"><?= __("Nuovo Prestito") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Registra prestito") ?></div>
+                <div class="font-medium text-sm"><?= __("Nuovo Libro") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Aggiungi alla collezione") ?></div>
               </div>
             </a>
 
-            <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>"
+            <?php if (!$isCatalogueMode): ?>
+              <a href="<?= htmlspecialchars(url('/admin/prestiti/crea'), ENT_QUOTES, 'UTF-8') ?>"
+                class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+                  <i class="fas fa-handshake text-sm text-gray-600"></i>
+                </div>
+                <div class="ml-3">
+                  <div class="font-medium text-sm"><?= __("Nuovo Prestito") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Registra prestito") ?></div>
+                </div>
+              </a>
+
+              <a href="<?= htmlspecialchars(url('/admin/loans/pending'), ENT_QUOTES, 'UTF-8') ?>"
+                class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+                <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+                  <i class="fas fa-clock text-sm text-gray-600"></i>
+                </div>
+                <div class="ml-3">
+                  <div class="font-medium text-sm"><?= __("Approva Prestiti") ?></div>
+                  <div class="text-xs text-gray-500"><?= __("Richieste pendenti") ?></div>
+                </div>
+              </a>
+            <?php endif; ?>
+
+            <a href="<?= htmlspecialchars(url('/admin/maintenance/integrity-report'), ENT_QUOTES, 'UTF-8') ?>"
               class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
               <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-                <i class="fas fa-clock text-sm text-gray-600"></i>
+                <i class="fas fa-shield-alt text-sm text-gray-600"></i>
               </div>
               <div class="ml-3">
-                <div class="font-medium text-sm"><?= __("Approva Prestiti") ?></div>
-                <div class="text-xs text-gray-500"><?= __("Richieste pendenti") ?></div>
+                <div class="font-medium text-sm"><?= __("Manutenzione") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Integrità dati") ?></div>
               </div>
             </a>
-          <?php endif; ?>
 
-          <a href="<?= htmlspecialchars(url('/admin/maintenance/integrity-report'), ENT_QUOTES, 'UTF-8') ?>"
-            class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-              <i class="fas fa-shield-alt text-sm text-gray-600"></i>
-            </div>
-            <div class="ml-3">
-              <div class="font-medium text-sm"><?= __("Manutenzione") ?></div>
-              <div class="text-xs text-gray-500"><?= __("Integrità dati") ?></div>
-            </div>
-          </a>
+            <a href="https://fabiodalez-dev.github.io/Pinakes/" target="_blank" rel="noopener noreferrer"
+              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
+                <i class="fas fa-book text-sm text-gray-600"></i>
+              </div>
+              <div class="ml-3">
+                <div class="font-medium text-sm"><?= __("Documentazione") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Guida online") ?></div>
+              </div>
+            </a>
 
-          <a href="https://fabiodalez-dev.github.io/Pinakes/" target="_blank" rel="noopener"
-            class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200">
-              <i class="fas fa-book text-sm text-gray-600"></i>
-            </div>
-            <div class="ml-3">
-              <div class="font-medium text-sm"><?= __("Documentazione") ?></div>
-              <div class="text-xs text-gray-500"><?= __("Guida online") ?></div>
-            </div>
-          </a>
-
-          <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
-          <a href="<?= htmlspecialchars(url('/admin/updates'), ENT_QUOTES, 'UTF-8') ?>" id="sidebar-updates-link"
-            class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
-            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200 relative">
-              <i class="fas fa-sync-alt text-sm text-gray-600"></i>
-              <span id="sidebar-update-badge" class="hidden absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-100"></span>
-            </div>
-            <div class="ml-3">
-              <div class="font-medium text-sm"><?= __("Aggiornamenti") ?></div>
-              <div class="text-xs text-gray-500"><?= __("Verifica versioni") ?></div>
-            </div>
-          </a>
-          <?php endif; ?>
+            <?php if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin'): ?>
+            <a href="<?= htmlspecialchars(url('/admin/updates'), ENT_QUOTES, 'UTF-8') ?>" id="sidebar-updates-link"
+              class="group flex items-center px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 transition-all duration-200">
+              <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200 relative">
+                <i class="fas fa-sync-alt text-sm text-gray-600"></i>
+                <span id="sidebar-update-badge" class="hidden absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-100"></span>
+              </div>
+              <div class="ml-3">
+                <div class="font-medium text-sm"><?= __("Aggiornamenti") ?></div>
+                <div class="text-xs text-gray-500"><?= __("Verifica versioni") ?></div>
+              </div>
+            </a>
+            <?php endif; ?>
+          </div>
         </div>
-      </div>
-
-      <!-- Navigation Menu -->
-      <nav class="flex-1 px-4 py-6 pb-24 space-y-2 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300">
 
         <!-- Main Navigation -->
         <div class="space-y-1">
@@ -722,12 +722,12 @@ $htmlLang = substr($currentLocale, 0, 2);
       return translated;
     };
   </script>
-  <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
-  <script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= $appVersion ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('vendor.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('flatpickr-init.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('main.bundle.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('js/csrf-helper.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('js/swal-config.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
+  <script src="<?= htmlspecialchars(assetUrl('tinymce/tinymce.min.js'), ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($appVersion, ENT_QUOTES, 'UTF-8') ?>" defer></script>
   <script>
 
     function escapeHtml(value) {

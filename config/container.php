@@ -115,18 +115,10 @@ $containerDefinitions = [
                 throw new Exception($mysqli->connect_error, $mysqli->connect_errno);
             }
             
+            // set_charset() calls SET NAMES internally and sets client charset
             $mysqli->set_charset($cfg['charset']);
-
-            // Force UTF-8 encoding for all queries (prevents "PerchÃ©" encoding issues)
-            $mysqli->query("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
-            $mysqli->query("SET CHARACTER SET utf8mb4");
-
-            // Test connection with a simple query
-            $result = $mysqli->query("SELECT 1 as test");
-            if (!$result || $result->fetch_assoc()['test'] != 1) {
-                throw new Exception("Database connection test failed");
-            }
-            $result->free();
+            // Ensure consistent collation for all queries (use config charset, not hardcoded)
+            $mysqli->query("SET NAMES '" . $mysqli->real_escape_string($cfg['charset']) . "' COLLATE 'utf8mb4_unicode_ci'");
             
             return $mysqli;
             

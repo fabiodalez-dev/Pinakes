@@ -269,7 +269,7 @@ class MaintenanceService
 
                 // Recalculate book availability using DataIntegrity for consistency
                 // (da_ritirare counts as "slot occupied" even if copy is available)
-                $integrity->recalculateBookAvailability((int)$loan['libro_id']);
+                $integrity->recalculateBookAvailability((int)$loan['libro_id'], true);
 
                 $this->db->commit();
                 $activatedCount++;
@@ -478,8 +478,8 @@ class MaintenanceService
                     }
                 }
 
-                // Recalculate book availability
-                $integrity->recalculateBookAvailability($libroId);
+                // Recalculate book availability (inside transaction)
+                $integrity->recalculateBookAvailability($libroId, true);
 
                 $this->db->commit();
                 $expiredCount++;
@@ -603,8 +603,8 @@ class MaintenanceService
                     $reassignmentService->reassignOnReturn($copiaId);
                 }
 
-                // Recalculate book availability
-                $integrity->recalculateBookAvailability($libroId);
+                // Recalculate book availability (inside transaction)
+                $integrity->recalculateBookAvailability($libroId, true);
 
                 $this->db->commit();
                 $expiredCount++;

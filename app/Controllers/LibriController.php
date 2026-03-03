@@ -147,8 +147,30 @@ class LibriController
                 curl_setopt($ch, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTPS | CURLPROTO_HTTP);
             }
             curl_exec($ch);
+            $effectiveUrl = (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+            $effectiveHost = strtolower((string) (parse_url($effectiveUrl, PHP_URL_HOST) ?? ''));
+            $primaryIp = (string) curl_getinfo($ch, CURLINFO_PRIMARY_IP);
             $contentLength = (int) curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
             curl_close($ch);
+
+            // SSRF protection: block redirects to non-whitelisted hosts
+            if ($effectiveHost === '' || !\in_array($effectiveHost, self::COVER_ALLOWED_DOMAINS, true)) {
+                \App\Support\SecureLogger::warning('Cover download blocked: redirected to non-whitelisted host', [
+                    'url' => $url,
+                    'effective_url' => $effectiveUrl,
+                    'effective_host' => $effectiveHost,
+                ]);
+                return $url;
+            }
+
+            // SSRF protection: block private/reserved IP ranges after redirect resolution
+            if ($primaryIp !== '' && filter_var($primaryIp, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                \App\Support\SecureLogger::warning('Cover download blocked: private IP after redirect', [
+                    'url' => $url,
+                    'resolved_ip' => $primaryIp
+                ]);
+                return $url;
+            }
 
             // Check size limit before downloading (if Content-Length is provided)
             if ($contentLength > self::MAX_COVER_SIZE) {
@@ -182,7 +204,29 @@ class LibriController
 
             $imageData = curl_exec($ch);
             $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $effectiveUrl = (string) curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+            $effectiveHost = strtolower((string) (parse_url($effectiveUrl, PHP_URL_HOST) ?? ''));
+            $primaryIp = (string) curl_getinfo($ch, CURLINFO_PRIMARY_IP);
             curl_close($ch);
+
+            // SSRF protection: block redirects to non-whitelisted hosts
+            if ($effectiveHost === '' || !\in_array($effectiveHost, self::COVER_ALLOWED_DOMAINS, true)) {
+                \App\Support\SecureLogger::warning('Cover GET blocked: redirected to non-whitelisted host', [
+                    'url' => $url,
+                    'effective_url' => $effectiveUrl,
+                    'effective_host' => $effectiveHost,
+                ]);
+                return $url;
+            }
+
+            // SSRF protection: block private/reserved IP ranges after redirect resolution
+            if ($primaryIp !== '' && filter_var($primaryIp, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                \App\Support\SecureLogger::warning('Cover GET blocked: private IP after redirect', [
+                    'url' => $url,
+                    'resolved_ip' => $primaryIp
+                ]);
+                return $url;
+            }
 
             if ($imageData === false || $httpCode !== 200 || \strlen($imageData) < 100) {
                 \App\Support\SecureLogger::warning('Cover download failed', ['url' => $url, 'http_code' => $httpCode]);
@@ -698,8 +742,19 @@ class LibriController
         if (!empty($codes)) {
             // Create unique lock key from identifiers
             $lockKey = 'book_create_' . md5(implode('|', array_values($codes)));
-            $lockResult = $db->query("SELECT GET_LOCK('{$db->real_escape_string($lockKey)}', 10)");
+            $lockStmt = $db->prepare("SELECT GET_LOCK(?, 10)");
+            if (!$lockStmt) {
+                $response->getBody()->write(json_encode([
+                    'error' => 'lock_error',
+                    'message' => __('Errore interno durante acquisizione lock.')
+                ], JSON_UNESCAPED_UNICODE));
+                return $response->withStatus(503)->withHeader('Content-Type', 'application/json');
+            }
+            $lockStmt->bind_param('s', $lockKey);
+            $lockStmt->execute();
+            $lockResult = $lockStmt->get_result();
             $locked = $lockResult ? (int) $lockResult->fetch_row()[0] : 0;
+            $lockStmt->close();
 
             if (!$locked) {
                 // Failed to acquire lock (timeout or error)
@@ -739,7 +794,7 @@ class LibriController
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
                     // Release lock before returning
-                    $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+                    if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
 
 
                     // Build location string
@@ -961,7 +1016,7 @@ class LibriController
         } finally {
             // Release advisory lock
             if ($lockKey) {
-                $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+                if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
             }
         }
     }
@@ -1235,8 +1290,16 @@ class LibriController
         if (!empty($codes)) {
             // Create unique lock key from identifiers
             $lockKey = 'book_update_' . md5(implode('|', array_values($codes)));
-            $lockResult = $db->query("SELECT GET_LOCK('{$db->real_escape_string($lockKey)}', 10)");
+            $lockStmt = $db->prepare("SELECT GET_LOCK(?, 10)");
+            if (!$lockStmt) {
+                $_SESSION['error_message'] = __('Errore del server. Riprova.');
+                return $response->withHeader('Location', url('/admin/libri/modifica/' . $id))->withStatus(302);
+            }
+            $lockStmt->bind_param('s', $lockKey);
+            $lockStmt->execute();
+            $lockResult = $lockStmt->get_result();
             $locked = $lockResult ? (int) $lockResult->fetch_row()[0] : 0;
+            $lockStmt->close();
 
             if (!$locked) {
                 // Failed to acquire lock (timeout or error)
@@ -1274,7 +1337,7 @@ class LibriController
                 $dup = $stmt->get_result()->fetch_assoc();
                 if ($dup) {
                     // Release lock before returning
-                    $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+                    if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
 
 
                     // Build location string
@@ -1543,7 +1606,7 @@ class LibriController
         } finally {
             // Release advisory lock
             if ($lockKey) {
-                $db->query("SELECT RELEASE_LOCK('{$db->real_escape_string($lockKey)}')");
+                if ($rlStmt = $db->prepare("SELECT RELEASE_LOCK(?)")) { $rlStmt->bind_param('s', $lockKey); $rlStmt->execute(); $rlStmt->close(); }
             }
         }
     }

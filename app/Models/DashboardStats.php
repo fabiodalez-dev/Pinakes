@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use mysqli;
+use App\Support\QueryCache;
 
 class DashboardStats
 {
@@ -11,34 +12,35 @@ class DashboardStats
 
     public function counts(): array
     {
-        // Singola query invece di 5 query separate
-        // Include count for pickup confirmations (origine='prenotazione') and manual requests separately
-        // pickup_pronti: loans in 'da_ritirare' state OR 'prenotato' with data_prestito <= today
-        $sql = "SELECT
-                    (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) AS libri,
-                    (SELECT COUNT(*) FROM utenti) AS utenti,
-                    (SELECT COUNT(*) FROM prestiti WHERE stato IN ('in_corso','in_ritardo') AND attivo = 1) AS prestiti_in_corso,
-                    (SELECT COUNT(*) FROM autori) AS autori,
-                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente') AS prestiti_pendenti,
-                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND origine = 'prenotazione') AS ritiri_da_confermare,
-                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND (origine = 'richiesta' OR origine IS NULL)) AS richieste_manuali,
-                    (SELECT COUNT(*) FROM prestiti WHERE stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= CURDATE())) AS pickup_pronti";
+        $db = $this->db;
+        return QueryCache::remember('dashboard_counts', function () use ($db): array {
+            $sql = "SELECT
+                        (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) AS libri,
+                        (SELECT COUNT(*) FROM utenti) AS utenti,
+                        (SELECT COUNT(*) FROM prestiti WHERE stato IN ('in_corso','in_ritardo') AND attivo = 1) AS prestiti_in_corso,
+                        (SELECT COUNT(*) FROM autori) AS autori,
+                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente') AS prestiti_pendenti,
+                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND origine = 'prenotazione') AS ritiri_da_confermare,
+                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'pendente' AND (origine = 'richiesta' OR origine IS NULL)) AS richieste_manuali,
+                        (SELECT COUNT(*) FROM prestiti WHERE stato = 'da_ritirare' OR (stato = 'prenotato' AND data_prestito <= CURDATE())) AS pickup_pronti";
 
-        $result = $this->db->query($sql);
-        if ($result && $row = $result->fetch_assoc()) {
-            return [
-                'libri' => (int)($row['libri'] ?? 0),
-                'utenti' => (int)($row['utenti'] ?? 0),
-                'prestiti_in_corso' => (int)($row['prestiti_in_corso'] ?? 0),
-                'autori' => (int)($row['autori'] ?? 0),
-                'prestiti_pendenti' => (int)($row['prestiti_pendenti'] ?? 0),
-                'ritiri_da_confermare' => (int)($row['ritiri_da_confermare'] ?? 0),
-                'richieste_manuali' => (int)($row['richieste_manuali'] ?? 0),
-                'pickup_pronti' => (int)($row['pickup_pronti'] ?? 0)
-            ];
-        }
+            $result = $db->query($sql);
+            if ($result && $row = $result->fetch_assoc()) {
+                return [
+                    'libri' => (int)($row['libri'] ?? 0),
+                    'utenti' => (int)($row['utenti'] ?? 0),
+                    'prestiti_in_corso' => (int)($row['prestiti_in_corso'] ?? 0),
+                    'autori' => (int)($row['autori'] ?? 0),
+                    'prestiti_pendenti' => (int)($row['prestiti_pendenti'] ?? 0),
+                    'ritiri_da_confermare' => (int)($row['ritiri_da_confermare'] ?? 0),
+                    'richieste_manuali' => (int)($row['richieste_manuali'] ?? 0),
+                    'pickup_pronti' => (int)($row['pickup_pronti'] ?? 0)
+                ];
+            }
 
-        return ['libri' => 0, 'utenti' => 0, 'prestiti_in_corso' => 0, 'autori' => 0, 'prestiti_pendenti' => 0, 'ritiri_da_confermare' => 0, 'richieste_manuali' => 0, 'pickup_pronti' => 0];
+            // Don't cache fallback zeros — throw so QueryCache skips caching on transient DB failures
+            throw new \RuntimeException('Dashboard counts query failed');
+        }, 60);
     }
 
     public function lastBooks(int $limit = 4): array

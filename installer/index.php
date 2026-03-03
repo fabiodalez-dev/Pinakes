@@ -13,6 +13,17 @@ if (is_dir($sessionPath) && is_writable($sessionPath)) {
     ini_set('session.save_path', $sessionPath);
 }
 
+// Set secure session cookie params
+session_set_cookie_params([
+    'httponly' => true,
+    'samesite' => 'Strict',
+    'secure' => (
+        (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ||
+        (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_PROTO']) === 'https') ||
+        (isset($_SERVER['HTTP_X_FORWARDED_SSL']) && strtolower((string)$_SERVER['HTTP_X_FORWARDED_SSL']) === 'on')
+    ),
+]);
+
 session_start();
 
 // Only destroy session on explicit reset request

@@ -31,6 +31,19 @@ class Updater
     private string $tempPath;
     private string $githubToken = '';
 
+    /**
+     * Bundled plugins that are updated during app updates.
+     * scraping-pro is NOT bundled — it's a premium add-on managed separately.
+     * @var array<string>
+     */
+    private const BUNDLED_PLUGINS = [
+        'api-book-scraper',
+        'dewey-editor',
+        'digital-library',
+        'open-library',
+        'z39-server',
+    ];
+
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
         '.env',
@@ -1992,6 +2005,10 @@ class Updater
             $this->debugLog('INFO', 'Copia file aggiornamento');
             $this->copyDirectory($sourcePath, $this->rootPath);
 
+            // Update bundled plugins (copyDirectory skips storage/plugins via preservePaths)
+            $this->debugLog('INFO', 'Aggiornamento plugin bundled');
+            $this->updateBundledPlugins($sourcePath);
+
             // Clean up orphan files
             $this->debugLog('INFO', 'Pulizia file orfani');
             $this->cleanupOrphanFiles($sourcePath);
@@ -2136,13 +2153,17 @@ class Updater
     }
 
     /**
-     * Copy directory recursively
+     * Copy directory recursively with security checks
      */
     private function copyDirectoryRecursive(string $source, string $dest): void
     {
         if (!is_dir($dest)) {
-            mkdir($dest, 0755, true);
+            if (!@mkdir($dest, 0755, true) && !is_dir($dest)) {
+                throw new Exception(sprintf(__('Impossibile creare directory: %s'), $dest));
+            }
         }
+
+        $realDest = realpath($dest);
 
         $iterator = new \RecursiveIteratorIterator(
             new \RecursiveDirectoryIterator($source, \RecursiveDirectoryIterator::SKIP_DOTS),
@@ -2151,20 +2172,85 @@ class Updater
 
         foreach ($iterator as $item) {
             $relativePath = str_replace($source . '/', '', $item->getPathname());
+
+            // Security: reject path traversal and null bytes
+            if (str_contains($relativePath, '..') || str_contains($relativePath, "\0")) {
+                throw new Exception(sprintf(__('Percorso non valido nel pacchetto: %s'), $relativePath));
+            }
+
+            // Security: skip symlinks
+            if ($item->isLink()) {
+                continue;
+            }
+
             $targetPath = $dest . '/' . $relativePath;
+
+            // Security: verify target stays within dest
+            if ($realDest !== false) {
+                $parentTarget = realpath(dirname($targetPath));
+                if ($parentTarget !== false && strpos($parentTarget, $realDest) !== 0) {
+                    throw new Exception(sprintf(__('Percorso non valido nel pacchetto: %s'), $relativePath));
+                }
+            }
 
             if ($item->isDir()) {
                 if (!is_dir($targetPath)) {
-                    mkdir($targetPath, 0755, true);
+                    if (!@mkdir($targetPath, 0755, true) && !is_dir($targetPath)) {
+                        throw new Exception(sprintf(__('Impossibile creare directory: %s'), $relativePath));
+                    }
                 }
             } else {
                 $parentDir = dirname($targetPath);
                 if (!is_dir($parentDir)) {
-                    mkdir($parentDir, 0755, true);
+                    if (!@mkdir($parentDir, 0755, true) && !is_dir($parentDir)) {
+                        throw new Exception(sprintf(__('Impossibile creare directory: %s'), dirname($relativePath)));
+                    }
                 }
-                copy($item->getPathname(), $targetPath);
+                if (!copy($item->getPathname(), $targetPath)) {
+                    throw new Exception(sprintf(__('Errore nella copia del file: %s'), $relativePath));
+                }
             }
         }
+    }
+
+    /**
+     * Update bundled plugins from the release package.
+     * copyDirectory() skips storage/plugins (preservePaths), so bundled plugins
+     * must be updated separately. Only plugins listed in BUNDLED_PLUGINS are
+     * updated — user-installed and premium plugins (scraping-pro) are untouched.
+     */
+    private function updateBundledPlugins(string $sourcePath): void
+    {
+        $sourcePluginsDir = $sourcePath . '/storage/plugins';
+        $targetPluginsDir = $this->rootPath . '/storage/plugins';
+
+        if (!is_dir($sourcePluginsDir)) {
+            $this->debugLog('DEBUG', 'Nessuna directory plugins nel pacchetto');
+            return;
+        }
+
+        if (!is_dir($targetPluginsDir)) {
+            if (!@mkdir($targetPluginsDir, 0755, true) && !is_dir($targetPluginsDir)) {
+                $this->debugLog('ERROR', 'Impossibile creare directory plugins', ['path' => $targetPluginsDir]);
+                return;
+            }
+        }
+
+        $updated = 0;
+        foreach (self::BUNDLED_PLUGINS as $pluginName) {
+            $sourcePluginPath = $sourcePluginsDir . '/' . $pluginName;
+            if (!is_dir($sourcePluginPath)) {
+                $this->debugLog('DEBUG', 'Plugin bundled non presente nel pacchetto', ['plugin' => $pluginName]);
+                continue;
+            }
+
+            $targetPluginPath = $targetPluginsDir . '/' . $pluginName;
+            $this->debugLog('INFO', 'Aggiornamento plugin bundled', ['plugin' => $pluginName]);
+            $this->copyDirectoryRecursive($sourcePluginPath, $targetPluginPath);
+            $updated++;
+        }
+
+        $this->debugLog('INFO', 'Plugin bundled aggiornati', ['count' => $updated]);
     }
 
     /**

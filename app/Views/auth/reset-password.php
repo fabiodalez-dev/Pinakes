@@ -52,6 +52,12 @@ $resetPasswordRoute = route_path('reset_password');
                 <?= __('La password deve contenere almeno 8 caratteri, lettere maiuscole, minuscole e numeri') ?>
               <?php elseif ($_GET['error'] === 'missing_fields'): ?>
                 <?= __('Compila tutti i campi richiesti') ?>
+              <?php elseif ($_GET['error'] === 'password_too_short'): ?>
+                <?= __('La password deve essere lunga almeno 8 caratteri.') ?>
+              <?php elseif ($_GET['error'] === 'password_too_long'): ?>
+                <?= __('La password non può superare i 72 caratteri.') ?>
+              <?php elseif ($_GET['error'] === 'password_needs_upper_lower_number'): ?>
+                <?= __('La password deve contenere maiuscole, minuscole e numeri.') ?>
               <?php else: ?>
                 <?= __('Si è verificato un errore. Riprova') ?>
               <?php endif; ?>

@@ -387,9 +387,11 @@ class LoanApprovalController
             // Per 'da_ritirare' e 'prenotato', la copia resta 'prenotato' fino al ritiro
             // La copia diventa 'prestato' SOLO quando si conferma il ritiro
 
-            // Update book availability with integrity check
+            // Update book availability with integrity check (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 
@@ -501,7 +503,9 @@ class LoanApprovalController
 
             // Update book availability (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($bookId);
+            if (!$integrity->recalculateBookAvailability($bookId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 
@@ -643,9 +647,11 @@ class LoanApprovalController
                 }
             }
 
-            // Recalculate book availability
+            // Recalculate book availability (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 
@@ -759,9 +765,11 @@ class LoanApprovalController
                 }
             }
 
-            // Recalculate book availability
+            // Recalculate book availability (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 

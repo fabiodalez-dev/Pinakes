@@ -154,7 +154,7 @@ class LoanRepository
             // Recalculate availability and process reservations INSIDE the transaction
             // This ensures FOR UPDATE locks in processBookAvailability are effective
             $integrity = new DataIntegrity($this->db);
-            if (!$integrity->recalculateBookAvailability($bookId)) {
+            if (!$integrity->recalculateBookAvailability($bookId, true)) {
                 throw new \RuntimeException(__('Impossibile ricalcolare la disponibilità del libro.'));
             }
 

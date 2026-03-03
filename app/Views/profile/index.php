@@ -323,6 +323,10 @@
             'required' => __('Nome e cognome sono obbligatori.'),
             'password_mismatch' => __('Le password non coincidono.'),
             'password_too_short' => __('La password deve essere lunga almeno 8 caratteri.'),
+            'password_too_long' => __('La password non può superare i 72 caratteri.'),
+            'wrong_current_password' => __('La password attuale non è corretta.'),
+            'password_needs_upper_lower_number' => __('La password deve contenere maiuscole, minuscole e numeri.'),
+            'server' => __('Errore del server. Riprova più tardi.'),
             'password_weak' => __('La password deve contenere maiuscole, minuscole e numeri.')
           ];
           echo $errors[$_GET['error']] ?? __('Si è verificato un errore.');
@@ -447,6 +451,11 @@
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
 
       <div class="form-grid">
+        <div class="form-group" style="grid-column: 1 / -1;">
+          <label for="current_password" class="form-label"><?= __("Password attuale") ?></label>
+          <input type="password" id="current_password" name="current_password" class="form-input" autocomplete="current-password" required aria-required="true"
+                 placeholder="<?= __("Inserisci la password attuale") ?>">
+        </div>
         <div class="form-group">
           <label for="password" class="form-label"><?= __("Nuova password") ?></label>
           <input type="password" id="password" name="password" class="form-input" autocomplete="new-password" required aria-required="true" aria-describedby="password-error"

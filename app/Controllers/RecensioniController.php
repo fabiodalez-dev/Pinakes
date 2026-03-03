@@ -128,7 +128,7 @@ class RecensioniController
             try {
                 $notificationService = new NotificationService($db);
                 $notificationService->notifyNewReview($reviewId);
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 error_log("Error sending review notification: " . $e->getMessage());
                 // Non blocca la risposta se la notifica fallisce
             }
@@ -141,11 +141,11 @@ class RecensioniController
 
             return $response->withHeader('Content-Type', 'application/json');
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("Error creating review: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => __('Errore del server') . ': ' . $e->getMessage()
+                'message' => __('Errore del server')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }

@@ -348,7 +348,7 @@ class ReservationsController
                 try {
                     $notificationService = new NotificationService($this->db);
                     $notificationService->notifyLoanRequest($loanRequestId);
-                } catch (Exception $notifError) {
+                } catch (\Throwable $notifError) {
                     error_log("Error sending notification for loan request: " . $notifError->getMessage());
                     // Don't fail the loan request creation if notification fails
                 }
@@ -365,7 +365,7 @@ class ReservationsController
                 $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore nella creazione della richiesta di prestito')]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             $this->db->rollback();
             error_log("Error creating reservation: " . $e->getMessage());
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore del server')]));

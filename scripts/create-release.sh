@@ -100,6 +100,17 @@ if [ $? -ne 0 ]; then
 fi
 
 SIZE=$(ls -lh "$ZIPFILE" | awk '{print $5}')
+SIZE_BYTES=$(stat -f%z "$ZIPFILE" 2>/dev/null || stat -c%s "$ZIPFILE" 2>/dev/null || echo 0)
+MAX_SIZE=$((50 * 1024 * 1024)) # 50MB — normal release is ~25-35MB
+
+if [ "$SIZE_BYTES" -gt "$MAX_SIZE" ]; then
+    echo -e "${RED}❌ ERROR: ZIP is suspiciously large ($SIZE). Expected <50MB.${NC}"
+    echo -e "${RED}   Likely contains dev files (frontend/, docs/, releases/, etc.)${NC}"
+    echo -e "${RED}   Check .gitattributes export-ignore rules.${NC}"
+    rm -f "$ZIPFILE"
+    exit 1
+fi
+
 echo -e "${GREEN}✓ Release ZIP created: $ZIPFILE ($SIZE)${NC}"
 echo ""
 
@@ -124,11 +135,43 @@ CRITICAL_FILES=(
     "vendor/composer/autoload_real.php"
 )
 
+# Bundled plugins that MUST be in the ZIP (scraping-pro is premium, NOT bundled)
+BUNDLED_PLUGINS=(
+    "api-book-scraper"
+    "dewey-editor"
+    "digital-library"
+    "open-library"
+    "z39-server"
+)
+
 MISSING=0
 for file in "${CRITICAL_FILES[@]}"; do
     FULL_PATH="$VERIFY_DIR/pinakes-v${VERSION}/$file"
     if [ ! -f "$FULL_PATH" ]; then
         echo -e "${RED}  ✗ MISSING: $file${NC}"
+        MISSING=$((MISSING + 1))
+    fi
+done
+
+# Verify bundled plugins are present
+for plugin in "${BUNDLED_PLUGINS[@]}"; do
+    PLUGIN_JSON="$VERIFY_DIR/pinakes-v${VERSION}/storage/plugins/$plugin/plugin.json"
+    if [ ! -f "$PLUGIN_JSON" ]; then
+        echo -e "${RED}  ✗ MISSING PLUGIN: storage/plugins/$plugin/plugin.json${NC}"
+        MISSING=$((MISSING + 1))
+    fi
+done
+
+# Verify scraping-pro is NOT in ZIP (premium plugin, not bundled)
+if [ -d "$VERIFY_DIR/pinakes-v${VERSION}/storage/plugins/scraping-pro" ]; then
+    echo -e "${RED}  ✗ scraping-pro found in ZIP (should NOT be bundled — it's premium)${NC}"
+    MISSING=$((MISSING + 1))
+fi
+
+# Verify dev-only directories are NOT in ZIP (export-ignore in .gitattributes)
+for devdir in frontend docs tests test .github internal; do
+    if [ -d "$VERIFY_DIR/pinakes-v${VERSION}/$devdir" ]; then
+        echo -e "${RED}  ✗ $devdir/ found in ZIP (should be excluded via .gitattributes export-ignore)${NC}"
         MISSING=$((MISSING + 1))
     fi
 done
@@ -155,7 +198,7 @@ if [ "$MISSING" -gt 0 ]; then
     exit 1
 fi
 
-echo -e "${GREEN}✓ ZIP verified: all critical files present, no PHPStan, version correct${NC}"
+echo -e "${GREEN}✓ ZIP verified: all critical files present, ${#BUNDLED_PLUGINS[@]} bundled plugins, no PHPStan, version correct${NC}"
 echo ""
 
 # ============================================================================

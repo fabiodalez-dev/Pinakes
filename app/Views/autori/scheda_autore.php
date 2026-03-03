@@ -15,7 +15,14 @@ $pseudonimo = trim((string)($autore['pseudonimo'] ?? ''));
 $dataNascita = trim((string)($autore['data_nascita'] ?? ''));
 $dataMorte   = trim((string)($autore['data_morte'] ?? ''));
 $nazionalita = trim((string)($autore['nazionalita'] ?? ''));
-$sitoWeb     = trim((string)($autore['sito_web'] ?? ''));
+$sitoWebRaw  = trim((string)($autore['sito_web'] ?? ''));
+$sitoWeb     = '';
+if ($sitoWebRaw !== '') {
+    $scheme = strtolower((string) parse_url($sitoWebRaw, PHP_URL_SCHEME));
+    if (filter_var($sitoWebRaw, FILTER_VALIDATE_URL) && in_array($scheme, ['http', 'https'], true)) {
+        $sitoWeb = $sitoWebRaw;
+    }
+}
 $biografia   = trim((string)($autore['biografia'] ?? ''));
 $createdAt   = trim((string)($autore['created_at'] ?? ''));
 $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
@@ -138,7 +145,7 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
             <div class="text-sm text-gray-600 font-medium"><?= __('Sito Web') ?></div>
             <div class="mt-1 text-base font-semibold text-gray-900 truncate">
               <?php if ($sitoWeb): ?>
-                <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="underline decoration-gray-400 hover:decoration-gray-600">
+                <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="underline decoration-gray-400 hover:decoration-gray-600">
                   <?php echo HtmlHelper::e($sitoWeb); ?>
                 </a>
               <?php else: ?>
@@ -189,7 +196,7 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
             <div>
               <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Sito web") ?></dt>
               <dd class="text-gray-900 font-medium mt-1 truncate">
-                <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" class="text-gray-600 hover:text-gray-800 underline decoration-gray-400">
+                <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-800 underline decoration-gray-400">
                   <?php echo HtmlHelper::e($sitoWeb); ?>
                 </a>
               </dd>

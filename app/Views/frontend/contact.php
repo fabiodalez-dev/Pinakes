@@ -515,7 +515,7 @@ ob_start();
 </section>
 
 <?php if (!empty($recaptchaSiteKey)): ?>
-<script src="https://www.google.com/recaptcha/api.js?render=<?= htmlspecialchars($recaptchaSiteKey) ?>"></script>
+<script src="https://www.google.com/recaptcha/api.js?render=<?= rawurlencode($recaptchaSiteKey) ?>"></script>
 <script>
 document.getElementById('contact-form').addEventListener('submit', function(e) {
     e.preventDefault();
@@ -526,7 +526,7 @@ document.getElementById('contact-form').addEventListener('submit', function(e) {
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>' + <?= json_encode(__("Invio in corso..."), JSON_HEX_TAG) ?> + '</span>';
 
     grecaptcha.ready(function() {
-        grecaptcha.execute('<?= htmlspecialchars($recaptchaSiteKey) ?>', {action: 'contact_form'}).then(function(token) {
+        grecaptcha.execute(<?= json_encode($recaptchaSiteKey, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP) ?>, {action: 'contact_form'}).then(function(token) {
             document.getElementById('recaptcha_token').value = token;
             form.submit();
         });

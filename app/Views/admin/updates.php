@@ -1095,7 +1095,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize Uppy for manual update
     uppyManualUpdate = new Uppy({
         restrictions: {
-            maxFileSize: 50 * 1024 * 1024, // 50MB
+            maxFileSize: 200 * 1024 * 1024, // 200MB
             maxNumberOfFiles: 1,
             allowedFileTypes: ['.zip']
         },
@@ -1104,19 +1104,74 @@ document.addEventListener('DOMContentLoaded', function() {
 
     uppyManualUpdate.use(UppyDragDrop, {
         target: '#uppy-manual-update',
-        note: <?= json_encode(__("File ZIP del pacchetto di aggiornamento (max 50MB)"), JSON_HEX_TAG) ?>
+        note: <?= json_encode(__("File ZIP del pacchetto di aggiornamento (max 200MB)"), JSON_HEX_TAG) ?>
     });
 
     uppyManualUpdate.on('file-added', (file) => {
         uploadedFile = file;
         document.getElementById('manual-update-submit-btn').disabled = false;
+
+        // Show file info in the DragDrop area
+        const container = document.querySelector('#uppy-manual-update');
+        const sizeMB = (file.size / 1024 / 1024).toFixed(1);
+        // Remove existing info if re-selecting
+        const existing = document.getElementById('uppy-file-info');
+        if (existing) existing.remove();
+
+        const infoDiv = document.createElement('div');
+        infoDiv.id = 'uppy-file-info';
+        infoDiv.className = 'mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center gap-3';
+
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-check-circle text-green-600';
+        infoDiv.appendChild(icon);
+
+        const textWrap = document.createElement('div');
+        textWrap.className = 'flex-1 min-w-0';
+        const nameEl = document.createElement('p');
+        nameEl.className = 'text-sm font-medium text-green-800 truncate';
+        nameEl.textContent = file.name;
+        const sizeEl = document.createElement('p');
+        sizeEl.className = 'text-xs text-green-600';
+        sizeEl.textContent = sizeMB + ' MB';
+        textWrap.appendChild(nameEl);
+        textWrap.appendChild(sizeEl);
+        infoDiv.appendChild(textWrap);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'text-gray-400 hover:text-red-500 transition-colors';
+        removeBtn.title = 'Rimuovi';
+        removeBtn.onclick = removeUploadedFile;
+        const removeIcon = document.createElement('i');
+        removeIcon.className = 'fas fa-times';
+        removeBtn.appendChild(removeIcon);
+        infoDiv.appendChild(removeBtn);
+
+        if (container) container.appendChild(infoDiv);
     });
 
     uppyManualUpdate.on('file-removed', () => {
         uploadedFile = null;
         document.getElementById('manual-update-submit-btn').disabled = true;
+        const info = document.getElementById('uppy-file-info');
+        if (info) info.remove();
+    });
+
+    uppyManualUpdate.on('restriction-failed', (file, error) => {
+        Swal.fire({
+            icon: 'error',
+            title: <?= json_encode(__("File non valido"), JSON_HEX_TAG) ?>,
+            text: error?.message || <?= json_encode(__("Il file non soddisfa i requisiti"), JSON_HEX_TAG) ?>
+        });
     });
 });
+
+function removeUploadedFile() {
+    if (uppyManualUpdate && uploadedFile) {
+        uppyManualUpdate.removeFile(uploadedFile.id);
+    }
+}
 
 async function submitManualUpdate() {
     if (!uploadedFile) {

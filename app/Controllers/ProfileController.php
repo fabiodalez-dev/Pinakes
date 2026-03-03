@@ -6,6 +6,7 @@ namespace App\Controllers;
 use mysqli;
 use App\Support\RememberMeService;
 use App\Support\RouteTranslator;
+use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -49,6 +50,7 @@ class ProfileController
         $data = (array) ($request->getParsedBody() ?? []);
 
         // CSRF validated by CsrfMiddleware
+        $currentPassword = (string) ($data['current_password'] ?? '');
         $p1 = (string) ($data['password'] ?? '');
         $p2 = (string) ($data['password_confirm'] ?? '');
         if ($p1 === '' || $p1 !== $p2) {
@@ -56,10 +58,34 @@ class ProfileController
             return $response->withHeader('Location', $profileUrl . '?error=invalid')->withStatus(302);
         }
 
-        // Validate password complexity
+        // Verify current password
+        $stmt = $db->prepare("SELECT password FROM utenti WHERE id = ?");
+        if (!$stmt) {
+            SecureLogger::error('ProfileController: prepare failed for password SELECT', [
+                'user_id' => $uid,
+                'db_error' => $db->error
+            ]);
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=server')->withStatus(302);
+        }
+        $stmt->bind_param('i', $uid);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        $stmt->close();
+        if (!$user || !password_verify($currentPassword, $user['password'])) {
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=wrong_current_password')->withStatus(302);
+        }
+
+        // Validate password length (min 8, max 72 — bcrypt silently truncates at 72 bytes)
         if (strlen($p1) < 8) {
             $profileUrl = RouteTranslator::route('profile');
             return $response->withHeader('Location', $profileUrl . '?error=password_too_short')->withStatus(302);
+        }
+        if (strlen($p1) > 72) {
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=password_too_long')->withStatus(302);
         }
 
         if (!preg_match('/[A-Z]/', $p1) || !preg_match('/[a-z]/', $p1) || !preg_match('/[0-9]/', $p1)) {
@@ -69,6 +95,14 @@ class ProfileController
 
         $hash = password_hash($p1, PASSWORD_DEFAULT);
         $stmt = $db->prepare("UPDATE utenti SET password = ? WHERE id = ?");
+        if (!$stmt) {
+            SecureLogger::error('ProfileController: prepare failed for password update', [
+                'user_id' => $uid,
+                'db_error' => $db->error
+            ]);
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=server')->withStatus(302);
+        }
         $stmt->bind_param('si', $hash, $uid);
         $stmt->execute();
         $stmt->close();
@@ -151,7 +185,7 @@ class ProfileController
             }
             $response->getBody()->write($json);
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("getSessions error for user $uid: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore durante il recupero delle sessioni')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
@@ -196,7 +230,7 @@ class ProfileController
             }
 
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("revokeSession error for user $uid: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca della sessione')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
@@ -231,7 +265,7 @@ class ProfileController
             }
             $response->getBody()->write($json);
             return $response->withHeader('Content-Type', 'application/json');
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             error_log("revokeAllSessions error for user $uid: " . $e->getMessage());
             $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca delle sessioni')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);

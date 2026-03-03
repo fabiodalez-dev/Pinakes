@@ -368,10 +368,15 @@ class UsersController
         if (!empty($data['password'])) {
             $newPassword = (string) $data['password'];
 
-            // Validate password complexity
+            // Validate password complexity (max 72 — bcrypt silently truncates beyond)
             if (strlen($newPassword) < 8) {
                 $_SESSION['error_message'] = __('La password deve essere lunga almeno 8 caratteri.');
                 return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=password_too_short')->withStatus(302);
+            }
+
+            if (strlen($newPassword) > 72) {
+                $_SESSION['error_message'] = __('La password non può superare i 72 caratteri.');
+                return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=password_too_long')->withStatus(302);
             }
 
             if (!preg_match('/[A-Z]/', $newPassword) || !preg_match('/[a-z]/', $newPassword) || !preg_match('/[0-9]/', $newPassword)) {

@@ -724,6 +724,11 @@ table.dataTable thead td {
 
 /* === MOBILE-SPECIFIC UI FIXES === */
 @media (max-width: 768px) {
+  /* Cards - Remove padding on mobile for full-width content */
+  .card {
+    padding: 0;
+  }
+
   /* Book detail page - Remove negative margins on card header */
   .card-header {
     margin: 0 !important;
