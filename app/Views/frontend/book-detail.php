@@ -336,10 +336,13 @@ $additional_css = "
         font-size: 0.85rem;
         transition: all 0.2s;
     }
-    .keyword-chip:hover,
+    .keyword-chip:hover {
+        background-color: #e9ecef !important;
+    }
     .keyword-chip:focus-visible {
         background-color: #e9ecef !important;
-        outline: none;
+        outline: 2px solid #495057;
+        outline-offset: 2px;
     }
 
     .book-reviews-section {
@@ -1718,18 +1721,19 @@ ob_start();
                 </div>
                 <?php endif; ?>
 
-                <?php if (!empty($book['parole_chiave'])): ?>
+                <?php
+                $keywords = !empty($book['parole_chiave'])
+                    ? array_filter(array_map('trim', explode(',', $book['parole_chiave'])), function ($k) { return $k !== ''; })
+                    : [];
+                ?>
+                <?php if (!empty($keywords)): ?>
                 <div class="book-details-section">
                     <h2 class="section-title">
                         <i class="fas fa-tags"></i>
                         <?= __("Parole Chiave") ?>
                     </h2>
                     <div class="d-flex flex-wrap gap-2">
-                        <?php
-                        $keywords = array_map('trim', explode(',', $book['parole_chiave']));
-                        foreach ($keywords as $keyword):
-                            if ($keyword === '') continue;
-                        ?>
+                        <?php foreach ($keywords as $keyword): ?>
                         <a href="<?= htmlspecialchars($catalogRoute . '?q=' . urlencode($keyword), ENT_QUOTES, 'UTF-8') ?>"
                            class="badge bg-light text-dark border px-3 py-2 text-decoration-none keyword-chip">
                             <i class="fas fa-tag me-1 text-muted"></i><?= HtmlHelper::e($keyword) ?>
