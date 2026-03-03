@@ -2641,9 +2641,9 @@ class LibriController
 
         // Global search filter
         if (!empty($search)) {
-            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
+            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.descrizione LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
             $searchParam = "%{$search}%";
-            for ($i = 0; $i < 6; $i++) {
+            for ($i = 0; $i < 7; $i++) {
                 $bindTypes .= 's';
                 $bindValues[] = $searchParam;
             }
