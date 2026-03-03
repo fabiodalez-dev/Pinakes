@@ -2335,7 +2335,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
 
   test('18.12 #85: Catalog sort by author works', async () => {
     // Navigate to catalog sorted by author ascending
-    await page.goto(`${BASE}/catalogo?ordine=author_asc`);
+    await page.goto(`${BASE}/catalogo?sort=author_asc`);
     await page.waitForLoadState('domcontentloaded');
 
     // Extract visible author names from the rendered page
@@ -2343,7 +2343,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const ascNames = ascAuthors.map(s => s.trim()).filter(s => s.length > 0);
 
     // Navigate to catalog sorted by author descending
-    await page.goto(`${BASE}/catalogo?ordine=author_desc`);
+    await page.goto(`${BASE}/catalogo?sort=author_desc`);
     await page.waitForLoadState('domcontentloaded');
 
     const descAuthors = await page.locator('.book-author:visible').allTextContents();
@@ -2358,6 +2358,11 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const ascSurnames = ascNames.map(getSurname);
     const sortedAsc = [...ascSurnames].sort((a, b) => a.localeCompare(b));
     expect(ascSurnames).toEqual(sortedAsc);
+
+    // Verify descending order too
+    const descSurnames = descNames.map(getSurname);
+    const sortedDesc = [...descSurnames].sort((a, b) => b.localeCompare(a));
+    expect(descSurnames).toEqual(sortedDesc);
   });
 
   test('18.13 #86: Keywords visible on public book detail page', async () => {
