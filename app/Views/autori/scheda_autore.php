@@ -15,7 +15,14 @@ $pseudonimo = trim((string)($autore['pseudonimo'] ?? ''));
 $dataNascita = trim((string)($autore['data_nascita'] ?? ''));
 $dataMorte   = trim((string)($autore['data_morte'] ?? ''));
 $nazionalita = trim((string)($autore['nazionalita'] ?? ''));
-$sitoWeb     = trim((string)($autore['sito_web'] ?? ''));
+$sitoWebRaw  = trim((string)($autore['sito_web'] ?? ''));
+$sitoWeb     = '';
+if ($sitoWebRaw !== '') {
+    $scheme = strtolower((string) parse_url($sitoWebRaw, PHP_URL_SCHEME));
+    if (filter_var($sitoWebRaw, FILTER_VALIDATE_URL) && in_array($scheme, ['http', 'https'], true)) {
+        $sitoWeb = $sitoWebRaw;
+    }
+}
 $biografia   = trim((string)($autore['biografia'] ?? ''));
 $createdAt   = trim((string)($autore['created_at'] ?? ''));
 $updatedAt   = trim((string)($autore['updated_at'] ?? ''));

@@ -117,8 +117,8 @@ $containerDefinitions = [
             
             // set_charset() calls SET NAMES internally and sets client charset
             $mysqli->set_charset($cfg['charset']);
-            // Ensure consistent collation for all queries
-            $mysqli->query("SET NAMES 'utf8mb4' COLLATE 'utf8mb4_unicode_ci'");
+            // Ensure consistent collation for all queries (use config charset, not hardcoded)
+            $mysqli->query("SET NAMES '" . $mysqli->real_escape_string($cfg['charset']) . "' COLLATE 'utf8mb4_unicode_ci'");
             
             return $mysqli;
             

@@ -490,7 +490,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\RecensioniAdminController();
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/recensioni/{id:\d+}/approve', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -522,7 +522,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->post('/admin/settings/general', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -609,7 +609,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\LanguagesController();
         return $controller->index($request, $response, $db, []);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/languages/create', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -790,13 +790,13 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\MessagesController($db);
         return $controller->getAll($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/messages/{id:\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\MessagesController($db);
         return $controller->getOne($request, $response, $args);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->delete('/admin/messages/{id:\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -821,19 +821,19 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\NotificationsController($db);
         return $controller->index($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/notifications/recent', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\NotificationsController($db);
         return $controller->getRecent($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/notifications/unread-count', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\NotificationsController($db);
         return $controller->getUnreadCount($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/notifications/{id:\d+}/read', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -947,7 +947,7 @@ return function (App $app): void {
         $payload = json_encode(['count' => $count]);
         $response->getBody()->write($payload);
         return $response->withHeader('Content-Type', 'application/json');
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->get('/api/admin/pending-registrations', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $res = $db->query("SELECT id, nome, cognome, email, created_at FROM utenti WHERE stato='sospeso' AND email_verificata=1 ORDER BY created_at DESC LIMIT 10");
@@ -957,7 +957,7 @@ return function (App $app): void {
         }
         $response->getBody()->write(json_encode($rows));
         return $response->withHeader('Content-Type', 'application/json');
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // Dashboard (protected admin)
     $app->get('/admin/dashboard', function ($request, $response) use ($app) {
@@ -1005,11 +1005,11 @@ return function (App $app): void {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->get('/admin/utenti/crea', function ($request, $response) {
         $controller = new \App\Controllers\UsersController();
         return $controller->createForm($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/utenti/store', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
@@ -1019,7 +1019,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/utenti/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
@@ -1029,7 +1029,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->details($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/utenti/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
@@ -1051,7 +1051,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->exportCsv($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))->add(new AdminAuthMiddleware()); // 5 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware()); // 15 requests per minute
 
     // Autori (protected admin)
     $app->get('/admin/autori', function ($request, $response) use ($app) {
@@ -1067,7 +1067,7 @@ return function (App $app): void {
     $app->get('/admin/autori/crea', function ($request, $response) {
         $controller = new AutoriController();
         return $controller->createForm($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/autori/crea', function ($request, $response) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
@@ -1077,7 +1077,7 @@ return function (App $app): void {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/autori/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
@@ -1086,7 +1086,7 @@ return function (App $app): void {
     // Fallback GET to avoid 405 if user navigates directly
     $app->get('/admin/autori/update/{id:\d+}', function ($request, $response, $args) {
         return $response->withHeader('Location', '/admin/autori/modifica/' . (int) $args['id'])->withStatus(302);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/autori/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
@@ -1115,7 +1115,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->get('/admin/prestiti/export-csv', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
@@ -1124,7 +1124,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->exportCsv($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))->add(new AdminAuthMiddleware()); // 5 exports per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware()); // 15 exports per minute
 
     $app->get('/admin/prestiti/crea', function ($request, $response) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
@@ -1132,7 +1132,7 @@ return function (App $app): void {
         }
         $controller = new PrestitiController();
         return $controller->createForm($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/prestiti/crea', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
@@ -1155,7 +1155,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/prestiti/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
@@ -1183,7 +1183,7 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->createForm($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->post('/admin/libri/crea', function ($request, $response) use ($app) {
         $controller = new LibriController();
@@ -1195,7 +1195,7 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->post('/admin/libri/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
@@ -1207,7 +1207,7 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->generateLabelPDF($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // Fetch cover for a book via scraping
     $app->post('/api/libri/{id:\d+}/fetch-cover', function ($request, $response, $args) use ($app) {
@@ -1220,12 +1220,12 @@ return function (App $app): void {
     $app->get('/admin/libri/import', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();
         return $controller->showImportPage($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->get('/admin/libri/import/example', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();
         return $controller->downloadExample($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->post('/admin/libri/import/upload', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CsvImportController();
@@ -1236,7 +1236,7 @@ return function (App $app): void {
     $app->get('/admin/libri/import/progress', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();
         return $controller->getProgress($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // CSV Import Chunk Processing (AJAX)
     $app->post('/admin/libri/import/chunk', function ($request, $response) use ($app) {
@@ -1272,7 +1272,7 @@ return function (App $app): void {
     $app->get('/admin/libri/import/librarything', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->showImportPage($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     // Chunked import endpoints (new)
     $app->post('/admin/libri/import/librarything/prepare', function ($request, $response) {
@@ -1303,20 +1303,20 @@ return function (App $app): void {
     $app->get('/admin/libri/import/librarything/progress', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->getProgress($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     // Import History routes (Sprint 3)
     $app->get('/admin/imports-history', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\ImportHistoryController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/imports/download-errors', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\ImportHistoryController();
         $db = $app->getContainer()->get('db');
         return $controller->downloadErrors($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/imports/delete-old-logs', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\ImportHistoryController();
@@ -1328,7 +1328,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->exportToLibraryThing($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))
+    })->add(new \App\Middleware\RateLimitMiddleware(15, 60))
       ->add(new AdminAuthMiddleware());
 
     // CSV Export route
@@ -1336,7 +1336,7 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->exportCsv($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))->add(new AdminAuthMiddleware()); // 5 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware()); // 15 requests per minute
 
     // Sync covers route
     $app->post('/admin/libri/sync-covers', function ($request, $response) use ($app) {
@@ -1348,7 +1348,7 @@ return function (App $app): void {
     // Fallback GET to avoid 405 if user navigates directly
     $app->get('/admin/libri/update/{id:\d+}', function ($request, $response, $args) {
         return $response->withHeader('Location', '/admin/libri/modifica/' . (int) $args['id'])->withStatus(302);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->post('/admin/libri/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
@@ -1374,13 +1374,13 @@ return function (App $app): void {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->get('/admin/generi/crea', function ($request, $response) use ($app) {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->createForm($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->post('/admin/generi/crea', function ($request, $response) use ($app) {
         $controller = new GeneriController();
@@ -1392,7 +1392,7 @@ return function (App $app): void {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->post('/admin/generi/{id:\d+}/modifica', function ($request, $response, $args) use ($app) {
         $controller = new GeneriController();
@@ -1417,7 +1417,7 @@ return function (App $app): void {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/collocazione/scaffali', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
@@ -1442,12 +1442,12 @@ return function (App $app): void {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->suggest($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->get('/api/collocazione/next', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->nextPosition($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/api/collocazione/sort', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
@@ -1457,12 +1457,12 @@ return function (App $app): void {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->getLibri($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->get('/api/collocazione/export-csv', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->exportCSV($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // Prestiti (protected) - Disabled in catalogue mode
     $app->get('/prestiti', function ($request, $response) use ($app) {
@@ -1472,14 +1472,14 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->get('/prestiti/crea', function ($request, $response) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
         $controller = new PrestitiController();
         return $controller->createForm($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/prestiti/crea', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
@@ -1492,7 +1492,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/prestiti/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
@@ -1507,7 +1507,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->returnForm($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/prestiti/restituito/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
@@ -1517,7 +1517,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->details($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // Loan approval routes - Disabled in catalogue mode
     $app->get('/admin/loans/pending', function ($request, $response) use ($app) {
@@ -1527,7 +1527,7 @@ return function (App $app): void {
         $controller = new LoanApprovalController();
         $db = $app->getContainer()->get('db');
         return $controller->pendingLoans($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     $app->post('/admin/loans/approve', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
@@ -1637,7 +1637,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->returnForm($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/prestiti/restituito/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
@@ -1652,7 +1652,7 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->details($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // PDF prestito
     $app->get('/admin/prestiti/{id:\d+}/pdf', function ($request, $response, $args) use ($app) {
@@ -1666,26 +1666,26 @@ return function (App $app): void {
         $controller = new \App\Controllers\PrestitiApiController();
         $db = $app->getContainer()->get('db');
         return $controller->list($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // API utenti per DataTables
     $app->get('/api/utenti', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\UtentiApiController();
         $db = $app->getContainer()->get('db');
         return $controller->list($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // Prenotazioni (admin)
     $app->get('/admin/prenotazioni', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->get('/admin/prenotazioni/crea', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->createForm($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/prenotazioni/crea', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
@@ -1695,7 +1695,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->editForm($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/prenotazioni/update/{id:\\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
@@ -1780,7 +1780,7 @@ return function (App $app): void {
     $app->get('/admin/editori/crea', function ($request, $response) {
         $controller = new \App\Controllers\EditorsController();
         return $controller->createForm($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/editori/crea', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
@@ -1790,7 +1790,7 @@ return function (App $app): void {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/admin/editori/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
@@ -1997,7 +1997,7 @@ return function (App $app): void {
     $app->get("/api/scrape/isbn", function ($request, $response) {
         $controller = new \App\Controllers\ScrapeController();
         return $controller->byIsbn($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware()); // 10 requests per minute
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
 
 
@@ -2827,19 +2827,19 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->index($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/updates/check', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->checkUpdates($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(5, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/updates/available', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->checkAvailable($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/updates/perform', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -2857,7 +2857,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->getHistory($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->get('/admin/updates/backups', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
@@ -2894,7 +2894,7 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\UpdateController();
         return $controller->saveToken($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Manual update - Upload package
     $app->post('/admin/updates/upload', function ($request, $response) use ($app) {

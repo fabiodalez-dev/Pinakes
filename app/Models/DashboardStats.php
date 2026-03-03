@@ -38,7 +38,8 @@ class DashboardStats
                 ];
             }
 
-            return ['libri' => 0, 'utenti' => 0, 'prestiti_in_corso' => 0, 'autori' => 0, 'prestiti_pendenti' => 0, 'ritiri_da_confermare' => 0, 'richieste_manuali' => 0, 'pickup_pronti' => 0];
+            // Don't cache fallback zeros — throw so QueryCache skips caching on transient DB failures
+            throw new \RuntimeException('Dashboard counts query failed');
         }, 60);
     }
 

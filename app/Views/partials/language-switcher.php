@@ -39,7 +39,7 @@ if (isset($db)) {
             $stmt->close();
         }
     } catch (\Throwable $e) {
-        // Fallback to default flag if query fails
+        error_log('Language switcher: failed to load current language flag: ' . $e->getMessage());
     }
 }
 
@@ -57,7 +57,7 @@ if (isset($db)) {
             }
         }
     } catch (\Throwable $e) {
-        // Fallback to I18n locales only
+        error_log('Language switcher: failed to load active languages from DB: ' . $e->getMessage());
         foreach ($availableLocales as $code => $name) {
             $languagesData[$code] = [
                 'native_name' => $name,

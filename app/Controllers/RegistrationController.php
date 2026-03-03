@@ -77,7 +77,7 @@ class RegistrationController
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=email_too_long')->withStatus(302);
         }
 
-        if (strlen($password) > 128) {
+        if (strlen($password) > 72) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=password_too_long')->withStatus(302);
         }
 

@@ -389,7 +389,9 @@ class LoanApprovalController
 
             // Update book availability with integrity check (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, true);
+            if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 
@@ -501,7 +503,9 @@ class LoanApprovalController
 
             // Update book availability (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($bookId, true);
+            if (!$integrity->recalculateBookAvailability($bookId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 
@@ -645,7 +649,9 @@ class LoanApprovalController
 
             // Recalculate book availability (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, true);
+            if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 
@@ -761,7 +767,9 @@ class LoanApprovalController
 
             // Recalculate book availability (inside transaction)
             $integrity = new DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId, true);
+            if (!$integrity->recalculateBookAvailability($libroId, true)) {
+                throw new \RuntimeException('Failed to recalculate book availability');
+            }
 
             $db->commit();
 

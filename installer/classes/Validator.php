@@ -29,12 +29,17 @@ class Validator {
      */
     public function validatePassword($password, $field = 'Password') {
         if (empty($password)) {
-            $this->errors[$field] = "{$field} è richiesta";
+            $this->errors[$field] = sprintf(__("%s è richiesta"), $field);
             return false;
         }
 
         if (strlen($password) < 8) {
-            $this->errors[$field] = "{$field} deve essere di almeno 8 caratteri";
+            $this->errors[$field] = sprintf(__("%s deve essere di almeno 8 caratteri"), $field);
+            return false;
+        }
+
+        if (strlen($password) > 72) {
+            $this->errors[$field] = sprintf(__("%s non può superare i 72 caratteri"), $field);
             return false;
         }
 

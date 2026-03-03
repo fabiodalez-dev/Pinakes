@@ -67,16 +67,16 @@ class PasswordController
                 $resetUrl = absoluteUrl(RouteTranslator::route('reset_password')) . '?token=' . urlencode($resetToken);
             }
             $name = trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? ''));
-            $subject = 'Recupera la tua password';
-            $html = '<h2>Recupera la tua password</h2>' .
-                '<p>Ciao ' . htmlspecialchars($name !== '' ? $name : $email, ENT_QUOTES, 'UTF-8') . ',</p>' .
-                '<p>Abbiamo ricevuto una richiesta di reset della password per il tuo account.</p>' .
-                '<p>Clicca sul pulsante qui sotto per resettare la tua password:</p>' .
-                '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #111827; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">Resetta Password</a></p>' .
-                '<p>Oppure copia e incolla questo link nel tuo browser:</p>' .
+            $subject = __('Recupera la tua password');
+            $html = '<h2>' . __('Recupera la tua password') . '</h2>' .
+                '<p>' . __('Ciao') . ' ' . htmlspecialchars($name !== '' ? $name : $email, ENT_QUOTES, 'UTF-8') . ',</p>' .
+                '<p>' . __('Abbiamo ricevuto una richiesta di reset della password per il tuo account.') . '</p>' .
+                '<p>' . __('Clicca sul pulsante qui sotto per resettare la tua password:') . '</p>' .
+                '<p style="margin: 20px 0;"><a href="' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '" style="background-color: #111827; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px;">' . __('Resetta Password') . '</a></p>' .
+                '<p>' . __('Oppure copia e incolla questo link nel tuo browser:') . '</p>' .
                 '<p><code style="background-color: #f3f4f6; padding: 10px; display: block; word-break: break-all;">' . htmlspecialchars($resetUrl, ENT_QUOTES, 'UTF-8') . '</code></p>' .
-                '<p><strong>Nota:</strong> Questo link scadrà tra 2 ore.</p>' .
-                '<p>Se non hai richiesto il reset della password, puoi ignorare questa email. Il tuo account rimane sicuro.</p>';
+                '<p><strong>' . __('Nota:') . '</strong> ' . __('Questo link scadrà tra 2 ore.') . '</p>' .
+                '<p>' . __('Se non hai richiesto il reset della password, puoi ignorare questa email. Il tuo account rimane sicuro.') . '</p>';
 
             // Use EmailService if available, fall back to Mailer
             try {
@@ -141,6 +141,10 @@ class PasswordController
         // Validate password complexity before checking token
         if (strlen($pwd1) < 8) {
             return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token=' . urlencode($token) . '&error=password_too_short')->withStatus(302);
+        }
+
+        if (strlen($pwd1) > 72) {
+            return $response->withHeader('Location', RouteTranslator::route('reset_password') . '?token=' . urlencode($token) . '&error=password_too_long')->withStatus(302);
         }
 
         if (!preg_match('/[A-Z]/', $pwd1) || !preg_match('/[a-z]/', $pwd1) || !preg_match('/[0-9]/', $pwd1)) {

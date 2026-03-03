@@ -17,8 +17,8 @@ class RateLimitMiddleware implements MiddlewareInterface
 
     public function __construct(int $maxAttempts = 10, int $window = 900, ?string $actionKey = null) // 15 minutes default
     {
-        $this->maxAttempts = $maxAttempts;
-        $this->window = $window;
+        $this->maxAttempts = max(1, $maxAttempts);
+        $this->window = max(1, $window);
         $this->actionKey = $actionKey;
     }
 

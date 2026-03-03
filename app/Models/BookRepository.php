@@ -1103,19 +1103,21 @@ class BookRepository
         }
     }
 
-    private static ?array $columnCache = null;
+    private static array $columnCacheByDb = [];
     private function hasColumn(string $name): bool
     {
-        if (self::$columnCache === null) {
-            self::$columnCache = [];
+        $dbRes = $this->db->query('SELECT DATABASE()');
+        $dbName = ($dbRes ? (string) ($dbRes->fetch_row()[0] ?? 'default') : 'default');
+        if (!isset(self::$columnCacheByDb[$dbName])) {
+            self::$columnCacheByDb[$dbName] = [];
             $res = $this->db->query('SHOW COLUMNS FROM libri');
             if ($res) {
                 while ($r = $res->fetch_assoc()) {
-                    self::$columnCache[$r['Field']] = true;
+                    self::$columnCacheByDb[$dbName][$r['Field']] = true;
                 }
             }
         }
-        return isset(self::$columnCache[$name]);
+        return isset(self::$columnCacheByDb[$dbName][$name]);
     }
 
     private static array $tableColumnCache = [];

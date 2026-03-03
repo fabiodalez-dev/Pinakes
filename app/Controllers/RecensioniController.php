@@ -145,7 +145,7 @@ class RecensioniController
             error_log("Error creating review: " . $e->getMessage());
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'message' => __('Errore del server') . ': ' . $e->getMessage()
+                'message' => __('Errore del server')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }

@@ -323,6 +323,10 @@
             'required' => __('Nome e cognome sono obbligatori.'),
             'password_mismatch' => __('Le password non coincidono.'),
             'password_too_short' => __('La password deve essere lunga almeno 8 caratteri.'),
+            'password_too_long' => __('La password non può superare i 72 caratteri.'),
+            'wrong_current_password' => __('La password attuale non è corretta.'),
+            'password_needs_upper_lower_number' => __('La password deve contenere maiuscole, minuscole e numeri.'),
+            'server' => __('Errore del server. Riprova più tardi.'),
             'password_weak' => __('La password deve contenere maiuscole, minuscole e numeri.')
           ];
           echo $errors[$_GET['error']] ?? __('Si è verificato un errore.');

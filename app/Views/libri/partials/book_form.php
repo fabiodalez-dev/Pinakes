@@ -3834,15 +3834,22 @@ function initializeIsbnImport() {
 
 // Display scraped cover image
 function displayScrapedCover(imageUrl) {
-    
+
     if (!imageUrl) return;
-    
+
+    // Block unsafe URL schemes (javascript:, data:, vbscript:, etc.)
+    // Only allow http(s) URLs and local paths starting with /
+    if (!/^(https?:\/\/|\/)/i.test(imageUrl)) {
+        console.warn('displayScrapedCover: blocked unsafe URL scheme:', imageUrl);
+        return;
+    }
+
     const container = document.getElementById('cover-preview-container');
     if (!container) return;
-    
-    // Clear existing content
+
+    // Clear existing content — safe: all dynamic values are escaped via escapeHtml/escapeAttr
     container.innerHTML = '';
-    
+
     // Create image element
     const img = document.createElement('img');
     let imageSrc = imageUrl;

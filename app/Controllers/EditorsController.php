@@ -9,6 +9,24 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class EditorsController
 {
+    private function sanitizeWebsiteUrl(string $url): string
+    {
+        $url = trim($url);
+        if ($url === '') {
+            return '';
+        }
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            $url = 'https://' . ltrim($url, '/');
+            if (!filter_var($url, FILTER_VALIDATE_URL)) {
+                return '';
+            }
+        }
+        $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
+        if (!in_array($scheme, ['http', 'https'], true)) {
+            return '';
+        }
+        return $url;
+    }
     public function index(Request $request, Response $response, mysqli $db): Response
     {
         $repo = new \App\Models\PublisherRepository($db);
@@ -68,22 +86,11 @@ class EditorsController
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
-        $sitoWeb = trim($data['sito_web'] ?? '');
-        if ($sitoWeb !== '' && !filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
-            $sitoWeb = 'https://' . ltrim($sitoWeb, '/');
-            if (!filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
-                $sitoWeb = '';
-            }
-        }
-        if ($sitoWeb !== '') {
-            $scheme = strtolower((string) parse_url($sitoWeb, PHP_URL_SCHEME));
-            if (!in_array($scheme, ['http', 'https'], true)) {
-                $sitoWeb = '';
-            }
-        }
+        $rawSitoWeb = $data['sito_web'] ?? '';
+        $sitoWeb = $this->sanitizeWebsiteUrl(is_string($rawSitoWeb) ? $rawSitoWeb : '');
         $repo = new \App\Models\PublisherRepository($db);
-        $id = $repo->create([
-            'nome' => trim($data['nome'] ?? ''),
+        $repo->create([
+            'nome' => trim((string) ($data['nome'] ?? '')),
             'sito_web' => $sitoWeb,
         ]);
         return $response->withHeader('Location', '/admin/editori')->withStatus(302);
@@ -112,22 +119,11 @@ class EditorsController
     {
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
-        $sitoWeb = trim($data['sito_web'] ?? '');
-        if ($sitoWeb !== '' && !filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
-            $sitoWeb = 'https://' . ltrim($sitoWeb, '/');
-            if (!filter_var($sitoWeb, FILTER_VALIDATE_URL)) {
-                $sitoWeb = '';
-            }
-        }
-        if ($sitoWeb !== '') {
-            $scheme = strtolower((string) parse_url($sitoWeb, PHP_URL_SCHEME));
-            if (!in_array($scheme, ['http', 'https'], true)) {
-                $sitoWeb = '';
-            }
-        }
+        $rawSitoWeb = $data['sito_web'] ?? '';
+        $sitoWeb = $this->sanitizeWebsiteUrl(is_string($rawSitoWeb) ? $rawSitoWeb : '');
         $repo = new \App\Models\PublisherRepository($db);
         $repo->update($id, [
-            'nome' => trim($data['nome'] ?? ''),
+            'nome' => trim((string) ($data['nome'] ?? '')),
             'sito_web' => $sitoWeb,
         ]);
         return $response->withHeader('Location', '/admin/editori')->withStatus(302);
