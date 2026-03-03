@@ -988,6 +988,7 @@ Or when a patch is applied:
 
 | Version | Changes |
 |---------|---------|
+| 0.4.9.7 | Re-release of 0.4.9.6 to ensure bundled plugin updates propagate to installations that updated from pre-0.4.9.6 (older Updater lacked updateBundledPlugins) |
 | 0.4.9.6 | Comprehensive codebase review: URL scheme validation, proxy-aware HTTPS in installer, bcrypt 72-byte limit, atomic RateLimiter with flock, guarded recalculateBookAvailability/RELEASE_LOCK calls, DashboardStats cache failure throw, language-switcher logging, config charset in SET NAMES |
 | 0.4.9.4 | Audiobook MP3 player, Z39.50/SRU Nordic sources, global keyboard shortcuts, scroll-to-top, rate-limit bypass fix, German installer support |
 | 0.4.9.2 | Genre management (edit/merge/rearrange), book list filters (series, genre), German locale support |
