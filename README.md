@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.9.4-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.9.6-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -23,7 +23,39 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.9.4
+## What's New in v0.4.9.6
+
+### 🔒 Comprehensive Codebase Review — Security, Reliability & Code Quality
+
+**Security Hardening:**
+- **URL scheme validation** — Author and book views now verify `http`/`https` scheme before rendering user-provided URLs in `href` attributes
+- **Unsafe URL blocking** — Book cover display blocks `javascript:`, `data:`, and other dangerous URL schemes
+- **Proxy-aware HTTPS** — Installer session cookie detects HTTPS behind reverse proxies via `X-Forwarded-Proto`/`X-Forwarded-SSL`
+- **Password bcrypt limit** — Registration, profile, and password-reset enforce 72-byte `PASSWORD_BCRYPT` maximum
+- **Form input type guards** — Editor controller validates `sito_web` type before sanitization (array injection prevention)
+- **CSRF token in update UI** — Updater admin panel includes CSRF tokens for all state-changing actions
+
+**Reliability Improvements:**
+- **Atomic rate limiter** — `RateLimiter` rewritten with `fopen`+`flock` for filesystem-level atomicity (no more race conditions)
+- **Book availability guards** — All `recalculateBookAvailability()` call sites now check return value and throw on failure
+- **Advisory lock safety** — `RELEASE_LOCK` `prepare()` calls guarded in `finally` blocks to prevent silent failures
+- **Dashboard cache** — `DashboardStats` throws `RuntimeException` on cache write failure instead of silently returning zeros
+- **Profile prepare guard** — Password update checks `prepare()` return before binding parameters
+- **Language switcher logging** — Silent `catch` blocks now log errors via `error_log()`
+- **Charset consistency** — Database container uses config charset in `SET NAMES` instead of hardcoded value
+
+**Code Quality:**
+- **31+ files reviewed** across controllers, models, views, middleware, and configuration
+- **Addressed all CodeRabbit findings** from automated pull request review (rounds 1-9)
+- **Consistent error handling** — Raw exception messages no longer leak in API responses
+- **Test stability** — E2E test helpers return navigation status for reliable assertions
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.9.4</strong> - Audiobook Player, Z39.50/SRU Plugin, Security & Hardening</summary>
 
 ### 🔊 Audiobook Player, Z39.50/SRU Plugin, Security & Hardening
 
@@ -61,9 +93,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Updater** — Centralized `getGitHubHeaders()` with `withAuth` flag, eliminating duplicate header arrays
 - **Canonical URL parsing** — Trim host before parsing to handle whitespace in forwarded headers
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.9.2</strong> - Genre Management, Book Filters & Bug Fixes</summary>
