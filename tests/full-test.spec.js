@@ -2317,16 +2317,19 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
   });
 
   test('18.11 #83: Admin search finds books by description', async () => {
-    // Our E2E book has description "Updated description for E2E test"
+    // Search for a term that only appears in description, not in title/subtitle/keywords
+    // Our E2E books have description containing "description" (set in Phase 3.4/6)
     await page.goto(`${BASE}/admin/libri`);
     await page.waitForLoadState('domcontentloaded');
 
+    // Use a unique description term that wouldn't match title/subtitle
+    const searchTerm = 'description';
     const apiResp = await page.request.get(
-      `${BASE}/api/libri?draw=1&start=0&length=10&search[value]=${encodeURIComponent('Updated description')}`
+      `${BASE}/api/libri?draw=1&start=0&length=10&search_text=${encodeURIComponent(searchTerm)}`
     );
     expect(apiResp.ok()).toBeTruthy();
     const data = await apiResp.json();
-    // Should find at least our test book that has this description
+    // Should find books whose description contains "description"
     expect(data.recordsFiltered).toBeGreaterThan(0);
   });
 
@@ -2358,15 +2361,6 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
   });
 
   test('18.13 #86: Keywords visible on public book detail page', async () => {
-    // Find a book with keywords via catalog page — click the first book link
-    await page.goto(`${BASE}/catalogo`);
-    await page.waitForLoadState('domcontentloaded');
-
-    // Find a book card link and navigate to it
-    const bookLink = page.locator('a[href*="/"]').filter({ hasText: /\w+/ }).first();
-    await expect(bookLink).toBeVisible({ timeout: 5000 });
-    const href = await bookLink.getAttribute('href');
-
     // Check DB: does any book have keywords?
     const hasKeywords = dbQuery(
       `SELECT COUNT(*) FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave != '' AND deleted_at IS NULL`
@@ -2379,18 +2373,14 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     );
     const titolo = dbQuery(`SELECT titolo FROM libri WHERE id=${bookId}`);
 
-    // Use the catalog search to find this specific book, then click into it
+    // Search for the book in catalog and click into its detail page
     await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(titolo)}`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Click the first result that links to a book detail
+    // Click the result that links to this book
     const detailLink = page.locator(`a[href*="/${bookId}"]`).first();
-    if (await detailLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await detailLink.click();
-    } else {
-      // Fallback: navigate to book detail by ID
-      await page.goto(`${BASE}/libro/${bookId}`);
-    }
+    await expect(detailLink).toBeVisible({ timeout: 5000 });
+    await detailLink.click();
     await page.waitForLoadState('domcontentloaded');
 
     // Verify keyword chips are present

@@ -1426,7 +1426,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         booksSection.classList.remove('hidden');
       }
 
-      // Update modifier key labels for Mac (navigator.platform + userAgentData fallback)
+      // Update modifier key labels for Mac (userAgentData with navigator.platform fallback)
       var isMac = (navigator.userAgentData && navigator.userAgentData.platform === 'macOS') ||
                   (navigator.platform && navigator.platform.indexOf('Mac') !== -1);
       if (isMac) {
