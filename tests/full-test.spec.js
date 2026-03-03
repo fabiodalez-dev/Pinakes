@@ -2331,12 +2331,30 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
   });
 
   test('18.12 #85: Catalog sort by author works', async () => {
-    // Verify catalog loads with author sorting (uses SUBSTRING_INDEX for surname)
-    const resp = await page.request.get(`${BASE}/catalogo?ordine=author_asc`);
-    expect(resp.ok()).toBeTruthy();
+    // Navigate to catalog sorted by author ascending
+    await page.goto(`${BASE}/catalogo?ordine=author_asc`);
+    await page.waitForLoadState('domcontentloaded');
 
-    const resp2 = await page.request.get(`${BASE}/catalogo?ordine=author_desc`);
-    expect(resp2.ok()).toBeTruthy();
+    // Extract visible author names from the rendered page
+    const ascAuthors = await page.locator('.book-author:visible').allTextContents();
+    const ascNames = ascAuthors.map(s => s.trim()).filter(s => s.length > 0);
+
+    // Navigate to catalog sorted by author descending
+    await page.goto(`${BASE}/catalogo?ordine=author_desc`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const descAuthors = await page.locator('.book-author:visible').allTextContents();
+    const descNames = descAuthors.map(s => s.trim()).filter(s => s.length > 0);
+
+    // Both pages should load with author content
+    expect(ascNames.length).toBeGreaterThan(0);
+    expect(descNames.length).toBeGreaterThan(0);
+
+    // Extract surnames (last word) and verify asc is sorted alphabetically
+    const getSurname = (name) => name.split(/\s+/).pop().toLowerCase();
+    const ascSurnames = ascNames.map(getSurname);
+    const sortedAsc = [...ascSurnames].sort((a, b) => a.localeCompare(b));
+    expect(ascSurnames).toEqual(sortedAsc);
   });
 
   test('18.13 #86: Keywords visible on public book detail page', async () => {
@@ -2370,8 +2388,8 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     if (await detailLink.isVisible({ timeout: 3000 }).catch(() => false)) {
       await detailLink.click();
     } else {
-      // Fallback: construct URL directly (author-slug/book-slug/id format)
-      await page.goto(`${BASE}/autore/libro/${bookId}`);
+      // Fallback: navigate to book detail by ID
+      await page.goto(`${BASE}/libro/${bookId}`);
     }
     await page.waitForLoadState('domcontentloaded');
 
