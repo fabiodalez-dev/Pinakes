@@ -2317,20 +2317,23 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
   });
 
   test('18.11 #83: Admin search finds books by description', async () => {
-    // Search for a term that only appears in description, not in title/subtitle/keywords
-    // Our E2E books have description containing "description" (set in Phase 3.4/6)
+    const targetId = state.createdBookIds[0];
+    test.skip(!targetId, 'No seeded book id available');
+    const marker = `desc-${RUN_ID}`;
+    dbQuery(`UPDATE libri SET descrizione='${marker}' WHERE id=${targetId}`);
+
     await page.goto(`${BASE}/admin/libri`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Use a unique description term that wouldn't match title/subtitle
-    const searchTerm = 'description';
+    const searchTerm = marker;
     const apiResp = await page.request.get(
       `${BASE}/api/libri?draw=1&start=0&length=10&search_text=${encodeURIComponent(searchTerm)}`
     );
     expect(apiResp.ok()).toBeTruthy();
     const data = await apiResp.json();
-    // Should find books whose description contains "description"
     expect(data.recordsFiltered).toBeGreaterThan(0);
+    const ids = (data.data || []).map(row => Number(row.id));
+    expect(ids).toContain(targetId);
   });
 
   test('18.12 #85: Catalog sort by author works', async () => {
@@ -2368,13 +2371,13 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
   test('18.13 #86: Keywords visible on public book detail page', async () => {
     // Check DB: does any book have keywords?
     const hasKeywords = dbQuery(
-      `SELECT COUNT(*) FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave != '' AND deleted_at IS NULL`
+      `SELECT COUNT(*) FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave REGEXP '[^,[:space:]]' AND deleted_at IS NULL`
     );
     if (Number(hasKeywords) === 0) { test.skip(); return; }
 
     // Find a book with keywords and navigate to its detail page
     const bookId = dbQuery(
-      `SELECT id FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave != '' AND deleted_at IS NULL LIMIT 1`
+      `SELECT id FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave REGEXP '[^,[:space:]]' AND deleted_at IS NULL LIMIT 1`
     );
     const titolo = dbQuery(`SELECT titolo FROM libri WHERE id=${bookId}`);
 
