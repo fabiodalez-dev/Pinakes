@@ -447,7 +447,8 @@ final class ConfigStore
                                 self::$dbSettingsCache['mail']['smtp'][$dst] = $decrypted;
                             } else {
                                 SecureLogger::error('ConfigStore: smtp_password decryption failed');
-                                self::$dbSettingsCache['mail']['smtp'][$dst] = '';
+                                // Don't overwrite with empty string — leave cache entry unchanged
+                                continue;
                             }
                         } else {
                             self::$dbSettingsCache['mail']['smtp'][$dst] = (string) $value;

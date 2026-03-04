@@ -72,6 +72,15 @@ final class SettingsEncryption
         }
     }
 
+    /**
+     * Reset cached key (useful for testing or after env changes in long-running processes)
+     */
+    public static function resetKeyCache(): void
+    {
+        self::$cachedKey = null;
+        self::$keyResolved = false;
+    }
+
     private static function getEncryptionKey(): ?string
     {
         if (self::$keyResolved) {

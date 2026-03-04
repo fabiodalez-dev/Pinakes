@@ -31,6 +31,9 @@ const TEST_USER2_EMAIL = 'emailtest2@example.com';
 const CONTACT_EMAIL = 'contact-test@example.com';
 
 // ── Database helper ──────────────────────────────────────────────────
+/** Escape a value for safe SQL interpolation */
+const sqlEscape = (s) => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+
 function dbQuery(sql) {
   const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
   if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
@@ -39,14 +42,29 @@ function dbQuery(sql) {
 
 // ── Mailpit API helpers ──────────────────────────────────────────────
 
+/** Fetch JSON from Mailpit with timeout and status check */
+async function mailpitJson(urlPath, timeoutMs = 5000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${MAILPIT_API}${urlPath}`, { signal: controller.signal });
+    if (!res.ok) throw new Error(`Mailpit request failed: HTTP ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Delete all messages in Mailpit */
 async function clearMailpit() {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 5000);
   try {
-    await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: controller.signal });
-  } catch {
-    // Ignore timeout/abort errors — inbox may already be empty
+    const res = await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: controller.signal });
+    if (!res.ok) throw new Error(`Mailpit clear failed: HTTP ${res.status}`);
+  } catch (err) {
+    if (controller.signal.aborted) return; // timeout is OK — inbox may be empty
+    throw err;
   } finally {
     clearTimeout(timer);
   }
@@ -62,11 +80,7 @@ async function waitForMail(query, timeoutMs = 15000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 5000);
-      const res = await fetch(`${MAILPIT_API}/search?query=${encodeURIComponent(query)}`, { signal: controller.signal });
-      clearTimeout(timer);
-      const data = await res.json();
+      const data = await mailpitJson(`/search?query=${encodeURIComponent(query)}`);
       if (data.messages && data.messages.length > 0) {
         return data.messages[0];
       }
@@ -82,8 +96,7 @@ async function waitForMail(query, timeoutMs = 15000) {
  * @returns {Promise<object>}
  */
 async function getMessage(id) {
-  const res = await fetch(`${MAILPIT_API}/message/${id}`);
-  return res.json();
+  return mailpitJson(`/message/${id}`);
 }
 
 /**
@@ -92,8 +105,7 @@ async function getMessage(id) {
  * @returns {Promise<number>}
  */
 async function countMail(query) {
-  const res = await fetch(`${MAILPIT_API}/search?query=${encodeURIComponent(query)}`);
-  const data = await res.json();
+  const data = await mailpitJson(`/search?query=${encodeURIComponent(query)}`);
   return data.messages_count || 0;
 }
 
@@ -195,12 +207,25 @@ test.describe.serial('Email Notifications E2E', () => {
       originalSettings.smtp_security = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='smtp_security' LIMIT 1");
     } catch { originalSettings.smtp_security = 'tls'; }
     try {
+      originalSettings.smtp_username = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='smtp_username' LIMIT 1");
+    } catch { originalSettings.smtp_username = ''; }
+    try {
+      originalSettings.smtp_password = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='smtp_password' LIMIT 1");
+    } catch { originalSettings.smtp_password = ''; }
+    try {
+      originalSettings.from_email = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='from_email' LIMIT 1");
+    } catch { originalSettings.from_email = ''; }
+    try {
+      originalSettings.from_name = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='from_name' LIMIT 1");
+    } catch { originalSettings.from_name = ''; }
+    try {
       originalSettings.contact_notification = dbQuery("SELECT setting_value FROM system_settings WHERE category='contacts' AND setting_key='notification_email' LIMIT 1");
     } catch { originalSettings.contact_notification = ''; }
   });
 
   test.afterAll(async () => {
-    // browser is managed by Playwright, no explicit close needed
+    // Always clean up regardless of test outcome
+    await cleanupAndRestore();
   });
 
   // ── A.1: Configure SMTP driver → Mailpit ────────────────────────
@@ -224,7 +249,7 @@ test.describe.serial('Email Notifications E2E', () => {
     // Set contact notification email so contact form tests work
     dbQuery(`
       INSERT INTO system_settings (category, setting_key, setting_value)
-      VALUES ('contacts', 'notification_email', '${ADMIN_EMAIL}')
+      VALUES ('contacts', 'notification_email', '${sqlEscape(ADMIN_EMAIL)}')
       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
     `);
 
@@ -644,16 +669,12 @@ test.describe.serial('Email Notifications E2E', () => {
   test('B.13 — Contact form email to admin', async () => {
     await clearMailpit();
 
-    // Ensure contact_messages table exists
-    try {
-      dbQuery(`CREATE TABLE IF NOT EXISTS contact_messages (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        nome VARCHAR(255), cognome VARCHAR(255), email VARCHAR(255),
-        telefono VARCHAR(50), indirizzo TEXT, messaggio TEXT,
-        privacy_accepted TINYINT(1), ip_address VARCHAR(45), user_agent TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )`);
-    } catch { /* already exists */ }
+    // Verify contact_messages table exists (should be created by migrations)
+    const hasContactMessages = dbQuery(
+      "SELECT COUNT(*) FROM information_schema.tables " +
+      "WHERE table_schema = DATABASE() AND table_name = 'contact_messages'"
+    );
+    expect(Number(hasContactMessages)).toBeGreaterThan(0);
 
     const page = await browserRef.newPage();
     await page.goto(`${BASE}/contatti`, { waitUntil: 'domcontentloaded' });
@@ -840,52 +861,63 @@ test.describe.serial('Email Notifications E2E', () => {
   });
 
   // ══════════════════════════════════════════════════════════════════
-  // Phase D: Cleanup
+  // Cleanup helper — also called from afterAll as safety net
   // ══════════════════════════════════════════════════════════════════
-  test('D — Cleanup test data and restore settings', async () => {
-    // Clean up test users and related data
-    const userId1 = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER_EMAIL}' LIMIT 1`).trim();
-    const userId2 = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER2_EMAIL}' LIMIT 1`).trim();
-
-    if (userId1) {
-      dbQuery(`DELETE FROM prestiti WHERE utente_id = ${userId1}`);
-      dbQuery(`DELETE FROM recensioni WHERE utente_id = ${userId1}`);
-      dbQuery(`DELETE FROM wishlist WHERE utente_id = ${userId1}`);
-      try { dbQuery(`DELETE FROM consent_log WHERE utente_id = ${userId1}`); } catch { /* table may not exist */ }
-      try { dbQuery(`DELETE FROM notifications WHERE utente_id = ${userId1}`); } catch { /* table may not exist */ }
-    }
-    if (userId2) {
-      dbQuery(`DELETE FROM prestiti WHERE utente_id = ${userId2}`);
-      try { dbQuery(`DELETE FROM consent_log WHERE utente_id = ${userId2}`); } catch { /* table may not exist */ }
-      try { dbQuery(`DELETE FROM notifications WHERE utente_id = ${userId2}`); } catch { /* table may not exist */ }
-    }
-
-    // Delete test users
-    dbQuery(`DELETE FROM utenti WHERE email IN ('${TEST_USER_EMAIL}', '${TEST_USER2_EMAIL}', 'emailtest-setup@example.com')`);
-
-    // Delete contact messages from test
-    dbQuery(`DELETE FROM contact_messages WHERE email IN ('${CONTACT_EMAIL}', 'phpmail-test@example.com')`);
-
-    // Delete test notifications
-    try { dbQuery("DELETE FROM notifications WHERE tipo LIKE '%email%test%'"); } catch { /* */ }
-
-    // Restore original email settings
-    const restore = (key, value) => {
-      if (value !== undefined && value !== '') {
-        dbQuery(`UPDATE system_settings SET setting_value = '${value.replace(/'/g, "\\'")}' WHERE category = 'email' AND setting_key = '${key}'`);
+  async function cleanupAndRestore() {
+    try {
+      // Clean up test users and related data
+      for (const email of [TEST_USER_EMAIL, TEST_USER2_EMAIL]) {
+        try {
+          const uid = dbQuery(`SELECT id FROM utenti WHERE email = '${email}' LIMIT 1`).trim();
+          if (uid) {
+            try { dbQuery(`DELETE FROM prestiti WHERE utente_id = ${uid}`); } catch { /* */ }
+            try { dbQuery(`DELETE FROM recensioni WHERE utente_id = ${uid}`); } catch { /* */ }
+            try { dbQuery(`DELETE FROM wishlist WHERE utente_id = ${uid}`); } catch { /* */ }
+            try { dbQuery(`DELETE FROM consent_log WHERE utente_id = ${uid}`); } catch { /* */ }
+            try { dbQuery(`DELETE FROM notifications WHERE utente_id = ${uid}`); } catch { /* */ }
+          }
+        } catch { /* user doesn't exist */ }
       }
-    };
-    restore('type', originalSettings.type);
-    restore('driver_mode', originalSettings.driver_mode);
-    restore('smtp_host', originalSettings.smtp_host);
-    restore('smtp_port', originalSettings.smtp_port);
-    restore('smtp_security', originalSettings.smtp_security);
 
-    if (originalSettings.contact_notification) {
-      dbQuery(`UPDATE system_settings SET setting_value = '${originalSettings.contact_notification.replace(/'/g, "\\'")}' WHERE category = 'contacts' AND setting_key = 'notification_email'`);
+      // Delete test users
+      dbQuery(`DELETE FROM utenti WHERE email IN ('${TEST_USER_EMAIL}', '${TEST_USER2_EMAIL}', 'emailtest-setup@example.com')`);
+
+      // Delete test books created by loan tests
+      try { dbQuery("DELETE FROM copie WHERE libro_id IN (SELECT id FROM libri WHERE titolo LIKE '%Test Book%')"); } catch { /* */ }
+      try { dbQuery("DELETE FROM libri WHERE titolo LIKE '%Test Book%'"); } catch { /* */ }
+
+      // Delete contact messages from test
+      try { dbQuery(`DELETE FROM contact_messages WHERE email IN ('${CONTACT_EMAIL}', 'phpmail-test@example.com')`); } catch { /* */ }
+
+      // Restore original email settings
+      const restore = (key, value) => {
+        if (value !== undefined && value !== '') {
+          dbQuery(`UPDATE system_settings SET setting_value = '${sqlEscape(value)}' WHERE category = 'email' AND setting_key = '${key}'`);
+        }
+      };
+      restore('type', originalSettings.type);
+      restore('driver_mode', originalSettings.driver_mode);
+      restore('smtp_host', originalSettings.smtp_host);
+      restore('smtp_port', originalSettings.smtp_port);
+      restore('smtp_security', originalSettings.smtp_security);
+      restore('smtp_username', originalSettings.smtp_username);
+      restore('smtp_password', originalSettings.smtp_password);
+      restore('from_email', originalSettings.from_email);
+      restore('from_name', originalSettings.from_name);
+
+      if (originalSettings.contact_notification) {
+        dbQuery(`UPDATE system_settings SET setting_value = '${sqlEscape(originalSettings.contact_notification)}' WHERE category = 'contacts' AND setting_key = 'notification_email'`);
+      }
+
+      // Clear Mailpit
+      await clearMailpit();
+    } catch (err) {
+      console.error('[Cleanup] Error during cleanup:', err.message);
     }
+  }
 
-    // Clear Mailpit
-    await clearMailpit();
+  // Phase D: Cleanup (explicit test + afterAll safety net)
+  test('D — Cleanup test data and restore settings', async () => {
+    await cleanupAndRestore();
   });
 });

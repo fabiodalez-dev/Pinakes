@@ -255,9 +255,12 @@ class SettingsController
         $driver = $stored['driver_mode'] ?? $settings['type'] ?? $defaults['type'];
         $settings['type'] = $driver;
 
-        // Decrypt SMTP password for form display
-        if (isset($settings['smtp_password'])) {
-            $settings['smtp_password'] = SettingsEncryption::decrypt($settings['smtp_password']) ?? '';
+        // Decrypt SMTP password for form display (only when actually encrypted)
+        if (isset($settings['smtp_password']) && is_string($settings['smtp_password'])) {
+            $decrypted = SettingsEncryption::decrypt($settings['smtp_password']);
+            if ($decrypted !== null) {
+                $settings['smtp_password'] = $decrypted;
+            }
         }
 
         return $settings;

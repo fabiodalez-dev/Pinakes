@@ -53,7 +53,7 @@ SET @col_default = (SELECT COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS
                     WHERE TABLE_SCHEMA = DATABASE()
                       AND TABLE_NAME = 'libri'
                       AND COLUMN_NAME = 'ean');
-SET @sql = IF(@col_default = '',
+SET @sql = IF(@col_default IS NOT NULL AND @col_default = '',
     'ALTER TABLE `libri` MODIFY COLUMN `ean` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT ''European Article Number''',
     'DO 0 /* ean default already NULL — skipping */');
 PREPARE stmt FROM @sql;
