@@ -575,6 +575,7 @@ class FrontendController
                    g.nome AS genere,
                    gp.nome AS genere_parent,
                    gpp.nome AS genere_grandparent,
+                   sg.nome AS sottogenere,
                    e.nome AS editore
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo = 'principale'
@@ -582,6 +583,7 @@ class FrontendController
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             LEFT JOIN editori e ON l.editore_id = e.id
             WHERE l.id = ? AND l.deleted_at IS NULL
             LIMIT 1

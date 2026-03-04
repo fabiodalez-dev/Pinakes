@@ -43,6 +43,9 @@ if (!empty($book['genere_parent'])) {
 if (!empty($book['genere'])) {
     $genreHierarchy[] = $book['genere'];
 }
+if (!empty($book['sottogenere'])) {
+    $genreHierarchy[] = $book['sottogenere'];
+}
 $bookGenre = !empty($genreHierarchy) ? implode(' > ', $genreHierarchy) : '';
 $bookGenre = html_entity_decode($bookGenre, ENT_QUOTES, 'UTF-8');
 $bookCover = ($book['copertina_url'] ?? '') ?: ($book['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg';

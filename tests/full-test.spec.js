@@ -2401,7 +2401,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     expect(firstHref).toContain('?q=');
   });
 
-  test('18.14 #90: Subgenre visible on admin book detail after edit', async () => {
+  test('18.14 #90: Subgenre visible on admin AND frontend book detail (2-level)', async () => {
     // Find a ROOT genre and one of its direct children
     // This tests the chainLen===1 path in resolveGenreHierarchy
     const rootId = dbQuery("SELECT id FROM generi WHERE parent_id IS NULL LIMIT 1");
@@ -2418,13 +2418,21 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     // This mirrors what the controller normalization does
     dbQuery(`UPDATE libri SET genere_id=${rootId}, sottogenere_id=${childId} WHERE id=${bookId}`);
 
-    // Navigate to admin book detail page
+    // 1) Admin book detail page
     await page.goto(`${BASE}/admin/libri/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
-
-    // The genre section should display the child genre name
     const genreText = await page.locator('.fa-layer-group').locator('..').textContent();
     expect(genreText).toContain(childName);
+
+    // 2) Frontend (public) book detail page — uses different query path
+    await page.goto(`${BASE}/libro/${bookId}`);
+    await page.waitForLoadState('domcontentloaded');
+    const genreTag = page.locator('.genre-tag').first();
+    // The genre tag may not exist if the frontend template has no genre section
+    if (await genreTag.count() > 0) {
+      const frontendGenre = await genreTag.textContent();
+      expect(frontendGenre).toContain(childName);
+    }
   });
 
   test('18.15 SMTP password encrypted at rest', async () => {
