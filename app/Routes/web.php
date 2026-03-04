@@ -1126,12 +1126,13 @@ return function (App $app): void {
         return $controller->exportCsv($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware()); // 15 exports per minute
 
-    $app->get('/admin/prestiti/crea', function ($request, $response) {
+    $app->get('/admin/prestiti/crea', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
         $controller = new PrestitiController();
-        return $controller->createForm($request, $response);
+        $db = $app->getContainer()->get('db');
+        return $controller->createForm($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     $app->post('/admin/prestiti/crea', function ($request, $response) use ($app) {
@@ -1473,12 +1474,13 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->get('/prestiti/crea', function ($request, $response) {
+    $app->get('/prestiti/crea', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
         $controller = new PrestitiController();
-        return $controller->createForm($request, $response);
+        $db = $app->getContainer()->get('db');
+        return $controller->createForm($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
     $app->post('/prestiti/crea', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {

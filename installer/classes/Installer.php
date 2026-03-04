@@ -782,7 +782,7 @@ class Installer {
         $codiceTessera = 'ADMIN-' . date('Ymd') . '-' . str_pad((string)rand(1, 999), 3, '0', STR_PAD_LEFT);
 
         // Hash password
-        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
 
         // Insert admin user
         $query = "

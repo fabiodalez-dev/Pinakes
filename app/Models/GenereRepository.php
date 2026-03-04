@@ -154,8 +154,8 @@ class GenereRepository
             throw new \RuntimeException('Impossibile eliminare: il genere ha sottogeneri');
         }
 
-        // Check if genre is used by any book (including soft-deleted to prevent dangling FK)
-        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE genere_id = ? OR sottogenere_id = ?");
+        // Check if genre is used by any non-deleted book
+        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE deleted_at IS NULL AND (genere_id = ? OR sottogenere_id = ?)");
         $stmt->bind_param('ii', $id, $id);
         $stmt->execute();
         $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];

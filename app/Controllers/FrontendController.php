@@ -907,13 +907,16 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         ORDER BY g.parent_id, g.nome
     ";
 
-    $stmt = $db->prepare($queryGeneri);
-    if (!empty($paramsGen)) {
-        $stmt->bind_param($typesGen, ...$paramsGen);
-    }
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $generi_flat = $result->fetch_all(MYSQLI_ASSOC);
+    $cacheKeyGeneri = 'genre_tree_' . md5($queryGeneri . serialize($paramsGen));
+    $generi_flat = \App\Support\QueryCache::remember($cacheKeyGeneri, function() use ($db, $queryGeneri, $typesGen, $paramsGen) {
+        $stmt = $db->prepare($queryGeneri);
+        if (!empty($paramsGen)) {
+            $stmt->bind_param($typesGen, ...$paramsGen);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        return $result->fetch_all(MYSQLI_ASSOC);
+    }, 300);
     $options['generi'] = $this->buildGenreHierarchy($generi_flat);
 
     // ---------- Editori ----------
@@ -1926,6 +1929,26 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $twitterTitle = $event['twitter_title'] ?: $ogTitle;
         $twitterDescription = $event['twitter_description'] ?: $ogDescription;
         $twitterImage = !empty($event['twitter_image']) ? absoluteUrl($event['twitter_image']) : $ogImage;
+
+        // Related events (upcoming, excluding current)
+        $relatedEvents = [];
+        $stmtRelated = $db->prepare("
+            SELECT id, title, slug, event_date, event_time, featured_image
+            FROM events
+            WHERE is_active = 1 AND id != ? AND event_date >= CURDATE()
+            ORDER BY event_date ASC
+            LIMIT 3
+        ");
+        if ($stmtRelated) {
+            $eventId = $event['id'];
+            $stmtRelated->bind_param('i', $eventId);
+            $stmtRelated->execute();
+            $resultRelated = $stmtRelated->get_result();
+            while ($row = $resultRelated->fetch_assoc()) {
+                $relatedEvents[] = $row;
+            }
+            $stmtRelated->close();
+        }
 
         $container = $this->container;
         ob_start();

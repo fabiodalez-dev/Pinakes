@@ -133,41 +133,57 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
         $forceAuthenticated = true;
     }
 
+    // CSRF token for installer force-auth form
+    if (!isset($_SESSION['installer_csrf_token'])) {
+        $_SESSION['installer_csrf_token'] = bin2hex(random_bytes(32));
+    }
+
     // Allow login via POST
+    $csrfFailed = false;
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_email'], $_POST['admin_password'])) {
-        $email = trim($_POST['admin_email']);
-        $password = $_POST['admin_password'];
+        // Validate CSRF token
+        $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+        $sessionToken = (string) ($_SESSION['installer_csrf_token'] ?? '');
+        if ($sessionToken === '' || !hash_equals($sessionToken, $submittedToken)) {
+            $csrfFailed = true;
+        } else {
+            $email = trim($_POST['admin_email']);
+            $password = $_POST['admin_password'];
 
-        // Connect to database and verify admin credentials
-        try {
-            $dbHost = $_ENV['DB_HOST'] ?? '127.0.0.1';
-            $dbUser = $_ENV['DB_USER'] ?? '';
-            $dbPass = $_ENV['DB_PASS'] ?? '';
-            $dbName = $_ENV['DB_NAME'] ?? '';
-            $dbPort = $_ENV['DB_PORT'] ?? '3306';
+            // Connect to database and verify admin credentials
+            try {
+                $dbHost = $_ENV['DB_HOST'] ?? '127.0.0.1';
+                $dbUser = $_ENV['DB_USER'] ?? '';
+                $dbPass = $_ENV['DB_PASS'] ?? '';
+                $dbName = $_ENV['DB_NAME'] ?? '';
+                $dbPort = $_ENV['DB_PORT'] ?? '3306';
 
-            $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName, (int)$dbPort);
-            if (!$mysqli->connect_error) {
-                $stmt = $mysqli->prepare("SELECT id, password FROM utenti WHERE email = ? AND ruolo = 'admin' LIMIT 1");
-                if ($stmt) {
-                    $stmt->bind_param('s', $email);
-                    $stmt->execute();
-                    $result = $stmt->get_result();
-                    if ($row = $result->fetch_assoc()) {
-                        if (password_verify($password, $row['password'])) {
-                            $forceAuthenticated = true;
-                            $_SESSION['installer_admin_verified'] = true;
-                            $_SESSION['user_id'] = $row['id'];
-                            $_SESSION['user_role'] = 'admin';
+                $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName, (int)$dbPort);
+                if (!$mysqli->connect_error) {
+                    $stmt = $mysqli->prepare("SELECT id, password FROM utenti WHERE email = ? AND ruolo = 'admin' LIMIT 1");
+                    if ($stmt) {
+                        $stmt->bind_param('s', $email);
+                        $stmt->execute();
+                        $result = $stmt->get_result();
+                        if ($row = $result->fetch_assoc()) {
+                            if (password_verify($password, $row['password'])) {
+                                $forceAuthenticated = true;
+                                $_SESSION['installer_admin_verified'] = true;
+                                $_SESSION['user_id'] = $row['id'];
+                                $_SESSION['user_role'] = 'admin';
+                            }
                         }
+                        $stmt->close();
                     }
-                    $stmt->close();
+                    $mysqli->close();
                 }
-                $mysqli->close();
+            } catch (Exception $e) {
+                // Silently fail - will show login form
             }
-        } catch (Exception $e) {
-            // Silently fail - will show login form
         }
+
+        // Regenerate CSRF token after each POST attempt
+        $_SESSION['installer_csrf_token'] = bin2hex(random_bytes(32));
     }
 
     // Check if previously authenticated in this session
@@ -177,7 +193,13 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
 
     // If not authenticated, show login form
     if (!$forceAuthenticated) {
-        $loginError = ($_SERVER['REQUEST_METHOD'] === 'POST') ? __('Credenziali non valide o utente non admin') : '';
+        $errorHtml = '';
+        if ($csrfFailed) {
+            $errorHtml = '<div class="alert alert-danger">' . htmlspecialchars(__('Token CSRF non valido. Riprova.')) . '</div>';
+        } elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $errorHtml = '<div class="alert alert-danger">' . htmlspecialchars(__('Credenziali non valide o utente non admin')) . '</div>';
+        }
+        $csrfToken = htmlspecialchars($_SESSION['installer_csrf_token'] ?? '', ENT_QUOTES, 'UTF-8');
         die('
             <!DOCTYPE html>
             <html>
@@ -197,8 +219,9 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                             <i class="fas fa-shield-alt"></i>
                             ' . __("Questa operazione cancellerà tutti i dati esistenti. Assicurati di avere un backup.") . '
                         </div>
-                        ' . ($loginError ? '<div class="alert alert-danger">' . htmlspecialchars($loginError) . '</div>' : '') . '
+                        ' . $errorHtml . '
                         <form method="POST" action="' . $installerBasePath . '/installer/?force=1">
+                            <input type="hidden" name="csrf_token" value="' . $csrfToken . '">
                             <div class="form-group">
                                 <label for="admin_email">' . __("Email Admin") . '</label>
                                 <input type="email" name="admin_email" id="admin_email" class="form-control" required placeholder="admin@example.com">

@@ -398,7 +398,7 @@ CREATE TABLE `libri` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `traduttore` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `illustratore` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `ean` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT '' COMMENT 'European Article Number',
+  `ean` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'European Article Number',
   `bcid` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'BCID (LibraryThing)',
   `barcode` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical barcode (LibraryThing)',
   `oclc` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'OCLC number (LibraryThing)',
@@ -407,6 +407,8 @@ CREATE TABLE `libri` (
   `deleted_at` datetime DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `isbn13` (`isbn13`),
+  UNIQUE KEY `isbn10` (`isbn10`),
+  UNIQUE KEY `ean` (`ean`),
   KEY `genere_id` (`genere_id`),
   KEY `idx_libri_sottogenere` (`sottogenere_id`),
   KEY `posizione_id` (`posizione_id`),
@@ -503,7 +505,7 @@ CREATE TABLE `mensole` (
   `scaffale_id` int NOT NULL,
   `numero_livello` int NOT NULL,
   `genere_id` int DEFAULT NULL,
-  `descrizione` int NOT NULL,
+  `descrizione` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `ordine` int DEFAULT '0',
@@ -695,7 +697,7 @@ CREATE TABLE `prestiti` (
   CONSTRAINT `fk_prestiti_copia` FOREIGN KEY (`copia_id`) REFERENCES `copie` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `prestiti_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
   CONSTRAINT `prestiti_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`),
-  CONSTRAINT `prestiti_ibfk_3` FOREIGN KEY (`processed_by`) REFERENCES `staff` (`id`)
+  CONSTRAINT `prestiti_ibfk_3` FOREIGN KEY (`processed_by`) REFERENCES `utenti` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

@@ -2426,6 +2426,106 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const genreText = await page.locator('.fa-layer-group').locator('..').textContent();
     expect(genreText).toContain(childName);
   });
+
+  test('18.15 SMTP password encrypted at rest', async () => {
+    // Log in as admin, navigate to email settings
+    await page.goto(`${BASE}/admin/settings`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.locator('[data-settings-tab="email"]').click();
+    await expect(page.locator('section[data-settings-panel="email"]')).toBeVisible();
+
+    // Select SMTP driver to reveal SMTP fields
+    await page.selectOption('#mail_driver', 'smtp');
+    await expect(page.locator('#smtp-settings-card')).toBeVisible();
+
+    const testSmtpPass = `smtp-test-${RUN_ID}`;
+    await page.fill('input[name="smtp_password"]', testSmtpPass);
+
+    // Submit the email settings form and wait for navigation
+    await Promise.all([
+      page.waitForURL('**/admin/settings**'),
+      page.click('section[data-settings-panel="email"] button[type="submit"]'),
+    ]);
+    await page.waitForLoadState('domcontentloaded');
+
+    // Verify DB value starts with ENC: (encrypted)
+    const dbValue = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='smtp_password'");
+    expect(dbValue).toBeTruthy();
+    expect(dbValue.startsWith('ENC:')).toBeTruthy();
+
+    // Clean up: reset driver and clear SMTP password
+    dbQuery("UPDATE system_settings SET setting_value='' WHERE category='email' AND setting_key='smtp_password'");
+    dbQuery("UPDATE system_settings SET setting_value='mail' WHERE category='email' AND setting_key='type'");
+  });
+
+  test('18.16 Genre delete respects soft-delete guard', async () => {
+    // Create a temporary genre and book
+    const genreName = `TempGenre-${RUN_ID}`;
+    dbQuery(`INSERT INTO generi (nome, parent_id, created_at) VALUES ('${genreName}', NULL, NOW())`);
+    const genreId = dbQuery(`SELECT id FROM generi WHERE nome='${genreName}'`);
+    test.skip(!genreId, 'Genre not created');
+
+    // Create a book using this genre, then soft-delete it
+    dbQuery(`INSERT INTO libri (titolo, genere_id, created_at, updated_at) VALUES ('SoftDelBook-${RUN_ID}', ${genreId}, NOW(), NOW())`);
+    const bookId = dbQuery(`SELECT id FROM libri WHERE titolo='SoftDelBook-${RUN_ID}'`);
+    dbQuery(`UPDATE libri SET deleted_at=NOW(), isbn10=NULL, isbn13=NULL, ean=NULL WHERE id=${bookId}`);
+
+    // Genre should be deletable because the only book using it is soft-deleted
+    const countBefore = dbQuery(`SELECT COUNT(*) FROM generi WHERE id=${genreId}`);
+    expect(countBefore).toBe('1');
+
+    // Delete via POST (app uses POST /admin/generi/{id}/elimina)
+    const csrfToken = await page.evaluate(() => {
+      return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    });
+    const resp = await page.request.post(`${BASE}/admin/generi/${genreId}/elimina`, {
+      headers: { 'X-CSRF-Token': csrfToken },
+      form: { csrf_token: csrfToken },
+    });
+    // 302 redirect = success
+    expect([200, 302].includes(resp.status())).toBeTruthy();
+
+    // Verify genre was deleted
+    const countAfter = dbQuery(`SELECT COUNT(*) FROM generi WHERE id=${genreId}`);
+    expect(countAfter).toBe('0');
+
+    // Clean up soft-deleted book
+    try { dbQuery(`DELETE FROM libri WHERE id=${bookId}`); } catch {}
+  });
+
+  test('18.17 isbn10 UNIQUE constraint enforced', async () => {
+    // Verify UNIQUE index exists on isbn10
+    const idxCount = dbQuery("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='libri' AND INDEX_NAME='isbn10' AND NON_UNIQUE=0");
+    expect(parseInt(idxCount)).toBeGreaterThan(0);
+  });
+
+  test('18.18 mensole.descrizione accepts text values', async () => {
+    // Verify column type is varchar, not int
+    const colType = dbQuery("SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='mensole' AND COLUMN_NAME='descrizione'");
+    expect(colType).toBe('varchar');
+  });
+
+  test('18.19 ean default is NULL, not empty string', async () => {
+    // Insert a book without ean, verify it's NULL
+    dbQuery(`INSERT INTO libri (titolo, created_at, updated_at) VALUES ('EanTestBook-${RUN_ID}', NOW(), NOW())`);
+    const eanVal = dbQuery(`SELECT IFNULL(ean, 'IS_NULL') FROM libri WHERE titolo='EanTestBook-${RUN_ID}'`);
+    expect(eanVal).toBe('IS_NULL');
+
+    // Also verify UNIQUE index exists on ean
+    const idxCount = dbQuery("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='libri' AND INDEX_NAME='ean' AND NON_UNIQUE=0");
+    expect(parseInt(idxCount)).toBeGreaterThan(0);
+
+    // Clean up
+    try { dbQuery(`DELETE FROM libri WHERE titolo='EanTestBook-${RUN_ID}'`); } catch {}
+  });
+
+  test('18.20 Installer force-auth form has CSRF token', async () => {
+    // Fetch installer force page (unauthenticated — shows login form)
+    const resp = await page.request.get(`${BASE}/installer/?force=1`);
+    const html = await resp.text();
+    // The form should contain a hidden csrf_token input
+    expect(html).toContain('name="csrf_token"');
+  });
 });
 
 // ════════════════════════════════════════════════════════════════════════════

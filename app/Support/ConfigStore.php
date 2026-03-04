@@ -441,6 +441,8 @@ final class ConfigStore
                         $value = $raw['email'][$src];
                         if ($dst === 'port') {
                             self::$dbSettingsCache['mail']['smtp'][$dst] = (int) $value;
+                        } elseif ($dst === 'password') {
+                            self::$dbSettingsCache['mail']['smtp'][$dst] = (string) (SettingsEncryption::decrypt((string) $value) ?? '');
                         } else {
                             self::$dbSettingsCache['mail']['smtp'][$dst] = (string) $value;
                         }

@@ -67,11 +67,31 @@ class PrestitiController
         return $response;
     }
 
-    public function createForm(Request $request, Response $response): Response
+    public function createForm(Request $request, Response $response, mysqli $db): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
+
+        // Pre-fill user info if utente_id query param provided
+        $queryParams = $request->getQueryParams();
+        $presetUserId = isset($queryParams['utente_id']) ? (int)$queryParams['utente_id'] : 0;
+        $presetUserName = '';
+        $presetUserLocked = false;
+        if ($presetUserId > 0) {
+            $stmt = $db->prepare("SELECT id, nome, cognome, codice_tessera FROM utenti WHERE id = ? LIMIT 1");
+            $stmt->bind_param('i', $presetUserId);
+            $stmt->execute();
+            $presetUser = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if ($presetUser) {
+                $presetUserName = $presetUser['nome'] . ' ' . $presetUser['cognome'] . ' (' . $presetUser['codice_tessera'] . ')';
+                $presetUserLocked = true;
+            } else {
+                $presetUserId = 0;
+            }
+        }
+
         ob_start();
         require __DIR__ . '/../Views/prestiti/crea_prestito.php';
         $content = ob_get_clean();
