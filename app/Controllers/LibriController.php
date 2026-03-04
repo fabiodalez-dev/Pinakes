@@ -662,6 +662,13 @@ class LibriController
             }
         }
 
+        // Convert empty ISBN/EAN to NULL for UNIQUE constraint compatibility
+        foreach (['isbn10', 'isbn13', 'ean'] as $codeKey) {
+            if (isset($fields[$codeKey]) && $fields[$codeKey] === '') {
+                $fields[$codeKey] = null;
+            }
+        }
+
         // Convert 0 to NULL for optional foreign keys to avoid constraint failures
         $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int) $fields['editore_id'];
         $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int) $fields['genere_id'];
@@ -1171,6 +1178,13 @@ class LibriController
                 }
             }
             $fields['note_varie'] = implode("\n", $uniqueNotes);
+        }
+
+        // Convert empty ISBN/EAN to NULL for UNIQUE constraint compatibility
+        foreach (['isbn10', 'isbn13', 'ean'] as $codeKey) {
+            if (isset($fields[$codeKey]) && $fields[$codeKey] === '') {
+                $fields[$codeKey] = null;
+            }
         }
 
         // Convert 0 to NULL for optional foreign keys to avoid constraint failures

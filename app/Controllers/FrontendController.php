@@ -1936,7 +1936,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             SELECT id, title, slug, event_date, event_time, featured_image
             FROM events
             WHERE is_active = 1 AND id != ? AND event_date >= CURDATE()
-            ORDER BY event_date ASC
+            ORDER BY event_date ASC, event_time ASC, id ASC
             LIMIT 3
         ");
         if ($stmtRelated) {

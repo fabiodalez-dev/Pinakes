@@ -167,6 +167,7 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                         $result = $stmt->get_result();
                         if ($row = $result->fetch_assoc()) {
                             if (password_verify($password, $row['password'])) {
+                                session_regenerate_id(true);
                                 $forceAuthenticated = true;
                                 $_SESSION['installer_admin_verified'] = true;
                                 $_SESSION['user_id'] = $row['id'];

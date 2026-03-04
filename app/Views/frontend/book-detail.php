@@ -1723,7 +1723,7 @@ ob_start();
 
                 <?php
                 $keywords = !empty($book['parole_chiave'])
-                    ? array_filter(array_map('trim', explode(',', $book['parole_chiave'])), function ($k) { return $k !== ''; })
+                    ? array_unique(array_filter(array_map('trim', explode(',', $book['parole_chiave'])), function ($k) { return $k !== ''; }))
                     : [];
                 ?>
                 <?php if (!empty($keywords)): ?>

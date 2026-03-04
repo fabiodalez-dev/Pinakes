@@ -79,11 +79,14 @@ class PrestitiController
         $presetUserName = '';
         $presetUserLocked = false;
         if ($presetUserId > 0) {
+            $presetUser = null;
             $stmt = $db->prepare("SELECT id, nome, cognome, codice_tessera FROM utenti WHERE id = ? LIMIT 1");
-            $stmt->bind_param('i', $presetUserId);
-            $stmt->execute();
-            $presetUser = $stmt->get_result()->fetch_assoc();
-            $stmt->close();
+            if ($stmt) {
+                $stmt->bind_param('i', $presetUserId);
+                $stmt->execute();
+                $presetUser = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+            }
             if ($presetUser) {
                 $presetUserName = $presetUser['nome'] . ' ' . $presetUser['cognome'] . ' (' . $presetUser['codice_tessera'] . ')';
                 $presetUserLocked = true;
@@ -356,7 +359,7 @@ class PrestitiController
             if (isset($_SESSION['user']['id'])) {
                 $candidateId = (int) $_SESSION['user']['id'];
                 if ($candidateId > 0) {
-                    $staffCheck = $db->prepare('SELECT id FROM staff WHERE id = ? LIMIT 1');
+                    $staffCheck = $db->prepare("SELECT id FROM utenti WHERE id = ? AND tipo_utente IN ('staff','admin') LIMIT 1");
                     if ($staffCheck) {
                         $staffCheck->bind_param('i', $candidateId);
                         if ($staffCheck->execute()) {

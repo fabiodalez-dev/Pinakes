@@ -164,7 +164,10 @@ class SettingsController
         $repository->set('email', 'smtp_host', $smtpHost);
         $repository->set('email', 'smtp_port', $smtpPort);
         $repository->set('email', 'smtp_username', $smtpUser);
-        $repository->set('email', 'smtp_password', SettingsEncryption::encrypt($smtpPass));
+        if ($smtpPass !== '') {
+            $encryptedSmtpPass = SettingsEncryption::encrypt($smtpPass);
+            $repository->set('email', 'smtp_password', $encryptedSmtpPass);
+        }
         $repository->set('email', 'smtp_security', $encryption);
 
         // Handle registration setting (require_admin_approval is in the same form)
@@ -178,7 +181,9 @@ class SettingsController
         ConfigStore::set('mail.smtp.host', $smtpHost);
         ConfigStore::set('mail.smtp.port', (int) $smtpPort);
         ConfigStore::set('mail.smtp.username', $smtpUser);
-        ConfigStore::set('mail.smtp.password', SettingsEncryption::encrypt($smtpPass));
+        if ($smtpPass !== '') {
+            ConfigStore::set('mail.smtp.password', $encryptedSmtpPass);
+        }
         ConfigStore::set('mail.smtp.encryption', $encryption);
 
         $_SESSION['success_message'] = __('Impostazioni email aggiornate correttamente.');

@@ -8,6 +8,18 @@
 -- =============================================================================
 -- DB-H1: Add UNIQUE index on isbn10 (isbn13 already has one)
 -- =============================================================================
+-- Deduplicate isbn10 values before adding UNIQUE constraint:
+-- keep the lowest id for each duplicate, nullify the rest
+UPDATE `libri` AS l1
+  JOIN (
+    SELECT isbn10, MIN(id) AS keep_id
+    FROM `libri`
+    WHERE isbn10 IS NOT NULL AND isbn10 != '' AND deleted_at IS NULL
+    GROUP BY isbn10
+    HAVING COUNT(*) > 1
+  ) AS dups ON l1.isbn10 = dups.isbn10 AND l1.id != dups.keep_id
+SET l1.isbn10 = NULL;
+
 SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = 'libri'
@@ -24,6 +36,17 @@ DEALLOCATE PREPARE stmt;
 -- =============================================================================
 -- Convert existing empty strings to NULL
 UPDATE `libri` SET `ean` = NULL WHERE `ean` = '';
+
+-- Deduplicate ean values before adding UNIQUE constraint
+UPDATE `libri` AS l1
+  JOIN (
+    SELECT ean, MIN(id) AS keep_id
+    FROM `libri`
+    WHERE ean IS NOT NULL AND ean != '' AND deleted_at IS NULL
+    GROUP BY ean
+    HAVING COUNT(*) > 1
+  ) AS dups ON l1.ean = dups.ean AND l1.id != dups.keep_id
+SET l1.ean = NULL;
 
 -- Change column default from '' to NULL
 SET @col_default = (SELECT COLUMN_DEFAULT FROM INFORMATION_SCHEMA.COLUMNS
@@ -69,6 +92,11 @@ SET @sql = IF(@fk_exists > 0 AND @refs_staff > 0,
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- Clean orphan processed_by values that don't exist in utenti
+UPDATE `prestiti` SET `processed_by` = NULL
+WHERE `processed_by` IS NOT NULL
+  AND `processed_by` NOT IN (SELECT `id` FROM `utenti`);
 
 -- Re-add FK referencing utenti(id) if it doesn't exist yet
 SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS

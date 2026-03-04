@@ -18,24 +18,23 @@ final class SettingsEncryption
     {
         $key = self::getEncryptionKey();
 
-        if ($key === null || $value === '') {
-            return $value;
+        if ($value === '') {
+            return '';
         }
 
-        try {
-            $iv = random_bytes(12);
-            $tag = '';
-            $ciphertext = openssl_encrypt($value, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
-
-            if ($ciphertext === false) {
-                return $value;
-            }
-
-            return 'ENC:' . base64_encode($iv . $tag . $ciphertext);
-        } catch (\Throwable $e) {
-            SecureLogger::error('SettingsEncryption::encrypt failed: ' . $e->getMessage());
-            return $value;
+        if ($key === null) {
+            throw new \RuntimeException('SettingsEncryption: encryption key not configured');
         }
+
+        $iv = random_bytes(12);
+        $tag = '';
+        $ciphertext = openssl_encrypt($value, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+
+        if ($ciphertext === false) {
+            throw new \RuntimeException('SettingsEncryption: openssl_encrypt failed');
+        }
+
+        return 'ENC:' . base64_encode($iv . $tag . $ciphertext);
     }
 
     public static function decrypt(?string $value): ?string
