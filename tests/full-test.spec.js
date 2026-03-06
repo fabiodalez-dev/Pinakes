@@ -2428,11 +2428,9 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     await page.goto(`${BASE}/libro/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     const genreTag = page.locator('.genre-tag').first();
-    // The genre tag may not exist if the frontend template has no genre section
-    if (await genreTag.count() > 0) {
-      const frontendGenre = await genreTag.textContent();
-      expect(frontendGenre).toContain(childName);
-    }
+    await expect(genreTag).toBeVisible({ timeout: 5000 });
+    const frontendGenre = await genreTag.textContent();
+    expect(frontendGenre).toContain(childName);
   });
 
   test('18.15 SMTP password encrypted at rest', async () => {

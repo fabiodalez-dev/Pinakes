@@ -912,12 +912,18 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $cacheKeyGeneri = 'genre_tree_' . md5($queryGeneri . serialize($paramsGen));
     $generi_flat = \App\Support\QueryCache::remember($cacheKeyGeneri, function() use ($db, $queryGeneri, $typesGen, $paramsGen) {
         $stmt = $db->prepare($queryGeneri);
+        if ($stmt === false) {
+            error_log('FrontendController::getFilterOptions prepare failed: ' . $db->error);
+            return [];
+        }
         if (!empty($paramsGen)) {
             $stmt->bind_param($typesGen, ...$paramsGen);
         }
         $stmt->execute();
         $result = $stmt->get_result();
-        return $result->fetch_all(MYSQLI_ASSOC);
+        $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+        return $rows;
     }, 300);
     $options['generi'] = $this->buildGenreHierarchy($generi_flat);
 

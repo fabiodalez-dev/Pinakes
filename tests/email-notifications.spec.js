@@ -22,6 +22,9 @@ test.skip(
   'E2E credentials not configured',
 );
 
+// ── Run ID for scoped test data ──────────────────────────────────────
+const RUN_ID = Date.now().toString(36);
+
 // ── Test user constants ──────────────────────────────────────────────
 const TEST_USER_EMAIL = 'emailtest@example.com';
 const TEST_USER_PASS = 'Test1234!';
@@ -153,12 +156,12 @@ async function getCsrfToken(page) {
 /** Clear file-based rate limit state so tests don't hit 429 errors */
 function clearRateLimits() {
   const dir = path.join(os.tmpdir(), 'pinakes_ratelimit');
-  if (fs.existsSync(dir)) {
-    const files = fs.readdirSync(dir);
-    for (const f of files) {
-      fs.unlinkSync(path.join(dir, f));
+  try {
+    if (!fs.existsSync(dir)) return;
+    for (const f of fs.readdirSync(dir)) {
+      try { fs.unlinkSync(path.join(dir, f)); } catch { /* ignore races */ }
     }
-  }
+  } catch { /* ignore missing/inaccessible directory */ }
 }
 
 /** Return today's date as YYYY-MM-DD */
@@ -507,7 +510,7 @@ test.describe.serial('Email Notifications E2E', () => {
     if (!loanId) {
       // Create a test book with proper copies, then a pending loan
       const invNum = `APPROVE-${Date.now()}`;
-      const bookId = dbQuery("INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES ('Approve Test Book', 1, 1, 'disponibile'); SELECT LAST_INSERT_ID()");
+      const bookId = dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES ('Approve Test Book ${RUN_ID}', 1, 1, 'disponibile'); SELECT LAST_INSERT_ID()`);
       dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${bookId}, '${invNum}', 'disponibile')`);
       const today = todayISO();
       const endDate = dateOffset(14);
@@ -537,7 +540,7 @@ test.describe.serial('Email Notifications E2E', () => {
 
     // Create a test book with copies + a pending loan for rejection
     const invNum = `REJECT-${Date.now()}`;
-    const bookId = dbQuery("INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES ('Reject Test Book', 1, 1, 'disponibile'); SELECT LAST_INSERT_ID()");
+    const bookId = dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES ('Reject Test Book ${RUN_ID}', 1, 1, 'disponibile'); SELECT LAST_INSERT_ID()`);
     dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${bookId}, '${invNum}', 'disponibile')`);
 
     const today = todayISO();
@@ -637,7 +640,7 @@ test.describe.serial('Email Notifications E2E', () => {
 
     const userId = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER_EMAIL}' LIMIT 1`);
 
-    const bookId = dbQuery("INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES ('Wishlist Test Book', 1, 1, 'disponibile'); SELECT LAST_INSERT_ID()");
+    const bookId = dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES ('Wishlist Test Book ${RUN_ID}', 1, 1, 'disponibile'); SELECT LAST_INSERT_ID()`);
     const invNum = `WISHTEST-${Date.now()}`;
     dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${bookId}, '${invNum}', 'disponibile')`);
 
@@ -883,30 +886,31 @@ test.describe.serial('Email Notifications E2E', () => {
       dbQuery(`DELETE FROM utenti WHERE email IN ('${TEST_USER_EMAIL}', '${TEST_USER2_EMAIL}', 'emailtest-setup@example.com')`);
 
       // Delete test books created by loan tests
-      try { dbQuery("DELETE FROM copie WHERE libro_id IN (SELECT id FROM libri WHERE titolo LIKE '%Test Book%')"); } catch { /* */ }
-      try { dbQuery("DELETE FROM libri WHERE titolo LIKE '%Test Book%'"); } catch { /* */ }
+      try { dbQuery(`DELETE FROM copie WHERE libro_id IN (SELECT id FROM libri WHERE titolo LIKE '%${RUN_ID}%')`); } catch { /* */ }
+      try { dbQuery(`DELETE FROM libri WHERE titolo LIKE '%${RUN_ID}%'`); } catch { /* */ }
 
       // Delete contact messages from test
       try { dbQuery(`DELETE FROM contact_messages WHERE email IN ('${CONTACT_EMAIL}', 'phpmail-test@example.com')`); } catch { /* */ }
 
       // Restore original email settings
-      const restore = (key, value) => {
-        if (value !== undefined && value !== '') {
-          dbQuery(`UPDATE system_settings SET setting_value = '${sqlEscape(value)}' WHERE category = 'email' AND setting_key = '${key}'`);
-        }
+      const restore = (category, key, value) => {
+        if (value === undefined) return;
+        dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value)
+          VALUES ('${category}', '${key}', '${sqlEscape(String(value))}')
+          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`);
       };
-      restore('type', originalSettings.type);
-      restore('driver_mode', originalSettings.driver_mode);
-      restore('smtp_host', originalSettings.smtp_host);
-      restore('smtp_port', originalSettings.smtp_port);
-      restore('smtp_security', originalSettings.smtp_security);
-      restore('smtp_username', originalSettings.smtp_username);
-      restore('smtp_password', originalSettings.smtp_password);
-      restore('from_email', originalSettings.from_email);
-      restore('from_name', originalSettings.from_name);
+      restore('email', 'type', originalSettings.type);
+      restore('email', 'driver_mode', originalSettings.driver_mode);
+      restore('email', 'smtp_host', originalSettings.smtp_host);
+      restore('email', 'smtp_port', originalSettings.smtp_port);
+      restore('email', 'smtp_security', originalSettings.smtp_security);
+      restore('email', 'smtp_username', originalSettings.smtp_username);
+      restore('email', 'smtp_password', originalSettings.smtp_password);
+      restore('email', 'from_email', originalSettings.from_email);
+      restore('email', 'from_name', originalSettings.from_name);
 
-      if (originalSettings.contact_notification) {
-        dbQuery(`UPDATE system_settings SET setting_value = '${sqlEscape(originalSettings.contact_notification)}' WHERE category = 'contacts' AND setting_key = 'notification_email'`);
+      if (originalSettings.contact_notification !== undefined) {
+        restore('contacts', 'notification_email', originalSettings.contact_notification);
       }
 
       // Clear Mailpit

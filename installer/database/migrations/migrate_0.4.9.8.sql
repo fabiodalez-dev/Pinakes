@@ -14,7 +14,7 @@ UPDATE `libri` AS l1
   JOIN (
     SELECT isbn10, MIN(id) AS keep_id
     FROM `libri`
-    WHERE isbn10 IS NOT NULL AND isbn10 != '' AND deleted_at IS NULL
+    WHERE isbn10 IS NOT NULL AND isbn10 != ''
     GROUP BY isbn10
     HAVING COUNT(*) > 1
   ) AS dups ON l1.isbn10 = dups.isbn10 AND l1.id != dups.keep_id
@@ -23,7 +23,8 @@ SET l1.isbn10 = NULL;
 SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = 'libri'
-              AND INDEX_NAME = 'isbn10');
+              AND INDEX_NAME = 'isbn10'
+              AND NON_UNIQUE = 0);
 SET @sql = IF(@idx = 0,
     'ALTER TABLE `libri` ADD UNIQUE KEY `isbn10` (`isbn10`)',
     'DO 0 /* isbn10 UNIQUE index already exists — skipping */');
@@ -42,7 +43,7 @@ UPDATE `libri` AS l1
   JOIN (
     SELECT ean, MIN(id) AS keep_id
     FROM `libri`
-    WHERE ean IS NOT NULL AND ean != '' AND deleted_at IS NULL
+    WHERE ean IS NOT NULL AND ean != ''
     GROUP BY ean
     HAVING COUNT(*) > 1
   ) AS dups ON l1.ean = dups.ean AND l1.id != dups.keep_id
@@ -64,7 +65,8 @@ DEALLOCATE PREPARE stmt;
 SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = 'libri'
-              AND INDEX_NAME = 'ean');
+              AND INDEX_NAME = 'ean'
+              AND NON_UNIQUE = 0);
 SET @sql = IF(@idx = 0,
     'ALTER TABLE `libri` ADD UNIQUE KEY `ean` (`ean`)',
     'DO 0 /* ean UNIQUE index already exists — skipping */');
