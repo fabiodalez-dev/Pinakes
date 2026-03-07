@@ -798,11 +798,12 @@ class FrontendController
 
         if (!empty($filters['genere'])) {
             // Search for genre at any level (Level 3, Level 2, or Level 1)
-            $conditions[] = "(g.nome = ? OR gp.nome = ? OR gpp.nome = ?)";
+            $conditions[] = "(g.nome = ? OR gp.nome = ? OR gpp.nome = ? OR sg.nome = ?)";
             $params[] = $filters['genere'];
             $params[] = $filters['genere'];
             $params[] = $filters['genere'];
-            $types .= 'sss';
+            $params[] = $filters['genere'];
+            $types .= 'ssss';
         }
 
         if (!empty($filters['editore'])) {

@@ -11,6 +11,8 @@ namespace App\Support;
  */
 final class SettingsEncryption
 {
+    public const PREFIX = 'ENC:';
+
     private static ?string $cachedKey = null;
     private static bool $keyResolved = false;
 
@@ -34,12 +36,12 @@ final class SettingsEncryption
             throw new \RuntimeException('SettingsEncryption: openssl_encrypt failed');
         }
 
-        return 'ENC:' . base64_encode($iv . $tag . $ciphertext);
+        return self::PREFIX . base64_encode($iv . $tag . $ciphertext);
     }
 
     public static function decrypt(?string $value): ?string
     {
-        if ($value === null || $value === '' || strpos($value, 'ENC:') !== 0) {
+        if ($value === null || $value === '' || !str_starts_with($value, self::PREFIX)) {
             return $value;
         }
 
@@ -49,7 +51,7 @@ final class SettingsEncryption
             return null;
         }
 
-        $payload = base64_decode(substr($value, 4), true);
+        $payload = base64_decode(substr($value, strlen(self::PREFIX)), true);
         if ($payload === false || strlen($payload) <= 28) {
             SecureLogger::error('SettingsEncryption: invalid encrypted payload');
             return null;

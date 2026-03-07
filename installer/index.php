@@ -129,7 +129,7 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
     $forceAuthenticated = false;
 
     // Check if admin session exists from main app
-    if (isset($_SESSION['user_id']) && isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin') {
+    if (isset($_SESSION['user']['tipo_utente']) && $_SESSION['user']['tipo_utente'] === 'admin') {
         $forceAuthenticated = true;
     }
 
@@ -178,8 +178,6 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                                 session_regenerate_id(true);
                                 $forceAuthenticated = true;
                                 $_SESSION['installer_admin_verified'] = true;
-                                $_SESSION['user_id'] = $row['id'];
-                                $_SESSION['user_role'] = 'admin';
                             }
                         }
                         $stmt->close();

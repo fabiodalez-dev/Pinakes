@@ -267,7 +267,7 @@ class SettingsController
 
         // Decrypt SMTP password for form display (only when actually encrypted)
         if (isset($settings['smtp_password']) && is_string($settings['smtp_password'])
-            && str_starts_with($settings['smtp_password'], 'ENC:')) {
+            && str_starts_with($settings['smtp_password'], SettingsEncryption::PREFIX)) {
             $decrypted = SettingsEncryption::decrypt($settings['smtp_password']);
             if ($decrypted !== null) {
                 $settings['smtp_password'] = $decrypted;

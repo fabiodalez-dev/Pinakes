@@ -15,7 +15,8 @@ UPDATE `libri` SET `isbn10` = NULL WHERE `isbn10` = '';
 -- keep the lowest id for each duplicate, nullify the rest
 UPDATE `libri` AS l1
   JOIN (
-    SELECT isbn10, MIN(id) AS keep_id
+    SELECT isbn10,
+           COALESCE(MIN(CASE WHEN deleted_at IS NULL THEN id END), MIN(id)) AS keep_id
     FROM `libri`
     WHERE isbn10 IS NOT NULL AND isbn10 != ''
     GROUP BY isbn10
@@ -44,7 +45,8 @@ UPDATE `libri` SET `ean` = NULL WHERE `ean` = '';
 -- Deduplicate ean values before adding UNIQUE constraint
 UPDATE `libri` AS l1
   JOIN (
-    SELECT ean, MIN(id) AS keep_id
+    SELECT ean,
+           COALESCE(MIN(CASE WHEN deleted_at IS NULL THEN id END), MIN(id)) AS keep_id
     FROM `libri`
     WHERE ean IS NOT NULL AND ean != ''
     GROUP BY ean
@@ -110,7 +112,7 @@ SET @fk_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
                     AND CONSTRAINT_NAME = 'prestiti_ibfk_3'
                     AND CONSTRAINT_TYPE = 'FOREIGN KEY');
 SET @sql = IF(@fk_exists = 0,
-    'ALTER TABLE `prestiti` ADD CONSTRAINT `prestiti_ibfk_3` FOREIGN KEY (`processed_by`) REFERENCES `utenti` (`id`)',
+    'ALTER TABLE `prestiti` ADD CONSTRAINT `prestiti_ibfk_3` FOREIGN KEY (`processed_by`) REFERENCES `utenti` (`id`) ON DELETE SET NULL',
     'DO 0 /* prestiti_ibfk_3 already correct — skipping */');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;

@@ -67,8 +67,10 @@ async function clearMailpit() {
     if (!res.ok) throw new Error(`Mailpit clear failed: HTTP ${res.status}`);
   } catch (err) {
     if (controller.signal.aborted) {
-      // Timeout — retry once without abort signal
-      try { await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE' }); } catch { /* best effort */ }
+      // Timeout — retry once with a shorter timeout
+      const retryCtrl = new AbortController();
+      const retryTimer = setTimeout(() => retryCtrl.abort(), 3000);
+      try { await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: retryCtrl.signal }); } catch { /* best effort */ } finally { clearTimeout(retryTimer); }
       return;
     }
     throw err;

@@ -481,7 +481,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 <div
                   class="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1 opacity-0 group-focus-within:opacity-100 transition-opacity">
                   <kbd
-                    class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 border border-gray-300 rounded">⌘</kbd>
+                    class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 border border-gray-300 rounded" data-mod-key>Ctrl</kbd>
                   <kbd
                     class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 border border-gray-300 rounded">K</kbd>
                 </div>

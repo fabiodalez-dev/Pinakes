@@ -129,7 +129,7 @@ class EmailService {
             $decrypted = SettingsEncryption::decrypt($rawPassword);
             if ($decrypted !== null) {
                 $defaults['smtp_password'] = $decrypted;
-            } elseif (str_starts_with($rawPassword, 'ENC:')) {
+            } elseif (str_starts_with($rawPassword, SettingsEncryption::PREFIX)) {
                 SecureLogger::error('EmailService: failed to decrypt smtp_password');
                 $defaults['smtp_password'] = '';
             }
