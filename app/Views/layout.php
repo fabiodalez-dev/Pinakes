@@ -481,7 +481,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 <div
                   class="absolute right-3 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-1 opacity-0 group-focus-within:opacity-100 transition-opacity">
                   <kbd
-                    class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 border border-gray-300 rounded">⌘</kbd>
+                    class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 border border-gray-300 rounded" data-mod-key>Ctrl</kbd>
                   <kbd
                     class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-500 border border-gray-300 rounded">K</kbd>
                 </div>
@@ -1426,8 +1426,10 @@ $htmlLang = substr($currentLocale, 0, 2);
         booksSection.classList.remove('hidden');
       }
 
-      // Update modifier key labels for Mac
-      if (navigator.platform && navigator.platform.indexOf('Mac') !== -1) {
+      // Update modifier key labels for Mac (userAgentData with navigator.platform fallback)
+      var isMac = (navigator.userAgentData && navigator.userAgentData.platform === 'macOS') ||
+                  (navigator.platform && navigator.platform.indexOf('Mac') !== -1);
+      if (isMac) {
         document.querySelectorAll('[data-mod-key]').forEach(function(el) {
           el.textContent = '⌘';
         });
@@ -1618,11 +1620,12 @@ $htmlLang = substr($currentLocale, 0, 2);
   <?php require __DIR__ . '/partials/scroll-to-top.php'; ?>
 
 <!-- Keyboard Shortcuts Modal -->
+<?php $kbdClass = 'px-2 py-1 bg-gray-50 border border-gray-300 rounded text-xs font-mono text-gray-900'; ?>
 <div id="shortcuts-modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
   <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
     <div class="p-4 border-b border-gray-200 flex items-center justify-between">
       <h3 id="shortcuts-title" class="font-semibold text-gray-900 flex items-center gap-2">
-        <i class="fas fa-keyboard text-gray-500"></i>
+        <i class="fas fa-keyboard text-gray-900"></i>
         <?= __("Scorciatoie da tastiera") ?>
       </h3>
       <button id="close-shortcuts" aria-label="<?= __('Chiudi') ?>" class="text-gray-400 hover:text-gray-600 transition-colors">
@@ -1637,72 +1640,72 @@ $htmlLang = substr($currentLocale, 0, 2);
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Cerca globale") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono" data-mod-key>Ctrl</kbd>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">K</kbd>
+              <kbd class="<?= $kbdClass ?>" data-mod-key>Ctrl</kbd>
+              <kbd class="<?= $kbdClass ?>">K</kbd>
             </div>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Mostra scorciatoie") ?></span>
-            <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">?</kbd>
+            <kbd class="<?= $kbdClass ?>">?</kbd>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Chiudi popup") ?></span>
-            <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">Esc</kbd>
+            <kbd class="<?= $kbdClass ?>">Esc</kbd>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Vai a Dashboard") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <kbd class="<?= $kbdClass ?>">G</kbd>
               <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">D</kbd>
+              <kbd class="<?= $kbdClass ?>">D</kbd>
             </div>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Vai a Libri") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <kbd class="<?= $kbdClass ?>">G</kbd>
               <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">B</kbd>
+              <kbd class="<?= $kbdClass ?>">B</kbd>
             </div>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Vai a Autori") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <kbd class="<?= $kbdClass ?>">G</kbd>
               <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">A</kbd>
+              <kbd class="<?= $kbdClass ?>">A</kbd>
             </div>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Vai a Editori") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <kbd class="<?= $kbdClass ?>">G</kbd>
               <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">E</kbd>
+              <kbd class="<?= $kbdClass ?>">E</kbd>
             </div>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Vai a Prestiti") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <kbd class="<?= $kbdClass ?>">G</kbd>
               <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">P</kbd>
+              <kbd class="<?= $kbdClass ?>">P</kbd>
             </div>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Vai a Utenti") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <kbd class="<?= $kbdClass ?>">G</kbd>
               <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">U</kbd>
+              <kbd class="<?= $kbdClass ?>">U</kbd>
             </div>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Vai a Impostazioni") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <kbd class="<?= $kbdClass ?>">G</kbd>
               <span class="text-gray-400 text-xs"><?= __("poi") ?></span>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">S</kbd>
+              <kbd class="<?= $kbdClass ?>">S</kbd>
             </div>
           </div>
         </div>
@@ -1713,27 +1716,27 @@ $htmlLang = substr($currentLocale, 0, 2);
         <div class="space-y-2">
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Nuova ricerca") ?></span>
-            <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">/</kbd>
+            <kbd class="<?= $kbdClass ?>">/</kbd>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Nuovo libro") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono" data-mod-key>Ctrl</kbd>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">N</kbd>
+              <kbd class="<?= $kbdClass ?>" data-mod-key>Ctrl</kbd>
+              <kbd class="<?= $kbdClass ?>">N</kbd>
             </div>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Seleziona tutti") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono" data-mod-key>Ctrl</kbd>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">A</kbd>
+              <kbd class="<?= $kbdClass ?>" data-mod-key>Ctrl</kbd>
+              <kbd class="<?= $kbdClass ?>">A</kbd>
             </div>
           </div>
           <div class="flex items-center justify-between text-sm">
             <span class="text-gray-600"><?= __("Cambia vista") ?></span>
             <div class="flex gap-1">
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono" data-mod-key>Ctrl</kbd>
-              <kbd class="px-2 py-1 bg-gray-100 rounded text-xs font-mono">G</kbd>
+              <kbd class="<?= $kbdClass ?>" data-mod-key>Ctrl</kbd>
+              <kbd class="<?= $kbdClass ?>">G</kbd>
             </div>
           </div>
         </div>

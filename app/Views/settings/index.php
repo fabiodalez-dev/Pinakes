@@ -277,7 +277,7 @@ $activeTab = $activeTab ?? 'general';
               </div>
               <div>
                 <label for="smtp_password" class="block text-sm font-medium text-gray-700"><?= __("Password") ?></label>
-                <input type="password" id="smtp_password" autocomplete="off" name="smtp_password" value="<?php echo HtmlHelper::e((string)($emailSettings['smtp_password'] ?? '')); ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+                <input type="password" id="smtp_password" autocomplete="off" name="smtp_password" placeholder="<?= !empty($emailSettings['smtp_password']) ? '••••••••' : '' ?>" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
               </div>
               <div>
                 <label for="smtp_encryption" class="block text-sm font-medium text-gray-700"><?= __("Crittografia") ?></label>

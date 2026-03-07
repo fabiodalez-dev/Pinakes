@@ -166,8 +166,7 @@ class PasswordController
             $uid = (int) $row['id'];
             $stmt->close();
 
-            // Hash password with bcrypt cost 12
-            $hash = password_hash($pwd1, PASSWORD_BCRYPT, ['cost' => 12]);
+            $hash = password_hash($pwd1, PASSWORD_DEFAULT);
             $stmt = $db->prepare("UPDATE utenti SET password = ?, token_reset_password = NULL, data_token_reset = NULL WHERE id = ?");
             $stmt->bind_param('si', $hash, $uid);
             $stmt->execute();

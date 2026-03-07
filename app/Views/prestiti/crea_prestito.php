@@ -1,32 +1,14 @@
 <?php
 use App\Support\Csrf;
 
+$presetUserId = (int) ($presetUserId ?? 0);
+$presetUserName = (string) ($presetUserName ?? '');
+$presetUserLocked = (bool) ($presetUserLocked ?? false);
+
 $csrf = Csrf::ensureToken();
 // Get locale from session (same as frontend/layout.php)
 $currentLocale = $_SESSION['locale'] ?? 'it_IT';
 $isItalian = str_starts_with($currentLocale, 'it');
-
-// Check if user_id was passed via query param (from user detail page)
-$presetUserId = isset($_GET['utente_id']) ? (int)$_GET['utente_id'] : 0;
-$presetUserName = '';
-$presetUserLocked = false;
-
-// If utente_id is provided, fetch user info to pre-fill the form
-if ($presetUserId > 0) {
-    global $container;
-    $db = $container->get('db');
-    $stmt = $db->prepare("SELECT id, nome, cognome, codice_tessera FROM utenti WHERE id = ? LIMIT 1");
-    $stmt->bind_param('i', $presetUserId);
-    $stmt->execute();
-    $presetUser = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if ($presetUser) {
-        $presetUserName = $presetUser['nome'] . ' ' . $presetUser['cognome'] . ' (' . $presetUser['codice_tessera'] . ')';
-        $presetUserLocked = true;
-    } else {
-        $presetUserId = 0;
-    }
-}
 ?>
 <section class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
   <!-- Breadcrumb -->

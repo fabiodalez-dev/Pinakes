@@ -67,11 +67,34 @@ class PrestitiController
         return $response;
     }
 
-    public function createForm(Request $request, Response $response): Response
+    public function createForm(Request $request, Response $response, mysqli $db): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
+
+        // Pre-fill user info if utente_id query param provided
+        $queryParams = $request->getQueryParams();
+        $presetUserId = isset($queryParams['utente_id']) ? (int)$queryParams['utente_id'] : 0;
+        $presetUserName = '';
+        $presetUserLocked = false;
+        if ($presetUserId > 0) {
+            $presetUser = null;
+            $stmt = $db->prepare("SELECT id, nome, cognome, codice_tessera FROM utenti WHERE id = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param('i', $presetUserId);
+                $stmt->execute();
+                $presetUser = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+            }
+            if ($presetUser) {
+                $presetUserName = $presetUser['nome'] . ' ' . $presetUser['cognome'] . ' (' . $presetUser['codice_tessera'] . ')';
+                $presetUserLocked = true;
+            } else {
+                $presetUserId = 0;
+            }
+        }
+
         ob_start();
         require __DIR__ . '/../Views/prestiti/crea_prestito.php';
         $content = ob_get_clean();
@@ -336,7 +359,7 @@ class PrestitiController
             if (isset($_SESSION['user']['id'])) {
                 $candidateId = (int) $_SESSION['user']['id'];
                 if ($candidateId > 0) {
-                    $staffCheck = $db->prepare('SELECT id FROM staff WHERE id = ? LIMIT 1');
+                    $staffCheck = $db->prepare("SELECT id FROM utenti WHERE id = ? AND tipo_utente IN ('staff','admin') LIMIT 1");
                     if ($staffCheck) {
                         $staffCheck->bind_param('i', $candidateId);
                         if ($staffCheck->execute()) {

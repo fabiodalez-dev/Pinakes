@@ -575,6 +575,7 @@ class FrontendController
                    g.nome AS genere,
                    gp.nome AS genere_parent,
                    gpp.nome AS genere_grandparent,
+                   sg.nome AS sottogenere,
                    e.nome AS editore
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo = 'principale'
@@ -582,6 +583,7 @@ class FrontendController
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             LEFT JOIN editori e ON l.editore_id = e.id
             WHERE l.id = ? AND l.deleted_at IS NULL
             LIMIT 1
@@ -796,11 +798,12 @@ class FrontendController
 
         if (!empty($filters['genere'])) {
             // Search for genre at any level (Level 3, Level 2, or Level 1)
-            $conditions[] = "(g.nome = ? OR gp.nome = ? OR gpp.nome = ?)";
+            $conditions[] = "(g.nome = ? OR gp.nome = ? OR gpp.nome = ? OR sg.nome = ?)";
             $params[] = $filters['genere'];
             $params[] = $filters['genere'];
             $params[] = $filters['genere'];
-            $types .= 'sss';
+            $params[] = $filters['genere'];
+            $types .= 'ssss';
         }
 
         if (!empty($filters['editore'])) {
@@ -844,9 +847,9 @@ class FrontendController
             case 'title_desc':
                 return 'ORDER BY l.titolo DESC';
             case 'author_asc':
-                return 'ORDER BY (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) ASC';
+                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) ASC, l.id ASC';
             case 'author_desc':
-                return 'ORDER BY (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) DESC';
+                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) DESC, l.id DESC';
             case 'newest':
             default:
                 return 'ORDER BY l.created_at DESC';
@@ -907,13 +910,22 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         ORDER BY g.parent_id, g.nome
     ";
 
-    $stmt = $db->prepare($queryGeneri);
-    if (!empty($paramsGen)) {
-        $stmt->bind_param($typesGen, ...$paramsGen);
-    }
-    $stmt->execute();
-    $result = $stmt->get_result();
-    $generi_flat = $result->fetch_all(MYSQLI_ASSOC);
+    $cacheKeyGeneri = 'genre_tree_' . md5($queryGeneri . serialize($paramsGen));
+    $generi_flat = \App\Support\QueryCache::remember($cacheKeyGeneri, function() use ($db, $queryGeneri, $typesGen, $paramsGen) {
+        $stmt = $db->prepare($queryGeneri);
+        if ($stmt === false) {
+            error_log('FrontendController::getFilterOptions prepare failed: ' . $db->error);
+            return [];
+        }
+        if (!empty($paramsGen)) {
+            $stmt->bind_param($typesGen, ...$paramsGen);
+        }
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+        return $rows;
+    }, 300);
     $options['generi'] = $this->buildGenreHierarchy($generi_flat);
 
     // ---------- Editori ----------
@@ -1926,6 +1938,26 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $twitterTitle = $event['twitter_title'] ?: $ogTitle;
         $twitterDescription = $event['twitter_description'] ?: $ogDescription;
         $twitterImage = !empty($event['twitter_image']) ? absoluteUrl($event['twitter_image']) : $ogImage;
+
+        // Related events (upcoming, excluding current)
+        $relatedEvents = [];
+        $stmtRelated = $db->prepare("
+            SELECT id, title, slug, event_date, event_time, featured_image
+            FROM events
+            WHERE is_active = 1 AND id != ? AND event_date >= CURDATE()
+            ORDER BY event_date ASC, event_time ASC, id ASC
+            LIMIT 3
+        ");
+        if ($stmtRelated) {
+            $eventId = $event['id'];
+            $stmtRelated->bind_param('i', $eventId);
+            $stmtRelated->execute();
+            $resultRelated = $stmtRelated->get_result();
+            while ($row = $resultRelated->fetch_assoc()) {
+                $relatedEvents[] = $row;
+            }
+            $stmtRelated->close();
+        }
 
         $container = $this->container;
         ob_start();

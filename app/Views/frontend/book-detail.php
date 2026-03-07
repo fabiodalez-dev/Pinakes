@@ -43,6 +43,9 @@ if (!empty($book['genere_parent'])) {
 if (!empty($book['genere'])) {
     $genreHierarchy[] = $book['genere'];
 }
+if (!empty($book['sottogenere'])) {
+    $genreHierarchy[] = $book['sottogenere'];
+}
 $bookGenre = !empty($genreHierarchy) ? implode(' > ', $genreHierarchy) : '';
 $bookGenre = html_entity_decode($bookGenre, ENT_QUOTES, 'UTF-8');
 $bookCover = ($book['copertina_url'] ?? '') ?: ($book['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg';
@@ -330,6 +333,19 @@ $additional_css = "
         border: 1px solid var(--border-color);
         position: relative;
         z-index: 90;
+    }
+
+    .keyword-chip {
+        font-size: 0.85rem;
+        transition: all 0.2s;
+    }
+    .keyword-chip:hover {
+        background-color: #e9ecef !important;
+    }
+    .keyword-chip:focus-visible {
+        background-color: #e9ecef !important;
+        outline: 2px solid #495057;
+        outline-offset: 2px;
     }
 
     .book-reviews-section {
@@ -1455,9 +1471,10 @@ ob_start();
                         <?php endforeach; ?>
                     </div>
 
-                    <?php if (!empty($book['genere'])): ?>
+                    <?php if (!empty($genreHierarchy)): ?>
+                    <?php $deepestGenre = end($genreHierarchy); ?>
                     <div class="genre-tags">
-                        <a href="<?= $catalogRoute ?>?genere=<?= urlencode(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
+                        <a href="<?= $catalogRoute ?>?genere=<?= urlencode(html_entity_decode($deepestGenre, ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
                             <i class="fas fa-tags me-1"></i><?= htmlspecialchars($bookGenre, ENT_QUOTES, 'UTF-8') ?>
                         </a>
                     </div>
@@ -1704,6 +1721,28 @@ ob_start();
                             </div>
                             <?php endif; ?>
                         </div>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+                <?php
+                $keywords = !empty($book['parole_chiave'])
+                    ? array_unique(array_filter(array_map('trim', explode(',', $book['parole_chiave'])), function ($k) { return $k !== ''; }))
+                    : [];
+                ?>
+                <?php if (!empty($keywords)): ?>
+                <div class="book-details-section">
+                    <h2 class="section-title">
+                        <i class="fas fa-tags"></i>
+                        <?= __("Parole Chiave") ?>
+                    </h2>
+                    <div class="d-flex flex-wrap gap-2">
+                        <?php foreach ($keywords as $keyword): ?>
+                        <a href="<?= htmlspecialchars($catalogRoute . '?q=' . urlencode($keyword), ENT_QUOTES, 'UTF-8') ?>"
+                           class="badge bg-light text-dark border px-3 py-2 text-decoration-none keyword-chip">
+                            <i class="fas fa-tag me-1 text-muted"></i><?= HtmlHelper::e($keyword) ?>
+                        </a>
+                        <?php endforeach; ?>
                     </div>
                 </div>
                 <?php endif; ?>

@@ -662,6 +662,13 @@ class LibriController
             }
         }
 
+        // Convert empty ISBN/EAN to NULL for UNIQUE constraint compatibility
+        foreach (['isbn10', 'isbn13', 'ean'] as $codeKey) {
+            if (isset($fields[$codeKey]) && $fields[$codeKey] === '') {
+                $fields[$codeKey] = null;
+            }
+        }
+
         // Convert 0 to NULL for optional foreign keys to avoid constraint failures
         $fields['editore_id'] = empty($fields['editore_id']) || $fields['editore_id'] == 0 ? null : (int) $fields['editore_id'];
         $fields['genere_id'] = empty($fields['genere_id']) || $fields['genere_id'] == 0 ? null : (int) $fields['genere_id'];
@@ -1006,7 +1013,8 @@ class LibriController
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
             }
             // Optionals (numero_pagine, ean, data_pubblicazione, traduttore)
-            (new \App\Models\BookRepository($db))->updateOptionals($id, $data);
+            // Merge normalized $fields over $data so NULL isbn/ean values are preserved
+            (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiunto con successo!');
@@ -1171,6 +1179,13 @@ class LibriController
                 }
             }
             $fields['note_varie'] = implode("\n", $uniqueNotes);
+        }
+
+        // Convert empty ISBN/EAN to NULL for UNIQUE constraint compatibility
+        foreach (['isbn10', 'isbn13', 'ean'] as $codeKey) {
+            if (isset($fields[$codeKey]) && $fields[$codeKey] === '') {
+                $fields[$codeKey] = null;
+            }
         }
 
         // Convert 0 to NULL for optional foreign keys to avoid constraint failures
@@ -1596,7 +1611,8 @@ class LibriController
             if (!empty($data['scraped_cover_url'])) {
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
             }
-            (new \App\Models\BookRepository($db))->updateOptionals($id, $data);
+            // Merge normalized $fields over $data so NULL isbn/ean values are preserved
+            (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiornato con successo!');
@@ -2641,9 +2657,9 @@ class LibriController
 
         // Global search filter
         if (!empty($search)) {
-            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
+            $whereClauses[] = "(l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.descrizione LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ? OR a.nome LIKE ? OR e.nome LIKE ?)";
             $searchParam = "%{$search}%";
-            for ($i = 0; $i < 6; $i++) {
+            for ($i = 0; $i < 7; $i++) {
                 $bindTypes .= 's';
                 $bindValues[] = $searchParam;
             }

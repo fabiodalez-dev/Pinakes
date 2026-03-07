@@ -441,6 +441,20 @@ final class ConfigStore
                         $value = $raw['email'][$src];
                         if ($dst === 'port') {
                             self::$dbSettingsCache['mail']['smtp'][$dst] = (int) $value;
+                        } elseif ($dst === 'password') {
+                            if ($value === '') {
+                                self::$dbSettingsCache['mail']['smtp'][$dst] = '';
+                                continue;
+                            }
+                            $decrypted = SettingsEncryption::decrypt((string) $value);
+                            if ($decrypted !== null) {
+                                self::$dbSettingsCache['mail']['smtp'][$dst] = $decrypted;
+                            } else {
+                                SecureLogger::error('ConfigStore: smtp_password decryption failed');
+                                // Explicitly set null to override the empty-string default
+                                self::$dbSettingsCache['mail']['smtp'][$dst] = null;
+                                continue;
+                            }
                         } else {
                             self::$dbSettingsCache['mail']['smtp'][$dst] = (string) $value;
                         }

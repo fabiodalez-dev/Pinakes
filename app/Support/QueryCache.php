@@ -293,7 +293,9 @@ class QueryCache
      */
     private static function hashKey(string $key): string
     {
-        return 'pinakes_' . md5($key);
+        // Sanitize prefix for filesystem safety + append hash for uniqueness
+        $prefix = preg_replace('/[^A-Za-z0-9_\-]/', '_', substr($key, 0, 80));
+        return 'pinakes_' . $prefix . '_' . md5($key);
     }
 
     /**

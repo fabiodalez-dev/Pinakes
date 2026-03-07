@@ -9,6 +9,7 @@ use App\Support\ContentSanitizer;
 use App\Support\HtmlHelper;
 use App\Support\SettingsMailTemplates;
 use App\Support\SecureLogger;
+use App\Support\SettingsEncryption;
 use App\Support\SitemapGenerator;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -156,6 +157,17 @@ class SettingsController
             $encryption = 'tls';
         }
 
+        // Resolve SMTP password first: encrypt if non-empty, clear if empty
+        try {
+            $encryptedSmtpPass = $smtpPass !== ''
+                ? SettingsEncryption::encrypt($smtpPass)
+                : '';
+        } catch (\Throwable $e) {
+            SecureLogger::error('SettingsController::updateEmailSettings encryption failed: ' . $e->getMessage());
+            $_SESSION['error_message'] = __('Impossibile salvare la password SMTP.');
+            return $this->redirect($response, '/admin/settings?tab=email');
+        }
+
         $repository->set('email', 'driver_mode', $driver);
         $repository->set('email', 'type', $driver === 'phpmailer' ? 'mail' : $driver);
         $repository->set('email', 'from_email', $fromEmail);
@@ -163,7 +175,9 @@ class SettingsController
         $repository->set('email', 'smtp_host', $smtpHost);
         $repository->set('email', 'smtp_port', $smtpPort);
         $repository->set('email', 'smtp_username', $smtpUser);
-        $repository->set('email', 'smtp_password', $smtpPass);
+        if ($smtpPass !== '') {
+            $repository->set('email', 'smtp_password', $encryptedSmtpPass);
+        }
         $repository->set('email', 'smtp_security', $encryption);
 
         // Handle registration setting (require_admin_approval is in the same form)
@@ -177,7 +191,9 @@ class SettingsController
         ConfigStore::set('mail.smtp.host', $smtpHost);
         ConfigStore::set('mail.smtp.port', (int) $smtpPort);
         ConfigStore::set('mail.smtp.username', $smtpUser);
-        ConfigStore::set('mail.smtp.password', $smtpPass);
+        if ($smtpPass !== '') {
+            ConfigStore::set('mail.smtp.password', $encryptedSmtpPass);
+        }
         ConfigStore::set('mail.smtp.encryption', $encryption);
 
         $_SESSION['success_message'] = __('Impostazioni email aggiornate correttamente.');
@@ -248,6 +264,17 @@ class SettingsController
         $settings = array_merge($defaults, $stored);
         $driver = $stored['driver_mode'] ?? $settings['type'] ?? $defaults['type'];
         $settings['type'] = $driver;
+
+        // Decrypt SMTP password for form display (only when actually encrypted)
+        if (isset($settings['smtp_password']) && is_string($settings['smtp_password'])
+            && str_starts_with($settings['smtp_password'], SettingsEncryption::PREFIX)) {
+            $decrypted = SettingsEncryption::decrypt($settings['smtp_password']);
+            if ($decrypted !== null) {
+                $settings['smtp_password'] = $decrypted;
+            } else {
+                $settings['smtp_password'] = '';
+            }
+        }
 
         return $settings;
     }
