@@ -158,7 +158,10 @@ class GenereRepository
             throw new \RuntimeException('Impossibile eliminare: il genere ha sottogeneri');
         }
 
-        // Check if genre is used by any non-deleted book
+        // Only count non-deleted books. Soft-deleted rows are safe because both
+        // libri_ibfk_3 (genere_id) and fk_libri_sottogenere (sottogenere_id) use
+        // ON DELETE SET NULL — the DB automatically nullifies references when
+        // a genre is deleted, so no FK violation can occur from soft-deleted rows.
         $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE (genere_id = ? OR sottogenere_id = ?) AND deleted_at IS NULL");
         $stmt->bind_param('ii', $id, $id);
         $stmt->execute();
