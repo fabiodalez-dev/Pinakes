@@ -293,9 +293,9 @@ class QueryCache
      */
     private static function hashKey(string $key): string
     {
-        // Preserve key as-is (prefixed) so clearByPrefix() can match by glob.
-        // Keys already contain hashes when needed (e.g. 'genre_tree_' . md5(...)).
-        return 'pinakes_' . $key;
+        // Sanitize for filesystem safety; preserve readable prefix for clearByPrefix() glob matching
+        $sanitized = preg_replace('/[^A-Za-z0-9_\-]/', '_', $key);
+        return 'pinakes_' . $sanitized;
     }
 
     /**

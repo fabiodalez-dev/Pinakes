@@ -1102,13 +1102,17 @@ class BookRepository
                 // Strip root from subChain (it's already in $chain[0])
                 if (!empty($subChain) && (int)$subChain[0]['id'] === (int)$chain[0]['id']) {
                     array_shift($subChain);
+                } elseif (!empty($subChain)) {
+                    // Root mismatch — skip modifications to avoid corrupting cascade
+                    $subChain = [];
                 }
                 if (count($subChain) >= 2) {
-                    // L2 + L3
+                    // L2 + deepest descendant
+                    $deepest = end($subChain);
                     $row['genere_nome'] = $subChain[0]['nome'];
                     $row['genere_id_cascade'] = (int)$subChain[0]['id'];
-                    $row['sottogenere_nome'] = $subChain[1]['nome'];
-                    $row['sottogenere_id_cascade'] = (int)$subChain[1]['id'];
+                    $row['sottogenere_nome'] = $deepest['nome'];
+                    $row['sottogenere_id_cascade'] = (int)$deepest['id'];
                 } elseif (count($subChain) === 1) {
                     // Direct child of root → L2 only
                     $row['genere_nome'] = $subChain[0]['nome'];

@@ -157,6 +157,17 @@ class SettingsController
             $encryption = 'tls';
         }
 
+        // Resolve SMTP password first: encrypt if non-empty, clear if empty
+        try {
+            $encryptedSmtpPass = $smtpPass !== ''
+                ? SettingsEncryption::encrypt($smtpPass)
+                : '';
+        } catch (\Throwable $e) {
+            SecureLogger::error('SettingsController::updateEmailSettings encryption failed: ' . $e->getMessage());
+            $_SESSION['error_message'] = __('Impossibile salvare la password SMTP.');
+            return $this->redirect($response, '/admin/settings?tab=email');
+        }
+
         $repository->set('email', 'driver_mode', $driver);
         $repository->set('email', 'type', $driver === 'phpmailer' ? 'mail' : $driver);
         $repository->set('email', 'from_email', $fromEmail);
@@ -165,7 +176,6 @@ class SettingsController
         $repository->set('email', 'smtp_port', $smtpPort);
         $repository->set('email', 'smtp_username', $smtpUser);
         if ($smtpPass !== '') {
-            $encryptedSmtpPass = SettingsEncryption::encrypt($smtpPass);
             $repository->set('email', 'smtp_password', $encryptedSmtpPass);
         }
         $repository->set('email', 'smtp_security', $encryption);

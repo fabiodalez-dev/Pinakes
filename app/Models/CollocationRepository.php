@@ -181,8 +181,9 @@ class CollocationRepository
         $scaffale_id = (int)($data['scaffale_id'] ?? 0);
         $numero_livello = (int)($data['numero_livello'] ?? 1);
         $ordine = (int)($data['ordine'] ?? 0);
-        $descrizione = isset($data['descrizione']) && $data['descrizione'] !== ''
-            ? mb_substr((string)$data['descrizione'], 0, 255)
+        $descrizioneRaw = trim((string)($data['descrizione'] ?? ''));
+        $descrizione = $descrizioneRaw !== ''
+            ? mb_substr($descrizioneRaw, 0, 255)
             : null;
         $stmt = $this->db->prepare("INSERT INTO mensole (scaffale_id, numero_livello, ordine, descrizione) VALUES (?, ?, ?, ?)");
         $stmt->bind_param('iiis', $scaffale_id, $numero_livello, $ordine, $descrizione);

@@ -66,7 +66,11 @@ async function clearMailpit() {
     const res = await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE', signal: controller.signal });
     if (!res.ok) throw new Error(`Mailpit clear failed: HTTP ${res.status}`);
   } catch (err) {
-    if (controller.signal.aborted) return; // timeout is OK — inbox may be empty
+    if (controller.signal.aborted) {
+      // Timeout — retry once without abort signal
+      try { await fetch(`${MAILPIT_API}/messages`, { method: 'DELETE' }); } catch { /* best effort */ }
+      return;
+    }
     throw err;
   } finally {
     clearTimeout(timer);
@@ -304,7 +308,7 @@ test.describe.serial('Email Notifications E2E', () => {
     await page.locator('button[type="submit"], input[type="submit"]').first().click();
 
     // Wait for redirect to success page
-    await page.waitForURL(/successo|success|registrati/, { timeout: 10000 });
+    await page.waitForURL(/successo|success/, { timeout: 10000 });
     await page.close();
 
     // B.1: User receives "registration pending" email
@@ -410,7 +414,7 @@ test.describe.serial('Email Notifications E2E', () => {
     await page.locator('button[type="submit"], input[type="submit"]').first().click();
 
     // Wait for redirect
-    await page.waitForURL(/sent=1|password-dimenticata/, { timeout: 10000 });
+    await page.waitForURL(/sent=1/, { timeout: 10000 });
     await page.close();
 
     // Check Mailpit for password reset email
@@ -707,7 +711,7 @@ test.describe.serial('Email Notifications E2E', () => {
     }
 
     await page.locator('#contact-form button[type="submit"], .btn-submit').first().click();
-    await page.waitForURL(/success=1|contatti/, { timeout: 15000 });
+    await page.waitForURL(/success=1/, { timeout: 15000 });
     await page.close();
 
     // Admin should receive contact notification
@@ -812,7 +816,7 @@ test.describe.serial('Email Notifications E2E', () => {
     }
 
     await page.locator('#contact-form button[type="submit"], .btn-submit').first().click();
-    await page.waitForURL(/success=1|contatti/, { timeout: 15000 });
+    await page.waitForURL(/success=1/, { timeout: 15000 });
     await page.close();
 
     // Email should arrive via Mailpit's sendmail replacement
@@ -851,7 +855,7 @@ test.describe.serial('Email Notifications E2E', () => {
     await privacyCheck.check();
 
     await page.locator('button[type="submit"], input[type="submit"]').first().click();
-    await page.waitForURL(/successo|success|registrati/, { timeout: 10000 });
+    await page.waitForURL(/successo|success/, { timeout: 10000 });
     await page.close();
 
     // Registration email should arrive via Mailpit's sendmail

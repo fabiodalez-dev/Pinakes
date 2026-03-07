@@ -104,8 +104,10 @@ async function loginAsAdmin(page) {
         if (attempt === 0) continue; // retry once
         throw new Error('loginAsAdmin: still on /accedi after 2 attempts');
       }
+    } else if (!page.url().includes('/accedi')) {
+      return; // redirected away from login — session is already active
     } else {
-      return; // already logged in (no login form visible)
+      throw new Error('loginAsAdmin: login form missing while still on /accedi');
     }
   }
 }
@@ -2446,34 +2448,42 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
   });
 
   test('18.15 SMTP password encrypted at rest', async () => {
-    // Log in as admin, navigate to email settings
-    await page.goto(`${BASE}/admin/settings`);
-    await page.waitForLoadState('domcontentloaded');
-    await page.locator('[data-settings-tab="email"]').click();
-    await expect(page.locator('section[data-settings-panel="email"]')).toBeVisible();
+    // Snapshot original settings for restoration
+    const origPassword = dbQuery("SELECT IFNULL(setting_value, '') FROM system_settings WHERE category='email' AND setting_key='smtp_password'") || '';
+    const origType = dbQuery("SELECT IFNULL(setting_value, '') FROM system_settings WHERE category='email' AND setting_key='type'") || '';
+    const origDriverMode = dbQuery("SELECT IFNULL(setting_value, '') FROM system_settings WHERE category='email' AND setting_key='driver_mode'") || '';
 
-    // Select SMTP driver to reveal SMTP fields
-    await page.selectOption('#mail_driver', 'smtp');
-    await expect(page.locator('#smtp-settings-card')).toBeVisible();
+    try {
+      // Log in as admin, navigate to email settings
+      await page.goto(`${BASE}/admin/settings`);
+      await page.waitForLoadState('domcontentloaded');
+      await page.locator('[data-settings-tab="email"]').click();
+      await expect(page.locator('section[data-settings-panel="email"]')).toBeVisible();
 
-    const testSmtpPass = `smtp-test-${RUN_ID}`;
-    await page.fill('input[name="smtp_password"]', testSmtpPass);
+      // Select SMTP driver to reveal SMTP fields
+      await page.selectOption('#mail_driver', 'smtp');
+      await expect(page.locator('#smtp-settings-card')).toBeVisible();
 
-    // Submit the email settings form and wait for navigation
-    await Promise.all([
-      page.waitForURL('**/admin/settings**'),
-      page.click('section[data-settings-panel="email"] button[type="submit"]'),
-    ]);
-    await page.waitForLoadState('domcontentloaded');
+      const testSmtpPass = `smtp-test-${RUN_ID}`;
+      await page.fill('input[name="smtp_password"]', testSmtpPass);
 
-    // Verify DB value starts with ENC: (encrypted)
-    const dbValue = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='smtp_password'");
-    expect(dbValue).toBeTruthy();
-    expect(dbValue.startsWith('ENC:')).toBeTruthy();
+      // Submit the email settings form and wait for navigation
+      await Promise.all([
+        page.waitForURL('**/admin/settings**'),
+        page.click('section[data-settings-panel="email"] button[type="submit"]'),
+      ]);
+      await page.waitForLoadState('domcontentloaded');
 
-    // Clean up: reset driver and clear SMTP password
-    dbQuery("UPDATE system_settings SET setting_value='' WHERE category='email' AND setting_key='smtp_password'");
-    dbQuery("UPDATE system_settings SET setting_value='mail' WHERE category='email' AND setting_key='type'");
+      // Verify DB value starts with ENC: (encrypted)
+      const dbValue = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='smtp_password'");
+      expect(dbValue).toBeTruthy();
+      expect(dbValue.startsWith('ENC:')).toBeTruthy();
+    } finally {
+      // Restore original settings
+      try { dbQuery(`UPDATE system_settings SET setting_value='${origPassword.replace(/'/g, "\\'")}' WHERE category='email' AND setting_key='smtp_password'`); } catch {}
+      try { dbQuery(`UPDATE system_settings SET setting_value='${origType.replace(/'/g, "\\'")}' WHERE category='email' AND setting_key='type'`); } catch {}
+      try { dbQuery(`UPDATE system_settings SET setting_value='${origDriverMode.replace(/'/g, "\\'")}' WHERE category='email' AND setting_key='driver_mode'`); } catch {}
+    }
   });
 
   test('18.16 Genre delete respects soft-delete guard', async () => {

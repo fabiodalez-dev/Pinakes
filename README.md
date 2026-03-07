@@ -676,4 +676,4 @@ If Pinakes helps your library, please ⭐ the repository!
 
 If you find Pinakes useful, consider supporting the project:
 
-<a href="https://buymeacoffee.com/fabiodalez" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a>
+<a href="https://buymeacoffee.com/fabiodalez" target="_blank" rel="noopener noreferrer"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a>

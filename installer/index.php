@@ -157,8 +157,16 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
                 $dbPass = $_ENV['DB_PASS'] ?? '';
                 $dbName = $_ENV['DB_NAME'] ?? '';
                 $dbPort = $_ENV['DB_PORT'] ?? '3306';
+                $dbSocket = trim((string) ($_ENV['DB_SOCKET'] ?? ''));
 
-                $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName, (int)$dbPort);
+                $mysqli = new mysqli(
+                    $dbSocket !== '' ? 'localhost' : $dbHost,
+                    $dbUser,
+                    $dbPass,
+                    $dbName,
+                    $dbSocket !== '' ? 0 : (int)$dbPort,
+                    $dbSocket !== '' ? $dbSocket : null
+                );
                 if (!$mysqli->connect_error) {
                     $stmt = $mysqli->prepare("SELECT id, password FROM utenti WHERE email = ? AND tipo_utente = 'admin' LIMIT 1");
                     if ($stmt) {
