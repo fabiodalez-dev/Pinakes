@@ -1013,7 +1013,8 @@ class LibriController
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
             }
             // Optionals (numero_pagine, ean, data_pubblicazione, traduttore)
-            (new \App\Models\BookRepository($db))->updateOptionals($id, $data);
+            // Merge normalized $fields over $data so NULL isbn/ean values are preserved
+            (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiunto con successo!');
@@ -1610,7 +1611,8 @@ class LibriController
             if (!empty($data['scraped_cover_url'])) {
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
             }
-            (new \App\Models\BookRepository($db))->updateOptionals($id, $data);
+            // Merge normalized $fields over $data so NULL isbn/ean values are preserved
+            (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiornato con successo!');

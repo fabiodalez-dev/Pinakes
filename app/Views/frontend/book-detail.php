@@ -1471,9 +1471,10 @@ ob_start();
                         <?php endforeach; ?>
                     </div>
 
-                    <?php if (!empty($book['genere'])): ?>
+                    <?php if (!empty($genreHierarchy)): ?>
+                    <?php $deepestGenre = end($genreHierarchy); ?>
                     <div class="genre-tags">
-                        <a href="<?= $catalogRoute ?>?genere=<?= urlencode(html_entity_decode($book['genere'], ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
+                        <a href="<?= $catalogRoute ?>?genere=<?= urlencode(html_entity_decode($deepestGenre, ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
                             <i class="fas fa-tags me-1"></i><?= htmlspecialchars($bookGenre, ENT_QUOTES, 'UTF-8') ?>
                         </a>
                     </div>

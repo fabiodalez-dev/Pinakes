@@ -87,10 +87,13 @@ final class SettingsEncryption
             return self::$cachedKey;
         }
 
-        $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
-            ?? (getenv('PLUGIN_ENCRYPTION_KEY') ?: null)
-            ?? $_ENV['APP_KEY']
-            ?? (getenv('APP_KEY') ?: null);
+        $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY'] ?? (getenv('PLUGIN_ENCRYPTION_KEY') ?: null);
+        if ($rawKey === null || $rawKey === '') {
+            $rawKey = $_ENV['APP_KEY'] ?? (getenv('APP_KEY') ?: null);
+        }
+        if ($rawKey === '') {
+            $rawKey = null;
+        }
 
         if ($rawKey) {
             self::$cachedKey = hash('sha256', (string)$rawKey, true);

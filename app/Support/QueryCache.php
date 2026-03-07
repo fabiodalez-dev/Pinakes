@@ -293,7 +293,9 @@ class QueryCache
      */
     private static function hashKey(string $key): string
     {
-        return 'pinakes_' . md5($key);
+        // Preserve key as-is (prefixed) so clearByPrefix() can match by glob.
+        // Keys already contain hashes when needed (e.g. 'genre_tree_' . md5(...)).
+        return 'pinakes_' . $key;
     }
 
     /**

@@ -86,15 +86,27 @@ async function getCsrfToken(page) {
   });
 }
 
-/** Login as admin via the login form. */
+/** Login as admin via the login form. Retries once on timeout (PHP dev server is single-threaded). */
 async function loginAsAdmin(page) {
-  await page.goto(`${BASE}/accedi`);
-  const emailField = page.locator('input[name="email"]');
-  if (await emailField.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await emailField.fill(ADMIN_EMAIL);
-    await page.fill('input[name="password"]', ADMIN_PASS);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL(url => !url.toString().includes('/accedi'), { timeout: 30000 });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    clearRateLimits();
+    await page.goto(`${BASE}/accedi`);
+    await page.waitForLoadState('domcontentloaded');
+    const emailField = page.locator('input[name="email"]');
+    if (await emailField.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await emailField.fill(ADMIN_EMAIL);
+      await page.fill('input[name="password"]', ADMIN_PASS);
+      await page.locator('button[type="submit"]').click();
+      try {
+        await page.waitForURL(url => !url.toString().includes('/accedi'), { timeout: 30000 });
+        return; // success
+      } catch {
+        if (attempt === 0) continue; // retry once
+        throw new Error('loginAsAdmin: still on /accedi after 2 attempts');
+      }
+    } else {
+      return; // already logged in (no login form visible)
+    }
   }
 }
 
@@ -2385,8 +2397,8 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(titolo)}`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Click the result that links to this book
-    const detailLink = page.locator(`a[href*="/${bookId}"]`).first();
+    // Click the result that links to this book (URL format: /author-slug/book-slug/ID)
+    const detailLink = page.locator(`a[href$="/${bookId}"]`).first();
     await expect(detailLink).toBeVisible({ timeout: 5000 });
     await detailLink.click();
     await page.waitForLoadState('domcontentloaded');
@@ -2421,7 +2433,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     // 1) Admin book detail page
     await page.goto(`${BASE}/admin/libri/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
-    const genreText = await page.locator('.fa-layer-group').locator('..').textContent();
+    const genreText = await page.locator('[data-testid="genre-display"]').textContent();
     expect(genreText).toContain(childName);
 
     // 2) Frontend (public) book detail page — uses different query path

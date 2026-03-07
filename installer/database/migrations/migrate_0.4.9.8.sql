@@ -8,6 +8,9 @@
 -- =============================================================================
 -- DB-H1: Add UNIQUE index on isbn10 (isbn13 already has one)
 -- =============================================================================
+-- Normalize blank isbn10 values to NULL (mirroring ean normalization below)
+UPDATE `libri` SET `isbn10` = NULL WHERE `isbn10` = '';
+
 -- Deduplicate isbn10 values before adding UNIQUE constraint:
 -- keep the lowest id for each duplicate, nullify the rest
 UPDATE `libri` AS l1

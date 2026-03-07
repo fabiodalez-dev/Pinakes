@@ -1,9 +1,9 @@
 <?php
 use App\Support\Csrf;
 
-/** @var int $presetUserId */
-/** @var string $presetUserName */
-/** @var bool $presetUserLocked */
+$presetUserId = (int) ($presetUserId ?? 0);
+$presetUserName = (string) ($presetUserName ?? '');
+$presetUserLocked = (bool) ($presetUserLocked ?? false);
 
 $csrf = Csrf::ensureToken();
 // Get locale from session (same as frontend/layout.php)

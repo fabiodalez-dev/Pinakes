@@ -164,7 +164,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <?php endif; ?>
             </div>
           </div>
-          <div class="text-base text-gray-600">
+          <div class="text-base text-gray-600" data-testid="genre-display">
             <i class="fas fa-layer-group text-gray-400 mr-2"></i>
             <span class="font-medium"><?= __("Genere:") ?></span>
             <?php

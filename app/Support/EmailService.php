@@ -123,11 +123,15 @@ class EmailService {
             error_log('Failed to load email settings: ' . $e->getMessage());
         }
 
-        // Decrypt SMTP password if encrypted; keep original value as fallback
+        // Decrypt SMTP password if encrypted; keep plaintext as-is, clear broken ciphertext
         if (isset($defaults['smtp_password']) && is_string($defaults['smtp_password'])) {
-            $decrypted = SettingsEncryption::decrypt($defaults['smtp_password']);
+            $rawPassword = $defaults['smtp_password'];
+            $decrypted = SettingsEncryption::decrypt($rawPassword);
             if ($decrypted !== null) {
                 $defaults['smtp_password'] = $decrypted;
+            } elseif (str_starts_with($rawPassword, 'ENC:')) {
+                SecureLogger::error('EmailService: failed to decrypt smtp_password');
+                $defaults['smtp_password'] = '';
             }
         }
 

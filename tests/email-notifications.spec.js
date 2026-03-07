@@ -436,7 +436,7 @@ test.describe.serial('Email Notifications E2E', () => {
     // Create a dedicated test book with a copy in the copie table
     // (the approve controller checks the copie table, not just copie_disponibili)
     const invNum = `LOANTEST-${Date.now()}`;
-    const bookId = dbQuery("INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES ('Loan Email Test Book', 2, 2, 'disponibile'); SELECT LAST_INSERT_ID()");
+    const bookId = dbQuery(`INSERT INTO libri (titolo, copie_totali, copie_disponibili, stato) VALUES ('Loan Email Test Book ${RUN_ID}', 2, 2, 'disponibile'); SELECT LAST_INSERT_ID()`);
     dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${bookId}, '${invNum}-A', 'disponibile')`);
     dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${bookId}, '${invNum}-B', 'disponibile')`);
 
@@ -867,6 +867,7 @@ test.describe.serial('Email Notifications E2E', () => {
   // Cleanup helper — also called from afterAll as safety net
   // ══════════════════════════════════════════════════════════════════
   async function cleanupAndRestore() {
+    // Data cleanup — errors here must not prevent settings restoration
     try {
       // Clean up test users and related data
       for (const email of [TEST_USER_EMAIL, TEST_USER2_EMAIL]) {
@@ -891,13 +892,17 @@ test.describe.serial('Email Notifications E2E', () => {
 
       // Delete contact messages from test
       try { dbQuery(`DELETE FROM contact_messages WHERE email IN ('${CONTACT_EMAIL}', 'phpmail-test@example.com')`); } catch { /* */ }
-
-      // Restore original email settings
+    } catch (err) {
+      console.error('[Cleanup] Error during data cleanup:', err.message);
+    } finally {
+      // Settings restoration — always runs even if data cleanup fails
       const restore = (category, key, value) => {
         if (value === undefined) return;
-        dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value)
-          VALUES ('${category}', '${key}', '${sqlEscape(String(value))}')
-          ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`);
+        try {
+          dbQuery(`INSERT INTO system_settings (category, setting_key, setting_value)
+            VALUES ('${category}', '${key}', '${sqlEscape(String(value))}')
+            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`);
+        } catch { /* best effort */ }
       };
       restore('email', 'type', originalSettings.type);
       restore('email', 'driver_mode', originalSettings.driver_mode);
@@ -915,8 +920,6 @@ test.describe.serial('Email Notifications E2E', () => {
 
       // Clear Mailpit
       await clearMailpit();
-    } catch (err) {
-      console.error('[Cleanup] Error during cleanup:', err.message);
     }
   }
 

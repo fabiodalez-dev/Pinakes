@@ -160,7 +160,7 @@ if (isset($_GET['force']) && $installer->isInstalled()) {
 
                 $mysqli = new mysqli($dbHost, $dbUser, $dbPass, $dbName, (int)$dbPort);
                 if (!$mysqli->connect_error) {
-                    $stmt = $mysqli->prepare("SELECT id, password FROM utenti WHERE email = ? AND ruolo = 'admin' LIMIT 1");
+                    $stmt = $mysqli->prepare("SELECT id, password FROM utenti WHERE email = ? AND tipo_utente = 'admin' LIMIT 1");
                     if ($stmt) {
                         $stmt->bind_param('s', $email);
                         $stmt->execute();
