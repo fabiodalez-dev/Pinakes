@@ -378,26 +378,7 @@ ob_start();
     </div>
 </section>
 
-<?php
-// Related events
-$currentId = $event['id'];
-$stmt = $db->prepare("
-    SELECT id, title, slug, event_date, event_time, featured_image
-    FROM events
-    WHERE is_active = 1 AND id != ? AND event_date >= CURDATE()
-    ORDER BY event_date ASC
-    LIMIT 3
-");
-$stmt->bind_param('i', $currentId);
-$stmt->execute();
-$result = $stmt->get_result();
-
-$relatedEvents = [];
-while ($row = $result->fetch_assoc()) {
-    $relatedEvents[] = $row;
-}
-$stmt->close();
-?>
+<?php /** @var array $relatedEvents Related upcoming events (from controller) */ ?>
 
 <?php if (!empty($relatedEvents)): ?>
     <section class="related-events">

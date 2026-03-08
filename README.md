@@ -20,6 +20,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 ![TailwindCSS](https://img.shields.io/badge/tailwindcss-0ea5e9?style=for-the-badge&logo=tailwindcss&logoColor=white)
 
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
 
 ---
 
@@ -668,3 +669,11 @@ If Pinakes helps your library, please ⭐ the repository!
 ## Community Projects
 
 - 🐳 **[jbenamy/pinakes-docker](https://github.com/jbenamy/pinakes-docker)** — Community-maintained Docker image. This is an independent project not managed by the Pinakes team — please refer to its own documentation for setup and support.
+
+---
+
+## Support
+
+If you find Pinakes useful, consider supporting the project:
+
+<a href="https://buymeacoffee.com/fabiodalez" target="_blank" rel="noopener noreferrer"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="50"></a>

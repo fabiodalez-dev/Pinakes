@@ -1077,13 +1077,60 @@ class BookRepository
 
         if ($chainLen === 1) {
             // genere_id points to a ROOT genre (L1)
-            // Cascade: radice = this genre, genere/sotto = not set
             $row['radice_id'] = $chain[0]['id'];
             $row['radice_nome'] = $chain[0]['nome'];
-            $row['genere_nome'] = null;
-            $row['genere_id_cascade'] = 0;
-            $row['sottogenere_nome'] = null;
-            $row['sottogenere_id_cascade'] = 0;
+
+            if ($sottogenereId > 0) {
+                // Resolve sottogenere ancestry to populate cascade dropdowns (#90)
+                $subChain = [];
+                $curId = $sottogenereId;
+                $depth = 5;
+                $subStmt = $this->db->prepare('SELECT id, nome, parent_id FROM generi WHERE id = ?');
+                if ($subStmt) {
+                    while ($curId > 0 && $depth-- > 0) {
+                        $subStmt->bind_param('i', $curId);
+                        $subStmt->execute();
+                        $sg = $subStmt->get_result()->fetch_assoc();
+                        if (!$sg) {
+                            break;
+                        }
+                        array_unshift($subChain, $sg);
+                        $curId = (int)($sg['parent_id'] ?? 0);
+                    }
+                    $subStmt->close();
+                }
+                // Strip root from subChain (it's already in $chain[0])
+                if (!empty($subChain) && (int)$subChain[0]['id'] === (int)$chain[0]['id']) {
+                    array_shift($subChain);
+                } elseif (!empty($subChain)) {
+                    // Root mismatch — skip modifications to avoid corrupting cascade
+                    $subChain = [];
+                }
+                if (count($subChain) >= 2) {
+                    // L2 + deepest descendant
+                    $deepest = end($subChain);
+                    $row['genere_nome'] = $subChain[0]['nome'];
+                    $row['genere_id_cascade'] = (int)$subChain[0]['id'];
+                    $row['sottogenere_nome'] = $deepest['nome'];
+                    $row['sottogenere_id_cascade'] = (int)$deepest['id'];
+                } elseif (count($subChain) === 1) {
+                    // Direct child of root → L2 only
+                    $row['genere_nome'] = $subChain[0]['nome'];
+                    $row['genere_id_cascade'] = (int)$subChain[0]['id'];
+                    $row['sottogenere_nome'] = null;
+                    $row['sottogenere_id_cascade'] = 0;
+                } else {
+                    $row['genere_nome'] = null;
+                    $row['genere_id_cascade'] = 0;
+                    $row['sottogenere_nome'] = null;
+                    $row['sottogenere_id_cascade'] = 0;
+                }
+            } else {
+                $row['genere_nome'] = null;
+                $row['genere_id_cascade'] = 0;
+                $row['sottogenere_nome'] = null;
+                $row['sottogenere_id_cascade'] = 0;
+            }
         } elseif ($chainLen === 2) {
             // genere_id points to L2 genre — standard case
             $row['radice_id'] = $chain[0]['id'];

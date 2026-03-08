@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use mysqli;
+use App\Support\QueryCache;
 
 class GenereRepository
 {
@@ -44,6 +45,7 @@ class GenereRepository
             throw new \RuntimeException('Errore nella creazione del genere');
         }
 
+        QueryCache::clearByPrefix('genre_tree_');
         return $this->db->insert_id;
     }
 
@@ -139,7 +141,9 @@ class GenereRepository
             $stmt->bind_param('si', $nome, $id);
         }
 
-        return $stmt->execute();
+        $result = $stmt->execute();
+        QueryCache::clearByPrefix('genre_tree_');
+        return $result;
     }
 
     public function delete(int $id): bool
@@ -154,8 +158,11 @@ class GenereRepository
             throw new \RuntimeException('Impossibile eliminare: il genere ha sottogeneri');
         }
 
-        // Check if genre is used by any book (including soft-deleted to prevent dangling FK)
-        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE genere_id = ? OR sottogenere_id = ?");
+        // Only count non-deleted books. Soft-deleted rows are safe because both
+        // libri_ibfk_3 (genere_id) and fk_libri_sottogenere (sottogenere_id) use
+        // ON DELETE SET NULL — the DB automatically nullifies references when
+        // a genre is deleted, so no FK violation can occur from soft-deleted rows.
+        $stmt = $this->db->prepare("SELECT COUNT(*) as cnt FROM libri WHERE (genere_id = ? OR sottogenere_id = ?) AND deleted_at IS NULL");
         $stmt->bind_param('ii', $id, $id);
         $stmt->execute();
         $count = (int)$stmt->get_result()->fetch_assoc()['cnt'];
@@ -166,7 +173,9 @@ class GenereRepository
 
         $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
         $stmt->bind_param('i', $id);
-        return $stmt->execute();
+        $result = $stmt->execute();
+        QueryCache::clearByPrefix('genre_tree_');
+        return $result;
     }
 
     public function getChildren(int $parent_id): array
@@ -330,6 +339,7 @@ class GenereRepository
             }
 
             $this->db->commit();
+            QueryCache::clearByPrefix('genre_tree_');
 
             return ['children_moved' => $childrenMoved, 'books_updated' => $booksUpdated];
         } catch (\Throwable $e) {

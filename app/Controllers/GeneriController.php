@@ -76,6 +76,7 @@ class GeneriController
                 'parent_id' => !empty($data['parent_id']) ? (int) $data['parent_id'] : null
             ]);
 
+
             $_SESSION['success_message'] = __('Genere creato con successo!');
             return $response->withHeader('Location', "/admin/generi/{$id}")->withStatus(302);
 
@@ -142,6 +143,7 @@ class GeneriController
             if (!$repo->update($id, $updateData)) {
                 throw new \RuntimeException('update() returned false');
             }
+
             $_SESSION['success_message'] = __('Genere aggiornato con successo!');
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('GeneriController::update error', ['id' => $id, 'message' => $e->getMessage()]);
@@ -160,6 +162,7 @@ class GeneriController
             if (!$repo->delete($id)) {
                 throw new \RuntimeException('delete() returned false');
             }
+
             $_SESSION['success_message'] = __('Genere eliminato con successo!');
             return $response->withHeader('Location', '/admin/generi')->withStatus(302);
         } catch (\Throwable $e) {
@@ -182,6 +185,7 @@ class GeneriController
 
         try {
             $stats = $repo->merge($id, $targetId);
+
             $parts = [];
             if ($stats['books_updated'] > 0) {
                 $parts[] = $stats['books_updated'] . ' ' . __('libri aggiornati');

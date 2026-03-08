@@ -164,7 +164,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <?php endif; ?>
             </div>
           </div>
-          <div class="text-base text-gray-600">
+          <div class="text-base text-gray-600" data-testid="genre-display">
             <i class="fas fa-layer-group text-gray-400 mr-2"></i>
             <span class="font-medium"><?= __("Genere:") ?></span>
             <?php
@@ -509,18 +509,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             </div>
             <?php endif; ?>
             <?php if ($isSafeUrl($libro['audio_url'] ?? null)): ?>
-            <?php
-              $audioCloseLabel = json_encode(__("Chiudi"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-              $audioOpenLabel  = json_encode(__("Ascolta"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-            ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Audio") ?></dt>
               <dd>
                 <button type="button" id="btn-admin-audio-toggle"
                   aria-controls="admin-audio-player"
                   aria-expanded="false"
-                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-500 text-white hover:bg-purple-600 transition-colors"
-                  onclick="var p=document.getElementById('admin-audio-player');if(!p)return;var h=p.classList.contains('hidden');if(h){p.classList.remove('hidden');this.querySelector('span').textContent=<?= $audioCloseLabel ?>;this.setAttribute('aria-expanded','true');}else{p.classList.add('hidden');p.querySelector('audio').pause();this.querySelector('span').textContent=<?= $audioOpenLabel ?>;this.setAttribute('aria-expanded','false');}">
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-purple-500 text-white hover:bg-purple-600 transition-colors">
                   <i class="fas fa-headphones"></i> <span><?= __("Ascolta") ?></span>
                 </button>
                 <div id="admin-audio-player" class="hidden mt-2">
@@ -528,6 +523,28 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     <source src="<?php echo htmlspecialchars($normalizeHref((string) $libro['audio_url']), ENT_QUOTES, 'UTF-8'); ?>">
                   </audio>
                 </div>
+                <script>
+                (function() {
+                  var btn = document.getElementById('btn-admin-audio-toggle');
+                  var player = document.getElementById('admin-audio-player');
+                  if (!btn || !player) return;
+                  var closeLabel = <?= json_encode(__("Chiudi"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+                  var openLabel = <?= json_encode(__("Ascolta"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+                  btn.addEventListener('click', function() {
+                    var hidden = player.classList.contains('hidden');
+                    if (hidden) {
+                      player.classList.remove('hidden');
+                      btn.querySelector('span').textContent = closeLabel;
+                      btn.setAttribute('aria-expanded', 'true');
+                    } else {
+                      player.classList.add('hidden');
+                      player.querySelector('audio').pause();
+                      btn.querySelector('span').textContent = openLabel;
+                      btn.setAttribute('aria-expanded', 'false');
+                    }
+                  });
+                })();
+                </script>
               </dd>
             </div>
             <?php endif; ?>

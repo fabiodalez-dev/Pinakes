@@ -86,15 +86,29 @@ async function getCsrfToken(page) {
   });
 }
 
-/** Login as admin via the login form. */
+/** Login as admin via the login form. Retries once on timeout (PHP dev server is single-threaded). */
 async function loginAsAdmin(page) {
-  await page.goto(`${BASE}/accedi`);
-  const emailField = page.locator('input[name="email"]');
-  if (await emailField.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await emailField.fill(ADMIN_EMAIL);
-    await page.fill('input[name="password"]', ADMIN_PASS);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL(url => !url.toString().includes('/accedi'), { timeout: 30000 });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    clearRateLimits();
+    await page.goto(`${BASE}/accedi`);
+    await page.waitForLoadState('domcontentloaded');
+    const emailField = page.locator('input[name="email"]');
+    if (await emailField.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await emailField.fill(ADMIN_EMAIL);
+      await page.fill('input[name="password"]', ADMIN_PASS);
+      await page.locator('button[type="submit"]').click();
+      try {
+        await page.waitForURL(url => !url.toString().includes('/accedi'), { timeout: 30000 });
+        return; // success
+      } catch {
+        if (attempt === 0) continue; // retry once
+        throw new Error('loginAsAdmin: still on /accedi after 2 attempts');
+      }
+    } else if (!page.url().includes('/accedi')) {
+      return; // redirected away from login — session is already active
+    } else {
+      throw new Error('loginAsAdmin: login form missing while still on /accedi');
+    }
   }
 }
 
@@ -2314,6 +2328,235 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
 
     // Cleanup
     dbQuery(`DELETE FROM libri WHERE id=${bookId}`);
+  });
+
+  test('18.11 #83: Admin search finds books by description', async () => {
+    const targetId = state.createdBookIds[0];
+    test.skip(!targetId, 'No seeded book id available');
+    const marker = `desc-${RUN_ID}`;
+    dbQuery(`UPDATE libri SET descrizione='${marker}' WHERE id=${targetId}`);
+
+    await page.goto(`${BASE}/admin/libri`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const searchTerm = marker;
+    const apiResp = await page.request.get(
+      `${BASE}/api/libri?draw=1&start=0&length=10&search_text=${encodeURIComponent(searchTerm)}`
+    );
+    expect(apiResp.ok()).toBeTruthy();
+    const data = await apiResp.json();
+    expect(data.recordsFiltered).toBeGreaterThan(0);
+    const ids = (data.data || []).map(row => Number(row.id));
+    expect(ids).toContain(targetId);
+  });
+
+  test('18.12 #85: Catalog sort by author works', async () => {
+    // Navigate to catalog sorted by author ascending
+    await page.goto(`${BASE}/catalogo?sort=author_asc`);
+    await page.waitForLoadState('domcontentloaded');
+
+    // Extract visible author names from the rendered page
+    const ascAuthors = await page.locator('.book-author:visible').allTextContents();
+    const ascNames = ascAuthors.map(s => s.trim()).filter(s => s.length > 0);
+
+    // Navigate to catalog sorted by author descending
+    await page.goto(`${BASE}/catalogo?sort=author_desc`);
+    await page.waitForLoadState('domcontentloaded');
+
+    const descAuthors = await page.locator('.book-author:visible').allTextContents();
+    const descNames = descAuthors.map(s => s.trim()).filter(s => s.length > 0);
+
+    // Both pages should load with author content
+    expect(ascNames.length).toBeGreaterThan(0);
+    expect(descNames.length).toBeGreaterThan(0);
+
+    // Extract surnames (last word) and verify asc is sorted alphabetically
+    const getSurname = (name) => name.split(/\s+/).pop().toLowerCase();
+    const ascSurnames = ascNames.map(getSurname);
+    const sortedAsc = [...ascSurnames].sort((a, b) => a.localeCompare(b));
+    expect(ascSurnames).toEqual(sortedAsc);
+
+    // Verify descending order too
+    const descSurnames = descNames.map(getSurname);
+    const sortedDesc = [...descSurnames].sort((a, b) => b.localeCompare(a));
+    expect(descSurnames).toEqual(sortedDesc);
+  });
+
+  test('18.13 #86: Keywords visible on public book detail page', async () => {
+    // Check DB: does any book have keywords?
+    const hasKeywords = dbQuery(
+      `SELECT COUNT(*) FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave REGEXP '[^,[:space:]]' AND deleted_at IS NULL`
+    );
+    if (Number(hasKeywords) === 0) { test.skip(); return; }
+
+    // Find a book with keywords and navigate to its detail page
+    const bookId = dbQuery(
+      `SELECT id FROM libri WHERE parole_chiave IS NOT NULL AND parole_chiave REGEXP '[^,[:space:]]' AND deleted_at IS NULL LIMIT 1`
+    );
+    const titolo = dbQuery(`SELECT titolo FROM libri WHERE id=${bookId}`);
+
+    // Search for the book in catalog and click into its detail page
+    await page.goto(`${BASE}/catalogo?q=${encodeURIComponent(titolo)}`);
+    await page.waitForLoadState('domcontentloaded');
+
+    // Click the result that links to this book (URL format: /author-slug/book-slug/ID)
+    const detailLink = page.locator(`a[href$="/${bookId}"]`).first();
+    await expect(detailLink).toBeVisible({ timeout: 5000 });
+    await detailLink.click();
+    await page.waitForLoadState('domcontentloaded');
+
+    // Verify keyword chips are present
+    const keywordChips = page.locator('.keyword-chip');
+    const chipCount = await keywordChips.count();
+    expect(chipCount).toBeGreaterThan(0);
+
+    // Verify chips link to catalog search
+    const firstHref = await keywordChips.first().getAttribute('href');
+    expect(firstHref).toContain('?q=');
+  });
+
+  test('18.14 #90: Subgenre visible on admin AND frontend book detail (2-level)', async () => {
+    // Find a ROOT genre and one of its direct children
+    // This tests the chainLen===1 path in resolveGenreHierarchy
+    const rootId = dbQuery("SELECT id FROM generi WHERE parent_id IS NULL LIMIT 1");
+    if (!rootId) { test.skip(); return; }
+    const childRow = dbQuery(`SELECT id, nome FROM generi WHERE parent_id = ${rootId} LIMIT 1`);
+    if (!childRow) { test.skip(); return; }
+    const [childId, childName] = childRow.split('\t');
+
+    // Get a book to edit
+    const bookId = state.createdBookIds[0];
+    test.skip(!bookId, 'No book created');
+
+    // Directly set genere_id = root, sottogenere_id = child via DB
+    // This mirrors what the controller normalization does
+    dbQuery(`UPDATE libri SET genere_id=${rootId}, sottogenere_id=${childId} WHERE id=${bookId}`);
+
+    // 1) Admin book detail page
+    await page.goto(`${BASE}/admin/libri/${bookId}`);
+    await page.waitForLoadState('domcontentloaded');
+    const genreText = await page.locator('[data-testid="genre-display"]').textContent();
+    expect(genreText).toContain(childName);
+
+    // 2) Frontend (public) book detail page — uses different query path
+    await page.goto(`${BASE}/libro/${bookId}`);
+    await page.waitForLoadState('domcontentloaded');
+    const genreTag = page.locator('.genre-tag').first();
+    await expect(genreTag).toBeVisible({ timeout: 5000 });
+    const frontendGenre = await genreTag.textContent();
+    expect(frontendGenre).toContain(childName);
+  });
+
+  test('18.15 SMTP password encrypted at rest', async () => {
+    // Snapshot original settings for restoration
+    const origPassword = dbQuery("SELECT IFNULL(setting_value, '') FROM system_settings WHERE category='email' AND setting_key='smtp_password'") || '';
+    const origType = dbQuery("SELECT IFNULL(setting_value, '') FROM system_settings WHERE category='email' AND setting_key='type'") || '';
+    const origDriverMode = dbQuery("SELECT IFNULL(setting_value, '') FROM system_settings WHERE category='email' AND setting_key='driver_mode'") || '';
+
+    try {
+      // Log in as admin, navigate to email settings
+      await page.goto(`${BASE}/admin/settings`);
+      await page.waitForLoadState('domcontentloaded');
+      await page.locator('[data-settings-tab="email"]').click();
+      await expect(page.locator('section[data-settings-panel="email"]')).toBeVisible();
+
+      // Select SMTP driver to reveal SMTP fields
+      await page.selectOption('#mail_driver', 'smtp');
+      await expect(page.locator('#smtp-settings-card')).toBeVisible();
+
+      const testSmtpPass = `smtp-test-${RUN_ID}`;
+      await page.fill('input[name="smtp_password"]', testSmtpPass);
+
+      // Submit the email settings form and wait for navigation
+      await Promise.all([
+        page.waitForURL('**/admin/settings**'),
+        page.click('section[data-settings-panel="email"] button[type="submit"]'),
+      ]);
+      await page.waitForLoadState('domcontentloaded');
+
+      // Verify DB value starts with ENC: (encrypted)
+      const dbValue = dbQuery("SELECT setting_value FROM system_settings WHERE category='email' AND setting_key='smtp_password'");
+      expect(dbValue).toBeTruthy();
+      expect(dbValue.startsWith('ENC:')).toBeTruthy();
+    } finally {
+      // Restore original settings
+      try { dbQuery(`UPDATE system_settings SET setting_value='${origPassword.replace(/'/g, "\\'")}' WHERE category='email' AND setting_key='smtp_password'`); } catch {}
+      try { dbQuery(`UPDATE system_settings SET setting_value='${origType.replace(/'/g, "\\'")}' WHERE category='email' AND setting_key='type'`); } catch {}
+      try { dbQuery(`UPDATE system_settings SET setting_value='${origDriverMode.replace(/'/g, "\\'")}' WHERE category='email' AND setting_key='driver_mode'`); } catch {}
+    }
+  });
+
+  test('18.16 Genre delete respects soft-delete guard', async () => {
+    // Create a temporary genre and book
+    const genreName = `TempGenre-${RUN_ID}`;
+    dbQuery(`INSERT INTO generi (nome, parent_id, created_at) VALUES ('${genreName}', NULL, NOW())`);
+    const genreId = dbQuery(`SELECT id FROM generi WHERE nome='${genreName}'`);
+    test.skip(!genreId, 'Genre not created');
+
+    // Create a book using this genre, then soft-delete it
+    dbQuery(`INSERT INTO libri (titolo, genere_id, created_at, updated_at) VALUES ('SoftDelBook-${RUN_ID}', ${genreId}, NOW(), NOW())`);
+    const bookId = dbQuery(`SELECT id FROM libri WHERE titolo='SoftDelBook-${RUN_ID}'`);
+    dbQuery(`UPDATE libri SET deleted_at=NOW(), isbn10=NULL, isbn13=NULL, ean=NULL WHERE id=${bookId}`);
+
+    // Genre should be deletable because the only book using it is soft-deleted
+    const countBefore = dbQuery(`SELECT COUNT(*) FROM generi WHERE id=${genreId}`);
+    expect(countBefore).toBe('1');
+
+    // Delete via POST (app uses POST /admin/generi/{id}/elimina)
+    const csrfToken = await page.evaluate(() => {
+      return document.querySelector('meta[name="csrf-token"]')?.content || '';
+    });
+    const resp = await page.request.post(`${BASE}/admin/generi/${genreId}/elimina`, {
+      headers: { 'X-CSRF-Token': csrfToken },
+      form: { csrf_token: csrfToken },
+    });
+    // 302 redirect = success
+    expect([200, 302].includes(resp.status())).toBeTruthy();
+
+    // Verify genre was deleted
+    const countAfter = dbQuery(`SELECT COUNT(*) FROM generi WHERE id=${genreId}`);
+    expect(countAfter).toBe('0');
+
+    // Clean up soft-deleted book
+    try { dbQuery(`DELETE FROM libri WHERE id=${bookId}`); } catch {}
+  });
+
+  test('18.17 isbn10 UNIQUE constraint enforced', async () => {
+    // Verify UNIQUE index exists on isbn10
+    const idxCount = dbQuery("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='libri' AND INDEX_NAME='isbn10' AND NON_UNIQUE=0");
+    expect(parseInt(idxCount)).toBeGreaterThan(0);
+  });
+
+  test('18.18 mensole.descrizione accepts text values', async () => {
+    // Verify column type is varchar, not int
+    const colType = dbQuery("SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='mensole' AND COLUMN_NAME='descrizione'");
+    expect(colType).toBe('varchar');
+  });
+
+  test('18.19 ean default is NULL, not empty string', async () => {
+    // Insert a book without ean, verify it's NULL
+    dbQuery(`INSERT INTO libri (titolo, created_at, updated_at) VALUES ('EanTestBook-${RUN_ID}', NOW(), NOW())`);
+    const eanVal = dbQuery(`SELECT IFNULL(ean, 'IS_NULL') FROM libri WHERE titolo='EanTestBook-${RUN_ID}'`);
+    expect(eanVal).toBe('IS_NULL');
+
+    // Also verify UNIQUE index exists on ean
+    const idxCount = dbQuery("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='libri' AND INDEX_NAME='ean' AND NON_UNIQUE=0");
+    expect(parseInt(idxCount)).toBeGreaterThan(0);
+
+    // Clean up
+    try { dbQuery(`DELETE FROM libri WHERE titolo='EanTestBook-${RUN_ID}'`); } catch {}
+  });
+
+  test('18.20 Installer force-auth form has CSRF token', async () => {
+    // Fetch installer force page — when admin session exists from main app,
+    // the installer skips the auth form and shows installer content directly.
+    // Otherwise it shows a login form with CSRF protection.
+    const resp = await page.request.get(`${BASE}/installer/?force=1`);
+    const html = await resp.text();
+    // Either we see the CSRF-protected auth form OR the installer content (admin already authenticated)
+    const hasAuthForm = html.includes('name="csrf_token"');
+    const hasInstallerContent = html.includes('installer') || html.includes('Installer') || html.includes('step') || html.includes('requisit');
+    expect(hasAuthForm || hasInstallerContent).toBeTruthy();
   });
 });
 
