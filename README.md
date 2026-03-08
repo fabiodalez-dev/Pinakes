@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.9.7-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.9.8-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,7 +24,39 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.9.7
+## What's New in v0.4.9.8
+
+### 🔒 Security, Database Integrity & Code Quality
+
+**Security Hardening:**
+- **SMTP password encryption** — New `SettingsEncryption` class encrypts SMTP passwords at rest using AES-256-CBC derived from `APP_KEY`
+- **SMTP password not prefilled** — Settings form no longer echoes the stored SMTP password back to the browser
+- **Bcrypt cost pinned to 12** — All `password_hash()` calls now use explicit `['cost' => 12]` for consistent, future-proof hashing
+- **QueryCache safety** — Cache key prefixes are sanitized and hashed (`md5`) to prevent path traversal in cache filenames
+
+**Database Integrity (Migration `migrate_0.4.9.8.sql`):**
+- **isbn10 UNIQUE index** — Blank values normalized to NULL, duplicates resolved (keeps lowest active ID), then UNIQUE constraint added
+- **ean UNIQUE index + default NULL** — Empty strings converted to NULL, column default changed from `''` to `NULL`, UNIQUE constraint added
+- **prestiti FK fix** — `prestiti_ibfk_3` corrected to reference `utenti(id)` instead of `staff(id)`, orphan `processed_by` values cleaned
+- **mensole.descrizione type fix** — Column type changed from `int NOT NULL` to `varchar(255) DEFAULT NULL`
+- All migration steps are fully idempotent with `INFORMATION_SCHEMA` checks
+
+**Bug Fixes:**
+- **Genre filter fix** — Added `sg.nome` (subgenre name) to `buildWhereConditions()` for correct subgenre filtering in catalog
+- **Installer session detection** — Fixed HTTPS detection behind reverse proxies for secure session cookies
+
+**Code Quality:**
+- **32+ files reviewed** across controllers, models, repositories, views, and support classes
+- **Addressed all CodeRabbit findings** from automated pull request review (rounds 10-16)
+- **ON DELETE SET NULL rationale** — Documented why soft-deleted book rows are safe for genre deletion (FK auto-nullifies)
+- **Email notification test suite** — 16 Playwright E2E tests covering all email types via Mailpit (both SMTP and phpmail drivers)
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.9.7</strong> - Comprehensive Codebase Review — Security, Reliability & Code Quality</summary>
 
 ### 🔒 Comprehensive Codebase Review — Security, Reliability & Code Quality
 
@@ -51,9 +83,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Consistent error handling** — Raw exception messages no longer leak in API responses
 - **Test stability** — E2E test helpers return navigation status for reliable assertions
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.9.4</strong> - Audiobook Player, Z39.50/SRU Plugin, Security & Hardening</summary>
