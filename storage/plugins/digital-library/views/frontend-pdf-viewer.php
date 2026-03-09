@@ -64,11 +64,11 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'PDF', ENT_QUOTES, 'UTF-8');
                 <div class="row g-2">
                     <div class="col-md-6">
                         <i class="fas fa-search text-muted me-1"></i>
-                        <span class="text-muted"><?= __("Usa Ctrl+F per cercare nel documento") ?></span>
+                        <span class="text-muted"><?= __("Usa la funzione di ricerca del browser per trovare testo nel documento") ?></span>
                     </div>
                     <div class="col-md-6">
                         <i class="fas fa-expand text-muted me-1"></i>
-                        <span class="text-muted"><?= __("Premi F11 o usa il pulsante nel viewer per la visualizzazione a schermo intero") ?></span>
+                        <span class="text-muted"><?= __("Usa il controllo schermo intero del viewer o del browser") ?></span>
                     </div>
                 </div>
             </div>

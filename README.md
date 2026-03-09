@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.9.8-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.4.9.9-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,7 +24,41 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.9.8
+## What's New in v0.4.9.9
+
+### 📖 Inline PDF Viewer, Search Improvements & Bug Fixes
+
+**Digital Library Plugin v1.3.0 — Inline PDF Viewer (Issue #80):**
+- **Inline PDF reader** — Browser-native `<iframe>` PDF viewer on book detail pages (zero dependencies — uses Chrome's PDFium, Firefox's PDF.js, etc.)
+- **Lazy-loaded iframe** — PDF is fetched only when the viewer is opened (MutationObserver pattern), no performance impact on page load
+- **ePub fix** — ePub downloads now open in a new tab (`target="_blank"`) instead of navigating away from the page
+- **Accessible toggle buttons** — `aria-controls` and `aria-expanded` attributes on PDF viewer and audiobook player toggles
+- **Auto-hook registration** — New plugin hooks are auto-registered on page load if missing from the database
+
+**Search Improvements (Issue #83):**
+- **Description-inclusive search** — Header search, admin book search, and unified search all query `COALESCE(descrizione_plain, descrizione)` so description-only matches are returned
+- **HTML-free search column** — New `descrizione_plain` column stores `strip_tags()` version of the description, preventing HTML tag names from polluting search results (e.g. searching "strong" no longer matches `<strong>` tags)
+
+**Database Migration (`migrate_0.4.9.9.sql`):**
+- Adds `descrizione_plain TEXT DEFAULT NULL` column to `libri` table
+- Fully idempotent with `INFORMATION_SCHEMA` check
+- PHP backfill via BookRepository on create/update; COALESCE fallback for existing rows
+
+**Bug Fixes:**
+- **Genre filter 500 error** — Fixed subgenre filtering that caused HTTP 500 in catalog (Issue #90)
+- **Clickable genre hierarchy** — Genre breadcrumbs are now clickable links for filtering
+- **CSV export fix** — Export with selected IDs now works correctly
+
+**Translations:**
+- All PDF viewer strings translated in Italian, English, and German
+- Browser-agnostic hint text (no platform-specific keyboard shortcuts)
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.4.9.8</strong> - Security, Database Integrity & Code Quality</summary>
 
 ### 🔒 Security, Database Integrity & Code Quality
 
@@ -51,9 +85,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **ON DELETE SET NULL rationale** — Documented why soft-deleted book rows are safe for genre deletion (FK auto-nullifies)
 - **Email notification test suite** — 16 Playwright E2E tests covering all email types via Mailpit (both SMTP and phpmail drivers)
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.4.9.7</strong> - Comprehensive Codebase Review — Security, Reliability & Code Quality</summary>

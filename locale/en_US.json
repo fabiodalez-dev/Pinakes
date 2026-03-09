@@ -4035,6 +4035,6 @@
   "Leggi PDF": "Read PDF",
   "Chiudi Visualizzatore": "Close Viewer",
   "Visualizzatore PDF": "PDF Viewer",
-  "Usa Ctrl+F per cercare nel documento": "Use Ctrl+F to search the document",
-  "Premi F11 o usa il pulsante nel viewer per la visualizzazione a schermo intero": "Press F11 or use the viewer button for fullscreen"
+  "Usa la funzione di ricerca del browser per trovare testo nel documento": "Use your browser's search function to find text in the document",
+  "Usa il controllo schermo intero del viewer o del browser": "Use the viewer or browser fullscreen control"
 }

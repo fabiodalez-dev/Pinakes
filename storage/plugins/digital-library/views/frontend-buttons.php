@@ -23,6 +23,8 @@ $isPdf = $hasEbook && strtolower(pathinfo($book['file_url'] ?? '', PATHINFO_EXTE
 <button type="button"
         id="btn-toggle-pdf-viewer"
         class="btn btn-outline-danger btn-lg"
+        aria-controls="pdf-viewer-container"
+        aria-expanded="false"
         title="<?= __("Leggi PDF") ?>">
     <i class="fas fa-book-reader me-2"></i>
     <?= __("Leggi PDF") ?>
@@ -50,6 +52,8 @@ $isPdf = $hasEbook && strtolower(pathinfo($book['file_url'] ?? '', PATHINFO_EXTE
 <button type="button"
         id="btn-toggle-audiobook"
         class="btn btn-outline-dark btn-lg"
+        aria-controls="audiobook-player-container"
+        aria-expanded="false"
         title="<?= __("Ascolta l'audiobook") ?>">
     <i class="fas fa-headphones me-2"></i>
     <?= __("Ascolta Audiobook") ?>
@@ -106,12 +110,14 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // Content uses trusted, hardcoded FA icons + translation strings (not user input)
-    var openContent = '<i class="fas fa-book-reader me-2"></i>' + '<?= __("Leggi PDF") ?>';
-    var closeContent = '<i class="fas fa-times me-2"></i>' + '<?= __("Chiudi Visualizzatore") ?>';
+    var openLabel = <?= json_encode(__("Leggi PDF"), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+    var closeLabel = <?= json_encode(__("Chiudi Visualizzatore"), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+    var openContent = '<i class="fas fa-book-reader me-2"></i>' + openLabel;
+    var closeContent = '<i class="fas fa-times me-2"></i>' + closeLabel;
 
     var setButtonState = function(isOpen) {
         toggleBtn.innerHTML = isOpen ? closeContent : openContent;
+        toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     };
 
     toggleBtn.addEventListener('click', function() {
@@ -146,12 +152,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
     var audioEl = playerContainer.querySelector('audio');
 
-    // Content uses trusted, hardcoded FA icons + translation strings (not user input)
-    var openContent = '<i class="fas fa-headphones me-2"></i>' + '<?= __("Ascolta Audiobook") ?>';
-    var closeContent = '<i class="fas fa-times me-2"></i>' + '<?= __("Chiudi Player") ?>';
+    var openLabel = <?= json_encode(__("Ascolta Audiobook"), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+    var closeLabel = <?= json_encode(__("Chiudi Player"), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) ?>;
+    var openContent = '<i class="fas fa-headphones me-2"></i>' + openLabel;
+    var closeContent = '<i class="fas fa-times me-2"></i>' + closeLabel;
 
     var setButtonState = function(isOpen) {
         toggleBtn.innerHTML = isOpen ? closeContent : openContent;
+        toggleBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
     };
 
     var pauseAudioIfPlaying = function() {

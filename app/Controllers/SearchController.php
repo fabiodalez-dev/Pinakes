@@ -128,10 +128,10 @@ class SearchController
                        l.copie_disponibili,
                        l.copie_totali
                 FROM libri l
-                WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?)
+                WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR COALESCE(l.descrizione_plain, l.descrizione) LIKE ?)
                 ORDER BY l.titolo
             ");
-            $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
+            $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
