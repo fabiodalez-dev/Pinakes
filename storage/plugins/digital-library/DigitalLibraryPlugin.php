@@ -196,16 +196,17 @@ class DigitalLibraryPlugin
         ];
 
         foreach ($hooks as $hook) {
-            // Check if hook already exists
+            // Check if hook already exists (include callback_method to support
+            // multiple callbacks on the same hook_name, e.g. audio + PDF on digital_player)
             $stmt = $this->db->prepare("
                 SELECT id FROM plugin_hooks
-                WHERE plugin_id = ? AND hook_name = ?
+                WHERE plugin_id = ? AND hook_name = ? AND callback_method = ?
             ");
             if (!$stmt) {
                 \App\Support\SecureLogger::error('DigitalLibraryPlugin: prepare() failed for hook check', ['hook' => $hook['hook_name']]);
                 continue;
             }
-            $stmt->bind_param("is", $this->pluginId, $hook['hook_name']);
+            $stmt->bind_param("iss", $this->pluginId, $hook['hook_name'], $hook['callback_method']);
             $stmt->execute();
             $result = $stmt->get_result();
             if (!$result instanceof \mysqli_result) {
