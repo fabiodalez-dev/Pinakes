@@ -12,8 +12,9 @@
 -- <strong> tags). This column stores strip_tags() version for clean search.
 --
 -- Backfill note: MySQL lacks strip_tags(), so the PHP application handles
--- backfill via BookRepository on each insert/update. Existing rows are backfilled
--- on first access by the application.
+-- population via BookRepository on each insert/update. Existing rows are
+-- lazily backfilled on first read via getById(); SearchController uses
+-- COALESCE(descrizione_plain, descrizione) as fallback until backfill completes.
 
 SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
                    WHERE TABLE_SCHEMA = DATABASE()

@@ -93,6 +93,20 @@ class BookRepository
         if (!$row)
             return null;
 
+        // Lazy backfill: populate descrizione_plain for pre-migration rows on first read
+        if ($this->hasColumn('descrizione_plain')
+            && $row['descrizione_plain'] === null
+            && !empty($row['descrizione'])
+        ) {
+            $plain = strip_tags((string)$row['descrizione']);
+            $upd = $this->db->prepare("UPDATE libri SET descrizione_plain = ? WHERE id = ?");
+            if ($upd) {
+                $upd->bind_param('si', $plain, $id);
+                $upd->execute();
+            }
+            $row['descrizione_plain'] = $plain;
+        }
+
         // Resolve genre hierarchy for the 3-level cascade (Radice → Genere → Sottogenere)
         // Walk up the tree from genere_id to find the full ancestor chain, then map to cascade levels
         $this->resolveGenreHierarchy($row);
