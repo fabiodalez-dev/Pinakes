@@ -166,6 +166,13 @@ class DigitalLibraryPlugin
                 'is_active' => 1
             ],
             [
+                'hook_name' => 'book.detail.digital_player',
+                'callback_class' => 'DigitalLibraryPlugin',
+                'callback_method' => 'renderPdfViewer',
+                'priority' => 20,
+                'is_active' => 1
+            ],
+            [
                 'hook_name' => 'book.badge.digital_icons',
                 'callback_class' => 'DigitalLibraryPlugin',
                 'callback_method' => 'renderBadgeIcons',
@@ -303,6 +310,18 @@ class DigitalLibraryPlugin
     {
         if (!empty($book['audio_url'])) {
             include __DIR__ . '/views/frontend-player.php';
+        }
+    }
+
+    /**
+     * Render inline PDF viewer
+     * Hook: book.detail.digital_player (priority 20, after audio player)
+     */
+    public function renderPdfViewer(array $book): void
+    {
+        $fileUrl = $book['file_url'] ?? '';
+        if (!empty($fileUrl) && strtolower(pathinfo($fileUrl, PATHINFO_EXTENSION)) === 'pdf') {
+            include __DIR__ . '/views/frontend-pdf-viewer.php';
         }
     }
 

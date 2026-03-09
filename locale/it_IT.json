@@ -77,5 +77,11 @@
   "Già presenti:": "Già presenti:",
   "Impossibile scaricare (libro senza ISBN):": "Impossibile scaricare (libro senza ISBN):",
   "Copertina non trovata online:": "Copertina non trovata online:",
-  "Errori:": "Errori:"
+  "Errori:": "Errori:",
+  "Leggi PDF": "Leggi PDF",
+  "Chiudi Visualizzatore": "Chiudi Visualizzatore",
+  "Scarica PDF": "Scarica PDF",
+  "Visualizzatore PDF": "Visualizzatore PDF",
+  "Usa Ctrl+F per cercare nel documento": "Usa Ctrl+F per cercare nel documento",
+  "Premi F11 o usa il pulsante nel viewer per la visualizzazione a schermo intero": "Premi F11 o usa il pulsante nel viewer per la visualizzazione a schermo intero"
 }

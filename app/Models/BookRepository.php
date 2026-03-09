@@ -282,6 +282,10 @@ class BookRepository
         if ($this->hasColumn('descrizione')) {
             $addField('descrizione', 's', $data['descrizione'] ?? null);
         }
+        if ($this->hasColumn('descrizione_plain')) {
+            $raw = $data['descrizione'] ?? null;
+            $addField('descrizione_plain', 's', $raw !== null && $raw !== '' ? strip_tags((string)$raw) : $raw);
+        }
         if ($this->hasColumn('parole_chiave')) {
             $addField('parole_chiave', 's', $data['parole_chiave'] ?? null);
         }
@@ -607,6 +611,10 @@ class BookRepository
         }
         if ($this->hasColumn('descrizione')) {
             $addSet('descrizione', 's', $data['descrizione'] ?? null);
+        }
+        if ($this->hasColumn('descrizione_plain')) {
+            $raw = $data['descrizione'] ?? null;
+            $addSet('descrizione_plain', 's', $raw !== null && $raw !== '' ? strip_tags((string)$raw) : $raw);
         }
         if ($this->hasColumn('parole_chiave')) {
             $addSet('parole_chiave', 's', $data['parole_chiave'] ?? null);

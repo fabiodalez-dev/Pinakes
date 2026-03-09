@@ -235,7 +235,7 @@ class SearchController
                     JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id) AS autori
             FROM libri l
-            WHERE l.deleted_at IS NULL AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.descrizione LIKE ?)
+            WHERE l.deleted_at IS NULL AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ? OR COALESCE(l.descrizione_plain, l.descrizione) LIKE ?)
             ORDER BY l.titolo LIMIT 10
         ");
         $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
@@ -348,7 +348,7 @@ class SearchController
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN autori a ON la.autore_id = a.id
-            WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.descrizione LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?)
+            WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR COALESCE(l.descrizione_plain, l.descrizione) LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?)
             ORDER BY l.titolo LIMIT 8
         ");
         $stmt->bind_param('sssssss', $s, $s, $s, $s, $s, $s, $s);

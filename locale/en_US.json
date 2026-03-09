@@ -4031,5 +4031,10 @@
   "Scarica il report CSV per analizzare gli errori in dettaglio": "Download the CSV report to analyze errors in detail",
   "Ogni errore include: numero riga, titolo libro, tipo errore e messaggio dettagliato": "Each error includes: line number, book title, error type and detailed message",
   "ID import mancante": "Missing import ID",
-  "%d import logs eliminati (più vecchi di %d giorni)": "%d import logs deleted (older than %d days)"
+  "%d import logs eliminati (più vecchi di %d giorni)": "%d import logs deleted (older than %d days)",
+  "Leggi PDF": "Read PDF",
+  "Chiudi Visualizzatore": "Close Viewer",
+  "Visualizzatore PDF": "PDF Viewer",
+  "Usa Ctrl+F per cercare nel documento": "Use Ctrl+F to search the document",
+  "Premi F11 o usa il pulsante nel viewer per la visualizzazione a schermo intero": "Press F11 or use the viewer button for fullscreen"
 }
