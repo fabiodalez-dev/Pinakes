@@ -403,6 +403,7 @@ class FrontendController
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             WHERE l.deleted_at IS NULL
         ";
 
@@ -479,13 +480,14 @@ class FrontendController
         $param_types = $where_conditions['types'];
 
         // Query base senza JOIN con autori per evitare duplicati
-        // Include genre parents/grandparents to support filtering at any level
+        // Include genre parents/grandparents/subgenre to support filtering at any level
         $base_query = "
             FROM libri l
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             WHERE l.deleted_at IS NULL
         ";
 
@@ -944,6 +946,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+        LEFT JOIN generi sg ON l.sottogenere_id = sg.id
     ";
     if (!empty($conditionsEd)) {
         // Keep all conditions including genre filter
@@ -975,6 +978,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+        LEFT JOIN generi sg ON l.sottogenere_id = sg.id
         WHERE l.deleted_at IS NULL
     ";
     if (!empty($conditionsAvail)) {

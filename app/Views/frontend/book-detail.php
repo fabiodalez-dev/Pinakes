@@ -1472,11 +1472,8 @@ ob_start();
                     </div>
 
                     <?php if (!empty($genreHierarchy)): ?>
-                    <?php $deepestGenre = end($genreHierarchy); ?>
                     <div class="genre-tags">
-                        <a href="<?= $catalogRoute ?>?genere=<?= urlencode(html_entity_decode($deepestGenre, ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag">
-                            <i class="fas fa-tags me-1"></i><?= htmlspecialchars($bookGenre, ENT_QUOTES, 'UTF-8') ?>
-                        </a>
+                        <i class="fas fa-tags me-1"></i><?php foreach ($genreHierarchy as $i => $genreName): ?><?php if ($i > 0): ?> <span class="genre-separator">&gt;</span> <?php endif; ?><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>?genere=<?= urlencode(html_entity_decode($genreName, ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag"><?= htmlspecialchars(html_entity_decode($genreName, ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?>
                     </div>
                     <?php endif; ?>
 
@@ -1650,10 +1647,10 @@ ob_start();
                             </div>
                             <?php endif; ?>
 
-                            <?php if (!empty($bookGenre)): ?>
+                            <?php if (!empty($genreHierarchy)): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Genere") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($bookGenre, ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="meta-value"><?php foreach ($genreHierarchy as $i => $genreName): ?><?php if ($i > 0): ?> &gt; <?php endif; ?><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>?genere=<?= urlencode(html_entity_decode($genreName, ENT_QUOTES, 'UTF-8')) ?>"><?= htmlspecialchars(html_entity_decode($genreName, ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></div>
                             </div>
                             <?php endif; ?>
 
