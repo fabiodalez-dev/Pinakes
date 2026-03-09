@@ -227,7 +227,7 @@ class SearchController
         $results = [];
         $s = '%'.$query.'%';
 
-        // Search by ISBN, EAN, title, subtitle - include author via subquery
+        // Search by ISBN, EAN, title, subtitle, description - include author via subquery
         $stmt = $db->prepare("
             SELECT l.id, l.titolo AS label, l.isbn10, l.isbn13, l.ean,
                    (SELECT GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ')
@@ -235,10 +235,10 @@ class SearchController
                     JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id) AS autori
             FROM libri l
-            WHERE l.deleted_at IS NULL AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ?)
+            WHERE l.deleted_at IS NULL AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.descrizione LIKE ?)
             ORDER BY l.titolo LIMIT 10
         ");
-        $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
+        $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
         $stmt->execute();
         $res = $stmt->get_result();
 
@@ -348,10 +348,10 @@ class SearchController
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN autori a ON la.autore_id = a.id
-            WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?)
+            WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.descrizione LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?)
             ORDER BY l.titolo LIMIT 8
         ");
-        $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
+        $stmt->bind_param('sssssss', $s, $s, $s, $s, $s, $s, $s);
         $stmt->execute();
         $res = $stmt->get_result();
 

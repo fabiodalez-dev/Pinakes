@@ -2766,6 +2766,7 @@ class LibriController
                 'ean',
                 'titolo',
                 'sottotitolo',
+                'descrizione',
                 'autori',
                 'editore',
                 'anno_pubblicazione',
@@ -2773,7 +2774,6 @@ class LibriController
                 'edizione',
                 'numero_pagine',
                 'genere',
-                'descrizione',
                 'formato',
                 'prezzo',
                 'copie_totali',
@@ -2795,6 +2795,8 @@ class LibriController
                 $row = $this->formatLibraryThingRow($libro, $anno);
             } else {
                 // Standard format (default)
+                // Strip HTML tags from description for clean CSV output
+                $descrizione = strip_tags((string)($libro['descrizione'] ?? ''));
                 $row = [
                     $libro['id'] ?? '',
                     $libro['isbn10'] ?? '',
@@ -2802,6 +2804,7 @@ class LibriController
                     $libro['ean'] ?? '',
                     $libro['titolo'] ?? '',
                     $libro['sottotitolo'] ?? '',
+                    $descrizione,
                     $libro['autori_nomi'] ?? '',
                     $libro['editore_nome'] ?? '',
                     $anno,
@@ -2809,7 +2812,6 @@ class LibriController
                     $libro['edizione'] ?? '',
                     $libro['numero_pagine'] ?? '',
                     $libro['genere_nome'] ?? '',
-                    $libro['descrizione'] ?? '',
                     $libro['formato'] ?? '',
                     $libro['prezzo'] ?? '',
                     $libro['copie_totali'] ?? '1',
