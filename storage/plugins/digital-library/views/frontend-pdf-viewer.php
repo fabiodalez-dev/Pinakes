@@ -9,7 +9,8 @@
  */
 
 $fileUrl = $book['file_url'] ?? '';
-if (empty($fileUrl) || strtolower(pathinfo($fileUrl, PATHINFO_EXTENSION)) !== 'pdf') {
+$urlPath = parse_url($fileUrl, PHP_URL_PATH) ?: $fileUrl;
+if (empty($fileUrl) || strtolower(pathinfo($urlPath, PATHINFO_EXTENSION)) !== 'pdf') {
     return;
 }
 
@@ -62,11 +63,11 @@ $bookTitle = htmlspecialchars($book['titolo'] ?? 'PDF', ENT_QUOTES, 'UTF-8');
             <!-- Info Panel -->
             <div class="mt-3 p-3 bg-light rounded" style="font-size: 0.85rem;">
                 <div class="row g-2">
-                    <div class="col-md-6">
+                    <div class="col-12">
                         <i class="fas fa-search text-muted me-1"></i>
                         <span class="text-muted"><?= __("Usa la funzione di ricerca del browser per trovare testo nel documento") ?></span>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-12">
                         <i class="fas fa-expand text-muted me-1"></i>
                         <span class="text-muted"><?= __("Usa il controllo schermo intero del viewer o del browser") ?></span>
                     </div>

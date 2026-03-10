@@ -545,6 +545,7 @@ CREATE TABLE `plugin_hooks` (
   `is_active` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Whether hook is active',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_plugin_hook_callback` (`plugin_id`,`hook_name`,`callback_class`,`callback_method`),
   KEY `idx_hook_name` (`hook_name`,`priority`),
   KEY `idx_plugin_id` (`plugin_id`),
   KEY `idx_active` (`is_active`),

@@ -15,7 +15,8 @@ if (!$hasEbook && !$hasAudiobook) {
     return;
 }
 
-$isPdf = $hasEbook && strtolower(pathinfo($book['file_url'] ?? '', PATHINFO_EXTENSION)) === 'pdf';
+$ebookPath = parse_url($book['file_url'] ?? '', PHP_URL_PATH) ?: ($book['file_url'] ?? '');
+$isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === 'pdf';
 ?>
 
 <?php if ($hasEbook && $isPdf): ?>
@@ -41,6 +42,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($book['file_url'] ?? '', PATHINFO_EXTE
 <!-- Non-PDF (ePub etc.): open in new tab, no download attribute -->
 <a href="<?= htmlspecialchars(url($book['file_url']), ENT_QUOTES, 'UTF-8') ?>"
    target="_blank"
+   rel="noopener noreferrer"
    class="btn btn-outline-danger btn-lg"
    title="<?= __("Scarica l'eBook in formato digitale") ?>">
     <i class="fas fa-file-pdf me-2"></i>

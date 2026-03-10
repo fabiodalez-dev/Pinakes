@@ -32,3 +32,19 @@ DEALLOCATE PREPARE stmt;
 INSERT IGNORE INTO system_settings (category, setting_key, setting_value, description, updated_at)
 VALUES ('sharing', 'enabled_providers', 'facebook,x,whatsapp,email',
         'Enabled social sharing providers on book detail page', NOW());
+
+-- =============================================================================
+-- Add unique index on plugin_hooks for atomic upsert registration
+-- =============================================================================
+-- Prevents duplicate hook rows from concurrent registerHooks() calls.
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                   WHERE TABLE_SCHEMA = DATABASE()
+                     AND TABLE_NAME = 'plugin_hooks'
+                     AND INDEX_NAME = 'uk_plugin_hook_callback');
+SET @sql = IF(@idx_exists = 0,
+    'ALTER TABLE plugin_hooks ADD UNIQUE KEY uk_plugin_hook_callback (plugin_id, hook_name, callback_class, callback_method)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

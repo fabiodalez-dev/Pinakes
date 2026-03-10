@@ -98,7 +98,7 @@ class BookRepository
             && $row['descrizione_plain'] === null
             && !empty($row['descrizione'])
         ) {
-            $plain = strip_tags((string)$row['descrizione']);
+            $plain = $this->toPlainTextDescription((string)$row['descrizione']);
             $upd = $this->db->prepare("UPDATE libri SET descrizione_plain = ? WHERE id = ?");
             if ($upd) {
                 $upd->bind_param('si', $plain, $id);
@@ -298,7 +298,7 @@ class BookRepository
         }
         if ($this->hasColumn('descrizione_plain')) {
             $raw = $data['descrizione'] ?? null;
-            $addField('descrizione_plain', 's', $raw !== null && $raw !== '' ? strip_tags((string)$raw) : $raw);
+            $addField('descrizione_plain', 's', $this->toPlainTextDescription($raw));
         }
         if ($this->hasColumn('parole_chiave')) {
             $addField('parole_chiave', 's', $data['parole_chiave'] ?? null);
@@ -628,7 +628,7 @@ class BookRepository
         }
         if ($this->hasColumn('descrizione_plain')) {
             $raw = $data['descrizione'] ?? null;
-            $addSet('descrizione_plain', 's', $raw !== null && $raw !== '' ? strip_tags((string)$raw) : $raw);
+            $addSet('descrizione_plain', 's', $this->toPlainTextDescription($raw));
         }
         if ($this->hasColumn('parole_chiave')) {
             $addSet('parole_chiave', 's', $data['parole_chiave'] ?? null);
@@ -1170,6 +1170,18 @@ class BookRepository
             $row['sottogenere_nome'] = $chain[$chainLen - 1]['nome'];
             $row['sottogenere_id_cascade'] = $chain[$chainLen - 1]['id'];
         }
+    }
+
+    private function toPlainTextDescription(?string $html): ?string
+    {
+        if ($html === null || $html === '') {
+            return $html;
+        }
+        $text = preg_replace('/<(\/p|br\s*\/?)>/i', "\n", $html);
+        $text = html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace("/[ \t]+/", ' ', (string) $text);
+        $text = preg_replace("/\n{3,}/", "\n\n", (string) $text);
+        return trim((string) $text);
     }
 
     private static array $columnCacheByDb = [];

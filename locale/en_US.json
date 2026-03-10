@@ -4039,13 +4039,10 @@
   "Usa il controllo schermo intero del viewer o del browser": "Use the viewer or browser fullscreen control",
   "Condivisione": "Sharing",
   "Seleziona i pulsanti di condivisione da mostrare nella pagina del libro.": "Select which share buttons to show on the book page.",
-  "Anteprima": "Preview",
   "Nessun pulsante selezionato": "No buttons selected",
   "Salva impostazioni condivisione": "Save sharing settings",
   "Impostazioni di condivisione aggiornate.": "Sharing settings updated.",
-  "Condividi su Facebook": "Share on Facebook",
   "Condividi su X": "Share on X",
-  "Condividi su WhatsApp": "Share on WhatsApp",
   "Condividi su Telegram": "Share on Telegram",
   "Condividi su LinkedIn": "Share on LinkedIn",
   "Condividi su Reddit": "Share on Reddit",
@@ -4058,7 +4055,5 @@
   "Condividi su LINE": "Share on LINE",
   "Invia via SMS": "Send via SMS",
   "Invia per email": "Send by email",
-  "Copia link": "Copy link",
-  "Link copiato!": "Link copied!",
-  "Condividi": "Share"
+  "Copia link": "Copy link"
 }

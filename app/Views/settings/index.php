@@ -713,17 +713,25 @@ $activeTab = $activeTab ?? 'general';
       });
     });
 
-    // Check URL hash on page load
+    // Check URL on page load: hash takes priority, then ?tab= query param
     const hash = window.location.hash.substring(1);
-    if (hash && document.querySelector(`[data-settings-tab="${hash}"]`)) {
-      activateTab(hash);
+    const qTab = new URL(window.location.href).searchParams.get('tab');
+    const initialTab = (hash || qTab || '');
+    if (initialTab && document.querySelector(`[data-settings-tab="${initialTab}"]`)) {
+      activateTab(initialTab);
+      // Sync URL so both ?tab= and # are consistent
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', initialTab);
+      url.hash = initialTab;
+      window.history.replaceState({}, '', url.toString());
     }
 
     // Handle browser back/forward
-    window.addEventListener('hashchange', () => {
-      const currentHash = window.location.hash.substring(1);
-      if (currentHash && document.querySelector(`[data-settings-tab="${currentHash}"]`)) {
-        activateTab(currentHash);
+    window.addEventListener('popstate', () => {
+      const url = new URL(window.location.href);
+      const tab = url.hash.substring(1) || url.searchParams.get('tab') || '';
+      if (tab && document.querySelector(`[data-settings-tab="${tab}"]`)) {
+        activateTab(tab);
       }
     });
 

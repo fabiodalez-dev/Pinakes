@@ -630,7 +630,7 @@ curl "http://yoursite.com/api/sru?operation=searchRetrieve&query=bath.isbn=97888
 - **Retry logic** with exponential backoff
 - **Error logging** and debugging tools
 
-### 4. Digital Library (`digital-library-v1.2.0.zip`)
+### 4. Digital Library (`digital-library-v1.3.0.zip`)
 - **eBook support** (PDF, ePub) with download tracking
 - **Audiobook streaming** (MP3, M4A, OGG) with HTML5 player
 - **Per-item digital asset management** (unlimited files per book)

@@ -905,7 +905,8 @@ class SettingsController
         if (!is_array($selected)) {
             $selected = [];
         }
-        $valid = array_values(array_intersect($selected, $allowedSlugs));
+        $selected = array_map(static fn($s) => strtolower(trim((string) $s)), $selected);
+        $valid = array_values(array_intersect($allowedSlugs, array_unique($selected)));
         $value = implode(',', $valid);
 
         $repository->set('sharing', 'enabled_providers', $value);
