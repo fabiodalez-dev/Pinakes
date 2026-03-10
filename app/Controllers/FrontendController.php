@@ -893,26 +893,30 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                    LEFT JOIN generi gf ON l.genere_id = gf.id
                    LEFT JOIN generi gfp ON gf.parent_id = gfp.id
                    LEFT JOIN generi gfpp ON gfp.parent_id = gfpp.id
+                   LEFT JOIN generi sg ON l.sottogenere_id = sg.id
                    WHERE (
                        l.genere_id = g.id
+                       OR l.sottogenere_id = g.id
                        OR l.genere_id IN (SELECT id FROM generi WHERE parent_id = g.id)
+                       OR l.sottogenere_id IN (SELECT id FROM generi WHERE parent_id = g.id)
                        OR l.genere_id IN (SELECT gc.id FROM generi gc JOIN generi gp ON gc.parent_id = gp.id WHERE gp.parent_id = g.id)
+                       OR l.sottogenere_id IN (SELECT gc.id FROM generi gc JOIN generi gp ON gc.parent_id = gp.id WHERE gp.parent_id = g.id)
                    )
                    {$whereClauseGen}
                ) AS cnt
         FROM (
-            -- Select all genres that have books or are parents of genres with books
+            -- Select all genres that have books via genere_id or sottogenere_id
             SELECT DISTINCT g.id FROM generi g
-            JOIN libri l ON g.id = l.genere_id AND l.deleted_at IS NULL
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL
             UNION
             SELECT DISTINCT gp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
-            JOIN libri l ON g.id = l.genere_id AND l.deleted_at IS NULL
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL
             UNION
             SELECT DISTINCT gpp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
             JOIN generi gpp ON gp.parent_id = gpp.id
-            JOIN libri l ON g.id = l.genere_id AND l.deleted_at IS NULL
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL
         ) as genre_ids
         JOIN generi g ON genre_ids.id = g.id
         ORDER BY g.parent_id, g.nome
