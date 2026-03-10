@@ -716,13 +716,15 @@ $activeTab = $activeTab ?? 'general';
     // Check URL on page load: hash takes priority, then ?tab= query param
     const hash = window.location.hash.substring(1);
     const qTab = new URL(window.location.href).searchParams.get('tab');
-    const initialTab = (hash || qTab || '');
-    if (initialTab && document.querySelector(`[data-settings-tab="${initialTab}"]`)) {
-      activateTab(initialTab);
-      // Sync URL so both ?tab= and # are consistent
+    const candidate = (hash || qTab || '');
+    const resolvedTab = (candidate && document.querySelector(`[data-settings-tab="${candidate}"]`))
+      ? candidate
+      : (document.querySelector('[data-settings-tab]')?.getAttribute('data-settings-tab') || '');
+    if (resolvedTab) {
+      activateTab(resolvedTab);
       const url = new URL(window.location.href);
-      url.searchParams.set('tab', initialTab);
-      url.hash = initialTab;
+      url.searchParams.set('tab', resolvedTab);
+      url.hash = resolvedTab;
       window.history.replaceState({}, '', url.toString());
     }
 
@@ -1010,7 +1012,21 @@ $activeTab = $activeTab ?? 'general';
         sharingPreview.appendChild(empty);
       }
     }
-    sharingCheckboxes.forEach(cb => cb.addEventListener('change', updateSharingPreview));
+    function syncSharingCardState(cb) {
+      const label = cb.closest('label');
+      if (!label) return;
+      if (cb.checked) {
+        label.classList.remove('border-gray-200', 'hover:border-gray-300');
+        label.classList.add('border-gray-400');
+      } else {
+        label.classList.remove('border-gray-400');
+        label.classList.add('border-gray-200', 'hover:border-gray-300');
+      }
+    }
+    sharingCheckboxes.forEach(cb => {
+      cb.addEventListener('change', () => { updateSharingPreview(); syncSharingCardState(cb); });
+      syncSharingCardState(cb);
+    });
     updateSharingPreview();
   });
 </script>

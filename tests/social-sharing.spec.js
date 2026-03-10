@@ -24,8 +24,8 @@ test.describe.serial('Social Sharing', () => {
   let context;
   /** @type {import('@playwright/test').Page} */
   let page;
-  /** @type {string[]} Original checked provider slugs — captured for restore */
-  let originalProviders = [];
+  /** @type {string[] | null} Original checked provider slugs — null until capture completes */
+  let originalProviders = null;
 
   test.beforeAll(async ({ browser }) => {
     context = await browser.newContext();
@@ -40,19 +40,21 @@ test.describe.serial('Social Sharing', () => {
     // Capture original sharing config so afterAll can restore it
     await page.goto(`${BASE}/admin/settings?tab=sharing`);
     await page.waitForLoadState('networkidle');
+    const captured = [];
     const inputs = page.locator('[data-settings-panel="sharing"] input[type="checkbox"][name="sharing_providers[]"]');
     const count = await inputs.count();
     for (let i = 0; i < count; i++) {
       if (await inputs.nth(i).isChecked()) {
         const value = await inputs.nth(i).getAttribute('value');
-        if (value) originalProviders.push(value);
+        if (value) captured.push(value);
       }
     }
+    originalProviders = captured;
   });
 
   test.afterAll(async () => {
-    // Restore original sharing providers regardless of test outcome
-    if (page) {
+    // Restore original sharing providers only if capture completed
+    if (page && originalProviders !== null) {
       try {
         await page.goto(`${BASE}/admin/settings?tab=sharing`);
         await page.waitForLoadState('networkidle');
@@ -151,9 +153,14 @@ test.describe.serial('Social Sharing', () => {
     const preview = panel.locator('#sharing-preview');
     await expect(preview).toBeVisible();
 
-    // Preview should show icons for checked providers
-    const fbIcon = preview.locator('.fab.fa-facebook-f, .fa-facebook-f');
-    await expect(fbIcon).toBeVisible();
+    // Toggle linkedin on and verify preview adds the icon
+    const linkedin = panel.locator('input[value="linkedin"]');
+    await linkedin.check();
+    await expect(preview.locator('.fa-linkedin-in')).toBeVisible();
+
+    // Toggle linkedin off and verify preview removes the icon
+    await linkedin.uncheck();
+    await expect(preview.locator('.fa-linkedin-in')).toHaveCount(0);
   });
 
   test('4. Frontend: share buttons appear on book detail page', async () => {

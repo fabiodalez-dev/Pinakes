@@ -827,7 +827,7 @@ Each plugin has a `plugin.json` file with these version fields:
    |--------|---------|------|
    | api-book-scraper | 1.1.0 | api-book-scraper-v1.1.0.zip |
    | dewey-editor | 1.0.0 | dewey-editor-v1.0.0.zip |
-   | digital-library | 1.0.0 | digital-library-v1.0.0.zip |
+   | digital-library | 1.3.0 | digital-library-v1.3.0.zip |
    | open-library | 1.0.0 | open-library-v1.0.0.zip |
    | scraping-pro | 1.4.1 | scraping-pro-v1.4.1.zip |
    | z39-server | 1.2.1 | z39-server-v1.2.1.zip |

@@ -1178,7 +1178,7 @@ class BookRepository
             return $html;
         }
         $text = preg_replace(
-            '/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)|br\s*\/?)>/i',
+            '/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)\b[^>]*|br\b[^>]*\/?)>/i',
             "\n",
             $html
         );

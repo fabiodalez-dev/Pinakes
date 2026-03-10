@@ -192,11 +192,11 @@ ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VAL
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('system', 'catalogue_mode', '0', 'Nur-Katalog-Modus - deaktiviert Ausleihen, Vormerkungen und Wunschliste')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description);
+ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Tage zum Abholen einer genehmigten Ausleihe bevor sie verfällt')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description);
+ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
 
 -- ============================================================================
 -- System Settings - Complete default configuration

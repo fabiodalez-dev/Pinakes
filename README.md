@@ -47,7 +47,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 **Bug Fixes:**
 - **Genre filter 500 error** — Fixed subgenre filtering that caused HTTP 500 in catalog (Issue #90)
 - **Clickable genre hierarchy** — Genre breadcrumbs are now clickable links for filtering
-- **CSV export fix** — Export with selected IDs now works correctly
+- **CSV export cleanup** — `descrizione` now follows `sottotitolo`, HTML tags stripped for clean output
 
 **Translations:**
 - All PDF viewer strings translated in Italian, English, and German

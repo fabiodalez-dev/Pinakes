@@ -2797,7 +2797,7 @@ class LibriController
                 // Standard format (default)
                 // Block-aware HTML→plain text for clean CSV output
                 $rawDesc = (string) ($libro['descrizione'] ?? '');
-                $rawDesc = preg_replace('/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)|br\s*\/?)>/i', "\n", $rawDesc);
+                $rawDesc = preg_replace('/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)\b[^>]*|br\b[^>]*\/?)>/i', "\n", $rawDesc);
                 $rawDesc = html_entity_decode(strip_tags((string) $rawDesc), ENT_QUOTES | ENT_HTML5, 'UTF-8');
                 $rawDesc = str_replace("\xC2\xA0", ' ', (string) $rawDesc);
                 $rawDesc = (string) preg_replace("/[ \t]+/", ' ', $rawDesc);

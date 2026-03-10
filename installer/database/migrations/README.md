@@ -92,7 +92,7 @@ Each migration should include:
 ### 0.4.9.9 (2026-03-01)
 **HTML-free search column**
 - Added `descrizione_plain` TEXT column to `libri` (after descrizione)
-- PHP-based strip_tags backfill for existing rows (not SQL — avoids backslash issues with splitSqlStatements)
+- Plaintext values are populated lazily in PHP on later reads/writes; until then searches fall back via `COALESCE(descrizione_plain, descrizione)`
 
 ### 0.4.8.2 (2026-02-12)
 **Illustrator field, language improvements, BCE year support**

@@ -132,7 +132,12 @@ $htmlLang = substr($currentLocale, 0, 2);
         <meta property="og:locale" content="<?= htmlspecialchars(I18n::getLocale() ?: 'it_IT') ?>">
         <?php if (!empty($ogBookMeta)): ?>
             <?php foreach ($ogBookMeta as $bm): ?>
-        <meta property="<?= htmlspecialchars($bm['property']) ?>" content="<?= htmlspecialchars($bm['content']) ?>">
+                <?php
+                $prop = is_array($bm) ? (string) ($bm['property'] ?? '') : '';
+                $cont = is_array($bm) ? (string) ($bm['content'] ?? '') : '';
+                if ($prop === '' || $cont === '') { continue; }
+                ?>
+        <meta property="<?= htmlspecialchars($prop, ENT_QUOTES, 'UTF-8') ?>" content="<?= htmlspecialchars($cont, ENT_QUOTES, 'UTF-8') ?>">
             <?php endforeach; ?>
         <?php endif; ?>
     <?php endif; ?>
