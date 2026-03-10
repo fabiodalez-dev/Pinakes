@@ -84,9 +84,10 @@ Each migration should include:
 ## Migration History
 
 ### 0.5.0 (2026-03-10)
-**Social sharing settings + descrizione_plain safety net**
+**Social sharing settings + descrizione_plain safety net + plugin_hooks unique key**
 - Added `descrizione_plain` column to `libri` (idempotent, INFORMATION_SCHEMA check) — safety net for fresh installs between 0.4.9.9 and 0.5.0 where schema.sql was missing this column
 - Added default sharing setting: `enabled_providers = 'facebook,x,whatsapp,email'` via INSERT IGNORE
+- Deduplicated `plugin_hooks` rows and added `uk_plugin_hook_callback` unique key for atomic upsert registration (idempotent, INFORMATION_SCHEMA check)
 
 ### 0.4.9.9 (2026-03-01)
 **HTML-free search column**

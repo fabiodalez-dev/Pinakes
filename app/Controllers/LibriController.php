@@ -2795,12 +2795,14 @@ class LibriController
                 $row = $this->formatLibraryThingRow($libro, $anno);
             } else {
                 // Standard format (default)
-                // Strip HTML tags and decode entities for clean CSV output
-                $descrizione = trim(html_entity_decode(
-                    strip_tags((string) ($libro['descrizione'] ?? '')),
-                    ENT_QUOTES | ENT_HTML5,
-                    'UTF-8'
-                ));
+                // Block-aware HTML→plain text for clean CSV output
+                $rawDesc = (string) ($libro['descrizione'] ?? '');
+                $rawDesc = preg_replace('/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)|br\s*\/?)>/i', "\n", $rawDesc);
+                $rawDesc = html_entity_decode(strip_tags((string) $rawDesc), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $rawDesc = str_replace("\xC2\xA0", ' ', (string) $rawDesc);
+                $rawDesc = (string) preg_replace("/[ \t]+/", ' ', $rawDesc);
+                $rawDesc = (string) preg_replace("/\n{3,}/", "\n\n", $rawDesc);
+                $descrizione = trim($rawDesc);
                 $row = [
                     $libro['id'] ?? '',
                     $libro['isbn10'] ?? '',
