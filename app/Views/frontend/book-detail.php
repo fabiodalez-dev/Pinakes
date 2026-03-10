@@ -1546,6 +1546,8 @@ ob_start();
                 do_action('book.detail.digital_player', $book);
                 ?>
 
+                <?php include __DIR__ . '/partials/social-sharing.php'; ?>
+
                 <!-- Alerts Section -->
                 <div id="book-alerts">
                     <?php if (!empty($_GET['loan_request_success'])): ?>

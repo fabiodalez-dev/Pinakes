@@ -892,6 +892,29 @@ class SettingsController
         ];
     }
 
+    public function updateSharingSettings(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+
+        $allowedSlugs = ['facebook', 'x', 'whatsapp', 'telegram', 'linkedin', 'reddit', 'pinterest', 'email', 'copylink'];
+        $selected = $data['sharing_providers'] ?? [];
+        if (!is_array($selected)) {
+            $selected = [];
+        }
+        $valid = array_values(array_intersect($selected, $allowedSlugs));
+        $value = implode(',', $valid);
+
+        $repository->set('sharing', 'enabled_providers', $value);
+        ConfigStore::set('sharing.enabled_providers', $value);
+
+        $_SESSION['success_message'] = __('Impostazioni di condivisione aggiornate.');
+        return $this->redirect($response, '/admin/settings?tab=sharing');
+    }
+
     private function redirect(Response $response, string $location): Response
     {
         return $response->withHeader('Location', $location)->withStatus(302);

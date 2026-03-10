@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Repositories\RecensioniRepository;
 use App\Support\Branding;
+use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 use App\Support\RouteTranslator;
 use mysqli;
@@ -651,6 +652,11 @@ class FrontendController
         $recensioniRepo = new RecensioniRepository($db);
         $reviews = $recensioniRepo->getApprovedReviewsForBook($book_id);
         $reviewStats = $recensioniRepo->getReviewStats($book_id);
+
+        // Social sharing
+        $sharingProviders = array_filter(explode(',', (string) ConfigStore::get('sharing.enabled_providers', '')));
+        $shareUrl = absoluteUrl(book_url($book));
+        $shareTitle = $book['titolo'] ?? '';
 
         // Render template
         $container = $this->container;

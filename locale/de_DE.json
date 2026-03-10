@@ -4036,5 +4036,22 @@
   "Chiudi Visualizzatore": "Viewer schließen",
   "Visualizzatore PDF": "PDF-Viewer",
   "Usa la funzione di ricerca del browser per trovare testo nel documento": "Verwenden Sie die Suchfunktion des Browsers, um Text im Dokument zu finden",
-  "Usa il controllo schermo intero del viewer o del browser": "Verwenden Sie die Vollbildsteuerung des Viewers oder Browsers"
+  "Usa il controllo schermo intero del viewer o del browser": "Verwenden Sie die Vollbildsteuerung des Viewers oder Browsers",
+  "Condivisione": "Teilen",
+  "Seleziona i pulsanti di condivisione da mostrare nella pagina del libro.": "Wählen Sie die Teilen-Schaltflächen aus, die auf der Buchseite angezeigt werden sollen.",
+  "Anteprima": "Vorschau",
+  "Nessun pulsante selezionato": "Keine Schaltflächen ausgewählt",
+  "Salva impostazioni condivisione": "Freigabeeinstellungen speichern",
+  "Impostazioni di condivisione aggiornate.": "Freigabeeinstellungen aktualisiert.",
+  "Condividi su Facebook": "Auf Facebook teilen",
+  "Condividi su X": "Auf X teilen",
+  "Condividi su WhatsApp": "Auf WhatsApp teilen",
+  "Condividi su Telegram": "Auf Telegram teilen",
+  "Condividi su LinkedIn": "Auf LinkedIn teilen",
+  "Condividi su Reddit": "Auf Reddit teilen",
+  "Condividi su Pinterest": "Auf Pinterest teilen",
+  "Invia per email": "Per E-Mail senden",
+  "Copia link": "Link kopieren",
+  "Link copiato!": "Link kopiert!",
+  "Condividi": "Teilen"
 }

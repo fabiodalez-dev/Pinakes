@@ -275,7 +275,10 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('api', 'enabled', '0', 'API global aktivieren', NOW()),
 
 -- CMS settings
-('cms', 'events_page_enabled', '1', 'Veranstaltungsseite im Frontend aktivieren', NOW())
+('cms', 'events_page_enabled', '1', 'Veranstaltungsseite im Frontend aktivieren', NOW()),
+
+-- Social sharing settings
+('sharing', 'enabled_providers', 'facebook,x,whatsapp,email', 'Aktivierte Social-Sharing-Anbieter auf der Buchdetailseite', NOW())
 ON DUPLICATE KEY UPDATE
     setting_value = VALUES(setting_value),
     description = VALUES(description),

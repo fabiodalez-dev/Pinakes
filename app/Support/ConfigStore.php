@@ -104,6 +104,9 @@ final class ConfigStore
             'cms' => [
                 'events_page_enabled' => '1', // Default to enabled
             ],
+            'sharing' => [
+                'enabled_providers' => 'facebook,x,whatsapp,email',
+            ],
         ];
 
         $localizedDefaults = self::getLocaleDefaultTexts();
@@ -564,6 +567,13 @@ final class ConfigStore
                 foreach ($raw['cms'] as $key => $value) {
                     // Keep as string '1' or '0' to match controller/view usage
                     self::$dbSettingsCache['cms'][$key] = (string) $value;
+                }
+            }
+
+            if (!empty($raw['sharing'])) {
+                self::$dbSettingsCache['sharing'] = [];
+                foreach ($raw['sharing'] as $key => $value) {
+                    self::$dbSettingsCache['sharing'][$key] = (string) $value;
                 }
             }
 
