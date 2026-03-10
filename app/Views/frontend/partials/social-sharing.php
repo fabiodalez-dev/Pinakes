@@ -137,7 +137,7 @@ $encodedTitle = rawurlencode($shareTitle);
     <h6 class="mb-0"><i class="fas fa-share-alt me-2"></i><?= htmlspecialchars(__('Condividi'), ENT_QUOTES, 'UTF-8') ?></h6>
   </div>
   <div class="card-body py-2 px-3">
-    <div class="d-flex flex-wrap justify-content-center gap-1">
+    <div class="d-flex flex-wrap gap-2">
     <?php foreach ($sharingProviders as $slug): ?>
       <?php if (!isset($providers[$slug])) { continue; } ?>
       <?php $p = $providers[$slug]; ?>
@@ -166,7 +166,9 @@ $encodedTitle = rawurlencode($shareTitle);
       <?php endif; ?>
     <?php endforeach; ?>
 
-    <?php /* Web Share API — shown only when browser supports it */ ?>
+    <?php /* Web Share API — intentional progressive enhancement: always rendered,
+           shown via JS only when navigator.share exists. Not gated by admin config
+           because it delegates to the OS share sheet (not a specific provider). */ ?>
     <button type="button"
             class="social-share-btn social-share-webapi"
             style="background-color: #333; display: none;"

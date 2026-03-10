@@ -37,7 +37,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 **Search Improvements (Issue #83):**
 - **Description-inclusive search** — Header search, admin book search, and unified search all query `COALESCE(descrizione_plain, descrizione)` so description-only matches are returned
-- **HTML-free search column** — New `descrizione_plain` column stores `strip_tags()` version of the description, preventing HTML tag names from polluting search results (e.g. searching "strong" no longer matches `<strong>` tags)
+- **HTML-free search column** — New `descrizione_plain` column stores a `strip_tags()` version of the description. New and edited rows search against plain text, so HTML tag names stop polluting results once the column has been populated (existing rows use COALESCE fallback until backfilled)
 
 **Database Migration (`migrate_0.4.9.9.sql`):**
 - Adds `descrizione_plain TEXT DEFAULT NULL` column to `libri` table

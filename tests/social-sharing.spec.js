@@ -24,6 +24,8 @@ test.describe.serial('Social Sharing', () => {
   let context;
   /** @type {import('@playwright/test').Page} */
   let page;
+  /** @type {string[]} Original checked provider slugs — captured for restore */
+  let originalProviders = [];
 
   test.beforeAll(async ({ browser }) => {
     context = await browser.newContext();
@@ -34,9 +36,40 @@ test.describe.serial('Social Sharing', () => {
     await page.fill('input[name="password"]', ADMIN_PASS);
     await page.locator('button[type="submit"]').click();
     await page.waitForURL(/admin/, { timeout: 15000 });
+
+    // Capture original sharing config so afterAll can restore it
+    await page.goto(`${BASE}/admin/settings?tab=sharing`);
+    await page.waitForLoadState('networkidle');
+    const inputs = page.locator('[data-settings-panel="sharing"] input[type="checkbox"][name="sharing_providers[]"]');
+    const count = await inputs.count();
+    for (let i = 0; i < count; i++) {
+      if (await inputs.nth(i).isChecked()) {
+        const value = await inputs.nth(i).getAttribute('value');
+        if (value) originalProviders.push(value);
+      }
+    }
   });
 
   test.afterAll(async () => {
+    // Restore original sharing providers regardless of test outcome
+    if (page) {
+      try {
+        await page.goto(`${BASE}/admin/settings?tab=sharing`);
+        await page.waitForLoadState('networkidle');
+        const panel = page.locator('[data-settings-panel="sharing"]');
+        const inputs = panel.locator('input[type="checkbox"][name="sharing_providers[]"]');
+        const count = await inputs.count();
+        for (let i = 0; i < count; i++) {
+          const isChecked = await inputs.nth(i).isChecked();
+          const value = await inputs.nth(i).getAttribute('value');
+          const shouldBeChecked = value ? originalProviders.includes(value) : false;
+          if (isChecked && !shouldBeChecked) await inputs.nth(i).uncheck();
+          if (!isChecked && shouldBeChecked) await inputs.nth(i).check();
+        }
+        await panel.locator('button[type="submit"]').click();
+        await page.waitForLoadState('networkidle');
+      } catch { /* best effort */ }
+    }
     await context?.close();
   });
 
@@ -202,6 +235,7 @@ test.describe.serial('Social Sharing', () => {
     for (let i = 0; i < extCount; i++) {
       const rel = await externalLinks.nth(i).getAttribute('rel');
       expect(rel).toContain('noopener');
+      expect(rel).toContain('noreferrer');
     }
   });
 
@@ -293,27 +327,5 @@ test.describe.serial('Social Sharing', () => {
 
     const shareCard = page.locator('#book-share-card');
     await expect(shareCard).toHaveCount(0);
-  });
-
-  test('9. Cleanup: restore default providers', async () => {
-    // Re-enable default providers
-    await page.goto(`${BASE}/admin/settings?tab=sharing`);
-    await page.waitForLoadState('networkidle');
-
-    const panel = page.locator('[data-settings-panel="sharing"]');
-    for (const slug of ['facebook', 'x', 'whatsapp', 'email']) {
-      await panel.locator(`input[value="${slug}"]`).check();
-    }
-    await panel.locator('button[type="submit"]').click();
-    await page.waitForLoadState('networkidle');
-
-    // Verify restored
-    await page.goto(`${BASE}/admin/settings?tab=sharing`);
-    await page.waitForLoadState('networkidle');
-    const panelAfter = page.locator('[data-settings-panel="sharing"]');
-    await expect(panelAfter.locator('input[value="facebook"]')).toBeChecked();
-    await expect(panelAfter.locator('input[value="x"]')).toBeChecked();
-    await expect(panelAfter.locator('input[value="whatsapp"]')).toBeChecked();
-    await expect(panelAfter.locator('input[value="email"]')).toBeChecked();
   });
 });

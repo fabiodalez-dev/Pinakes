@@ -188,7 +188,7 @@ INSERT IGNORE INTO `generi` VALUES (181,'Oratorium',NULL,'2025-10-20 16:20:00','
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('cms', 'events_page_enabled', '1', 'Veranstaltungsseite im Frontend aktivieren oder deaktivieren')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description);
+ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('system', 'catalogue_mode', '0', 'Nur-Katalog-Modus - deaktiviert Ausleihen, Vormerkungen und Wunschliste')

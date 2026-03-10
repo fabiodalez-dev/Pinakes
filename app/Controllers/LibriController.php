@@ -2795,8 +2795,12 @@ class LibriController
                 $row = $this->formatLibraryThingRow($libro, $anno);
             } else {
                 // Standard format (default)
-                // Strip HTML tags from description for clean CSV output
-                $descrizione = strip_tags((string)($libro['descrizione'] ?? ''));
+                // Strip HTML tags and decode entities for clean CSV output
+                $descrizione = trim(html_entity_decode(
+                    strip_tags((string) ($libro['descrizione'] ?? '')),
+                    ENT_QUOTES | ENT_HTML5,
+                    'UTF-8'
+                ));
                 $row = [
                     $libro['id'] ?? '',
                     $libro['isbn10'] ?? '',

@@ -45,7 +45,7 @@ $isPdf = $hasEbook && strtolower(pathinfo($ebookPath, PATHINFO_EXTENSION)) === '
    rel="noopener noreferrer"
    class="btn btn-outline-danger btn-lg"
    title="<?= __("Scarica l'eBook in formato digitale") ?>">
-    <i class="fas fa-file-pdf me-2"></i>
+    <i class="fas fa-book-open me-2"></i>
     <?= __("Scarica eBook") ?>
 </a>
 <?php endif; ?>
