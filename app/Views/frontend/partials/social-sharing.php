@@ -63,6 +63,55 @@ $providers = [
         'url'   => 'https://pinterest.com/pin/create/button/?url={url}&description={title}',
         'label' => __('Condividi su Pinterest'),
     ],
+    'threads'   => [
+        'name'  => 'Threads',
+        'icon'  => 'fab fa-threads',
+        'color' => '#000000',
+        'url'   => 'https://www.threads.com/intent/post?text={title}%20{url}',
+        'label' => __('Condividi su Threads'),
+    ],
+    'bluesky'   => [
+        'name'  => 'Bluesky',
+        'icon'  => 'fab fa-bluesky',
+        'color' => '#0085FF',
+        'url'   => 'https://bsky.app/intent/compose?text={title}%20{url}',
+        'label' => __('Condividi su Bluesky'),
+    ],
+    'tumblr'    => [
+        'name'  => 'Tumblr',
+        'icon'  => 'fab fa-tumblr',
+        'color' => '#36465D',
+        'url'   => 'https://www.tumblr.com/widgets/share/tool?canonicalUrl={url}&title={title}',
+        'label' => __('Condividi su Tumblr'),
+    ],
+    'pocket'    => [
+        'name'  => 'Pocket',
+        'icon'  => 'fab fa-get-pocket',
+        'color' => '#EF4056',
+        'url'   => 'https://getpocket.com/save?url={url}&title={title}',
+        'label' => __('Salva su Pocket'),
+    ],
+    'vk'        => [
+        'name'  => 'VKontakte',
+        'icon'  => 'fab fa-vk',
+        'color' => '#4680C2',
+        'url'   => 'https://vk.com/share.php?url={url}&title={title}',
+        'label' => __('Condividi su VK'),
+    ],
+    'line'      => [
+        'name'  => 'LINE',
+        'icon'  => 'fab fa-line',
+        'color' => '#00C300',
+        'url'   => 'https://social-plugins.line.me/lineit/share?url={url}',
+        'label' => __('Condividi su LINE'),
+    ],
+    'sms'       => [
+        'name'  => 'SMS',
+        'icon'  => 'fas fa-sms',
+        'color' => '#666666',
+        'url'   => 'sms:?body={title}%20{url}',
+        'label' => __('Invia via SMS'),
+    ],
     'email'     => [
         'name'  => 'Email',
         'icon'  => 'fas fa-envelope',
@@ -111,7 +160,7 @@ $encodedTitle = rawurlencode($shareTitle);
            style="background-color: <?= htmlspecialchars($p['color'], ENT_QUOTES, 'UTF-8') ?>"
            title="<?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>"
            aria-label="<?= htmlspecialchars($p['label'], ENT_QUOTES, 'UTF-8') ?>"
-           <?php if ($slug !== 'email'): ?>target="_blank" rel="noopener noreferrer"<?php endif; ?>>
+           <?php if ($slug !== 'email' && $slug !== 'sms'): ?>target="_blank" rel="noopener noreferrer"<?php endif; ?>>
           <i class="<?= htmlspecialchars($p['icon'], ENT_QUOTES, 'UTF-8') ?>"></i>
         </a>
       <?php endif; ?>

@@ -2083,6 +2083,24 @@ $seoImage = $ogImage;
 $seoCanonical = $canonicalUrl;
 $seoSchema = json_encode([$bookSchema, $breadcrumbSchema, $organizationSchema], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
 
+// Open Graph — explicit overrides for book detail
+$ogTitle = $bookTitle . ($bookAuthor ? ' — ' . $bookAuthor : '');
+$ogDescription = $metaDescription;
+$ogUrl = absoluteUrl(book_url($book));
+$ogType = 'book';
+
+// Book-specific OG meta (rendered by layout.php)
+$ogBookMeta = [];
+if ($bookISBN) {
+    $ogBookMeta[] = ['property' => 'book:isbn', 'content' => $bookISBN];
+}
+if ($bookAuthor) {
+    $ogBookMeta[] = ['property' => 'book:author', 'content' => $bookAuthor];
+}
+if ($bookYear) {
+    $ogBookMeta[] = ['property' => 'book:release_date', 'content' => $bookYear];
+}
+
 $content = ob_get_clean();
 include 'layout.php';
 ?>

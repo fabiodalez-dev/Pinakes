@@ -601,6 +601,13 @@ $activeTab = $activeTab ?? 'general';
                   'linkedin'  => ['name' => 'LinkedIn',  'icon' => 'fab fa-linkedin-in', 'color' => '#0A66C2'],
                   'reddit'    => ['name' => 'Reddit',    'icon' => 'fab fa-reddit-alien', 'color' => '#FF4500'],
                   'pinterest' => ['name' => 'Pinterest', 'icon' => 'fab fa-pinterest-p', 'color' => '#E60023'],
+                  'threads'   => ['name' => 'Threads',   'icon' => 'fab fa-threads',     'color' => '#000000'],
+                  'bluesky'   => ['name' => 'Bluesky',   'icon' => 'fab fa-bluesky',     'color' => '#0085FF'],
+                  'tumblr'    => ['name' => 'Tumblr',    'icon' => 'fab fa-tumblr',      'color' => '#36465D'],
+                  'pocket'    => ['name' => 'Pocket',    'icon' => 'fab fa-get-pocket',  'color' => '#EF4056'],
+                  'vk'        => ['name' => 'VKontakte', 'icon' => 'fab fa-vk',          'color' => '#4680C2'],
+                  'line'      => ['name' => 'LINE',      'icon' => 'fab fa-line',        'color' => '#00C300'],
+                  'sms'       => ['name' => 'SMS',       'icon' => 'fas fa-sms',         'color' => '#666666'],
                   'email'     => ['name' => 'Email',     'icon' => 'fas fa-envelope',    'color' => '#666666'],
                   'copylink'  => ['name' => 'Copia link','icon' => 'fas fa-link',        'color' => '#666666'],
               ];

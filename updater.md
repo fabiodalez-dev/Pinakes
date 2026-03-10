@@ -427,6 +427,7 @@ migrate_0.4.7.sql    # LibraryThing comprehensive migration (25+ fields, indexes
 migrate_0.4.8.1.sql  # Import logs tracking system (import_logs table + composite index)
 migrate_0.4.8.2.sql  # Illustratore field, lingua expansion, language normalization, anno_pubblicazione signed
 migrate_0.4.9.9.sql  # descrizione_plain column (HTML-free search)
+migrate_0.5.0.sql    # Social sharing settings + descrizione_plain safety net
 ```
 
 See `installer/database/migrations/README.md` for detailed migration documentation.
@@ -1034,6 +1035,7 @@ Or when a patch is applied:
 
 | Version | Changes |
 |---------|---------|
+| 0.5.0 | Migration: Social sharing default setting (INSERT IGNORE), `descrizione_plain` safety net for fresh installs missing the column. Feature: Configurable social share buttons on book detail page (Facebook, X, WhatsApp, Telegram, LinkedIn, Reddit, Pinterest, Email, Copy Link, Web Share API). Admin Settings > Sharing tab with live preview. |
 | 0.4.9.9 | Migration: `descrizione_plain` column for HTML-free search (strip_tags backfill via PHP, not SQL). Digital Library plugin v1.3.0: inline PDF viewer (iframe-based, zero deps), ePub download fix (target=_blank). New migration rule: no `\\` backslash escapes in PREPARE strings — breaks `splitSqlStatements()` |
 | 0.4.9.7 | Re-release of 0.4.9.6 to ensure bundled plugin updates propagate to installations that updated from pre-0.4.9.6 (older Updater lacked updateBundledPlugins) |
 | 0.4.9.6 | Comprehensive codebase review: URL scheme validation, proxy-aware HTTPS in installer, bcrypt 72-byte limit, atomic RateLimiter with flock, guarded recalculateBookAvailability/RELEASE_LOCK calls, DashboardStats cache failure throw, language-switcher logging, config charset in SET NAMES |

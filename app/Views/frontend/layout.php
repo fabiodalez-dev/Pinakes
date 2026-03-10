@@ -1,6 +1,7 @@
 <?php $content = $content ?? '';
 // $footerDescription is always set from ConfigStore (line ~16). For custom OG description, use $ogDescription.
 $ogTitle = $ogTitle ?? null;
+$ogBookMeta = $ogBookMeta ?? [];
 $twitterCard = $twitterCard ?? null;
 
 use App\Support\Branding;
@@ -128,6 +129,12 @@ $htmlLang = substr($currentLocale, 0, 2);
         <meta property="og:url" content="<?= htmlspecialchars($ogUrl) ?>">
         <meta property="og:type" content="<?= htmlspecialchars($ogType) ?>">
         <meta property="og:site_name" content="<?= HtmlHelper::e($appName) ?>">
+        <meta property="og:locale" content="<?= htmlspecialchars(I18n::getLocale() ?: 'it_IT') ?>">
+        <?php if (!empty($ogBookMeta)): ?>
+            <?php foreach ($ogBookMeta as $bm): ?>
+        <meta property="<?= htmlspecialchars($bm['property']) ?>" content="<?= htmlspecialchars($bm['content']) ?>">
+            <?php endforeach; ?>
+        <?php endif; ?>
     <?php endif; ?>
 
     <!-- Twitter Card Meta Tags -->

@@ -900,7 +900,7 @@ class SettingsController
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
-        $allowedSlugs = ['facebook', 'x', 'whatsapp', 'telegram', 'linkedin', 'reddit', 'pinterest', 'email', 'copylink'];
+        $allowedSlugs = ['facebook', 'x', 'whatsapp', 'telegram', 'linkedin', 'reddit', 'pinterest', 'threads', 'bluesky', 'tumblr', 'pocket', 'vk', 'line', 'sms', 'email', 'copylink'];
         $selected = $data['sharing_providers'] ?? [];
         if (!is_array($selected)) {
             $selected = [];
