@@ -136,8 +136,8 @@ $encodedTitle = rawurlencode($shareTitle);
   <div class="card-header">
     <h6 class="mb-0"><i class="fas fa-share-alt me-2"></i><?= htmlspecialchars(__('Condividi'), ENT_QUOTES, 'UTF-8') ?></h6>
   </div>
-  <div class="card-body">
-    <div class="d-flex flex-wrap justify-content-around gap-2">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex flex-wrap justify-content-center gap-1">
     <?php foreach ($sharingProviders as $slug): ?>
       <?php if (!isset($providers[$slug])) { continue; } ?>
       <?php $p = $providers[$slug]; ?>
@@ -185,11 +185,11 @@ $encodedTitle = rawurlencode($shareTitle);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   color: #fff;
-  font-size: 1rem;
+  font-size: 0.8rem;
   border: none;
   cursor: pointer;
   transition: opacity 0.2s, transform 0.2s;

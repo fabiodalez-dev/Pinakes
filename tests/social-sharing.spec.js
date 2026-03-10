@@ -162,7 +162,13 @@ test.describe.serial('Social Sharing', () => {
   });
 
   test('5. Frontend: share links have correct URLs', async () => {
-    // We should still be on a book detail page from previous test
+    // Navigate to book detail if not already there (test isolation)
+    if (!page.url().match(/\/[^/]+\/[^/]+\/\d+$/)) {
+      await page.goto(`${BASE}/catalogo`);
+      await page.waitForLoadState('networkidle');
+      await page.locator('.book-card a, .card a').filter({ hasText: /.+/ }).first().click();
+      await page.waitForLoadState('networkidle');
+    }
     const shareCard = page.locator('#book-share-card');
 
     // Facebook link should point to facebook sharer

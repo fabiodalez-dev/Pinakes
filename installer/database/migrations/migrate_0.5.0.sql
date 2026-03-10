@@ -37,6 +37,16 @@ VALUES ('sharing', 'enabled_providers', 'facebook,x,whatsapp,email',
 -- Add unique index on plugin_hooks for atomic upsert registration
 -- =============================================================================
 -- Prevents duplicate hook rows from concurrent registerHooks() calls.
+-- First, deduplicate existing rows (keep the one with the smallest id).
+
+DELETE ph1
+FROM plugin_hooks ph1
+JOIN plugin_hooks ph2
+  ON ph1.plugin_id       = ph2.plugin_id
+ AND ph1.hook_name       = ph2.hook_name
+ AND ph1.callback_class  = ph2.callback_class
+ AND ph1.callback_method = ph2.callback_method
+ AND ph1.id > ph2.id;
 
 SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
                    WHERE TABLE_SCHEMA = DATABASE()

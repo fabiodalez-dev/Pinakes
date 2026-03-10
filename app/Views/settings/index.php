@@ -732,6 +732,9 @@ $activeTab = $activeTab ?? 'general';
       const tab = url.hash.substring(1) || url.searchParams.get('tab') || '';
       if (tab && document.querySelector(`[data-settings-tab="${tab}"]`)) {
         activateTab(tab);
+      } else {
+        const firstTab = document.querySelector('[data-settings-tab]');
+        if (firstTab) activateTab(firstTab.getAttribute('data-settings-tab'));
       }
     });
 
