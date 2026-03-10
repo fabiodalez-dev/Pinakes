@@ -40,7 +40,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
   // ── Step 0: Language Selection ──────────────────────────────────────
   test('Installer step 0: select Italian language', async () => {
     await page.goto(`${BASE}/installer/?step=0`);
-    await page.locator('input[name="language"][value="it"]').check();
+    await page.locator('input[name="language"][value="it_IT"]').check();
     await page.locator('button[type="submit"]').click();
     await page.waitForURL(/step=1/);
   });

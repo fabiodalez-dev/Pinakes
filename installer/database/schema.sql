@@ -361,6 +361,7 @@ CREATE TABLE `libri` (
   `tipo_acquisizione` enum('acquisto','donazione') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT 'acquisto',
   `copertina_url` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `descrizione` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `descrizione_plain` text DEFAULT NULL,
   `review` text COLLATE utf8mb4_unicode_ci COMMENT 'Book review (LibraryThing)',
   `rating` tinyint unsigned DEFAULT NULL COMMENT 'Rating 1-5 (LibraryThing)',
   `comment` text COLLATE utf8mb4_unicode_ci COMMENT 'Public comment (LibraryThing)',
