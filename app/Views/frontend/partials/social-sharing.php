@@ -83,8 +83,12 @@ $encodedUrl   = rawurlencode($shareUrl);
 $encodedTitle = rawurlencode($shareTitle);
 ?>
 
-<div class="social-sharing-bar text-center my-4">
-  <div class="d-flex flex-wrap justify-content-center gap-2">
+<div class="card" id="book-share-card">
+  <div class="card-header">
+    <h6 class="mb-0"><i class="fas fa-share-alt me-2"></i><?= htmlspecialchars(__('Condividi'), ENT_QUOTES, 'UTF-8') ?></h6>
+  </div>
+  <div class="card-body">
+    <div class="d-flex flex-wrap justify-content-around gap-2">
     <?php foreach ($sharingProviders as $slug): ?>
       <?php if (!isset($providers[$slug])) { continue; } ?>
       <?php $p = $providers[$slug]; ?>
@@ -123,6 +127,7 @@ $encodedTitle = rawurlencode($shareTitle);
             data-share-url="<?= htmlspecialchars($shareUrl, ENT_QUOTES, 'UTF-8') ?>">
       <i class="fas fa-share-nodes"></i>
     </button>
+    </div>
   </div>
 </div>
 
@@ -151,25 +156,28 @@ $encodedTitle = rawurlencode($shareTitle);
 
 <script>
 (function() {
+  function fallbackCopy(url, btn) {
+    var ta = document.createElement('textarea');
+    ta.value = url;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showCopyFeedback(btn);
+  }
+
   // Copy link button
   document.querySelectorAll('[data-share-copy]').forEach(function(btn) {
     btn.addEventListener('click', function() {
       var url = this.getAttribute('data-share-copy');
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(url).then(function() {
-          showCopyFeedback(btn);
-        });
+        navigator.clipboard.writeText(url)
+          .then(function() { showCopyFeedback(btn); })
+          .catch(function() { fallbackCopy(url, btn); });
       } else {
-        // Fallback for older browsers
-        var ta = document.createElement('textarea');
-        ta.value = url;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        showCopyFeedback(btn);
+        fallbackCopy(url, btn);
       }
     });
   });

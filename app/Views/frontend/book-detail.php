@@ -854,24 +854,6 @@ $additional_css = "
         box-shadow: none;
     }
 
-    /* Social Icons */
-    .social-icon-link {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 40px;
-        height: 40px;
-        color: #1a1a1a;
-        text-decoration: none;
-        transition: all 0.3s ease;
-        font-size: 1.25rem;
-    }
-
-    .social-icon-link:hover {
-        color: #000;
-        transform: scale(1.1);
-    }
-
     /* Elegant Cards */
     .card {
         border: 1px solid var(--border-color);
@@ -1546,8 +1528,6 @@ ob_start();
                 do_action('book.detail.digital_player', $book);
                 ?>
 
-                <?php include __DIR__ . '/partials/social-sharing.php'; ?>
-
                 <!-- Alerts Section -->
                 <div id="book-alerts">
                     <?php if (!empty($_GET['loan_request_success'])): ?>
@@ -2015,32 +1995,8 @@ ob_start();
                     </div>
                 </div>
 
-                <!-- Share Card -->
-                <div class="card" id="book-share-card">
-                    <div class="card-header">
-                        <h6 class="mb-0"><i class="fas fa-share-alt me-2"></i><?= __("Condividi") ?></h6>
-                    </div>
-                    <div class="card-body">
-                        <div class="d-flex justify-content-around">
-                            <!-- Facebook Share -->
-                            <a href="#" class="social-icon-link" id="share-facebook" title="<?= __("Condividi su Facebook") ?>" target="_blank" rel="noopener noreferrer">
-                                <i class="fab fa-facebook"></i>
-                            </a>
-                            <!-- Twitter/X Share -->
-                            <a href="#" class="social-icon-link" id="share-twitter" title="<?= __("Condividi su Twitter") ?>" target="_blank" rel="noopener noreferrer">
-                                <i class="fab fa-twitter"></i>
-                            </a>
-                            <!-- WhatsApp Share -->
-                            <a href="#" class="social-icon-link" id="share-whatsapp" title="<?= __("Condividi su WhatsApp") ?>" target="_blank" rel="noopener noreferrer">
-                                <i class="fab fa-whatsapp"></i>
-                            </a>
-                            <!-- Copy Link -->
-                            <button type="button" class="social-icon-link" id="copy-link" title="<?= __("Copia link negli appunti") ?>" style="border: none; background: none; padding: 0; cursor: pointer;">
-                                <i class="fas fa-link"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <!-- Share Card (configurable via Settings > Sharing) -->
+                <?php include __DIR__ . '/partials/social-sharing.php'; ?>
             </div>
         </div>
     </div>
@@ -2539,105 +2495,3 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 </script>
 
-<!-- Social Share and Copy Link Handler -->
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-  // Get the current page URL and book title
-  const pageUrl = window.location.href;
-  const bookTitle = document.getElementById('book-title');
-  const bookTitleText = bookTitle ? bookTitle.textContent.trim() : 'Questo libro';
-
-  // Create share text
-  const shareText = `Scopri ${bookTitleText} su Biblioteca`;
-
-  // Facebook Share
-  const facebookBtn = document.getElementById('share-facebook');
-  if (facebookBtn) {
-    facebookBtn.href = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(pageUrl)}`;
-    facebookBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      window.open(this.href, 'facebook-share', 'width=600,height=400');
-    });
-  }
-
-  // Twitter/X Share
-  const twitterBtn = document.getElementById('share-twitter');
-  if (twitterBtn) {
-    twitterBtn.href = `https://twitter.com/intent/tweet?url=${encodeURIComponent(pageUrl)}&text=${encodeURIComponent(shareText)}`;
-    twitterBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      window.open(this.href, 'twitter-share', 'width=550,height=420');
-    });
-  }
-
-  // WhatsApp Share
-  const whatsappBtn = document.getElementById('share-whatsapp');
-  if (whatsappBtn) {
-    whatsappBtn.href = `https://wa.me/?text=${encodeURIComponent(shareText + ' ' + pageUrl)}`;
-    whatsappBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      window.open(this.href, 'whatsapp-share');
-    });
-  }
-
-  // Copy Link to Clipboard
-  const copyLinkBtn = document.getElementById('copy-link');
-  if (copyLinkBtn) {
-    copyLinkBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-
-      // Use modern Clipboard API if available
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(pageUrl)
-          .then(function() {
-            showCopyNotification(copyLinkBtn, <?= json_encode(__("Link copiato!"), JSON_HEX_TAG) ?>);
-          })
-          .catch(function(err) {
-            console.error('Errore nella copia:', err);
-            fallbackCopyToClipboard(pageUrl, copyLinkBtn);
-          });
-      } else {
-        // Fallback for older browsers
-        fallbackCopyToClipboard(pageUrl, copyLinkBtn);
-      }
-    });
-  }
-
-  // Fallback copy function for older browsers
-  function fallbackCopyToClipboard(text, button) {
-    try {
-      const textArea = document.createElement('textarea');
-      textArea.value = text;
-      textArea.style.position = 'fixed';
-      textArea.style.left = '-999999px';
-      document.body.appendChild(textArea);
-      textArea.focus();
-      textArea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textArea);
-      showCopyNotification(button, <?= json_encode(__("Link copiato!"), JSON_HEX_TAG) ?>);
-    } catch (err) {
-      console.error('Fallback copy error:', err);
-      alert('Link: ' + text);
-    }
-  }
-
-  // Show notification when link is copied
-  function showCopyNotification(button, message) {
-    const originalTitle = button.title;
-    const originalInnerHTML = button.innerHTML;
-
-    // Change button appearance temporarily
-    button.title = message;
-    button.innerHTML = '<i class="fas fa-check"></i>';
-    button.style.color = '#10b981';
-
-    // Restore after 2 seconds
-    setTimeout(function() {
-      button.title = originalTitle;
-      button.innerHTML = originalInnerHTML;
-      button.style.color = '';
-    }, 2000);
-  }
-});
-</script>
