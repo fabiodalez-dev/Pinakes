@@ -713,10 +713,11 @@ $activeTab = $activeTab ?? 'general';
       });
     });
 
-    // Check URL on page load: hash takes priority, then ?tab= query param
+    // Check URL on page load: hash takes priority, then ?tab=, then server-selected $activeTab
+    const serverTab = <?= json_encode($activeTab, JSON_HEX_TAG | JSON_HEX_AMP) ?>;
     const hash = window.location.hash.substring(1);
     const qTab = new URL(window.location.href).searchParams.get('tab');
-    const candidate = (hash || qTab || '');
+    const candidate = (hash || qTab || serverTab || '');
     const resolvedTab = (candidate && document.querySelector(`[data-settings-tab="${candidate}"]`))
       ? candidate
       : (document.querySelector('[data-settings-tab]')?.getAttribute('data-settings-tab') || '');
@@ -734,6 +735,8 @@ $activeTab = $activeTab ?? 'general';
       const tab = url.hash.substring(1) || url.searchParams.get('tab') || '';
       if (tab && document.querySelector(`[data-settings-tab="${tab}"]`)) {
         activateTab(tab);
+      } else if (serverTab) {
+        activateTab(serverTab);
       } else {
         const firstTab = document.querySelector('[data-settings-tab]');
         if (firstTab) activateTab(firstTab.getAttribute('data-settings-tab'));

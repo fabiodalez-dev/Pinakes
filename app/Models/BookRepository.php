@@ -93,18 +93,12 @@ class BookRepository
         if (!$row)
             return null;
 
-        // Lazy backfill: populate descrizione_plain for pre-migration rows on first read
+        // Compute descrizione_plain in-memory for pre-migration rows (persisted on next save)
         if ($this->hasColumn('descrizione_plain')
             && $row['descrizione_plain'] === null
             && !empty($row['descrizione'])
         ) {
-            $plain = $this->toPlainTextDescription((string)$row['descrizione']);
-            $upd = $this->db->prepare("UPDATE libri SET descrizione_plain = ? WHERE id = ?");
-            if ($upd) {
-                $upd->bind_param('si', $plain, $id);
-                $upd->execute();
-            }
-            $row['descrizione_plain'] = $plain;
+            $row['descrizione_plain'] = $this->toPlainTextDescription((string) $row['descrizione']);
         }
 
         // Resolve genre hierarchy for the 3-level cascade (Radice → Genere → Sottogenere)

@@ -247,7 +247,13 @@ test.describe.serial('Social Sharing', () => {
   });
 
   test('6. Frontend: OG meta tags present on book page', async () => {
-    // Still on book detail page
+    // Navigate to book detail (don't rely on prior test state)
+    if (!page.url().match(/\/[^/]+\/[^/]+\/\d+$/)) {
+      await page.goto(`${BASE}/catalogo`);
+      await page.waitForLoadState('networkidle');
+      await page.locator('.book-card a, .card a').filter({ hasText: /.+/ }).first().click();
+      await page.waitForLoadState('networkidle');
+    }
     const ogTitle = await page.locator('meta[property="og:title"]').getAttribute('content');
     expect(ogTitle).toBeTruthy();
     expect(ogTitle.length).toBeGreaterThan(0);

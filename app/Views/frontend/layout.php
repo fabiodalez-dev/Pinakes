@@ -1,7 +1,7 @@
 <?php $content = $content ?? '';
 // $footerDescription is always set from ConfigStore (line ~16). For custom OG description, use $ogDescription.
 $ogTitle = $ogTitle ?? null;
-$ogBookMeta = $ogBookMeta ?? [];
+$ogBookMeta = is_iterable($ogBookMeta ?? null) ? $ogBookMeta : [];
 $twitterCard = $twitterCard ?? null;
 
 use App\Support\Branding;
