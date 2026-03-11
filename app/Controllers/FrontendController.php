@@ -655,7 +655,7 @@ class FrontendController
 
         // Social sharing
         $sharingProviders = array_filter(explode(',', (string) ConfigStore::get('sharing.enabled_providers', '')));
-        $shareUrl = absoluteUrl(book_url($book));
+        $shareUrl = absoluteUrl($canonicalPath);
         $shareTitle = $book['titolo'] ?? '';
 
         // Render template

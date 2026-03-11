@@ -70,7 +70,9 @@ test.describe.serial('Social Sharing', () => {
         }
         await panel.locator('button[type="submit"]').click();
         await page.waitForLoadState('networkidle');
-      } catch { /* best effort */ }
+      } catch (error) {
+        console.error('Failed to restore sharing providers:', error);
+      }
     }
     await context?.close();
   });
