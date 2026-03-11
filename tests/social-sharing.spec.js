@@ -213,30 +213,39 @@ test.describe.serial('Social Sharing', () => {
     }
     const shareCard = page.locator('#book-share-card');
 
-    // Facebook link should point to facebook sharer
+    // The encoded page URL must appear in every share link (works for subdir/subdomain installs)
+    const pageUrl = page.url();
+    const encodedPageUrl = encodeURIComponent(pageUrl);
+
+    // Facebook link should point to facebook sharer and contain current page URL
     const fbLink = shareCard.locator('a').filter({ has: page.locator('.fa-facebook-f') });
     const fbHref = await fbLink.getAttribute('href');
     expect(fbHref).toContain('facebook.com/sharer');
+    expect(fbHref).toContain(encodedPageUrl);
 
-    // X link should point to twitter intent
+    // X link should point to twitter intent and contain current page URL
     const xLink = shareCard.locator('a').filter({ has: page.locator('.fa-x-twitter') });
     const xHref = await xLink.getAttribute('href');
     expect(xHref).toContain('twitter.com/intent/tweet');
+    expect(xHref).toContain(encodedPageUrl);
 
     // WhatsApp link
     const waLink = shareCard.locator('a').filter({ has: page.locator('.fa-whatsapp') });
     const waHref = await waLink.getAttribute('href');
     expect(waHref).toContain('wa.me');
+    expect(waHref).toContain(encodedPageUrl);
 
     // Telegram link
     const tgLink = shareCard.locator('a').filter({ has: page.locator('.fa-telegram') });
     const tgHref = await tgLink.getAttribute('href');
     expect(tgHref).toContain('t.me/share');
+    expect(tgHref).toContain(encodedPageUrl);
 
-    // Email link should be mailto:
+    // Email link should be mailto: with page URL in body
     const emailLink = shareCard.locator('a').filter({ has: page.locator('.fa-envelope') });
     const emailHref = await emailLink.getAttribute('href');
     expect(emailHref).toContain('mailto:');
+    expect(emailHref).toContain(encodedPageUrl);
 
     // All external links should have target="_blank" and rel="noopener noreferrer"
     const externalLinks = shareCard.locator('a[target="_blank"]');
