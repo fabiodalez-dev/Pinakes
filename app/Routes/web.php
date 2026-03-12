@@ -139,6 +139,12 @@ return function (App $app): void {
         return $controller->sitemap($request, $response, $db);
     });
 
+    $app->get('/feed.xml', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\FeedController();
+        $db = $app->getContainer()->get('db');
+        return $controller->rssFeed($request, $response, $db);
+    });
+
     // Public language switch endpoint
     $app->get('/language/{locale}', function ($request, $response, $args) use ($app) {
         $controller = new LanguageController();

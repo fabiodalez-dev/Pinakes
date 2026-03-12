@@ -33,6 +33,7 @@ class SeoController
             'Disallow: ' . $basePath . RouteTranslator::route('register'),
             '',
             'Sitemap: ' . $baseUrl . '/sitemap.xml',
+            'Feed: ' . $baseUrl . '/feed.xml',
         ];
 
         $response->getBody()->write(implode("\n", $lines) . "\n");

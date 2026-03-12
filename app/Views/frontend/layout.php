@@ -83,6 +83,13 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php endif; ?>
     <link rel="canonical"
         href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrl()) ?>">
+    <?php foreach (\App\Support\HreflangHelper::getAlternates() as $hreflangAlt): ?>
+    <link rel="alternate" hreflang="<?= htmlspecialchars($hreflangAlt['hreflang'], ENT_QUOTES, 'UTF-8') ?>"
+          href="<?= htmlspecialchars($hreflangAlt['href'], ENT_QUOTES, 'UTF-8') ?>">
+    <?php endforeach; ?>
+    <link rel="alternate" type="application/rss+xml"
+          title="<?= HtmlHelper::e($appName) ?> - RSS"
+          href="<?= htmlspecialchars(absoluteUrl('/feed.xml'), ENT_QUOTES, 'UTF-8') ?>">
 
     <?php
     $defaultOgImagePath = Branding::socialImage();
@@ -1561,9 +1568,12 @@ $htmlLang = substr($currentLocale, 0, 2);
                 </div>
             </div>
             <hr class="my-4">
-            <div class="text-center">
-                <p><?= date('Y') ?> • <?= HtmlHelper::e($appName) ?> • Powered by Pinakes
+            <div class="d-flex justify-content-center align-items-center gap-2">
+                <p class="mb-0"><?= date('Y') ?> • <?= HtmlHelper::e($appName) ?> • Powered by Pinakes
                     v<?= HtmlHelper::e($appVersion) ?></p>
+                <a href="<?= htmlspecialchars(url('/feed.xml'), ENT_QUOTES, 'UTF-8') ?>" title="RSS Feed" class="text-muted" aria-label="RSS Feed">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="6.18" cy="17.82" r="2.18"/><path d="M4 4.44v2.83c7.03 0 12.73 5.7 12.73 12.73h2.83c0-8.59-6.97-15.56-15.56-15.56zm0 5.66v2.83c3.9 0 7.07 3.17 7.07 7.07h2.83c0-5.47-4.43-9.9-9.9-9.9z"/></svg>
+                </a>
             </div>
         </div>
     </footer>
