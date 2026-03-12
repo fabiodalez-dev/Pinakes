@@ -10,6 +10,19 @@ use App\Support\HtmlHelper;
 
 class SearchController
 {
+    private static ?bool $hasDescrizionePlain = null;
+
+    private static function descriptionExpr(mysqli $db): string
+    {
+        if (self::$hasDescrizionePlain === null) {
+            $result = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
+            self::$hasDescrizionePlain = $result && $result->num_rows > 0;
+        }
+        return self::$hasDescrizionePlain
+            ? 'COALESCE(l.descrizione_plain, l.descrizione)'
+            : 'l.descrizione';
+    }
+
     public function authors(Request $request, Response $response, mysqli $db): Response
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
@@ -128,10 +141,10 @@ class SearchController
                        l.copie_disponibili,
                        l.copie_totali
                 FROM libri l
-                WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?)
+                WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR " . self::descriptionExpr($db) . " LIKE ?)
                 ORDER BY l.titolo
             ");
-            $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
+            $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -227,7 +240,7 @@ class SearchController
         $results = [];
         $s = '%'.$query.'%';
 
-        // Search by ISBN, EAN, title, subtitle - include author via subquery
+        // Search by ISBN, EAN, title, subtitle, description - include author via subquery
         $stmt = $db->prepare("
             SELECT l.id, l.titolo AS label, l.isbn10, l.isbn13, l.ean,
                    (SELECT GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ')
@@ -235,10 +248,10 @@ class SearchController
                     JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id) AS autori
             FROM libri l
-            WHERE l.deleted_at IS NULL AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ?)
+            WHERE l.deleted_at IS NULL AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ? OR " . self::descriptionExpr($db) . " LIKE ?)
             ORDER BY l.titolo LIMIT 10
         ");
-        $stmt->bind_param('sssss', $s, $s, $s, $s, $s);
+        $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
         $stmt->execute();
         $res = $stmt->get_result();
 
@@ -348,10 +361,10 @@ class SearchController
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN autori a ON la.autore_id = a.id
-            WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?)
+            WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR " . self::descriptionExpr($db) . " LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?)
             ORDER BY l.titolo LIMIT 8
         ");
-        $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
+        $stmt->bind_param('sssssss', $s, $s, $s, $s, $s, $s, $s);
         $stmt->execute();
         $res = $stmt->get_result();
 

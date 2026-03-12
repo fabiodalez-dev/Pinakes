@@ -53,6 +53,10 @@ $activeTab = $activeTab ?? 'general';
         <i class="fas fa-barcode text-sm mr-2"></i>
         <?= __("Etichette") ?>
       </button>
+      <button type="button" data-settings-tab="sharing" class="settings-tab <?php echo $activeTab === 'sharing' ? 'settings-tab-active' : ''; ?>">
+        <i class="fas fa-share-alt text-sm mr-2"></i>
+        <?= __("Condivisione") ?>
+      </button>
       <button type="button" data-settings-tab="advanced" class="settings-tab <?php echo $activeTab === 'advanced' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-cogs text-sm mr-2"></i>
         <?= __("Avanzate") ?>
@@ -563,6 +567,63 @@ $activeTab = $activeTab ?? 'general';
         </form>
       </section>
 
+      <!-- Sharing Settings -->
+      <section data-settings-panel="sharing" class="settings-panel <?php echo $activeTab === 'sharing' ? 'block' : 'hidden'; ?>">
+        <form action="<?= htmlspecialchars(url('/admin/settings/sharing'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
+          <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
+
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div class="space-y-4">
+              <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                <i class="fas fa-share-alt text-gray-500"></i>
+                <?= __("Condivisione") ?>
+              </h2>
+              <p class="text-sm text-gray-600">
+                <?= __("Seleziona i pulsanti di condivisione da mostrare nella pagina del libro.") ?>
+              </p>
+
+              <!-- Live Preview -->
+              <div class="mt-6">
+                <h3 class="text-sm font-medium text-gray-700 mb-3"><?= __("Anteprima") ?></h3>
+                <div id="sharing-preview" class="flex flex-wrap gap-2 p-4 bg-gray-50 border border-gray-200 rounded-xl min-h-[48px]">
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-4">
+              <?php
+              $enabledProviders = array_filter(array_map('trim', explode(',', (string) \App\Support\ConfigStore::get('sharing.enabled_providers', ''))));
+              $allProviders = \App\Support\SharingProviders::all();
+              foreach ($allProviders as $slug => $provider):
+                  $checked = in_array($slug, $enabledProviders, true);
+              ?>
+                <label class="flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all <?= $checked ? 'border-gray-400 bg-white' : 'border-gray-200 bg-white hover:border-gray-300' ?>">
+                  <input type="checkbox"
+                         name="sharing_providers[]"
+                         value="<?= HtmlHelper::e($slug) ?>"
+                         <?= $checked ? 'checked' : '' ?>
+                         class="sharing-provider-checkbox w-4 h-4 rounded text-gray-900 focus:ring-gray-500"
+                         data-slug="<?= HtmlHelper::e($slug) ?>"
+                         data-icon="<?= HtmlHelper::e($provider['icon']) ?>"
+                         data-color="<?= HtmlHelper::e($provider['color']) ?>">
+                  <span class="inline-flex items-center justify-center w-8 h-8 rounded-lg text-white text-sm" style="background-color: <?= HtmlHelper::e($provider['color']) ?>">
+                    <i class="<?= HtmlHelper::e($provider['icon']) ?>"></i>
+                  </span>
+                  <span class="font-medium text-gray-800"><?= HtmlHelper::e($provider['name']) ?></span>
+                </label>
+              <?php endforeach; ?>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
+            <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
+              <i class="fas fa-save"></i>
+              <?= __("Salva impostazioni condivisione") ?>
+            </button>
+          </div>
+        </form>
+      </section>
+
       <!-- Advanced Settings -->
       <?php include __DIR__ . '/advanced-tab.php'; ?>
     </div>
@@ -635,17 +696,33 @@ $activeTab = $activeTab ?? 'general';
       });
     });
 
-    // Check URL hash on page load
+    // Check URL on page load: hash takes priority, then ?tab=, then server-selected $activeTab
+    const serverTab = <?= json_encode($activeTab, JSON_HEX_TAG | JSON_HEX_AMP) ?>;
     const hash = window.location.hash.substring(1);
-    if (hash && document.querySelector(`[data-settings-tab="${hash}"]`)) {
-      activateTab(hash);
+    const qTab = new URL(window.location.href).searchParams.get('tab');
+    const candidate = (hash || qTab || serverTab || '');
+    const resolvedTab = (candidate && document.querySelector(`[data-settings-tab="${candidate}"]`))
+      ? candidate
+      : (document.querySelector('[data-settings-tab]')?.getAttribute('data-settings-tab') || '');
+    if (resolvedTab) {
+      activateTab(resolvedTab);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', resolvedTab);
+      url.hash = resolvedTab;
+      window.history.replaceState({}, '', url.toString());
     }
 
     // Handle browser back/forward
-    window.addEventListener('hashchange', () => {
-      const currentHash = window.location.hash.substring(1);
-      if (currentHash && document.querySelector(`[data-settings-tab="${currentHash}"]`)) {
-        activateTab(currentHash);
+    window.addEventListener('popstate', () => {
+      const url = new URL(window.location.href);
+      const tab = url.hash.substring(1) || url.searchParams.get('tab') || '';
+      if (tab && document.querySelector(`[data-settings-tab="${tab}"]`)) {
+        activateTab(tab);
+      } else if (serverTab) {
+        activateTab(serverTab);
+      } else {
+        const firstTab = document.querySelector('[data-settings-tab]');
+        if (firstTab) activateTab(firstTab.getAttribute('data-settings-tab'));
       }
     });
 
@@ -897,5 +974,45 @@ $activeTab = $activeTab ?? 'general';
         logoFileInput.style.display = 'block';
       }
     }
+
+    // Sharing providers live preview
+    const sharingPreview = document.getElementById('sharing-preview');
+    const sharingCheckboxes = document.querySelectorAll('.sharing-provider-checkbox');
+    function updateSharingPreview() {
+      if (!sharingPreview) return;
+      sharingPreview.replaceChildren();
+      sharingCheckboxes.forEach(cb => {
+        if (!cb.checked) return;
+        const btn = document.createElement('span');
+        btn.className = 'inline-flex items-center justify-center w-9 h-9 rounded-lg text-white text-sm';
+        btn.style.backgroundColor = cb.dataset.color;
+        const icon = document.createElement('i');
+        icon.className = cb.dataset.icon;
+        btn.appendChild(icon);
+        sharingPreview.appendChild(btn);
+      });
+      if (sharingPreview.children.length === 0) {
+        const empty = document.createElement('span');
+        empty.className = 'text-sm text-gray-400';
+        empty.textContent = <?= json_encode(__("Nessun pulsante selezionato"), JSON_HEX_TAG) ?>;
+        sharingPreview.appendChild(empty);
+      }
+    }
+    function syncSharingCardState(cb) {
+      const label = cb.closest('label');
+      if (!label) return;
+      if (cb.checked) {
+        label.classList.remove('border-gray-200', 'hover:border-gray-300');
+        label.classList.add('border-gray-400');
+      } else {
+        label.classList.remove('border-gray-400');
+        label.classList.add('border-gray-200', 'hover:border-gray-300');
+      }
+    }
+    sharingCheckboxes.forEach(cb => {
+      cb.addEventListener('change', () => { updateSharingPreview(); syncSharingCardState(cb); });
+      syncSharingCardState(cb);
+    });
+    updateSharingPreview();
   });
 </script>

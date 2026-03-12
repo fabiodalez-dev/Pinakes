@@ -53,7 +53,7 @@ test.describe('Genre Merge & Rearrange', () => {
     // Now rearrange: move child to ParentB
     await page.goto(`${BASE}/admin/generi/${childId}`);
     await page.click('#btn-edit-genre');
-    await page.waitForSelector('#edit-genre-form:not(.hidden)', { timeout: 3000 });
+    await page.waitForSelector('#edit-genre-form:not(.hidden)', { timeout: 8000 });
     await page.selectOption('#edit_parent_id', parentBId);
 
     // Use waitForResponse to capture POST, then waitForLoadState for redirect

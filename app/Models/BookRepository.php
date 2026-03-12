@@ -93,6 +93,14 @@ class BookRepository
         if (!$row)
             return null;
 
+        // Compute descrizione_plain in-memory for pre-migration rows (persisted on next save)
+        if ($this->hasColumn('descrizione_plain')
+            && $row['descrizione_plain'] === null
+            && !empty($row['descrizione'])
+        ) {
+            $row['descrizione_plain'] = $this->toPlainTextDescription((string) $row['descrizione']);
+        }
+
         // Resolve genre hierarchy for the 3-level cascade (Radice → Genere → Sottogenere)
         // Walk up the tree from genere_id to find the full ancestor chain, then map to cascade levels
         $this->resolveGenreHierarchy($row);
@@ -281,6 +289,10 @@ class BookRepository
         }
         if ($this->hasColumn('descrizione')) {
             $addField('descrizione', 's', $data['descrizione'] ?? null);
+        }
+        if ($this->hasColumn('descrizione_plain')) {
+            $raw = $data['descrizione'] ?? null;
+            $addField('descrizione_plain', 's', $this->toPlainTextDescription($raw));
         }
         if ($this->hasColumn('parole_chiave')) {
             $addField('parole_chiave', 's', $data['parole_chiave'] ?? null);
@@ -607,6 +619,10 @@ class BookRepository
         }
         if ($this->hasColumn('descrizione')) {
             $addSet('descrizione', 's', $data['descrizione'] ?? null);
+        }
+        if ($this->hasColumn('descrizione_plain')) {
+            $raw = $data['descrizione'] ?? null;
+            $addSet('descrizione_plain', 's', $this->toPlainTextDescription($raw));
         }
         if ($this->hasColumn('parole_chiave')) {
             $addSet('parole_chiave', 's', $data['parole_chiave'] ?? null);
@@ -1148,6 +1164,23 @@ class BookRepository
             $row['sottogenere_nome'] = $chain[$chainLen - 1]['nome'];
             $row['sottogenere_id_cascade'] = $chain[$chainLen - 1]['id'];
         }
+    }
+
+    private function toPlainTextDescription(?string $html): ?string
+    {
+        if ($html === null || $html === '') {
+            return $html;
+        }
+        $text = preg_replace(
+            '/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)\b[^>]*|br\b[^>]*\/?)>/i',
+            "\n",
+            $html
+        );
+        $text = html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = str_replace("\xC2\xA0", ' ', (string) $text);
+        $text = preg_replace("/[ \t]+/", ' ', (string) $text);
+        $text = preg_replace("/\n{3,}/", "\n\n", (string) $text);
+        return trim((string) $text);
     }
 
     private static array $columnCacheByDb = [];

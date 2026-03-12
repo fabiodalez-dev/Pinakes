@@ -324,8 +324,8 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 -- API settings
 ('api', 'enabled', '0', 'Enable API globally', NOW()),
 
--- CMS settings (already exists, but adding for completeness)
-('cms', 'events_page_enabled', '1', 'Enable events page in frontend', NOW())
+-- Social sharing settings
+('sharing', 'enabled_providers', 'facebook,x,whatsapp,email', 'Provider di condivisione social abilitati nella pagina dettaglio libro', NOW())
 ON DUPLICATE KEY UPDATE
     setting_value = VALUES(setting_value),
     description = VALUES(description),

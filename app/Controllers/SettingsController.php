@@ -10,6 +10,7 @@ use App\Support\HtmlHelper;
 use App\Support\SettingsMailTemplates;
 use App\Support\SecureLogger;
 use App\Support\SettingsEncryption;
+use App\Support\SharingProviders;
 use App\Support\SitemapGenerator;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -890,6 +891,30 @@ class SettingsController
             'cookie_marketing_name' => 'cookie_marketing_name',
             'cookie_marketing_description' => 'cookie_marketing_description',
         ];
+    }
+
+    public function updateSharingSettings(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+
+        $allowedSlugs = SharingProviders::slugs();
+        $selected = $data['sharing_providers'] ?? [];
+        if (!is_array($selected)) {
+            $selected = [];
+        }
+        $selected = array_map(static fn($s) => strtolower(trim((string) $s)), $selected);
+        $valid = array_values(array_intersect($allowedSlugs, array_unique($selected)));
+        $value = implode(',', $valid);
+
+        $repository->set('sharing', 'enabled_providers', $value);
+        ConfigStore::set('sharing.enabled_providers', $value);
+
+        $_SESSION['success_message'] = __('Impostazioni di condivisione aggiornate.');
+        return $this->redirect($response, '/admin/settings?tab=sharing');
     }
 
     private function redirect(Response $response, string $location): Response

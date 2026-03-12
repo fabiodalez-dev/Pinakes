@@ -426,6 +426,8 @@ migrate_0.4.6.sql    # LibraryThing missing fields (dewey_wording, barcode, entr
 migrate_0.4.7.sql    # LibraryThing comprehensive migration (25+ fields, indexes, constraints)
 migrate_0.4.8.1.sql  # Import logs tracking system (import_logs table + composite index)
 migrate_0.4.8.2.sql  # Illustratore field, lingua expansion, language normalization, anno_pubblicazione signed
+migrate_0.4.9.9.sql  # descrizione_plain column (HTML-free search)
+migrate_0.5.0.sql    # Social sharing settings + descrizione_plain safety net
 ```
 
 See `installer/database/migrations/README.md` for detailed migration documentation.
@@ -471,9 +473,23 @@ Pinakes uses **3 different SQL parsers** depending on the context. Each has diff
    ```sql
    -- The inner string uses '' for escaped quotes, parser handles correctly
    SET @sql = IF(@exists = 0, 'CREATE TABLE t (
-       col ENUM(''a'', ''b'') COMMENT ''Description''
+       col ENUM(''a'', ''b'')
    )', 'SELECT 1');
    ```
+
+5. **NEVER use backslash escapes (`\\`) inside PREPARE strings** — `splitSqlStatements()` only tracks `''` pairs for quote state. A `\\` inside a quoted string (e.g. a REGEXP pattern like `''^[89]\\.'') confuses the parser's state machine, causing it to split mid-statement. This was discovered during v0.4.9.9 upgrade testing.
+
+   ```sql
+   -- WRONG: backslash in PREPARE string breaks splitSqlStatements()
+   SET @sql = IF(@check, 'SELECT @ver REGEXP ''^[89]\\.''', 'SELECT 1');
+
+   -- CORRECT: move complex logic to PHP (BookRepository, Updater, etc.)
+   -- Keep migrations simple: DDL only, let application code handle data transforms
+   ```
+
+   > **Rule of thumb:** If your migration needs REGEXP, REPLACE(), stored procedures, or any complex string manipulation — do it in PHP instead. Migrations should only handle schema changes (ADD COLUMN, CREATE TABLE, ALTER TABLE). Data backfill/transforms belong in application code.
+
+6. **Avoid COMMENT clauses with escaped quotes in PREPARE strings** — deeply nested quoting like `COMMENT ''description with ''''quotes''''` is fragile across parsers. Omit COMMENT in migrations; document columns in the migration file's SQL comments instead.
 
 ### Data File Format Requirements (data_*.sql)
 
@@ -725,6 +741,37 @@ For users on v0.4.1-0.4.3 with broken updater:
 2. Access via browser: `https://yoursite.com/manual-update.php`
 3. Delete the script after update completes
 
+### Option 3: `manual-upgrade.php` (v0.4.9.8+)
+
+Standalone single-file upgrade script (`scripts/manual-upgrade.php`) for users who cannot use the admin auto-updater (e.g., restricted hosting, no outbound HTTP).
+
+**Usage:**
+1. Copy `scripts/manual-upgrade.php` to `public/` directory
+2. Access via browser: `https://yoursite.com/manual-upgrade.php`
+3. Enter the upgrade password (set via `UPGRADE_PASSWORD` constant in the script)
+4. Upload the release ZIP file
+5. Delete the script after upgrade completes
+
+**How it works:**
+- Password-protected with CSRF token validation
+- Creates a mysqldump backup before applying changes
+- Extracts ZIP and copies files, respecting `preservePaths` (same list as Updater.php)
+- Runs pending database migrations via `splitSqlStatements()`
+
+**⚠️ IMPORTANT: Bundled plugins are NOT updated by `manual-upgrade.php`**
+
+Unlike `Updater.php` which has `updateBundledPlugins()`, `manual-upgrade.php` preserves the entire `storage/plugins/` directory without updating bundled plugins. This means:
+- New bundled plugin features won't be available after a manual upgrade
+- New hooks registered by updated plugins won't activate
+- To update bundled plugins manually, extract `storage/plugins/<plugin-name>/` from the release ZIP and copy over the existing plugin directory
+
+This is a known gap between the two upgrade paths. The auto-updater (`Updater.php`) always updates bundled plugins; the manual script does not.
+
+**PHP built-in server caveats:**
+- The script must be in `public/` — the built-in server routes everything through Slim's router otherwise
+- PHP CLI doesn't read `.user.ini`, so for large ZIPs use: `php -d upload_max_filesize=512M -d post_max_size=512M -S localhost:8082 -t public`
+- `mysqldump` may fail with exit code 2 if the DB user lacks FLUSH privilege — the backup still works but with a warning
+
 ---
 
 ## Security Considerations
@@ -780,7 +827,7 @@ Each plugin has a `plugin.json` file with these version fields:
    |--------|---------|------|
    | api-book-scraper | 1.1.0 | api-book-scraper-v1.1.0.zip |
    | dewey-editor | 1.0.0 | dewey-editor-v1.0.0.zip |
-   | digital-library | 1.0.0 | digital-library-v1.0.0.zip |
+   | digital-library | 1.3.0 | digital-library-v1.3.0.zip |
    | open-library | 1.0.0 | open-library-v1.0.0.zip |
    | scraping-pro | 1.4.1 | scraping-pro-v1.4.1.zip |
    | z39-server | 1.2.1 | z39-server-v1.2.1.zip |
@@ -988,6 +1035,8 @@ Or when a patch is applied:
 
 | Version | Changes |
 |---------|---------|
+| 0.5.0 | Migration: Social sharing default setting (INSERT IGNORE), `descrizione_plain` safety net for fresh installs missing the column. Feature: Configurable social share buttons on book detail page (Facebook, X, WhatsApp, Telegram, LinkedIn, Reddit, Pinterest, Email, Copy Link, Web Share API). Admin Settings > Sharing tab with live preview. |
+| 0.4.9.9 | Migration: `descrizione_plain` column for HTML-free search (strip_tags backfill via PHP, not SQL). Digital Library plugin v1.3.0: inline PDF viewer (iframe-based, zero deps), ePub download fix (target=_blank). New migration rule: no `\\` backslash escapes in PREPARE strings — breaks `splitSqlStatements()` |
 | 0.4.9.7 | Re-release of 0.4.9.6 to ensure bundled plugin updates propagate to installations that updated from pre-0.4.9.6 (older Updater lacked updateBundledPlugins) |
 | 0.4.9.6 | Comprehensive codebase review: URL scheme validation, proxy-aware HTTPS in installer, bcrypt 72-byte limit, atomic RateLimiter with flock, guarded recalculateBookAvailability/RELEASE_LOCK calls, DashboardStats cache failure throw, language-switcher logging, config charset in SET NAMES |
 | 0.4.9.4 | Audiobook MP3 player, Z39.50/SRU Nordic sources, global keyboard shortcuts, scroll-to-top, rate-limit bypass fix, German installer support |

@@ -87,14 +87,16 @@
     }
 }
 
-#audiobook-player-container .card {
+#audiobook-player-container .card,
+#pdf-viewer-container .card {
     border: 2px solid #e5e7eb;
     border-radius: 16px;
     transition: box-shadow 0.3s ease, transform 0.3s ease;
     background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
 }
 
-#audiobook-player-container .card:hover {
+#audiobook-player-container .card:hover,
+#pdf-viewer-container .card:hover {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     transform: translateY(-2px);
 }
@@ -211,6 +213,34 @@
 }
 
 /* ==========================================================================
+   PDF Viewer Container
+   ========================================================================== */
+
+#pdf-viewer-container {
+    animation: slideDown 0.3s ease-out;
+}
+
+.pdf-viewer-frame {
+    width: 100%;
+    height: 80vh;
+    border: none;
+    border-radius: 8px;
+    background: #f1f5f9;
+}
+
+#pdf-viewer-container .btn-danger {
+    background-color: #dc2626 !important;
+    border-color: #dc2626 !important;
+    color: #fff;
+}
+
+#pdf-viewer-container .btn-danger:hover,
+#pdf-viewer-container .btn-danger:focus {
+    background-color: #b91c1c !important;
+    border-color: #b91c1c !important;
+}
+
+/* ==========================================================================
    Responsive Design
    ========================================================================== */
 
@@ -232,6 +262,14 @@
     .player-digital-library .play-pause-btn {
         width: 36px;
         height: 36px;
+    }
+
+    .pdf-viewer-frame {
+        height: 60vh;
+    }
+
+    #pdf-viewer-container .card-body {
+        padding: 1rem;
     }
 }
 
@@ -281,7 +319,8 @@
         transform: none;
     }
 
-    #audiobook-player-container .card:hover {
+    #audiobook-player-container .card:hover,
+    #pdf-viewer-container .card:hover {
         transform: none;
     }
 }

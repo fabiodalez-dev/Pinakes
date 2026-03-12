@@ -166,6 +166,13 @@ class DigitalLibraryPlugin
                 'is_active' => 1
             ],
             [
+                'hook_name' => 'book.detail.digital_player',
+                'callback_class' => 'DigitalLibraryPlugin',
+                'callback_method' => 'renderPdfViewer',
+                'priority' => 20,
+                'is_active' => 1
+            ],
+            [
                 'hook_name' => 'book.badge.digital_icons',
                 'callback_class' => 'DigitalLibraryPlugin',
                 'callback_method' => 'renderBadgeIcons',
@@ -189,53 +196,35 @@ class DigitalLibraryPlugin
         ];
 
         foreach ($hooks as $hook) {
-            // Check if hook already exists
+            // Atomic upsert — relies on UNIQUE KEY uk_plugin_hook_callback
+            // (plugin_id, hook_name, callback_class, callback_method)
             $stmt = $this->db->prepare("
-                SELECT id FROM plugin_hooks
-                WHERE plugin_id = ? AND hook_name = ?
+                INSERT INTO plugin_hooks
+                (plugin_id, hook_name, callback_class, callback_method, priority, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    priority  = VALUES(priority),
+                    is_active = VALUES(is_active)
             ");
             if (!$stmt) {
-                \App\Support\SecureLogger::error('DigitalLibraryPlugin: prepare() failed for hook check', ['hook' => $hook['hook_name']]);
+                \App\Support\SecureLogger::error('DigitalLibraryPlugin: prepare() failed for hook upsert', ['hook' => $hook['hook_name']]);
                 continue;
             }
-            $stmt->bind_param("is", $this->pluginId, $hook['hook_name']);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if (!$result instanceof \mysqli_result) {
-                \App\Support\SecureLogger::error('DigitalLibraryPlugin: get_result() failed for hook check', ['hook' => $hook['hook_name']]);
-                $stmt->close();
-                continue;
+            $stmt->bind_param(
+                "isssii",
+                $this->pluginId,
+                $hook['hook_name'],
+                $hook['callback_class'],
+                $hook['callback_method'],
+                $hook['priority'],
+                $hook['is_active']
+            );
+            if (!$stmt->execute()) {
+                \App\Support\SecureLogger::error('[Digital Library] Hook upsert failed', [
+                    'hook' => $hook['hook_name'],
+                    'error' => $stmt->error,
+                ]);
             }
-
-            if ($result->num_rows === 0) {
-                $stmt->close(); // close SELECT stmt before reassignment
-                // Insert new hook
-                $stmt = $this->db->prepare("
-                    INSERT INTO plugin_hooks
-                    (plugin_id, hook_name, callback_class, callback_method, priority, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ");
-                if (!$stmt) {
-                    \App\Support\SecureLogger::error('DigitalLibraryPlugin: prepare() failed for hook insert', ['hook' => $hook['hook_name']]);
-                    continue;
-                }
-                $stmt->bind_param(
-                    "isssii",
-                    $this->pluginId,
-                    $hook['hook_name'],
-                    $hook['callback_class'],
-                    $hook['callback_method'],
-                    $hook['priority'],
-                    $hook['is_active']
-                );
-                if (!$stmt->execute()) {
-                    \App\Support\SecureLogger::error('[Digital Library] Hook insert failed', [
-                        'hook' => $hook['hook_name'],
-                        'error' => $stmt->error,
-                    ]);
-                }
-            }
-
             $stmt->close();
         }
     }
@@ -303,6 +292,19 @@ class DigitalLibraryPlugin
     {
         if (!empty($book['audio_url'])) {
             include __DIR__ . '/views/frontend-player.php';
+        }
+    }
+
+    /**
+     * Render inline PDF viewer
+     * Hook: book.detail.digital_player (priority 20, after audio player)
+     */
+    public function renderPdfViewer(array $book): void
+    {
+        $fileUrl = (string) ($book['file_url'] ?? '');
+        $filePath = (string) (parse_url($fileUrl, PHP_URL_PATH) ?? '');
+        if ($filePath !== '' && strtolower(pathinfo($filePath, PATHINFO_EXTENSION)) === 'pdf') {
+            include __DIR__ . '/views/frontend-pdf-viewer.php';
         }
     }
 

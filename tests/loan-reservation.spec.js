@@ -271,7 +271,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     await approveBtn.click();
 
     // Confirmation SweetAlert
-    await adminPage.waitForSelector('.swal2-popup', { timeout: 5000 });
+    await adminPage.waitForSelector('.swal2-popup', { timeout: 10000 });
     await adminPage.locator('.swal2-confirm').click();
 
     // Wait for success (timer-based toast) or card removal
@@ -330,7 +330,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     await expect(pickupBtn).toBeVisible({ timeout: 5000 });
 
     await pickupBtn.click();
-    await adminPage.waitForSelector('.swal2-popup', { timeout: 5000 });
+    await adminPage.waitForSelector('.swal2-popup', { timeout: 10000 });
     await adminPage.locator('.swal2-confirm').click();
 
     // Wait for success
@@ -373,7 +373,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     await expect(returnBtn).toBeVisible({ timeout: 5000 });
 
     await returnBtn.click();
-    await adminPage.waitForSelector('.swal2-popup', { timeout: 5000 });
+    await adminPage.waitForSelector('.swal2-popup', { timeout: 10000 });
     await adminPage.locator('.swal2-confirm').click();
 
     // Return triggers page reload
@@ -440,7 +440,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     await expect(rejectBtn).toBeVisible({ timeout: 5000 });
 
     await rejectBtn.click();
-    await adminPage.waitForSelector('.swal2-popup', { timeout: 5000 });
+    await adminPage.waitForSelector('.swal2-popup', { timeout: 10000 });
 
     // Reject SweetAlert may have a textarea for reason
     const textarea = adminPage.locator('.swal2-textarea');

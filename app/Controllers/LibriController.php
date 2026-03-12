@@ -2766,6 +2766,7 @@ class LibriController
                 'ean',
                 'titolo',
                 'sottotitolo',
+                'descrizione',
                 'autori',
                 'editore',
                 'anno_pubblicazione',
@@ -2773,7 +2774,6 @@ class LibriController
                 'edizione',
                 'numero_pagine',
                 'genere',
-                'descrizione',
                 'formato',
                 'prezzo',
                 'copie_totali',
@@ -2795,6 +2795,7 @@ class LibriController
                 $row = $this->formatLibraryThingRow($libro, $anno);
             } else {
                 // Standard format (default)
+                $descrizione = $this->normalizeDescriptionForCsv((string) ($libro['descrizione'] ?? ''));
                 $row = [
                     $libro['id'] ?? '',
                     $libro['isbn10'] ?? '',
@@ -2802,6 +2803,7 @@ class LibriController
                     $libro['ean'] ?? '',
                     $libro['titolo'] ?? '',
                     $libro['sottotitolo'] ?? '',
+                    $descrizione,
                     $libro['autori_nomi'] ?? '',
                     $libro['editore_nome'] ?? '',
                     $anno,
@@ -2809,7 +2811,6 @@ class LibriController
                     $libro['edizione'] ?? '',
                     $libro['numero_pagine'] ?? '',
                     $libro['genere_nome'] ?? '',
-                    $libro['descrizione'] ?? '',
                     $libro['formato'] ?? '',
                     $libro['prezzo'] ?? '',
                     $libro['copie_totali'] ?? '1',
@@ -2919,6 +2920,16 @@ class LibriController
         ];
     }
 
+    private function normalizeDescriptionForCsv(string $html): string
+    {
+        $text = preg_replace('/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)\b[^>]*|br\b[^>]*\/?)>/i', "\n", $html);
+        $text = html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = str_replace("\xC2\xA0", ' ', (string) $text);
+        $text = (string) preg_replace("/[ \t]+/", ' ', $text);
+        $text = (string) preg_replace("/\n{3,}/", "\n\n", $text);
+        return trim($text);
+    }
+
     /**
      * Format book row in LibraryThing format
      *
@@ -2995,7 +3006,7 @@ class LibriController
             $libro['rating'] ?? '',                                // Rating
             $libro['comment'] ?? '',                               // Comment
             $libro['private_comment'] ?? '',                       // Private Comment
-            $libro['descrizione'] ?? '',                           // Summary
+            $this->normalizeDescriptionForCsv((string) ($libro['descrizione'] ?? '')), // Summary
             $media,                                                // Media
             $libro['physical_description'] ?? '',                  // Physical Description
             $libro['peso'] ?? '',                                  // Weight

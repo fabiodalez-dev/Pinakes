@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Repositories\RecensioniRepository;
 use App\Support\Branding;
+use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 use App\Support\RouteTranslator;
 use mysqli;
@@ -403,6 +404,7 @@ class FrontendController
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             WHERE l.deleted_at IS NULL
         ";
 
@@ -450,7 +452,7 @@ class FrontendController
         $filter_options = $this->getFilterOptions($db, $filters);
 
         // Get hierarchical genre display based on current selection
-        $genre_display = $this->getDisplayGenres($filter_options['generi'], $filters['genere'] ?? null);
+        $genre_display = $this->getDisplayGenres($filter_options['generi'], (int)($filters['genere_id'] ?? 0));
 
         // Render template
         $container = $this->container;
@@ -479,13 +481,14 @@ class FrontendController
         $param_types = $where_conditions['types'];
 
         // Query base senza JOIN con autori per evitare duplicati
-        // Include genre parents/grandparents to support filtering at any level
+        // Include genre parents/grandparents/subgenre to support filtering at any level
         $base_query = "
             FROM libri l
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
             LEFT JOIN generi gp ON g.parent_id = gp.id
             LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+            LEFT JOIN generi sg ON l.sottogenere_id = sg.id
             WHERE l.deleted_at IS NULL
         ";
 
@@ -538,7 +541,7 @@ class FrontendController
         $filter_options = $this->getFilterOptions($db, $filters);
 
         // Get hierarchical genre display for correct sidebar rendering
-        $genre_display = $this->getDisplayGenres($filter_options['generi'], $filters['genere'] ?? null);
+        $genre_display = $this->getDisplayGenres($filter_options['generi'], (int)($filters['genere_id'] ?? 0));
 
         $data = [
             'html' => $html,
@@ -573,7 +576,9 @@ class FrontendController
             SELECT l.*,
                    a.nome AS autore_principale,
                    g.nome AS genere,
+                   gp.id AS genere_parent_id_resolved,
                    gp.nome AS genere_parent,
+                   gpp.id AS genere_grandparent_id,
                    gpp.nome AS genere_grandparent,
                    sg.nome AS sottogenere,
                    e.nome AS editore
@@ -650,6 +655,11 @@ class FrontendController
         $reviews = $recensioniRepo->getApprovedReviewsForBook($book_id);
         $reviewStats = $recensioniRepo->getReviewStats($book_id);
 
+        // Social sharing
+        $sharingProviders = array_values(array_filter(array_map('trim', explode(',', (string) ConfigStore::get('sharing.enabled_providers', '')))));
+        $shareUrl = absoluteUrl($canonicalPath);
+        $shareTitle = $book['titolo'] ?? '';
+
         // Render template
         $container = $this->container;
         ob_start();
@@ -677,7 +687,7 @@ class FrontendController
 
         return [
             'search' => $searchTerm,
-            'genere' => $params['genere'] ?? '',
+            'genere_id' => (int)($params['genere_id'] ?? 0),
             'disponibilita' => $params['disponibilita'] ?? '',
             'editore' => $params['editore'] ?? '',
             'anno_min' => $params['anno_min'] ?? '',
@@ -796,14 +806,15 @@ class FrontendController
             }
         }
 
-        if (!empty($filters['genere'])) {
-            // Search for genre at any level (Level 3, Level 2, or Level 1)
-            $conditions[] = "(g.nome = ? OR gp.nome = ? OR gpp.nome = ? OR sg.nome = ?)";
-            $params[] = $filters['genere'];
-            $params[] = $filters['genere'];
-            $params[] = $filters['genere'];
-            $params[] = $filters['genere'];
-            $types .= 'ssss';
+        if (!empty($filters['genere_id'])) {
+            $genreId = (int) $filters['genere_id'];
+            // Match genre ID at any level of the hierarchy
+            $conditions[] = "(l.genere_id = ? OR g.parent_id = ? OR gp.parent_id = ? OR l.sottogenere_id = ?)";
+            $params[] = $genreId;
+            $params[] = $genreId;
+            $params[] = $genreId;
+            $params[] = $genreId;
+            $types .= 'iiii';
         }
 
         if (!empty($filters['editore'])) {
@@ -862,7 +873,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     // ---------- Generi ----------
     // Build filter conditions excluding the current 'genere' filter
     $filtersForGeneri = $filters;
-    $filtersForGeneri['genere'] = '';
+    $filtersForGeneri['genere_id'] = 0;
     $whereGen = $this->buildWhereConditions($filtersForGeneri, $db);
     $conditionsGen = $whereGen['conditions'];
     $paramsGen = $whereGen['params'];
@@ -885,26 +896,30 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                    LEFT JOIN generi gf ON l.genere_id = gf.id
                    LEFT JOIN generi gfp ON gf.parent_id = gfp.id
                    LEFT JOIN generi gfpp ON gfp.parent_id = gfpp.id
+                   LEFT JOIN generi sg ON l.sottogenere_id = sg.id
                    WHERE (
                        l.genere_id = g.id
+                       OR l.sottogenere_id = g.id
                        OR l.genere_id IN (SELECT id FROM generi WHERE parent_id = g.id)
+                       OR l.sottogenere_id IN (SELECT id FROM generi WHERE parent_id = g.id)
                        OR l.genere_id IN (SELECT gc.id FROM generi gc JOIN generi gp ON gc.parent_id = gp.id WHERE gp.parent_id = g.id)
+                       OR l.sottogenere_id IN (SELECT gc.id FROM generi gc JOIN generi gp ON gc.parent_id = gp.id WHERE gp.parent_id = g.id)
                    )
                    {$whereClauseGen}
                ) AS cnt
         FROM (
-            -- Select all genres that have books or are parents of genres with books
+            -- Select all genres that have books via genere_id or sottogenere_id
             SELECT DISTINCT g.id FROM generi g
-            JOIN libri l ON g.id = l.genere_id AND l.deleted_at IS NULL
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL
             UNION
             SELECT DISTINCT gp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
-            JOIN libri l ON g.id = l.genere_id AND l.deleted_at IS NULL
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL
             UNION
             SELECT DISTINCT gpp.id FROM generi g
             JOIN generi gp ON g.parent_id = gp.id
             JOIN generi gpp ON gp.parent_id = gpp.id
-            JOIN libri l ON g.id = l.genere_id AND l.deleted_at IS NULL
+            JOIN libri l ON (g.id = l.genere_id OR g.id = l.sottogenere_id) AND l.deleted_at IS NULL
         ) as genre_ids
         JOIN generi g ON genre_ids.id = g.id
         ORDER BY g.parent_id, g.nome
@@ -944,6 +959,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+        LEFT JOIN generi sg ON l.sottogenere_id = sg.id
     ";
     if (!empty($conditionsEd)) {
         // Keep all conditions including genre filter
@@ -975,6 +991,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+        LEFT JOIN generi sg ON l.sottogenere_id = sg.id
         WHERE l.deleted_at IS NULL
     ";
     if (!empty($conditionsAvail)) {
@@ -1505,12 +1522,12 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
      * - Level 2: Show children of selected second-level genre
      *
      * @param array $allGenres Full genre hierarchy from buildGenreHierarchy
-     * @param ?string $selectedGenre Currently selected genre name
+     * @param int $selectedGenreId Currently selected genre ID (0 = none)
      * @return array ['genres' => display genres, 'level' => current level, 'parent' => parent genre for back button]
      */
-    private function getDisplayGenres(array $allGenres, ?string $selectedGenre): array
+    private function getDisplayGenres(array $allGenres, int $selectedGenreId): array
     {
-        if (empty($selectedGenre)) {
+        if ($selectedGenreId === 0) {
             // Level 0: Show all root genres
             return [
                 'genres' => $allGenres,
@@ -1519,20 +1536,20 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             ];
         }
 
-        // Find the selected genre in the hierarchy
+        // Find the selected genre in the hierarchy by ID
         $selectedGenreData = null;
         $parentGenre = null;
 
         // Search in root genres
         foreach ($allGenres as $genre) {
-            if ($genre['nome'] === $selectedGenre) {
+            if ((int) $genre['id'] === $selectedGenreId) {
                 $selectedGenreData = $genre;
                 break;
             }
             // Search in children
             if (!empty($genre['children'])) {
                 foreach ($genre['children'] as $child) {
-                    if ($child['nome'] === $selectedGenre) {
+                    if ((int) $child['id'] === $selectedGenreId) {
                         $selectedGenreData = $child;
                         $parentGenre = $genre;
                         break;
@@ -1540,7 +1557,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                     // Search in grandchildren
                     if (!empty($child['children'])) {
                         foreach ($child['children'] as $grandchild) {
-                            if ($grandchild['nome'] === $selectedGenre) {
+                            if ((int) $grandchild['id'] === $selectedGenreId) {
                                 $selectedGenreData = $grandchild;
                                 $parentGenre = $child;
                                 break;
