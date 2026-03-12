@@ -201,10 +201,18 @@ If a release ZIP exceeds 50MB, something is wrong — likely dev files or old re
    - **Result:** Every installation that updated to v0.4.8.3 got a white screen (500 error). The release had to be deleted and recreated as v0.4.8.4.
    - **Lesson:** **NEVER manually recreate a ZIP with `git archive`.** ALWAYS delete the broken release and re-run `./scripts/create-release.sh`. The script switches to production autoloader, commits it, THEN runs `git archive`, THEN verifies the ZIP. Doing any of these steps by hand WILL break something.
 
+**v0.4.9.9 Release - The Silent Migration Skip:**
+
+6. **Mistake:** Release version was `0.4.9.9` but included `migrate_0.5.0.sql`
+   - **Root cause:** `version_compare('0.5.0', '0.4.9.9', '<=')` returns `FALSE` in PHP — the updater silently skips any migration with a version higher than the target
+   - **Result:** Social sharing settings and plugin_hooks unique index were never applied on upgrade. No error, no warning — just missing functionality
+   - **Lesson:** **EVERY migration file version MUST be ≤ the release version.** If you have multiple migrations for one release, merge them into one file named after the release version. `create-release.sh` should verify this automatically (TODO).
+
 **Why These Mistakes Keep Happening:**
 - Manual processes have many failure points
 - `git archive` behavior is non-obvious (uses repo, not local files)
 - `git archive` can silently drop files without any error
+- `version_compare()` behavior is non-obvious with multi-segment versions
 - Easy to forget steps under time pressure
 - Each mistake breaks production for ALL users
 
@@ -433,7 +441,34 @@ See `installer/database/migrations/README.md` for detailed migration documentati
 
 ### Execution Order
 
-Migrations are executed in version order, only for versions newer than the current version.
+Migrations are executed in version order, only for versions newer than the current version **and less than or equal to the target version**.
+
+The updater logic is:
+
+```php
+if (version_compare($migrationVersion, $fromVersion, '>') &&
+    version_compare($migrationVersion, $toVersion, '<=')) {
+    // Execute this migration
+}
+```
+
+### ⚠️ CRITICAL: Migration Version Must Be ≤ Release Version
+
+**NEVER name a migration file with a version HIGHER than the release version!**
+
+PHP `version_compare()` determines whether a migration runs. If the migration version exceeds the release version, it will be **silently skipped** — no error, no warning, just missing data.
+
+```
+Release version: 0.4.9.9
+migrate_0.5.0.sql  → version_compare('0.5.0', '0.4.9.9', '<=') = FALSE → SKIPPED!
+migrate_0.4.9.9.sql → version_compare('0.4.9.9', '0.4.9.9', '<=') = TRUE → EXECUTED ✓
+```
+
+**Why this is non-obvious:** `0.5.0` looks "close" to `0.4.9.9`, but PHP compares segment-by-segment: `0=0`, then `5>4` → done. The extra `.9.9` segments don't matter.
+
+**Rule:** Before creating a release, verify that ALL migration files have a version ≤ the release version in `version.json`. If you need multiple migrations for the same release, merge them into one file or use the release version as the filename.
+
+**Checklist item for `create-release.sh`:** The script should verify that no `migrate_*.sql` file has a version greater than the release version. (TODO: automate this check.)
 
 ### SQL Parsers Overview
 
