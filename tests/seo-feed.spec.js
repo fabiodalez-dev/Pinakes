@@ -75,22 +75,26 @@ test.describe('Hreflang tags', () => {
     expect(itHref).not.toBeNull();
     expect(enHref).not.toBeNull();
 
-    // EN version should have /en/ prefix
+    // EN version should have /en/ prefix and same slug path as IT
     expect(enHref[1]).toContain('/en/');
+    const stripLocalePrefix = (href) =>
+      new URL(href).pathname.replace(/^\/[a-z]{2}(?=\/)/, '');
+    expect(stripLocalePrefix(enHref[1])).toBe(stripLocalePrefix(itHref[1]));
   });
 
-  test('x-default points to the default (IT) locale version', async ({ request }) => {
+  test('x-default points to one of the active locale versions', async ({ request }) => {
     const resp = await request.get(`${BASE}/catalogo`);
     expect(resp.status()).toBe(200);
     const html = await resp.text();
 
     const xDefaultMatch = html.match(/hreflang="x-default"[^>]*href="([^"]+)"/);
-    const itMatch = html.match(/hreflang="it"[^>]*href="([^"]+)"/);
     expect(xDefaultMatch).not.toBeNull();
-    expect(itMatch).not.toBeNull();
 
-    // x-default should be identical to IT version
-    expect(xDefaultMatch[1]).toBe(itMatch[1]);
+    // x-default should match one of the active locale URLs
+    const localeMatches = [...html.matchAll(/hreflang="(?!x-default)[^"]+"[^>]*href="([^"]+)"/g)];
+    expect(localeMatches.length).toBeGreaterThan(0);
+    const localeHrefs = localeMatches.map((m) => m[1]);
+    expect(localeHrefs).toContain(xDefaultMatch[1]);
   });
 
   test('hreflang links are absolute URLs', async ({ request }) => {
@@ -98,7 +102,8 @@ test.describe('Hreflang tags', () => {
     expect(resp.status()).toBe(200);
     const html = await resp.text();
 
-    const hrefMatches = html.matchAll(/hreflang="[^"]*"[^>]*href="([^"]+)"/g);
+    const hrefMatches = [...html.matchAll(/hreflang="[^"]*"[^>]*href="([^"]+)"/g)];
+    expect(hrefMatches.length).toBeGreaterThan(0);
     for (const match of hrefMatches) {
       expect(match[1]).toMatch(/^https?:\/\//);
     }
@@ -169,7 +174,8 @@ test.describe('RSS Feed', () => {
     const xml = await resp.text();
 
     // Extract all <link> values inside <item>
-    const linkMatches = xml.matchAll(/<item>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<\/item>/g);
+    const linkMatches = [...xml.matchAll(/<item>[\s\S]*?<link>(.*?)<\/link>[\s\S]*?<\/item>/g)];
+    expect(linkMatches.length).toBeGreaterThan(0);
     for (const match of linkMatches) {
       expect(match[1]).toMatch(/^https?:\/\//);
     }
@@ -239,14 +245,14 @@ test.describe('Sitemap', () => {
     expect(resp.status()).toBe(200);
     const xml = await resp.text();
 
-    // Check if events table has active rows via the sitemap
     // Events use the translated route: /eventi (IT) or /events (EN)
-    const hasEvents = xml.includes('/eventi/') || xml.includes('/events/');
+    const hasItEvents = xml.includes('/eventi/');
+    const hasEnEvents = xml.includes('/events/');
 
-    // This test documents behavior — if no events exist, it's still valid
-    if (hasEvents) {
-      // Both locale variants should be present
-      expect(xml).toMatch(/\/eventi\/|\/events\//);
+    // If events exist, both locale variants should be present
+    if (hasItEvents || hasEnEvents) {
+      expect(hasItEvents).toBe(true);
+      expect(hasEnEvents).toBe(true);
     }
   });
 
