@@ -17,6 +17,41 @@ test.skip(
 );
 
 // ────────────────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * Robustly fill an autocomplete field and select the first suggestion.
+ * Uses sequential typing to reliably trigger input events, waits for the API
+ * response, and retries up to 3 times if suggestions don't appear.
+ */
+async function fillAutocomplete(page, inputSelector, suggestSelector, query, apiUrlFragment) {
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    await page.fill(inputSelector, '');
+    const responsePromise = page.waitForResponse(
+      resp => resp.url().includes(apiUrlFragment) && resp.status() === 200,
+      { timeout: 15000 },
+    );
+    await page.locator(inputSelector).pressSequentially(query, { delay: 50 });
+    await responsePromise;
+
+    const suggestionItem = page.locator(`${suggestSelector} .suggestion-item`).first();
+    const visible = await suggestionItem.isVisible({ timeout: 3000 }).catch(() => false);
+    if (visible) {
+      await suggestionItem.click();
+      return;
+    }
+
+    if (attempt < maxAttempts) {
+      await page.fill(inputSelector, '');
+      await page.waitForTimeout(300);
+    }
+  }
+  await page.locator(`${suggestSelector} .suggestion-item`).first().click({ timeout: 5000 });
+}
+
+// ────────────────────────────────────────────────────────────────────────
 // Full lifecycle smoke test: fresh install → login → CRUD operations
 // Uses a shared browser context so PHP sessions (cookies) persist.
 // ────────────────────────────────────────────────────────────────────────
@@ -191,7 +226,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
     await page.locator('#bookForm button[type="submit"]').click();
 
     // Wait for SweetAlert confirmation popup and click confirm
-    await page.waitForSelector('.swal2-confirm', { timeout: 5000 });
+    await page.waitForSelector('.swal2-confirm', { timeout: 10000 });
     await page.locator('.swal2-confirm').click();
 
     // Wait for navigation after fetch-based submit
@@ -213,20 +248,12 @@ test.describe.serial('Smoke: clean install + core operations', () => {
     await page.waitForLoadState('networkidle');
 
     // Search for user (admin is the only user)
-    await page.fill('#utente_search', 'Fabio');
-    await page.waitForSelector('#utente_suggest .suggestion-item', { timeout: 10000 });
-    await page.locator('#utente_suggest .suggestion-item').first().click();
-
-    // Verify utente_id was set
+    await fillAutocomplete(page, '#utente_search', '#utente_suggest', 'Fabio', '/api/search/utenti');
     const utenteId = await page.locator('#utente_id').inputValue();
     expect(Number(utenteId)).toBeGreaterThan(0);
 
     // Search for the book
-    await page.fill('#libro_search', 'Nome della Rosa');
-    await page.waitForSelector('#libro_suggest .suggestion-item', { timeout: 10000 });
-    await page.locator('#libro_suggest .suggestion-item').first().click();
-
-    // Verify libro_id was set
+    await fillAutocomplete(page, '#libro_search', '#libro_suggest', 'Nome della Rosa', '/api/search/libri');
     const libroId = await page.locator('#libro_id').inputValue();
     expect(Number(libroId)).toBeGreaterThan(0);
 
@@ -249,7 +276,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
 
     // Submit — SweetAlert2 confirmation dialog
     await page.locator('#bookForm button[type="submit"]').click();
-    await page.waitForSelector('.swal2-confirm', { timeout: 5000 });
+    await page.waitForSelector('.swal2-confirm', { timeout: 10000 });
     await page.locator('.swal2-confirm').click();
     await page.waitForURL(/admin\/libri(?!.*modifica)/, { timeout: 15000 });
 

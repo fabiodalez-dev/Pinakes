@@ -84,25 +84,6 @@ $htmlLang = substr($currentLocale, 0, 2);
     <link rel="canonical"
         href="<?= htmlspecialchars($seoCanonical ?? HtmlHelper::getCurrentUrl()) ?>">
 
-    <!-- Hreflang Tags for Multilingual SEO -->
-    <?php
-    $currentUrl = HtmlHelper::getCurrentUrl();
-    $currentLang = $_SESSION['locale'] ?? 'it_IT';
-    $isItalian = str_starts_with($currentLang, 'it');
-
-    // Remove existing lang parameter if present
-    $baseUrlClean = preg_replace('/([?&])lang=[^&]*(&|$)/', '$1', $currentUrl);
-    $baseUrlClean = rtrim($baseUrlClean, '?&');
-
-    // Build hreflang URLs
-    $separator = (str_contains($baseUrlClean, '?')) ? '&' : '?';
-    $hreflangIt = $baseUrlClean . $separator . 'lang=it';
-    $hreflangEn = $baseUrlClean . $separator . 'lang=en';
-    ?>
-    <link rel="alternate" hreflang="it" href="<?= htmlspecialchars($hreflangIt) ?>">
-    <link rel="alternate" hreflang="en" href="<?= htmlspecialchars($hreflangEn) ?>">
-    <link rel="alternate" hreflang="x-default" href="<?= htmlspecialchars($baseUrlClean) ?>">
-
     <?php
     $defaultOgImagePath = Branding::socialImage();
     $resolvedDefaultOgImage = $defaultOgImagePath !== '' ? absoluteUrl($defaultOgImagePath) : '';
@@ -110,7 +91,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     $ogTitle = $ogTitle ?? ($seoTitle ?? $title ?? $appName);
     $ogDescription = $ogDescription ?? ($seoDescription ?? ($footerDescription ?: __('Esplora il nostro catalogo digitale')));
     $ogType = $ogType ?? 'website';
-    $ogUrl = $ogUrl ?? $baseUrlClean;
+    $ogUrl = $ogUrl ?? HtmlHelper::getCurrentUrl();
     $ogImage = $ogImage ?? $resolvedDefaultOgImage;
     $ogImage = $ogImage !== '' ? absoluteUrl($ogImage) : '';
 

@@ -53,9 +53,9 @@ test.describe.serial('Social Sharing', () => {
   });
 
   test.afterAll(async () => {
-    // Restore original sharing providers only if capture completed
-    if (page && originalProviders !== null) {
-      try {
+    try {
+      // Restore original sharing providers only if capture completed
+      if (page && originalProviders !== null) {
         await page.goto(`${BASE}/admin/settings?tab=sharing`);
         await page.waitForLoadState('networkidle');
         const panel = page.locator('[data-settings-panel="sharing"]');
@@ -70,11 +70,13 @@ test.describe.serial('Social Sharing', () => {
         }
         await panel.locator('button[type="submit"]').click();
         await page.waitForLoadState('networkidle');
-      } catch (error) {
-        console.error('Failed to restore sharing providers:', error);
       }
+    } catch (error) {
+      console.error('Failed to restore sharing providers:', error);
+      throw error;
+    } finally {
+      await context?.close();
     }
-    await context?.close();
   });
 
   test('1. Settings: sharing tab loads with provider checkboxes', async () => {

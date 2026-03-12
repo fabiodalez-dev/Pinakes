@@ -29,9 +29,8 @@ DEALLOCATE PREPARE stmt;
 -- Enables Facebook, X, WhatsApp and Email share buttons on the book detail page.
 -- Admins can customise the selection in Settings > Sharing.
 
-INSERT IGNORE INTO system_settings (category, setting_key, setting_value, description, updated_at)
-VALUES ('sharing', 'enabled_providers', 'facebook,x,whatsapp,email',
-        'Enabled social sharing providers on book detail page', NOW());
+INSERT IGNORE INTO system_settings (category, setting_key, setting_value, updated_at)
+VALUES ('sharing', 'enabled_providers', 'facebook,x,whatsapp,email', NOW());
 
 -- =============================================================================
 -- Add unique index on plugin_hooks for atomic upsert registration
@@ -39,22 +38,28 @@ VALUES ('sharing', 'enabled_providers', 'facebook,x,whatsapp,email',
 -- Prevents duplicate hook rows from concurrent registerHooks() calls.
 -- First, deduplicate existing rows (keep the one with the smallest id).
 
+-- Deduplicate existing rows (keep the one with the smallest id)
 DELETE ph1
 FROM plugin_hooks ph1
 JOIN plugin_hooks ph2
   ON ph1.plugin_id       = ph2.plugin_id
  AND ph1.hook_name       = ph2.hook_name
- AND ph1.callback_class  = ph2.callback_class
  AND ph1.callback_method = ph2.callback_method
  AND ph1.id > ph2.id;
 
-SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
-                   WHERE TABLE_SCHEMA = DATABASE()
-                     AND TABLE_NAME = 'plugin_hooks'
-                     AND INDEX_NAME = 'uk_plugin_hook_callback');
-SET @sql = IF(@idx_exists = 0,
-    'ALTER TABLE plugin_hooks ADD UNIQUE KEY uk_plugin_hook_callback (plugin_id, hook_name, callback_class, callback_method)',
+-- Drop old 4-column unique key if it exists (included callback_class which
+-- is NOT part of the runtime identity — the dispatcher deduplicates by
+-- plugin_id + hook_name + callback_method only)
+SET @old_idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'plugin_hooks'
+                  AND INDEX_NAME = 'uk_plugin_hook_callback');
+SET @sql = IF(@old_idx > 0,
+    'ALTER TABLE plugin_hooks DROP INDEX uk_plugin_hook_callback',
     'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- Re-create with correct 3-column key
+ALTER TABLE plugin_hooks ADD UNIQUE KEY uk_plugin_hook_callback (plugin_id, hook_name, callback_method);

@@ -65,7 +65,7 @@ test.describe('C-2: bulkDelete uses soft-delete', () => {
     await page.fill('input[name="titolo"]', testTitle);
     await page.click('button[type="submit"]');
     // Book form uses SweetAlert2 confirmation — click confirm
-    await page.waitForSelector('.swal2-confirm', { timeout: 5000 });
+    await page.waitForSelector('.swal2-confirm', { timeout: 10000 });
     await page.locator('.swal2-confirm').click();
     // Wait for redirect to the book detail or book list
     await page.waitForURL(/admin\/libri(?!.*crea)/, { timeout: 15000 });

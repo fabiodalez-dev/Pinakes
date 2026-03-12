@@ -1184,7 +1184,7 @@ ob_start();
                         <div class="filter-options" id="genres-filter">
                             <?php if($genre_display['level'] > 0): ?>
                             <div class="filter-back-container">
-                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere', <?= htmlspecialchars(json_encode($genre_display['level'] === 1 ? '' : ($genre_display['parent']['nome'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;" title="<?= __("Torna alla categoria superiore") ?>">
+                                <a href="#" class="filter-back-btn" onclick="updateFilter('genere_id', <?= $genre_display['level'] === 1 ? 0 : (int)($genre_display['parent']['id'] ?? 0) ?>); return false;" title="<?= __("Torna alla categoria superiore") ?>">
                                     <i class="fas fa-arrow-left"></i>
                                     <span><?= __("Torna alla categoria superiore") ?></span>
                                 </a>
@@ -1196,7 +1196,7 @@ ob_start();
                                     <?php if (($genere['cnt'] ?? 0) > 0): ?>
                                     <a href="#"
                                        class="filter-option count"
-                                       onclick="updateFilter('genere', <?= htmlspecialchars(json_encode($genere['nome'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;"
+                                       onclick="updateFilter('genere_id', <?= (int)$genere['id'] ?>); return false;"
                                        title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
                                         <span><?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
@@ -1216,7 +1216,7 @@ ob_start();
                                     ?>
                                     <a href="#"
                                        class="filter-option count"
-                                       onclick="updateFilter('genere', <?= htmlspecialchars(json_encode($genere['nome'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;"
+                                       onclick="updateFilter('genere_id', <?= (int)$genere['id'] ?>); return false;"
                                        title="<?= htmlspecialchars($genere['nome'], ENT_QUOTES, 'UTF-8') ?>">
                                         <span><?= htmlspecialchars($displayName, ENT_QUOTES, 'UTF-8') ?></span>
                                         <span class="count-badge"><?= $genere['cnt'] ?></span>
@@ -1425,7 +1425,7 @@ $currentYear = (int)date('Y');
 $i18nTranslations = [
     // Filter labels
     'search' => __('Ricerca'),
-    'genere' => __('Genere'),
+    'genere_id' => __('Genere'),
     'editore' => __('Editore'),
     'disponibilita' => __('Disponibilità'),
     'anno_min' => __('Anno min'),
@@ -1460,6 +1460,7 @@ $i18nTranslations = [
 $i18nJson = json_encode($i18nTranslations, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 $catalogRouteJs = json_encode($catalogRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 $apiCatalogRouteJs = json_encode($apiCatalogRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
+$currentGenreNameJs = json_encode(isset($genre_display['selectedGenre']) ? $genre_display['selectedGenre']['nome'] : '', JSON_HEX_TAG);
 
 $additional_js = <<<JS
 <script>
@@ -1471,6 +1472,7 @@ const API_CATALOG_ROUTE = {$apiCatalogRouteJs};
 let currentFilters = {};
 let searchTimeout;
 let loadingTimeout;
+let currentGenreName = {$currentGenreNameJs};
 const CURRENT_YEAR = {$currentYear};
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -1508,10 +1510,13 @@ function debounceSearch(value) {
 }
 
 function updateFilter(key, value) {
-    if (value && value !== '') {
+    if (value && value !== '' && value !== 0) {
         currentFilters[key] = value;
     } else {
         delete currentFilters[key];
+        if (key === 'genere_id') {
+            currentGenreName = '';
+        }
     }
 
     currentFilters.page = 1;
@@ -1544,6 +1549,9 @@ function clearAllFilters() {
 
 function removeFilter(key) {
     delete currentFilters[key];
+    if (key === 'genere_id') {
+        currentGenreName = '';
+    }
     currentFilters.page = 1;
 
     updateActiveFiltersDisplay();
@@ -1578,7 +1586,7 @@ function updateActiveFiltersDisplay() {
 
     const filterLabels = {
         search: i18n.search,
-        genere: i18n.genere,
+        genere_id: i18n.genere_id,
         editore: i18n.editore,
         disponibilita: i18n.disponibilita,
         anno_min: i18n.anno_min,
@@ -1612,6 +1620,8 @@ function updateActiveFiltersDisplay() {
             displayValue = sortLabels[value] || value;
         } else if (filterKey === 'disponibilita') {
             displayValue = value === 'disponibile' ? i18n.disponibile : i18n.in_prestito;
+        } else if (filterKey === 'genere_id') {
+            displayValue = currentGenreName || value;
         }
 
         const tag = document.createElement('span');
@@ -1671,6 +1681,11 @@ function loadBooks() {
 
             // Update filter options if provided
             if (data.filter_options) {
+                if (data.genre_display && data.genre_display.selectedGenre) {
+                    currentGenreName = data.genre_display.selectedGenre.nome;
+                } else {
+                    currentGenreName = '';
+                }
                 updateFilterOptions(data.filter_options, data.genre_display);
             }
 
@@ -1759,10 +1774,9 @@ function updateFilterOptions(filterOptions, genreDisplay) {
 
             // Add back button if not at level 0
             if (genreDisplay.level > 0) {
-                const backValue = genreDisplay.level === 1 ? '' : (genreDisplay.parent?.nome || '');
-                const backEscaped = backValue.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
+                const backId = genreDisplay.level === 1 ? 0 : (genreDisplay.parent?.id || 0);
                 html += '<div class="filter-back-container">';
-                html += '<a href="#" class="filter-back-btn" onclick="updateFilter(\'genere\', \'' + backEscaped + '\'); return false;" title="' + i18n.torna_categoria_superiore + '">';
+                html += '<a href="#" class="filter-back-btn" onclick="updateFilter(\'genere_id\', ' + backId + '); return false;" title="' + i18n.torna_categoria_superiore + '">';
                 html += '<i class="fas fa-arrow-left"></i>';
                 html += '<span>' + i18n.torna_categoria_superiore + '</span>';
                 html += '</a>';
@@ -1773,8 +1787,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 // Skip genres with 0 count
                 if ((gen.cnt ?? 0) <= 0) return;
 
-                const isActive = currentFilters.genere === gen.nome ? 'active' : '';
-                const escapedName = gen.nome.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
+                const isActive = parseInt(currentFilters.genere_id) === gen.id ? 'active' : '';
                 let displayName = gen.nome;
 
                 // Shorten display name for lower levels
@@ -1786,7 +1799,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 // Sanitize title attribute to prevent XSS
                 const safeTitle = escapeHtml(gen.nome);
 
-                html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere\', \'' + escapedName + '\'); return false;" title="' + safeTitle + '">';
+                html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;" title="' + safeTitle + '">';
                 html += '<span>' + escapeHtml(displayName) + '</span>';
                 html += '<span class="count-badge">' + gen.cnt + '</span>';
                 html += '</a>';
@@ -1800,9 +1813,8 @@ function updateFilterOptions(filterOptions, genreDisplay) {
             let html = '';
             filterOptions.generi.forEach(gen => {
                 if ((gen.cnt ?? 0) > 0) {
-                    const isActive = currentFilters.genere === gen.nome ? 'active' : '';
-                    const escapedName = gen.nome.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
-                    html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere\', \'' + escapedName + '\'); return false;">';
+                    const isActive = parseInt(currentFilters.genere_id) === gen.id ? 'active' : '';
+                    html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'genere_id\', ' + gen.id + '); return false;">';
                     html += '<span>' + escapeHtml(gen.nome) + '</span>';
                     html += '<span class="count-badge">' + gen.cnt + '</span>';
                     html += '</a>';
@@ -1811,9 +1823,8 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                     if (gen.children && gen.children.length > 0) {
                         gen.children.forEach(subgen => {
                             if ((subgen.cnt ?? 0) > 0) {
-                                const isSubActive = currentFilters.genere === subgen.nome ? 'active' : '';
-                                const escapedSubName = subgen.nome.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
-                                html += '<a href="#" class="filter-option subgenre count ' + isSubActive + '" onclick="updateFilter(\'genere\', \'' + escapedSubName + '\'); return false;">';
+                                const isSubActive = parseInt(currentFilters.genere_id) === subgen.id ? 'active' : '';
+                                html += '<a href="#" class="filter-option subgenre count ' + isSubActive + '" onclick="updateFilter(\'genere_id\', ' + subgen.id + '); return false;">';
                                 html += '<span>' + escapeHtml(subgen.nome) + '</span>';
                                 html += '<span class="count-badge">' + subgen.cnt + '</span>';
                                 html += '</a>';

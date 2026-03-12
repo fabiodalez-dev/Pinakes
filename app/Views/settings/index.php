@@ -592,25 +592,8 @@ $activeTab = $activeTab ?? 'general';
 
             <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-4">
               <?php
-              $enabledProviders = array_filter(explode(',', (string) \App\Support\ConfigStore::get('sharing.enabled_providers', '')));
-              $allProviders = [
-                  'facebook'  => ['name' => 'Facebook',  'icon' => 'fab fa-facebook-f',  'color' => '#1877F2'],
-                  'x'         => ['name' => 'X (Twitter)', 'icon' => 'fab fa-x-twitter', 'color' => '#000000'],
-                  'whatsapp'  => ['name' => 'WhatsApp',  'icon' => 'fab fa-whatsapp',    'color' => '#25D366'],
-                  'telegram'  => ['name' => 'Telegram',  'icon' => 'fab fa-telegram',    'color' => '#0088CC'],
-                  'linkedin'  => ['name' => 'LinkedIn',  'icon' => 'fab fa-linkedin-in', 'color' => '#0A66C2'],
-                  'reddit'    => ['name' => 'Reddit',    'icon' => 'fab fa-reddit-alien', 'color' => '#FF4500'],
-                  'pinterest' => ['name' => 'Pinterest', 'icon' => 'fab fa-pinterest-p', 'color' => '#E60023'],
-                  'threads'   => ['name' => 'Threads',   'icon' => 'fab fa-threads',     'color' => '#000000'],
-                  'bluesky'   => ['name' => 'Bluesky',   'icon' => 'fab fa-bluesky',     'color' => '#0085FF'],
-                  'tumblr'    => ['name' => 'Tumblr',    'icon' => 'fab fa-tumblr',      'color' => '#36465D'],
-                  'pocket'    => ['name' => 'Pocket',    'icon' => 'fab fa-get-pocket',  'color' => '#EF4056'],
-                  'vk'        => ['name' => 'VKontakte', 'icon' => 'fab fa-vk',          'color' => '#4680C2'],
-                  'line'      => ['name' => 'LINE',      'icon' => 'fab fa-line',        'color' => '#00C300'],
-                  'sms'       => ['name' => 'SMS',       'icon' => 'fas fa-sms',         'color' => '#666666'],
-                  'email'     => ['name' => 'Email',     'icon' => 'fas fa-envelope',    'color' => '#666666'],
-                  'copylink'  => ['name' => 'Copia link','icon' => 'fas fa-link',        'color' => '#666666'],
-              ];
+              $enabledProviders = array_filter(array_map('trim', explode(',', (string) \App\Support\ConfigStore::get('sharing.enabled_providers', ''))));
+              $allProviders = \App\Support\SharingProviders::all();
               foreach ($allProviders as $slug => $provider):
                   $checked = in_array($slug, $enabledProviders, true);
               ?>

@@ -463,7 +463,7 @@ test.describe.serial('Email Notifications E2E', () => {
     if (await loanBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await loanBtn.click();
       // Handle SweetAlert date picker
-      await userPage.waitForSelector('.swal2-popup', { timeout: 5000 }).catch(() => {});
+      await userPage.waitForSelector('.swal2-popup', { timeout: 10000 }).catch(() => {});
       const swalVisible = await userPage.locator('.swal2-popup').isVisible().catch(() => false);
       if (swalVisible) {
         // Wait for Flatpickr

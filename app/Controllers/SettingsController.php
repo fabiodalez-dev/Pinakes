@@ -10,6 +10,7 @@ use App\Support\HtmlHelper;
 use App\Support\SettingsMailTemplates;
 use App\Support\SecureLogger;
 use App\Support\SettingsEncryption;
+use App\Support\SharingProviders;
 use App\Support\SitemapGenerator;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -900,7 +901,7 @@ class SettingsController
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
-        $allowedSlugs = ['facebook', 'x', 'whatsapp', 'telegram', 'linkedin', 'reddit', 'pinterest', 'threads', 'bluesky', 'tumblr', 'pocket', 'vk', 'line', 'sms', 'email', 'copylink'];
+        $allowedSlugs = SharingProviders::slugs();
         $selected = $data['sharing_providers'] ?? [];
         if (!is_array($selected)) {
             $selected = [];

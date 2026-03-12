@@ -452,7 +452,7 @@ class FrontendController
         $filter_options = $this->getFilterOptions($db, $filters);
 
         // Get hierarchical genre display based on current selection
-        $genre_display = $this->getDisplayGenres($filter_options['generi'], $filters['genere'] ?? null);
+        $genre_display = $this->getDisplayGenres($filter_options['generi'], (int)($filters['genere_id'] ?? 0));
 
         // Render template
         $container = $this->container;
@@ -541,7 +541,7 @@ class FrontendController
         $filter_options = $this->getFilterOptions($db, $filters);
 
         // Get hierarchical genre display for correct sidebar rendering
-        $genre_display = $this->getDisplayGenres($filter_options['generi'], $filters['genere'] ?? null);
+        $genre_display = $this->getDisplayGenres($filter_options['generi'], (int)($filters['genere_id'] ?? 0));
 
         $data = [
             'html' => $html,
@@ -576,7 +576,9 @@ class FrontendController
             SELECT l.*,
                    a.nome AS autore_principale,
                    g.nome AS genere,
+                   gp.id AS genere_parent_id_resolved,
                    gp.nome AS genere_parent,
+                   gpp.id AS genere_grandparent_id,
                    gpp.nome AS genere_grandparent,
                    sg.nome AS sottogenere,
                    e.nome AS editore
@@ -654,7 +656,7 @@ class FrontendController
         $reviewStats = $recensioniRepo->getReviewStats($book_id);
 
         // Social sharing
-        $sharingProviders = array_filter(explode(',', (string) ConfigStore::get('sharing.enabled_providers', '')));
+        $sharingProviders = array_values(array_filter(array_map('trim', explode(',', (string) ConfigStore::get('sharing.enabled_providers', '')))));
         $shareUrl = absoluteUrl($canonicalPath);
         $shareTitle = $book['titolo'] ?? '';
 
@@ -685,7 +687,7 @@ class FrontendController
 
         return [
             'search' => $searchTerm,
-            'genere' => $params['genere'] ?? '',
+            'genere_id' => (int)($params['genere_id'] ?? 0),
             'disponibilita' => $params['disponibilita'] ?? '',
             'editore' => $params['editore'] ?? '',
             'anno_min' => $params['anno_min'] ?? '',
@@ -804,14 +806,15 @@ class FrontendController
             }
         }
 
-        if (!empty($filters['genere'])) {
-            // Search for genre at any level (Level 3, Level 2, or Level 1)
-            $conditions[] = "(g.nome = ? OR gp.nome = ? OR gpp.nome = ? OR sg.nome = ?)";
-            $params[] = $filters['genere'];
-            $params[] = $filters['genere'];
-            $params[] = $filters['genere'];
-            $params[] = $filters['genere'];
-            $types .= 'ssss';
+        if (!empty($filters['genere_id'])) {
+            $genreId = (int) $filters['genere_id'];
+            // Match genre ID at any level of the hierarchy
+            $conditions[] = "(l.genere_id = ? OR g.parent_id = ? OR gp.parent_id = ? OR l.sottogenere_id = ?)";
+            $params[] = $genreId;
+            $params[] = $genreId;
+            $params[] = $genreId;
+            $params[] = $genreId;
+            $types .= 'iiii';
         }
 
         if (!empty($filters['editore'])) {
@@ -870,7 +873,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     // ---------- Generi ----------
     // Build filter conditions excluding the current 'genere' filter
     $filtersForGeneri = $filters;
-    $filtersForGeneri['genere'] = '';
+    $filtersForGeneri['genere_id'] = 0;
     $whereGen = $this->buildWhereConditions($filtersForGeneri, $db);
     $conditionsGen = $whereGen['conditions'];
     $paramsGen = $whereGen['params'];
@@ -1519,12 +1522,12 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
      * - Level 2: Show children of selected second-level genre
      *
      * @param array $allGenres Full genre hierarchy from buildGenreHierarchy
-     * @param ?string $selectedGenre Currently selected genre name
+     * @param int $selectedGenreId Currently selected genre ID (0 = none)
      * @return array ['genres' => display genres, 'level' => current level, 'parent' => parent genre for back button]
      */
-    private function getDisplayGenres(array $allGenres, ?string $selectedGenre): array
+    private function getDisplayGenres(array $allGenres, int $selectedGenreId): array
     {
-        if (empty($selectedGenre)) {
+        if ($selectedGenreId === 0) {
             // Level 0: Show all root genres
             return [
                 'genres' => $allGenres,
@@ -1533,20 +1536,20 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             ];
         }
 
-        // Find the selected genre in the hierarchy
+        // Find the selected genre in the hierarchy by ID
         $selectedGenreData = null;
         $parentGenre = null;
 
         // Search in root genres
         foreach ($allGenres as $genre) {
-            if ($genre['nome'] === $selectedGenre) {
+            if ((int) $genre['id'] === $selectedGenreId) {
                 $selectedGenreData = $genre;
                 break;
             }
             // Search in children
             if (!empty($genre['children'])) {
                 foreach ($genre['children'] as $child) {
-                    if ($child['nome'] === $selectedGenre) {
+                    if ((int) $child['id'] === $selectedGenreId) {
                         $selectedGenreData = $child;
                         $parentGenre = $genre;
                         break;
@@ -1554,7 +1557,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                     // Search in grandchildren
                     if (!empty($child['children'])) {
                         foreach ($child['children'] as $grandchild) {
-                            if ($grandchild['nome'] === $selectedGenre) {
+                            if ((int) $grandchild['id'] === $selectedGenreId) {
                                 $selectedGenreData = $grandchild;
                                 $parentGenre = $child;
                                 break;

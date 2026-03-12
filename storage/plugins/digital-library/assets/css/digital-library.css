@@ -87,14 +87,16 @@
     }
 }
 
-#audiobook-player-container .card {
+#audiobook-player-container .card,
+#pdf-viewer-container .card {
     border: 2px solid #e5e7eb;
     border-radius: 16px;
     transition: box-shadow 0.3s ease, transform 0.3s ease;
     background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
 }
 
-#audiobook-player-container .card:hover {
+#audiobook-player-container .card:hover,
+#pdf-viewer-container .card:hover {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
     transform: translateY(-2px);
 }
@@ -216,18 +218,6 @@
 
 #pdf-viewer-container {
     animation: slideDown 0.3s ease-out;
-}
-
-#pdf-viewer-container .card {
-    border: 2px solid #e5e7eb;
-    border-radius: 16px;
-    transition: box-shadow 0.3s ease, transform 0.3s ease;
-    background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
-}
-
-#pdf-viewer-container .card:hover {
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-    transform: translateY(-2px);
 }
 
 .pdf-viewer-frame {

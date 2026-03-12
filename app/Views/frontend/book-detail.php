@@ -34,17 +34,22 @@ $bookPages = $book['numero_pagine'] ?? '';
 $bookLanguage = $book['lingua'] ?? 'it';
 // Build genre hierarchy string
 $genreHierarchy = [];
+$genreHierarchyIds = [];
 if (!empty($book['genere_grandparent'])) {
     $genreHierarchy[] = $book['genere_grandparent'];
+    $genreHierarchyIds[] = (int) $book['genere_grandparent_id'];
 }
 if (!empty($book['genere_parent'])) {
     $genreHierarchy[] = $book['genere_parent'];
+    $genreHierarchyIds[] = (int) $book['genere_parent_id_resolved'];
 }
 if (!empty($book['genere'])) {
     $genreHierarchy[] = $book['genere'];
+    $genreHierarchyIds[] = (int) $book['genere_id'];
 }
 if (!empty($book['sottogenere'])) {
     $genreHierarchy[] = $book['sottogenere'];
+    $genreHierarchyIds[] = (int) $book['sottogenere_id'];
 }
 $bookGenre = !empty($genreHierarchy) ? implode(' > ', $genreHierarchy) : '';
 $bookGenre = html_entity_decode($bookGenre, ENT_QUOTES, 'UTF-8');
@@ -1455,7 +1460,7 @@ ob_start();
 
                     <?php if (!empty($genreHierarchy)): ?>
                     <div class="genre-tags">
-                        <i class="fas fa-tags me-1"></i><?php foreach ($genreHierarchy as $i => $genreName): ?><?php if ($i > 0): ?> <span class="genre-separator">&gt;</span> <?php endif; ?><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>?genere=<?= urlencode(html_entity_decode($genreName, ENT_QUOTES, 'UTF-8')) ?>" class="genre-tag"><?= htmlspecialchars(html_entity_decode($genreName, ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?>
+                        <i class="fas fa-tags me-1"></i><?php $genreLinkClass = 'genre-tag'; $genreSeparator = ' <span class="genre-separator">&gt;</span> '; include __DIR__ . '/partials/genre-breadcrumb.php'; ?>
                     </div>
                     <?php endif; ?>
 
@@ -1632,7 +1637,7 @@ ob_start();
                             <?php if (!empty($genreHierarchy)): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Genere") ?></div>
-                                <div class="meta-value"><?php foreach ($genreHierarchy as $i => $genreName): ?><?php if ($i > 0): ?> &gt; <?php endif; ?><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>?genere=<?= urlencode(html_entity_decode($genreName, ENT_QUOTES, 'UTF-8')) ?>"><?= htmlspecialchars(html_entity_decode($genreName, ENT_QUOTES, 'UTF-8'), ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></div>
+                                <div class="meta-value"><?php unset($genreLinkClass, $genreSeparator); include __DIR__ . '/partials/genre-breadcrumb.php'; ?></div>
                             </div>
                             <?php endif; ?>
 
