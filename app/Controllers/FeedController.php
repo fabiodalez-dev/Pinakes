@@ -20,6 +20,9 @@ class FeedController
         $langCode = strtolower(substr($locale, 0, 2));
 
         $items = $this->getLatestBooks($db, $baseUrl);
+        $lastBuildDate = isset($items[0]['pubDate']) && $items[0]['pubDate'] !== ''
+            ? $items[0]['pubDate']
+            : gmdate('r');
 
         $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
         $xml .= '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">' . "\n";
@@ -29,7 +32,7 @@ class FeedController
         $xml .= '  <description>' . $this->xmlEscape($appDesc) . '</description>' . "\n";
         $xml .= '  <language>' . $this->xmlEscape($langCode) . '</language>' . "\n";
         $xml .= '  <atom:link href="' . $this->xmlAttrEscape($baseUrl . '/feed.xml') . '" rel="self" type="application/rss+xml"/>' . "\n";
-        $xml .= '  <lastBuildDate>' . gmdate('r') . '</lastBuildDate>' . "\n";
+        $xml .= '  <lastBuildDate>' . $lastBuildDate . '</lastBuildDate>' . "\n";
 
         foreach ($items as $item) {
             $xml .= '  <item>' . "\n";

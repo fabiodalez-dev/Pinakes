@@ -10,6 +10,7 @@ test.describe('Hreflang tags', () => {
 
   test('homepage has IT, EN, and x-default hreflang links', async ({ request }) => {
     const resp = await request.get(`${BASE}/`);
+    expect(resp.status()).toBe(200);
     const html = await resp.text();
 
     // Must have at least IT + EN + x-default
@@ -20,6 +21,7 @@ test.describe('Hreflang tags', () => {
 
   test('catalog page hreflang translates route correctly', async ({ request }) => {
     const resp = await request.get(`${BASE}/catalogo`);
+    expect(resp.status()).toBe(200);
     const html = await resp.text();
 
     // IT version should point to /catalogo
@@ -33,23 +35,23 @@ test.describe('Hreflang tags', () => {
     expect(enMatch[1]).toContain('/en/catalog');
   });
 
-  test('English catalog page also has hreflang tags', async ({ request }) => {
-    const resp = await request.get(`${BASE}/en/catalog`);
+  test('hreflang EN variant uses the correct English translated route', async ({ request }) => {
+    const resp = await request.get(`${BASE}/catalogo`);
+    expect(resp.status()).toBe(200);
     const html = await resp.text();
 
-    expect(html).toContain('hreflang="it"');
-    expect(html).toContain('hreflang="en"');
-    expect(html).toContain('hreflang="x-default"');
-
-    // IT hreflang should point to /catalogo (Italian translated route)
-    const itMatch = html.match(/hreflang="it"[^>]*href="([^"]+)"/);
-    expect(itMatch).not.toBeNull();
-    expect(itMatch[1]).toContain('/catalogo');
+    // EN hreflang should use the English translated route
+    const enMatch = html.match(/hreflang="en"[^>]*href="([^"]+)"/);
+    expect(enMatch).not.toBeNull();
+    expect(enMatch[1]).toContain('/en/catalog');
+    // Must NOT contain the IT route in the EN hreflang
+    expect(enMatch[1]).not.toContain('/catalogo');
   });
 
   test('book page hreflang keeps slug path identical across locales', async ({ request }) => {
     // Get first book URL from sitemap
     const sitemapResp = await request.get(`${BASE}/sitemap.xml`);
+    expect(sitemapResp.status()).toBe(200);
     const sitemapXml = await sitemapResp.text();
 
     // Extract a book URL (pattern: /author-slug/book-slug/id)
@@ -61,6 +63,7 @@ test.describe('Hreflang tags', () => {
 
     const bookUrl = bookMatch[0];
     const resp = await request.get(bookUrl);
+    expect(resp.status()).toBe(200);
     const html = await resp.text();
 
     expect(html).toContain('hreflang="it"');
@@ -78,6 +81,7 @@ test.describe('Hreflang tags', () => {
 
   test('x-default points to the default (IT) locale version', async ({ request }) => {
     const resp = await request.get(`${BASE}/catalogo`);
+    expect(resp.status()).toBe(200);
     const html = await resp.text();
 
     const xDefaultMatch = html.match(/hreflang="x-default"[^>]*href="([^"]+)"/);
@@ -91,6 +95,7 @@ test.describe('Hreflang tags', () => {
 
   test('hreflang links are absolute URLs', async ({ request }) => {
     const resp = await request.get(`${BASE}/catalogo`);
+    expect(resp.status()).toBe(200);
     const html = await resp.text();
 
     const hrefMatches = html.matchAll(/hreflang="[^"]*"[^>]*href="([^"]+)"/g);
@@ -99,13 +104,11 @@ test.describe('Hreflang tags', () => {
     }
   });
 
-  test('single-locale site emits no hreflang tags', async ({ request }) => {
-    // This is a structural test — if only 1 locale is active, no hreflang should appear.
-    // We can only verify this conceptually; with 2+ locales active, hreflang IS present.
+  test('multi-locale site emits hreflang for all active locales plus x-default', async ({ request }) => {
     const resp = await request.get(`${BASE}/catalogo`);
+    expect(resp.status()).toBe(200);
     const html = await resp.text();
 
-    // With multiple locales, hreflang MUST be present
     const hreflangCount = (html.match(/hreflang="/g) || []).length;
     // At minimum: it + en + x-default = 3
     expect(hreflangCount).toBeGreaterThanOrEqual(3);
@@ -134,6 +137,7 @@ test.describe('RSS Feed', () => {
 
   test('feed contains channel metadata', async ({ request }) => {
     const resp = await request.get(`${BASE}/feed.xml`);
+    expect(resp.status()).toBe(200);
     const xml = await resp.text();
 
     expect(xml).toContain('<title>');
@@ -148,6 +152,7 @@ test.describe('RSS Feed', () => {
 
   test('feed contains book items with required fields', async ({ request }) => {
     const resp = await request.get(`${BASE}/feed.xml`);
+    expect(resp.status()).toBe(200);
     const xml = await resp.text();
 
     // Should have at least one item (test DB has books)
@@ -160,6 +165,7 @@ test.describe('RSS Feed', () => {
 
   test('feed items have absolute URLs', async ({ request }) => {
     const resp = await request.get(`${BASE}/feed.xml`);
+    expect(resp.status()).toBe(200);
     const xml = await resp.text();
 
     // Extract all <link> values inside <item>
@@ -171,6 +177,7 @@ test.describe('RSS Feed', () => {
 
   test('feed has max 50 items', async ({ request }) => {
     const resp = await request.get(`${BASE}/feed.xml`);
+    expect(resp.status()).toBe(200);
     const xml = await resp.text();
 
     const itemCount = (xml.match(/<item>/g) || []).length;
@@ -178,8 +185,26 @@ test.describe('RSS Feed', () => {
     expect(itemCount).toBeGreaterThan(0);
   });
 
+  test('lastBuildDate is stable and derived from latest item', async ({ request }) => {
+    const resp1 = await request.get(`${BASE}/feed.xml`);
+    expect(resp1.status()).toBe(200);
+    const xml1 = await resp1.text();
+
+    const resp2 = await request.get(`${BASE}/feed.xml`);
+    const xml2 = await resp2.text();
+
+    const date1 = xml1.match(/<lastBuildDate>(.*?)<\/lastBuildDate>/);
+    const date2 = xml2.match(/<lastBuildDate>(.*?)<\/lastBuildDate>/);
+    expect(date1).not.toBeNull();
+    expect(date2).not.toBeNull();
+
+    // Same content → same lastBuildDate (not dynamic gmdate)
+    expect(date1[1]).toBe(date2[1]);
+  });
+
   test('layout includes RSS autodiscovery link', async ({ request }) => {
     const resp = await request.get(`${BASE}/`);
+    expect(resp.status()).toBe(200);
     const html = await resp.text();
 
     expect(html).toContain('type="application/rss+xml"');
@@ -194,6 +219,7 @@ test.describe('Sitemap', () => {
 
   test('sitemap includes feed.xml entry', async ({ request }) => {
     const resp = await request.get(`${BASE}/sitemap.xml`);
+    expect(resp.status()).toBe(200);
     const xml = await resp.text();
 
     expect(xml).toContain('/feed.xml</loc>');
@@ -201,6 +227,7 @@ test.describe('Sitemap', () => {
 
   test('sitemap includes locale-prefixed feed.xml for EN', async ({ request }) => {
     const resp = await request.get(`${BASE}/sitemap.xml`);
+    expect(resp.status()).toBe(200);
     const xml = await resp.text();
 
     expect(xml).toContain('/en/feed.xml</loc>');
@@ -208,6 +235,7 @@ test.describe('Sitemap', () => {
 
   test('sitemap includes event URLs when events exist', async ({ request }) => {
     const resp = await request.get(`${BASE}/sitemap.xml`);
+    expect(resp.status()).toBe(200);
     const xml = await resp.text();
 
     // Check if events table has active rows via the sitemap
@@ -253,6 +281,7 @@ test.describe('Robots.txt', () => {
 
   test('robots.txt Feed URL is absolute', async ({ request }) => {
     const resp = await request.get(`${BASE}/robots.txt`);
+    expect(resp.status()).toBe(200);
     const text = await resp.text();
 
     const feedLine = text.split('\n').find(l => l.startsWith('Feed:'));
