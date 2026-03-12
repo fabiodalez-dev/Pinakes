@@ -426,8 +426,7 @@ migrate_0.4.6.sql    # LibraryThing missing fields (dewey_wording, barcode, entr
 migrate_0.4.7.sql    # LibraryThing comprehensive migration (25+ fields, indexes, constraints)
 migrate_0.4.8.1.sql  # Import logs tracking system (import_logs table + composite index)
 migrate_0.4.8.2.sql  # Illustratore field, lingua expansion, language normalization, anno_pubblicazione signed
-migrate_0.4.9.9.sql  # descrizione_plain column (HTML-free search)
-migrate_0.5.0.sql    # Social sharing settings + descrizione_plain safety net
+migrate_0.4.9.9.sql  # descrizione_plain column, social sharing settings, plugin_hooks unique index
 ```
 
 See `installer/database/migrations/README.md` for detailed migration documentation.
