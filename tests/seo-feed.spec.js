@@ -191,6 +191,7 @@ test.describe('RSS Feed', () => {
     const xml1 = await resp1.text();
 
     const resp2 = await request.get(`${BASE}/feed.xml`);
+    expect(resp2.status()).toBe(200);
     const xml2 = await resp2.text();
 
     const date1 = xml1.match(/<lastBuildDate>(.*?)<\/lastBuildDate>/);
