@@ -26,32 +26,31 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New in v0.4.9.9
 
-### 📖 Inline PDF Viewer, Search Improvements & Bug Fixes
+### 📤 Social Sharing, Genre Navigation, Inline PDF Viewer & Search Improvements
+
+**Social Sharing on Book Detail Pages (Issue #84):**
+- **7 sharing providers** — Facebook, X (Twitter), WhatsApp, Telegram, LinkedIn, Reddit, Pinterest + Email, Copy Link, Web Share API
+- **Admin Settings > Sharing tab** — Enable/disable individual providers with live preview
+- **Open Graph meta tags** — Book title, description, cover image, and author in `og:` tags for rich link previews
+- **Responsive layout** — Horizontal scrollable row on mobile, wrapped grid on desktop
+
+**Genre Breadcrumb Navigation (Issue #90):**
+- **Clickable genre hierarchy** — Genre breadcrumbs on catalog and book detail pages are now clickable links that filter by category
+- **Reusable partial** — `genre-breadcrumb.php` extracted for consistent rendering across views
+- **Genre filter fix** — Fixed subgenre filtering that caused HTTP 500 in catalog
 
 **Digital Library Plugin v1.3.0 — Inline PDF Viewer (Issue #80):**
-- **Inline PDF reader** — Browser-native `<iframe>` PDF viewer on book detail pages (zero dependencies — uses Chrome's PDFium, Firefox's PDF.js, etc.)
-- **Lazy-loaded iframe** — PDF is fetched only when the viewer is opened (MutationObserver pattern), no performance impact on page load
-- **ePub fix** — ePub downloads now open in a new tab (`target="_blank"`) instead of navigating away from the page
-- **Accessible toggle buttons** — `aria-controls` and `aria-expanded` attributes on PDF viewer and audiobook player toggles
-- **Auto-hook registration** — New plugin hooks are auto-registered on page load if missing from the database
+- **Inline PDF reader** — Browser-native `<iframe>` PDF viewer on book detail pages (zero dependencies)
+- **Lazy-loaded iframe** — PDF fetched only when viewer is opened (MutationObserver pattern)
+- **ePub fix** — ePub downloads now open in a new tab instead of navigating away
 
 **Search Improvements (Issue #83):**
-- **Description-inclusive search** — Header search, admin book search, and unified search all query `COALESCE(descrizione_plain, descrizione)` so description-only matches are returned
-- **HTML-free search column** — New `descrizione_plain` column stores a `strip_tags()` version of the description. New and edited rows search against plain text, so HTML tag names stop polluting results once the column has been populated (existing rows use COALESCE fallback until backfilled)
-
-**Database Migration (`migrate_0.4.9.9.sql`):**
-- Adds `descrizione_plain TEXT DEFAULT NULL` column to `libri` table
-- Fully idempotent with `INFORMATION_SCHEMA` check
-- PHP backfill via BookRepository on create/update; COALESCE fallback for existing rows
+- **Description-inclusive search** — Header search, admin book search, and unified search all query book descriptions
+- **HTML-free search column** — New `descrizione_plain` column stores `strip_tags()` version of description for clean search results
 
 **Bug Fixes:**
-- **Genre filter 500 error** — Fixed subgenre filtering that caused HTTP 500 in catalog (Issue #90)
-- **Clickable genre hierarchy** — Genre breadcrumbs are now clickable links for filtering
-- **CSV export cleanup** — `descrizione` now follows `sottotitolo`, HTML tags stripped for clean output
-
-**Translations:**
-- All PDF viewer strings translated in Italian, English, and German
-- Browser-agnostic hint text (no platform-specific keyboard shortcuts)
+- **CSV export cleanup** — `descrizione` follows `sottotitolo`, HTML tags stripped for clean output
+- **Auto-hook registration** — New plugin hooks auto-registered on page load if missing from database
 
 ---
 
@@ -63,292 +62,69 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 ### 🔒 Security, Database Integrity & Code Quality
 
 **Security Hardening:**
-- **SMTP password encryption** — New `SettingsEncryption` class encrypts SMTP passwords at rest using AES-256-CBC derived from `APP_KEY`
-- **SMTP password not prefilled** — Settings form no longer echoes the stored SMTP password back to the browser
-- **Bcrypt cost pinned to 12** — All `password_hash()` calls now use explicit `['cost' => 12]` for consistent, future-proof hashing
-- **QueryCache safety** — Cache key prefixes are sanitized and hashed (`md5`) to prevent path traversal in cache filenames
+- **SMTP password encryption** — AES-256-CBC encryption at rest using `APP_KEY`
+- **Bcrypt cost pinned to 12** — Consistent, future-proof hashing
+- **QueryCache safety** — Cache key prefixes sanitized to prevent path traversal
 
 **Database Integrity (Migration `migrate_0.4.9.8.sql`):**
-- **isbn10 UNIQUE index** — Blank values normalized to NULL, duplicates resolved (keeps lowest active ID), then UNIQUE constraint added
-- **ean UNIQUE index + default NULL** — Empty strings converted to NULL, column default changed from `''` to `NULL`, UNIQUE constraint added
-- **prestiti FK fix** — `prestiti_ibfk_3` corrected to reference `utenti(id)` instead of `staff(id)`, orphan `processed_by` values cleaned
+- **isbn10 UNIQUE index** — Blank values normalized to NULL, duplicates resolved, UNIQUE constraint added
+- **ean UNIQUE index + default NULL** — Empty strings converted to NULL, UNIQUE constraint added
+- **prestiti FK fix** — `prestiti_ibfk_3` corrected to reference `utenti(id)` instead of `staff(id)`
 - **mensole.descrizione type fix** — Column type changed from `int NOT NULL` to `varchar(255) DEFAULT NULL`
-- All migration steps are fully idempotent with `INFORMATION_SCHEMA` checks
-
-**Bug Fixes:**
-- **Genre filter fix** — Added `sg.nome` (subgenre name) to `buildWhereConditions()` for correct subgenre filtering in catalog
-- **Installer session detection** — Fixed HTTPS detection behind reverse proxies for secure session cookies
 
 **Code Quality:**
-- **32+ files reviewed** across controllers, models, repositories, views, and support classes
-- **Addressed all CodeRabbit findings** from automated pull request review (rounds 10-16)
-- **ON DELETE SET NULL rationale** — Documented why soft-deleted book rows are safe for genre deletion (FK auto-nullifies)
-- **Email notification test suite** — 16 Playwright E2E tests covering all email types via Mailpit (both SMTP and phpmail drivers)
+- 32+ files reviewed, all CodeRabbit findings addressed (rounds 10-16)
+- Email notification test suite — 16 Playwright E2E tests covering all email types
 
 </details>
 
 <details>
-<summary><strong>v0.4.9.7</strong> - Comprehensive Codebase Review — Security, Reliability & Code Quality</summary>
+<summary><strong>v0.4.9.7</strong> - Comprehensive Codebase Review</summary>
 
-### 🔒 Comprehensive Codebase Review — Security, Reliability & Code Quality
+### 🔒 Security, Reliability & Code Quality
 
-**Security Hardening:**
-- **URL scheme validation** — Author and book views now verify `http`/`https` scheme before rendering user-provided URLs in `href` attributes
-- **Unsafe URL blocking** — Book cover display blocks `javascript:`, `data:`, and other dangerous URL schemes
-- **Proxy-aware HTTPS** — Installer session cookie detects HTTPS behind reverse proxies via `X-Forwarded-Proto`/`X-Forwarded-SSL`
-- **Password bcrypt limit** — Registration, profile, and password-reset enforce 72-byte `PASSWORD_BCRYPT` maximum
-- **Form input type guards** — Editor controller validates `sito_web` type before sanitization (array injection prevention)
-- **CSRF token in update UI** — Updater admin panel includes CSRF tokens for all state-changing actions
-
-**Reliability Improvements:**
-- **Atomic rate limiter** — `RateLimiter` rewritten with `fopen`+`flock` for filesystem-level atomicity (no more race conditions)
-- **Book availability guards** — All `recalculateBookAvailability()` call sites now check return value and throw on failure
-- **Advisory lock safety** — `RELEASE_LOCK` `prepare()` calls guarded in `finally` blocks to prevent silent failures
-- **Dashboard cache** — `DashboardStats` throws `RuntimeException` on cache write failure instead of silently returning zeros
-- **Profile prepare guard** — Password update checks `prepare()` return before binding parameters
-- **Language switcher logging** — Silent `catch` blocks now log errors via `error_log()`
-- **Charset consistency** — Database container uses config charset in `SET NAMES` instead of hardcoded value
-
-**Code Quality:**
-- **31+ files reviewed** across controllers, models, views, middleware, and configuration
-- **Addressed all CodeRabbit findings** from automated pull request review (rounds 1-9)
-- **Consistent error handling** — Raw exception messages no longer leak in API responses
-- **Test stability** — E2E test helpers return navigation status for reliable assertions
+**Security:** URL scheme validation, proxy-aware HTTPS, bcrypt 72-byte limit, CSRF in update UI.
+**Reliability:** Atomic rate limiter, book availability guards, advisory lock safety, dashboard cache failures throw.
+**Code Quality:** 31+ files reviewed, all CodeRabbit findings addressed (rounds 1-9), consistent error handling.
 
 </details>
 
 <details>
-<summary><strong>v0.4.9.4</strong> - Audiobook Player, Z39.50/SRU Plugin, Security & Hardening</summary>
+<summary><strong>v0.4.9.4</strong> - Audiobook Player, Z39.50/SRU Plugin & Keyboard Shortcuts</summary>
 
 ### 🔊 Audiobook Player, Z39.50/SRU Plugin, Security & Hardening
 
-**Audiobook MP3 Player (#81):**
-- **Frontend player** — Green Audio Player integration on book detail pages with toggle button and styled waveform UI
-- **Admin inline player** — Compact audio preview in admin book detail (no more external tab links)
-- **Conditional asset loading** — GAP CSS/JS loaded only on pages that need it
-
-**Z39.50/SRU Cataloging Plugin (#79):**
-- **Nordic library servers** — Pre-configured SRU sources for Danish, Finnish, Norwegian, and Swedish national libraries
-- **SBN (Italian) integration** — Automatic metadata fetching from the Italian National Library Service
-- **Auto-configuration** — Nordic servers are added on first plugin activation or version upgrade
-
-**Global Keyboard Shortcuts (#73):**
-- **Visible keyboard icon** in admin header toolbar (hidden on mobile)
-- **Shortcuts modal** — Press `?` anywhere to see all available shortcuts
-- **G-prefix navigation** — GitHub-style two-key combos: `G` then `D`/`B`/`A`/`E`/`P`/`U`/`S` to jump to admin pages
-- **Books-page shortcuts** shown conditionally when on `/admin/libri`
-
-**Scroll-to-Top Button (#72):**
-- **Floating button** on admin and public layouts, appears after scrolling down
-
-**Security & Hardening:**
-- **Rate-limit bypass fix** — Action-based rate limiting keys prevent brute-force multiplication via localized URLs
-- **Manual upgrade script hardened** — File-based brute-force throttling, symlink traversal protection, improved SQL parser
-- **Updater redirect handling** — Extracts final HTTP status from redirect chains (fixes auth retry on 301→401)
-- **GitHub token validation** — Returns 400 for control characters in token input
-- **Export query cap** — `selectedIds` capped at 1000 to prevent oversized IN clauses
-- **Accessibility** — `aria-controls`/`aria-expanded` on audio toggle buttons
-
-**Bug Fixes & Polish:**
-- **German installer support** — The guided installer now fully supports German (Deutsch) as a third language option alongside Italian and English
-- **Installer language selection** — `it_IT` now correctly shows selected styling
-- **PluginManager** — Guarded `execute()`/`get_result()` before `fetch_assoc()` in bundled plugin sync
-- **Updater** — Centralized `getGitHubHeaders()` with `withAuth` flag, eliminating duplicate header arrays
-- **Canonical URL parsing** — Trim host before parsing to handle whitespace in forwarded headers
+- **Audiobook MP3 player** — Green Audio Player on book detail pages with toggle button
+- **Z39.50/SRU Nordic sources** — Pre-configured Danish, Finnish, Norwegian, Swedish national libraries + SBN Italy
+- **Global keyboard shortcuts** — `?` for help, `G` then `D`/`B`/`A`/`E`/`P`/`U`/`S` for navigation
+- **Scroll-to-top button** on admin and public layouts
+- **German installer support** — Full German language option
+- **Security** — Rate-limit bypass fix, manual upgrade script hardened, export query cap
 
 </details>
 
 <details>
-<summary><strong>v0.4.9.2</strong> - Genre Management, Book Filters & Bug Fixes</summary>
+<summary><strong>v0.4.9.2</strong> - Genre Management & Book Filters</summary>
 
 ### 🏷️ Genre Management, Book Filters & Bug Fixes
 
-**Genre Management:**
-- **Genre edit** — Existing genres can now be renamed and reorganized from the admin panel
-- **Genre merge** — Combine two genres into one, moving all books and subgenres to the target with automatic name-conflict resolution
-- **Genre rearrange** — Move a genre to a different parent (or make it top-level) via a dropdown in the edit form
-- **Genre autocomplete** — New search-as-you-type for genre selection
-
-**Book List Filters:**
-- **Collana (series) filter** — Autocomplete filter in admin book list with clearable active-filters banner
-
-**Bug Fixes:**
-- **Installation crash on fresh setup** — Fixed fatal error caused by missing autoloader dependency after first install
-- **Update to v0.4.9 failing** — Fixed release packaging that prevented automatic updates from working correctly
-- **PDF/ePub upload error** — Fixed MIME type validation in Digital Library plugin that rejected valid PDF and ePub files
-- **Author search not finding existing authors** — Fixed author autocomplete matching in the book form
-- **Description field not visible** — Fixed TinyMCE editor not rendering in the book description field
-- **GitHub "Download ZIP" missing pages** — Fixed archive packaging that excluded frontend view files
-
-**German Language Support:**
-- **Native German locale** — Full German translation (4,009 strings) available in the installer
-- **German URL routes** — `/katalog`, `/anmelden`, `/buch`, `/autor`, `/wunschliste`, etc.
-- **Dynamic language registration** — New languages added via Admin → Languages are automatically available without code changes
-
-**Updater Improvements:**
-- **GitHub API token** — Optional personal access token (Admin → Updates) to raise GitHub API rate limits from 60 to 5,000 req/hr
-- **Standalone upgrade script** — `scripts/manual-upgrade.php` for users stuck on old versions
+- **Genre edit, merge, rearrange** — Full genre management from admin panel
+- **Collana (series) filter** — Autocomplete filter in admin book list
+- **German language support** — Full translation (4,009 strings) with native URL routes
+- **GitHub API token** — Optional token for higher rate limits (60 → 5,000 req/hr)
+- **Bug fixes** — Installation crash, update failures, PDF/ePub upload, author autocomplete
 
 </details>
 
 <details>
-<summary><strong>v0.4.9</strong> - Subfolder Support, Security Hardening & Code Quality</summary>
+<summary><strong>v0.4.9</strong> - Subfolder Support & Security Hardening</summary>
 
 ### 🔒 Subfolder Support, Security Hardening & Code Quality
 
-**Full Subfolder Installation Support:**
-- **Install in any subdirectory** — Pinakes now runs correctly under paths like `/library/` or `/biblioteca/`, not just domain root
-- **Dynamic base path detection** — `url()`, `absoluteUrl()`, and `route_path()` helpers automatically resolve the correct base path
-- **Notification emails** — All email URLs use `absoluteUrl()` to generate correct full links regardless of installation path
-- **JavaScript `window.BASE_PATH`** — Frontend code properly prefixes raw paths for AJAX, notifications, and API calls
-- **Sitemap and SEO** — Canonical URLs, Schema.org metadata, and sitemap generation all respect base path
-
-**Configurable Homepage Sort Order** (#59):
-- **Latest Books section** — Admins can now choose sort order (newest first, alphabetical, random) from Settings
-
-**Comprehensive Security Hardening** (177 files, 18 code review rounds):
-- **XSS prevention** — Replaced all `addslashes()` with `json_encode()` + `htmlspecialchars()` across 29 view files
-- **Safe JS translations** — ~176 raw PHP translations in JavaScript replaced with `json_encode(, JSON_HEX_TAG)` across 14 views
-- **HTML attribute escaping** — Hardened `escapeHtml()` quote escaping + `JSON_HEX_TAG` across 12 view files
-- **Route translation** — Replaced all hardcoded URL paths with `RouteTranslator::route()` / `route_path()` for locale-aware routing
-- **Plugin audit** — `Exception` → `Throwable`, `error_log()` → `SecureLogger`, `JSON_HEX_TAG` on all JSON output in plugins
-
-**Bug Fixes:**
-- **Book availability** — Corrected availability calculation and reservation status display (#53, #56, #58)
-- **Duplicate API route** — Removed duplicate `/api/libro/{id}/availability` route causing 500 errors
-- **Integrity report** — Fixed missing issue types, response format mismatch, and `Exception` → `Throwable`
-- **Collocazione** — Fixed shelf/location bugs + cURL, reservation, and author controller issues
-- **Admin URLs** — Added `/admin` prefix to user DataTables action URLs, BASE_PATH to review fetch URLs
-- **Email paths** — Fixed double base path in email book URLs, migrated to `absoluteUrl()`
-- **Subfolder maintenance** — Resolved 503 error on maintenance mode + nested form in admin settings
-- **Release packaging** — Added ZIP verification step to prevent missing TinyMCE files (#44)
-
-**Code Quality:**
-- **31 CodeRabbit review rounds** — Addressed findings across 400+ file touches
-- **Proactive security hardening** — 9 pattern categories across 49 files
-- **56 code quality issues** resolved in 3 core files
-- **Soft-delete gaps** — Additional `deleted_at IS NULL` filters on missed queries
-- **Error handling** — Consistent `\Throwable` usage across all catch blocks (strict_types compatibility)
-
-</details>
-
-<details>
-<summary><strong>v0.4.8.2</strong> - Illustrator Field, Multi-Language & BCE Dates</summary>
-
-### 🎨 Illustrator Field, Multi-Language & BCE Dates
-
-**New Illustrator Field:**
-- **`illustratore` column** on `libri` table — dedicated field for book illustrators
-- **`illustratore` role** added to `libri_autori` enum — illustrators can be linked as authors with proper role
-- **CSV import support** — Illustrator column recognized and mapped during bulk imports
-- **LibraryThing import** — Illustrator field extracted from LT data
-- **Book form & detail page** — Illustrator displayed alongside translator in both edit form and book card
-
-**Multi-Language Improvements:**
-- **Language column expanded** from varchar(50) to varchar(255) — supports long multi-language entries (e.g., "Italiano, English, Français")
-- **Native language names** — 25+ language names normalized from Italian to native form (e.g., "inglese" → "English", "giapponese" → "日本語")
-- **Multi-language display** — Book detail page shows language chips with proper formatting
-
-**BCE Year Support:**
-- **`anno_pubblicazione` now SIGNED** — range expanded from 0–65535 to -32768–32767, supporting ancient texts (e.g., The Odyssey, -800)
-- **Form validation** — Book form accepts `min="-9999"` for historical works
-
-**Bug Fixes:**
-- **CSV import duplicate inventory numbers** — New `inventoryNumberExists()` check with automatic suffix prevents unique constraint violations on re-import
-- **Publisher API & detail page** — Fixed phantom `e.citta` column reference
-- **Loan PDF generator** — Fixed rendering issues in loan receipt generation
-- **Z39 Server plugin** — SRU client fixes, bumped to v1.2.1
-
-</details>
-
-<details>
-<summary><strong>v0.4.8.1</strong> - Import Logging & Auto-Update</summary>
-
-### 📊 Import Logging & Auto-Update System
-
-**Import History & Error Tracking:**
-- **Import logs database** — New `import_logs` table tracks every CSV/LibraryThing import with stats, errors, and timing
-- **Import history UI** — Admin panel to view past imports, filter by type/status, and download error reports as CSV
-- **Import statistics** — Per-import success/failure/skipped counters with duration tracking and detailed error breakdown
-- **Structured error handling** — Both import controllers now use typed error arrays (`scraping`/`validation`) instead of fragile string parsing
-- **Type-safe session handling** — `$_SESSION['user_id']` properly cast to `int` to prevent `TypeError` with `strict_types`
-
-**Auto-Update System:**
-- **GitHub release integration** — Check for updates, download, and install directly from admin panel
-- **Manual update upload** — Upload `.zip` packages for air-gapped environments
-- **Zip Slip protection** — Path traversal validation on all archive extraction
-- **Backup system** — Automatic backup before update with rollback capability
-- **Database migrations** — Automatic execution of versioned SQL migrations during updates
-
-**Security Fixes:**
-- **CSRF protection** — Added `CsrfMiddleware` to manual update upload/install routes
-- **No filesystem path leaks** — Update temp paths stored in session, not exposed to client
-- **Cryptographic temp directories** — `random_bytes()` instead of predictable `uniqid()`
-- **Orphan cleanup** — `deleteOldLogs()` now removes stale `'processing'` records older than 1 day
-
-**Bug Fixes:**
-- **Batch cover download** — Fixed HTTP 502 errors during bulk cover fetching with proper error handling and retry
-- **Dewey classification display** — Hierarchy breadcrumb now renders correctly at all classification levels
-- **Soft-delete consistency** — All queries on `libri` table now properly filter deleted records (`deleted_at IS NULL`)
-- **Dashboard counters** — Statistics aligned with soft-delete, excluded deleted books from all counts
-- **Loan status badges** — Fixed badge rendering for all loan states in history views
-
-**Code Quality:**
-- **PHPStan level 4 compliant** — All new code passes static analysis
-- **Consistent error structure** — CSV and LibraryThing controllers aligned on `['line', 'title', 'message', 'type']` format
-- **ISBN length validation** — `normalizeIsbn()` now rejects values that aren't 10 or 13 characters
-- **Negative price rejection** — `validatePrice()` throws on negative values
-
-</details>
-
-<details>
-<summary><strong>v0.4.8</strong> - Security & Data Integrity</summary>
-
-### 🔒 Security & Data Integrity Release
-
-**LibraryThing Import/Export Plugin** — Complete CSV/TSV import with flexible column mapping for LibraryThing data (29 custom fields)
-
-**Critical Security Fixes:**
-- **Image upload protection** — Pre-decode validation prevents OOM/DoS attacks (20MP pixel limit)
-- **XSS prevention** — DOMPurify sanitization for TinyMCE content
-
-**Critical Bug Fixes:**
-- **Data loss fix** — Three LibraryThing fields (entry_date, dewey_wording, barcode) now properly saved
-- **CSV import fixes** — Author data loss, statement leaks, chunk validation, JavaScript control flow
-- **Rating validation** — Invalid ratings set to NULL instead of clamping
-
-**Features:**
-- Flexible column mapping with automatic detection for Primary Author, Secondary Author, etc.
-- Star rating widget integration
-- Chunked CSV processing with session state
-- Comprehensive error handling and logging
-
-**Automated Release System:**
-- New `scripts/create-release.sh` prevents production errors
-- Automatic vendor/ cleanup (removes dev dependencies)
-- Built-in testing and verification
-
-</details>
-
-<details>
-<summary><strong>v0.4.7.2</strong> - Minor Bug Fixes</summary>
-
-### Minor Bug Fixes
-
-- **Cron scripts standalone execution** — Cron jobs now load `.env` directly, working independently from web server context
-- **Version display fix** — Footer now correctly shows version from `version.json`
-- **Documentation improvements** — Cleanup and linting fixes across documentation files
-
-</details>
-
-<details>
-<summary><strong>v0.4.7.1</strong> - Code Quality & Plugin Compatibility</summary>
-
-### Code Quality & Plugin Compatibility
-
-- **ESLint integration** — Frontend build now includes ESLint with strict rules
-- **Plugin compatibility** — All pre-installed plugins updated to `max_app_version: 1.0.0`
-- **Loan workflow stability** — Additional fixes to copy state transitions during approval/rejection
+- **Full subfolder installation** — Works under `/library/`, `/biblioteca/`, etc.
+- **Configurable homepage sort** — Newest, alphabetical, or random
+- **177-file security hardening** — XSS prevention, safe JS translations, route translation, plugin audit
+- **31 CodeRabbit review rounds** — 400+ file touches, 56 code quality issues resolved
 
 </details>
 
