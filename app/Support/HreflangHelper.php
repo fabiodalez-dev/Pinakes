@@ -153,10 +153,12 @@ class HreflangHelper
         foreach (glob($pattern) ?: [] as $file) {
             $content = file_get_contents($file);
             if ($content === false) {
+                error_log('HreflangHelper: could not read route file: ' . $file);
                 continue;
             }
             $decoded = json_decode($content, true);
             if (!is_array($decoded)) {
+                error_log('HreflangHelper: invalid JSON in route file: ' . $file . ' - ' . json_last_error_msg());
                 continue;
             }
             foreach (array_keys($decoded) as $key) {

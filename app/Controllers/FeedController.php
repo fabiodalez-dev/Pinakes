@@ -32,7 +32,7 @@ class FeedController
         $xml .= '  <description>' . $this->xmlEscape($appDesc) . '</description>' . "\n";
         $xml .= '  <language>' . $this->xmlEscape($langCode) . '</language>' . "\n";
         $xml .= '  <atom:link href="' . $this->xmlAttrEscape($baseUrl . '/feed.xml') . '" rel="self" type="application/rss+xml"/>' . "\n";
-        $xml .= '  <lastBuildDate>' . $lastBuildDate . '</lastBuildDate>' . "\n";
+        $xml .= '  <lastBuildDate>' . $this->xmlEscape($lastBuildDate) . '</lastBuildDate>' . "\n";
 
         foreach ($items as $item) {
             $xml .= '  <item>' . "\n";
@@ -40,7 +40,7 @@ class FeedController
             $xml .= '    <link>' . $this->xmlEscape($item['link']) . '</link>' . "\n";
             $xml .= '    <guid isPermaLink="true">' . $this->xmlEscape($item['link']) . '</guid>' . "\n";
             $xml .= '    <description>' . $this->xmlEscape($item['description']) . '</description>' . "\n";
-            $xml .= '    <pubDate>' . $item['pubDate'] . '</pubDate>' . "\n";
+            $xml .= '    <pubDate>' . $this->xmlEscape($item['pubDate']) . '</pubDate>' . "\n";
             $xml .= '  </item>' . "\n";
         }
 
@@ -77,6 +77,7 @@ class FeedController
         $items = [];
         $result = $db->query($sql);
         if (!$result) {
+            error_log('FeedController::getLatestBooks query failed: ' . $db->error);
             return $items;
         }
 
@@ -112,6 +113,7 @@ class FeedController
                     $dt = new \DateTimeImmutable((string)$row['created_at']);
                     $pubDate = $dt->format('r');
                 } catch (\Throwable $e) {
+                    error_log('FeedController: invalid created_at for book ID ' . $id . ': ' . (string)$row['created_at']);
                     $pubDate = gmdate('r');
                 }
             }

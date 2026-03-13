@@ -403,8 +403,40 @@ class LibriController
         $repo = new \App\Models\BookRepository($db);
         $libri = $repo->listWithAuthors(100);
 
+        // Resolve genre names for URL filter display
+        $params = $request->getQueryParams();
+        $genreFilterName = '';
+        $subgenreFilterName = '';
+        $genreId = (int) ($params['genere'] ?? $params['genere_filter'] ?? 0);
+        $subgenreId = (int) ($params['sottogenere'] ?? $params['sottogenere_filter'] ?? 0);
+        if ($genreId > 0 || $subgenreId > 0) {
+            $lookupId = $subgenreId > 0 ? $subgenreId : $genreId;
+            $stmt = $db->prepare('SELECT nome FROM generi WHERE id = ?');
+            if ($stmt) {
+                $stmt->bind_param('i', $lookupId);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc();
+                if ($subgenreId > 0) {
+                    $subgenreFilterName = $row['nome'] ?? '';
+                } else {
+                    $genreFilterName = $row['nome'] ?? '';
+                }
+                $stmt->close();
+            }
+            if ($genreId > 0 && $subgenreId > 0) {
+                $stmt2 = $db->prepare('SELECT nome FROM generi WHERE id = ?');
+                if ($stmt2) {
+                    $stmt2->bind_param('i', $genreId);
+                    $stmt2->execute();
+                    $row2 = $stmt2->get_result()->fetch_assoc();
+                    $genreFilterName = $row2['nome'] ?? '';
+                    $stmt2->close();
+                }
+            }
+        }
+
         ob_start();
-        $data = ['libri' => $libri];
+        $data = ['libri' => $libri, 'genreFilterName' => $genreFilterName, 'subgenreFilterName' => $subgenreFilterName];
         // extract($data);
         require __DIR__ . '/../Views/libri/index.php';
         $content = ob_get_clean();
@@ -2825,7 +2857,7 @@ class LibriController
             $escapedRow = array_map(function ($field) use ($delimiter) {
                 $field = str_replace('"', '""', (string) $field);
                 // Quote if contains delimiter, newline, or quotes
-                if (strpos($field, $delimiter) !== false || strpos($field, "\n") !== false || strpos($field, '"') !== false) {
+                if (strpos($field, $delimiter) !== false || strpos($field, "\n") !== false || strpos($field, "\r") !== false || strpos($field, '"') !== false) {
                     return '"' . $field . '"';
                 }
                 return $field;
@@ -2925,6 +2957,7 @@ class LibriController
         $text = preg_replace('/<(?:\/?(?:p|div|li|ul|ol|h[1-6]|blockquote|tr|th|td)\b[^>]*|br\b[^>]*\/?)>/i', "\n", $html);
         $text = html_entity_decode(strip_tags((string) $text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $text = str_replace("\xC2\xA0", ' ', (string) $text);
+        $text = str_replace("\r", '', $text);
         $text = (string) preg_replace("/[ \t]+/", ' ', $text);
         $text = (string) preg_replace("/\n{3,}/", "\n\n", $text);
         return trim($text);

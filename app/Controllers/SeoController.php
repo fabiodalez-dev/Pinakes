@@ -54,8 +54,8 @@ class SeoController
         }
 
         $baseUrl = self::resolveBaseUrl($request);
-        $appName = ConfigStore::get('app.name', 'Pinakes');
-        $appDesc = ConfigStore::get('app.footer_description', '');
+        $appName = (string) ConfigStore::get('app.name', 'Pinakes');
+        $appDesc = (string) ConfigStore::get('app.footer_description', '');
         $locales = I18n::getAvailableLocales();
 
         // Gather stats
@@ -66,6 +66,9 @@ class SeoController
                 (SELECT COUNT(*) FROM editori) AS publishers,
                 (SELECT COUNT(*) FROM events WHERE is_active = 1) AS events"
         );
+        if (!$stats) {
+            error_log('SeoController::llmsTxt stats query failed: ' . $db->error);
+        }
         $row = $stats ? $stats->fetch_assoc() : [];
         $bookCount = (int) ($row['books'] ?? 0);
         $authorCount = (int) ($row['authors'] ?? 0);

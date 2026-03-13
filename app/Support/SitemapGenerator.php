@@ -443,7 +443,7 @@ class SitemapGenerator
         try {
             $url->setLastMod(new \DateTimeImmutable($date));
         } catch (\Throwable $exception) {
-            // Ignore invalid dates
+            error_log('SitemapGenerator: invalid lastmod date: ' . $date);
         }
     }
 
@@ -473,7 +473,7 @@ class SitemapGenerator
                 $result->free();
             }
         } catch (\Throwable $e) {
-            // Fallback to default locale only
+            error_log('SitemapGenerator::loadActiveLocales failed, falling back to it_IT: ' . $e->getMessage());
             $this->activeLocales = ['it_IT'];
             $this->defaultLocale = 'it_IT';
         }

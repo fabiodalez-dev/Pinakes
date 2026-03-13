@@ -168,30 +168,30 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <i class="fas fa-layer-group text-gray-400 mr-2"></i>
             <span class="font-medium"><?= __("Genere:") ?></span>
             <?php
-              $pathParts = [];
-              if (!empty($libro['radice_nome'])) $pathParts[] = (string)$libro['radice_nome'];
-              if (!empty($libro['genere_nome'])) {
-                $genName = (string)$libro['genere_nome'];
-                if (strpos($genName, ' - ') !== false) {
-                  $parts = explode(' - ', $genName);
-                  $genName = end($parts);
-                }
-                $pathParts[] = $genName;
+              $genreParts = [];
+              if (!empty($libro['radice_id'])) {
+                  $genreParts[] = [(int)$libro['radice_id'], (string)$libro['radice_nome']];
               }
-              if (!empty($libro['sottogenere_nome'])) $pathParts[] = (string)$libro['sottogenere_nome'];
-              $path = implode(' → ', array_map('App\\Support\\HtmlHelper::e', $pathParts));
+              if (!empty($libro['genere_id'])) {
+                  $genName = (string)$libro['genere_nome'];
+                  if (strpos($genName, ' - ') !== false) {
+                      $parts = explode(' - ', $genName);
+                      $genName = end($parts);
+                  }
+                  $genreParts[] = [(int)$libro['genere_id'], $genName];
+              }
+              if (!empty($libro['sottogenere_id'])) {
+                  $genreParts[] = [(int)$libro['sottogenere_id'], (string)$libro['sottogenere_nome']];
+              }
             ?>
-            <?php
-              $genreFilterId = !empty($libro['sottogenere_id'])
-                ? (int)$libro['sottogenere_id']
-                : (!empty($libro['genere_id']) ? (int)$libro['genere_id'] : (int)($libro['radice_id'] ?? 0));
-            ?>
-            <?php if ($genreFilterId > 0): ?>
-              <a href="<?= htmlspecialchars(url('/admin/libri?genere=' . $genreFilterId), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:text-gray-600 hover:underline font-semibold">
-                <?php echo $path !== '' ? $path : __('Non specificato'); ?>
-              </a>
+            <?php if (!empty($genreParts)): ?>
+              <?php foreach ($genreParts as $i => $gp): ?>
+                <?php if ($i > 0): ?> <span class="text-gray-400">→</span> <?php endif; ?>
+                <a href="<?= htmlspecialchars(url('/admin/libri?genere=' . $gp[0]), ENT_QUOTES, 'UTF-8') ?>"
+                   class="text-gray-900 hover:text-gray-600 hover:underline font-semibold"><?= App\Support\HtmlHelper::e($gp[1]) ?></a>
+              <?php endforeach; ?>
             <?php else: ?>
-              <span class="text-gray-500"><?= $path !== '' ? $path : __('Non specificato') ?></span>
+              <span class="text-gray-500"><?= __('Non specificato') ?></span>
             <?php endif; ?>
           </div>
           <div class="text-base text-gray-600">
