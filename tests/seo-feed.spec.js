@@ -67,8 +67,14 @@ test.describe('Hreflang tags', () => {
 
     // EN version should have /en/ prefix and same slug path as IT
     expect(enHref[1]).toContain('/en/');
-    const stripLocalePrefix = (href) =>
-      new URL(href).pathname.replace(/^\/[a-z]{2}(?=\/)/, '');
+    const basePath = new URL(BASE).pathname.replace(/\/$/, '');
+    const stripLocalePrefix = (href) => {
+      let pathname = new URL(href).pathname;
+      if (basePath && pathname.startsWith(basePath)) {
+        pathname = pathname.slice(basePath.length) || '/';
+      }
+      return pathname.replace(/^\/[a-z]{2}(?=\/)/, '');
+    };
     expect(stripLocalePrefix(enHref[1])).toBe(stripLocalePrefix(itHref[1]));
   });
 
