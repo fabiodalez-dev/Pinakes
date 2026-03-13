@@ -300,6 +300,7 @@ test.describe.serial('llms.txt', () => {
   let context;
   /** @type {import('@playwright/test').Page} */
   let page;
+  let llmsWasEnabled = false;
 
   test.beforeAll(async ({ browser }) => {
     test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'E2E admin credentials not configured');
@@ -316,7 +317,8 @@ test.describe.serial('llms.txt', () => {
     await page.goto(`${BASE}/admin/settings?tab=advanced`);
     await page.waitForLoadState('networkidle');
     const checkbox = page.locator('#llms_txt_enabled');
-    if (!await checkbox.isChecked()) {
+    llmsWasEnabled = await checkbox.isChecked();
+    if (!llmsWasEnabled) {
       await checkbox.check();
       await page.locator('[data-settings-panel="advanced"] button[type="submit"]').first().click();
       await page.waitForLoadState('networkidle');
@@ -324,6 +326,16 @@ test.describe.serial('llms.txt', () => {
   });
 
   test.afterAll(async () => {
+    if (page && !llmsWasEnabled) {
+      await page.goto(`${BASE}/admin/settings?tab=advanced`);
+      await page.waitForLoadState('networkidle');
+      const checkbox = page.locator('#llms_txt_enabled');
+      if (await checkbox.isChecked()) {
+        await checkbox.uncheck();
+        await page.locator('[data-settings-panel="advanced"] button[type="submit"]').first().click();
+        await page.waitForLoadState('networkidle');
+      }
+    }
     await context?.close();
   });
 

@@ -337,14 +337,16 @@ use App\Support\HtmlHelper;
       <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
         <div class="flex items-center justify-between">
           <div>
-            <span class="text-sm font-semibold text-gray-900"><?= __("Abilita llms.txt") ?></span>
-            <p class="text-xs text-gray-600"><?= __("Rende disponibile /llms.txt e lo aggiunge a robots.txt") ?></p>
+            <span id="llms_txt_enabled_label" class="text-sm font-semibold text-gray-900"><?= __("Abilita llms.txt") ?></span>
+            <p id="llms_txt_enabled_desc" class="text-xs text-gray-600"><?= __("Rende disponibile /llms.txt e lo aggiunge a robots.txt") ?></p>
           </div>
           <label class="relative inline-flex items-center cursor-pointer">
             <input type="checkbox"
                    id="llms_txt_enabled"
                    name="llms_txt_enabled"
                    value="1"
+                   aria-labelledby="llms_txt_enabled_label"
+                   aria-describedby="llms_txt_enabled_desc"
                    <?php echo $llmsTxtEnabled ? 'checked' : ''; ?>
                    class="toggle-checkbox sr-only">
             <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>

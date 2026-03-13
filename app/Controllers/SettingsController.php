@@ -626,7 +626,7 @@ class SettingsController
         // Handle llms.txt toggle (stored in 'seo' category)
         $llmsTxtEnabled = isset($data['llms_txt_enabled']) && $data['llms_txt_enabled'] === '1' ? '1' : '0';
         $repository->set('seo', 'llms_txt_enabled', $llmsTxtEnabled);
-        ConfigStore::set('seo.llms_txt_enabled', $llmsTxtEnabled === '1');
+        ConfigStore::set('seo.llms_txt_enabled', $llmsTxtEnabled);
 
         // Handle catalogue mode setting (stored in 'system' category)
         $catalogueMode = isset($data['catalogue_mode']) && $data['catalogue_mode'] === '1' ? '1' : '0';

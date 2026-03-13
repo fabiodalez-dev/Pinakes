@@ -56,7 +56,6 @@ class SeoController
         $baseUrl = self::resolveBaseUrl($request);
         $appName = ConfigStore::get('app.name', 'Pinakes');
         $appDesc = ConfigStore::get('app.footer_description', '');
-        $locale = I18n::getInstallationLocale();
         $locales = I18n::getAvailableLocales();
 
         // Gather stats
@@ -65,7 +64,6 @@ class SeoController
                 (SELECT COUNT(*) FROM libri WHERE deleted_at IS NULL) AS books,
                 (SELECT COUNT(*) FROM autori) AS authors,
                 (SELECT COUNT(*) FROM editori) AS publishers,
-                (SELECT COUNT(*) FROM generi) AS genres,
                 (SELECT COUNT(*) FROM events WHERE is_active = 1) AS events"
         );
         $row = $stats ? $stats->fetch_assoc() : [];
@@ -76,7 +74,7 @@ class SeoController
 
         // Language list
         $langNames = [];
-        foreach ($locales as $code => $name) {
+        foreach ($locales as $name) {
             $langNames[] = $name;
         }
         $languageList = implode(', ', $langNames);
