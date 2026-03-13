@@ -574,6 +574,7 @@ class SettingsController
             'sitemap_last_generated_at' => $repository->get('advanced', 'sitemap_last_generated_at', $config['sitemap_last_generated_at'] ?? ''),
             'sitemap_last_generated_total' => (int) $repository->get('advanced', 'sitemap_last_generated_total', (string) ($config['sitemap_last_generated_total'] ?? 0)),
             'api_enabled' => $repository->get('api', 'enabled', '0'),
+            'llms_txt_enabled' => $repository->get('seo', 'llms_txt_enabled', '0'),
         ];
     }
 
@@ -621,6 +622,11 @@ class SettingsController
             $repository->set('cookie_banner', 'show_marketing', '1');
             ConfigStore::set('cookie_banner.show_marketing', true);
         }
+
+        // Handle llms.txt toggle (stored in 'seo' category)
+        $llmsTxtEnabled = isset($data['llms_txt_enabled']) && $data['llms_txt_enabled'] === '1' ? '1' : '0';
+        $repository->set('seo', 'llms_txt_enabled', $llmsTxtEnabled);
+        ConfigStore::set('seo.llms_txt_enabled', $llmsTxtEnabled === '1');
 
         // Handle catalogue mode setting (stored in 'system' category)
         $catalogueMode = isset($data['catalogue_mode']) && $data['catalogue_mode'] === '1' ? '1' : '0';

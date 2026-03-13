@@ -2,6 +2,8 @@
 const { test, expect } = require('@playwright/test');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
 
 // ────────────────────────────────────────────────────────────────────────
 // 1. Hreflang tags
@@ -287,5 +289,107 @@ test.describe('Robots.txt', () => {
 
     const feedUrl = feedLine.replace('Feed:', '').trim();
     expect(feedUrl).toMatch(/^https?:\/\//);
+  });
+});
+
+// ────────────────────────────────────────────────────────────────────────
+// 5. llms.txt
+// ────────────────────────────────────────────────────────────────────────
+test.describe.serial('llms.txt', () => {
+  /** @type {import('@playwright/test').BrowserContext} */
+  let context;
+  /** @type {import('@playwright/test').Page} */
+  let page;
+
+  test.beforeAll(async ({ browser }) => {
+    test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'E2E admin credentials not configured');
+    context = await browser.newContext();
+    page = await context.newPage();
+
+    // Login as admin and enable llms.txt
+    await page.goto(`${BASE}/accedi`);
+    await page.fill('input[name="email"]', ADMIN_EMAIL);
+    await page.fill('input[name="password"]', ADMIN_PASS);
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL(/admin/, { timeout: 15000 });
+
+    await page.goto(`${BASE}/admin/settings?tab=advanced`);
+    await page.waitForLoadState('networkidle');
+    const checkbox = page.locator('#llms_txt_enabled');
+    if (!await checkbox.isChecked()) {
+      await checkbox.check();
+      await page.locator('[data-settings-panel="advanced"] button[type="submit"]').first().click();
+      await page.waitForLoadState('networkidle');
+    }
+  });
+
+  test.afterAll(async () => {
+    await context?.close();
+  });
+
+  test('/llms.txt returns 200 with text/plain content-type', async ({ request }) => {
+    const resp = await request.get(`${BASE}/llms.txt`);
+    expect(resp.status()).toBe(200);
+
+    const contentType = resp.headers()['content-type'] || '';
+    expect(contentType).toContain('text/plain');
+  });
+
+  test('response starts with H1 heading per llms.txt spec', async ({ request }) => {
+    const resp = await request.get(`${BASE}/llms.txt`);
+    expect(resp.status()).toBe(200);
+    const text = await resp.text();
+
+    expect(text).toMatch(/^# /);
+  });
+
+  test('contains blockquote summary line', async ({ request }) => {
+    const resp = await request.get(`${BASE}/llms.txt`);
+    expect(resp.status()).toBe(200);
+    const text = await resp.text();
+
+    expect(text).toContain('\n> ');
+    // Summary should mention collection stats (locale-agnostic: check for numbers)
+    const summaryLine = text.split('\n').find(l => l.startsWith('> '));
+    expect(summaryLine).toBeDefined();
+    expect(summaryLine).toMatch(/\d+/);
+  });
+
+  test('contains Main Pages section with absolute URLs', async ({ request }) => {
+    const resp = await request.get(`${BASE}/llms.txt`);
+    expect(resp.status()).toBe(200);
+    const text = await resp.text();
+
+    // Should have a section with page links (heading text is locale-dependent)
+    expect(text).toMatch(/^## .+/m);
+    // All URLs should be absolute
+    const urlMatches = [...text.matchAll(/\]\((https?:\/\/[^)]+)\)/g)];
+    expect(urlMatches.length).toBeGreaterThan(0);
+    for (const match of urlMatches) {
+      expect(match[1]).toMatch(/^https?:\/\//);
+    }
+  });
+
+  test('contains Feeds & Discovery section with feed and sitemap links', async ({ request }) => {
+    const resp = await request.get(`${BASE}/llms.txt`);
+    expect(resp.status()).toBe(200);
+    const text = await resp.text();
+
+    // Feed and sitemap links should be present (section heading is locale-dependent)
+    expect(text).toContain('feed.xml');
+    expect(text).toContain('sitemap.xml');
+  });
+
+  test('robots.txt includes llms.txt directive', async ({ request }) => {
+    const resp = await request.get(`${BASE}/robots.txt`);
+    expect(resp.status()).toBe(200);
+    const text = await resp.text();
+
+    expect(text).toContain('llms.txt:');
+    const llmsLine = text.split('\n').find(l => l.startsWith('llms.txt:'));
+    expect(llmsLine).toBeDefined();
+    const llmsUrl = llmsLine.replace('llms.txt:', '').trim();
+    expect(llmsUrl).toMatch(/^https?:\/\//);
+    expect(llmsUrl).toContain('/llms.txt');
   });
 });

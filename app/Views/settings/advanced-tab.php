@@ -315,6 +315,60 @@ use App\Support\HtmlHelper;
       </div>
     </div>
 
+    <!-- llms.txt Setting -->
+    <?php $llmsTxtEnabled = ($advancedSettings['llms_txt_enabled'] ?? '0') === '1'; ?>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-robot text-gray-500"></i>
+          llms.txt
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Genera automaticamente un file llms.txt per rendere la biblioteca comprensibile ai modelli linguistici (LLM)") ?></p>
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle text-blue-600 mt-0.5"></i>
+            <div class="text-xs text-blue-800">
+              <strong><?= __("Cos'è llms.txt:") ?></strong>
+              <p class="mt-1"><?= __("È uno standard emergente (<a href=\"https://llmstxt.org\" target=\"_blank\" rel=\"noopener\" class=\"underline\">llmstxt.org</a>) che fornisce ai motori AI un sommario strutturato del sito in formato Markdown. Quando attivo, il file viene generato dinamicamente con le statistiche della biblioteca, le pagine pubbliche e le informazioni API.") ?></p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <span class="text-sm font-semibold text-gray-900"><?= __("Abilita llms.txt") ?></span>
+            <p class="text-xs text-gray-600"><?= __("Rende disponibile /llms.txt e lo aggiunge a robots.txt") ?></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox"
+                   id="llms_txt_enabled"
+                   name="llms_txt_enabled"
+                   value="1"
+                   <?php echo $llmsTxtEnabled ? 'checked' : ''; ?>
+                   class="toggle-checkbox sr-only">
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
+          </label>
+        </div>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3">
+          <div class="text-xs text-gray-700 space-y-1">
+            <p><strong><?= __("Stato attuale:") ?></strong>
+              <?php if ($llmsTxtEnabled): ?>
+                <span class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-green-100 text-green-800">
+                  <i class="fas fa-check-circle mr-1"></i> <?= __("Attivo") ?>
+                </span>
+              <?php else: ?>
+                <span class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-gray-100 text-gray-600">
+                  <i class="fas fa-times-circle mr-1"></i> <?= __("Disattivato") ?>
+                </span>
+              <?php endif; ?>
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Catalogue Mode Setting -->
     <?php $catalogueMode = \App\Support\ConfigStore::isCatalogueMode(); ?>
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
