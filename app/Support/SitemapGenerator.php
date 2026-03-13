@@ -157,7 +157,6 @@ class SitemapGenerator
             ['route' => 'privacy', 'changefreq' => 'yearly', 'priority' => '0.4'],
             ['route' => 'register', 'changefreq' => 'monthly', 'priority' => '0.5'],
             ['route' => 'login', 'changefreq' => 'monthly', 'priority' => '0.4'],
-            ['path' => '/feed.xml', 'changefreq' => 'daily', 'priority' => '0.3'],
         ];
 
         // Generate URL for each active locale
@@ -175,6 +174,13 @@ class SitemapGenerator
                 ];
             }
         }
+
+        // Feed endpoint is global (/feed.xml), not locale-prefixed
+        $entries[] = [
+            'loc' => $this->baseUrl . '/feed.xml',
+            'changefreq' => 'daily',
+            'priority' => '0.3',
+        ];
 
         return $entries;
     }

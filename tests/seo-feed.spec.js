@@ -29,22 +29,10 @@ test.describe('Hreflang tags', () => {
     expect(itMatch).not.toBeNull();
     expect(itMatch[1]).toContain('/catalogo');
 
-    // EN version should point to /en/catalog
+    // EN version should point to /en/catalog (translated, not IT route)
     const enMatch = html.match(/hreflang="en"[^>]*href="([^"]+)"/);
     expect(enMatch).not.toBeNull();
     expect(enMatch[1]).toContain('/en/catalog');
-  });
-
-  test('hreflang EN variant uses the correct English translated route', async ({ request }) => {
-    const resp = await request.get(`${BASE}/catalogo`);
-    expect(resp.status()).toBe(200);
-    const html = await resp.text();
-
-    // EN hreflang should use the English translated route
-    const enMatch = html.match(/hreflang="en"[^>]*href="([^"]+)"/);
-    expect(enMatch).not.toBeNull();
-    expect(enMatch[1]).toContain('/en/catalog');
-    // Must NOT contain the IT route in the EN hreflang
     expect(enMatch[1]).not.toContain('/catalogo');
   });
 
@@ -232,12 +220,15 @@ test.describe('Sitemap', () => {
     expect(xml).toContain('/feed.xml</loc>');
   });
 
-  test('sitemap includes locale-prefixed feed.xml for EN', async ({ request }) => {
+  test('sitemap has only one global feed.xml entry (not locale-prefixed)', async ({ request }) => {
     const resp = await request.get(`${BASE}/sitemap.xml`);
     expect(resp.status()).toBe(200);
     const xml = await resp.text();
 
-    expect(xml).toContain('/en/feed.xml</loc>');
+    // feed.xml is a global endpoint — only one entry, no /en/ prefix
+    expect(xml).toContain('/feed.xml</loc>');
+    const feedCount = (xml.match(/feed\.xml<\/loc>/g) || []).length;
+    expect(feedCount).toBe(1);
   });
 
   test('sitemap includes event URLs when events exist', async ({ request }) => {

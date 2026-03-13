@@ -106,7 +106,7 @@ class FeedController
             $bookPath = book_path(['id' => $id, 'titolo' => $title, 'autore_principale' => $author]);
             $link = $baseUrl . $bookPath;
 
-            $pubDate = '';
+            $pubDate = gmdate('r');
             if (!empty($row['created_at'])) {
                 try {
                     $dt = new \DateTimeImmutable((string)$row['created_at']);

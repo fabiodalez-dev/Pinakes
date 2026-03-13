@@ -55,7 +55,7 @@ class HreflangHelper
         }
 
         // Build reverse map: translated path => route key (from default locale)
-        $reverseMap = self::buildReverseMap($locales, $currentLocale);
+        $reverseMap = self::buildReverseMap($currentLocale);
 
         // Try to match corePath against known routes
         $matchedKey = null;
@@ -112,10 +112,9 @@ class HreflangHelper
      * Build a reverse map from translated route path => route key
      * for the current locale, sorted longest-first for greedy matching.
      *
-     * @param array<string, string> $locales
      * @return array<string, string> path => route key
      */
-    private static function buildReverseMap(array $locales, string $currentLocale): array
+    private static function buildReverseMap(string $currentLocale): array
     {
         $reverseMap = [];
 
