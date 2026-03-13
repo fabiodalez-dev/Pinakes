@@ -48,6 +48,12 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Description-inclusive search** — Header search, admin book search, and unified search all query book descriptions
 - **HTML-free search column** — New `descrizione_plain` column stores `strip_tags()` version of description for clean search results
 
+**SEO & LLM Readiness (PR #92):**
+- **Hreflang alternate tags** — Every frontend page emits `<link rel="alternate" hreflang>` for all active locales plus `x-default`, enabling search engines and AI models to link language variants together
+- **RSS 2.0 feed** — `/feed.xml` endpoint with the latest 50 books (title, author, description, publication date), autodiscovery `<link>` in layout, and `Feed:` directive in robots.txt
+- **Sitemap expansion** — Events now included in sitemap with locale-prefixed URLs; feed.xml added as global entry
+- **RSS icon in footer** — SVG feed icon next to the "Powered by Pinakes" attribution
+
 **Bug Fixes:**
 - **CSV export cleanup** — `descrizione` follows `sottotitolo`, HTML tags stripped for clean output
 - **Auto-hook registration** — New plugin hooks auto-registered on page load if missing from database
@@ -264,7 +270,7 @@ Automatic emails for:
 - **AJAX search** with instant results and relevance ranking
 - **AJAX filters**: genre, publisher, availability, publication year, format
 - **Patrons can leave reviews and ratings** (configurable)
-- **Built-in SEO tooling**: sitemap, clean URLs, Schema.org metadata tags
+- **Built-in SEO tooling**: sitemap, clean URLs, Schema.org metadata, hreflang tags, RSS 2.0 feed
 - **Cookie-consent banner** and privacy tools (GDPR-compliant)
 
 ### Dewey Decimal Classification
@@ -500,6 +506,8 @@ If Pinakes helps your library, please ⭐ the repository!
 - `app/Controllers/UserWishlistController.php` – Wishlist UX
 - `app/Views/frontend/catalog.php` – Public catalog filters
 - `app/Controllers/SeoController.php` – Sitemap + robots.txt
+- `app/Controllers/FeedController.php` – RSS 2.0 feed
+- `app/Support/HreflangHelper.php` – Hreflang alternate URL generation
 - `storage/plugins/` – Plugin directory (all pre-installed plugins)
 
 ---
