@@ -371,6 +371,9 @@ class BookRepository
         if ($this->hasColumn('illustratore')) {
             $addField('illustratore', 's', $data['illustratore'] ?? null);
         }
+        if ($this->hasColumn('curatore')) {
+            $addField('curatore', 's', $data['curatore'] ?? null);
+        }
         if ($this->hasColumn('numero_pagine')) {
             $numPagineRaw = $data['numero_pagine'] ?? null;
             $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -701,6 +704,9 @@ class BookRepository
         if ($this->hasColumn('illustratore')) {
             $addSet('illustratore', 's', $data['illustratore'] ?? null);
         }
+        if ($this->hasColumn('curatore')) {
+            $addSet('curatore', 's', $data['curatore'] ?? null);
+        }
         if ($this->hasColumn('numero_pagine')) {
             $numPagineRaw = $data['numero_pagine'] ?? null;
             $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -971,7 +977,7 @@ class BookRepository
     public function updateOptionals(int $bookId, array $data): void
     {
         $cols = [];
-        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'collana', 'edizione'] as $c) {
+        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'curatore', 'collana', 'edizione'] as $c) {
             if ($this->hasColumn($c) && array_key_exists($c, $data) && $data[$c] !== '' && $data[$c] !== null) {
                 if ($c === 'numero_pagine') {
                     $validated = filter_var($data[$c], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);

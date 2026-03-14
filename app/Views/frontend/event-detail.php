@@ -439,9 +439,22 @@ $jsonLd = [
         'name' => ConfigStore::get('app.name'),
         'url' => (string)($baseUrl ?? ''),
     ],
+    'location' => [
+        '@type' => 'Place',
+        'name' => (string) ConfigStore::get('app.name', __('Biblioteca')),
+        'address' => (string) ConfigStore::get('app.address', ''),
+    ],
 ];
 if (!empty($event['event_date'])) {
-    $jsonLd['startDate'] = $event['event_date'] . (!empty($event['event_time']) ? 'T' . $event['event_time'] : '');
+    $startDate = $event['event_date'];
+    if (!empty($event['event_time'])) {
+        $startDate .= 'T' . $event['event_time'];
+    }
+    // Append timezone offset for ISO 8601 compliance
+    $tz = new \DateTimeZone(date_default_timezone_get());
+    $now = new \DateTimeImmutable('now', $tz);
+    $startDate .= $now->format('P');
+    $jsonLd['startDate'] = $startDate;
 }
 if (!empty($event['featured_image'])) {
     $jsonLd['image'] = absoluteUrl($event['featured_image']);

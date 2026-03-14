@@ -562,6 +562,13 @@ final class ConfigStore
                 }
             }
 
+            if (!empty($raw['seo'])) {
+                self::$dbSettingsCache['seo'] = [];
+                foreach ($raw['seo'] as $key => $value) {
+                    self::$dbSettingsCache['seo'][$key] = (string) $value;
+                }
+            }
+
             if (!empty($raw['cms'])) {
                 self::$dbSettingsCache['cms'] = [];
                 foreach ($raw['cms'] as $key => $value) {

@@ -32,6 +32,7 @@ class SitemapGenerator
         'total' => 0,
         'static' => 0,
         'cms' => 0,
+        'events' => 0,
         'books' => 0,
         'authors' => 0,
         'publishers' => 0,
@@ -54,6 +55,7 @@ class SitemapGenerator
             'total' => 0,
             'static' => 0,
             'cms' => 0,
+            'events' => 0,
             'books' => 0,
             'authors' => 0,
             'publishers' => 0,
@@ -72,6 +74,11 @@ class SitemapGenerator
         foreach ($this->getCmsEntries() as $entry) {
             $unique[$entry['loc']] = $entry;
             $this->stats['cms']++;
+        }
+
+        foreach ($this->getEventEntries() as $entry) {
+            $unique[$entry['loc']] = $entry;
+            $this->stats['events']++;
         }
 
         foreach ($this->getBookEntries() as $entry) {
@@ -168,6 +175,13 @@ class SitemapGenerator
             }
         }
 
+        // Feed endpoint is global (/feed.xml), not locale-prefixed
+        $entries[] = [
+            'loc' => $this->baseUrl . '/feed.xml',
+            'changefreq' => 'daily',
+            'priority' => '0.3',
+        ];
+
         return $entries;
     }
 
@@ -201,6 +215,45 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            SecureLogger::warning('SitemapGenerator::getCmsEntries query failed: ' . $this->db->error);
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function getEventEntries(): array
+    {
+        $entries = [];
+        $sql = "SELECT slug, updated_at, created_at FROM events WHERE is_active = 1 ORDER BY event_date DESC";
+
+        if ($result = $this->db->query($sql)) {
+            while ($row = $result->fetch_assoc()) {
+                $slug = trim((string)($row['slug'] ?? ''));
+                if ($slug === '') {
+                    continue;
+                }
+
+                $lastmod = $row['updated_at'] ?? $row['created_at'] ?? null;
+
+                foreach ($this->activeLocales as $locale) {
+                    $localePrefix = $this->getLocalePrefix($locale);
+                    $eventsPath = RouteTranslator::getRouteForLocale('events', $locale);
+
+                    $entries[] = [
+                        'loc' => $this->baseUrl . $localePrefix . $eventsPath . '/' . rawurlencode($slug),
+                        'changefreq' => 'monthly',
+                        'priority' => '0.6',
+                        'lastmod' => $lastmod,
+                    ];
+                }
+            }
+            $result->free();
+        } else {
+            SecureLogger::warning('SitemapGenerator::getEventEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -253,6 +306,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            SecureLogger::warning('SitemapGenerator::getBookEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -286,6 +341,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            SecureLogger::warning('SitemapGenerator::getAuthorEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -319,6 +376,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            SecureLogger::warning('SitemapGenerator::getPublisherEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -359,6 +418,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            SecureLogger::warning('SitemapGenerator::getGenreEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -394,7 +455,7 @@ class SitemapGenerator
         try {
             $url->setLastMod(new \DateTimeImmutable($date));
         } catch (\Throwable $exception) {
-            // Ignore invalid dates
+            SecureLogger::warning('SitemapGenerator: invalid lastmod date: ' . $date);
         }
     }
 
@@ -424,7 +485,7 @@ class SitemapGenerator
                 $result->free();
             }
         } catch (\Throwable $e) {
-            // Fallback to default locale only
+            SecureLogger::warning('SitemapGenerator::loadActiveLocales failed, falling back to it_IT: ' . $e->getMessage());
             $this->activeLocales = ['it_IT'];
             $this->defaultLocale = 'it_IT';
         }

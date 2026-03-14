@@ -631,9 +631,11 @@ class FrontendController
             ORDER BY
                 CASE la.ruolo
                     WHEN 'principale' THEN 1
-                    WHEN 'coautore' THEN 2
+                    WHEN 'co-autore' THEN 2
                     WHEN 'traduttore' THEN 3
-                    ELSE 4
+                    WHEN 'illustratore' THEN 4
+                    WHEN 'curatore' THEN 5
+                    ELSE 6
                 END
         ";
 

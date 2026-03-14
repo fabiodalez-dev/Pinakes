@@ -156,14 +156,78 @@ $bookSchema = [
     "@type" => "Book",
     "name" => $bookTitle,
     "url" => $canonicalUrl,
-    "sameAs" => []
 ];
 
-if ($bookAuthor) {
-    $bookSchema["author"] = [
-        "@type" => "Person",
-        "name" => $bookAuthor
-    ];
+// sameAs: build real URLs from ISBN for external book databases
+$sameAsLinks = [];
+if ($bookISBN) {
+    $isbn = preg_replace('/[^0-9X]/', '', strtoupper($bookISBN)) ?? '';
+    if (strlen($isbn) === 13) {
+        $sameAsLinks[] = 'https://openlibrary.org/isbn/' . $isbn;
+        $sameAsLinks[] = 'https://books.google.com/books?vid=ISBN' . $isbn;
+        $sameAsLinks[] = 'https://www.worldcat.org/isbn/' . $isbn;
+    } elseif (strlen($isbn) === 10) {
+        $sameAsLinks[] = 'https://openlibrary.org/isbn/' . $isbn;
+        $sameAsLinks[] = 'https://www.worldcat.org/isbn/' . $isbn;
+    }
+}
+if (!empty($sameAsLinks)) {
+    $bookSchema["sameAs"] = $sameAsLinks;
+}
+
+// Include ALL authors with proper Schema.org roles
+$schemaAuthors = [];
+$schemaTranslators = [];
+$schemaIllustrators = [];
+$schemaEditors = [];
+foreach ($authors as $authorData) {
+    $name = trim(html_entity_decode($authorData['nome'] ?? '', ENT_QUOTES, 'UTF-8'));
+    if ($name === '') {
+        continue;
+    }
+    $person = ["@type" => "Person", "name" => $name];
+    $role = $authorData['ruolo'] ?? 'principale';
+    switch ($role) {
+        case 'traduttore':
+            $schemaTranslators[] = $person;
+            break;
+        case 'illustratore':
+            $schemaIllustrators[] = $person;
+            break;
+        case 'curatore':
+            $schemaEditors[] = $person;
+            break;
+        default: // principale, co-autore
+            $schemaAuthors[] = $person;
+            break;
+    }
+}
+// Also add translator/illustrator/curator from direct book fields if not already in authors
+// Apply html_entity_decode consistently (author names from libri_autori are decoded above)
+$bookTranslator = trim(html_entity_decode($book['traduttore'] ?? '', ENT_QUOTES, 'UTF-8'));
+if ($bookTranslator !== '' && !in_array($bookTranslator, array_column($schemaTranslators, 'name'), true)) {
+    $schemaTranslators[] = ["@type" => "Person", "name" => $bookTranslator];
+}
+$bookIllustrator = trim(html_entity_decode($book['illustratore'] ?? '', ENT_QUOTES, 'UTF-8'));
+if ($bookIllustrator !== '' && !in_array($bookIllustrator, array_column($schemaIllustrators, 'name'), true)) {
+    $schemaIllustrators[] = ["@type" => "Person", "name" => $bookIllustrator];
+}
+$bookCurator = trim(html_entity_decode($book['curatore'] ?? '', ENT_QUOTES, 'UTF-8'));
+if ($bookCurator !== '' && !in_array($bookCurator, array_column($schemaEditors, 'name'), true)) {
+    $schemaEditors[] = ["@type" => "Person", "name" => $bookCurator];
+}
+
+if (!empty($schemaAuthors)) {
+    $bookSchema["author"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+}
+if (!empty($schemaTranslators)) {
+    $bookSchema["translator"] = count($schemaTranslators) === 1 ? $schemaTranslators[0] : $schemaTranslators;
+}
+if (!empty($schemaIllustrators)) {
+    $bookSchema["illustrator"] = count($schemaIllustrators) === 1 ? $schemaIllustrators[0] : $schemaIllustrators;
+}
+if (!empty($schemaEditors)) {
+    $bookSchema["editor"] = count($schemaEditors) === 1 ? $schemaEditors[0] : $schemaEditors;
 }
 
 if ($bookDescription) {
@@ -178,7 +242,7 @@ if ($bookPublisher) {
 }
 
 if ($bookYear) {
-    $bookSchema["datePublished"] = $bookYear;
+    $bookSchema["datePublished"] = (string) $bookYear;
 }
 
 if ($bookISBN) {
@@ -201,20 +265,25 @@ if ($bookCover) {
     $bookSchema["image"] = $ogImage; // Use the absolute URL
 }
 
-// Availability
-$bookSchema["offers"] = [
-    "@type" => "Offer",
-    "availability" => $isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
-    "itemCondition" => "https://schema.org/UsedCondition",
-    "seller" => [
-        "@type" => "Library",
-        "name" => "Biblioteca"
-    ]
-];
+// Book edition and format
+$bookEdition = trim($book['edizione'] ?? '');
+if ($bookEdition !== '') {
+    $bookSchema["bookEdition"] = $bookEdition;
+}
 
+// Availability — only include Offer when the book has a price (library lending is not a sale)
 if ($bookPrice) {
-    $bookSchema["offers"]["price"] = $bookPrice;
-    $bookSchema["offers"]["priceCurrency"] = "EUR";
+    $appName = (string) ConfigStore::get('app.name', __('Biblioteca'));
+    $bookSchema["offers"] = [
+        "@type" => "Offer",
+        "availability" => $isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+        "price" => $bookPrice,
+        "priceCurrency" => (string) ConfigStore::get('app.currency', 'EUR'),
+        "seller" => [
+            "@type" => "Library",
+            "name" => $appName
+        ]
+    ];
 }
 
 // Aggrega i rating se disponibili

@@ -400,10 +400,12 @@ document.addEventListener('DOMContentLoaded', function() {
       activeUrlFilters.push(<?= json_encode(__("Collana"), JSON_HEX_TAG) ?> + ': \u00AB' + initialCollana + '\u00BB');
     }
     if (initialGenere) {
-      activeUrlFilters.push(<?= json_encode(__("Genere"), JSON_HEX_TAG) ?> + ' #' + initialGenere);
+      const genereName = <?= json_encode($genreFilterName ?? '', JSON_HEX_TAG) ?>;
+      activeUrlFilters.push(<?= json_encode(__("Genere"), JSON_HEX_TAG) ?> + ': \u00AB' + (genereName || '#' + initialGenere) + '\u00BB');
     }
     if (initialSottogenere) {
-      activeUrlFilters.push(<?= json_encode(__("Sottogenere"), JSON_HEX_TAG) ?> + ' #' + initialSottogenere);
+      const sottogenereName = <?= json_encode($subgenreFilterName ?? '', JSON_HEX_TAG) ?>;
+      activeUrlFilters.push(<?= json_encode(__("Sottogenere"), JSON_HEX_TAG) ?> + ': \u00AB' + (sottogenereName || '#' + initialSottogenere) + '\u00BB');
     }
     if (activeUrlFilters.length > 0) {
       const banner = document.createElement('div');
