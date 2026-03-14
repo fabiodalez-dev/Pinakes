@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use App\Support\ConfigStore;
 use App\Support\I18n;
+use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -79,7 +80,7 @@ class FeedController
         $items = [];
         $result = $db->query($sql);
         if (!$result) {
-            error_log('FeedController::getLatestBooks query failed: ' . $db->error);
+            SecureLogger::warning('FeedController::getLatestBooks query failed: ' . $db->error);
             return $items;
         }
 
@@ -115,7 +116,7 @@ class FeedController
                     $dt = new \DateTimeImmutable((string)$row['created_at']);
                     $pubDate = $dt->format('r');
                 } catch (\Throwable $e) {
-                    error_log('FeedController: invalid created_at for book ID ' . $id . ': ' . (string)$row['created_at']);
+                    SecureLogger::warning('FeedController: invalid created_at for book ID ' . $id . ': ' . (string)$row['created_at']);
                     $pubDate = gmdate('r');
                 }
             }

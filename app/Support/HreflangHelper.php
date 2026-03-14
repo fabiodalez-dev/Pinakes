@@ -21,6 +21,15 @@ class HreflangHelper
     private static ?array $allKeysCache = null;
 
     /**
+     * Reset internal caches. For testing and long-running processes.
+     */
+    public static function clearCache(): void
+    {
+        self::$reverseMapCache = [];
+        self::$allKeysCache = null;
+    }
+
+    /**
      * Get hreflang alternate links for the current URL.
      *
      * @return array<int, array{hreflang: string, href: string}>
@@ -168,12 +177,12 @@ class HreflangHelper
         foreach (glob($pattern) ?: [] as $file) {
             $content = file_get_contents($file);
             if ($content === false) {
-                error_log('HreflangHelper: could not read route file: ' . $file);
+                SecureLogger::warning('HreflangHelper: could not read route file: ' . $file);
                 continue;
             }
             $decoded = json_decode($content, true);
             if (!is_array($decoded)) {
-                error_log('HreflangHelper: invalid JSON in route file: ' . $file . ' - ' . json_last_error_msg());
+                SecureLogger::warning('HreflangHelper: invalid JSON in route file: ' . $file . ' - ' . json_last_error_msg());
                 continue;
             }
             foreach (array_keys($decoded) as $key) {

@@ -216,7 +216,7 @@ class SitemapGenerator
             }
             $result->free();
         } else {
-            error_log('SitemapGenerator::getCmsEntries query failed: ' . $this->db->error);
+            SecureLogger::warning('SitemapGenerator::getCmsEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -253,7 +253,7 @@ class SitemapGenerator
             }
             $result->free();
         } else {
-            error_log('SitemapGenerator::getEventEntries query failed: ' . $this->db->error);
+            SecureLogger::warning('SitemapGenerator::getEventEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -307,7 +307,7 @@ class SitemapGenerator
             }
             $result->free();
         } else {
-            error_log('SitemapGenerator::getBookEntries query failed: ' . $this->db->error);
+            SecureLogger::warning('SitemapGenerator::getBookEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -342,7 +342,7 @@ class SitemapGenerator
             }
             $result->free();
         } else {
-            error_log('SitemapGenerator::getAuthorEntries query failed: ' . $this->db->error);
+            SecureLogger::warning('SitemapGenerator::getAuthorEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -377,7 +377,7 @@ class SitemapGenerator
             }
             $result->free();
         } else {
-            error_log('SitemapGenerator::getPublisherEntries query failed: ' . $this->db->error);
+            SecureLogger::warning('SitemapGenerator::getPublisherEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -419,7 +419,7 @@ class SitemapGenerator
             }
             $result->free();
         } else {
-            error_log('SitemapGenerator::getGenreEntries query failed: ' . $this->db->error);
+            SecureLogger::warning('SitemapGenerator::getGenreEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -455,7 +455,7 @@ class SitemapGenerator
         try {
             $url->setLastMod(new \DateTimeImmutable($date));
         } catch (\Throwable $exception) {
-            error_log('SitemapGenerator: invalid lastmod date: ' . $date);
+            SecureLogger::warning('SitemapGenerator: invalid lastmod date: ' . $date);
         }
     }
 
@@ -485,7 +485,7 @@ class SitemapGenerator
                 $result->free();
             }
         } catch (\Throwable $e) {
-            error_log('SitemapGenerator::loadActiveLocales failed, falling back to it_IT: ' . $e->getMessage());
+            SecureLogger::warning('SitemapGenerator::loadActiveLocales failed, falling back to it_IT: ' . $e->getMessage());
             $this->activeLocales = ['it_IT'];
             $this->defaultLocale = 'it_IT';
         }

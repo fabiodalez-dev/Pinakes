@@ -278,7 +278,7 @@ if ($bookPrice) {
         "@type" => "Offer",
         "availability" => $isAvailable ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
         "price" => $bookPrice,
-        "priceCurrency" => "EUR",
+        "priceCurrency" => (string) ConfigStore::get('app.currency', 'EUR'),
         "seller" => [
             "@type" => "Library",
             "name" => $appName

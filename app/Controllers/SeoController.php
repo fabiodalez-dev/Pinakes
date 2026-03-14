@@ -7,6 +7,7 @@ use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
 use App\Support\I18n;
 use App\Support\RouteTranslator;
+use App\Support\SecureLogger;
 use App\Support\SitemapGenerator;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -38,7 +39,6 @@ class SeoController
             'Disallow: ' . $basePath . RouteTranslator::route('register'),
             '',
             'Sitemap: ' . $baseUrl . '/sitemap.xml',
-            'Feed: ' . $baseUrl . '/feed.xml',
         ];
 
         if (ConfigStore::get('seo.llms_txt_enabled', '0') === '1') {
@@ -71,7 +71,7 @@ class SeoController
                 (SELECT COUNT(*) FROM events WHERE is_active = 1) AS events"
         );
         if (!$stats) {
-            error_log('SeoController::llmsTxt stats query failed: ' . $db->error);
+            SecureLogger::warning('SeoController::llmsTxt stats query failed: ' . $db->error);
             $response->getBody()->write("# " . $appName . "\n\n> Service temporarily unavailable. Please retry later.\n");
             return $response
                 ->withStatus(503)
@@ -188,7 +188,7 @@ class SeoController
         // Validate hostname to prevent host header injection (applies to both $request and $_SERVER paths)
         $host = trim($host, '[]');
         if (!preg_match('/^[a-z0-9_]([a-z0-9_\-]{0,61}[a-z0-9])?(\.([a-z0-9_]([a-z0-9_\-]{0,61}[a-z0-9])?))*$/i', $host)) {
-            error_log('SeoController::resolveBaseUrl: rejected invalid hostname: ' . substr($host, 0, 255));
+            SecureLogger::warning('SeoController::resolveBaseUrl: rejected invalid hostname: ' . substr($host, 0, 255));
             $host = 'localhost';
             $port = null;
         }
