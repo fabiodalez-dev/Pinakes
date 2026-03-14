@@ -82,17 +82,19 @@ test.describe('Hreflang tags', () => {
     expect(itHref).not.toBeNull();
     expect(enHref).not.toBeNull();
 
-    // EN version should have /en/ prefix and same slug path as IT
+    // EN version should have /en/ prefix
     expect(enHref[1]).toContain('/en/');
-    const basePath = new URL(BASE).pathname.replace(/\/$/, '');
-    const stripLocalePrefix = (href) => {
-      let pathname = new URL(href).pathname;
-      if (basePath && pathname.startsWith(basePath)) {
-        pathname = pathname.slice(basePath.length) || '/';
-      }
-      return pathname.replace(/^\/[a-z]{2}(?=\/)/, '');
+
+    // Both locales should share the same slug+id suffix (the route segment
+    // like /autore vs /author is translated, so we compare only the entity
+    // path after the first translated segment)
+    const extractSlugAndId = (href) => {
+      const pathname = new URL(href).pathname;
+      // Match the last two segments: slug/id (e.g. /seo-feed-test-book/55)
+      const match = pathname.match(/\/([^/]+\/\d+)$/);
+      return match ? match[1] : pathname;
     };
-    expect(stripLocalePrefix(enHref[1])).toBe(stripLocalePrefix(itHref[1]));
+    expect(extractSlugAndId(enHref[1])).toBe(extractSlugAndId(itHref[1]));
   });
 
   test('x-default points to one of the active locale versions', async ({ request }) => {
