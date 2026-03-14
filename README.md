@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.4.9.9-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.0-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,113 +24,68 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.4.9.9
+## What's New in v0.5.0
 
-### 📤 Social Sharing, Genre Navigation, Inline PDF Viewer & Search Improvements
+### 🔍 SEO & LLM Readiness, Schema.org Enrichment, Curator Field
 
-**Social Sharing on Book Detail Pages (Issue #84):**
-- **7 sharing providers** — Facebook, X (Twitter), WhatsApp, Telegram, LinkedIn, Reddit, Pinterest + Email, Copy Link, Web Share API
-- **Admin Settings > Sharing tab** — Enable/disable individual providers with live preview
-- **Open Graph meta tags** — Book title, description, cover image, and author in `og:` tags for rich link previews
-- **Responsive layout** — Horizontal scrollable row on mobile, wrapped grid on desktop
+**SEO & AI Search Optimization:**
+- **Hreflang alternate tags** — Every frontend page emits `<link rel="alternate" hreflang>` for all active locales plus `x-default`, with static in-memory caching for zero filesystem I/O per request
+- **RSS 2.0 feed** — `/feed.xml` endpoint with the latest 50 books (title, author, description, publication date), autodiscovery `<link>` in layout
+- **Dynamic `/llms.txt`** — Admin-toggleable endpoint following the [llmstxt.org](https://llmstxt.org) spec, providing AI crawlers with structured library metadata and navigation
+- **Sitemap expansion** — Events now included with locale-prefixed URLs; feed.xml as global entry
+- **Cache-Control headers** — All SEO endpoints (feed, sitemap, robots.txt, llms.txt) now set appropriate cache headers
+- **Host header validation** — RFC 1123 hostname validation on both PSR-7 and `$_SERVER` paths to prevent host header injection
 
-**Genre Breadcrumb Navigation (Issue #90):**
-- **Clickable genre hierarchy** — Genre breadcrumbs on catalog and book detail pages are now clickable links that filter by category
-- **Reusable partial** — `genre-breadcrumb.php` extracted for consistent rendering across views
-- **Genre filter fix** — Fixed subgenre filtering that caused HTTP 500 in catalog
+**Schema.org JSON-LD Enrichment:**
+- **Book `sameAs`** — Populated with real URLs from ISBN (OpenLibrary, Google Books, WorldCat)
+- **All authors with roles** — Schema.org `author`, `translator`, `illustrator`, `editor` properties mapped from contributor roles
+- **`bookEdition`** — Included from the edition field
+- **`datePublished`** — Properly cast to ISO 8601 string
+- **Conditional `Offer`** — Only emitted when a book has a price (library lending is not a sale)
+- **Configurable currency** — `priceCurrency` now reads from `app.currency` setting (was hardcoded EUR)
+- **Event `location` + timezone** — Event schema now includes `Place` with library name/address and ISO 8601 timezone offset on `startDate`
 
-**Digital Library Plugin v1.3.0 — Inline PDF Viewer (Issue #80):**
-- **Inline PDF reader** — Browser-native `<iframe>` PDF viewer on book detail pages (zero dependencies)
-- **Lazy-loaded iframe** — PDF fetched only when viewer is opened (MutationObserver pattern)
-- **ePub fix** — ePub downloads now open in a new tab instead of navigating away
-
-**Search Improvements (Issue #83):**
-- **Description-inclusive search** — Header search, admin book search, and unified search all query book descriptions
-- **HTML-free search column** — New `descrizione_plain` column stores `strip_tags()` version of description for clean search results
-
-**SEO & LLM Readiness (PR #92):**
-- **Hreflang alternate tags** — Every frontend page emits `<link rel="alternate" hreflang>` for all active locales plus `x-default`, enabling search engines and AI models to link language variants together
-- **RSS 2.0 feed** — `/feed.xml` endpoint with the latest 50 books (title, author, description, publication date), autodiscovery `<link>` in layout, and `Feed:` directive in robots.txt
-- **Sitemap expansion** — Events now included in sitemap with locale-prefixed URLs; feed.xml added as global entry
-- **RSS icon in footer** — SVG feed icon next to the "Powered by Pinakes" attribution
+**New `curatore` (Curator) Field:**
+- **Database column** — `curatore VARCHAR(255)` on `libri` table
+- **Author role** — `curatore` added to `libri_autori.ruolo` ENUM
+- **Book form** — New input field alongside translator and illustrator
+- **Admin detail** — Displayed in book detail view
+- **Schema.org** — Mapped to `editor` property with deduplication against `libri_autori` roles
+- **Translations** — EN: "Curator", DE: "Kurator"
 
 **Bug Fixes:**
-- **CSV export cleanup** — `descrizione` follows `sottotitolo`, HTML tags stripped for clean output
-- **Auto-hook registration** — New plugin hooks auto-registered on page load if missing from database
+- **CSV `\r` column shift (#83)** — Carriage returns in fields no longer break column alignment
+- **Admin genre display (#90)** — Separate clickable genre links with arrow separator, filter badge shows name instead of `#ID`
+- **`co-autore` sort fix** — CASE expression in author ordering now matches the actual ENUM value (was `coautore` without hyphen)
+- **SecureLogger consistency** — All new `error_log()` calls replaced with `SecureLogger::warning()` per project convention
 
 ---
 
 ## Previous Releases
 
 <details>
+<summary><strong>v0.4.9.9</strong> - Social Sharing, Genre Navigation, Search Improvements</summary>
+
+### 📤 Social Sharing, Genre Navigation, Inline PDF Viewer & Search
+
+- **7 sharing providers** — Facebook, X, WhatsApp, Telegram, LinkedIn, Reddit, Pinterest + Email, Copy Link, Web Share API
+- **Genre breadcrumb navigation** — Clickable genre hierarchy links that filter by category
+- **Inline PDF viewer** — Browser-native `<iframe>` PDF viewer (Digital Library plugin v1.3.0)
+- **Description-inclusive search** — New `descrizione_plain` column for HTML-free search
+- **RSS icon in footer** — SVG feed icon next to "Powered by Pinakes"
+- **Auto-hook registration** — Plugin hooks auto-registered on page load
+
+</details>
+
+<details>
 <summary><strong>v0.4.9.8</strong> - Security, Database Integrity & Code Quality</summary>
 
-### 🔒 Security, Database Integrity & Code Quality
+### 🔒 Security & Database Integrity
 
-**Security Hardening:**
-- **SMTP password encryption** — AES-256-CBC encryption at rest using `APP_KEY`
-- **Bcrypt cost pinned to 12** — Consistent, future-proof hashing
-- **QueryCache safety** — Cache key prefixes sanitized to prevent path traversal
-
-**Database Integrity (Migration `migrate_0.4.9.8.sql`):**
-- **isbn10 UNIQUE index** — Blank values normalized to NULL, duplicates resolved, UNIQUE constraint added
-- **ean UNIQUE index + default NULL** — Empty strings converted to NULL, UNIQUE constraint added
-- **prestiti FK fix** — `prestiti_ibfk_3` corrected to reference `utenti(id)` instead of `staff(id)`
-- **mensole.descrizione type fix** — Column type changed from `int NOT NULL` to `varchar(255) DEFAULT NULL`
-
-**Code Quality:**
-- 32+ files reviewed, all CodeRabbit findings addressed (rounds 10-16)
-- Email notification test suite — 16 Playwright E2E tests covering all email types
-
-</details>
-
-<details>
-<summary><strong>v0.4.9.7</strong> - Comprehensive Codebase Review</summary>
-
-### 🔒 Security, Reliability & Code Quality
-
-**Security:** URL scheme validation, proxy-aware HTTPS, bcrypt 72-byte limit, CSRF in update UI.
-**Reliability:** Atomic rate limiter, book availability guards, advisory lock safety, dashboard cache failures throw.
-**Code Quality:** 31+ files reviewed, all CodeRabbit findings addressed (rounds 1-9), consistent error handling.
-
-</details>
-
-<details>
-<summary><strong>v0.4.9.4</strong> - Audiobook Player, Z39.50/SRU Plugin & Keyboard Shortcuts</summary>
-
-### 🔊 Audiobook Player, Z39.50/SRU Plugin, Security & Hardening
-
-- **Audiobook MP3 player** — Green Audio Player on book detail pages with toggle button
-- **Z39.50/SRU Nordic sources** — Pre-configured Danish, Finnish, Norwegian, Swedish national libraries + SBN Italy
-- **Global keyboard shortcuts** — `?` for help, `G` then `D`/`B`/`A`/`E`/`P`/`U`/`S` for navigation
-- **Scroll-to-top button** on admin and public layouts
-- **German installer support** — Full German language option
-- **Security** — Rate-limit bypass fix, manual upgrade script hardened, export query cap
-
-</details>
-
-<details>
-<summary><strong>v0.4.9.2</strong> - Genre Management & Book Filters</summary>
-
-### 🏷️ Genre Management, Book Filters & Bug Fixes
-
-- **Genre edit, merge, rearrange** — Full genre management from admin panel
-- **Collana (series) filter** — Autocomplete filter in admin book list
-- **German language support** — Full translation (4,009 strings) with native URL routes
-- **GitHub API token** — Optional token for higher rate limits (60 → 5,000 req/hr)
-- **Bug fixes** — Installation crash, update failures, PDF/ePub upload, author autocomplete
-
-</details>
-
-<details>
-<summary><strong>v0.4.9</strong> - Subfolder Support & Security Hardening</summary>
-
-### 🔒 Subfolder Support, Security Hardening & Code Quality
-
-- **Full subfolder installation** — Works under `/library/`, `/biblioteca/`, etc.
-- **Configurable homepage sort** — Newest, alphabetical, or random
-- **177-file security hardening** — XSS prevention, safe JS translations, route translation, plugin audit
-- **31 CodeRabbit review rounds** — 400+ file touches, 56 code quality issues resolved
+- **SMTP password encryption** — AES-256-CBC at rest using `APP_KEY`
+- **isbn10/ean UNIQUE indexes** — Blank values normalized to NULL, duplicates resolved
+- **prestiti FK fix** — Foreign key corrected to reference `utenti(id)`
+- **Email notification test suite** — 16 Playwright E2E tests covering all email types
 
 </details>
 
@@ -270,7 +225,7 @@ Automatic emails for:
 - **AJAX search** with instant results and relevance ranking
 - **AJAX filters**: genre, publisher, availability, publication year, format
 - **Patrons can leave reviews and ratings** (configurable)
-- **Built-in SEO tooling**: sitemap, clean URLs, Schema.org metadata, hreflang tags, RSS 2.0 feed
+- **Built-in SEO tooling**: sitemap, clean URLs, Schema.org JSON-LD (Book, BreadcrumbList, Event), hreflang tags, RSS 2.0 feed, `/llms.txt` for AI crawlers
 - **Cookie-consent banner** and privacy tools (GDPR-compliant)
 
 ### Dewey Decimal Classification
