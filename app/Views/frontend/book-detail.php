@@ -161,10 +161,10 @@ $bookSchema = [
 // sameAs: build real URLs from ISBN for external book databases
 $sameAsLinks = [];
 if ($bookISBN) {
-    $isbn = preg_replace('/[^0-9X]/', '', strtoupper($bookISBN));
+    $isbn = preg_replace('/[^0-9X]/', '', strtoupper($bookISBN)) ?? '';
     if (strlen($isbn) === 13) {
         $sameAsLinks[] = 'https://openlibrary.org/isbn/' . $isbn;
-        $sameAsLinks[] = 'https://www.google.com/books/edition/_/?id=&isbn=' . $isbn;
+        $sameAsLinks[] = 'https://books.google.com/books?vid=ISBN' . $isbn;
         $sameAsLinks[] = 'https://www.worldcat.org/isbn/' . $isbn;
     } elseif (strlen($isbn) === 10) {
         $sameAsLinks[] = 'https://openlibrary.org/isbn/' . $isbn;

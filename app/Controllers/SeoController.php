@@ -183,14 +183,14 @@ class SeoController
                 $port = (int)$_SERVER['SERVER_PORT'];
             }
 
-            // Validate hostname to prevent host header injection
-            // Allow underscores (common in Docker/internal networks) and strip IPv6 brackets
-            $host = trim($host, '[]');
-            if (!preg_match('/^[a-z0-9_]([a-z0-9_\-]{0,61}[a-z0-9])?(\.([a-z0-9_]([a-z0-9_\-]{0,61}[a-z0-9])?))*$/i', $host)) {
-                error_log('SeoController::resolveBaseUrl: rejected invalid hostname: ' . substr($host, 0, 255));
-                $host = 'localhost';
-                $port = null;
-            }
+        }
+
+        // Validate hostname to prevent host header injection (applies to both $request and $_SERVER paths)
+        $host = trim($host, '[]');
+        if (!preg_match('/^[a-z0-9_]([a-z0-9_\-]{0,61}[a-z0-9])?(\.([a-z0-9_]([a-z0-9_\-]{0,61}[a-z0-9])?))*$/i', $host)) {
+            error_log('SeoController::resolveBaseUrl: rejected invalid hostname: ' . substr($host, 0, 255));
+            $host = 'localhost';
+            $port = null;
         }
 
         $base = $scheme . '://' . $host;
