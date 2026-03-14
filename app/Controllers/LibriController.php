@@ -614,6 +614,7 @@ class LibriController
             'data_pubblicazione' => '',
             'traduttore' => '',
             'illustratore' => '',
+            'curatore' => '',
             'numero_pagine' => null,
         ];
 
@@ -1142,6 +1143,7 @@ class LibriController
             'data_pubblicazione' => '',
             'traduttore' => '',
             'illustratore' => '',
+            'curatore' => '',
             'numero_pagine' => null,
         ];
 

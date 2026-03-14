@@ -14,6 +14,12 @@ use App\Controllers\SeoController;
  */
 class HreflangHelper
 {
+    /** @var array<string, array<string, string>> Cached reverse maps per locale */
+    private static array $reverseMapCache = [];
+
+    /** @var ?array<int, string> Cached route keys */
+    private static ?array $allKeysCache = null;
+
     /**
      * Get hreflang alternate links for the current URL.
      *
@@ -54,7 +60,7 @@ class HreflangHelper
             }
         }
 
-        // Build reverse map: translated path => route key (from default locale)
+        // Build reverse map: translated path => route key (for the current locale)
         $reverseMap = self::buildReverseMap($currentLocale);
 
         // Try to match corePath against known routes
@@ -116,6 +122,10 @@ class HreflangHelper
      */
     private static function buildReverseMap(string $currentLocale): array
     {
+        if (isset(self::$reverseMapCache[$currentLocale])) {
+            return self::$reverseMapCache[$currentLocale];
+        }
+
         $reverseMap = [];
 
         // Get all route keys from JSON + fallback
@@ -123,7 +133,7 @@ class HreflangHelper
 
         foreach ($allKeys as $key) {
             $path = RouteTranslator::getRouteForLocale($key, $currentLocale);
-            // Only map leaf routes, skip API/internal routes
+            // Skip API and admin routes — only map public-facing routes
             if (str_starts_with($path, '/api/') || str_starts_with($path, '/admin/')) {
                 continue;
             }
@@ -135,6 +145,7 @@ class HreflangHelper
             return strlen($b) <=> strlen($a);
         });
 
+        self::$reverseMapCache[$currentLocale] = $reverseMap;
         return $reverseMap;
     }
 
@@ -145,6 +156,10 @@ class HreflangHelper
      */
     private static function getAllRouteKeys(): array
     {
+        if (self::$allKeysCache !== null) {
+            return self::$allKeysCache;
+        }
+
         $keys = RouteTranslator::getAvailableKeys();
 
         // Also scan JSON files for keys not in fallbackRoutes (e.g. "events")
@@ -168,6 +183,7 @@ class HreflangHelper
             }
         }
 
+        self::$allKeysCache = $keys;
         return $keys;
     }
 }

@@ -52,6 +52,7 @@ $initialData = [
     'parole_chiave' => $book['parole_chiave'] ?? '',
     'traduttore' => $book['traduttore'] ?? '',
     'illustratore' => $book['illustratore'] ?? '',
+    'curatore' => $book['curatore'] ?? '',
 ];
 
 $initialData['autori'] = $initialAuthors;
@@ -221,6 +222,11 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <input id="illustratore" name="illustratore" type="text" class="form-input" placeholder="<?= __('es. Gianni De Conno') ?>" value="<?php echo HtmlHelper::e($book['illustratore'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("Nome dell'illustratore (se applicabile)") ?></p>
             </div>
+          </div>
+          <div>
+            <label for="curatore" class="form-label"><?= __("Curatore") ?></label>
+            <input id="curatore" name="curatore" type="text" class="form-input" placeholder="<?= __('es. Umberto Eco') ?>" value="<?php echo HtmlHelper::e($book['curatore'] ?? ''); ?>" />
+            <p class="text-xs text-gray-500 mt-1"><?= __("Nome del curatore dell'opera (se applicabile)") ?></p>
           </div>
 
           <div class="mt-2 text-xs text-gray-500" id="genre_path_preview" style="min-height:1.25rem;">

@@ -399,6 +399,7 @@ CREATE TABLE `libri` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `traduttore` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `illustratore` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `curatore` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `ean` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'European Article Number',
   `bcid` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'BCID (LibraryThing)',
   `barcode` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Physical barcode (LibraryThing)',
@@ -444,7 +445,7 @@ CREATE TABLE `libri` (
 CREATE TABLE `libri_autori` (
   `libro_id` int NOT NULL,
   `autore_id` int NOT NULL,
-  `ruolo` enum('principale','co-autore','traduttore','illustratore') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ruolo` enum('principale','co-autore','traduttore','illustratore','curatore') COLLATE utf8mb4_unicode_ci NOT NULL,
   `ordine_credito` int DEFAULT NULL,
   PRIMARY KEY (`libro_id`,`autore_id`,`ruolo`),
   KEY `libro_id` (`libro_id`),

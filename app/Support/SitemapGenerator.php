@@ -215,6 +215,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            error_log('SitemapGenerator::getCmsEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -250,6 +252,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            error_log('SitemapGenerator::getEventEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -302,6 +306,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            error_log('SitemapGenerator::getBookEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -335,6 +341,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            error_log('SitemapGenerator::getAuthorEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -368,6 +376,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            error_log('SitemapGenerator::getPublisherEntries query failed: ' . $this->db->error);
         }
 
         return $entries;
@@ -408,6 +418,8 @@ class SitemapGenerator
                 }
             }
             $result->free();
+        } else {
+            error_log('SitemapGenerator::getGenreEntries query failed: ' . $this->db->error);
         }
 
         return $entries;

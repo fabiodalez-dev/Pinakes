@@ -21,7 +21,9 @@ class SeoController
         $generator = new SitemapGenerator($db, $baseUrl);
         $response->getBody()->write($generator->generate());
 
-        return $response->withHeader('Content-Type', 'application/xml; charset=UTF-8');
+        return $response
+            ->withHeader('Content-Type', 'application/xml; charset=UTF-8')
+            ->withHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
     }
 
     public function robots(Request $request, Response $response): Response
@@ -44,7 +46,9 @@ class SeoController
         }
 
         $response->getBody()->write(implode("\n", $lines) . "\n");
-        return $response->withHeader('Content-Type', 'text/plain; charset=UTF-8');
+        return $response
+            ->withHeader('Content-Type', 'text/plain; charset=UTF-8')
+            ->withHeader('Cache-Control', 'public, max-age=86400');
     }
 
     public function llmsTxt(Request $request, Response $response, mysqli $db): Response
@@ -75,12 +79,7 @@ class SeoController
         $publisherCount = (int) ($row['publishers'] ?? 0);
         $eventCount = (int) ($row['events'] ?? 0);
 
-        // Language list
-        $langNames = [];
-        foreach ($locales as $name) {
-            $langNames[] = $name;
-        }
-        $languageList = implode(', ', $langNames);
+        $languageList = implode(', ', $locales);
 
         // Build markdown
         $lines = [];
@@ -125,7 +124,9 @@ class SeoController
         $lines[] = '';
 
         $response->getBody()->write(implode("\n", $lines));
-        return $response->withHeader('Content-Type', 'text/plain; charset=UTF-8');
+        return $response
+            ->withHeader('Content-Type', 'text/plain; charset=UTF-8')
+            ->withHeader('Cache-Control', 'public, max-age=3600');
     }
 
     public static function resolveBaseUrl(?Request $request = null): string
@@ -175,6 +176,12 @@ class SeoController
                 $port = is_numeric($portPart) ? (int)$portPart : null;
             } elseif (isset($_SERVER['SERVER_PORT']) && is_numeric((string)$_SERVER['SERVER_PORT'])) {
                 $port = (int)$_SERVER['SERVER_PORT'];
+            }
+
+            // Validate hostname against RFC 1123 to prevent host header injection
+            if (!preg_match('/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?)*$/i', $host)) {
+                $host = 'localhost';
+                $port = null;
             }
         }
 

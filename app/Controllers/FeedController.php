@@ -48,7 +48,9 @@ class FeedController
         $xml .= '</rss>' . "\n";
 
         $response->getBody()->write($xml);
-        return $response->withHeader('Content-Type', 'application/rss+xml; charset=UTF-8');
+        return $response
+            ->withHeader('Content-Type', 'application/rss+xml; charset=UTF-8')
+            ->withHeader('Cache-Control', 'public, max-age=3600, s-maxage=3600');
     }
 
     /**
