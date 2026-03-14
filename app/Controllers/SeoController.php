@@ -72,8 +72,13 @@ class SeoController
         );
         if (!$stats) {
             error_log('SeoController::llmsTxt stats query failed: ' . $db->error);
+            $response->getBody()->write("# " . $appName . "\n\n> Service temporarily unavailable. Please retry later.\n");
+            return $response
+                ->withStatus(503)
+                ->withHeader('Content-Type', 'text/plain; charset=UTF-8')
+                ->withHeader('Retry-After', '300');
         }
-        $row = $stats ? $stats->fetch_assoc() : [];
+        $row = $stats->fetch_assoc() ?: [];
         $bookCount = (int) ($row['books'] ?? 0);
         $authorCount = (int) ($row['authors'] ?? 0);
         $publisherCount = (int) ($row['publishers'] ?? 0);
@@ -178,8 +183,11 @@ class SeoController
                 $port = (int)$_SERVER['SERVER_PORT'];
             }
 
-            // Validate hostname against RFC 1123 to prevent host header injection
-            if (!preg_match('/^[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9\-]{0,61}[a-z0-9])?)*$/i', $host)) {
+            // Validate hostname to prevent host header injection
+            // Allow underscores (common in Docker/internal networks) and strip IPv6 brackets
+            $host = trim($host, '[]');
+            if (!preg_match('/^[a-z0-9_]([a-z0-9_\-]{0,61}[a-z0-9])?(\.([a-z0-9_]([a-z0-9_\-]{0,61}[a-z0-9])?))*$/i', $host)) {
+                error_log('SeoController::resolveBaseUrl: rejected invalid hostname: ' . substr($host, 0, 255));
                 $host = 'localhost';
                 $port = null;
             }

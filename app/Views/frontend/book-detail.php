@@ -203,15 +203,16 @@ foreach ($authors as $authorData) {
     }
 }
 // Also add translator/illustrator/curator from direct book fields if not already in authors
-$bookTranslator = trim($book['traduttore'] ?? '');
+// Apply html_entity_decode consistently (author names from libri_autori are decoded above)
+$bookTranslator = trim(html_entity_decode($book['traduttore'] ?? '', ENT_QUOTES, 'UTF-8'));
 if ($bookTranslator !== '' && !in_array($bookTranslator, array_column($schemaTranslators, 'name'), true)) {
     $schemaTranslators[] = ["@type" => "Person", "name" => $bookTranslator];
 }
-$bookIllustrator = trim($book['illustratore'] ?? '');
+$bookIllustrator = trim(html_entity_decode($book['illustratore'] ?? '', ENT_QUOTES, 'UTF-8'));
 if ($bookIllustrator !== '' && !in_array($bookIllustrator, array_column($schemaIllustrators, 'name'), true)) {
     $schemaIllustrators[] = ["@type" => "Person", "name" => $bookIllustrator];
 }
-$bookCurator = trim($book['curatore'] ?? '');
+$bookCurator = trim(html_entity_decode($book['curatore'] ?? '', ENT_QUOTES, 'UTF-8'));
 if ($bookCurator !== '' && !in_array($bookCurator, array_column($schemaEditors, 'name'), true)) {
     $schemaEditors[] = ["@type" => "Person", "name" => $bookCurator];
 }
