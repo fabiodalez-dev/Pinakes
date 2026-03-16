@@ -3395,26 +3395,26 @@ function initializeIsbnImport() {
                 }
             }
             
+            // Normalize person names: "Surname, Name" → "Name Surname" (shared by authors, translator, illustrator)
+            const normalizeAuthorName = (name) => {
+                name = (name || '').trim();
+                if (name.includes(',')) {
+                    const parts = name.split(',', 2);
+                    if (parts.length === 2) {
+                        const surname = parts[0].trim();
+                        const firstName = parts[1].trim();
+                        if (surname && firstName) {
+                            return firstName + ' ' + surname;
+                        }
+                    }
+                }
+                return name;
+            };
+
             // Handle authors (support multiple authors array) - select all at once
             try {
                 if (authorsChoice && (Array.isArray(data.authors) ? data.authors.length > 0 : !!data.author)) {
                     let authorsRaw = Array.isArray(data.authors) && data.authors.length > 0 ? data.authors : [data.author];
-
-                    // Normalize author names: "Surname, Name" → "Name Surname"
-                    const normalizeAuthorName = (name) => {
-                        name = (name || '').trim();
-                        if (name.includes(',')) {
-                            const parts = name.split(',', 2);
-                            if (parts.length === 2) {
-                                const surname = parts[0].trim();
-                                const firstName = parts[1].trim();
-                                if (surname && firstName) {
-                                    return firstName + ' ' + surname;
-                                }
-                            }
-                        }
-                        return name;
-                    };
 
                     // Normalize and deduplicate authors (case-insensitive)
                     const seenNormalized = new Set();
