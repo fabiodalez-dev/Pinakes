@@ -3728,31 +3728,33 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
-            // Handle translator (traduttore)
+            // Handle translator (traduttore) — normalize same as authors
             try {
                 if (data.translator) {
+                    const normalized = normalizeAuthorName(data.translator);
                     const translatorInput = document.querySelector('input[name="traduttore"]');
                     if (translatorInput) {
-                        translatorInput.value = data.translator;
+                        translatorInput.value = normalized;
                     }
                     const scrapedTranslator = document.getElementById('scraped_translator');
                     if (scrapedTranslator) {
-                        scrapedTranslator.value = data.translator;
+                        scrapedTranslator.value = normalized;
                     }
                 }
             } catch (err) {
             }
 
-            // Handle illustrator (illustratore)
+            // Handle illustrator (illustratore) — normalize same as authors
             try {
                 if (data.illustrator) {
+                    const normalized = normalizeAuthorName(data.illustrator);
                     const illustratorInput = document.querySelector('input[name="illustratore"]');
                     if (illustratorInput) {
-                        illustratorInput.value = data.illustrator;
+                        illustratorInput.value = normalized;
                     }
                     const scrapedIllustrator = document.getElementById('scraped_illustrator');
                     if (scrapedIllustrator) {
-                        scrapedIllustrator.value = data.illustrator;
+                        scrapedIllustrator.value = normalized;
                     }
                 }
             } catch (err) {
