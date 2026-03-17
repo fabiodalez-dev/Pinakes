@@ -1748,10 +1748,41 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $related_books = [];
         $limit = 3;
 
-        // Priority 1: Same author(s) - highest priority as it's most relevant
-        if (!empty($authors)) {
+        // Priority 0: Same series (collana) — most relevant for multi-volume works
+        $collana = trim((string) ($book['collana'] ?? ''));
+        if ($collana !== '') {
+            $query = "
+                SELECT DISTINCT l.*,
+                       GROUP_CONCAT(DISTINCT a.nome SEPARATOR ', ') as autori
+                FROM libri l
+                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN autori a ON la.autore_id = a.id
+                WHERE l.collana = ?
+                AND l.id != ?
+                AND l.deleted_at IS NULL
+                GROUP BY l.id
+                ORDER BY CAST(l.numero_serie AS UNSIGNED), l.titolo
+                LIMIT ?
+            ";
+            $stmt = $db->prepare($query);
+            if ($stmt) {
+                $stmt->bind_param('sii', $collana, $book_id, $limit);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                while ($row = $result->fetch_assoc()) {
+                    $related_books[] = $row;
+                }
+                $stmt->close();
+            }
+        }
+
+        // Priority 1: Same author(s)
+        if (count($related_books) < $limit && !empty($authors)) {
+            $remaining = $limit - count($related_books);
             $author_ids = array_column($authors, 'id');
-            $placeholders = implode(',', array_fill(0, count($author_ids), '?'));
+            $exclude_ids = array_merge([$book_id], array_column($related_books, 'id'));
+            $authorPlaceholders = implode(',', array_fill(0, count($author_ids), '?'));
+            $excludePlaceholders = implode(',', array_fill(0, count($exclude_ids), '?'));
 
             $query = "
                 SELECT DISTINCT l.*,
@@ -1759,8 +1790,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                 FROM libri l
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
-                WHERE la.autore_id IN ($placeholders)
-                AND l.id != ?
+                WHERE la.autore_id IN ($authorPlaceholders)
+                AND l.id NOT IN ($excludePlaceholders)
                 AND l.deleted_at IS NULL
                 GROUP BY l.id
                 ORDER BY l.created_at DESC
@@ -1768,8 +1799,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             ";
 
             $stmt = $db->prepare($query);
-            $types = str_repeat('i', count($author_ids)) . 'ii';
-            $params = array_merge($author_ids, [$book_id, $limit]);
+            $types = str_repeat('i', count($author_ids)) . str_repeat('i', count($exclude_ids)) . 'i';
+            $params = array_merge($author_ids, $exclude_ids, [$remaining]);
             $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $result = $stmt->get_result();
