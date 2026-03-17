@@ -1817,14 +1817,16 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             ";
 
             $stmt = $db->prepare($query);
-            $types = 'i' . str_repeat('i', count($exclude_ids)) . 'i';
-            $params = array_merge([$book['genere_id']], $exclude_ids, [$remaining]);
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $result = $stmt->get_result();
-
-            while ($row = $result->fetch_assoc()) {
-                $related_books[] = $row;
+            if ($stmt) {
+                $types = 'i' . str_repeat('i', count($exclude_ids)) . 'i';
+                $params = array_merge([$book['genere_id']], $exclude_ids, [$remaining]);
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                while ($row = $result->fetch_assoc()) {
+                    $related_books[] = $row;
+                }
+                $stmt->close();
             }
         }
 
@@ -1849,14 +1851,16 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             ";
 
             $stmt = $db->prepare($query);
-            $types = str_repeat('i', count($exclude_ids)) . 'i';
-            $params = array_merge($exclude_ids, [$remaining]);
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $result = $stmt->get_result();
-
-            while ($row = $result->fetch_assoc()) {
-                $related_books[] = $row;
+            if ($stmt) {
+                $types = str_repeat('i', count($exclude_ids)) . 'i';
+                $params = array_merge($exclude_ids, [$remaining]);
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                while ($row = $result->fetch_assoc()) {
+                    $related_books[] = $row;
+                }
+                $stmt->close();
             }
         }
 

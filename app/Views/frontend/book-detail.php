@@ -17,6 +17,8 @@ use App\Support\ConfigStore;
  * @var array $bookCopies All book copies
  * @var bool $canBorrow Whether user can borrow this book
  * @var bool $userHasActiveWish Whether user has active wishlist item
+ * @var array $seriesBooks Other books in the same series (collana)
+ * @var string $collana Series/collection name
  */
 
 // Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
@@ -2090,7 +2092,7 @@ ob_start();
     <div class="container">
         <h3 class="text-center mb-4" style="font-weight: 700; font-size: 1.5rem; color: #1a1a1a;">
             <i class="fas fa-layer-group" style="color: #6366f1;"></i>
-            <?= __("Nella stessa collana") ?>: <em><?= htmlspecialchars($collana ?? ($book['collana'] ?? ''), ENT_QUOTES, 'UTF-8') ?></em>
+            <?= __("Nella stessa collana") ?>: <em><?= htmlspecialchars($collana, ENT_QUOTES, 'UTF-8') ?></em>
         </h3>
         <div class="d-flex flex-wrap justify-content-center gap-3">
             <?php foreach ($seriesBooks as $sb):
