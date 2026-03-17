@@ -889,10 +889,11 @@ CREATE TABLE `volumi` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_opera_volume` (`opera_id`,`volume_id`),
+  UNIQUE KEY `uk_volume_id` (`volume_id`),
   KEY `idx_opera` (`opera_id`),
-  KEY `idx_volume` (`volume_id`),
   CONSTRAINT `fk_volumi_opera` FOREIGN KEY (`opera_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_volumi_volume` FOREIGN KEY (`volume_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_volumi_volume` FOREIGN KEY (`volume_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_volumi_not_self` CHECK (`opera_id` <> `volume_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

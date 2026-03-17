@@ -676,7 +676,7 @@ class FrontendController
                 }
                 $stmtSeries->close();
             } else {
-                error_log('FrontendController: series query prepare failed: ' . $db->error);
+                \App\Support\SecureLogger::warning('FrontendController: series query prepare failed', ['db_error' => $db->error]);
             }
         }
 

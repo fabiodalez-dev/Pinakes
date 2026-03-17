@@ -22,10 +22,11 @@ SET @sql = IF(@tbl_exists = 0,
         titolo_volume VARCHAR(255) DEFAULT NULL COMMENT ''Override title for this volume (if different from book title)'',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE KEY uk_opera_volume (opera_id, volume_id),
+        UNIQUE KEY uk_volume_id (volume_id),
         KEY idx_opera (opera_id),
-        KEY idx_volume (volume_id),
         CONSTRAINT fk_volumi_opera FOREIGN KEY (opera_id) REFERENCES libri(id) ON DELETE CASCADE,
-        CONSTRAINT fk_volumi_volume FOREIGN KEY (volume_id) REFERENCES libri(id) ON DELETE CASCADE
+        CONSTRAINT fk_volumi_volume FOREIGN KEY (volume_id) REFERENCES libri(id) ON DELETE CASCADE,
+        CONSTRAINT chk_volumi_not_self CHECK (opera_id <> volume_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
     'SELECT 1');
 PREPARE stmt FROM @sql;
