@@ -888,7 +888,6 @@ CREATE TABLE `volumi` (
   `titolo_volume` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Override title for this volume',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_opera_volume` (`opera_id`,`volume_id`),
   UNIQUE KEY `uk_volume_id` (`volume_id`),
   KEY `idx_opera` (`opera_id`),
   CONSTRAINT `fk_volumi_opera` FOREIGN KEY (`opera_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,

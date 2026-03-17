@@ -1,7 +1,7 @@
 -- Migration script for Pinakes 0.5.1
 -- Description: Multi-volume works support, collana index
 -- Date: 2026-03-17
--- Compatibility: MySQL 5.7+, MariaDB 10.0+
+-- Compatibility: MySQL 8.0.16+, MariaDB 10.2.1+ (CHECK constraints enforced from these versions)
 -- FULLY IDEMPOTENT: Checks before altering
 
 -- =============================================================================
@@ -21,7 +21,6 @@ SET @sql = IF(@tbl_exists = 0,
         numero_volume SMALLINT UNSIGNED DEFAULT 1 COMMENT ''Volume number within the work'',
         titolo_volume VARCHAR(255) DEFAULT NULL COMMENT ''Override title for this volume (if different from book title)'',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uk_opera_volume (opera_id, volume_id),
         UNIQUE KEY uk_volume_id (volume_id),
         KEY idx_opera (opera_id),
         CONSTRAINT fk_volumi_opera FOREIGN KEY (opera_id) REFERENCES libri(id) ON DELETE CASCADE,
