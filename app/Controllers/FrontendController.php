@@ -665,7 +665,6 @@ class FrontendController
                 FROM libri l
                 WHERE l.collana = ? AND l.id != ? AND l.deleted_at IS NULL
                 ORDER BY CAST(l.numero_serie AS UNSIGNED), l.titolo
-                LIMIT 20
             ");
             if ($stmtSeries) {
                 $stmtSeries->bind_param('si', $collana, $book_id);
