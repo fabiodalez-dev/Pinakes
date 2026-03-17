@@ -649,9 +649,6 @@ class FrontendController
             $authors[] = $author;
         }
 
-        // Get related books with priority logic
-        $related_books = $this->getRelatedBooks($db, $book_id, $book, $authors);
-
         // Get approved reviews and statistics
         $recensioniRepo = new RecensioniRepository($db);
         $reviews = $recensioniRepo->getApprovedReviewsForBook($book_id);
@@ -662,9 +659,9 @@ class FrontendController
         $collana = trim((string) ($book['collana'] ?? ''));
         if ($collana !== '') {
             $stmtSeries = $db->prepare("
-                SELECT l.id, l.titolo, l.numero_serie,
+                SELECT l.id, l.titolo, l.numero_serie, l.copertina_url, l.immagine_copertina,
                        (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                        WHERE la.libro_id = l.id ORDER BY CASE la.ruolo WHEN 'principale' THEN 0 ELSE 1 END LIMIT 1) AS autore_principale
+                        WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale
                 FROM libri l
                 WHERE l.collana = ? AND l.id != ? AND l.deleted_at IS NULL
                 ORDER BY CAST(l.numero_serie AS UNSIGNED), l.titolo
@@ -678,8 +675,13 @@ class FrontendController
                     $seriesBooks[] = $row;
                 }
                 $stmtSeries->close();
+            } else {
+                error_log('FrontendController: series query prepare failed: ' . $db->error);
             }
         }
+
+        // Get related books (pass seriesBooks to avoid duplicate collana query)
+        $related_books = $this->getRelatedBooks($db, $book_id, $book, $authors, $seriesBooks);
 
         // Social sharing
         $sharingProviders = array_values(array_filter(array_map('trim', explode(',', (string) ConfigStore::get('sharing.enabled_providers', '')))));
@@ -1743,36 +1745,15 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         return $word;
     }
 
-    private function getRelatedBooks(mysqli $db, int $book_id, array $book, array $authors): array
+    private function getRelatedBooks(mysqli $db, int $book_id, array $book, array $authors, array $seriesBooks = []): array
     {
         $related_books = [];
         $limit = 3;
 
-        // Priority 0: Same series (collana) — most relevant for multi-volume works
-        $collana = trim((string) ($book['collana'] ?? ''));
-        if ($collana !== '') {
-            $query = "
-                SELECT DISTINCT l.*,
-                       GROUP_CONCAT(DISTINCT a.nome SEPARATOR ', ') as autori
-                FROM libri l
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
-                LEFT JOIN autori a ON la.autore_id = a.id
-                WHERE l.collana = ?
-                AND l.id != ?
-                AND l.deleted_at IS NULL
-                GROUP BY l.id
-                ORDER BY CAST(l.numero_serie AS UNSIGNED), l.titolo
-                LIMIT ?
-            ";
-            $stmt = $db->prepare($query);
-            if ($stmt) {
-                $stmt->bind_param('sii', $collana, $book_id, $limit);
-                $stmt->execute();
-                $result = $stmt->get_result();
-                while ($row = $result->fetch_assoc()) {
-                    $related_books[] = $row;
-                }
-                $stmt->close();
+        // Priority 0: Same series (collana) — reuse pre-fetched seriesBooks to avoid duplicate query
+        if (!empty($seriesBooks)) {
+            foreach (array_slice($seriesBooks, 0, $limit) as $sb) {
+                $related_books[] = $sb;
             }
         }
 
@@ -1799,14 +1780,16 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             ";
 
             $stmt = $db->prepare($query);
-            $types = str_repeat('i', count($author_ids)) . str_repeat('i', count($exclude_ids)) . 'i';
-            $params = array_merge($author_ids, $exclude_ids, [$remaining]);
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $result = $stmt->get_result();
-
-            while ($row = $result->fetch_assoc()) {
-                $related_books[] = $row;
+            if ($stmt) {
+                $types = str_repeat('i', count($author_ids)) . str_repeat('i', count($exclude_ids)) . 'i';
+                $params = array_merge($author_ids, $exclude_ids, [$remaining]);
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                while ($row = $result->fetch_assoc()) {
+                    $related_books[] = $row;
+                }
+                $stmt->close();
             }
         }
 

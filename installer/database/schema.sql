@@ -421,6 +421,7 @@ CREATE TABLE `libri` (
   KEY `idx_libri_scaffale_mensola` (`scaffale_id`,`mensola_id`),
   KEY `idx_libri_posizione_progressiva` (`posizione_progressiva`),
   KEY `idx_libri_deleted_at` (`deleted_at`),
+  KEY `idx_collana` (`collana`),
   KEY `idx_lt_rating` (`rating`),
   KEY `idx_lt_date_read` (`date_read`),
   KEY `idx_lt_lending_status` (`lending_status`),
