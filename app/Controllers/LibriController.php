@@ -519,6 +519,52 @@ class LibriController
             $resStmt->close();
         }
 
+        // Multi-volume: check if this book is a parent work or a volume
+        $volumes = [];
+        $parentWork = null;
+
+        // Check if 'volumi' table exists
+        $tblCheck = $db->query("SELECT COUNT(*) as c FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'volumi'");
+        $hasVolumiTable = $tblCheck && ($tblCheck->fetch_assoc()['c'] ?? 0) > 0;
+
+        if ($hasVolumiTable) {
+            // Volumes of this work (this book is the parent)
+            $volStmt = $db->prepare("
+                SELECT v.numero_volume, v.titolo_volume, l.id, l.titolo, l.isbn13,
+                       (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                        WHERE la.libro_id = l.id ORDER BY CASE la.ruolo WHEN 'principale' THEN 0 ELSE 1 END LIMIT 1) AS autore
+                FROM volumi v
+                JOIN libri l ON v.volume_id = l.id AND l.deleted_at IS NULL
+                WHERE v.opera_id = ?
+                ORDER BY v.numero_volume
+            ");
+            if ($volStmt) {
+                $volStmt->bind_param('i', $id);
+                $volStmt->execute();
+                $volRes = $volStmt->get_result();
+                while ($row = $volRes->fetch_assoc()) {
+                    $volumes[] = $row;
+                }
+                $volStmt->close();
+            }
+
+            // Check if this book is a volume of another work
+            $parentStmt = $db->prepare("
+                SELECT v.numero_volume, v.titolo_volume, l.id, l.titolo
+                FROM volumi v
+                JOIN libri l ON v.opera_id = l.id AND l.deleted_at IS NULL
+                WHERE v.volume_id = ?
+                LIMIT 1
+            ");
+            if ($parentStmt) {
+                $parentStmt->bind_param('i', $id);
+                $parentStmt->execute();
+                $parentRes = $parentStmt->get_result();
+                $parentWork = $parentRes->fetch_assoc() ?: null;
+                $parentStmt->close();
+            }
+        }
+
         $libraryThingInstalled = LibraryThingInstaller::isInstalled($db);
         ob_start();
         // extract([

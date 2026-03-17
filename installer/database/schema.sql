@@ -873,6 +873,29 @@ CREATE TABLE `wishlist` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
+-- Table structure for table `volumi`
+-- Multi-volume works: links parent works to individual volume books
+--
+
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `volumi` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `opera_id` int NOT NULL COMMENT 'Parent work (the complete multi-volume work)',
+  `volume_id` int NOT NULL COMMENT 'Child book (individual volume)',
+  `numero_volume` smallint unsigned DEFAULT '1' COMMENT 'Volume number within the work',
+  `titolo_volume` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Override title for this volume',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_opera_volume` (`opera_id`,`volume_id`),
+  KEY `idx_opera` (`opera_id`),
+  KEY `idx_volume` (`volume_id`),
+  CONSTRAINT `fk_volumi_opera` FOREIGN KEY (`opera_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_volumi_volume` FOREIGN KEY (`volume_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
 -- Table structure for table `z39_access_logs`
 -- Plugin: Z39.50/SRU Server
 --

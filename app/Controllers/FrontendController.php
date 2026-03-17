@@ -657,6 +657,30 @@ class FrontendController
         $reviews = $recensioniRepo->getApprovedReviewsForBook($book_id);
         $reviewStats = $recensioniRepo->getReviewStats($book_id);
 
+        // Other volumes in the same series (collana)
+        $seriesBooks = [];
+        $collana = trim((string) ($book['collana'] ?? ''));
+        if ($collana !== '') {
+            $stmtSeries = $db->prepare("
+                SELECT l.id, l.titolo, l.numero_serie,
+                       (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                        WHERE la.libro_id = l.id ORDER BY CASE la.ruolo WHEN 'principale' THEN 0 ELSE 1 END LIMIT 1) AS autore_principale
+                FROM libri l
+                WHERE l.collana = ? AND l.id != ? AND l.deleted_at IS NULL
+                ORDER BY CAST(l.numero_serie AS UNSIGNED), l.titolo
+                LIMIT 20
+            ");
+            if ($stmtSeries) {
+                $stmtSeries->bind_param('si', $collana, $book_id);
+                $stmtSeries->execute();
+                $resSeries = $stmtSeries->get_result();
+                while ($row = $resSeries->fetch_assoc()) {
+                    $seriesBooks[] = $row;
+                }
+                $stmtSeries->close();
+            }
+        }
+
         // Social sharing
         $sharingProviders = array_values(array_filter(array_map('trim', explode(',', (string) ConfigStore::get('sharing.enabled_providers', '')))));
         $shareUrl = absoluteUrl($canonicalPath);

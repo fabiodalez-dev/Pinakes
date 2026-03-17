@@ -199,11 +199,16 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             </div>
           </div>
 
-          <div class="form-grid-2">
+          <div class="form-grid-3">
             <div>
               <label for="ean" class="form-label"><?= __("EAN") ?></label>
               <input id="ean" name="ean" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo HtmlHelper::e($book['ean'] ?? ''); ?>" />
               <p class="text-xs text-gray-500 mt-1"><?= __("European Article Number (opzionale)") ?></p>
+            </div>
+            <div>
+              <label for="issn" class="form-label"><?= __("ISSN") ?></label>
+              <input id="issn" name="issn" type="text" class="form-input" placeholder="<?= __('es. 1234-5678') ?>" value="<?php echo HtmlHelper::e($book['issn'] ?? ''); ?>" pattern="\d{4}-?\d{3}[\dXx]" />
+              <p class="text-xs text-gray-500 mt-1"><?= __("International Standard Serial Number (per periodici)") ?></p>
             </div>
             <div>
               <label for="lingua" class="form-label"><?= __("Lingua") ?></label>
@@ -2890,6 +2895,16 @@ function initializeFormValidation() {
             return;
         }
         
+        const issn = form.querySelector('input[name="issn"]').value.replace(/\s/g, '');
+        if (issn && !/^\d{4}-?\d{3}[\dXx]$/.test(issn)) {
+            Swal.fire({
+                icon: 'error',
+                title: __('ISSN Non Valido'),
+                text: __('ISSN deve essere nel formato XXXX-XXXX (8 cifre, l\'ultima può essere X).')
+            });
+            return;
+        }
+
         // Frontend hierarchy validation for Radice/Genere/Sottogenere
         const radSel = document.getElementById('radice_select');
         const genSel = document.getElementById('genere_select');

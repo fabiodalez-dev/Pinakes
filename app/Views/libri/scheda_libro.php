@@ -199,6 +199,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <span class="font-medium"><?= __("ISBN") ?>:</span>
             <?php echo App\Support\HtmlHelper::e(($libro['isbn13'] ?? '') ?: ($libro['isbn10'] ?? __('Non specificato'))); ?>
           </div>
+          <?php if (!empty($libro['issn'])): ?>
+          <div class="text-base text-gray-600">
+            <i class="fas fa-newspaper text-gray-400 mr-2"></i>
+            <span class="font-medium"><?= __("ISSN") ?>:</span>
+            <?php echo App\Support\HtmlHelper::e($libro['issn']); ?>
+          </div>
+          <?php endif; ?>
       </div>
     </div>
       <?php if (!empty($activeLoan) && (int)$activeLoan['attivo'] === 1 && !$isCatalogueMode): ?>
@@ -964,6 +971,65 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   <?php endif; ?>
 
   <!-- Loan History Section -->
+  <?php if (!empty($parentWork)): ?>
+  <div class="mt-6">
+    <div class="card border-indigo-200">
+      <div class="card-body">
+        <p class="text-sm text-gray-600">
+          <i class="fas fa-layer-group text-indigo-500 mr-1"></i>
+          <?= __("Questo libro è il volume") ?> <strong><?= (int) $parentWork['numero_volume'] ?></strong>
+          <?= __("dell'opera") ?>
+          <a href="<?= htmlspecialchars(url('/admin/libri/' . (int)$parentWork['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-indigo-600 hover:underline font-semibold">
+            <?= App\Support\HtmlHelper::e($parentWork['titolo']) ?>
+          </a>
+        </p>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!empty($volumes)): ?>
+  <div class="mt-6">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-layer-group text-indigo-500"></i>
+          <?= __("Volumi di quest'opera") ?>
+          <span class="ml-2 text-sm font-normal text-gray-500">(<?= count($volumes) ?> <?= __("volumi") ?>)</span>
+        </h2>
+      </div>
+      <div class="card-body p-0">
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Titolo") ?></th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Autore") ?></th>
+                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">ISBN</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <?php foreach ($volumes as $vol): ?>
+              <tr class="hover:bg-gray-50">
+                <td class="px-4 py-2 text-sm font-semibold text-indigo-600"><?= (int) $vol['numero_volume'] ?></td>
+                <td class="px-4 py-2 text-sm">
+                  <a href="<?= htmlspecialchars(url('/admin/libri/' . (int)$vol['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-primary hover:underline">
+                    <?= App\Support\HtmlHelper::e($vol['titolo_volume'] ?: $vol['titolo']) ?>
+                  </a>
+                </td>
+                <td class="px-4 py-2 text-sm text-gray-600"><?= App\Support\HtmlHelper::e($vol['autore'] ?? '') ?></td>
+                <td class="px-4 py-2 text-sm text-gray-500"><?= App\Support\HtmlHelper::e($vol['isbn13'] ?? '') ?></td>
+              </tr>
+              <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <?php if (!empty($loanHistory) && count($loanHistory) > 0 && !$isCatalogueMode): ?>
   <div class="mt-6">
     <div class="card">
