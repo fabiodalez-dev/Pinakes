@@ -1235,13 +1235,19 @@ class LibriController
             }
         }
 
-        // Sanitize ISSN on update as well
+        // Normalize + validate ISSN on update (same logic as create)
         if (isset($fields['issn'])) {
-            $issn = preg_replace('/\s+/', '', (string) $fields['issn']);
-            if ($issn !== '' && !preg_match('/^\d{4}-?\d{3}[\dXx]$/', $issn)) {
-                $issn = '';
+            $issnRaw = trim((string) $fields['issn']);
+            if ($issnRaw === '') {
+                $fields['issn'] = null;
+            } else {
+                $issnCompact = strtoupper(str_replace('-', '', preg_replace('/\s+/', '', $issnRaw)));
+                if (preg_match('/^\d{7}[\dX]$/', $issnCompact)) {
+                    $fields['issn'] = substr($issnCompact, 0, 4) . '-' . substr($issnCompact, 4, 4);
+                } else {
+                    unset($fields['issn']); // Invalid — don't overwrite existing value
+                }
             }
-            $fields['issn'] = $issn !== '' ? $issn : null;
         }
 
         // Merge scraped subtitle and notes if present
