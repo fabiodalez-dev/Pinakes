@@ -739,10 +739,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 <label for="work_id" class="form-label"><?= __("LibraryThing Work ID") ?></label>
                 <input type="text" id="work_id" name="work_id" class="form-input" value="<?= HtmlHelper::e($book['work_id'] ?? '') ?>">
               </div>
-              <div>
-                <label for="issn" class="form-label"><?= __("ISSN") ?></label>
-                <input type="text" id="issn" name="issn" class="form-input" value="<?= HtmlHelper::e($book['issn'] ?? '') ?>" placeholder="<?= __('Per periodici') ?>">
-              </div>
+              <!-- ISSN moved to main form section (next to EAN) -->
             </div>
           </div>
 
@@ -841,7 +838,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
                 __('Recensione') => ['review', 'rating', 'comment'],
                 __('Date') => ['entry_date', 'date_started', 'date_read'],
                 __('Classificazioni') => ['dewey_wording', 'lccn', 'lc_classification', 'other_call_number'],
-                __('Identificatori') => ['bcid', 'barcode', 'oclc', 'work_id', 'issn'],
+                __('Identificatori') => ['bcid', 'barcode', 'oclc', 'work_id'],
                 __('Provenienza') => ['original_languages', 'source', 'from_where'],
                 __('Prestito') => ['lending_patron', 'lending_status', 'lending_start', 'lending_end'],
                 __('Altro') => ['physical_description', 'value', 'condition_lt']
