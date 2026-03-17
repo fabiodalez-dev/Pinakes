@@ -1753,6 +1753,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // Priority 0: Same series (collana) — reuse pre-fetched seriesBooks to avoid duplicate query
         if (!empty($seriesBooks)) {
             foreach (array_slice($seriesBooks, 0, $limit) as $sb) {
+                if (!isset($sb['autori'])) {
+                    $sb['autori'] = $sb['autore_principale'] ?? '';
+                }
                 $related_books[] = $sb;
             }
         }

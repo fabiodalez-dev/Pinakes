@@ -167,13 +167,13 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
     const pattern = await issnInput.getAttribute('pattern');
     expect(pattern).toBeTruthy();
 
-    // Valid ISSN should match
+    // Valid ISSN should match (hyphen required)
     const regex = new RegExp(`^${pattern}$`);
     expect(regex.test('1234-5678')).toBe(true);
     expect(regex.test('1234-567X')).toBe(true);
-    expect(regex.test('12345678')).toBe(true);
 
     // Invalid ISSN should not match
+    expect(regex.test('12345678')).toBe(false);   // missing hyphen
     expect(regex.test('123-4567')).toBe(false);
     expect(regex.test('ABCD-EFGH')).toBe(false);
     expect(regex.test('1234-56789')).toBe(false);
