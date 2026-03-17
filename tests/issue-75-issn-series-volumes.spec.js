@@ -245,10 +245,10 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
     expect(cols).toContain('numero_volume');
     expect(cols).toContain('titolo_volume');
 
-    // Check unique key
+    // Check unique key on volume_id (each volume belongs to one parent)
     const ukExists = dbQuery(
       `SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
-       WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='volumi' AND INDEX_NAME='uk_opera_volume'`
+       WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='volumi' AND INDEX_NAME='uk_volume_id'`
     );
     expect(parseInt(ukExists)).toBeGreaterThan(0);
 
