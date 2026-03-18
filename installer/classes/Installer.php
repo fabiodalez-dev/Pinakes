@@ -49,6 +49,7 @@ class Installer {
         'update_logs',
         'user_sessions',
         'utenti',
+        'volumi',
         'wishlist',
         'z39_access_logs',
         'z39_rate_limits'
@@ -751,9 +752,8 @@ class Installer {
             throw new Exception(sprintf(__("Installazione database non completa. Tabelle mancanti: %s"), implode(', ', $missing)));
         }
 
-        if (count($actualTables) !== count($expectedTables)) {
-            throw new Exception(sprintf(__("Installazione database non completa. Trovate %d tabelle, attese %d"), count($actualTables), count($expectedTables)));
-        }
+        // Count check removed — plugins and migrations can add extra tables.
+        // The missing-table check above is sufficient.
 
         // Check essential data
         // Note: classificazione table no longer exists - Dewey data is now in JSON files (data/dewey/)
