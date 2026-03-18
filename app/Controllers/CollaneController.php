@@ -370,7 +370,7 @@ class CollaneController
         }
 
         // Create the parent book
-        $stmt = $db->prepare("INSERT INTO libri (titolo, collana, copie_totali, created_at, updated_at) VALUES (?, ?, 0, NOW(), NOW())");
+        $stmt = $db->prepare("INSERT INTO libri (titolo, collana, copie_totali, copie_disponibili, created_at, updated_at) VALUES (?, ?, 0, 0, NOW(), NOW())");
         if (!$stmt) {
             $_SESSION['error_message'] = __('Errore database');
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);

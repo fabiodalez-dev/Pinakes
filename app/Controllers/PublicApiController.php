@@ -348,7 +348,7 @@ class PublicApiController
                 u.cognome AS utente_cognome
             FROM recensioni r
             JOIN utenti u ON r.utente_id = u.id
-            WHERE r.libro_id = ?
+            WHERE r.libro_id = ? AND r.stato = 'approvata'
             ORDER BY r.created_at DESC
         ";
 
