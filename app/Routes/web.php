@@ -1388,6 +1388,43 @@ return function (App $app): void {
         return $controller->deleteCopy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Collane (Series) management
+    $app->get('/admin/collane', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->index($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/collane/dettaglio', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->show($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/collane/rinomina', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->rename($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/collane/unisci', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->merge($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/collane/ordine', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->updateOrder($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/collane/crea-opera', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->createParentWork($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Multi-volume management routes
     $app->post('/admin/libri/volumi/add', function ($request, $response) use ($app) {
         $controller = new LibriController();

@@ -262,6 +262,18 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
           </a>
 
+          <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+            href="<?= htmlspecialchars(url('/admin/collane'), ENT_QUOTES, 'UTF-8') ?>">
+            <div
+              class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+              <i class="fas fa-layer-group text-gray-600"></i>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium"><?= __("Collane") ?></div>
+              <div class="text-xs text-gray-500"><?= __("Serie e collane di libri") ?></div>
+            </div>
+          </a>
+
           <?php if (!$isCatalogueMode): ?>
             <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
               href="<?= htmlspecialchars(url('/admin/prestiti'), ENT_QUOTES, 'UTF-8') ?>">
