@@ -101,7 +101,7 @@ $csrfToken = Csrf::ensureToken();
     <!-- Merge -->
     <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow">
       <h3 class="text-sm font-medium text-gray-700 mb-3"><i class="fas fa-compress-arrows-alt text-gray-400 mr-1"></i> <?= __("Unisci con altra collana") ?></h3>
-      <form method="post" action="<?= htmlspecialchars(url('/admin/collane/unisci'), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirm('<?= __("Sei sicuro? Tutti i libri verranno spostati nella collana di destinazione.") ?>')">
+      <form method="post" action="<?= htmlspecialchars(url('/admin/collane/unisci'), ENT_QUOTES, 'UTF-8') ?>" onsubmit='return confirm(<?= json_encode(__("Sei sicuro? Tutti i libri verranno spostati nella collana di destinazione."), JSON_HEX_TAG | JSON_HEX_APOS) ?>)'>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
         <input type="hidden" name="source" value="<?= HtmlHelper::e($collana) ?>">
         <input type="text" name="target" placeholder="<?= HtmlHelper::e(__('Nome collana di destinazione')) ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 mb-3" required>
@@ -133,7 +133,7 @@ $csrfToken = Csrf::ensureToken();
     <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow md:col-span-2">
       <h3 class="text-sm font-medium text-red-700 mb-1"><i class="fas fa-trash text-red-400 mr-1"></i> <?= __("Elimina collana") ?></h3>
       <p class="text-xs text-gray-500 mb-3"><?= __("Rimuove la collana da tutti i libri. I libri non verranno eliminati.") ?></p>
-      <form method="post" action="<?= htmlspecialchars(url('/admin/collane/elimina'), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirm('<?= __("Sei sicuro? La collana verrà rimossa da tutti i libri.") ?>')">
+      <form method="post" action="<?= htmlspecialchars(url('/admin/collane/elimina'), ENT_QUOTES, 'UTF-8') ?>" onsubmit='return confirm(<?= json_encode(__("Sei sicuro? La collana verrà rimossa da tutti i libri."), JSON_HEX_TAG | JSON_HEX_APOS) ?>)'>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
         <input type="hidden" name="nome" value="<?= HtmlHelper::e($collana) ?>">
         <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm">

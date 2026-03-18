@@ -2008,7 +2008,8 @@ class LibriController
         $stmt->close();
 
         if (!$success) {
-            $response->getBody()->write(json_encode(['error' => true, 'message' => $db->error], JSON_UNESCAPED_UNICODE));
+            \App\Support\SecureLogger::error('addVolume failed', ['db_error' => $db->error]);
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore durante il salvataggio')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
@@ -2031,11 +2032,14 @@ class LibriController
         }
 
         $stmt = $db->prepare("DELETE FROM volumi WHERE opera_id = ? AND volume_id = ?");
-        if ($stmt) {
-            $stmt->bind_param('ii', $operaId, $volumeId);
-            $stmt->execute();
-            $stmt->close();
+        if (!$stmt) {
+            \App\Support\SecureLogger::error('removeVolume prepare failed', ['db_error' => $db->error]);
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
+        $stmt->bind_param('ii', $operaId, $volumeId);
+        $stmt->execute();
+        $stmt->close();
 
         $response->getBody()->write(json_encode(['success' => true], JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');

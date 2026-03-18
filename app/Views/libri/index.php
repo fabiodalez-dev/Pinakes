@@ -1199,8 +1199,8 @@ document.addEventListener('DOMContentLoaded', function() {
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
         body: JSON.stringify({ book_ids: ids, collana: collanaName.trim() })
       });
-      const data = await resp.json();
-      if (data.error) {
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || data.error) {
         await Swal.fire({ icon: 'error', title: __('Errore'), text: data.message });
       } else {
         await Swal.fire({ icon: 'success', title: __('Collana assegnata'), text: data.message, timer: 2000, showConfirmButton: false });

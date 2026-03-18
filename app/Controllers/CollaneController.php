@@ -212,10 +212,19 @@ class CollaneController
             $stmt->execute();
             $affected = $stmt->affected_rows;
             $stmt->close();
+
+            // Sync collane table
+            $stmtSync = $db->prepare("UPDATE collane SET nome = ? WHERE nome = ?");
+            if ($stmtSync) {
+                $stmtSync->bind_param('ss', $newName, $oldName);
+                $stmtSync->execute();
+                $stmtSync->close();
+            }
+
             $_SESSION['success_message'] = sprintf(__('Collana rinominata: %d libri aggiornati'), $affected);
         }
 
-        return $response->withHeader('Location', url('/admin/collane?dettaglio=' . urlencode($newName)))->withStatus(302);
+        return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($newName)))->withStatus(302);
     }
 
     /**
@@ -238,6 +247,15 @@ class CollaneController
             $stmt->execute();
             $affected = $stmt->affected_rows;
             $stmt->close();
+
+            // Delete source collane entry, keep target
+            $stmtDel = $db->prepare("DELETE FROM collane WHERE nome = ?");
+            if ($stmtDel) {
+                $stmtDel->bind_param('s', $source);
+                $stmtDel->execute();
+                $stmtDel->close();
+            }
+
             $_SESSION['success_message'] = sprintf(__('Collane unite: %d libri spostati in "%s"'), $affected, $target);
         }
 

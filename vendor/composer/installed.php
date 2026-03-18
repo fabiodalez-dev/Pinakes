@@ -3,11 +3,11 @@
         'name' => 'pinakes/slim-app',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '54d3b9f1d775918e995fceac05ee38f0afd69160',
+        'reference' => '755bdff82ce58466f36089ebc6458d61b2999503',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
-        'dev' => true,
+        'dev' => false,
     ),
     'versions' => array(
         'emleons/sim-rating' => array(
@@ -112,7 +112,7 @@
         'pinakes/slim-app' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '54d3b9f1d775918e995fceac05ee38f0afd69160',
+            'reference' => '755bdff82ce58466f36089ebc6458d61b2999503',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

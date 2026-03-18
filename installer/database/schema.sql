@@ -55,7 +55,7 @@ CREATE TABLE `autori` (
   `sito_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   PRIMARY KEY (`id`),
   FULLTEXT KEY `ft_autori_nome` (`nome`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -148,7 +148,7 @@ CREATE TABLE `donazioni` (
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `editori` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
   `indirizzo` text COLLATE utf8mb4_unicode_ci,
   `sito_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `telefono` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -736,7 +736,7 @@ CREATE TABLE `recensioni` (
 CREATE TABLE `scaffali` (
   `id` int NOT NULL AUTO_INCREMENT,
   `codice` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `nome` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `lettera` varchar(1) COLLATE utf8mb4_unicode_ci NOT NULL,
   `descrizione` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -751,7 +751,7 @@ CREATE TABLE `scaffali` (
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `sedi` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Nome della sede (es. Sede Centrale, Succursale Nord)',
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Nome della sede (es. Sede Centrale, Succursale Nord)',
   `codice` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Codice identificativo della sede',
   `indirizzo` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `citta` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -882,7 +882,7 @@ CREATE TABLE `wishlist` (
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `collane` (
   `id` int NOT NULL AUTO_INCREMENT,
-  `nome` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Series name (must match libri.collana values)',
+  `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Series name (must match libri.collana values)',
   `descrizione` text COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Series description',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

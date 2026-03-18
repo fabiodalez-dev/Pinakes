@@ -42,7 +42,7 @@ SET @tbl_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
 SET @sql = IF(@tbl_exists = 0,
     'CREATE TABLE collane (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        nome VARCHAR(255) NOT NULL COMMENT ''Series name (must match libri.collana values)'',
+        nome VARCHAR(100) NOT NULL COMMENT ''Series name (must match libri.collana values)'',
         descrizione TEXT DEFAULT NULL COMMENT ''Series description'',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
