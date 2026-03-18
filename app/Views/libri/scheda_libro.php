@@ -1018,7 +1018,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   </a>
                 </td>
                 <td class="px-4 py-2 text-sm text-gray-600"><?= App\Support\HtmlHelper::e($vol['autore'] ?? '') ?></td>
-                <td class="px-4 py-2 text-sm text-gray-500"><?= App\Support\HtmlHelper::e($vol['isbn13'] ?? '') ?></td>
+                <td class="px-4 py-2 text-sm text-gray-500"><?= App\Support\HtmlHelper::e(($vol['isbn13'] ?? '') ?: ($vol['isbn10'] ?? '')) ?></td>
               </tr>
               <?php endforeach; ?>
             </tbody>

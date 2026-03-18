@@ -526,7 +526,7 @@ class LibriController
 
         // Volumes of this work (this book is the parent)
         $volStmt = $db->prepare("
-            SELECT v.numero_volume, v.titolo_volume, l.id, l.titolo, l.isbn13,
+            SELECT v.numero_volume, v.titolo_volume, l.id, l.titolo, l.isbn13, l.isbn10,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
             FROM volumi v

@@ -404,6 +404,9 @@ class LibriApiController
         }
 
         // Query per ottenere libri del genere
+        $authorLabelExpr = $this->hasTableColumn($db, 'autori', 'cognome')
+            ? "TRIM(CONCAT(a.nome, ' ', COALESCE(a.cognome, '')))"
+            : 'a.nome';
         $sql = "
             SELECT
                 l.id,
@@ -412,7 +415,7 @@ class LibriApiController
                 l.copertina_url,
                 l.anno_pubblicazione,
                 l.stato,
-                GROUP_CONCAT(DISTINCT a.nome SEPARATOR ', ') AS autori
+                GROUP_CONCAT(DISTINCT {$authorLabelExpr} SEPARATOR ', ') AS autori
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN autori a ON la.autore_id = a.id
