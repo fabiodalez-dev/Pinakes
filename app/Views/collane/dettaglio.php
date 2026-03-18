@@ -41,6 +41,19 @@ $csrfToken = Csrf::ensureToken();
   </div>
   <?php unset($_SESSION['error_message']); endif; ?>
 
+  <!-- Description -->
+  <div class="bg-white p-6 rounded-2xl border border-gray-200 shadow">
+    <h3 class="text-sm font-medium text-gray-700 mb-3"><i class="fas fa-align-left text-gray-400 mr-1"></i> <?= __("Descrizione") ?></h3>
+    <form method="post" action="<?= htmlspecialchars(url('/admin/collane/descrizione'), ENT_QUOTES, 'UTF-8') ?>">
+      <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
+      <input type="hidden" name="nome" value="<?= HtmlHelper::e($collana) ?>">
+      <textarea name="descrizione" rows="3" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 mb-3" placeholder="<?= HtmlHelper::e(__('Descrizione della collana...')) ?>"><?= HtmlHelper::e($collanaDesc ?? '') ?></textarea>
+      <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm">
+        <i class="fas fa-save mr-2"></i><?= __("Salva descrizione") ?>
+      </button>
+    </form>
+  </div>
+
   <!-- Books Table -->
   <?php if (!empty($books)): ?>
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

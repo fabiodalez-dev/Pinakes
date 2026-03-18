@@ -1152,14 +1152,42 @@ document.addEventListener('DOMContentLoaded', function() {
     const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
     const { value: collanaName } = await Swal.fire({
       title: __('Assegna collana'),
-      input: 'text',
-      inputLabel: __('Nome della collana'),
-      inputPlaceholder: __('es. Harry Potter'),
+      html: '<div class="text-left">'
+        + '<label class="block text-sm font-medium text-gray-700 mb-1">' + __('Nome della collana') + '</label>'
+        + '<input id="swal-collana-input" class="swal2-input" placeholder="' + __('es. Harry Potter') + '" style="margin:0;width:100%">'
+        + '<div id="swal-collana-results" class="mt-1 max-h-32 overflow-y-auto text-sm"></div>'
+        + '</div>',
       showCancelButton: true,
       confirmButtonText: __('Assegna'),
       cancelButtonText: __('Annulla'),
-      inputValidator: (value) => {
-        if (!value || !value.trim()) return __('Inserisci un nome');
+      didOpen: () => {
+        const inp = document.getElementById('swal-collana-input');
+        const res = document.getElementById('swal-collana-results');
+        let deb;
+        inp.addEventListener('input', () => {
+          clearTimeout(deb);
+          deb = setTimeout(async () => {
+            const q = inp.value.trim();
+            if (q.length < 1) { res.textContent = ''; return; }
+            try {
+              const r = await fetch((window.BASE_PATH || '') + '/api/collane/search?q=' + encodeURIComponent(q));
+              const names = await r.json();
+              res.textContent = '';
+              for (const n of names) {
+                const d = document.createElement('div');
+                d.className = 'p-2 hover:bg-gray-100 cursor-pointer rounded text-gray-900';
+                d.textContent = n;
+                d.addEventListener('click', () => { inp.value = n; res.textContent = ''; });
+                res.appendChild(d);
+              }
+            } catch { res.textContent = ''; }
+          }, 200);
+        });
+      },
+      preConfirm: () => {
+        const v = document.getElementById('swal-collana-input').value.trim();
+        if (!v) { Swal.showValidationMessage(__('Inserisci un nome')); return false; }
+        return v;
       }
     });
     if (!collanaName) return;

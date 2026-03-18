@@ -22,7 +22,42 @@ use App\Support\HtmlHelper;
       </h1>
       <p class="text-sm text-gray-600 mt-1"><?= __("Gestisci le collane e le serie di libri") ?></p>
     </div>
+    <button type="button" onclick="createCollana()" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-900 rounded-lg transition-colors text-sm font-medium">
+      <i class="fas fa-plus mr-2"></i><?= __("Nuova Collana") ?>
+    </button>
   </div>
+
+  <script>
+  async function createCollana() {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const { value: name } = await Swal.fire({
+      title: __('Nuova Collana'),
+      input: 'text',
+      inputLabel: __('Nome della collana'),
+      inputPlaceholder: __('es. Harry Potter'),
+      showCancelButton: true,
+      confirmButtonText: __('Crea'),
+      cancelButtonText: __('Annulla'),
+      inputValidator: (v) => { if (!v || !v.trim()) return __('Inserisci un nome'); }
+    });
+    if (!name) return;
+    try {
+      const resp = await fetch((window.BASE_PATH || '') + '/admin/collane/crea', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': csrf },
+        body: 'csrf_token=' + encodeURIComponent(csrf) + '&nome=' + encodeURIComponent(name.trim())
+      });
+      if (resp.redirected) {
+        window.location.href = resp.url;
+      } else {
+        window.location.reload();
+      }
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: __('Errore'), text: err.message });
+    }
+  }
+  </script>
 
   <!-- Messages -->
   <?php if (!empty($_SESSION['success_message'])): ?>

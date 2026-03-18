@@ -52,6 +52,18 @@ class CollaneController
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
+        // Get collana metadata (description) from collane table
+        $collanaDesc = '';
+        $stmtMeta = $db->prepare("SELECT descrizione FROM collane WHERE nome = ?");
+        if ($stmtMeta) {
+            $stmtMeta->bind_param('s', $collana);
+            $stmtMeta->execute();
+            $metaRes = $stmtMeta->get_result();
+            $metaRow = $metaRes->fetch_assoc();
+            $collanaDesc = $metaRow['descrizione'] ?? '';
+            $stmtMeta->close();
+        }
+
         $books = [];
         $stmt = $db->prepare("
             SELECT l.id, l.titolo, l.numero_serie, l.isbn13, l.isbn10, l.copertina_url,
@@ -95,6 +107,55 @@ class CollaneController
         $html = ob_get_clean();
         $response->getBody()->write($html);
         return $response;
+    }
+
+    /**
+     * Create a new collana (insert into collane table).
+     */
+    public function create(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = $request->getParsedBody() ?? [];
+        $nome = trim((string) ($data['nome'] ?? ''));
+
+        if ($nome === '') {
+            $_SESSION['error_message'] = __('Nome collana non valido');
+            return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
+        }
+
+        $stmt = $db->prepare("INSERT IGNORE INTO collane (nome) VALUES (?)");
+        if ($stmt) {
+            $stmt->bind_param('s', $nome);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        $_SESSION['success_message'] = sprintf(__('Collana "%s" creata'), $nome);
+        return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($nome)))->withStatus(302);
+    }
+
+    /**
+     * Save collana description.
+     */
+    public function saveDescription(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = $request->getParsedBody() ?? [];
+        $nome = trim((string) ($data['nome'] ?? ''));
+        $descrizione = trim((string) ($data['descrizione'] ?? ''));
+
+        if ($nome === '') {
+            $_SESSION['error_message'] = __('Nome collana non valido');
+            return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
+        }
+
+        $stmt = $db->prepare("INSERT INTO collane (nome, descrizione) VALUES (?, ?) ON DUPLICATE KEY UPDATE descrizione = VALUES(descrizione)");
+        if ($stmt) {
+            $stmt->bind_param('ss', $nome, $descrizione);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        $_SESSION['success_message'] = __('Descrizione salvata');
+        return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($nome)))->withStatus(302);
     }
 
     /**
@@ -207,6 +268,39 @@ class CollaneController
 
         $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
         return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * API: search collane names for autocomplete.
+     */
+    public function searchApi(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = trim((string) ($request->getQueryParams()['q'] ?? ''));
+        $results = [];
+
+        if (strlen($q) >= 1) {
+            // Search in collane table first, then in distinct libri.collana
+            $search = '%' . $q . '%';
+            $stmt = $db->prepare("
+                SELECT DISTINCT nome FROM (
+                    SELECT nome FROM collane WHERE nome LIKE ?
+                    UNION
+                    SELECT collana AS nome FROM libri WHERE collana LIKE ? AND collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
+                ) AS combined ORDER BY nome LIMIT 10
+            ");
+            if ($stmt) {
+                $stmt->bind_param('ss', $search, $search);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                while ($row = $res->fetch_assoc()) {
+                    $results[] = $row['nome'];
+                }
+                $stmt->close();
+            }
+        }
+
+        $response->getBody()->write(json_encode($results, JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
     }
 
     /**

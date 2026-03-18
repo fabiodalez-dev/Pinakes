@@ -1401,6 +1401,18 @@ return function (App $app): void {
         return $controller->show($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/collane/crea', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->create($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/collane/descrizione', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->saveDescription($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/collane/rinomina', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
@@ -1424,6 +1436,12 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->createParentWork($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->get('/api/collane/search', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->searchApi($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
 
     $app->post('/admin/collane/bulk-assign', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
