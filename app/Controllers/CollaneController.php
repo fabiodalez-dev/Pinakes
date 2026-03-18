@@ -175,6 +175,41 @@ class CollaneController
     }
 
     /**
+     * Bulk assign collana to multiple books (AJAX).
+     */
+    public function bulkAssign(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = json_decode((string) $request->getBody(), true) ?: [];
+        $bookIds = array_filter(array_map('intval', $data['book_ids'] ?? []), fn($id) => $id > 0);
+        $collana = trim((string) ($data['collana'] ?? ''));
+
+        if (empty($bookIds) || $collana === '') {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Parametri non validi')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        $placeholders = implode(',', array_fill(0, count($bookIds), '?'));
+        $stmt = $db->prepare("UPDATE libri SET collana = ?, updated_at = NOW() WHERE id IN ($placeholders) AND deleted_at IS NULL");
+        if ($stmt) {
+            $types = 's' . str_repeat('i', count($bookIds));
+            $params = array_merge([$collana], $bookIds);
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $affected = $stmt->affected_rows;
+            $stmt->close();
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => sprintf(__('%d libri assegnati alla collana "%s"'), $affected, $collana)
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
      * Create a multi-volume parent work from a collana.
      */
     public function createParentWork(Request $request, Response $response, mysqli $db): Response

@@ -334,6 +334,9 @@ $libri = $data['libri'];
           <button id="bulk-export" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
             <i class="fas fa-download mr-2"></i><?= __("Esporta selezionati") ?>
           </button>
+          <button id="bulk-assign-collana" class="px-4 py-2 bg-white text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm border border-gray-300">
+            <i class="fas fa-layer-group mr-2"></i><?= __("Assegna collana") ?>
+          </button>
           <button id="bulk-fetch-covers" class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors text-sm">
             <i class="fas fa-image mr-2"></i><?= __("Scarica copertine") ?>
           </button>
@@ -1140,6 +1143,43 @@ document.addEventListener('DOMContentLoaded', function() {
           }
         }
       });
+    }
+  });
+
+  // Bulk assign collana
+  document.getElementById('bulk-assign-collana').addEventListener('click', async function() {
+    if (selectedBooks.size === 0) return;
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+    const { value: collanaName } = await Swal.fire({
+      title: __('Assegna collana'),
+      input: 'text',
+      inputLabel: __('Nome della collana'),
+      inputPlaceholder: __('es. Harry Potter'),
+      showCancelButton: true,
+      confirmButtonText: __('Assegna'),
+      cancelButtonText: __('Annulla'),
+      inputValidator: (value) => {
+        if (!value || !value.trim()) return __('Inserisci un nome');
+      }
+    });
+    if (!collanaName) return;
+    try {
+      const ids = Array.from(selectedBooks);
+      const resp = await fetch((window.BASE_PATH || '') + '/admin/collane/bulk-assign', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+        body: JSON.stringify({ book_ids: ids, collana: collanaName.trim() })
+      });
+      const data = await resp.json();
+      if (data.error) {
+        await Swal.fire({ icon: 'error', title: __('Errore'), text: data.message });
+      } else {
+        await Swal.fire({ icon: 'success', title: __('Collana assegnata'), text: data.message, timer: 2000, showConfirmButton: false });
+        window.location.reload();
+      }
+    } catch (err) {
+      await Swal.fire({ icon: 'error', title: __('Errore'), text: err.message });
     }
   });
 

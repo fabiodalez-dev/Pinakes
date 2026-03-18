@@ -33,6 +33,27 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- =============================================================================
+-- Create collane table for series metadata (name, description)
+-- =============================================================================
+
+SET @tbl_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+                   WHERE TABLE_SCHEMA = DATABASE()
+                     AND TABLE_NAME = 'collane');
+SET @sql = IF(@tbl_exists = 0,
+    'CREATE TABLE collane (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        nome VARCHAR(255) NOT NULL COMMENT ''Series name (must match libri.collana values)'',
+        descrizione TEXT DEFAULT NULL COMMENT ''Series description'',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        UNIQUE KEY uk_collana_nome (nome)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- =============================================================================
 -- Add index on collana for series browsing queries
 -- =============================================================================
 -- Needed for "Other volumes in this series" feature which queries

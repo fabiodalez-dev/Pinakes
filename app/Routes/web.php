@@ -1425,6 +1425,12 @@ return function (App $app): void {
         return $controller->createParentWork($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/collane/bulk-assign', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkAssign($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Multi-volume management routes
     $app->post('/admin/libri/volumi/add', function ($request, $response) use ($app) {
         $controller = new LibriController();

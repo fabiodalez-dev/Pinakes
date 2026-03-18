@@ -973,12 +973,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   <!-- Loan History Section -->
   <?php if (!empty($parentWork)): ?>
   <div class="mt-6">
-    <div class="card border-indigo-200">
+    <div class="card border-gray-200">
       <div class="card-body">
         <p class="text-sm text-gray-600">
-          <i class="fas fa-layer-group text-indigo-500 mr-1"></i>
+          <i class="fas fa-layer-group text-gray-500 mr-1"></i>
           <?= sprintf(__("Questo libro è il volume %s dell'opera"), '<strong>' . (int) $parentWork['numero_volume'] . '</strong>') ?>
-          <a href="<?= htmlspecialchars(url('/admin/libri/' . (int)$parentWork['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-indigo-600 hover:underline font-semibold">
+          <a href="<?= htmlspecialchars(url('/admin/libri/' . (int)$parentWork['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-900 hover:underline font-semibold">
             <?= App\Support\HtmlHelper::e($parentWork['titolo']) ?>
           </a>
         </p>
@@ -992,7 +992,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <div class="card">
       <div class="card-header">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <i class="fas fa-layer-group text-indigo-500"></i>
+          <i class="fas fa-layer-group text-gray-500"></i>
           <?= __("Volumi di quest'opera") ?>
           <span class="ml-2 text-sm font-normal text-gray-500">(<?= count($volumes) ?> <?= __("volumi") ?>)</span>
         </h2>
@@ -1012,7 +1012,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <tbody class="bg-white divide-y divide-gray-200">
               <?php foreach ($volumes as $vol): ?>
               <tr class="hover:bg-gray-50">
-                <td class="px-4 py-2 text-sm font-semibold text-indigo-600"><?= (int) $vol['numero_volume'] ?></td>
+                <td class="px-4 py-2 text-sm font-semibold text-gray-900"><?= (int) $vol['numero_volume'] ?></td>
                 <td class="px-4 py-2 text-sm">
                   <a href="<?= htmlspecialchars(url('/admin/libri/' . (int)$vol['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-primary hover:underline">
                     <?= App\Support\HtmlHelper::e($vol['titolo_volume'] ?: $vol['titolo']) ?>
@@ -1032,7 +1032,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         </div>
       </div>
       <div class="card-footer p-3 text-center">
-        <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+        <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
           <i class="fas fa-plus mr-1"></i> <?= __("Aggiungi volume") ?>
         </button>
       </div>
@@ -1042,7 +1042,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
   <?php if (empty($volumes) && empty($parentWork)): ?>
   <div class="mt-6">
-    <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+    <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-gray-900 hover:text-gray-700 font-medium">
       <i class="fas fa-layer-group mr-1"></i> <?= __("Configura come opera multi-volume") ?>
     </button>
   </div>
@@ -1515,7 +1515,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 }
                 for (const b of books) {
                   const row = document.createElement('div');
-                  row.className = 'p-2 hover:bg-indigo-50 cursor-pointer rounded flex justify-between items-center';
+                  row.className = 'p-2 hover:bg-gray-50 cursor-pointer rounded flex justify-between items-center';
                   row.addEventListener('click', () => window.selectVolume(b.id, row));
                   const title = document.createElement('span');
                   title.className = 'font-medium';
@@ -1565,8 +1565,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
     window.selectVolume = function(id, el) {
       document.getElementById('swal-volume-id').value = id;
-      document.querySelectorAll('#swal-volume-results > div').forEach(function(d) { d.classList.remove('bg-indigo-100'); });
-      el.classList.add('bg-indigo-100');
+      document.querySelectorAll('#swal-volume-results > div').forEach(function(d) { d.classList.remove('bg-gray-100'); });
+      el.classList.add('bg-gray-100');
     };
 
     async function removeVolume(operaId, volumeId) {

@@ -10,6 +10,7 @@ class Installer {
         'api_keys',
         'autori',
         'cms_pages',
+        'collane',
         'consent_log',
         'contact_messages',
         'copie',
