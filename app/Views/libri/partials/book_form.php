@@ -207,7 +207,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
             </div>
             <div>
               <label for="issn" class="form-label"><?= __("ISSN") ?></label>
-              <input id="issn" name="issn" type="text" class="form-input" placeholder="<?= __('es. 1234-5678') ?>" value="<?php echo HtmlHelper::e($book['issn'] ?? ''); ?>" pattern="\d{4}-\d{3}[\dXx]" />
+              <input id="issn" name="issn" type="text" class="form-input" placeholder="<?= HtmlHelper::e(__('es. 1234-5678')) ?>" value="<?php echo HtmlHelper::e($book['issn'] ?? ''); ?>" pattern="\d{4}-\d{3}[\dXx]" />
               <p class="text-xs text-gray-500 mt-1"><?= __("International Standard Serial Number (per periodici)") ?></p>
             </div>
             <div>
