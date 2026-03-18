@@ -659,7 +659,7 @@ class FrontendController
         $collana = trim((string) ($book['collana'] ?? ''));
         if ($collana !== '') {
             $stmtSeries = $db->prepare("
-                SELECT l.id, l.titolo, l.numero_serie, l.copertina_url, l.immagine_copertina,
+                SELECT l.id, l.titolo, l.numero_serie, l.copertina_url,
                        (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                         WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale
                 FROM libri l

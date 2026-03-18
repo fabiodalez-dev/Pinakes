@@ -977,8 +977,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card-body">
         <p class="text-sm text-gray-600">
           <i class="fas fa-layer-group text-indigo-500 mr-1"></i>
-          <?= __("Questo libro è il volume") ?> <strong><?= (int) $parentWork['numero_volume'] ?></strong>
-          <?= __("dell'opera") ?>
+          <?= sprintf(__("Questo libro è il volume %s dell'opera"), '<strong>' . (int) $parentWork['numero_volume'] . '</strong>') ?>
           <a href="<?= htmlspecialchars(url('/admin/libri/' . (int)$parentWork['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-indigo-600 hover:underline font-semibold">
             <?= App\Support\HtmlHelper::e($parentWork['titolo']) ?>
           </a>

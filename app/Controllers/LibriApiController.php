@@ -114,7 +114,7 @@ class LibriApiController
             $types .= 's';
         }
         if ($posizione_id) {
-            $where .= ' AND l.collocazione_id = ?';
+            $where .= ' AND l.posizione_id = ?';
             $params[] = $posizione_id;
             $types .= 'i';
         }
@@ -409,10 +409,10 @@ class LibriApiController
                 l.id,
                 l.titolo,
                 l.sottotitolo,
-                l.immagine_copertina,
+                l.copertina_url,
                 l.anno_pubblicazione,
                 l.stato,
-                GROUP_CONCAT(DISTINCT CONCAT(a.nome, ' ', COALESCE(a.cognome, '')) SEPARATOR ', ') AS autori
+                GROUP_CONCAT(DISTINCT a.nome SEPARATOR ', ') AS autori
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN autori a ON la.autore_id = a.id
@@ -433,7 +433,7 @@ class LibriApiController
                 'id' => (int) $row['id'],
                 'titolo' => $row['titolo'],
                 'sottotitolo' => $row['sottotitolo'],
-                'immagine_copertina' => $row['immagine_copertina'],
+                'copertina_url' => $row['copertina_url'],
                 'anno_pubblicazione' => $row['anno_pubblicazione'],
                 'stato' => $row['stato'],
                 'autori' => $row['autori']

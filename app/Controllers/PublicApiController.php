@@ -237,7 +237,7 @@ class PublicApiController
     private function getBookAuthors(mysqli $db, int $bookId): array
     {
         $sql = "
-            SELECT a.id, a.nome, a.biografia, a.data_nascita, a.data_morte, a.nazionalita
+            SELECT a.id, a.nome, a.biografia, a.data_nascita, a.data_morte, a.`nazionalità`
             FROM libri_autori la
             JOIN autori a ON la.autore_id = a.id
             WHERE la.libro_id = ?
@@ -339,8 +339,9 @@ class PublicApiController
         $sql = "
             SELECT
                 r.id,
-                r.voto,
-                r.testo,
+                r.stelle,
+                r.titolo AS titolo_recensione,
+                r.descrizione,
                 r.created_at,
                 u.id AS utente_id,
                 u.nome AS utente_nome,
@@ -364,8 +365,9 @@ class PublicApiController
         while ($row = $result->fetch_assoc()) {
             $reviews[] = [
                 'id' => (int)$row['id'],
-                'voto' => $row['voto'] !== null ? (int)$row['voto'] : null,
-                'testo' => $row['testo'],
+                'stelle' => $row['stelle'] !== null ? (int)$row['stelle'] : null,
+                'titolo' => $row['titolo_recensione'] ?? '',
+                'descrizione' => $row['descrizione'] ?? '',
                 'created_at' => $row['created_at'],
                 'utente' => [
                     'id' => (int)$row['utente_id'],

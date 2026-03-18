@@ -205,10 +205,9 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
     const resp = await request.get(`${BASE}/catalogo`);
     expect(resp.status()).toBe(200);
 
-    // Use the API to check — fetch the book detail page HTML
-    // The frontend URL is /{author}/{slug}/{id}
-    // Since we don't have an author, the path is /unknown/e2e-series-book-1/{id}
-    const detailResp = await request.get(`${BASE}//e2e-series-book-1/${bookId}`);
+    // The frontend URL is /{author-slug}/{book-slug}/{id}
+    // Our test author is "Series TestAuthor" → slug "series-testauthor"
+    const detailResp = await request.get(`${BASE}/series-testauthor/e2e-series-book-1/${bookId}`);
     if (detailResp.status() === 200) {
       const html = await detailResp.text();
       expect(html).toContain(SERIES_NAME);
