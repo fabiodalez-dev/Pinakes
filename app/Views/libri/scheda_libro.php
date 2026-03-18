@@ -1006,6 +1006,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Titolo") ?></th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Autore") ?></th>
                 <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">ISBN</th>
+                <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase"></th>
               </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
@@ -1019,13 +1020,31 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 </td>
                 <td class="px-4 py-2 text-sm text-gray-600"><?= App\Support\HtmlHelper::e($vol['autore'] ?? '') ?></td>
                 <td class="px-4 py-2 text-sm text-gray-500"><?= App\Support\HtmlHelper::e(($vol['isbn13'] ?? '') ?: ($vol['isbn10'] ?? '')) ?></td>
+                <td class="px-4 py-2 text-sm text-right">
+                  <button type="button" onclick="removeVolume(<?= (int)$libro['id'] ?>, <?= (int)$vol['id'] ?>)" class="text-red-500 hover:text-red-700 text-xs" title="<?= __('Rimuovi') ?>">
+                    <i class="fas fa-times"></i>
+                  </button>
+                </td>
               </tr>
               <?php endforeach; ?>
             </tbody>
           </table>
         </div>
       </div>
+      <div class="card-footer p-3 text-center">
+        <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+          <i class="fas fa-plus mr-1"></i> <?= __("Aggiungi volume") ?>
+        </button>
+      </div>
     </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if (empty($volumes) && empty($parentWork)): ?>
+  <div class="mt-6">
+    <button type="button" onclick="addVolumeModal(<?= (int)$libro['id'] ?>)" class="text-sm text-indigo-600 hover:text-indigo-800 font-medium">
+      <i class="fas fa-layer-group mr-1"></i> <?= __("Configura come opera multi-volume") ?>
+    </button>
   </div>
   <?php endif; ?>
 
@@ -1455,6 +1474,131 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         return false;
       }
       return confirm(__('Eliminare il libro?'));
+    }
+
+    // Multi-volume management
+    async function addVolumeModal(operaId) {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const { value: formData } = await Swal.fire({
+        title: __('Aggiungi volume'),
+        html: '<div class="text-left">'
+          + '<label class="block text-sm font-medium text-gray-700 mb-1">' + __('Cerca libro') + '</label>'
+          + '<input id="swal-volume-search" class="swal2-input" placeholder="' + __('Titolo o ISBN...') + '" style="margin:0;width:100%">'
+          + '<div id="swal-volume-results" class="mt-2 max-h-40 overflow-y-auto text-sm"></div>'
+          + '<input type="hidden" id="swal-volume-id" value="">'
+          + '<label class="block text-sm font-medium text-gray-700 mt-3 mb-1">' + __('Numero volume') + '</label>'
+          + '<input id="swal-volume-num" type="number" class="swal2-input" min="1" value="1" style="margin:0;width:100%">'
+          + '</div>',
+        showCancelButton: true,
+        confirmButtonText: __('Aggiungi'),
+        cancelButtonText: __('Annulla'),
+        didOpen: () => {
+          const input = document.getElementById('swal-volume-search');
+          const resultsDiv = document.getElementById('swal-volume-results');
+          let debounce;
+          input.addEventListener('input', () => {
+            clearTimeout(debounce);
+            debounce = setTimeout(async () => {
+              const q = input.value.trim();
+              if (q.length < 2) { resultsDiv.textContent = ''; return; }
+              try {
+                const resp = await fetch((window.BASE_PATH || '') + '/api/search/unified?q=' + encodeURIComponent(q) + '&limit=8');
+                const data = await resp.json();
+                const books = (data.books || data.results || []).filter(b => b.id !== operaId);
+                resultsDiv.textContent = '';
+                if (books.length === 0) {
+                  const p = document.createElement('p');
+                  p.className = 'text-gray-400 py-2';
+                  p.textContent = __('Nessun risultato');
+                  resultsDiv.appendChild(p);
+                  return;
+                }
+                for (const b of books) {
+                  const row = document.createElement('div');
+                  row.className = 'p-2 hover:bg-indigo-50 cursor-pointer rounded flex justify-between items-center';
+                  row.addEventListener('click', () => window.selectVolume(b.id, row));
+                  const title = document.createElement('span');
+                  title.className = 'font-medium';
+                  title.textContent = b.titolo || b.title || '';
+                  const idBadge = document.createElement('span');
+                  idBadge.className = 'text-xs text-gray-400';
+                  idBadge.textContent = '#' + b.id;
+                  row.appendChild(title);
+                  row.appendChild(idBadge);
+                  resultsDiv.appendChild(row);
+                }
+              } catch { resultsDiv.textContent = ''; }
+            }, 300);
+          });
+        },
+        preConfirm: () => {
+          const volumeId = parseInt(document.getElementById('swal-volume-id').value);
+          const numero = parseInt(document.getElementById('swal-volume-num').value) || 1;
+          if (!volumeId) {
+            Swal.showValidationMessage(__('Seleziona un libro'));
+            return false;
+          }
+          return { volume_id: volumeId, numero_volume: numero };
+        }
+      });
+
+      if (!formData) return;
+
+      try {
+        const resp = await fetch((window.BASE_PATH || '') + '/admin/libri/volumi/add', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          body: JSON.stringify({ opera_id: operaId, volume_id: formData.volume_id, numero_volume: formData.numero_volume })
+        });
+        const data = await resp.json();
+        if (data.error) {
+          await Swal.fire({ icon: 'error', title: __('Errore'), text: data.message });
+        } else {
+          await Swal.fire({ icon: 'success', title: __('Volume aggiunto'), timer: 1500, showConfirmButton: false });
+          window.location.reload();
+        }
+      } catch (err) {
+        await Swal.fire({ icon: 'error', title: __('Errore'), text: err.message });
+      }
+    }
+
+    window.selectVolume = function(id, el) {
+      document.getElementById('swal-volume-id').value = id;
+      document.querySelectorAll('#swal-volume-results > div').forEach(function(d) { d.classList.remove('bg-indigo-100'); });
+      el.classList.add('bg-indigo-100');
+    };
+
+    async function removeVolume(operaId, volumeId) {
+      const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      const result = await Swal.fire({
+        title: __('Rimuovi volume?'),
+        text: __('Il libro non sarà eliminato, solo la relazione.'),
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: __('Rimuovi'),
+        cancelButtonText: __('Annulla'),
+        confirmButtonColor: '#d33'
+      });
+      if (!result.isConfirmed) return;
+
+      try {
+        const resp = await fetch((window.BASE_PATH || '') + '/admin/libri/volumi/remove', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+          body: JSON.stringify({ opera_id: operaId, volume_id: volumeId })
+        });
+        const data = await resp.json();
+        if (data.error) {
+          await Swal.fire({ icon: 'error', title: __('Errore'), text: data.message });
+        } else {
+          await Swal.fire({ icon: 'success', title: __('Volume rimosso'), timer: 1500, showConfirmButton: false });
+          window.location.reload();
+        }
+      } catch (err) {
+        await Swal.fire({ icon: 'error', title: __('Errore'), text: err.message });
+      }
     }
 
     function confirmRenewal(e){

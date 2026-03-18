@@ -1983,6 +1983,64 @@ class LibriController
         }
     }
 
+    /**
+     * Add a volume relationship (parent work → child volume).
+     */
+    public function addVolume(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = json_decode((string) $request->getBody(), true) ?: [];
+        $operaId = (int) ($data['opera_id'] ?? 0);
+        $volumeId = (int) ($data['volume_id'] ?? 0);
+        $numero = (int) ($data['numero_volume'] ?? 1);
+
+        if ($operaId <= 0 || $volumeId <= 0 || $operaId === $volumeId) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Parametri non validi')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        $stmt = $db->prepare("INSERT INTO volumi (opera_id, volume_id, numero_volume) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE numero_volume = VALUES(numero_volume)");
+        if (!$stmt) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+        $stmt->bind_param('iii', $operaId, $volumeId, $numero);
+        $success = $stmt->execute();
+        $stmt->close();
+
+        if (!$success) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => $db->error], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+
+        $response->getBody()->write(json_encode(['success' => true], JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
+     * Remove a volume relationship.
+     */
+    public function removeVolume(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = json_decode((string) $request->getBody(), true) ?: [];
+        $operaId = (int) ($data['opera_id'] ?? 0);
+        $volumeId = (int) ($data['volume_id'] ?? 0);
+
+        if ($operaId <= 0 || $volumeId <= 0) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Parametri non validi')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        $stmt = $db->prepare("DELETE FROM volumi WHERE opera_id = ? AND volume_id = ?");
+        if ($stmt) {
+            $stmt->bind_param('ii', $operaId, $volumeId);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        $response->getBody()->write(json_encode(['success' => true], JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
     {
         // CSRF validated by CsrfMiddleware

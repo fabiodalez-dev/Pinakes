@@ -1388,6 +1388,19 @@ return function (App $app): void {
         return $controller->deleteCopy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    // Multi-volume management routes
+    $app->post('/admin/libri/volumi/add', function ($request, $response) use ($app) {
+        $controller = new LibriController();
+        $db = $app->getContainer()->get('db');
+        return $controller->addVolume($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/libri/volumi/remove', function ($request, $response) use ($app) {
+        $controller = new LibriController();
+        $db = $app->getContainer()->get('db');
+        return $controller->removeVolume($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Generi (protected admin/staff only)
     $app->get('/admin/generi', function ($request, $response) use ($app) {
         $controller = new GeneriController();
