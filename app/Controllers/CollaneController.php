@@ -134,6 +134,40 @@ class CollaneController
     }
 
     /**
+     * Delete a collana: removes collana value from all books and deletes from collane table.
+     */
+    public function delete(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = $request->getParsedBody() ?? [];
+        $nome = trim((string) ($data['nome'] ?? ''));
+
+        if ($nome === '') {
+            $_SESSION['error_message'] = __('Nome collana non valido');
+            return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
+        }
+
+        // Remove collana from all books
+        $stmt = $db->prepare("UPDATE libri SET collana = NULL, numero_serie = NULL, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
+        if ($stmt) {
+            $stmt->bind_param('s', $nome);
+            $stmt->execute();
+            $affected = $stmt->affected_rows;
+            $stmt->close();
+        }
+
+        // Delete from collane table
+        $stmt2 = $db->prepare("DELETE FROM collane WHERE nome = ?");
+        if ($stmt2) {
+            $stmt2->bind_param('s', $nome);
+            $stmt2->execute();
+            $stmt2->close();
+        }
+
+        $_SESSION['success_message'] = sprintf(__('Collana "%s" eliminata (%d libri aggiornati)'), $nome, $affected ?? 0);
+        return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
+    }
+
+    /**
      * Save collana description.
      */
     public function saveDescription(Request $request, Response $response, mysqli $db): Response

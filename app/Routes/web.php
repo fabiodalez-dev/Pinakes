@@ -1407,6 +1407,12 @@ return function (App $app): void {
         return $controller->create($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/collane/elimina', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->delete($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/collane/descrizione', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
