@@ -748,7 +748,8 @@ class LibriController
                 if (preg_match('/^\d{7}[\dX]$/', $issnCompact)) {
                     $fields['issn'] = substr($issnCompact, 0, 4) . '-' . substr($issnCompact, 4, 4);
                 } else {
-                    unset($fields['issn']); // Invalid — don't overwrite existing value
+                    $_SESSION['error_message'] = __('ISSN non valido. Il formato corretto è XXXX-XXXX (8 cifre, l\'ultima può essere X).');
+                    return $response->withHeader('Location', url('/admin/libri/crea'))->withStatus(302);
                 }
             }
         }
@@ -1245,7 +1246,8 @@ class LibriController
                 if (preg_match('/^\d{7}[\dX]$/', $issnCompact)) {
                     $fields['issn'] = substr($issnCompact, 0, 4) . '-' . substr($issnCompact, 4, 4);
                 } else {
-                    unset($fields['issn']); // Invalid — don't overwrite existing value
+                    $_SESSION['error_message'] = __('ISSN non valido. Il formato corretto è XXXX-XXXX (8 cifre, l\'ultima può essere X).');
+                    return $response->withHeader('Location', url('/admin/libri/modifica/' . $id))->withStatus(302);
                 }
             }
         }
@@ -1996,6 +1998,19 @@ class LibriController
         if ($operaId <= 0 || $volumeId <= 0 || $operaId === $volumeId) {
             $response->getBody()->write(json_encode(['error' => true, 'message' => __('Parametri non validi')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // Prevent cycles: volume_id must not already be a parent of opera_id
+        $cycleCheck = $db->prepare("SELECT COUNT(*) AS cnt FROM volumi WHERE opera_id = ? AND volume_id = ?");
+        if ($cycleCheck) {
+            $cycleCheck->bind_param('ii', $volumeId, $operaId);
+            $cycleCheck->execute();
+            $cycleRow = $cycleCheck->get_result()->fetch_assoc();
+            $cycleCheck->close();
+            if (($cycleRow['cnt'] ?? 0) > 0) {
+                $response->getBody()->write(json_encode(['error' => true, 'message' => __('Relazione ciclica: questo libro è già opera padre del libro selezionato')], JSON_UNESCAPED_UNICODE));
+                return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+            }
         }
 
         $stmt = $db->prepare("INSERT INTO volumi (opera_id, volume_id, numero_volume) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE numero_volume = VALUES(numero_volume)");

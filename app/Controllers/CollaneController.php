@@ -17,13 +17,18 @@ class CollaneController
     {
         $collane = [];
         $result = $db->query("
-            SELECT collana, COUNT(*) AS book_count,
-                   MIN(CAST(numero_serie AS UNSIGNED)) AS min_num,
-                   MAX(CAST(numero_serie AS UNSIGNED)) AS max_num
-            FROM libri
-            WHERE collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
-            GROUP BY collana
-            ORDER BY collana ASC
+            SELECT combined.collana,
+                   COUNT(l.id) AS book_count,
+                   MIN(CAST(l.numero_serie AS UNSIGNED)) AS min_num,
+                   MAX(CAST(l.numero_serie AS UNSIGNED)) AS max_num
+            FROM (
+                SELECT collana FROM libri WHERE collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
+                UNION
+                SELECT nome AS collana FROM collane WHERE nome IS NOT NULL AND nome != ''
+            ) AS combined
+            LEFT JOIN libri l ON l.collana = combined.collana AND l.deleted_at IS NULL
+            GROUP BY combined.collana
+            ORDER BY combined.collana ASC
         ");
         if ($result) {
             while ($row = $result->fetch_assoc()) {
