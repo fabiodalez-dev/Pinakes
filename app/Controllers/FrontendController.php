@@ -664,7 +664,10 @@ class FrontendController
                         WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale
                 FROM libri l
                 WHERE l.collana = ? AND l.id != ? AND l.deleted_at IS NULL
-                ORDER BY CAST(l.numero_serie AS UNSIGNED), l.titolo
+                ORDER BY
+                    CASE WHEN TRIM(l.numero_serie) REGEXP '^[0-9]+$' THEN 0 ELSE 1 END,
+                    CAST(l.numero_serie AS UNSIGNED),
+                    l.titolo
             ");
             if ($stmtSeries) {
                 $stmtSeries->bind_param('si', $collana, $book_id);

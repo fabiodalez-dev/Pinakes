@@ -326,6 +326,23 @@ class LibriController
     }
 
     /**
+     * Normalize and validate ISSN. Returns canonical XXXX-XXXX format, null for empty, or throws on invalid.
+     * @throws \InvalidArgumentException if ISSN format is invalid
+     */
+    private function normalizeIssn(?string $raw): ?string
+    {
+        $issnRaw = trim((string) $raw);
+        if ($issnRaw === '') {
+            return null;
+        }
+        $issnCompact = strtoupper(str_replace('-', '', preg_replace('/\s+/', '', $issnRaw)));
+        if (!preg_match('/^\d{7}[\dX]$/', $issnCompact)) {
+            throw new \InvalidArgumentException('invalid_issn');
+        }
+        return substr($issnCompact, 0, 4) . '-' . substr($issnCompact, 4, 4);
+    }
+
+    /**
      * Rotate log files to prevent unlimited growth
      * Keeps only last 7 days of logs, max 10MB per file
      */
@@ -533,7 +550,6 @@ class LibriController
             JOIN libri l ON v.volume_id = l.id AND l.deleted_at IS NULL
             WHERE v.opera_id = ?
             ORDER BY v.numero_volume
-            LIMIT 100
         ");
         if ($volStmt) {
             $volStmt->bind_param('i', $id);
@@ -740,17 +756,11 @@ class LibriController
 
         // Normalize + validate ISSN (canonical format: XXXX-XXXX)
         if (isset($fields['issn'])) {
-            $issnRaw = trim((string) $fields['issn']);
-            if ($issnRaw === '') {
-                $fields['issn'] = null;
-            } else {
-                $issnCompact = strtoupper(str_replace('-', '', preg_replace('/\s+/', '', $issnRaw)));
-                if (preg_match('/^\d{7}[\dX]$/', $issnCompact)) {
-                    $fields['issn'] = substr($issnCompact, 0, 4) . '-' . substr($issnCompact, 4, 4);
-                } else {
-                    $_SESSION['error_message'] = __('ISSN non valido. Il formato corretto è XXXX-XXXX (8 cifre, l\'ultima può essere X).');
-                    return $response->withHeader('Location', url('/admin/libri/crea'))->withStatus(302);
-                }
+            try {
+                $fields['issn'] = $this->normalizeIssn($fields['issn']);
+            } catch (\InvalidArgumentException $e) {
+                $_SESSION['error_message'] = __('ISSN non valido. Il formato corretto è XXXX-XXXX (8 cifre, l\'ultima può essere X).');
+                return $response->withHeader('Location', url('/admin/libri/crea'))->withStatus(302);
             }
         }
 
@@ -1238,17 +1248,11 @@ class LibriController
 
         // Normalize + validate ISSN on update (same logic as create)
         if (isset($fields['issn'])) {
-            $issnRaw = trim((string) $fields['issn']);
-            if ($issnRaw === '') {
-                $fields['issn'] = null;
-            } else {
-                $issnCompact = strtoupper(str_replace('-', '', preg_replace('/\s+/', '', $issnRaw)));
-                if (preg_match('/^\d{7}[\dX]$/', $issnCompact)) {
-                    $fields['issn'] = substr($issnCompact, 0, 4) . '-' . substr($issnCompact, 4, 4);
-                } else {
-                    $_SESSION['error_message'] = __('ISSN non valido. Il formato corretto è XXXX-XXXX (8 cifre, l\'ultima può essere X).');
-                    return $response->withHeader('Location', url('/admin/libri/modifica/' . $id))->withStatus(302);
-                }
+            try {
+                $fields['issn'] = $this->normalizeIssn($fields['issn']);
+            } catch (\InvalidArgumentException $e) {
+                $_SESSION['error_message'] = __('ISSN non valido. Il formato corretto è XXXX-XXXX (8 cifre, l\'ultima può essere X).');
+                return $response->withHeader('Location', url('/admin/libri/modifica/' . $id))->withStatus(302);
             }
         }
 
@@ -1995,22 +1999,35 @@ class LibriController
         $volumeId = (int) ($data['volume_id'] ?? 0);
         $numero = (int) ($data['numero_volume'] ?? 1);
 
-        if ($operaId <= 0 || $volumeId <= 0 || $operaId === $volumeId) {
+        if ($operaId <= 0 || $volumeId <= 0 || $operaId === $volumeId || $numero < 1) {
             $response->getBody()->write(json_encode(['error' => true, 'message' => __('Parametri non validi')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
-        // Prevent cycles: volume_id must not already be a parent of opera_id
-        $cycleCheck = $db->prepare("SELECT COUNT(*) AS cnt FROM volumi WHERE opera_id = ? AND volume_id = ?");
-        if ($cycleCheck) {
-            $cycleCheck->bind_param('ii', $volumeId, $operaId);
+        // Prevent cycles: walk ancestor chain from opera_id to detect if volume_id is an ancestor
+        $ancestor = $operaId;
+        $visited = [$operaId => true];
+        while ($ancestor > 0) {
+            $cycleCheck = $db->prepare("SELECT opera_id FROM volumi WHERE volume_id = ? LIMIT 1");
+            if (!$cycleCheck) {
+                break;
+            }
+            $cycleCheck->bind_param('i', $ancestor);
             $cycleCheck->execute();
-            $cycleRow = $cycleCheck->get_result()->fetch_assoc();
+            $row = $cycleCheck->get_result()->fetch_assoc();
             $cycleCheck->close();
-            if (($cycleRow['cnt'] ?? 0) > 0) {
+            if (!$row) {
+                break;
+            }
+            $ancestor = (int) $row['opera_id'];
+            if ($ancestor === $volumeId) {
                 $response->getBody()->write(json_encode(['error' => true, 'message' => __('Relazione ciclica: questo libro è già opera padre del libro selezionato')], JSON_UNESCAPED_UNICODE));
                 return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
             }
+            if (isset($visited[$ancestor])) {
+                break; // Already in a cycle in existing data, stop walking
+            }
+            $visited[$ancestor] = true;
         }
 
         $stmt = $db->prepare("INSERT INTO volumi (opera_id, volume_id, numero_volume) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE numero_volume = VALUES(numero_volume)");
@@ -2053,8 +2070,14 @@ class LibriController
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
         $stmt->bind_param('ii', $operaId, $volumeId);
-        $stmt->execute();
+        $ok = $stmt->execute();
         $stmt->close();
+
+        if (!$ok) {
+            \App\Support\SecureLogger::error('removeVolume execute failed', ['db_error' => $db->error, 'opera_id' => $operaId, 'volume_id' => $volumeId]);
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
 
         $response->getBody()->write(json_encode(['success' => true], JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');

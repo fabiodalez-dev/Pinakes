@@ -151,24 +151,34 @@ class CollaneController
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
-        // Remove collana from all books
-        $stmt = $db->prepare("UPDATE libri SET collana = NULL, numero_serie = NULL, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
-        if ($stmt) {
+        $db->begin_transaction();
+        try {
+            // Remove collana from all books
+            $stmt = $db->prepare("UPDATE libri SET collana = NULL, numero_serie = NULL, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
+            if (!$stmt) {
+                throw new \RuntimeException($db->error);
+            }
             $stmt->bind_param('s', $nome);
             $stmt->execute();
             $affected = $stmt->affected_rows;
             $stmt->close();
-        }
 
-        // Delete from collane table
-        $stmt2 = $db->prepare("DELETE FROM collane WHERE nome = ?");
-        if ($stmt2) {
+            // Delete from collane table
+            $stmt2 = $db->prepare("DELETE FROM collane WHERE nome = ?");
+            if (!$stmt2) {
+                throw new \RuntimeException($db->error);
+            }
             $stmt2->bind_param('s', $nome);
             $stmt2->execute();
             $stmt2->close();
-        }
 
-        $_SESSION['success_message'] = sprintf(__('Collana "%s" eliminata (%d libri aggiornati)'), $nome, $affected ?? 0);
+            $db->commit();
+            $_SESSION['success_message'] = sprintf(__('Collana "%s" eliminata (%d libri aggiornati)'), $nome, $affected);
+        } catch (\Throwable $e) {
+            $db->rollback();
+            \App\Support\SecureLogger::error('CollaneController::delete failed', ['error' => $e->getMessage()]);
+            $_SESSION['error_message'] = __('Errore database');
+        }
         return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
     }
 
@@ -211,8 +221,12 @@ class CollaneController
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
-        $stmt = $db->prepare("UPDATE libri SET collana = ?, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
-        if ($stmt) {
+        $db->begin_transaction();
+        try {
+            $stmt = $db->prepare("UPDATE libri SET collana = ?, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
+            if (!$stmt) {
+                throw new \RuntimeException($db->error);
+            }
             $stmt->bind_param('ss', $newName, $oldName);
             $stmt->execute();
             $affected = $stmt->affected_rows;
@@ -220,13 +234,19 @@ class CollaneController
 
             // Sync collane table
             $stmtSync = $db->prepare("UPDATE collane SET nome = ? WHERE nome = ?");
-            if ($stmtSync) {
-                $stmtSync->bind_param('ss', $newName, $oldName);
-                $stmtSync->execute();
-                $stmtSync->close();
+            if (!$stmtSync) {
+                throw new \RuntimeException($db->error);
             }
+            $stmtSync->bind_param('ss', $newName, $oldName);
+            $stmtSync->execute();
+            $stmtSync->close();
 
+            $db->commit();
             $_SESSION['success_message'] = sprintf(__('Collana rinominata: %d libri aggiornati'), $affected);
+        } catch (\Throwable $e) {
+            $db->rollback();
+            \App\Support\SecureLogger::error('CollaneController::rename failed', ['error' => $e->getMessage()]);
+            $_SESSION['error_message'] = __('Errore database');
         }
 
         return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($newName)))->withStatus(302);
@@ -246,8 +266,12 @@ class CollaneController
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
-        $stmt = $db->prepare("UPDATE libri SET collana = ?, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
-        if ($stmt) {
+        $db->begin_transaction();
+        try {
+            $stmt = $db->prepare("UPDATE libri SET collana = ?, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
+            if (!$stmt) {
+                throw new \RuntimeException($db->error);
+            }
             $stmt->bind_param('ss', $target, $source);
             $stmt->execute();
             $affected = $stmt->affected_rows;
@@ -255,13 +279,19 @@ class CollaneController
 
             // Delete source collane entry, keep target
             $stmtDel = $db->prepare("DELETE FROM collane WHERE nome = ?");
-            if ($stmtDel) {
-                $stmtDel->bind_param('s', $source);
-                $stmtDel->execute();
-                $stmtDel->close();
+            if (!$stmtDel) {
+                throw new \RuntimeException($db->error);
             }
+            $stmtDel->bind_param('s', $source);
+            $stmtDel->execute();
+            $stmtDel->close();
 
+            $db->commit();
             $_SESSION['success_message'] = sprintf(__('Collane unite: %d libri spostati in "%s"'), $affected, $target);
+        } catch (\Throwable $e) {
+            $db->rollback();
+            \App\Support\SecureLogger::error('CollaneController::merge failed', ['error' => $e->getMessage()]);
+            $_SESSION['error_message'] = __('Errore database');
         }
 
         return $response->withHeader('Location', url('/admin/collane?dettaglio=' . urlencode($target)))->withStatus(302);
@@ -282,10 +312,17 @@ class CollaneController
         }
 
         $stmt = $db->prepare("UPDATE libri SET numero_serie = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
-        if ($stmt) {
-            $stmt->bind_param('si', $numero, $bookId);
-            $stmt->execute();
-            $stmt->close();
+        if (!$stmt) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+        $stmt->bind_param('si', $numero, $bookId);
+        $ok = $stmt->execute();
+        $stmt->close();
+
+        if (!$ok) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
         $response->getBody()->write(json_encode(['success' => true], JSON_UNESCAPED_UNICODE));
@@ -392,6 +429,7 @@ class CollaneController
 
         // Link all books in the collana as volumes
         $volNum = 1;
+        $linkedCount = 0;
         $stmtBooks = $db->prepare("SELECT id, numero_serie FROM libri WHERE collana = ? AND id != ? AND deleted_at IS NULL ORDER BY CAST(numero_serie AS UNSIGNED), titolo");
         if ($stmtBooks) {
             $stmtBooks->bind_param('si', $collana, $parentId);
@@ -404,6 +442,9 @@ class CollaneController
                 if ($stmtInsert) {
                     $stmtInsert->bind_param('iii', $parentId, $bookId, $num);
                     $stmtInsert->execute();
+                    if ($stmtInsert->affected_rows > 0) {
+                        $linkedCount++;
+                    }
                 }
                 $volNum++;
             }
@@ -413,7 +454,7 @@ class CollaneController
             $stmtBooks->close();
         }
 
-        $_SESSION['success_message'] = sprintf(__('Opera "%s" creata con %d volumi'), $parentTitle, $volNum - 1);
+        $_SESSION['success_message'] = sprintf(__('Opera "%s" creata con %d volumi'), $parentTitle, $linkedCount);
         return $response->withHeader('Location', url('/admin/libri/' . $parentId))->withStatus(302);
     }
 }

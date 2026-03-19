@@ -1504,7 +1504,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               try {
                 const resp = await fetch((window.BASE_PATH || '') + '/api/search/unified?q=' + encodeURIComponent(q) + '&limit=8');
                 const data = await resp.json();
-                const books = (data.books || data.results || []).filter(b => b.id !== operaId);
+                const books = (Array.isArray(data) ? data : [])
+                  .filter(item => item.type === 'book' && Number(item.id) !== Number(operaId));
                 resultsDiv.textContent = '';
                 if (books.length === 0) {
                   const p = document.createElement('p');
@@ -1516,10 +1517,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 for (const b of books) {
                   const row = document.createElement('div');
                   row.className = 'p-2 hover:bg-gray-50 cursor-pointer rounded flex justify-between items-center';
-                  row.addEventListener('click', () => window.selectVolume(b.id, row));
+                  row.addEventListener('click', () => window.selectVolume(Number(b.id), row));
                   const title = document.createElement('span');
                   title.className = 'font-medium';
-                  title.textContent = b.titolo || b.title || '';
+                  title.textContent = b.label || b.titolo || '';
                   const idBadge = document.createElement('span');
                   idBadge.className = 'text-xs text-gray-400';
                   idBadge.textContent = '#' + b.id;
