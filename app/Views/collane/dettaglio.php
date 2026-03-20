@@ -104,7 +104,10 @@ $csrfToken = Csrf::ensureToken();
       <form method="post" action="<?= htmlspecialchars(url('/admin/collane/unisci'), ENT_QUOTES, 'UTF-8') ?>" onsubmit='return confirm(<?= json_encode(__("Sei sicuro? Tutti i libri verranno spostati nella collana di destinazione."), JSON_HEX_TAG | JSON_HEX_APOS) ?>)'>
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
         <input type="hidden" name="source" value="<?= HtmlHelper::e($collana) ?>">
-        <input type="text" name="target" placeholder="<?= HtmlHelper::e(__('Nome collana di destinazione')) ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 mb-3" required>
+        <div class="relative">
+          <input type="text" name="target" id="merge-target" placeholder="<?= HtmlHelper::e(__('Nome collana di destinazione')) ?>" class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 mb-3" required autocomplete="off">
+          <div id="merge-suggestions" class="absolute z-10 w-full bg-white border border-gray-200 rounded-lg shadow-lg hidden max-h-48 overflow-y-auto"></div>
+        </div>
         <button type="submit" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-900 transition-colors font-medium text-sm">
           <i class="fas fa-compress-arrows-alt mr-2"></i><?= __("Unisci") ?>
         </button>
@@ -145,3 +148,43 @@ $csrfToken = Csrf::ensureToken();
   </div>
 
 </section>
+
+<script>
+(function() {
+  const input = document.getElementById('merge-target');
+  const suggestions = document.getElementById('merge-suggestions');
+  if (!input || !suggestions) return;
+
+  const currentCollana = <?= json_encode($collana, JSON_HEX_TAG) ?>;
+  let debounce;
+
+  input.addEventListener('input', function() {
+    clearTimeout(debounce);
+    const q = this.value.trim();
+    if (q.length < 1) { suggestions.classList.add('hidden'); return; }
+    debounce = setTimeout(async () => {
+      try {
+        const resp = await fetch((window.BASE_PATH || '') + '/api/collane/search?q=' + encodeURIComponent(q));
+        const data = await resp.json();
+        const filtered = (Array.isArray(data) ? data : []).filter(name => name !== currentCollana);
+        suggestions.textContent = '';
+        if (filtered.length === 0) { suggestions.classList.add('hidden'); return; }
+        for (const name of filtered) {
+          const div = document.createElement('div');
+          div.className = 'px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm';
+          div.textContent = name;
+          div.addEventListener('click', () => { input.value = name; suggestions.classList.add('hidden'); });
+          suggestions.appendChild(div);
+        }
+        suggestions.classList.remove('hidden');
+      } catch { suggestions.classList.add('hidden'); }
+    }, 250);
+  });
+
+  document.addEventListener('click', function(e) {
+    if (!input.contains(e.target) && !suggestions.contains(e.target)) {
+      suggestions.classList.add('hidden');
+    }
+  });
+})();
+</script>
