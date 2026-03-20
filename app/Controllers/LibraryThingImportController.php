@@ -818,6 +818,23 @@ class LibraryThingImportController
         // Tags/Keywords
         $result['parole_chiave'] = !empty($data['Tags']) ? trim($data['Tags']) : '';
 
+        // Series → collana + numero_serie
+        // LibraryThing format: "Series Name ; Number" or "Series Name (Number)" or just "Series Name"
+        if (!empty($data['Series'])) {
+            $series = trim($data['Series']);
+            if (preg_match('/^(.+?)\s*;\s*(\d+)\s*$/', $series, $m)) {
+                // "BookBlock : strumenti di autodifesa culturale ; 14"
+                $result['collana'] = trim($m[1]);
+                $result['numero_serie'] = $m[2];
+            } elseif (preg_match('/^(.+?)\s*\((\d+)\)\s*$/', $series, $m)) {
+                // "Harry Potter (3)"
+                $result['collana'] = trim($m[1]);
+                $result['numero_serie'] = $m[2];
+            } else {
+                $result['collana'] = $series;
+            }
+        }
+
         // Collections (LibraryThing categories, not actual book series - ignore or append to keywords)
         // Note: Collections like "Your library" are not useful, so we skip this field
         // If you want to import Collections, uncomment and map to parole_chiave:
