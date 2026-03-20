@@ -1008,7 +1008,21 @@ class BookRepository
             $cols['data_pubblicazione'] = (string) $data['scraped_pub_date'];
         }
         if ($this->hasColumn('collana') && !isset($cols['collana']) && !empty($data['scraped_series'])) {
-            $cols['collana'] = (string) $data['scraped_series'];
+            $rawSeries = trim((string) $data['scraped_series']);
+            $seriesNum = null;
+            // Split "Series Name ; Number" or "Series Name (Number)" into collana + numero_serie
+            if (preg_match('/^(.+?)\s*;\s*(\d+)\s*$/', $rawSeries, $sm)) {
+                $cols['collana'] = trim($sm[1]);
+                $seriesNum = $sm[2];
+            } elseif (preg_match('/^(.+?)\s*\((\d+)\)\s*$/', $rawSeries, $sm)) {
+                $cols['collana'] = trim($sm[1]);
+                $seriesNum = $sm[2];
+            } else {
+                $cols['collana'] = $rawSeries;
+            }
+            if ($seriesNum !== null && $this->hasColumn('numero_serie') && empty($data['numero_serie'])) {
+                $cols['numero_serie'] = $seriesNum;
+            }
         }
         if ($this->hasColumn('traduttore') && !isset($cols['traduttore']) && !empty($data['scraped_translator'])) {
             $cols['traduttore'] = (string) $data['scraped_translator'];
