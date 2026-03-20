@@ -11,25 +11,51 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class CollaneController
 {
     /**
+     * Check if the collane table exists (may not on partial migration).
+     */
+    private function hasCollaneTable(mysqli $db): bool
+    {
+        try {
+            $check = $db->query("SHOW TABLES LIKE 'collane'");
+            return $check !== false && $check->num_rows > 0;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /**
      * List all distinct collane with book counts.
      */
     public function index(Request $request, Response $response, mysqli $db): Response
     {
         $collane = [];
-        $result = $db->query("
-            SELECT combined.collana,
-                   COUNT(l.id) AS book_count,
-                   MIN(CAST(l.numero_serie AS UNSIGNED)) AS min_num,
-                   MAX(CAST(l.numero_serie AS UNSIGNED)) AS max_num
-            FROM (
-                SELECT collana FROM libri WHERE collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
-                UNION
-                SELECT nome AS collana FROM collane WHERE nome IS NOT NULL AND nome != ''
-            ) AS combined
-            LEFT JOIN libri l ON l.collana = combined.collana AND l.deleted_at IS NULL
-            GROUP BY combined.collana
-            ORDER BY combined.collana ASC
-        ");
+
+        if ($this->hasCollaneTable($db)) {
+            $result = $db->query("
+                SELECT combined.collana,
+                       COUNT(l.id) AS book_count,
+                       MIN(CAST(l.numero_serie AS UNSIGNED)) AS min_num,
+                       MAX(CAST(l.numero_serie AS UNSIGNED)) AS max_num
+                FROM (
+                    SELECT collana FROM libri WHERE collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
+                    UNION
+                    SELECT nome AS collana FROM collane WHERE nome IS NOT NULL AND nome != ''
+                ) AS combined
+                LEFT JOIN libri l ON l.collana = combined.collana AND l.deleted_at IS NULL
+                GROUP BY combined.collana
+                ORDER BY combined.collana ASC
+            ");
+        } else {
+            $result = $db->query("
+                SELECT collana, COUNT(*) AS book_count,
+                       MIN(CAST(numero_serie AS UNSIGNED)) AS min_num,
+                       MAX(CAST(numero_serie AS UNSIGNED)) AS max_num
+                FROM libri
+                WHERE collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
+                GROUP BY collana
+                ORDER BY collana ASC
+            ");
+        }
         if ($result) {
             while ($row = $result->fetch_assoc()) {
                 $collane[] = $row;
@@ -59,14 +85,16 @@ class CollaneController
 
         // Get collana metadata (description) from collane table
         $collanaDesc = '';
-        $stmtMeta = $db->prepare("SELECT descrizione FROM collane WHERE nome = ?");
-        if ($stmtMeta) {
-            $stmtMeta->bind_param('s', $collana);
-            $stmtMeta->execute();
-            $metaRes = $stmtMeta->get_result();
-            $metaRow = $metaRes->fetch_assoc();
-            $collanaDesc = $metaRow['descrizione'] ?? '';
-            $stmtMeta->close();
+        if ($this->hasCollaneTable($db)) {
+            $stmtMeta = $db->prepare("SELECT descrizione FROM collane WHERE nome = ?");
+            if ($stmtMeta) {
+                $stmtMeta->bind_param('s', $collana);
+                $stmtMeta->execute();
+                $metaRes = $stmtMeta->get_result();
+                $metaRow = $metaRes->fetch_assoc();
+                $collanaDesc = $metaRow['descrizione'] ?? '';
+                $stmtMeta->close();
+            }
         }
 
         $books = [];
@@ -127,11 +155,13 @@ class CollaneController
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
-        $stmt = $db->prepare("INSERT IGNORE INTO collane (nome) VALUES (?)");
-        if ($stmt) {
-            $stmt->bind_param('s', $nome);
-            $stmt->execute();
-            $stmt->close();
+        if ($this->hasCollaneTable($db)) {
+            $stmt = $db->prepare("INSERT IGNORE INTO collane (nome) VALUES (?)");
+            if ($stmt) {
+                $stmt->bind_param('s', $nome);
+                $stmt->execute();
+                $stmt->close();
+            }
         }
 
         $_SESSION['success_message'] = sprintf(__('Collana "%s" creata'), $nome);
@@ -163,14 +193,15 @@ class CollaneController
             $affected = $stmt->affected_rows;
             $stmt->close();
 
-            // Delete from collane table
-            $stmt2 = $db->prepare("DELETE FROM collane WHERE nome = ?");
-            if (!$stmt2) {
-                throw new \RuntimeException($db->error);
+            // Delete from collane table (if it exists)
+            if ($this->hasCollaneTable($db)) {
+                $stmt2 = $db->prepare("DELETE FROM collane WHERE nome = ?");
+                if ($stmt2) {
+                    $stmt2->bind_param('s', $nome);
+                    $stmt2->execute();
+                    $stmt2->close();
+                }
             }
-            $stmt2->bind_param('s', $nome);
-            $stmt2->execute();
-            $stmt2->close();
 
             $db->commit();
             $_SESSION['success_message'] = sprintf(__('Collana "%s" eliminata (%d libri aggiornati)'), $nome, $affected);
@@ -196,6 +227,10 @@ class CollaneController
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
+        if (!$this->hasCollaneTable($db)) {
+            $_SESSION['error_message'] = __('Errore database');
+            return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($nome)))->withStatus(302);
+        }
         $stmt = $db->prepare("INSERT INTO collane (nome, descrizione) VALUES (?, ?) ON DUPLICATE KEY UPDATE descrizione = VALUES(descrizione)");
         if ($stmt) {
             $stmt->bind_param('ss', $nome, $descrizione);
@@ -232,14 +267,15 @@ class CollaneController
             $affected = $stmt->affected_rows;
             $stmt->close();
 
-            // Sync collane table
-            $stmtSync = $db->prepare("UPDATE collane SET nome = ? WHERE nome = ?");
-            if (!$stmtSync) {
-                throw new \RuntimeException($db->error);
+            // Sync collane table (if it exists)
+            if ($this->hasCollaneTable($db)) {
+                $stmtSync = $db->prepare("UPDATE collane SET nome = ? WHERE nome = ?");
+                if ($stmtSync) {
+                    $stmtSync->bind_param('ss', $newName, $oldName);
+                    $stmtSync->execute();
+                    $stmtSync->close();
+                }
             }
-            $stmtSync->bind_param('ss', $newName, $oldName);
-            $stmtSync->execute();
-            $stmtSync->close();
 
             $db->commit();
             $_SESSION['success_message'] = sprintf(__('Collana rinominata: %d libri aggiornati'), $affected);
@@ -277,14 +313,15 @@ class CollaneController
             $affected = $stmt->affected_rows;
             $stmt->close();
 
-            // Delete source collane entry, keep target
-            $stmtDel = $db->prepare("DELETE FROM collane WHERE nome = ?");
-            if (!$stmtDel) {
-                throw new \RuntimeException($db->error);
+            // Delete source collane entry, keep target (if table exists)
+            if ($this->hasCollaneTable($db)) {
+                $stmtDel = $db->prepare("DELETE FROM collane WHERE nome = ?");
+                if ($stmtDel) {
+                    $stmtDel->bind_param('s', $source);
+                    $stmtDel->execute();
+                    $stmtDel->close();
+                }
             }
-            $stmtDel->bind_param('s', $source);
-            $stmtDel->execute();
-            $stmtDel->close();
 
             $db->commit();
             $_SESSION['success_message'] = sprintf(__('Collane unite: %d libri spostati in "%s"'), $affected, $target);
@@ -373,23 +410,39 @@ class CollaneController
         $results = [];
 
         if (strlen($q) >= 1) {
-            // Search in collane table first, then in distinct libri.collana
             $search = '%' . $q . '%';
-            $stmt = $db->prepare("
-                SELECT DISTINCT nome FROM (
-                    SELECT nome FROM collane WHERE nome LIKE ?
-                    UNION
-                    SELECT collana AS nome FROM libri WHERE collana LIKE ? AND collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
-                ) AS combined ORDER BY nome LIMIT 10
-            ");
-            if ($stmt) {
-                $stmt->bind_param('ss', $search, $search);
-                $stmt->execute();
-                $res = $stmt->get_result();
-                while ($row = $res->fetch_assoc()) {
-                    $results[] = $row['nome'];
+            if ($this->hasCollaneTable($db)) {
+                $stmt = $db->prepare("
+                    SELECT DISTINCT nome FROM (
+                        SELECT nome FROM collane WHERE nome LIKE ?
+                        UNION
+                        SELECT collana AS nome FROM libri WHERE collana LIKE ? AND collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
+                    ) AS combined ORDER BY nome LIMIT 10
+                ");
+                if ($stmt) {
+                    $stmt->bind_param('ss', $search, $search);
+                    $stmt->execute();
+                    $res = $stmt->get_result();
+                    while ($row = $res->fetch_assoc()) {
+                        $results[] = $row['nome'];
+                    }
+                    $stmt->close();
                 }
-                $stmt->close();
+            } else {
+                $stmt = $db->prepare("
+                    SELECT DISTINCT collana AS nome FROM libri
+                    WHERE collana LIKE ? AND collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
+                    ORDER BY collana LIMIT 10
+                ");
+                if ($stmt) {
+                    $stmt->bind_param('s', $search);
+                    $stmt->execute();
+                    $res = $stmt->get_result();
+                    while ($row = $res->fetch_assoc()) {
+                        $results[] = $row['nome'];
+                    }
+                    $stmt->close();
+                }
             }
         }
 
