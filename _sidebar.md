@@ -30,3 +30,6 @@
   * [Requisiti di Sistema](tecnico/requisiti.md)
   * [API SRU](tecnico/sru.md)
   * [Sviluppo Plugin](tecnico/plugin-dev.md)
+
+* **Release**
+  * [Changelog](releases/changelog.md)
