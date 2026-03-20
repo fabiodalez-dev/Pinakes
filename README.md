@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.0-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.1-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,44 +24,61 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.5.0
+## What's New in v0.5.1
 
-### 🔍 SEO & LLM Readiness, Schema.org Enrichment, Curator Field
+### 📚 ISSN, Series Management, Multi-Volume Works (#75)
 
-**SEO & AI Search Optimization:**
-- **Hreflang alternate tags** — Every frontend page emits `<link rel="alternate" hreflang>` for all active locales plus `x-default`, with static in-memory caching for zero filesystem I/O per request
-- **RSS 2.0 feed** — `/feed.xml` endpoint with the latest 50 books (title, author, description, publication date), autodiscovery `<link>` in layout
-- **Dynamic `/llms.txt`** — Admin-toggleable endpoint following the [llmstxt.org](https://llmstxt.org) spec, providing AI crawlers with structured library metadata and navigation
-- **Sitemap expansion** — Events now included with locale-prefixed URLs; feed.xml as global entry
-- **Cache-Control headers** — All SEO endpoints (feed, sitemap, robots.txt, llms.txt) now set appropriate cache headers
-- **Host header validation** — RFC 1123 hostname validation on both PSR-7 and `$_SERVER` paths to prevent host header injection
+**ISSN Field:**
+- **New ISSN field** on book form with XXXX-XXXX validation (server-side + client-side)
+- **Displayed on frontend** book detail and in public API responses
+- **Schema.org** `issn` property emitted in JSON-LD
 
-**Schema.org JSON-LD Enrichment:**
-- **Book `sameAs`** — Populated with real URLs from ISBN (OpenLibrary, Google Books, WorldCat)
-- **All authors with roles** — Schema.org `author`, `translator`, `illustrator`, `editor` properties mapped from contributor roles
-- **`bookEdition`** — Included from the edition field
-- **`datePublished`** — Properly cast to ISO 8601 string
-- **Conditional `Offer`** — Only emitted when a book has a price (library lending is not a sale)
-- **Configurable currency** — `priceCurrency` now reads from `app.currency` setting (was hardcoded EUR)
-- **Event `location` + timezone** — Event schema now includes `Place` with library name/address and ISO 8601 timezone offset on `startDate`
+**Series (Collane) Management:**
+- **Admin page** `/admin/collane` — List all series with book counts, create, rename, merge, delete
+- **Series detail** page — Description editor, book list with volume numbers, autocomplete merge
+- **Bulk assign** — Select multiple books and assign to a series from the book list
+- **Search autocomplete** — Series name suggestions in merge and bulk assign dialogs
+- **Empty series preserved** — Series with no books still appear in the admin list
+- **Frontend "Same series"** section — Book detail shows other books in the same series
 
-**New `curatore` (Curator) Field:**
-- **Database column** — `curatore VARCHAR(255)` on `libri` table
-- **Author role** — `curatore` added to `libri_autori.ruolo` ENUM
-- **Book form** — New input field alongside translator and illustrator
-- **Admin detail** — Displayed in book detail view
-- **Schema.org** — Mapped to `editor` property with deduplication against `libri_autori` roles
-- **Translations** — EN: "Curator", DE: "Kurator"
+**Multi-Volume Works:**
+- **`volumi` table** — Links parent works to individual volumes with volume numbers
+- **Admin UI** — Add/remove volumes via search modal, volume table on book detail
+- **Parent work badge** — "This book is volume X of Work Y" badge with link
+- **Cycle prevention** — Full ancestor-chain walk prevents circular relationships
+- **Create from collana** — One-click creation of parent work from a series page
 
-**Bug Fixes:**
-- **CSV `\r` column shift (#83)** — Carriage returns in fields no longer break column alignment
-- **Admin genre display (#90)** — Separate clickable genre links with arrow separator, filter badge shows name instead of `#ID`
-- **`co-autore` sort fix** — CASE expression in author ordering now matches the actual ENUM value (was `coautore` without hyphen)
-- **SecureLogger consistency** — All new `error_log()` calls replaced with `SecureLogger::warning()` per project convention
+**Import Improvements:**
+- **LibraryThing Series parsing** — Splits `"Series Name ; Number"` into separate collana + numero_serie
+- **Scraping series split** — Same parsing for ISBN scraping results
+- **CSV/TSV import** — `collana` field already supported with multilingual aliases
+
+**Bug Fixes & Improvements:**
+- **ISSN validation** — Explicit error message instead of silent discard
+- **Transactions** — Delete, rename, merge collane wrapped in DB transactions
+- **Error handling** — execute() results checked in all AJAX endpoints
+- **Soft-delete guards** — addVolume rejects deleted books, updateOptionals includes guard
+- **Migration resilience** — `hasCollaneTable()` guard for partial migration scenarios
+- **Non-numeric volume sorting** — Special volumes sort after numbered ones
+- **Unified search fix** — Add-volume modal correctly parses flat array response
 
 ---
 
 ## Previous Releases
+
+<details>
+<summary><strong>v0.5.0</strong> - SEO & LLM Readiness, Schema.org Enrichment, Curator Field</summary>
+
+### 🔍 SEO & LLM Readiness, Schema.org Enrichment, Curator Field
+
+- **Hreflang alternate tags** on all frontend pages
+- **RSS 2.0 feed** at `/feed.xml`
+- **Dynamic `/llms.txt`** endpoint (admin-toggleable)
+- **Schema.org enrichment** — Book `sameAs`, all author roles, `bookEdition`, conditional `Offer`
+- **New `curatore` field** — Database, form, admin detail, Schema.org `editor`
+- **CSV column shift fix (#83)**, admin genre display fix (#90)
+
+</details>
 
 <details>
 <summary><strong>v0.4.9.9</strong> - Social Sharing, Genre Navigation, Search Improvements</summary>

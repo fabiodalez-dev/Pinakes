@@ -435,6 +435,8 @@ migrate_0.4.7.sql    # LibraryThing comprehensive migration (25+ fields, indexes
 migrate_0.4.8.1.sql  # Import logs tracking system (import_logs table + composite index)
 migrate_0.4.8.2.sql  # Illustratore field, lingua expansion, language normalization, anno_pubblicazione signed
 migrate_0.4.9.9.sql  # descrizione_plain column, social sharing settings, plugin_hooks unique index
+migrate_0.5.0.sql    # curatore column, llms_txt_enabled setting, issn column, RSS feed settings
+migrate_0.5.1.sql    # volumi table, collane table, idx_collana index
 ```
 
 See `installer/database/migrations/README.md` for detailed migration documentation.
@@ -1069,6 +1071,8 @@ Or when a patch is applied:
 
 | Version | Changes |
 |---------|---------|
+| 0.5.1 | Migrations: `volumi` table (multi-volume works), `collane` table (series metadata), `idx_collana` index. Features: ISSN field with validation, series management admin page (CRUD, merge, bulk assign, autocomplete), multi-volume works (add/remove volumes, cycle prevention, parent work creation), LibraryThing/scraping series parsing, frontend "same series" section. Bug fixes: ISSN explicit validation error, transactions on collane operations, soft-delete guards, hasCollaneTable() resilience, non-numeric volume sorting, unified search response parsing. |
+| 0.5.0 | Migrations: `curatore` column, `llms_txt_enabled` setting, `issn` column, RSS feed settings. Features: Hreflang alternate tags, RSS 2.0 feed, dynamic /llms.txt, Schema.org enrichment (sameAs, all author roles, bookEdition, conditional Offer, event location), curator field, host header validation. Bug fixes: CSV column shift (#83), admin genre display (#90), co-autore sort. |
 | 0.4.9.9 | Migrations: `descrizione_plain` column for HTML-free search (strip_tags backfill via PHP), social sharing default settings. Features: Configurable social share buttons on book detail (Facebook, X, WhatsApp, Telegram, LinkedIn, Reddit, Pinterest, Email, Copy Link, Web Share API) with Admin Settings > Sharing tab and live preview. Genre breadcrumb navigation on catalog/detail pages. Genre filter by ID fix (500 error). Digital Library plugin v1.3.0: inline PDF viewer (iframe-based, zero deps), ePub download fix. |
 | 0.4.9.7 | Re-release of 0.4.9.6 to ensure bundled plugin updates propagate to installations that updated from pre-0.4.9.6 (older Updater lacked updateBundledPlugins) |
 | 0.4.9.6 | Comprehensive codebase review: URL scheme validation, proxy-aware HTTPS in installer, bcrypt 72-byte limit, atomic RateLimiter with flock, guarded recalculateBookAvailability/RELEASE_LOCK calls, DashboardStats cache failure throw, language-switcher logging, config charset in SET NAMES |
