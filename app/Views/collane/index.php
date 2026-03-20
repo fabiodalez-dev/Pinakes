@@ -104,7 +104,7 @@ use App\Support\HtmlHelper;
             </span>
           </td>
           <td class="px-6 py-4 text-center text-sm text-gray-500">
-            <?php if ($c['min_num'] && $c['max_num']): ?>
+            <?php if ($c['min_num'] !== null && $c['max_num'] !== null): ?>
               <?= (int) $c['min_num'] ?> – <?= (int) $c['max_num'] ?>
             <?php else: ?>
               —

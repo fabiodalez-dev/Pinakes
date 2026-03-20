@@ -1497,6 +1497,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           const resultsDiv = document.getElementById('swal-volume-results');
           let debounce;
           input.addEventListener('input', () => {
+            document.getElementById('swal-volume-id').value = '';
             clearTimeout(debounce);
             debounce = setTimeout(async () => {
               const q = input.value.trim();

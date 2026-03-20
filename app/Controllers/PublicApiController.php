@@ -47,7 +47,7 @@ class PublicApiController
                 'api_key_name' => $apiKeyData['name'] ?? 'Unknown'
             ], $response);
         } catch (\Throwable $e) {
-            error_log('Public API error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            \App\Support\SecureLogger::error('Public API error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             return $this->jsonError(__('Internal server error'), 500, $response);
         }
     }

@@ -2004,6 +2004,21 @@ class LibriController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
+        // Verify both books exist and are not soft-deleted
+        $bookCheck = $db->prepare("SELECT COUNT(*) AS cnt FROM libri WHERE id IN (?, ?) AND deleted_at IS NULL");
+        if (!$bookCheck) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        }
+        $bookCheck->bind_param('ii', $operaId, $volumeId);
+        $bookCheck->execute();
+        $bookRow = $bookCheck->get_result()->fetch_assoc();
+        $bookCheck->close();
+        if ((int) ($bookRow['cnt'] ?? 0) !== 2) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Libro non valido o eliminato')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
         // Prevent cycles: walk ancestor chain from opera_id to detect if volume_id is an ancestor
         $ancestor = $operaId;
         $visited = [$operaId => true];
@@ -2030,7 +2045,7 @@ class LibriController
             $visited[$ancestor] = true;
         }
 
-        $stmt = $db->prepare("INSERT INTO volumi (opera_id, volume_id, numero_volume) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE numero_volume = VALUES(numero_volume)");
+        $stmt = $db->prepare("INSERT INTO volumi (opera_id, volume_id, numero_volume) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE opera_id = VALUES(opera_id), numero_volume = VALUES(numero_volume)");
         if (!$stmt) {
             $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');

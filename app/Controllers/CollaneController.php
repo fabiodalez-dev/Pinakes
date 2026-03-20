@@ -234,8 +234,12 @@ class CollaneController
         $stmt = $db->prepare("INSERT INTO collane (nome, descrizione) VALUES (?, ?) ON DUPLICATE KEY UPDATE descrizione = VALUES(descrizione)");
         if ($stmt) {
             $stmt->bind_param('ss', $nome, $descrizione);
-            $stmt->execute();
+            $ok = $stmt->execute();
             $stmt->close();
+            if (!$ok) {
+                $_SESSION['error_message'] = __('Errore database');
+                return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($nome)))->withStatus(302);
+            }
         }
 
         $_SESSION['success_message'] = __('Descrizione salvata');
@@ -386,9 +390,14 @@ class CollaneController
             $types = 's' . str_repeat('i', count($bookIds));
             $params = array_merge([$collana], $bookIds);
             $stmt->bind_param($types, ...$params);
-            $stmt->execute();
+            $ok = $stmt->execute();
             $affected = $stmt->affected_rows;
             $stmt->close();
+
+            if (!$ok) {
+                $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+                return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+            }
 
             $response->getBody()->write(json_encode([
                 'success' => true,
@@ -481,17 +490,43 @@ class CollaneController
         }
 
         // Link all books in the collana as volumes
-        $volNum = 1;
         $linkedCount = 0;
         $stmtBooks = $db->prepare("SELECT id, numero_serie FROM libri WHERE collana = ? AND id != ? AND deleted_at IS NULL ORDER BY CAST(numero_serie AS UNSIGNED), titolo");
         if ($stmtBooks) {
             $stmtBooks->bind_param('si', $collana, $parentId);
             $stmtBooks->execute();
             $result = $stmtBooks->get_result();
-            $stmtInsert = $db->prepare("INSERT IGNORE INTO volumi (opera_id, volume_id, numero_volume) VALUES (?, ?, ?)");
+
+            // Fetch all rows first to collect used volume numbers
+            $rows = [];
             while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $stmtBooks->close();
+
+            // Build set of used numero_serie values
+            $usedNumbers = [];
+            foreach ($rows as $row) {
+                if (!empty($row['numero_serie'])) {
+                    $usedNumbers[(int) $row['numero_serie']] = true;
+                }
+            }
+
+            $stmtInsert = $db->prepare("INSERT IGNORE INTO volumi (opera_id, volume_id, numero_volume) VALUES (?, ?, ?)");
+            $nextFree = 1;
+            foreach ($rows as $row) {
                 $bookId = (int) $row['id'];
-                $num = (int) ($row['numero_serie'] ?: $volNum);
+                if (!empty($row['numero_serie'])) {
+                    $num = (int) $row['numero_serie'];
+                } else {
+                    // Find next free number not already used
+                    while (isset($usedNumbers[$nextFree])) {
+                        $nextFree++;
+                    }
+                    $num = $nextFree;
+                    $usedNumbers[$nextFree] = true;
+                    $nextFree++;
+                }
                 if ($stmtInsert) {
                     $stmtInsert->bind_param('iii', $parentId, $bookId, $num);
                     $stmtInsert->execute();
@@ -499,12 +534,10 @@ class CollaneController
                         $linkedCount++;
                     }
                 }
-                $volNum++;
             }
             if ($stmtInsert) {
                 $stmtInsert->close();
             }
-            $stmtBooks->close();
         }
 
         $_SESSION['success_message'] = sprintf(__('Opera "%s" creata con %d volumi'), $parentTitle, $linkedCount);

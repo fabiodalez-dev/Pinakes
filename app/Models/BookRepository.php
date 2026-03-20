@@ -1045,7 +1045,7 @@ class BookRepository
                 $vals[] = (string) $v;
             }
         }
-        $sql = 'UPDATE libri SET ' . implode(', ', $set) . ', updated_at=NOW() WHERE id=?';
+        $sql = 'UPDATE libri SET ' . implode(', ', $set) . ', updated_at=NOW() WHERE id=? AND deleted_at IS NULL';
         $types .= 'i';
         $vals[] = $bookId;
         $stmt = $this->db->prepare($sql);
