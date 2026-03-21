@@ -366,13 +366,19 @@ class BookRepository
             $addField('edizione', 's', $data['edizione'] ?? null);
         }
         if ($this->hasColumn('traduttore')) {
-            $addField('traduttore', 's', $data['traduttore'] ?? null);
+            $val = $data['traduttore'] ?? null;
+            $val = is_string($val) ? trim($val) : null;
+            $addField('traduttore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
         if ($this->hasColumn('illustratore')) {
-            $addField('illustratore', 's', $data['illustratore'] ?? null);
+            $val = $data['illustratore'] ?? null;
+            $val = is_string($val) ? trim($val) : null;
+            $addField('illustratore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
         if ($this->hasColumn('curatore')) {
-            $addField('curatore', 's', $data['curatore'] ?? null);
+            $val = $data['curatore'] ?? null;
+            $val = is_string($val) ? trim($val) : null;
+            $addField('curatore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
         if ($this->hasColumn('numero_pagine')) {
             $numPagineRaw = $data['numero_pagine'] ?? null;
@@ -699,13 +705,19 @@ class BookRepository
             $addSet('edizione', 's', $data['edizione'] ?? null);
         }
         if ($this->hasColumn('traduttore')) {
-            $addSet('traduttore', 's', $data['traduttore'] ?? null);
+            $val = $data['traduttore'] ?? null;
+            $val = is_string($val) ? trim($val) : null;
+            $addSet('traduttore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
         if ($this->hasColumn('illustratore')) {
-            $addSet('illustratore', 's', $data['illustratore'] ?? null);
+            $val = $data['illustratore'] ?? null;
+            $val = is_string($val) ? trim($val) : null;
+            $addSet('illustratore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
         if ($this->hasColumn('curatore')) {
-            $addSet('curatore', 's', $data['curatore'] ?? null);
+            $val = $data['curatore'] ?? null;
+            $val = is_string($val) ? trim($val) : null;
+            $addSet('curatore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
         if ($this->hasColumn('numero_pagine')) {
             $numPagineRaw = $data['numero_pagine'] ?? null;
@@ -989,6 +1001,8 @@ class BookRepository
                     if ($validated !== false) {
                         $cols[$c] = $validated;
                     }
+                } elseif (in_array($c, ['traduttore', 'illustratore', 'curatore'], true)) {
+                    $cols[$c] = \App\Support\AuthorNormalizer::normalize((string) $data[$c]);
                 } else {
                     $cols[$c] = $data[$c];
                 }
@@ -1025,10 +1039,10 @@ class BookRepository
             }
         }
         if ($this->hasColumn('traduttore') && !isset($cols['traduttore']) && !empty($data['scraped_translator'])) {
-            $cols['traduttore'] = (string) $data['scraped_translator'];
+            $cols['traduttore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_translator']);
         }
         if ($this->hasColumn('illustratore') && !isset($cols['illustratore']) && !empty($data['scraped_illustrator'])) {
-            $cols['illustratore'] = (string) $data['scraped_illustrator'];
+            $cols['illustratore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_illustrator']);
         }
         if (!$cols)
             return;
