@@ -697,13 +697,13 @@ class LibraryThingImportController
         // Subtitle (LibraryThing doesn't export subtitles, leave empty)
         $result['sottotitolo'] = '';
 
-        // Authors (combine primary and secondary)
+        // Authors (combine primary and secondary, normalize names)
         $authors = [];
         if (!empty($data['Primary Author'])) {
-            $authors[] = trim($data['Primary Author']);
+            $authors[] = \App\Support\AuthorNormalizer::normalize(trim($data['Primary Author']));
         }
         if (!empty($data['Secondary Author'])) {
-            $authors[] = trim($data['Secondary Author']);
+            $authors[] = \App\Support\AuthorNormalizer::normalize(trim($data['Secondary Author']));
         }
         $result['autori'] = !empty($authors) ? implode('|', $authors) : '';
 
@@ -788,6 +788,9 @@ class LibraryThingImportController
 
         // Description/Summary
         $result['descrizione'] = !empty($data['Summary']) ? trim($data['Summary']) : '';
+        if (!empty($result['descrizione'])) {
+            $result['descrizione_plain'] = strip_tags($result['descrizione']);
+        }
 
         // Format/Media
         if (!empty($data['Media'])) {
@@ -911,6 +914,14 @@ class LibraryThingImportController
         $result['oclc'] = !empty($data['OCLC']) ? trim($data['OCLC']) : '';
         $result['work_id'] = !empty($data['Work id']) ? trim($data['Work id']) : '';
         $result['issn'] = !empty($data['ISSN']) ? trim($data['ISSN']) : '';
+        // Normalize ISSN to canonical XXXX-XXXX format (same logic as LibriController)
+        if (!empty($result['issn'])) {
+            $issnCompact = strtoupper(str_replace('-', '', preg_replace('/\s+/', '', $result['issn'])));
+            if (preg_match('/^\d{7}[\dX]$/', $issnCompact)) {
+                $result['issn'] = substr($issnCompact, 0, 4) . '-' . substr($issnCompact, 4, 4);
+            }
+            // If invalid format, keep raw value (import shouldn't fail on bad ISSN)
+        }
 
         // Languages
         $result['original_languages'] = !empty($data['Original Languages']) ? trim($data['Original Languages']) : '';
@@ -1136,7 +1147,7 @@ class LibraryThingImportController
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?, formato = ?, prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?, descrizione_plain = ?, formato = ?, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, peso = ?, dimensioni = ?, data_acquisizione = ?,
                     review = ?, rating = ?, comment = ?, private_comment = ?,
@@ -1151,6 +1162,8 @@ class LibraryThingImportController
                 WHERE id = ?
             ");
 
+            $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize($data['traduttore']) : null;
+
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
                 !empty($data['isbn13']) ? $data['isbn13'] : null,
@@ -1163,12 +1176,13 @@ class LibraryThingImportController
                 !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
                 $genreId,
                 !empty($data['descrizione']) ? $data['descrizione'] : null,
+                !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null,
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
                 !empty($data['numero_serie']) ? $data['numero_serie'] : null,
-                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                $traduttore,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
                 // Native fields from LibraryThing mapping
@@ -1203,11 +1217,12 @@ class LibraryThingImportController
                 $bookId
             ];
 
-            // Type string: 47 characters matching params (s=string, i=int, d=double)
+            // Type string: 48 characters matching params (s=string, i=int, d=double)
             // isbn10,isbn13,ean,titolo,sottotitolo,anno_pubblicazione,lingua,edizione,numero_pagine,genreId,
-            // descrizione,formato,prezzo,editoreId,collana,numero_serie,traduttore,parole_chiave,classificazione_dewey,
-            // peso,dimensioni,data_acquisizione,review,rating,comment...lending_end(19),value,condition_lt,entry_date,bookId
-            $types = 'sssssissiissdisssssdsssisssssssssssssssssssdssi';
+            // descrizione,descrizione_plain,formato,prezzo,editoreId,collana,numero_serie,traduttore,parole_chiave,
+            // classificazione_dewey,peso,dimensioni,data_acquisizione,review,rating,comment...lending_end(19),
+            // value,condition_lt,entry_date,bookId
+            $types = 'sssssissiisssdisssssdsssisssssssssssssssssssdssi';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic update without LibraryThing fields (plugin not installed)
@@ -1215,11 +1230,13 @@ class LibraryThingImportController
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?, formato = ?, prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?, descrizione_plain = ?, formato = ?, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, updated_at = NOW()
                 WHERE id = ?
             ");
+
+            $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize($data['traduttore']) : null;
 
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
@@ -1233,18 +1250,19 @@ class LibraryThingImportController
                 !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
                 $genreId,
                 !empty($data['descrizione']) ? $data['descrizione'] : null,
+                !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null,
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
                 !empty($data['numero_serie']) ? $data['numero_serie'] : null,
-                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                $traduttore,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
                 $bookId
             ];
 
-            $types = 'sssssissiissdisssssi';
+            $types = 'sssssissiisssdisssssi';
             $stmt->bind_param($types, ...$params);
         }
 
@@ -1269,7 +1287,7 @@ class LibraryThingImportController
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione, formato,
+                    lingua, edizione, numero_pagine, genere_id, descrizione, descrizione_plain, formato,
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     peso, dimensioni, data_acquisizione,
@@ -1283,7 +1301,7 @@ class LibraryThingImportController
                     value, condition_lt, entry_date,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?, ?,
                     ?,
@@ -1297,6 +1315,8 @@ class LibraryThingImportController
                 )
             ");
 
+            $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize($data['traduttore']) : null;
+
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
                 !empty($data['isbn13']) ? $data['isbn13'] : null,
@@ -1309,6 +1329,7 @@ class LibraryThingImportController
                 !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
                 $genreId,
                 !empty($data['descrizione']) ? $data['descrizione'] : null,
+                !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null,
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
@@ -1316,7 +1337,7 @@ class LibraryThingImportController
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
                 !empty($data['numero_serie']) ? $data['numero_serie'] : null,
-                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                $traduttore,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
                 // Native fields from LibraryThing mapping
@@ -1350,26 +1371,28 @@ class LibraryThingImportController
                 !empty($data['entry_date']) ? $data['entry_date'] : null
             ];
 
-            // Type string: 48 characters matching params (s=string, i=int, d=double)
+            // Type string: 49 characters matching params (s=string, i=int, d=double)
             // isbn10,isbn13,ean,titolo,sottotitolo,anno_pubblicazione,lingua,edizione,numero_pagine,genreId,
-            // descrizione,formato,prezzo,copie,copie_disponibili,editoreId,collana,numero_serie,traduttore,
-            // parole_chiave,classificazione_dewey,peso,dimensioni,data_acquisizione,review,rating,
-            // comment...lending_end(19),value,condition_lt,entry_date
-            $types = 'sssssissiissdiiisssssdsssisssssssssssssssssssdss';
+            // descrizione,descrizione_plain,formato,prezzo,copie,copie_disponibili,editoreId,collana,
+            // numero_serie,traduttore,parole_chiave,classificazione_dewey,peso,dimensioni,data_acquisizione,
+            // review,rating,comment...lending_end(19),value,condition_lt,entry_date
+            $types = 'sssssissiisssdiiisssssdsssisssssssssssssssssssdss';
             $stmt->bind_param($types, ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione, formato,
+                    lingua, edizione, numero_pagine, genere_id, descrizione, descrizione_plain, formato,
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
                 )
             ");
+
+            $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize($data['traduttore']) : null;
 
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
@@ -1383,6 +1406,7 @@ class LibraryThingImportController
                 !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
                 $genreId,
                 !empty($data['descrizione']) ? $data['descrizione'] : null,
+                !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null,
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
@@ -1390,12 +1414,12 @@ class LibraryThingImportController
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
                 !empty($data['numero_serie']) ? $data['numero_serie'] : null,
-                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                $traduttore,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null
             ];
 
-            $types = 'sssssissiissdiiisssss';
+            $types = 'sssssissiisssdiiisssss';
             $stmt->bind_param($types, ...$params);
         }
 

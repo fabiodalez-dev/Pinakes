@@ -251,6 +251,10 @@ if ($bookISBN) {
     $bookSchema["isbn"] = $bookISBN;
 }
 
+if (!empty($book['issn'])) {
+    $bookSchema["issn"] = $book['issn'];
+}
+
 if ($bookPages) {
     $bookSchema["numberOfPages"] = (int)$bookPages;
 }

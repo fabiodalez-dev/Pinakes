@@ -276,8 +276,11 @@ class CollaneController
                 $stmtSync = $db->prepare("UPDATE collane SET nome = ? WHERE nome = ?");
                 if ($stmtSync) {
                     $stmtSync->bind_param('ss', $newName, $oldName);
-                    $stmtSync->execute();
+                    $ok = $stmtSync->execute();
                     $stmtSync->close();
+                    if (!$ok) {
+                        throw new \RuntimeException('Collane sync failed: ' . $db->error);
+                    }
                 }
             }
 
