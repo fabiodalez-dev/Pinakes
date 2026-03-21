@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.1-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.2-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,7 +24,20 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.5.1
+## What's New in v0.5.2
+
+### 🔧 Name Normalization for Translators, Illustrators, Curators (#93)
+
+- **`AuthorNormalizer`** applied to translator, illustrator, and curator fields on create, update, and scraping import
+- **Client-side normalization** — "Surname, Name" format from ISBN scraping converted to "Name Surname" for translator and illustrator fields in the book form
+- **Shared `normalizeAuthorName()`** — JS helper extracted and reused across authors, translator, illustrator
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.5.1</strong> - ISSN, Series Management, Multi-Volume Works (#75)</summary>
 
 ### 📚 ISSN, Series Management, Multi-Volume Works (#75)
 
@@ -62,9 +75,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Non-numeric volume sorting** — Special volumes sort after numbered ones
 - **Unified search fix** — Add-volume modal correctly parses flat array response
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.5.0</strong> - SEO & LLM Readiness, Schema.org Enrichment, Curator Field</summary>
