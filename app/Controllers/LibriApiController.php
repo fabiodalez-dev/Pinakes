@@ -43,7 +43,7 @@ class LibriApiController
                 ? "CONCAT(a.nome, ' ', a.cognome)"
                 : 'a.nome';
             $descExpr = $this->hasTableColumn($db, 'libri', 'descrizione_plain')
-                ? 'COALESCE(l.descrizione_plain, l.descrizione)'
+                ? "COALESCE(NULLIF(l.descrizione_plain, ''), l.descrizione)"
                 : 'l.descrizione';
             $where .= " AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR {$descExpr} LIKE ? OR l.parole_chiave LIKE ? OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id=a.id WHERE la.libro_id=l.id AND $nameExpr LIKE ?)) ";
             $searchParam = '%' . $search_text . '%';

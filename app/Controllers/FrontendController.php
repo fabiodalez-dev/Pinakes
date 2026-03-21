@@ -26,7 +26,7 @@ class FrontendController
             self::$hasDescrizionePlain = $result && $result->num_rows > 0;
         }
         return self::$hasDescrizionePlain
-            ? 'COALESCE(l.descrizione_plain, l.descrizione)'
+            ? "COALESCE(NULLIF(l.descrizione_plain, ''), l.descrizione)"
             : 'l.descrizione';
     }
 
