@@ -160,9 +160,20 @@ class ProfileController
         // Update user — only include locale in SQL when the field was posted
         if ($localeProvided) {
             $stmt = $db->prepare("UPDATE utenti SET nome = ?, cognome = ?, telefono = ?, data_nascita = ?, cod_fiscale = ?, sesso = ?, indirizzo = ?, locale = ? WHERE id = ?");
-            $stmt->bind_param('ssssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $locale, $uid);
         } else {
             $stmt = $db->prepare("UPDATE utenti SET nome = ?, cognome = ?, telefono = ?, data_nascita = ?, cod_fiscale = ?, sesso = ?, indirizzo = ? WHERE id = ?");
+        }
+        if (!$stmt) {
+            SecureLogger::error('ProfileController: prepare failed for profile update', [
+                'user_id' => $uid,
+                'db_error' => $db->error
+            ]);
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=server')->withStatus(302);
+        }
+        if ($localeProvided) {
+            $stmt->bind_param('ssssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $locale, $uid);
+        } else {
             $stmt->bind_param('sssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $uid);
         }
 
