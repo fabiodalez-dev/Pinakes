@@ -164,6 +164,8 @@ class ProfileController
             // Apply locale change immediately
             if ($locale !== null) {
                 $_SESSION['locale'] = $locale;
+            } else {
+                unset($_SESSION['locale']);
             }
         } else {
             error_log("Profile update error for user $uid: " . $stmt->error);

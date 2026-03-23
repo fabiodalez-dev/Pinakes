@@ -91,9 +91,10 @@ class RememberMeMiddleware implements MiddlewareInterface
             'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
         ];
 
-        // Load user's preferred locale into session
+        // Load and apply user's preferred locale for this request
         if (!empty($row['locale'])) {
             $_SESSION['locale'] = $row['locale'];
+            \App\Support\I18n::setLocale((string) $row['locale']);
         }
 
         // Log auto-login for security auditing (no PII logged per GDPR)

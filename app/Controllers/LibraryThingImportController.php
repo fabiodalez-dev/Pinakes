@@ -1156,7 +1156,6 @@ class LibraryThingImportController
             $hasDescPlain = true;
         }
         $descPlainSet = $hasDescPlain ? ', descrizione_plain = ?' : '';
-        $descPlainType = $hasDescPlain ? 's' : '';
 
         if ($hasLTFields) {
             // Full update with all LibraryThing fields
@@ -1301,7 +1300,6 @@ class LibraryThingImportController
         }
         $descPlainCol = $hasDescPlain ? ', descrizione_plain' : '';
         $descPlainVal = $hasDescPlain ? ', ?' : '';
-        $descPlainType = $hasDescPlain ? 's' : '';
 
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         if ($copie < 1) {
