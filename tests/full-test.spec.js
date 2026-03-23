@@ -2372,13 +2372,20 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
   test('18.11 #83: Admin search finds books by description', async () => {
     const targetId = state.createdBookIds[0];
     test.skip(!targetId, 'No seeded book id available');
-    const marker = `desc-${RUN_ID}`;
-    dbQuery(`UPDATE libri SET descrizione='${marker}', descrizione_plain='${marker}' WHERE id=${targetId}`);
+    const searchTerm = `desc ${RUN_ID}`;
+    // HTML in descrizione breaks the contiguous token — only descrizione_plain is searchable
+    const hasDescPlain = dbQuery(`
+      SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'libri' AND COLUMN_NAME = 'descrizione_plain'
+    `) === '1';
+    if (hasDescPlain) {
+      dbQuery(`UPDATE libri SET descrizione='<p>desc<strong>${RUN_ID}</strong></p>', descrizione_plain='${searchTerm}' WHERE id=${targetId}`);
+    } else {
+      dbQuery(`UPDATE libri SET descrizione='${searchTerm}' WHERE id=${targetId}`);
+    }
 
     await page.goto(`${BASE}/admin/libri`);
     await page.waitForLoadState('domcontentloaded');
-
-    const searchTerm = marker;
     const apiResp = await page.request.get(
       `${BASE}/api/libri?draw=1&start=0&length=10&search_text=${encodeURIComponent(searchTerm)}`
     );
