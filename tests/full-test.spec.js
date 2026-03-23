@@ -2373,7 +2373,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const targetId = state.createdBookIds[0];
     test.skip(!targetId, 'No seeded book id available');
     const marker = `desc-${RUN_ID}`;
-    dbQuery(`UPDATE libri SET descrizione='${marker}' WHERE id=${targetId}`);
+    dbQuery(`UPDATE libri SET descrizione='${marker}', descrizione_plain='${marker}' WHERE id=${targetId}`);
 
     await page.goto(`${BASE}/admin/libri`);
     await page.waitForLoadState('domcontentloaded');

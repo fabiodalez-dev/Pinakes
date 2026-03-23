@@ -48,7 +48,7 @@ class AuthController
         // CSRF validated by CsrfMiddleware
 
         if ($email !== '' && $password !== '') {
-            $stmt = $db->prepare("SELECT id, email, password, tipo_utente, email_verificata, stato, nome, cognome FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
+            $stmt = $db->prepare("SELECT id, email, password, tipo_utente, email_verificata, stato, nome, cognome, locale FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
             $stmt->bind_param('s', $email);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -105,6 +105,11 @@ class AuthController
                     'tipo_utente' => $row['tipo_utente'],
                     'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
                 ];
+
+                // Load user's preferred locale into session
+                if (!empty($row['locale'])) {
+                    $_SESSION['locale'] = $row['locale'];
+                }
 
                 // Handle "Remember Me" functionality with database-backed tokens
                 if ($remember) {

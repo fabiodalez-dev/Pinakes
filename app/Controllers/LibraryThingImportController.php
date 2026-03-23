@@ -1238,10 +1238,7 @@ class LibraryThingImportController
                 $bookId
             ]);
 
-            // Type string: s=string, i=int, d=double
-            // Base: sssssissiis + (descPlain?) + sdisssssdsssissssssssssssssssssssdssi
-            $types = 'sssssissiis' . $descPlainType . 'sdisssssdsssissssssssssssssssssssdssi';
-            $stmt->bind_param($types, ...$params);
+            $stmt->bind_param($this->inferBindTypes($params), ...$params);
         } else {
             // Basic update without LibraryThing fields (plugin not installed)
             $stmt = $db->prepare("
@@ -1284,9 +1281,7 @@ class LibraryThingImportController
                 $bookId
             ]);
 
-            // Type string: sssssissiis + (descPlain?) + sdisssssi
-            $types = 'sssssissiis' . $descPlainType . 'sdisssssi';
-            $stmt->bind_param($types, ...$params);
+            $stmt->bind_param($this->inferBindTypes($params), ...$params);
         }
 
         $stmt->execute();
@@ -1408,10 +1403,7 @@ class LibraryThingImportController
                 !empty($data['entry_date']) ? $data['entry_date'] : null
             ]);
 
-            // Type string: s=string, i=int, d=double
-            // Base: sssssissiis + (descPlain?) + sdiiisssssdsssisssssssssssssssssssdss
-            $types = 'sssssissiis' . $descPlainType . 'sdiiisssssdsssisssssssssssssssssssdss';
-            $stmt->bind_param($types, ...$params);
+            $stmt->bind_param($this->inferBindTypes($params), ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)
             $stmt = $db->prepare("
@@ -1457,9 +1449,7 @@ class LibraryThingImportController
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null
             ]);
 
-            // Type string: sssssissiis + (descPlain?) + sdiiisssss
-            $types = 'sssssissiis' . $descPlainType . 'sdiiisssss';
-            $stmt->bind_param($types, ...$params);
+            $stmt->bind_param($this->inferBindTypes($params), ...$params);
         }
 
         $stmt->execute();
@@ -1508,6 +1498,28 @@ class LibraryThingImportController
         $exists = $stmt->num_rows > 0;
         $stmt->close();
         return $exists;
+    }
+
+    /**
+     * Infer mysqli bind types from runtime values to keep bind_param strings in sync.
+     *
+     * @param array<int, mixed> $params
+     */
+    private function inferBindTypes(array $params): string
+    {
+        $types = '';
+
+        foreach ($params as $param) {
+            if (is_int($param)) {
+                $types .= 'i';
+            } elseif (is_float($param)) {
+                $types .= 'd';
+            } else {
+                $types .= 's';
+            }
+        }
+
+        return $types;
     }
 
     private function scrapeBookData(string $isbn): array
@@ -1788,6 +1800,21 @@ class LibraryThingImportController
         $autoriArray = !empty($autori) ? explode(';', $autori) : [];
         $primaryAuthor = $autoriArray[0] ?? '';
         $secondaryAuthor = $autoriArray[1] ?? '';
+        $secondaryAuthorRoles = '';
+
+        // If book has a traduttore and no secondary author from autori_nomi,
+        // export the translator as secondary author with role "Translator"
+        $traduttore = trim((string) ($libro['traduttore'] ?? ''));
+        if ($traduttore !== '') {
+            if ($secondaryAuthor === '') {
+                $secondaryAuthor = $traduttore;
+                $secondaryAuthorRoles = 'Translator';
+            } elseif (mb_strtolower($secondaryAuthor) !== mb_strtolower($traduttore)) {
+                // Translator is a different person — append to secondary author
+                $secondaryAuthor .= '; ' . $traduttore;
+                $secondaryAuthorRoles = '; Translator';
+            }
+        }
 
         // Map formato to Media
         $formatoMap = [
@@ -1855,7 +1882,7 @@ class LibraryThingImportController
             $primaryAuthor,
             '',  // Primary Author Role
             $secondaryAuthor,
-            '',  // Secondary Author Roles
+            $secondaryAuthorRoles,
             $publication,
             $libro['anno_pubblicazione'] ?? '',
             $libro['review'] ?? '',

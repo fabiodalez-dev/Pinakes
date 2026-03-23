@@ -17,7 +17,7 @@ class ProfileController
         $uid = (int) ($_SESSION['user']['id'] ?? 0);
         if ($uid <= 0)
             return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
-        $stmt = $db->prepare("SELECT id, nome, cognome, email, codice_tessera, stato, tipo_utente, data_ultimo_accesso, data_nascita, telefono, sesso, indirizzo, cod_fiscale, data_scadenza_tessera FROM utenti WHERE id = ? LIMIT 1");
+        $stmt = $db->prepare("SELECT id, nome, cognome, email, codice_tessera, stato, tipo_utente, data_ultimo_accesso, data_nascita, telefono, sesso, indirizzo, cod_fiscale, data_scadenza_tessera, locale FROM utenti WHERE id = ? LIMIT 1");
         $stmt->bind_param('i', $uid);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc() ?: [];
@@ -129,6 +129,8 @@ class ProfileController
         $sesso = trim(strip_tags((string) ($data['sesso'] ?? '')));
         $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
 
+        $locale = trim(strip_tags((string) ($data['locale'] ?? '')));
+
         // Convert empty strings to null for optional fields
         $telefono = empty($telefono) ? null : $telefono;
         $data_nascita = empty($data_nascita) ? null : $data_nascita;
@@ -141,20 +143,28 @@ class ProfileController
             $sesso = null; // Invalid value, set to null
         }
 
+        // Validate locale - only allow known locales
+        $availableLocales = \App\Support\I18n::getAvailableLocales();
+        $locale = (!empty($locale) && isset($availableLocales[$locale])) ? $locale : null;
+
         // Validate required fields
         if (empty($nome) || empty($cognome)) {
             $profileUrl = RouteTranslator::route('profile');
             return $response->withHeader('Location', $profileUrl . '?error=required_fields')->withStatus(302);
         }
 
-        // Update user (sesso can be NULL)
-        $stmt = $db->prepare("UPDATE utenti SET nome = ?, cognome = ?, telefono = ?, data_nascita = ?, cod_fiscale = ?, sesso = ?, indirizzo = ? WHERE id = ?");
-        $stmt->bind_param('sssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $uid);
+        // Update user (sesso and locale can be NULL)
+        $stmt = $db->prepare("UPDATE utenti SET nome = ?, cognome = ?, telefono = ?, data_nascita = ?, cod_fiscale = ?, sesso = ?, indirizzo = ?, locale = ? WHERE id = ?");
+        $stmt->bind_param('ssssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $locale, $uid);
 
         if ($stmt->execute()) {
             $_SESSION['success_message'] = __('Profilo aggiornato con successo.');
             // Update session data
             $_SESSION['user']['name'] = $nome . ' ' . $cognome;
+            // Apply locale change immediately
+            if ($locale !== null) {
+                $_SESSION['locale'] = $locale;
+            }
         } else {
             error_log("Profile update error for user $uid: " . $stmt->error);
             $_SESSION['error_message'] = 'Errore durante l\'aggiornamento del profilo.';
