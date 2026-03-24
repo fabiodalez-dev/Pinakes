@@ -224,7 +224,7 @@ class ProfileController
             $response->getBody()->write($json);
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Throwable $e) {
-            error_log("getSessions error for user $uid: " . $e->getMessage());
+            SecureLogger::error('ProfileController: getSessions failed', ['user_id' => $uid, 'error' => $e->getMessage()]);
             $response->getBody()->write(json_encode(['error' => __('Errore durante il recupero delle sessioni')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
@@ -269,7 +269,7 @@ class ProfileController
 
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Throwable $e) {
-            error_log("revokeSession error for user $uid: " . $e->getMessage());
+            SecureLogger::error('ProfileController: revokeSession failed', ['user_id' => $uid, 'error' => $e->getMessage()]);
             $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca della sessione')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
@@ -304,7 +304,7 @@ class ProfileController
             $response->getBody()->write($json);
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Throwable $e) {
-            error_log("revokeAllSessions error for user $uid: " . $e->getMessage());
+            SecureLogger::error('ProfileController: revokeAllSessions failed', ['user_id' => $uid, 'error' => $e->getMessage()]);
             $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca delle sessioni')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }

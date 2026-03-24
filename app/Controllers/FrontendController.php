@@ -22,8 +22,15 @@ class FrontendController
     private static function descriptionExpr(mysqli $db): string
     {
         if (self::$hasDescrizionePlain === null) {
-            $result = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
-            self::$hasDescrizionePlain = $result && $result->num_rows > 0;
+            try {
+                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
+                self::$hasDescrizionePlain = $result !== false && $result->num_rows > 0;
+                if ($result instanceof \mysqli_result) {
+                    $result->free();
+                }
+            } catch (\Throwable $e) {
+                self::$hasDescrizionePlain = false;
+            }
         }
         return self::$hasDescrizionePlain
             ? "COALESCE(NULLIF(l.descrizione_plain, ''), l.descrizione)"

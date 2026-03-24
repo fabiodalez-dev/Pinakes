@@ -32,6 +32,28 @@ class LibraryThingImportController
      */
     private const CHUNK_SIZE = 5;
 
+    /** @var bool|null Cached result of descrizione_plain column existence check */
+    private ?bool $cachedHasDescPlain = null;
+
+    /**
+     * Check if descrizione_plain column exists (cached per controller instance).
+     */
+    private function hasDescrizionePlainColumn(\mysqli $db): bool
+    {
+        if ($this->cachedHasDescPlain === null) {
+            try {
+                $checkCol = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
+                $this->cachedHasDescPlain = $checkCol !== false && $checkCol->num_rows > 0;
+                if ($checkCol instanceof \mysqli_result) {
+                    $checkCol->free();
+                }
+            } catch (\Throwable $e) {
+                $this->cachedHasDescPlain = false;
+            }
+        }
+        return $this->cachedHasDescPlain;
+    }
+
     /**
      * Write log message to import log file
      */
@@ -1149,12 +1171,8 @@ class LibraryThingImportController
         // Check if LibraryThing plugin is installed
         $hasLTFields = \App\Support\LibraryThingInstaller::isInstalled($db);
 
-        // Check if descrizione_plain column exists (may not on older installations)
-        $hasDescPlain = false;
-        $checkCol = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
-        if ($checkCol && $checkCol->num_rows > 0) {
-            $hasDescPlain = true;
-        }
+        // Check if descrizione_plain column exists (cached per controller instance)
+        $hasDescPlain = $this->hasDescrizionePlainColumn($db);
         $descPlainSet = $hasDescPlain ? ', descrizione_plain = ?' : '';
 
         if ($hasLTFields) {
@@ -1292,12 +1310,8 @@ class LibraryThingImportController
         // Check if LibraryThing plugin is installed
         $hasLTFields = \App\Support\LibraryThingInstaller::isInstalled($db);
 
-        // Check if descrizione_plain column exists (may not on older installations)
-        $hasDescPlain = false;
-        $checkCol = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
-        if ($checkCol && $checkCol->num_rows > 0) {
-            $hasDescPlain = true;
-        }
+        // Check if descrizione_plain column exists (cached per controller instance)
+        $hasDescPlain = $this->hasDescrizionePlainColumn($db);
         $descPlainCol = $hasDescPlain ? ', descrizione_plain' : '';
         $descPlainVal = $hasDescPlain ? ', ?' : '';
 
@@ -1553,9 +1567,19 @@ class LibraryThingImportController
         }
 
         if (empty($csvData['descrizione']) && !empty($scrapedData['description'])) {
+            $description = $scrapedData['description'];
             $updates[] = 'descrizione = ?';
-            $params[] = $scrapedData['description'];
+            $params[] = $description;
             $types .= 's';
+
+            // Also generate descrizione_plain for the new LIKE search paths
+            if ($this->hasDescrizionePlainColumn($db)) {
+                $plain = preg_replace('/<[^>]+>/', ' ', $description) ?? $description;
+                $plain = html_entity_decode($plain, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $updates[] = 'descrizione_plain = ?';
+                $params[] = trim(preg_replace('/\s+/u', ' ', $plain) ?? $plain);
+                $types .= 's';
+            }
         }
 
         if (!empty($updates)) {

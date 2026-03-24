@@ -106,9 +106,11 @@ class AuthController
                     'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
                 ];
 
-                // Load user's preferred locale into session
+                // Load and apply user's preferred locale
                 if (!empty($row['locale'])) {
-                    $_SESSION['locale'] = $row['locale'];
+                    $locale = (string) $row['locale'];
+                    \App\Support\I18n::setLocale($locale);
+                    $_SESSION['locale'] = $locale;
                 }
 
                 // Handle "Remember Me" functionality with database-backed tokens
