@@ -1177,6 +1177,8 @@
   "Dominio non valido. Inserisci solo host o host:porta, senza percorsi.": "Ungültige Domain. Geben Sie nur Host oder Host:Port ohne Pfade ein.",
   "Dominio personalizzato...": "Benutzerdefinierte Domain...",
   "Errore durante l'aggiornamento del profilo.": "Fehler beim Aktualisieren des Profils.",
+  "Cerca su:": "Suche auf:",
+  "Cerca \"%s\" su %s": "Suche \"%s\" auf %s",
   "Fonti attive": "Aktive Quellen",
   "GoodLib — External Sources": "GoodLib — Externe Quellen",
   "GoodLib — Fonti Esterne": "GoodLib — Externe Quellen",

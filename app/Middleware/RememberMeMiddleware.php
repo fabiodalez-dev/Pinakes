@@ -93,8 +93,9 @@ class RememberMeMiddleware implements MiddlewareInterface
 
         // Load and apply user's preferred locale for this request
         if (!empty($row['locale'])) {
-            $_SESSION['locale'] = $row['locale'];
-            \App\Support\I18n::setLocale((string) $row['locale']);
+            $locale = (string) $row['locale'];
+            \App\Support\I18n::setLocale($locale);
+            $_SESSION['locale'] = $locale;
         }
 
         // Log auto-login for security auditing (no PII logged per GDPR)

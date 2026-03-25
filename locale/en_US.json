@@ -965,6 +965,8 @@
   "Dominio non valido. Inserisci solo host o host:porta, senza percorsi.": "Invalid domain. Enter only host or host:port, without paths.",
   "Dominio personalizzato...": "Custom domain...",
   "Errore durante l'aggiornamento del profilo.": "Error updating profile.",
+  "Cerca su:": "Search on:",
+  "Cerca \"%s\" su %s": "Search \"%s\" on %s",
   "Fonti attive": "Active sources",
   "GoodLib — External Sources": "GoodLib — External Sources",
   "GoodLib — Fonti Esterne": "GoodLib — External Sources",

@@ -41,7 +41,8 @@ test.describe.serial('GoodLib custom domains', () => {
     const annaCustom = 'https://annas-archive.custom.test/path?q=ignored';
     const zlibCustom = 'z-lib.custom.test:8443';
 
-    await page.goto(`${BASE_URL}/accedi`);
+    // Navigate to admin — will redirect to login page regardless of locale
+    await page.goto(`${BASE_URL}/admin/dashboard`);
     await page.getByRole('textbox', { name: 'Email' }).fill(adminUser.email);
     await page.getByRole('textbox', { name: 'Password' }).fill(adminUser.password);
     await page.getByRole('button', { name: 'Accedi' }).click();
@@ -62,7 +63,8 @@ test.describe.serial('GoodLib custom domains', () => {
     await expect(page.getByRole('dialog')).toContainText('Impostazioni GoodLib salvate correttamente.');
     await page.getByRole('button', { name: 'OK' }).click();
 
-    await page.goto(`${BASE_URL}/libro/${book.id}`);
+    // Use admin book detail (locale-independent URL)
+    await page.goto(`${BASE_URL}/admin/libri/${book.id}`);
 
     await expect(page.getByRole('link', { name: "Anna's Archive" })).toHaveAttribute(
       'href',

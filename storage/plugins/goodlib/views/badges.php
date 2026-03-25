@@ -24,7 +24,7 @@ $encodedQuery = urlencode($query);
          class="inline-flex items-center px-2 py-1 rounded-full text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition"
          title="<?= htmlspecialchars(sprintf(__('Cerca "%s" su %s'), $query, $sourceLabel), ENT_QUOTES, 'UTF-8') ?>">
         <i class="<?= htmlspecialchars($source['icon'], ENT_QUOTES, 'UTF-8') ?> mr-1"></i><?= htmlspecialchars($sourceLabel, ENT_QUOTES, 'UTF-8') ?>
-        <i class="fas fa-external-link-alt ml-1 text-gray-400" style="font-size: 0.6rem;"></i>
+        <i class="fas fa-external-link-alt ml-1 text-gray-400 text-[0.6rem]"></i>
       </a>
     <?php endforeach; ?>
   </div>
