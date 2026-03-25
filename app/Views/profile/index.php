@@ -434,12 +434,16 @@
       <?php
         $availableLocales = \App\Support\I18n::getAvailableLocales();
         if (count($availableLocales) > 1):
-            $userLocale = $user['locale'] ?? ($_SESSION['locale'] ?? '');
+            $userLocale = $user['locale'] ?? '';
+            if ($userLocale !== '' && !isset($availableLocales[$userLocale])) {
+                $userLocale = '';
+            }
       ?>
       <div class="form-grid">
         <div class="form-group">
           <label for="locale" class="form-label"><?= __("Lingua") ?></label>
           <select id="locale" name="locale" class="form-select">
+            <option value="" <?= $userLocale === '' ? 'selected' : '' ?>><?= __("Predefinita del sito") ?></option>
             <?php foreach ($availableLocales as $code => $name): ?>
               <option value="<?= htmlspecialchars($code, ENT_QUOTES, 'UTF-8') ?>"
                 <?= $code === $userLocale ? 'selected' : '' ?>>

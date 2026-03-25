@@ -350,12 +350,9 @@ class PluginController
                 ]
             ]));
         } elseif ($plugin['name'] === 'goodlib') {
-            // GoodLib: toggle sources, visibility, and custom mirror domains
+            // GoodLib: validate domains first, then persist everything
             $boolKeys = ['anna_enabled', 'zlib_enabled', 'gutenberg_enabled', 'show_frontend', 'show_admin'];
-            foreach ($boolKeys as $key) {
-                $value = isset($settings[$key]) && $settings[$key] === '1' ? '1' : '0';
-                $this->pluginManager->setSetting($pluginId, $key, $value, true);
-            }
+            $normalizedDomains = [];
 
             foreach (self::GOODLIB_DEFAULT_DOMAINS as $domainKey => $defaultDomain) {
                 if (isset($settings[$domainKey])) {
@@ -367,13 +364,23 @@ class PluginController
                         ]));
                         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
                     }
-                    $this->pluginManager->setSetting($pluginId, $domainKey, $domain, true);
+                    $normalizedDomains[$domainKey] = $domain;
                 }
+            }
+
+            // All validated — now persist
+            foreach ($boolKeys as $key) {
+                $value = isset($settings[$key]) && $settings[$key] === '1' ? '1' : '0';
+                $this->pluginManager->setSetting($pluginId, $key, $value, true);
+            }
+            foreach ($normalizedDomains as $domainKey => $domain) {
+                $this->pluginManager->setSetting($pluginId, $domainKey, $domain, true);
             }
 
             $response->getBody()->write(json_encode([
                 'success' => true,
-                'message' => __('Impostazioni GoodLib salvate correttamente.')
+                'message' => __('Impostazioni GoodLib salvate correttamente.'),
+                'data' => $normalizedDomains,
             ]));
         } else {
             // Plugin not supported

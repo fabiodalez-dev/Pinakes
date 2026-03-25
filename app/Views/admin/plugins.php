@@ -1828,8 +1828,9 @@ $pluginSettings = $pluginSettings ?? [];
                     configBtn.dataset.goodlibGutenberg = document.getElementById('goodlib_gutenberg').checked ? '1' : '0';
                     configBtn.dataset.goodlibFrontend = document.getElementById('goodlib_frontend').checked ? '1' : '0';
                     configBtn.dataset.goodlibAdmin = document.getElementById('goodlib_admin').checked ? '1' : '0';
-                    configBtn.dataset.goodlibAnnaDomain = getGoodLibDomainValue('anna');
-                    configBtn.dataset.goodlibZlibDomain = getGoodLibDomainValue('zlib');
+                    // Use normalized domains from server response (strips scheme/path/query)
+                    configBtn.dataset.goodlibAnnaDomain = (data.data && data.data.anna_domain) || getGoodLibDomainValue('anna');
+                    configBtn.dataset.goodlibZlibDomain = (data.data && data.data.zlib_domain) || getGoodLibDomainValue('zlib');
                 }
                 closeGoodLibModal();
                 if (typeof Swal !== 'undefined') {

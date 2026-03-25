@@ -1010,13 +1010,14 @@ class LibraryThingImportController
         $result['oclc'] = !empty($data['OCLC']) ? trim($data['OCLC']) : '';
         $result['work_id'] = !empty($data['Work id']) ? trim($data['Work id']) : '';
         $result['issn'] = !empty($data['ISSN']) ? trim($data['ISSN']) : '';
-        // Normalize ISSN to canonical XXXX-XXXX format (same logic as LibriController)
+        // Normalize ISSN to canonical XXXX-XXXX format or discard if malformed
         if (!empty($result['issn'])) {
             $issnCompact = strtoupper(str_replace('-', '', preg_replace('/\s+/', '', $result['issn'])));
             if (preg_match('/^\d{7}[\dX]$/', $issnCompact)) {
                 $result['issn'] = substr($issnCompact, 0, 4) . '-' . substr($issnCompact, 4, 4);
+            } else {
+                $result['issn'] = null; // Don't expose malformed ISSN in JSON-LD/API
             }
-            // If invalid format, keep raw value (import shouldn't fail on bad ISSN)
         }
 
         // Languages
@@ -1368,12 +1369,25 @@ class LibraryThingImportController
         }
 
         $stmt->execute();
-        // If no rows matched (book was soft-deleted between find and update), abort
-        if ($stmt->affected_rows === 0) {
-            $stmt->close();
-            throw new \RuntimeException("Book ID {$bookId} was soft-deleted during import — update skipped");
-        }
+        $affectedRows = $stmt->affected_rows;
         $stmt->close();
+
+        // affected_rows=0 can mean unchanged data OR soft-deleted row — check explicitly
+        if ($affectedRows === 0) {
+            $checkStmt = $db->prepare("SELECT 1 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+            if ($checkStmt) {
+                $checkStmt->bind_param('i', $bookId);
+                $checkStmt->execute();
+                $checkStmt->store_result();
+                $stillExists = $checkStmt->num_rows === 1;
+                $checkStmt->close();
+
+                if (!$stillExists) {
+                    throw new \RuntimeException("Book ID {$bookId} was soft-deleted during import — update skipped");
+                }
+            }
+            // If row exists but unchanged, that's fine — continue
+        }
     }
 
     private function insertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): int

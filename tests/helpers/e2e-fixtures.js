@@ -88,7 +88,11 @@ function getPluginIdByName(name) {
   const result = dbQuery(
     `SELECT id FROM plugins WHERE name = '${escapeSql(name)}' LIMIT 1`
   );
-  return Number(result);
+  const id = Number(result);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`Plugin not found: ${name}`);
+  }
+  return id;
 }
 
 function snapshotPluginSettings(pluginId) {
@@ -114,12 +118,13 @@ function snapshotPluginSettings(pluginId) {
 }
 
 function restorePluginSettings(pluginId, rows) {
-  dbExec(`DELETE FROM plugin_settings WHERE plugin_id = ${pluginId}`);
+  const id = Number(pluginId);
+  const statements = [`DELETE FROM plugin_settings WHERE plugin_id = ${id}`];
   for (const row of rows) {
-    dbExec(`
+    statements.push(`
       INSERT INTO plugin_settings (plugin_id, setting_key, setting_value, autoload, created_at)
       VALUES (
-        ${pluginId},
+        ${id},
         '${escapeSql(row.setting_key)}',
         '${escapeSql(row.setting_value)}',
         ${Number(row.autoload) ? 1 : 0},
@@ -127,6 +132,8 @@ function restorePluginSettings(pluginId, rows) {
       )
     `);
   }
+  // Atomic: all statements in a single mysql call
+  dbExec(`START TRANSACTION; ${statements.join('; ')}; COMMIT`);
 }
 
 function createTempAdminUser(locale = 'it_IT') {

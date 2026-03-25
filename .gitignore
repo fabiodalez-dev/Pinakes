@@ -277,12 +277,12 @@ vendor/bin/
 .phpunit.cache/
 phpunit.xml
 tests/*
-!tests/branch-fix-consistency.spec.js
-!tests/goodlib-custom-domains.spec.js
+!tests/*.spec.js
+!tests/*.config.js
 !tests/helpers/
 tests/helpers/*
-!tests/helpers/branch-fix-harness.php
-!tests/helpers/e2e-fixtures.js
+!tests/helpers/*.php
+!tests/helpers/*.js
 test/
 coverage/
 .nyc_output/
