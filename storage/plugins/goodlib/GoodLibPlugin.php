@@ -15,26 +15,24 @@ declare(strict_types=1);
 class GoodLibPlugin
 {
     private ?\mysqli $db = null;
+    private ?object $hookManager = null;
     private int $pluginId = 0;
 
-    /** @var array<string, array{label: string, icon: string, url_pattern: string, default_domain: string, mirrors: list<string>}> */
+    /** @var array<string, array{icon: string, url_pattern: string, default_domain: string, mirrors: list<string>}> */
     private const SOURCES = [
         'anna' => [
-            'label' => "Anna's Archive",
             'icon' => 'fas fa-book-open',
             'url_pattern' => 'https://%s/search?q=%s',
             'default_domain' => 'annas-archive.gd',
             'mirrors' => ['annas-archive.gd', 'annas-archive.gl', 'annas-archive.pk'],
         ],
         'zlib' => [
-            'label' => 'Z-Library',
             'icon' => 'fas fa-search',
             'url_pattern' => 'https://%s/s/%s',
             'default_domain' => 'z-lib.gd',
             'mirrors' => ['z-lib.gd', 'z-lib.gl', 'z-lib.fm', '1lib.sk', 'z-library.ec', 'zliba.ru'],
         ],
         'gutenberg' => [
-            'label' => 'Project Gutenberg',
             'icon' => 'fas fa-feather-alt',
             'url_pattern' => 'https://%s/ebooks/search/?query=%s',
             'default_domain' => 'www.gutenberg.org',
@@ -48,6 +46,7 @@ class GoodLibPlugin
     public function __construct(?\mysqli $db = null, ?object $hookManager = null)
     {
         $this->db = $db;
+        $this->hookManager = $hookManager;
     }
 
     public function setPluginId(int $pluginId): void
@@ -119,6 +118,17 @@ class GoodLibPlugin
         if (!$this->db || $this->pluginId === 0) {
             return null;
         }
+
+        if ($this->hookManager !== null) {
+            try {
+                $pm = new \App\Support\PluginManager($this->db, $this->hookManager);
+                $value = $pm->getSetting($this->pluginId, $key);
+                return $value !== null ? (string) $value : null;
+            } catch (\Throwable $e) {
+                // Fall back to direct DB access
+            }
+        }
+
         $stmt = $this->db->prepare("SELECT setting_value FROM plugin_settings WHERE plugin_id = ? AND setting_key = ?");
         if (!$stmt) {
             return null;
@@ -138,10 +148,9 @@ class GoodLibPlugin
         }
 
         // Use PluginManager to read settings (handles decryption transparently)
-        $hookManager = $GLOBALS['hookManager'] ?? null;
-        if ($hookManager !== null) {
+        if ($this->hookManager !== null) {
             try {
-                $pm = new \App\Support\PluginManager($this->db, $hookManager);
+                $pm = new \App\Support\PluginManager($this->db, $this->hookManager);
                 return $pm->getSettings($this->pluginId);
             } catch (\Throwable $e) {
                 // Fall through to direct DB query
@@ -174,6 +183,17 @@ class GoodLibPlugin
         if (!$this->db || $this->pluginId === 0) {
             return;
         }
+
+        if ($this->hookManager !== null) {
+            try {
+                $pm = new \App\Support\PluginManager($this->db, $this->hookManager);
+                $pm->setSetting($this->pluginId, $key, $value, true);
+                return;
+            } catch (\Throwable $e) {
+                // Fall back to direct DB write
+            }
+        }
+
         $stmt = $this->db->prepare("
             INSERT INTO plugin_settings (plugin_id, setting_key, setting_value, autoload, created_at)
             VALUES (?, ?, ?, 1, NOW())
@@ -185,6 +205,47 @@ class GoodLibPlugin
         $stmt->bind_param('iss', $this->pluginId, $key, $value);
         $stmt->execute();
         $stmt->close();
+    }
+
+    private static function normalizeDomain(string $value, string $defaultDomain): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return $defaultDomain;
+        }
+
+        if (!preg_match('#^[a-z][a-z0-9+.-]*://#i', $value)) {
+            $value = 'https://' . $value;
+        }
+
+        $parts = parse_url($value);
+        if (!is_array($parts) || !isset($parts['host'])) {
+            return null;
+        }
+
+        $host = strtolower(trim((string) $parts['host']));
+        if (
+            $host === ''
+            || !preg_match(
+                '/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/i',
+                $host
+            )
+        ) {
+            return null;
+        }
+
+        $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+        return $host . $port;
+    }
+
+    private static function sourceLabel(string $key): string
+    {
+        return match ($key) {
+            'anna' => __("Anna's Archive"),
+            'zlib' => __("Z-Library"),
+            'gutenberg' => __("Project Gutenberg"),
+            default => $key,
+        };
     }
 
     // ─── Hook registration ──────────────────────────────────────────────
@@ -295,7 +356,7 @@ class GoodLibPlugin
                 $domain = $settings[$domainKey];
 
                 $sources[$key] = [
-                    'label' => $source['label'],
+                    'label' => self::sourceLabel($key),
                     'icon' => $source['icon'],
                     'url' => sprintf($source['url_pattern'], $domain, '%s'),
                 ];
@@ -402,14 +463,14 @@ class GoodLibPlugin
             $this->dbSetSetting($key, $value);
         }
 
-        // Domain settings — validate against allowed mirrors
+        // Domain settings — allow presets and validated custom domains
         $domainKeys = ['anna_domain', 'zlib_domain'];
         foreach ($domainKeys as $domainKey) {
             if (isset($data[$domainKey])) {
                 $sourceKey = str_replace('_domain', '', $domainKey);
-                $allowed = self::SOURCES[$sourceKey]['mirrors'] ?? [];
-                $domain = trim((string) $data[$domainKey]);
-                if (\in_array($domain, $allowed, true)) {
+                $defaultDomain = self::SOURCES[$sourceKey]['default_domain'] ?? '';
+                $domain = self::normalizeDomain((string) $data[$domainKey], $defaultDomain);
+                if ($domain !== null) {
                     $this->dbSetSetting($domainKey, $domain);
                 }
             }

@@ -16,6 +16,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class PluginController
 {
     private PluginManager $pluginManager;
+    private const GOODLIB_DEFAULT_DOMAINS = [
+        'anna_domain' => 'annas-archive.gd',
+        'zlib_domain' => 'z-lib.gd',
+    ];
 
     public function __construct(PluginManager $pluginManager)
     {
@@ -346,24 +350,24 @@ class PluginController
                 ]
             ]));
         } elseif ($plugin['name'] === 'goodlib') {
-            // GoodLib: toggle sources, visibility, and mirror domains
+            // GoodLib: toggle sources, visibility, and custom mirror domains
             $boolKeys = ['anna_enabled', 'zlib_enabled', 'gutenberg_enabled', 'show_frontend', 'show_admin'];
             foreach ($boolKeys as $key) {
                 $value = isset($settings[$key]) && $settings[$key] === '1' ? '1' : '0';
                 $this->pluginManager->setSetting($pluginId, $key, $value, true);
             }
 
-            // Domain settings — validate against allowed mirrors
-            $allowedMirrors = [
-                'anna_domain' => ['annas-archive.gd', 'annas-archive.gl', 'annas-archive.pk'],
-                'zlib_domain' => ['z-lib.gd', 'z-lib.gl', 'z-lib.fm', '1lib.sk', 'z-library.ec', 'zliba.ru'],
-            ];
-            foreach ($allowedMirrors as $domainKey => $allowed) {
+            foreach (self::GOODLIB_DEFAULT_DOMAINS as $domainKey => $defaultDomain) {
                 if (isset($settings[$domainKey])) {
-                    $domain = trim((string) $settings[$domainKey]);
-                    if (\in_array($domain, $allowed, true)) {
-                        $this->pluginManager->setSetting($pluginId, $domainKey, $domain, true);
+                    $domain = self::normalizeGoodLibDomain((string) $settings[$domainKey], $defaultDomain);
+                    if ($domain === null) {
+                        $response->getBody()->write(json_encode([
+                            'success' => false,
+                            'message' => __('Dominio non valido. Inserisci solo host o host:porta, senza percorsi.')
+                        ]));
+                        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
                     }
+                    $this->pluginManager->setSetting($pluginId, $domainKey, $domain, true);
                 }
             }
 
@@ -383,5 +387,36 @@ class PluginController
 
         error_log('[PluginController] Settings saved successfully');
         return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    private static function normalizeGoodLibDomain(string $value, string $defaultDomain): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return $defaultDomain;
+        }
+
+        if (!preg_match('#^[a-z][a-z0-9+.-]*://#i', $value)) {
+            $value = 'https://' . $value;
+        }
+
+        $parts = parse_url($value);
+        if (!is_array($parts) || !isset($parts['host'])) {
+            return null;
+        }
+
+        $host = strtolower(trim((string) $parts['host']));
+        if (
+            $host === ''
+            || !preg_match(
+                '/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9-]{2,63}$/i',
+                $host
+            )
+        ) {
+            return null;
+        }
+
+        $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+        return $host . $port;
     }
 }

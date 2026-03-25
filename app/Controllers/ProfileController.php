@@ -195,7 +195,7 @@ class ProfileController
                 'user_id' => $uid,
                 'db_error' => $stmt->error
             ]);
-            $_SESSION['error_message'] = 'Errore durante l\'aggiornamento del profilo.';
+            $_SESSION['error_message'] = __('Errore durante l\'aggiornamento del profilo.');
         }
 
         $stmt->close();
@@ -310,4 +310,3 @@ class ProfileController
         }
     }
 }
-

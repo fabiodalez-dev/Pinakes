@@ -278,9 +278,11 @@ vendor/bin/
 phpunit.xml
 tests/*
 !tests/branch-fix-consistency.spec.js
+!tests/goodlib-custom-domains.spec.js
 !tests/helpers/
 tests/helpers/*
 !tests/helpers/branch-fix-harness.php
+!tests/helpers/e2e-fixtures.js
 test/
 coverage/
 .nyc_output/

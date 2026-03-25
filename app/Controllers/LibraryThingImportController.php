@@ -701,6 +701,65 @@ class LibraryThingImportController
     /**
      * Parse LibraryThing row to standard format
      */
+    private function splitContributorList(string $value, string $pattern = '/\s*;\s*/u'): array
+    {
+        $parts = preg_split($pattern, trim($value)) ?: [];
+        $parts = array_map(static fn(string $part): string => trim($part), $parts);
+        return array_values(array_filter($parts, static fn(string $part): bool => $part !== ''));
+    }
+
+    /**
+     * @return array{authors: list<string>, translators: list<string>}
+     */
+    private function classifySecondaryAuthors(string $authorsValue, string $rolesValue): array
+    {
+        $authors = [];
+        $translators = [];
+        $secondaryAuthors = $this->splitContributorList($authorsValue);
+        $secondaryRoles = preg_split('/\s*;\s*/u', trim($rolesValue)) ?: [];
+
+        foreach ($secondaryAuthors as $index => $rawSecondaryAuthor) {
+            $secondaryAuthor = \App\Support\AuthorNormalizer::normalize($rawSecondaryAuthor);
+            if ($secondaryAuthor === '') {
+                continue;
+            }
+
+            $secondaryRole = mb_strtolower(trim((string) ($secondaryRoles[$index] ?? '')), 'UTF-8');
+            if (str_contains($secondaryRole, 'translator') || str_contains($secondaryRole, 'traduttore')) {
+                if (!in_array($secondaryAuthor, $translators, true)) {
+                    $translators[] = $secondaryAuthor;
+                }
+                continue;
+            }
+
+            if (!in_array($secondaryAuthor, $authors, true)) {
+                $authors[] = $secondaryAuthor;
+            }
+        }
+
+        return [
+            'authors' => $authors,
+            'translators' => $translators,
+        ];
+    }
+
+    private function normalizeContributorField(?string $value): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($this->splitContributorList($value, '/\s*[;|]\s*/u') as $part) {
+            $name = \App\Support\AuthorNormalizer::normalize($part);
+            if ($name !== '' && !in_array($name, $normalized, true)) {
+                $normalized[] = $name;
+            }
+        }
+
+        return $normalized === [] ? null : implode('; ', $normalized);
+    }
+
     private function parseLibraryThingRow(array $data): array
     {
         // Fix UTF-8 encoding issues in all string values
@@ -725,12 +784,17 @@ class LibraryThingImportController
             $authors[] = \App\Support\AuthorNormalizer::normalize(trim($data['Primary Author']));
         }
         if (!empty($data['Secondary Author'])) {
-            $secondaryAuthor = \App\Support\AuthorNormalizer::normalize(trim($data['Secondary Author']));
-            $secondaryRoles = strtolower(trim((string) ($data['Secondary Author Roles'] ?? '')));
-            if (str_contains($secondaryRoles, 'translator') || str_contains($secondaryRoles, 'traduttore')) {
-                $result['traduttore'] = $secondaryAuthor;
-            } else {
-                $authors[] = $secondaryAuthor;
+            $secondaryContributors = $this->classifySecondaryAuthors(
+                (string) $data['Secondary Author'],
+                (string) ($data['Secondary Author Roles'] ?? '')
+            );
+            foreach ($secondaryContributors['authors'] as $secondaryAuthor) {
+                if (!in_array($secondaryAuthor, $authors, true)) {
+                    $authors[] = $secondaryAuthor;
+                }
+            }
+            if ($secondaryContributors['translators'] !== []) {
+                $result['traduttore'] = implode('; ', $secondaryContributors['translators']);
             }
         }
         $result['autori'] = !empty($authors) ? implode('|', $authors) : '';
@@ -751,7 +815,7 @@ class LibraryThingImportController
 
         // Year - extract year (supports negative/BCE dates like "-500" and ISO dates like "2020-05-01")
         if (!empty($data['Date']) || (isset($data['Date']) && $data['Date'] === '0')) {
-            $dateStr = trim($data['Date']);
+            $dateStr = trim((string) $data['Date']);
             if (preg_match('/^-?\d+$/', $dateStr)) {
                 // Plain year (positive or negative)
                 $result['anno_pubblicazione'] = (int) $dateStr;
@@ -987,12 +1051,12 @@ class LibraryThingImportController
     /**
      * Parse date from LibraryThing format to MySQL DATE format
      *
-     * @param string $dateString Date string in various formats
+     * @param string|int|float|null $dateString Date string in various formats
      * @return string|null MySQL DATE format (YYYY-MM-DD) or null
      */
-    private function parseDate(string $dateString): ?string
+    private function parseDate(string|int|float|null $dateString): ?string
     {
-        $dateString = trim($dateString);
+        $dateString = trim((string) ($dateString ?? ''));
         if (empty($dateString)) {
             return null;
         }
@@ -1196,7 +1260,7 @@ class LibraryThingImportController
                 WHERE id = ? AND deleted_at IS NULL
             ");
 
-            $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize($data['traduttore']) : null;
+            $traduttore = $this->normalizeContributorField($data['traduttore'] ?? null);
 
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
@@ -1268,7 +1332,7 @@ class LibraryThingImportController
                 WHERE id = ? AND deleted_at IS NULL
             ");
 
-            $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize($data['traduttore']) : null;
+            $traduttore = $this->normalizeContributorField($data['traduttore'] ?? null);
 
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
@@ -1355,7 +1419,7 @@ class LibraryThingImportController
                 )
             ");
 
-            $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize($data['traduttore']) : null;
+            $traduttore = $this->normalizeContributorField($data['traduttore'] ?? null);
 
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
@@ -1430,7 +1494,7 @@ class LibraryThingImportController
                 )
             ");
 
-            $traduttore = !empty($data['traduttore']) ? \App\Support\AuthorNormalizer::normalize($data['traduttore']) : null;
+            $traduttore = $this->normalizeContributorField($data['traduttore'] ?? null);
 
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
@@ -1818,25 +1882,35 @@ class LibraryThingImportController
     private function formatLibraryThingRow(array $libro): array
     {
         // Parse authors
-        $autori = $libro['autori_nomi'] ?? '';
-        $autoriArray = !empty($autori) ? explode(';', $autori) : [];
-        $primaryAuthor = $autoriArray[0] ?? '';
-        $secondaryAuthor = $autoriArray[1] ?? '';
-        $secondaryAuthorRoles = '';
+        $autoriArray = $this->splitContributorList((string) ($libro['autori_nomi'] ?? ''));
+        $primaryAuthor = array_shift($autoriArray) ?? '';
+        $secondaryAuthors = array_values($autoriArray);
+        $secondaryAuthorRoles = array_fill(0, count($secondaryAuthors), '');
 
-        // If book has a traduttore and no secondary author from autori_nomi,
-        // export the translator as secondary author with role "Translator"
-        $traduttore = trim((string) ($libro['traduttore'] ?? ''));
-        if ($traduttore !== '') {
-            if ($secondaryAuthor === '') {
-                $secondaryAuthor = $traduttore;
-                $secondaryAuthorRoles = 'Translator';
-            } elseif (mb_strtolower($secondaryAuthor) !== mb_strtolower($traduttore)) {
-                // Translator is a different person — append to secondary author
-                $secondaryAuthor .= '; ' . $traduttore;
-                $secondaryAuthorRoles = '; Translator';
+        foreach ($this->splitContributorList((string) ($libro['traduttore'] ?? ''), '/\s*[;|]\s*/u') as $rawTranslator) {
+            $translator = \App\Support\AuthorNormalizer::normalize($rawTranslator);
+            if ($translator === '') {
+                continue;
+            }
+
+            $matched = false;
+            foreach ($secondaryAuthors as $index => $secondaryAuthor) {
+                if (\App\Support\AuthorNormalizer::match($secondaryAuthor, $translator)) {
+                    $secondaryAuthors[$index] = $translator;
+                    $secondaryAuthorRoles[$index] = 'Translator';
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if (!$matched) {
+                $secondaryAuthors[] = $translator;
+                $secondaryAuthorRoles[] = 'Translator';
             }
         }
+
+        $secondaryAuthor = implode('; ', $secondaryAuthors);
+        $secondaryAuthorRoles = implode('; ', $secondaryAuthorRoles);
 
         // Map formato to Media
         $formatoMap = [

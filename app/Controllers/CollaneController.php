@@ -279,9 +279,10 @@ class CollaneController
                 }
                 $stmtSync->bind_param('ss', $newName, $oldName);
                 $ok = $stmtSync->execute();
+                $syncError = $ok ? '' : $db->error;
                 $stmtSync->close();
                 if (!$ok) {
-                    throw new \RuntimeException('Collane sync failed: ' . $db->error);
+                    throw new \RuntimeException('Collane sync failed: ' . $syncError);
                 }
             }
 
