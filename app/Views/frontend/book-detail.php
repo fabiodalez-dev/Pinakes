@@ -252,7 +252,11 @@ if ($bookISBN) {
 }
 
 if (!empty($book['issn'])) {
-    $bookSchema["issn"] = $book['issn'];
+    $bookSchema["identifier"] = [
+        "@type" => "PropertyValue",
+        "propertyID" => "ISSN",
+        "value" => $book['issn'],
+    ];
 }
 
 if ($bookPages) {
