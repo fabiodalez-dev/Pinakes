@@ -368,7 +368,12 @@ class GoodLibPlugin
 
     // ─── Search query builder ───────────────────────────────────────────
 
-    private function buildSearchQuery(array $bookData, string $context = 'frontend'): string
+    /**
+     * Build search query from book data.
+     *
+     * @return array{query: string, isbn: string} query for title+author search, isbn for ISBN-based search
+     */
+    private function buildSearchQuery(array $bookData, string $context = 'frontend'): array
     {
         $title = trim((string) ($bookData['titolo'] ?? ''));
 
@@ -382,7 +387,13 @@ class GoodLibPlugin
             $author = trim((string) ($bookData['autore_principale'] ?? ''));
         }
 
-        return trim("$title $author");
+        // ISBN for precise search on Anna's Archive and Z-Library
+        $isbn = trim((string) ($bookData['isbn13'] ?? $bookData['isbn10'] ?? ''));
+
+        return [
+            'query' => trim("$title $author"),
+            'isbn' => $isbn,
+        ];
     }
 
     // ─── Renderers ──────────────────────────────────────────────────────
@@ -403,8 +414,10 @@ class GoodLibPlugin
             return;
         }
 
-        $query = $this->buildSearchQuery($book, 'frontend');
-        if ($query === '') {
+        $searchData = $this->buildSearchQuery($book, 'frontend');
+        $query = $searchData['query'];
+        $isbn = $searchData['isbn'];
+        if ($query === '' && $isbn === '') {
             return;
         }
 
@@ -427,8 +440,10 @@ class GoodLibPlugin
             return;
         }
 
-        $query = $this->buildSearchQuery($libro, 'admin');
-        if ($query === '') {
+        $searchData = $this->buildSearchQuery($libro, 'admin');
+        $query = $searchData['query'];
+        $isbn = $searchData['isbn'];
+        if ($query === '' && $isbn === '') {
             return;
         }
 
