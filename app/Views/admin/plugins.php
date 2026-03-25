@@ -91,8 +91,10 @@ $pluginSettings = $pluginSettings ?? [];
                     <?php
                     $isOpenLibrary = $plugin['name'] === 'open-library';
                     $isApiBookScraper = $plugin['name'] === 'api-book-scraper';
+                    $isGoodLib = $plugin['name'] === 'goodlib';
                     $openLibrarySettings = $isOpenLibrary ? ($pluginSettings[$plugin['id']] ?? []) : [];
                     $apiBookScraperSettings = $isApiBookScraper ? ($pluginSettings[$plugin['id']] ?? []) : [];
+                    $goodlibSettings = $isGoodLib ? ($pluginSettings[$plugin['id']] ?? []) : [];
                     $hasGoogleKey = $isOpenLibrary && !empty($openLibrarySettings['google_books_api_key_exists'] ?? false);
                     $hasApiConfig = $isApiBookScraper && !empty($apiBookScraperSettings['api_endpoint'] ?? false) && !empty($apiBookScraperSettings['api_key_exists'] ?? false);
                     $isApiEnabled = $isApiBookScraper && !empty($apiBookScraperSettings['enabled'] ?? false);
@@ -270,6 +272,22 @@ $pluginSettings = $pluginSettings ?? [];
                                         <i class="fas fa-edit mr-1"></i>
                                         <?= __("Apri Editor") ?>
                                     </a>
+                                <?php endif; ?>
+                                <?php if ($isGoodLib && $plugin['is_active']): ?>
+                                    <button type="button"
+                                        class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-all duration-200 text-sm font-medium"
+                                        data-plugin-id="<?= (int)$plugin['id'] ?>"
+                                        data-goodlib-anna="<?= ($goodlibSettings['anna_enabled'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-zlib="<?= ($goodlibSettings['zlib_enabled'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-gutenberg="<?= ($goodlibSettings['gutenberg_enabled'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-frontend="<?= ($goodlibSettings['show_frontend'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-admin="<?= ($goodlibSettings['show_admin'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-anna-domain="<?= HtmlHelper::e($goodlibSettings['anna_domain'] ?? 'annas-archive.gd') ?>"
+                                        data-goodlib-zlib-domain="<?= HtmlHelper::e($goodlibSettings['zlib_domain'] ?? 'z-lib.gd') ?>"
+                                        onclick="openGoodLibModal(this)">
+                                        <i class="fas fa-cog mr-1"></i>
+                                        <?= __("Configura Fonti") ?>
+                                    </button>
                                 <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
                                     <button onclick="deactivatePlugin(<?= (int)$plugin['id'] ?>)"
@@ -673,6 +691,132 @@ $pluginSettings = $pluginSettings ?? [];
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<!-- GoodLib Settings Modal -->
+<div id="goodlibModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-auto">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <span class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-external-link-alt text-purple-600"></i>
+                </span>
+                <?= __("GoodLib — Fonti Esterne") ?>
+            </h3>
+            <button onclick="closeGoodLibModal()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <i class="fas fa-times text-gray-500"></i>
+            </button>
+        </div>
+        <div class="p-6 space-y-6">
+            <input type="hidden" id="goodlibPluginId">
+            <!-- Sources -->
+            <div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <i class="fas fa-database text-gray-400"></i>
+                    <?= __("Fonti attive") ?>
+                </h4>
+                <div class="space-y-3">
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm" style="background: #e74c3c">
+                                <i class="fas fa-book-open"></i>
+                            </span>
+                            <span class="text-sm font-medium text-gray-700">Anna's Archive</span>
+                        </div>
+                        <input type="checkbox" id="goodlib_anna" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm" style="background: #3498db">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <span class="text-sm font-medium text-gray-700">Z-Library</span>
+                        </div>
+                        <input type="checkbox" id="goodlib_zlib" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm" style="background: #27ae60">
+                                <i class="fas fa-feather-alt"></i>
+                            </span>
+                            <span class="text-sm font-medium text-gray-700">Project Gutenberg</span>
+                        </div>
+                        <input type="checkbox" id="goodlib_gutenberg" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                </div>
+            </div>
+            <!-- Visibility -->
+            <div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <i class="fas fa-eye text-gray-400"></i>
+                    <?= __("Visibilita") ?>
+                </h4>
+                <div class="space-y-3">
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100 text-gray-600 text-sm">
+                                <i class="fas fa-globe"></i>
+                            </span>
+                            <div>
+                                <span class="text-sm font-medium text-gray-700"><?= __("Catalogo pubblico") ?></span>
+                                <p class="text-xs text-gray-500"><?= __("Mostra badge nella pagina dettaglio libro") ?></p>
+                            </div>
+                        </div>
+                        <input type="checkbox" id="goodlib_frontend" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100 text-gray-600 text-sm">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <div>
+                                <span class="text-sm font-medium text-gray-700"><?= __("Scheda libro admin") ?></span>
+                                <p class="text-xs text-gray-500"><?= __("Mostra badge nell'area amministrazione") ?></p>
+                            </div>
+                        </div>
+                        <input type="checkbox" id="goodlib_admin" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                </div>
+            </div>
+            <!-- Mirror domains -->
+            <div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <i class="fas fa-globe text-gray-400"></i>
+                    <?= __("Domini mirror") ?>
+                </h4>
+                <p class="text-xs text-gray-500 mb-3"><?= __("Questi siti cambiano dominio spesso. Seleziona un mirror funzionante.") ?></p>
+                <div class="space-y-3">
+                    <div class="p-3 rounded-lg border border-gray-200">
+                        <label for="goodlib_anna_domain" class="text-sm font-medium text-gray-700 block mb-1">Anna's Archive</label>
+                        <select id="goodlib_anna_domain" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="annas-archive.gd">annas-archive.gd</option>
+                            <option value="annas-archive.gl">annas-archive.gl</option>
+                            <option value="annas-archive.pk">annas-archive.pk</option>
+                        </select>
+                    </div>
+                    <div class="p-3 rounded-lg border border-gray-200">
+                        <label for="goodlib_zlib_domain" class="text-sm font-medium text-gray-700 block mb-1">Z-Library</label>
+                        <select id="goodlib_zlib_domain" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="z-lib.gd">z-lib.gd</option>
+                            <option value="z-lib.gl">z-lib.gl</option>
+                            <option value="z-lib.fm">z-lib.fm</option>
+                            <option value="1lib.sk">1lib.sk</option>
+                            <option value="z-library.ec">z-library.ec</option>
+                            <option value="zliba.ru">zliba.ru</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <button onclick="closeGoodLibModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                <?= __("Annulla") ?>
+            </button>
+            <button onclick="saveGoodLibSettings()" id="goodlibSaveBtn" class="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors">
+                <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -1551,8 +1695,81 @@ $pluginSettings = $pluginSettings ?? [];
         } finally {
             if (submitButton) {
                 submitButton.disabled = false;
-                submitButton.innerHTML = `<i class="fas fa-save"></i> ${buttonLabel}`;
+                submitButton.textContent = buttonLabel;
             }
         }
     }
+
+    // ─── GoodLib Settings ───────────────────────────────────────────────
+    function openGoodLibModal(btn) {
+        const modal = document.getElementById('goodlibModal');
+        document.getElementById('goodlibPluginId').value = btn.dataset.pluginId;
+        document.getElementById('goodlib_anna').checked = btn.dataset.goodlibAnna === '1';
+        document.getElementById('goodlib_zlib').checked = btn.dataset.goodlibZlib === '1';
+        document.getElementById('goodlib_gutenberg').checked = btn.dataset.goodlibGutenberg === '1';
+        document.getElementById('goodlib_frontend').checked = btn.dataset.goodlibFrontend === '1';
+        document.getElementById('goodlib_admin').checked = btn.dataset.goodlibAdmin === '1';
+        document.getElementById('goodlib_anna_domain').value = btn.dataset.goodlibAnnaDomain || 'annas-archive.gd';
+        document.getElementById('goodlib_zlib_domain').value = btn.dataset.goodlibZlibDomain || 'z-lib.gd';
+        modal.classList.remove('hidden');
+    }
+
+    function closeGoodLibModal() {
+        document.getElementById('goodlibModal').classList.add('hidden');
+    }
+
+    async function saveGoodLibSettings() {
+        const pluginId = document.getElementById('goodlibPluginId').value;
+        const btn = document.getElementById('goodlibSaveBtn');
+        btn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+        formData.append('settings[anna_enabled]', document.getElementById('goodlib_anna').checked ? '1' : '0');
+        formData.append('settings[zlib_enabled]', document.getElementById('goodlib_zlib').checked ? '1' : '0');
+        formData.append('settings[gutenberg_enabled]', document.getElementById('goodlib_gutenberg').checked ? '1' : '0');
+        formData.append('settings[show_frontend]', document.getElementById('goodlib_frontend').checked ? '1' : '0');
+        formData.append('settings[show_admin]', document.getElementById('goodlib_admin').checked ? '1' : '0');
+        formData.append('settings[anna_domain]', document.getElementById('goodlib_anna_domain').value);
+        formData.append('settings[zlib_domain]', document.getElementById('goodlib_zlib_domain').value);
+
+        try {
+            const resp = await fetch((window.BASE_PATH || '') + '/admin/plugins/' + pluginId + '/settings', {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+            if (data.success) {
+                const configBtn = document.querySelector('[data-plugin-id="' + pluginId + '"][onclick="openGoodLibModal(this)"]');
+                if (configBtn) {
+                    configBtn.dataset.goodlibAnna = document.getElementById('goodlib_anna').checked ? '1' : '0';
+                    configBtn.dataset.goodlibZlib = document.getElementById('goodlib_zlib').checked ? '1' : '0';
+                    configBtn.dataset.goodlibGutenberg = document.getElementById('goodlib_gutenberg').checked ? '1' : '0';
+                    configBtn.dataset.goodlibFrontend = document.getElementById('goodlib_frontend').checked ? '1' : '0';
+                    configBtn.dataset.goodlibAdmin = document.getElementById('goodlib_admin').checked ? '1' : '0';
+                    configBtn.dataset.goodlibAnnaDomain = document.getElementById('goodlib_anna_domain').value;
+                    configBtn.dataset.goodlibZlibDomain = document.getElementById('goodlib_zlib_domain').value;
+                }
+                closeGoodLibModal();
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({ icon: 'success', title: <?= json_encode(__("Successo"), JSON_HEX_TAG) ?>, text: data.message });
+                }
+            } else {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({ icon: 'error', title: 'Errore', text: data.message });
+                }
+            }
+        } catch (e) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ icon: 'error', title: 'Errore', text: e.message });
+            }
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // Close GoodLib modal on backdrop click
+    document.getElementById('goodlibModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeGoodLibModal();
+    });
 </script>

@@ -131,6 +131,13 @@ storage/plugins/dewey-editor/*
 !storage/plugins/dewey-editor/classes/*.php
 !storage/plugins/dewey-editor/views/
 !storage/plugins/dewey-editor/views/*.php
+!storage/plugins/goodlib/
+storage/plugins/goodlib/*
+!storage/plugins/goodlib/*.php
+!storage/plugins/goodlib/*.json
+!storage/plugins/goodlib/*.md
+!storage/plugins/goodlib/views/
+!storage/plugins/goodlib/views/*.php
 
 # Premium plugin - never track (private/commercial)
 storage/plugins/scraping-pro/
@@ -269,7 +276,11 @@ vendor/bin/
 .phpunit.result.cache
 .phpunit.cache/
 phpunit.xml
-tests/
+tests/*
+!tests/branch-fix-consistency.spec.js
+!tests/helpers/
+tests/helpers/*
+!tests/helpers/branch-fix-harness.php
 test/
 coverage/
 .nyc_output/
@@ -412,3 +423,4 @@ updater_new.md
 scraping-pro-*.zip
 fix-autoloader.php
 test-upgrade/
+.playwright-cli/

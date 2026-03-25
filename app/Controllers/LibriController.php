@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\SecureLogger;
 use App\Support\LibraryThingInstaller;
+use Slim\Exception\HttpNotFoundException;
 
 class LibriController
 {
@@ -470,7 +471,7 @@ class LibriController
         $repo = new \App\Models\BookRepository($db);
         $libro = $repo->getById($id);
         if (!$libro) {
-            return $response->withStatus(404);
+            throw new HttpNotFoundException($request);
         }
         $loanRepo = new \App\Models\LoanRepository($db);
         $activeLoan = $loanRepo->getActiveLoanByBook($id);
@@ -1136,7 +1137,7 @@ class LibriController
         $repo = new \App\Models\BookRepository($db);
         $libro = $repo->getById($id);
         if (!$libro) {
-            return $response->withStatus(404);
+            throw new HttpNotFoundException($request);
         }
         $editRepo = new \App\Models\PublisherRepository($db);
         $autRepo = new \App\Models\AuthorRepository($db);
@@ -1171,7 +1172,7 @@ class LibriController
         $repo = new \App\Models\BookRepository($db);
         $currentBook = $repo->getById($id);
         if (!$currentBook) {
-            return $response->withStatus(404);
+            throw new HttpNotFoundException($request);
         }
         $fields = [
             'titolo' => '',
@@ -2396,8 +2397,7 @@ class LibriController
         $libro = $repo->getById($id);
 
         if (!$libro) {
-            $response->getBody()->write('Libro non trovato');
-            return $response->withStatus(404);
+            throw new HttpNotFoundException($request);
         }
 
         // Get application name and label settings from settings

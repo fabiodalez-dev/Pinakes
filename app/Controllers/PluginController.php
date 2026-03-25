@@ -345,6 +345,32 @@ class PluginController
                     'servers_count' => count($decoded)
                 ]
             ]));
+        } elseif ($plugin['name'] === 'goodlib') {
+            // GoodLib: toggle sources, visibility, and mirror domains
+            $boolKeys = ['anna_enabled', 'zlib_enabled', 'gutenberg_enabled', 'show_frontend', 'show_admin'];
+            foreach ($boolKeys as $key) {
+                $value = isset($settings[$key]) && $settings[$key] === '1' ? '1' : '0';
+                $this->pluginManager->setSetting($pluginId, $key, $value, true);
+            }
+
+            // Domain settings — validate against allowed mirrors
+            $allowedMirrors = [
+                'anna_domain' => ['annas-archive.gd', 'annas-archive.gl', 'annas-archive.pk'],
+                'zlib_domain' => ['z-lib.gd', 'z-lib.gl', 'z-lib.fm', '1lib.sk', 'z-library.ec', 'zliba.ru'],
+            ];
+            foreach ($allowedMirrors as $domainKey => $allowed) {
+                if (isset($settings[$domainKey])) {
+                    $domain = trim((string) $settings[$domainKey]);
+                    if (\in_array($domain, $allowed, true)) {
+                        $this->pluginManager->setSetting($pluginId, $domainKey, $domain, true);
+                    }
+                }
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Impostazioni GoodLib salvate correttamente.')
+            ]));
         } else {
             // Plugin not supported
             error_log('[PluginController] Plugin does not support settings: ' . $plugin['name']);

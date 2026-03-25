@@ -206,6 +206,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php echo App\Support\HtmlHelper::e($libro['issn']); ?>
           </div>
           <?php endif; ?>
+          <?php
+          // Hook: Allow plugins to add external search links (e.g., GoodLib badges)
+          do_action('book.admin.external_links', $libro);
+          ?>
       </div>
     </div>
       <?php if (!empty($activeLoan) && (int)$activeLoan['attivo'] === 1 && !$isCatalogueMode): ?>
