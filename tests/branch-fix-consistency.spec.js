@@ -4,7 +4,10 @@ const { execFileSync } = require('child_process');
 const { test, expect } = require('@playwright/test');
 
 const HARNESS = path.join(__dirname, 'helpers', 'branch-fix-harness.php');
-const BASE_URL = process.env.E2E_BASE_URL || process.env.APP_URL || 'http://localhost:8081';
+const BASE_URL = process.env.E2E_BASE_URL || process.env.APP_URL;
+if (!BASE_URL) {
+  throw new Error('E2E_BASE_URL or APP_URL must be set (use /tmp/run-e2e.sh)');
+}
 
 function runScenario(name) {
   let output = '';

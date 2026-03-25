@@ -289,6 +289,12 @@ function buildLibraryThingRow(string $runId): array
 
 function scenarioLibraryThingParseAndPersist(mysqli $db): array
 {
+    // Ensure LibraryThing plugin schema is installed so LT-specific columns exist
+    if (!\App\Support\LibraryThingInstaller::isInstalled($db)) {
+        $installer = new \App\Support\LibraryThingInstaller($db);
+        $installer->install();
+    }
+
     [$controller, $parse, $insert, $update] = getLibraryThingMethods();
     $runId = randomRunId();
     $bookId = 0;

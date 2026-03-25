@@ -757,7 +757,9 @@ class LibraryThingImportController
             }
         }
 
-        return $normalized === [] ? null : implode('; ', $normalized);
+        // Return only the first normalized name — traduttore is treated as single-value
+        // throughout the app (Schema.org Person, book-detail view, etc.)
+        return $normalized === [] ? null : $normalized[0];
     }
 
     private function parseLibraryThingRow(array $data): array
@@ -1366,6 +1368,11 @@ class LibraryThingImportController
         }
 
         $stmt->execute();
+        // If no rows matched (book was soft-deleted between find and update), abort
+        if ($stmt->affected_rows === 0) {
+            $stmt->close();
+            throw new \RuntimeException("Book ID {$bookId} was soft-deleted during import — update skipped");
+        }
         $stmt->close();
     }
 

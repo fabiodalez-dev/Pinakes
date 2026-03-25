@@ -831,7 +831,7 @@ $pluginSettings = $pluginSettings ?? [];
                             placeholder="z-lib.example.org:8443"
                             autocomplete="off"
                             spellcheck="false">
-                        <p class="mt-2 text-xs text-gray-500"><?= __("Sono accettati anche domini personalizzati; se incolli un URL completo verra salvato solo l'host.") ?></p>
+                        <p class="mt-2 text-xs text-gray-500"><?= __("Sono accettati anche domini personalizzati; se incolli un URL completo verrà salvato solo l'host.") ?></p>
                     </div>
                 </div>
             </div>
