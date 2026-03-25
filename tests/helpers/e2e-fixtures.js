@@ -6,12 +6,19 @@ const { execFileSync } = require('child_process');
 const ROOT = path.resolve(__dirname, '..', '..');
 const envFromFile = loadDotEnv(path.join(ROOT, '.env'));
 
-const BASE_URL = process.env.E2E_BASE_URL || process.env.APP_URL || 'http://localhost:8081';
+// Require explicit E2E env vars — these fixtures create/delete data
+const BASE_URL = process.env.E2E_BASE_URL || process.env.APP_URL;
+if (!BASE_URL) {
+  throw new Error('E2E_BASE_URL or APP_URL must be set (use /tmp/run-e2e.sh)');
+}
 const DB_HOST = process.env.E2E_DB_HOST || envFromFile.DB_HOST || '';
 const DB_USER = process.env.E2E_DB_USER || envFromFile.DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS ?? envFromFile.DB_PASS ?? '';
 const DB_NAME = process.env.E2E_DB_NAME || envFromFile.DB_NAME || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || envFromFile.DB_SOCKET || '';
+if (!DB_USER || !DB_NAME) {
+  throw new Error('E2E_DB_USER and E2E_DB_NAME must be set (use /tmp/run-e2e.sh)');
+}
 
 function loadDotEnv(filePath) {
   if (!fs.existsSync(filePath)) {
@@ -126,7 +133,7 @@ function restorePluginSettings(pluginId, rows) {
       VALUES (
         ${id},
         '${escapeSql(row.setting_key)}',
-        '${escapeSql(row.setting_value)}',
+        ${row.setting_value === null ? 'NULL' : "'" + escapeSql(row.setting_value) + "'"},
         ${Number(row.autoload) ? 1 : 0},
         NOW()
       )
