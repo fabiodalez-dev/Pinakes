@@ -432,6 +432,12 @@ function scenarioDescrizionePlainSearch(mysqli $db): array
 
 function scenarioPublicApiAndFrontendIssn(mysqli $db): array
 {
+    // Ensure LibraryThing plugin schema is installed so LT-specific columns (issn) exist
+    if (!\App\Support\LibraryThingInstaller::isInstalled($db)) {
+        $installer = new \App\Support\LibraryThingInstaller($db);
+        $installer->install();
+    }
+
     $_SESSION = [];
     $factory = new ServerRequestFactory();
     $publicApi = new PublicApiController();

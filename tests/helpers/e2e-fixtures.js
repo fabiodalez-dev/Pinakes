@@ -4,20 +4,20 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const envFromFile = loadDotEnv(path.join(ROOT, '.env'));
 
-// Require explicit E2E env vars — these fixtures create/delete data
-const BASE_URL = process.env.E2E_BASE_URL || process.env.APP_URL;
+// Require explicit E2E_* env vars only — never fall back to .env or APP_URL
+// These fixtures create/delete data and must not target the real app environment
+const BASE_URL = process.env.E2E_BASE_URL;
 if (!BASE_URL) {
-  throw new Error('E2E_BASE_URL or APP_URL must be set (use /tmp/run-e2e.sh)');
+  throw new Error('E2E_BASE_URL must be set (use /tmp/run-e2e.sh)');
 }
-const DB_HOST = process.env.E2E_DB_HOST || envFromFile.DB_HOST || '';
-const DB_USER = process.env.E2E_DB_USER || envFromFile.DB_USER || '';
-const DB_PASS = process.env.E2E_DB_PASS ?? envFromFile.DB_PASS ?? '';
-const DB_NAME = process.env.E2E_DB_NAME || envFromFile.DB_NAME || '';
-const DB_SOCKET = process.env.E2E_DB_SOCKET || envFromFile.DB_SOCKET || '';
-if (!DB_USER || !DB_NAME) {
-  throw new Error('E2E_DB_USER and E2E_DB_NAME must be set (use /tmp/run-e2e.sh)');
+const DB_HOST = process.env.E2E_DB_HOST || '';
+const DB_USER = process.env.E2E_DB_USER || '';
+const DB_PASS = process.env.E2E_DB_PASS ?? '';
+const DB_NAME = process.env.E2E_DB_NAME || '';
+const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
+if (!DB_USER || !DB_NAME || (!DB_HOST && !DB_SOCKET)) {
+  throw new Error('Missing E2E_DB_* configuration (use /tmp/run-e2e.sh)');
 }
 
 function loadDotEnv(filePath) {
@@ -173,6 +173,9 @@ function createTempAdminUser(locale = 'it_IT') {
   const id = Number(dbQuery(
     `SELECT id FROM utenti WHERE email = '${escapeSql(email)}' LIMIT 1`
   ));
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`createTempAdminUser: failed to resolve user id for ${email}`);
+  }
 
   return { id, email, password, locale };
 }
@@ -186,6 +189,9 @@ function createTempBook(titlePrefix = 'GoodLib Test') {
   const id = Number(dbQuery(
     `SELECT id FROM libri WHERE titolo = '${escapeSql(title)}' ORDER BY id DESC LIMIT 1`
   ));
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new Error(`createTempBook: failed to resolve book id for "${title}"`);
+  }
   return { id, title };
 }
 

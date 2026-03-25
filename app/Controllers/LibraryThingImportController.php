@@ -505,20 +505,20 @@ class LibraryThingImportController
                     // Complete and persist
                     $persisted = $importLogger->complete($importData['total_rows']);
                     if (!$persisted) {
-                        error_log("[LibraryThingImportController] Failed to persist import history to database");
+                        \App\Support\SecureLogger::error('[LibraryThingImportController] Failed to persist import history to database');
                         // Mark as failed so the record doesn't stay stuck in 'processing'
                         $importLogger->fail('Failed to persist import history', $importData['total_rows']);
                     }
                 } catch (\Throwable $e) {
                     // Log error but don't fail the import (already completed)
                     // Catches \Error/TypeError too (strict_types=1 can throw TypeError)
-                    error_log("[LibraryThingImportController] Failed to persist import history (" . get_class($e) . "): " . $e->getMessage());
+                    \App\Support\SecureLogger::error('[LibraryThingImportController] Failed to persist import history', ['exception' => get_class($e), 'error' => $e->getMessage()]);
                     // Mark as failed so the record doesn't stay stuck in 'processing'
                     if (isset($importLogger)) {
                         try {
                             $importLogger->fail($e->getMessage(), $importData['total_rows']);
                         } catch (\Throwable $inner) {
-                            error_log("[LibraryThingImportController] Also failed to mark import as failed: " . $inner->getMessage());
+                            \App\Support\SecureLogger::error('[LibraryThingImportController] Also failed to mark import as failed', ['error' => $inner->getMessage()]);
                         }
                     }
                 }
@@ -1647,7 +1647,7 @@ class LibraryThingImportController
                     $types .= 's';
                 }
             } catch (\Throwable $e) {
-                error_log("[LT Import] Cover download failed for book $bookId: " . $e->getMessage());
+                \App\Support\SecureLogger::error('[LT Import] Cover download failed', ['book_id' => $bookId, 'error' => $e->getMessage()]);
             }
         }
 
