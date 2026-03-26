@@ -310,6 +310,7 @@ INSERT INTO `email_templates` VALUES (18,'loan_pickup_cancelled','en_US','❌ Pi
 INSERT INTO `languages` (`id`, `code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
 (1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 0, 1, NULL, 2015, 2015, 100.00),
 (2, 'en_US', 'English', 'English', '🇬🇧', 1, 1, 'locale/en_US.json', 2015, 1988, 98.66);
+(3, 'fr_FR', 'French', 'Français', '🇫🇷', 0, 1, 'locale/fr_FR.json', 4081, 4081, 100);
 
 -- Home Content (English)
 INSERT INTO `home_content` (section_key, title, subtitle, content, button_text, button_link, is_active, display_order, created_at, updated_at) VALUES

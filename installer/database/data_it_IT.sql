@@ -335,6 +335,6 @@ ON DUPLICATE KEY UPDATE
 INSERT INTO `languages` (`id`, `code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
 (1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 1, 1, NULL, 2015, 2015, 100.00),
 (2, 'en_US', 'English', 'English', '🇬🇧', 0, 1, 'locale/en_US.json', 2015, 1988, 98.66);
-
+(3, 'fr_FR', 'French', 'Français', '🇫🇷', 0, 1, 'locale/fr_FR.json', 4081, 4081, 100);
 
 SET FOREIGN_KEY_CHECKS=1;
