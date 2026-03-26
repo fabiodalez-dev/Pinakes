@@ -1224,9 +1224,29 @@ class LibraryThingImportController
                 }
             }
 
+            // Clear EAN conflicts (same pattern as ISBN13/ISBN10)
+            if (!empty($data['ean'])) {
+                $stmt = $db->prepare("UPDATE libri SET ean = NULL WHERE ean = ? AND id != ? AND deleted_at IS NULL");
+                $stmt->bind_param('si', $data['ean'], $existingBookId);
+                $stmt->execute();
+                $conflictsCleared = $stmt->affected_rows;
+                $stmt->close();
+                if ($conflictsCleared > 0) {
+                    $this->log("[upsertBook] Cleared EAN '{$data['ean']}' from $conflictsCleared conflicting book(s)");
+                }
+            }
+
             $this->updateBook($db, $existingBookId, $data, $editorId, $genreId);
             return ['id' => $existingBookId, 'action' => 'updated'];
         } else {
+            // Clear EAN conflicts for new inserts
+            if (!empty($data['ean'])) {
+                $stmt = $db->prepare("UPDATE libri SET ean = NULL WHERE ean = ? AND deleted_at IS NULL");
+                $stmt->bind_param('s', $data['ean']);
+                $stmt->execute();
+                $stmt->close();
+            }
+
             $this->log("[upsertBook] INSERTING new book: {$data['titolo']}");
             $newBookId = $this->insertBook($db, $data, $editorId, $genreId);
             return ['id' => $newBookId, 'action' => 'created'];

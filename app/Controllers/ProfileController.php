@@ -18,6 +18,14 @@ class ProfileController
         if ($uid <= 0)
             return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
         $stmt = $db->prepare("SELECT id, nome, cognome, email, codice_tessera, stato, tipo_utente, data_ultimo_accesso, data_nascita, telefono, sesso, indirizzo, cod_fiscale, data_scadenza_tessera, locale FROM utenti WHERE id = ? LIMIT 1");
+        if (!$stmt) {
+            SecureLogger::error('ProfileController: prepare failed for profile SELECT', [
+                'user_id' => $uid,
+                'db_error' => $db->error
+            ]);
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=server')->withStatus(302);
+        }
         $stmt->bind_param('i', $uid);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc() ?: [];
@@ -178,7 +186,6 @@ class ProfileController
         }
 
         if ($stmt->execute()) {
-            $_SESSION['success_message'] = __('Profilo aggiornato con successo.');
             // Update session data
             $_SESSION['user']['name'] = $nome . ' ' . $cognome;
             // Apply locale change immediately (only when locale was in the form)
@@ -190,6 +197,8 @@ class ProfileController
                     unset($_SESSION['locale']);
                 }
             }
+            // Flash message AFTER locale switch so it renders in the new language
+            $_SESSION['success_message'] = __('Profilo aggiornato con successo.');
         } else {
             SecureLogger::error('ProfileController: profile update failed', [
                 'user_id' => $uid,

@@ -260,7 +260,7 @@ $pluginSettings = $pluginSettings ?? [];
                                         data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                         data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
-                                        data-enable-server="<?= ($z39Settings['enable_server'] ?? '0') === '1' ? '1' : '0' ?>"
+                                        data-enable-server="<?= ($z39Settings['server_enabled'] ?? 'false') === 'true' ? '1' : '0' ?>"
                                         data-enable-client="<?= ($z39Settings['enable_client'] ?? '0') === '1' ? '1' : '0' ?>"
                                         data-servers="<?= HtmlHelper::e($z39Settings['servers'] ?? '[]') ?>"
                                         onclick="openZ39ServerModal(this)">

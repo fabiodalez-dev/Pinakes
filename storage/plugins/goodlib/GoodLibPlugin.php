@@ -178,17 +178,16 @@ class GoodLibPlugin
         return $settings;
     }
 
-    private function dbSetSetting(string $key, string $value): void
+    private function dbSetSetting(string $key, string $value): bool
     {
         if (!$this->db || $this->pluginId === 0) {
-            return;
+            return false;
         }
 
         if ($this->hookManager !== null) {
             try {
                 $pm = new \App\Support\PluginManager($this->db, $this->hookManager);
-                $pm->setSetting($this->pluginId, $key, $value, true);
-                return;
+                return $pm->setSetting($this->pluginId, $key, $value, true);
             } catch (\Throwable $e) {
                 // Fall back to direct DB write
             }
@@ -200,11 +199,12 @@ class GoodLibPlugin
             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()
         ");
         if (!$stmt) {
-            return;
+            return false;
         }
         $stmt->bind_param('iss', $this->pluginId, $key, $value);
-        $stmt->execute();
+        $ok = $stmt->execute();
         $stmt->close();
+        return $ok;
     }
 
     private static function normalizeDomain(string $value, string $defaultDomain): ?string
@@ -388,7 +388,10 @@ class GoodLibPlugin
         }
 
         // ISBN for precise search on Anna's Archive and Z-Library
-        $isbn = trim((string) ($bookData['isbn13'] ?? $bookData['isbn10'] ?? ''));
+        // Use ?: (not ??) to fall back on empty string, not just null
+        $isbn13 = trim((string) ($bookData['isbn13'] ?? ''));
+        $isbn10 = trim((string) ($bookData['isbn10'] ?? ''));
+        $isbn = $isbn13 !== '' ? $isbn13 : $isbn10;
 
         return [
             'query' => trim("$title $author"),
@@ -471,11 +474,13 @@ class GoodLibPlugin
             return false;
         }
 
+        $allOk = true;
+
         // Boolean toggles
         $keys = ['anna_enabled', 'zlib_enabled', 'gutenberg_enabled', 'show_frontend', 'show_admin'];
         foreach ($keys as $key) {
             $value = isset($data[$key]) && $data[$key] === '1' ? '1' : '0';
-            $this->dbSetSetting($key, $value);
+            $allOk = $this->dbSetSetting($key, $value) && $allOk;
         }
 
         // Domain settings — allow presets and validated custom domains
@@ -486,12 +491,12 @@ class GoodLibPlugin
                 $defaultDomain = self::SOURCES[$sourceKey]['default_domain'] ?? '';
                 $domain = self::normalizeDomain((string) $data[$domainKey], $defaultDomain);
                 if ($domain !== null) {
-                    $this->dbSetSetting($domainKey, $domain);
+                    $allOk = $this->dbSetSetting($domainKey, $domain) && $allOk;
                 }
             }
         }
 
-        return true;
+        return $allOk;
     }
 
     /**

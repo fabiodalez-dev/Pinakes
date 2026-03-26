@@ -97,8 +97,7 @@
                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
                autocomplete="off"
                spellcheck="false"
-               maxlength="253"
-               pattern="[a-zA-Z0-9][a-zA-Z0-9.-]+(:[0-9]{1,5})?">
+               maxlength="253">
         <datalist id="anna_domain_options">
           <option value="annas-archive.gd"></option>
           <option value="annas-archive.gl"></option>
@@ -115,8 +114,7 @@
                class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
                autocomplete="off"
                spellcheck="false"
-               maxlength="253"
-               pattern="[a-zA-Z0-9][a-zA-Z0-9.-]+(:[0-9]{1,5})?">
+               maxlength="253">
         <datalist id="zlib_domain_options">
           <option value="z-lib.gd"></option>
           <option value="z-lib.gl"></option>

@@ -15,7 +15,7 @@ $context = $context ?? 'frontend';
 ?>
 <div class="text-base text-gray-600 <?= $context === 'admin' ? '' : 'mt-2' ?>">
   <i class="fas fa-external-link-alt text-gray-400 mr-2"></i>
-  <span class="font-medium"><?= __("Cerca su:") ?></span>
+  <span class="font-medium"><?= htmlspecialchars(__("Cerca su:"), ENT_QUOTES, 'UTF-8') ?></span>
   <div class="mt-2 flex flex-wrap gap-2">
     <?php foreach ($sources as $key => $source): ?>
       <?php

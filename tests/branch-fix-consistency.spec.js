@@ -28,7 +28,11 @@ function runScenario(name) {
     }
   }
 
-  return JSON.parse(output);
+  try {
+    return JSON.parse(output);
+  } catch {
+    throw new Error(`Invalid harness output for "${name}": ${output.slice(0, 500)}`);
+  }
 }
 
 test.describe('Branch Fix Consistency', () => {
