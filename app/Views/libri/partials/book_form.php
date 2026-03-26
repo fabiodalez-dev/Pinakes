@@ -79,6 +79,8 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
       <input type="hidden" id="scraped_price" name="scraped_price" value="">
       <input type="hidden" id="scraped_format" name="scraped_format" value="">
       <input type="hidden" id="scraped_series" name="scraped_series" value="">
+      <input type="hidden" id="scraped_numero_serie" name="scraped_numero_serie" value="">
+      <input type="hidden" id="scraped_dimensions" name="scraped_dimensions" value="">
       <input type="hidden" id="scraped_pages" name="scraped_pages" value="">
       <input type="hidden" id="scraped_publisher" name="scraped_publisher" value="">
       <input type="hidden" id="scraped_translator" name="scraped_translator" value="">
@@ -3618,6 +3620,38 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
+            // Handle Volume in series (collana)
+            try {
+                if (data.numero_serie) {
+                    const numeroSeriesInput = document.querySelector('input[name="numero_serie"]');
+                    if (numeroSeriesInput) {
+                        numeroSeriesInput.value = data.numero_serie;
+                    }
+                    const scrapedNumeroSeries = document.getElementById('scraped_numero_serie');
+                    if (scrapedNumeroSeries) {
+                        scrapedNumeroSeries.value = data.numero_serie;
+                    }
+                } else {
+                }
+            } catch (err) {
+            }
+
+            // Handle Dimensions
+            try {
+                if (data.dimensions) {
+                    const dimensionsInput = document.querySelector('input[name="dimensioni"]');
+                    if (dimensionsInput) {
+                        dimensionsInput.value = data.dimensions;
+                    }
+                    const scrapedDimensions = document.getElementById('scraped_dimensions');
+                    if (scrapedDimensions) {
+                        scrapedDimensions.value = data.dimensions;
+                    }
+                } else {
+                }
+            } catch (err) {
+            }
+
             // Handle pages
             try {
                 if (data.pages) {
@@ -3814,6 +3848,8 @@ function initializeIsbnImport() {
             if (data.price) fieldsPopulated.push('price');
             if (data.format) fieldsPopulated.push('format');
             if (data.series) fieldsPopulated.push('series');
+            if (data.numero_serie) fieldsPopulated.push('numero_serie');
+            if (data.dimensions) fieldsPopulated.push('dimensions');
             if (data.pages) fieldsPopulated.push('pages');
             if (data.notes) fieldsPopulated.push('notes');
             if (data.isbn) fieldsPopulated.push('ISBN');
@@ -3822,6 +3858,7 @@ function initializeIsbnImport() {
             if (data.keywords) fieldsPopulated.push('keywords');
             if (data.translator) fieldsPopulated.push('translator');
             if (data.illustrator) fieldsPopulated.push('illustrator');
+            if (data.classificazione_dewey) fieldsPopulated.push('classificazione_dewey');
 
             // Show source information panel
             displayScrapeSourceInfo(data);
