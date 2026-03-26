@@ -49,6 +49,13 @@ class AuthController
 
         if ($email !== '' && $password !== '') {
             $stmt = $db->prepare("SELECT id, email, password, tipo_utente, email_verificata, stato, nome, cognome, locale FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
+            if ($stmt === false) {
+                Log::security('login.db_prepare_failed', [
+                    'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                    'db_error' => $db->error,
+                ]);
+                return $response->withHeader('Location', RouteTranslator::route('login') . '?error=server')->withStatus(302);
+            }
             $stmt->bind_param('s', $email);
             $stmt->execute();
             $res = $stmt->get_result();

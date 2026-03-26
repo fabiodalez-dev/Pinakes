@@ -197,14 +197,22 @@ function createTempBook(titlePrefix = 'GoodLib Test') {
 
 function deleteTempAdminUser(userId) {
   if (!userId) return;
-  dbExec(`DELETE FROM user_sessions WHERE utente_id = ${Number(userId)}`);
-  dbExec(`DELETE FROM utenti WHERE id = ${Number(userId)}`);
+  const id = Number(userId);
+  // Delete non-cascading dependents first
+  dbExec(`DELETE FROM prenotazioni WHERE utente_id = ${id}`);
+  dbExec(`DELETE FROM prestiti WHERE utente_id = ${id}`);
+  dbExec(`DELETE FROM user_sessions WHERE utente_id = ${id}`);
+  dbExec(`DELETE FROM utenti WHERE id = ${id}`);
 }
 
 function deleteTempBook(bookId) {
   if (!bookId) return;
-  dbExec(`DELETE FROM copie WHERE libro_id = ${Number(bookId)}`);
-  dbExec(`DELETE FROM libri WHERE id = ${Number(bookId)}`);
+  const id = Number(bookId);
+  // Delete non-cascading dependents first
+  dbExec(`DELETE FROM prenotazioni WHERE libro_id = ${id}`);
+  dbExec(`DELETE FROM prestiti WHERE libro_id = ${id}`);
+  dbExec(`DELETE FROM copie WHERE libro_id = ${id}`);
+  dbExec(`DELETE FROM libri WHERE id = ${id}`);
 }
 
 module.exports = {

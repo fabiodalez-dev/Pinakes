@@ -194,6 +194,8 @@ class ProfileController
                     \App\Support\I18n::setLocale($locale);
                     $_SESSION['locale'] = $locale;
                 } else {
+                    // Reset runtime locale to site default so flash renders correctly
+                    \App\Support\I18n::setLocale(\App\Support\I18n::getInstallationLocale());
                     unset($_SESSION['locale']);
                 }
             }

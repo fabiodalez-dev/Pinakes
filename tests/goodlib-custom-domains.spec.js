@@ -21,7 +21,8 @@ test.describe.serial('GoodLib custom domains', () => {
   let pluginId = 0;
 
   test.beforeAll(() => {
-    pluginId = getPluginIdByName('goodlib');
+    pluginId = getPluginIdByName('goodlib'); // throws if not found
+    if (!pluginId) throw new Error('GoodLib plugin not registered');
     originalSettings = snapshotPluginSettings(pluginId);
     adminUser = createTempAdminUser('it_IT');
     book = createTempBook();

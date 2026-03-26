@@ -369,12 +369,21 @@ class PluginController
             }
 
             // All validated — now persist
+            $allOk = true;
             foreach ($boolKeys as $key) {
                 $value = isset($settings[$key]) && $settings[$key] === '1' ? '1' : '0';
-                $this->pluginManager->setSetting($pluginId, $key, $value, true);
+                $allOk = $this->pluginManager->setSetting($pluginId, $key, $value, true) && $allOk;
             }
             foreach ($normalizedDomains as $domainKey => $domain) {
-                $this->pluginManager->setSetting($pluginId, $domainKey, $domain, true);
+                $allOk = $this->pluginManager->setSetting($pluginId, $domainKey, $domain, true) && $allOk;
+            }
+
+            if (!$allOk) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Errore durante il salvataggio delle impostazioni.')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
             }
 
             $response->getBody()->write(json_encode([
