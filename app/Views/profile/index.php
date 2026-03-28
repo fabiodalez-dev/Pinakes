@@ -431,6 +431,29 @@
                value="<?php echo App\Support\HtmlHelper::e($user['indirizzo'] ?? ''); ?>">
       </div>
 
+      <?php
+        $availableLocales = \App\Support\I18n::getAvailableLocales();
+        if (count($availableLocales) > 1):
+            $userLocale = $user['locale'] ?? '';
+            if ($userLocale !== '' && !isset($availableLocales[$userLocale])) {
+                $userLocale = '';
+            }
+      ?>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="locale" class="form-label"><?= __("Lingua") ?></label>
+          <select id="locale" name="locale" class="form-select">
+            <option value="" <?= $userLocale === '' ? 'selected' : '' ?>><?= __("Predefinita del sito") ?></option>
+            <?php foreach ($availableLocales as $code => $name): ?>
+              <option value="<?= htmlspecialchars($code, ENT_QUOTES, 'UTF-8') ?>"
+                <?= $code === $userLocale ? 'selected' : '' ?>>
+                <?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?>
+              </option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+      </div>
+      <?php endif; ?>
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary">

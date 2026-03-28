@@ -32,6 +32,28 @@ class LibraryThingImportController
      */
     private const CHUNK_SIZE = 5;
 
+    /** @var bool|null Cached result of descrizione_plain column existence check */
+    private ?bool $cachedHasDescPlain = null;
+
+    /**
+     * Check if descrizione_plain column exists (cached per controller instance).
+     */
+    private function hasDescrizionePlainColumn(\mysqli $db): bool
+    {
+        if ($this->cachedHasDescPlain === null) {
+            try {
+                $checkCol = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
+                $this->cachedHasDescPlain = $checkCol !== false && $checkCol->num_rows > 0;
+                if ($checkCol instanceof \mysqli_result) {
+                    $checkCol->free();
+                }
+            } catch (\Throwable $e) {
+                $this->cachedHasDescPlain = false;
+            }
+        }
+        return $this->cachedHasDescPlain;
+    }
+
     /**
      * Write log message to import log file
      */
@@ -483,20 +505,20 @@ class LibraryThingImportController
                     // Complete and persist
                     $persisted = $importLogger->complete($importData['total_rows']);
                     if (!$persisted) {
-                        error_log("[LibraryThingImportController] Failed to persist import history to database");
+                        \App\Support\SecureLogger::error('[LibraryThingImportController] Failed to persist import history to database');
                         // Mark as failed so the record doesn't stay stuck in 'processing'
                         $importLogger->fail('Failed to persist import history', $importData['total_rows']);
                     }
                 } catch (\Throwable $e) {
                     // Log error but don't fail the import (already completed)
                     // Catches \Error/TypeError too (strict_types=1 can throw TypeError)
-                    error_log("[LibraryThingImportController] Failed to persist import history (" . get_class($e) . "): " . $e->getMessage());
+                    \App\Support\SecureLogger::error('[LibraryThingImportController] Failed to persist import history', ['exception' => get_class($e), 'error' => $e->getMessage()]);
                     // Mark as failed so the record doesn't stay stuck in 'processing'
                     if (isset($importLogger)) {
                         try {
                             $importLogger->fail($e->getMessage(), $importData['total_rows']);
                         } catch (\Throwable $inner) {
-                            error_log("[LibraryThingImportController] Also failed to mark import as failed: " . $inner->getMessage());
+                            \App\Support\SecureLogger::error('[LibraryThingImportController] Also failed to mark import as failed', ['error' => $inner->getMessage()]);
                         }
                     }
                 }
@@ -679,6 +701,67 @@ class LibraryThingImportController
     /**
      * Parse LibraryThing row to standard format
      */
+    private function splitContributorList(string $value, string $pattern = '/\s*;\s*/u'): array
+    {
+        $parts = preg_split($pattern, trim($value)) ?: [];
+        $parts = array_map(static fn(string $part): string => trim($part), $parts);
+        return array_values(array_filter($parts, static fn(string $part): bool => $part !== ''));
+    }
+
+    /**
+     * @return array{authors: list<string>, translators: list<string>}
+     */
+    private function classifySecondaryAuthors(string $authorsValue, string $rolesValue): array
+    {
+        $authors = [];
+        $translators = [];
+        $secondaryAuthors = $this->splitContributorList($authorsValue);
+        $secondaryRoles = preg_split('/\s*;\s*/u', trim($rolesValue)) ?: [];
+
+        foreach ($secondaryAuthors as $index => $rawSecondaryAuthor) {
+            $secondaryAuthor = \App\Support\AuthorNormalizer::normalize($rawSecondaryAuthor);
+            if ($secondaryAuthor === '') {
+                continue;
+            }
+
+            $secondaryRole = mb_strtolower(trim((string) ($secondaryRoles[$index] ?? '')), 'UTF-8');
+            if (str_contains($secondaryRole, 'translator') || str_contains($secondaryRole, 'traduttore')) {
+                if (!in_array($secondaryAuthor, $translators, true)) {
+                    $translators[] = $secondaryAuthor;
+                }
+                continue;
+            }
+
+            if (!in_array($secondaryAuthor, $authors, true)) {
+                $authors[] = $secondaryAuthor;
+            }
+        }
+
+        return [
+            'authors' => $authors,
+            'translators' => $translators,
+        ];
+    }
+
+    private function normalizeContributorField(?string $value): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        $normalized = [];
+        foreach ($this->splitContributorList($value, '/\s*[;|]\s*/u') as $part) {
+            $name = \App\Support\AuthorNormalizer::normalize($part);
+            if ($name !== '' && !in_array($name, $normalized, true)) {
+                $normalized[] = $name;
+            }
+        }
+
+        // Return only the first normalized name — traduttore is treated as single-value
+        // throughout the app (Schema.org Person, book-detail view, etc.)
+        return $normalized === [] ? null : $normalized[0];
+    }
+
     private function parseLibraryThingRow(array $data): array
     {
         // Fix UTF-8 encoding issues in all string values
@@ -697,13 +780,24 @@ class LibraryThingImportController
         // Subtitle (LibraryThing doesn't export subtitles, leave empty)
         $result['sottotitolo'] = '';
 
-        // Authors (combine primary and secondary)
+        // Authors (combine primary and secondary, normalize names)
         $authors = [];
         if (!empty($data['Primary Author'])) {
-            $authors[] = trim($data['Primary Author']);
+            $authors[] = \App\Support\AuthorNormalizer::normalize(trim($data['Primary Author']));
         }
         if (!empty($data['Secondary Author'])) {
-            $authors[] = trim($data['Secondary Author']);
+            $secondaryContributors = $this->classifySecondaryAuthors(
+                (string) $data['Secondary Author'],
+                (string) ($data['Secondary Author Roles'] ?? '')
+            );
+            foreach ($secondaryContributors['authors'] as $secondaryAuthor) {
+                if (!in_array($secondaryAuthor, $authors, true)) {
+                    $authors[] = $secondaryAuthor;
+                }
+            }
+            if ($secondaryContributors['translators'] !== []) {
+                $result['traduttore'] = implode('; ', $secondaryContributors['translators']);
+            }
         }
         $result['autori'] = !empty($authors) ? implode('|', $authors) : '';
 
@@ -723,7 +817,7 @@ class LibraryThingImportController
 
         // Year - extract year (supports negative/BCE dates like "-500" and ISO dates like "2020-05-01")
         if (!empty($data['Date']) || (isset($data['Date']) && $data['Date'] === '0')) {
-            $dateStr = trim($data['Date']);
+            $dateStr = trim((string) $data['Date']);
             if (preg_match('/^-?\d+$/', $dateStr)) {
                 // Plain year (positive or negative)
                 $result['anno_pubblicazione'] = (int) $dateStr;
@@ -788,6 +882,11 @@ class LibraryThingImportController
 
         // Description/Summary
         $result['descrizione'] = !empty($data['Summary']) ? trim($data['Summary']) : '';
+        if (!empty($result['descrizione'])) {
+            $plain = preg_replace('/<[^>]+>/', ' ', $result['descrizione']) ?? $result['descrizione'];
+            $plain = html_entity_decode($plain, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $result['descrizione_plain'] = trim(preg_replace('/\s+/u', ' ', $plain) ?? $plain);
+        }
 
         // Format/Media
         if (!empty($data['Media'])) {
@@ -911,6 +1010,15 @@ class LibraryThingImportController
         $result['oclc'] = !empty($data['OCLC']) ? trim($data['OCLC']) : '';
         $result['work_id'] = !empty($data['Work id']) ? trim($data['Work id']) : '';
         $result['issn'] = !empty($data['ISSN']) ? trim($data['ISSN']) : '';
+        // Normalize ISSN to canonical XXXX-XXXX format or discard if malformed
+        if (!empty($result['issn'])) {
+            $issnCompact = strtoupper(str_replace('-', '', preg_replace('/\s+/', '', $result['issn'])));
+            if (preg_match('/^\d{7}[\dX]$/', $issnCompact)) {
+                $result['issn'] = substr($issnCompact, 0, 4) . '-' . substr($issnCompact, 4, 4);
+            } else {
+                $result['issn'] = null; // Don't expose malformed ISSN in JSON-LD/API
+            }
+        }
 
         // Languages
         $result['original_languages'] = !empty($data['Original Languages']) ? trim($data['Original Languages']) : '';
@@ -946,12 +1054,12 @@ class LibraryThingImportController
     /**
      * Parse date from LibraryThing format to MySQL DATE format
      *
-     * @param string $dateString Date string in various formats
+     * @param string|int|float|null $dateString Date string in various formats
      * @return string|null MySQL DATE format (YYYY-MM-DD) or null
      */
-    private function parseDate(string $dateString): ?string
+    private function parseDate(string|int|float|null $dateString): ?string
     {
-        $dateString = trim($dateString);
+        $dateString = trim((string) ($dateString ?? ''));
         if (empty($dateString)) {
             return null;
         }
@@ -1084,6 +1192,20 @@ class LibraryThingImportController
             $stmt->close();
         }
 
+        // Fallback to EAN/barcode to avoid duplicates
+        if (!empty($data['ean'])) {
+            $stmt = $db->prepare("SELECT id FROM libri WHERE ean = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt->bind_param('s', $data['ean']);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($row = $result->fetch_assoc()) {
+                $stmt->close();
+                $this->log("[findExistingBook] Found by EAN: {$row['id']}");
+                return (int) $row['id'];
+            }
+            $stmt->close();
+        }
+
         return null;
     }
 
@@ -1116,9 +1238,29 @@ class LibraryThingImportController
                 }
             }
 
+            // Clear EAN conflicts (same pattern as ISBN13/ISBN10)
+            if (!empty($data['ean'])) {
+                $stmt = $db->prepare("UPDATE libri SET ean = NULL WHERE ean = ? AND id != ? AND deleted_at IS NULL");
+                $stmt->bind_param('si', $data['ean'], $existingBookId);
+                $stmt->execute();
+                $conflictsCleared = $stmt->affected_rows;
+                $stmt->close();
+                if ($conflictsCleared > 0) {
+                    $this->log("[upsertBook] Cleared EAN '{$data['ean']}' from $conflictsCleared conflicting book(s)");
+                }
+            }
+
             $this->updateBook($db, $existingBookId, $data, $editorId, $genreId);
             return ['id' => $existingBookId, 'action' => 'updated'];
         } else {
+            // Clear EAN conflicts for new inserts
+            if (!empty($data['ean'])) {
+                $stmt = $db->prepare("UPDATE libri SET ean = NULL WHERE ean = ? AND deleted_at IS NULL");
+                $stmt->bind_param('s', $data['ean']);
+                $stmt->execute();
+                $stmt->close();
+            }
+
             $this->log("[upsertBook] INSERTING new book: {$data['titolo']}");
             $newBookId = $this->insertBook($db, $data, $editorId, $genreId);
             return ['id' => $newBookId, 'action' => 'created'];
@@ -1130,13 +1272,17 @@ class LibraryThingImportController
         // Check if LibraryThing plugin is installed
         $hasLTFields = \App\Support\LibraryThingInstaller::isInstalled($db);
 
+        // Check if descrizione_plain column exists (cached per controller instance)
+        $hasDescPlain = $this->hasDescrizionePlainColumn($db);
+        $descPlainSet = $hasDescPlain ? ', descrizione_plain = ?' : '';
+
         if ($hasLTFields) {
             // Full update with all LibraryThing fields
             $stmt = $db->prepare("
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?, formato = ?, prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, peso = ?, dimensioni = ?, data_acquisizione = ?,
                     review = ?, rating = ?, comment = ?, private_comment = ?,
@@ -1148,8 +1294,10 @@ class LibraryThingImportController
                     lending_patron = ?, lending_status = ?, lending_start = ?, lending_end = ?,
                     value = ?, condition_lt = ?, entry_date = ?,
                     updated_at = NOW()
-                WHERE id = ?
+                WHERE id = ? AND deleted_at IS NULL
             ");
+
+            $traduttore = $this->normalizeContributorField($data['traduttore'] ?? null);
 
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
@@ -1163,12 +1311,17 @@ class LibraryThingImportController
                 !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
                 $genreId,
                 !empty($data['descrizione']) ? $data['descrizione'] : null,
+            ];
+            if ($hasDescPlain) {
+                $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
+            }
+            $params = array_merge($params, [
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
                 !empty($data['numero_serie']) ? $data['numero_serie'] : null,
-                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                $traduttore,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
                 // Native fields from LibraryThing mapping
@@ -1201,25 +1354,22 @@ class LibraryThingImportController
                 !empty($data['condition_lt']) ? $data['condition_lt'] : null,
                 !empty($data['entry_date']) ? $data['entry_date'] : null,
                 $bookId
-            ];
+            ]);
 
-            // Type string: 47 characters matching params (s=string, i=int, d=double)
-            // isbn10,isbn13,ean,titolo,sottotitolo,anno_pubblicazione,lingua,edizione,numero_pagine,genreId,
-            // descrizione,formato,prezzo,editoreId,collana,numero_serie,traduttore,parole_chiave,classificazione_dewey,
-            // peso,dimensioni,data_acquisizione,review,rating,comment...lending_end(19),value,condition_lt,entry_date,bookId
-            $types = 'sssssissiissdisssssdsssisssssssssssssssssssdssi';
-            $stmt->bind_param($types, ...$params);
+            $stmt->bind_param($this->inferBindTypes($params), ...$params);
         } else {
             // Basic update without LibraryThing fields (plugin not installed)
             $stmt = $db->prepare("
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?, formato = ?, prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, updated_at = NOW()
-                WHERE id = ?
+                WHERE id = ? AND deleted_at IS NULL
             ");
+
+            $traduttore = $this->normalizeContributorField($data['traduttore'] ?? null);
 
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
@@ -1233,29 +1383,56 @@ class LibraryThingImportController
                 !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
                 $genreId,
                 !empty($data['descrizione']) ? $data['descrizione'] : null,
+            ];
+            if ($hasDescPlain) {
+                $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
+            }
+            $params = array_merge($params, [
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
                 !empty($data['numero_serie']) ? $data['numero_serie'] : null,
-                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                $traduttore,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
                 $bookId
-            ];
+            ]);
 
-            $types = 'sssssissiissdisssssi';
-            $stmt->bind_param($types, ...$params);
+            $stmt->bind_param($this->inferBindTypes($params), ...$params);
         }
 
         $stmt->execute();
+        $affectedRows = $stmt->affected_rows;
         $stmt->close();
+
+        // affected_rows=0 can mean unchanged data OR soft-deleted row — check explicitly
+        if ($affectedRows === 0) {
+            $checkStmt = $db->prepare("SELECT 1 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+            if ($checkStmt) {
+                $checkStmt->bind_param('i', $bookId);
+                $checkStmt->execute();
+                $checkStmt->store_result();
+                $stillExists = $checkStmt->num_rows === 1;
+                $checkStmt->close();
+
+                if (!$stillExists) {
+                    throw new \RuntimeException("Book ID {$bookId} was soft-deleted during import — update skipped");
+                }
+            }
+            // If row exists but unchanged, that's fine — continue
+        }
     }
 
     private function insertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): int
     {
         // Check if LibraryThing plugin is installed
         $hasLTFields = \App\Support\LibraryThingInstaller::isInstalled($db);
+
+        // Check if descrizione_plain column exists (cached per controller instance)
+        $hasDescPlain = $this->hasDescrizionePlainColumn($db);
+        $descPlainCol = $hasDescPlain ? ', descrizione_plain' : '';
+        $descPlainVal = $hasDescPlain ? ', ?' : '';
 
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         if ($copie < 1) {
@@ -1269,7 +1446,7 @@ class LibraryThingImportController
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione, formato,
+                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato,
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     peso, dimensioni, data_acquisizione,
@@ -1283,7 +1460,7 @@ class LibraryThingImportController
                     value, condition_lt, entry_date,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?, ?,
                     ?,
@@ -1297,6 +1474,8 @@ class LibraryThingImportController
                 )
             ");
 
+            $traduttore = $this->normalizeContributorField($data['traduttore'] ?? null);
+
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
                 !empty($data['isbn13']) ? $data['isbn13'] : null,
@@ -1309,6 +1488,11 @@ class LibraryThingImportController
                 !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
                 $genreId,
                 !empty($data['descrizione']) ? $data['descrizione'] : null,
+            ];
+            if ($hasDescPlain) {
+                $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
+            }
+            $params = array_merge($params, [
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
@@ -1316,7 +1500,7 @@ class LibraryThingImportController
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
                 !empty($data['numero_serie']) ? $data['numero_serie'] : null,
-                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                $traduttore,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null,
                 // Native fields from LibraryThing mapping
@@ -1348,28 +1532,24 @@ class LibraryThingImportController
                 !empty($data['value']) ? (float) str_replace(',', '.', $data['value']) : null,
                 !empty($data['condition_lt']) ? $data['condition_lt'] : null,
                 !empty($data['entry_date']) ? $data['entry_date'] : null
-            ];
+            ]);
 
-            // Type string: 48 characters matching params (s=string, i=int, d=double)
-            // isbn10,isbn13,ean,titolo,sottotitolo,anno_pubblicazione,lingua,edizione,numero_pagine,genreId,
-            // descrizione,formato,prezzo,copie,copie_disponibili,editoreId,collana,numero_serie,traduttore,
-            // parole_chiave,classificazione_dewey,peso,dimensioni,data_acquisizione,review,rating,
-            // comment...lending_end(19),value,condition_lt,entry_date
-            $types = 'sssssissiissdiiisssssdsssisssssssssssssssssssdss';
-            $stmt->bind_param($types, ...$params);
+            $stmt->bind_param($this->inferBindTypes($params), ...$params);
         } else {
             // Basic insert without LibraryThing fields (plugin not installed)
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione, formato,
+                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato,
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
                 )
             ");
+
+            $traduttore = $this->normalizeContributorField($data['traduttore'] ?? null);
 
             $params = [
                 !empty($data['isbn10']) ? $data['isbn10'] : null,
@@ -1383,6 +1563,11 @@ class LibraryThingImportController
                 !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null,
                 $genreId,
                 !empty($data['descrizione']) ? $data['descrizione'] : null,
+            ];
+            if ($hasDescPlain) {
+                $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
+            }
+            $params = array_merge($params, [
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
@@ -1390,13 +1575,12 @@ class LibraryThingImportController
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
                 !empty($data['numero_serie']) ? $data['numero_serie'] : null,
-                !empty($data['traduttore']) ? $data['traduttore'] : null,
+                $traduttore,
                 !empty($data['parole_chiave']) ? $data['parole_chiave'] : null,
                 !empty($data['classificazione_dewey']) ? $data['classificazione_dewey'] : null
-            ];
+            ]);
 
-            $types = 'sssssissiissdiiisssss';
-            $stmt->bind_param($types, ...$params);
+            $stmt->bind_param($this->inferBindTypes($params), ...$params);
         }
 
         $stmt->execute();
@@ -1447,6 +1631,28 @@ class LibraryThingImportController
         return $exists;
     }
 
+    /**
+     * Infer mysqli bind types from runtime values to keep bind_param strings in sync.
+     *
+     * @param array<int, mixed> $params
+     */
+    private function inferBindTypes(array $params): string
+    {
+        $types = '';
+
+        foreach ($params as $param) {
+            if (is_int($param)) {
+                $types .= 'i';
+            } elseif (is_float($param)) {
+                $types .= 'd';
+            } else {
+                $types .= 's';
+            }
+        }
+
+        return $types;
+    }
+
     private function scrapeBookData(string $isbn): array
     {
         // Use centralized scraping service
@@ -1475,18 +1681,28 @@ class LibraryThingImportController
                     $types .= 's';
                 }
             } catch (\Throwable $e) {
-                error_log("[LT Import] Cover download failed for book $bookId: " . $e->getMessage());
+                \App\Support\SecureLogger::error('[LT Import] Cover download failed', ['book_id' => $bookId, 'error' => $e->getMessage()]);
             }
         }
 
         if (empty($csvData['descrizione']) && !empty($scrapedData['description'])) {
+            $description = $scrapedData['description'];
             $updates[] = 'descrizione = ?';
-            $params[] = $scrapedData['description'];
+            $params[] = $description;
             $types .= 's';
+
+            // Also generate descrizione_plain for the new LIKE search paths
+            if ($this->hasDescrizionePlainColumn($db)) {
+                $plain = preg_replace('/<[^>]+>/', ' ', $description) ?? $description;
+                $plain = html_entity_decode($plain, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $updates[] = 'descrizione_plain = ?';
+                $params[] = trim(preg_replace('/\s+/u', ' ', $plain) ?? $plain);
+                $types .= 's';
+            }
         }
 
         if (!empty($updates)) {
-            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ?";
+            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ? AND deleted_at IS NULL";
             $params[] = $bookId;
             $types .= 'i';
 
@@ -1721,10 +1937,35 @@ class LibraryThingImportController
     private function formatLibraryThingRow(array $libro): array
     {
         // Parse authors
-        $autori = $libro['autori_nomi'] ?? '';
-        $autoriArray = !empty($autori) ? explode(';', $autori) : [];
-        $primaryAuthor = $autoriArray[0] ?? '';
-        $secondaryAuthor = $autoriArray[1] ?? '';
+        $autoriArray = $this->splitContributorList((string) ($libro['autori_nomi'] ?? ''));
+        $primaryAuthor = array_shift($autoriArray) ?? '';
+        $secondaryAuthors = array_values($autoriArray);
+        $secondaryAuthorRoles = array_fill(0, count($secondaryAuthors), '');
+
+        foreach ($this->splitContributorList((string) ($libro['traduttore'] ?? ''), '/\s*[;|]\s*/u') as $rawTranslator) {
+            $translator = \App\Support\AuthorNormalizer::normalize($rawTranslator);
+            if ($translator === '') {
+                continue;
+            }
+
+            $matched = false;
+            foreach ($secondaryAuthors as $index => $secondaryAuthor) {
+                if (\App\Support\AuthorNormalizer::match($secondaryAuthor, $translator)) {
+                    $secondaryAuthors[$index] = $translator;
+                    $secondaryAuthorRoles[$index] = 'Translator';
+                    $matched = true;
+                    break;
+                }
+            }
+
+            if (!$matched) {
+                $secondaryAuthors[] = $translator;
+                $secondaryAuthorRoles[] = 'Translator';
+            }
+        }
+
+        $secondaryAuthor = implode('; ', $secondaryAuthors);
+        $secondaryAuthorRoles = implode('; ', $secondaryAuthorRoles);
 
         // Map formato to Media
         $formatoMap = [
@@ -1792,7 +2033,7 @@ class LibraryThingImportController
             $primaryAuthor,
             '',  // Primary Author Role
             $secondaryAuthor,
-            '',  // Secondary Author Roles
+            $secondaryAuthorRoles,
             $publication,
             $libro['anno_pubblicazione'] ?? '',
             $libro['review'] ?? '',

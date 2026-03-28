@@ -17,6 +17,26 @@ class FrontendController
 {
     private ?ContainerInterface $container = null;
 
+    private static ?bool $hasDescrizionePlain = null;
+
+    private static function descriptionExpr(mysqli $db): string
+    {
+        if (self::$hasDescrizionePlain === null) {
+            try {
+                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
+                self::$hasDescrizionePlain = $result !== false && $result->num_rows > 0;
+                if ($result instanceof \mysqli_result) {
+                    $result->free();
+                }
+            } catch (\Throwable $e) {
+                self::$hasDescrizionePlain = false;
+            }
+        }
+        return self::$hasDescrizionePlain
+            ? "COALESCE(NULLIF(l.descrizione_plain, ''), l.descrizione)"
+            : 'l.descrizione';
+    }
+
     public function __construct(?ContainerInterface $container = null)
     {
         $this->container = $container;
@@ -738,6 +758,7 @@ class FrontendController
 
         if ($searchQuery !== '') {
             // Advanced multi-word search: each word must match somewhere (title, subtitle, author, publisher, ISBN)
+            $descExpr = self::descriptionExpr($db);
 
             // Split into words (handle multiple spaces)
             $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY);
@@ -758,14 +779,15 @@ class FrontendController
                         MATCH(l.titolo, l.sottotitolo, l.descrizione, l.parole_chiave) AGAINST (? IN BOOLEAN MODE)
                         OR l.titolo LIKE ?
                         OR l.sottotitolo LIKE ?
+                        OR {$descExpr} LIKE ?
                         OR l.isbn10 LIKE ?
                         OR l.isbn13 LIKE ?
                         OR l.ean LIKE ?
                         OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ? OR MATCH(a.nome) AGAINST (? IN BOOLEAN MODE)))
                         OR e.nome LIKE ?
                     )";
-                    $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
-                    $types .= 'ssssssssss';
+                    $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
+                    $types .= 'sssssssssss';
                 } else {
                     // Short word: use LIKE only
                     $likeWord = '%' . $wordBase . '%';
@@ -773,14 +795,15 @@ class FrontendController
                     $conditions[] = "(
                         l.titolo LIKE ? OR l.titolo LIKE ?
                         OR l.sottotitolo LIKE ?
+                        OR {$descExpr} LIKE ?
                         OR l.isbn10 LIKE ?
                         OR l.isbn13 LIKE ?
                         OR l.ean LIKE ?
                         OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ?))
                         OR e.nome LIKE ?
                     )";
-                    $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
-                    $types .= 'sssssssss';
+                    $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
+                    $types .= 'ssssssssss';
                 }
             } else {
                 // Multi-word search: ALL words must match (but can be in different fields)
@@ -805,27 +828,29 @@ class FrontendController
                             MATCH(l.titolo, l.sottotitolo, l.descrizione, l.parole_chiave) AGAINST (? IN BOOLEAN MODE)
                             OR l.titolo LIKE ?
                             OR l.sottotitolo LIKE ?
+                            OR {$descExpr} LIKE ?
                             OR l.isbn10 LIKE ?
                             OR l.isbn13 LIKE ?
                             OR l.ean LIKE ?
                             OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ? OR MATCH(a.nome) AGAINST (? IN BOOLEAN MODE)))
                             OR e.nome LIKE ?
                         )";
-                        $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
-                        $types .= 'ssssssssss';
+                        $params = array_merge($params, [$ftWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $ftWord, $likeWord]);
+                        $types .= 'sssssssssss';
                     } else {
                         // Include ISBN/EAN in multi-word search for consistency
                         $wordConditions[] = "(
                             l.titolo LIKE ? OR l.titolo LIKE ?
                             OR l.sottotitolo LIKE ?
+                            OR {$descExpr} LIKE ?
                             OR l.isbn10 LIKE ?
                             OR l.isbn13 LIKE ?
                             OR l.ean LIKE ?
                             OR EXISTS(SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND (a.nome LIKE ? OR a.nome LIKE ?))
                             OR e.nome LIKE ?
                         )";
-                        $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
-                        $types .= 'sssssssss';
+                        $params = array_merge($params, [$likeWord, $likeWordEntities, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWord, $likeWordEntities, $likeWord]);
+                        $types .= 'ssssssssss';
                     }
                 }
                 // Join with AND - all words must match somewhere

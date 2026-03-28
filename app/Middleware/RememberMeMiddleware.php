@@ -50,7 +50,7 @@ class RememberMeMiddleware implements MiddlewareInterface
 
         // Fetch user data from database
         $stmt = $this->db->prepare("
-            SELECT id, email, tipo_utente, email_verificata, stato, nome, cognome
+            SELECT id, email, tipo_utente, email_verificata, stato, nome, cognome, locale
             FROM utenti
             WHERE id = ? LIMIT 1
         ");
@@ -90,6 +90,16 @@ class RememberMeMiddleware implements MiddlewareInterface
             'tipo_utente' => $row['tipo_utente'],
             'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
         ];
+
+        // Load and apply user's preferred locale (only persist if setLocale succeeds)
+        if (!empty($row['locale'])) {
+            $locale = (string) $row['locale'];
+            // Ensure language cache is loaded (middleware may run before bootstrap i18n)
+            \App\Support\I18n::loadFromDatabase($this->db);
+            if (\App\Support\I18n::setLocale($locale)) {
+                $_SESSION['locale'] = $locale;
+            }
+        }
 
         // Log auto-login for security auditing (no PII logged per GDPR)
         \App\Support\Log::security('login.remember_me', [

@@ -16,6 +16,10 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 class PluginController
 {
     private PluginManager $pluginManager;
+    private const GOODLIB_DEFAULT_DOMAINS = [
+        'anna_domain' => 'annas-archive.gd',
+        'zlib_domain' => 'z-lib.gd',
+    ];
 
     public function __construct(PluginManager $pluginManager)
     {
@@ -345,6 +349,48 @@ class PluginController
                     'servers_count' => count($decoded)
                 ]
             ]));
+        } elseif ($plugin['name'] === 'goodlib') {
+            // GoodLib: validate domains first, then persist everything
+            $boolKeys = ['anna_enabled', 'zlib_enabled', 'gutenberg_enabled', 'show_frontend', 'show_admin'];
+            $normalizedDomains = [];
+
+            foreach (self::GOODLIB_DEFAULT_DOMAINS as $domainKey => $defaultDomain) {
+                if (isset($settings[$domainKey])) {
+                    $domain = self::normalizeGoodLibDomain((string) $settings[$domainKey], $defaultDomain);
+                    if ($domain === null) {
+                        $response->getBody()->write(json_encode([
+                            'success' => false,
+                            'message' => __('Dominio non valido. Inserisci solo host o host:porta, senza percorsi.')
+                        ]));
+                        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+                    }
+                    $normalizedDomains[$domainKey] = $domain;
+                }
+            }
+
+            // All validated — now persist
+            $allOk = true;
+            foreach ($boolKeys as $key) {
+                $value = isset($settings[$key]) && $settings[$key] === '1' ? '1' : '0';
+                $allOk = $this->pluginManager->setSetting($pluginId, $key, $value, true) && $allOk;
+            }
+            foreach ($normalizedDomains as $domainKey => $domain) {
+                $allOk = $this->pluginManager->setSetting($pluginId, $domainKey, $domain, true) && $allOk;
+            }
+
+            if (!$allOk) {
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Errore durante il salvataggio delle impostazioni.')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Impostazioni GoodLib salvate correttamente.'),
+                'data' => $normalizedDomains,
+            ]));
         } else {
             // Plugin not supported
             error_log('[PluginController] Plugin does not support settings: ' . $plugin['name']);
@@ -357,5 +403,36 @@ class PluginController
 
         error_log('[PluginController] Settings saved successfully');
         return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    private static function normalizeGoodLibDomain(string $value, string $defaultDomain): ?string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return $defaultDomain;
+        }
+
+        if (!preg_match('#^[a-z][a-z0-9+.-]*://#i', $value)) {
+            $value = 'https://' . $value;
+        }
+
+        $parts = parse_url($value);
+        if (!is_array($parts) || !isset($parts['host'])) {
+            return null;
+        }
+
+        $host = strtolower(trim((string) $parts['host']));
+        if (
+            $host === ''
+            || !preg_match(
+                '/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/i',
+                $host
+            )
+        ) {
+            return null;
+        }
+
+        $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+        return $host . $port;
     }
 }

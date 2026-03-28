@@ -91,8 +91,10 @@ $pluginSettings = $pluginSettings ?? [];
                     <?php
                     $isOpenLibrary = $plugin['name'] === 'open-library';
                     $isApiBookScraper = $plugin['name'] === 'api-book-scraper';
+                    $isGoodLib = $plugin['name'] === 'goodlib';
                     $openLibrarySettings = $isOpenLibrary ? ($pluginSettings[$plugin['id']] ?? []) : [];
                     $apiBookScraperSettings = $isApiBookScraper ? ($pluginSettings[$plugin['id']] ?? []) : [];
+                    $goodlibSettings = $isGoodLib ? ($pluginSettings[$plugin['id']] ?? []) : [];
                     $hasGoogleKey = $isOpenLibrary && !empty($openLibrarySettings['google_books_api_key_exists'] ?? false);
                     $hasApiConfig = $isApiBookScraper && !empty($apiBookScraperSettings['api_endpoint'] ?? false) && !empty($apiBookScraperSettings['api_key_exists'] ?? false);
                     $isApiEnabled = $isApiBookScraper && !empty($apiBookScraperSettings['enabled'] ?? false);
@@ -109,7 +111,7 @@ $pluginSettings = $pluginSettings ?? [];
                                     <div class="flex-1 min-w-0">
                                         <div class="flex flex-wrap items-center gap-2 mb-2">
                                             <h3 class="text-lg font-semibold text-gray-900">
-                                                <?= HtmlHelper::e($plugin['display_name']) ?>
+                                                <?= HtmlHelper::e(__($plugin['display_name'])) ?>
                                             </h3>
                                             <span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-lg">
                                                 v<?= HtmlHelper::e($plugin['version']) ?>
@@ -125,7 +127,7 @@ $pluginSettings = $pluginSettings ?? [];
                                             <?php endif; ?>
                                         </div>
                                         <p class="text-sm text-gray-600 mb-3">
-                                            <?= HtmlHelper::e($plugin['description'] ?? __('Nessuna descrizione disponibile')) ?>
+                                            <?= HtmlHelper::e(__($plugin['description'] ?? 'Nessuna descrizione disponibile')) ?>
                                         </p>
                                         <?php if ($plugin['name'] === 'z39-server'): ?>
                                             <div class="mb-3 p-2 bg-gray-50 rounded-lg border border-gray-200 inline-block">
@@ -213,8 +215,10 @@ $pluginSettings = $pluginSettings ?? [];
                                         <button type="button"
                                             class="px-4 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-all duration-200 text-sm font-medium"
                                             data-plugin-id="<?= (int)$plugin['id'] ?>"
-                                            data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
-                                            data-plugin-type="open-library" data-has-key="1" onclick="openPluginSettingsModal(this)">
+                                            data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
+                                            data-plugin-type="open-library" data-has-key="1"
+                                            data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
+                                            onclick="openPluginSettingsModal(this)">
                                             <i class="fas fa-check-circle mr-1"></i>
                                             <?= __("Google Books Configurato") ?>
                                         </button>
@@ -222,8 +226,10 @@ $pluginSettings = $pluginSettings ?? [];
                                         <button type="button"
                                             class="px-4 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-all duration-200 text-sm font-medium"
                                             data-plugin-id="<?= (int)$plugin['id'] ?>"
-                                            data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
-                                            data-plugin-type="open-library" data-has-key="0" onclick="openPluginSettingsModal(this)">
+                                            data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
+                                            data-plugin-type="open-library" data-has-key="0"
+                                            data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
+                                            onclick="openPluginSettingsModal(this)">
                                             <i class="fas fa-exclamation-triangle mr-1"></i>
                                             <?= __("Configura Google Books") ?>
                                         </button>
@@ -233,8 +239,9 @@ $pluginSettings = $pluginSettings ?? [];
                                     <button type="button"
                                         class="px-4 py-2 <?= $hasApiConfig ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-orange-100 text-orange-700 hover:bg-orange-200' ?> rounded-lg transition-all duration-200 text-sm font-medium"
                                         data-plugin-id="<?= (int)$plugin['id'] ?>"
-                                        data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
+                                        data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                         data-plugin-type="api-book-scraper" data-has-config="<?= $hasApiConfig ? '1' : '0' ?>"
+                                        data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
                                         data-api-endpoint="<?= HtmlHelper::e($apiBookScraperSettings['api_endpoint'] ?? '') ?>"
                                         data-timeout="<?= HtmlHelper::e($apiBookScraperSettings['timeout'] ?? '10') ?>"
                                         data-enabled="<?= $isApiEnabled ? '1' : '0' ?>" onclick="openApiBookScraperModal(this)">
@@ -251,8 +258,9 @@ $pluginSettings = $pluginSettings ?? [];
                                     <button type="button"
                                         class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-all duration-200 text-sm font-medium"
                                         data-plugin-id="<?= (int)$plugin['id'] ?>"
-                                        data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
-                                        data-enable-server="<?= ($z39Settings['enable_server'] ?? '0') === '1' ? '1' : '0' ?>"
+                                        data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
+                                        data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
+                                        data-enable-server="<?= ($z39Settings['server_enabled'] ?? 'false') === 'true' ? '1' : '0' ?>"
                                         data-enable-client="<?= ($z39Settings['enable_client'] ?? '0') === '1' ? '1' : '0' ?>"
                                         data-servers="<?= HtmlHelper::e($z39Settings['servers'] ?? '[]') ?>"
                                         onclick="openZ39ServerModal(this)">
@@ -271,6 +279,23 @@ $pluginSettings = $pluginSettings ?? [];
                                         <?= __("Apri Editor") ?>
                                     </a>
                                 <?php endif; ?>
+                                <?php if ($isGoodLib && $plugin['is_active']): ?>
+                                    <button type="button"
+                                        class="px-4 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-all duration-200 text-sm font-medium"
+                                        data-plugin-id="<?= (int)$plugin['id'] ?>"
+                                        data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
+                                        data-goodlib-anna="<?= ($goodlibSettings['anna_enabled'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-zlib="<?= ($goodlibSettings['zlib_enabled'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-gutenberg="<?= ($goodlibSettings['gutenberg_enabled'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-frontend="<?= ($goodlibSettings['show_frontend'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-admin="<?= ($goodlibSettings['show_admin'] ?? '1') === '1' ? '1' : '0' ?>"
+                                        data-goodlib-anna-domain="<?= HtmlHelper::e($goodlibSettings['anna_domain'] ?? 'annas-archive.gd') ?>"
+                                        data-goodlib-zlib-domain="<?= HtmlHelper::e($goodlibSettings['zlib_domain'] ?? 'z-lib.gd') ?>"
+                                        onclick="openGoodLibModal(this)">
+                                        <i class="fas fa-cog mr-1"></i>
+                                        <?= __("Configura Fonti") ?>
+                                    </button>
+                                <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
                                     <button onclick="deactivatePlugin(<?= (int)$plugin['id'] ?>)"
                                         class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium">
@@ -287,7 +312,7 @@ $pluginSettings = $pluginSettings ?? [];
 
                                 <button
                                     data-plugin-id="<?= (int)$plugin['id'] ?>"
-                                    data-plugin-name="<?= HtmlHelper::e($plugin['display_name']) ?>"
+                                    data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                     onclick="uninstallPlugin(this.dataset.pluginId, this.dataset.pluginName)"
                                     class="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-all duration-200 text-sm font-medium">
                                     <i class="fas fa-trash"></i>
@@ -393,6 +418,7 @@ $pluginSettings = $pluginSettings ?? [];
             </div>
             <form id="pluginSettingsForm" class="mt-6 space-y-4" onsubmit="saveGoogleBooksKey(event)">
                 <input type="hidden" id="pluginSettingsPluginId">
+                <input type="hidden" id="pluginSettingsUrl">
                 <div>
                     <label for="googleBooksKeyInput" class="block text-xs font-medium text-indigo-900/80">
                         <?= __("Chiave API Google Books") ?>
@@ -445,6 +471,7 @@ $pluginSettings = $pluginSettings ?? [];
         </div>
         <form id="apiBookScraperForm" class="p-6 space-y-5" onsubmit="saveApiBookScraperSettings(event)">
             <input type="hidden" id="apiScraperPluginId">
+            <input type="hidden" id="apiScraperSettingsUrl">
 
             <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <div class="flex items-start gap-3">
@@ -550,6 +577,7 @@ $pluginSettings = $pluginSettings ?? [];
         </div>
         <form id="z39ServerForm" class="p-6 space-y-6" onsubmit="saveZ39ServerSettings(event)">
             <input type="hidden" id="z39PluginId">
+            <input type="hidden" id="z39SettingsUrl">
 
             <!-- Global Settings -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -676,8 +704,155 @@ $pluginSettings = $pluginSettings ?? [];
     </div>
 </div>
 
+<!-- GoodLib Settings Modal -->
+<div id="goodlibModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-auto">
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <span class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <i class="fas fa-external-link-alt text-purple-600"></i>
+                </span>
+                <?= __("GoodLib — Fonti Esterne") ?>
+            </h3>
+            <button onclick="closeGoodLibModal()" class="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                <i class="fas fa-times text-gray-500"></i>
+            </button>
+        </div>
+        <div class="p-6 space-y-6">
+            <input type="hidden" id="goodlibPluginId">
+            <input type="hidden" id="goodlibSettingsUrl">
+            <!-- Sources -->
+            <div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <i class="fas fa-database text-gray-400"></i>
+                    <?= __("Fonti attive") ?>
+                </h4>
+                <div class="space-y-3">
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm" style="background: #e74c3c">
+                                <i class="fas fa-book-open"></i>
+                            </span>
+                            <span class="text-sm font-medium text-gray-700"><?= __("Anna's Archive") ?></span>
+                        </div>
+                        <input type="checkbox" id="goodlib_anna" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm" style="background: #3498db">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <span class="text-sm font-medium text-gray-700"><?= __("Z-Library") ?></span>
+                        </div>
+                        <input type="checkbox" id="goodlib_zlib" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm" style="background: #27ae60">
+                                <i class="fas fa-feather-alt"></i>
+                            </span>
+                            <span class="text-sm font-medium text-gray-700"><?= __("Project Gutenberg") ?></span>
+                        </div>
+                        <input type="checkbox" id="goodlib_gutenberg" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                </div>
+            </div>
+            <!-- Visibility -->
+            <div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <i class="fas fa-eye text-gray-400"></i>
+                    <?= __("Visibilità") ?>
+                </h4>
+                <div class="space-y-3">
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100 text-gray-600 text-sm">
+                                <i class="fas fa-globe"></i>
+                            </span>
+                            <div>
+                                <span class="text-sm font-medium text-gray-700"><?= __("Catalogo pubblico") ?></span>
+                                <p class="text-xs text-gray-500"><?= __("Mostra badge nella pagina dettaglio libro") ?></p>
+                            </div>
+                        </div>
+                        <input type="checkbox" id="goodlib_frontend" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                    <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <span class="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100 text-gray-600 text-sm">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <div>
+                                <span class="text-sm font-medium text-gray-700"><?= __("Scheda libro admin") ?></span>
+                                <p class="text-xs text-gray-500"><?= __("Mostra badge nell'area amministrazione") ?></p>
+                            </div>
+                        </div>
+                        <input type="checkbox" id="goodlib_admin" class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    </label>
+                </div>
+            </div>
+            <!-- Mirror domains -->
+            <div>
+                <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <i class="fas fa-globe text-gray-400"></i>
+                    <?= __("Domini mirror") ?>
+                </h4>
+                <p class="text-xs text-gray-500 mb-3"><?= __("Questi siti cambiano dominio spesso. Seleziona un mirror funzionante.") ?></p>
+                <div class="space-y-3">
+                    <div class="p-3 rounded-lg border border-gray-200">
+                        <label for="goodlib_anna_domain_select" class="text-sm font-medium text-gray-700 block mb-1"><?= __("Anna's Archive") ?></label>
+                        <select id="goodlib_anna_domain_select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="toggleGoodLibCustomDomain('anna')">
+                            <option value="annas-archive.gd">annas-archive.gd</option>
+                            <option value="annas-archive.gl">annas-archive.gl</option>
+                            <option value="annas-archive.pk">annas-archive.pk</option>
+                            <option value="__custom__"><?= __("Dominio personalizzato...") ?></option>
+                        </select>
+                        <input
+                            id="goodlib_anna_domain_custom"
+                            class="hidden mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="annas-archive.example.org"
+                            autocomplete="off"
+                            spellcheck="false">
+                        <p class="mt-2 text-xs text-gray-500"><?= __("Puoi scegliere un mirror suggerito oppure selezionare dominio personalizzato.") ?></p>
+                    </div>
+                    <div class="p-3 rounded-lg border border-gray-200">
+                        <label for="goodlib_zlib_domain_select" class="text-sm font-medium text-gray-700 block mb-1"><?= __("Z-Library") ?></label>
+                        <select id="goodlib_zlib_domain_select" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500" onchange="toggleGoodLibCustomDomain('zlib')">
+                            <option value="z-lib.gd">z-lib.gd</option>
+                            <option value="z-lib.gl">z-lib.gl</option>
+                            <option value="z-lib.fm">z-lib.fm</option>
+                            <option value="1lib.sk">1lib.sk</option>
+                            <option value="z-library.ec">z-library.ec</option>
+                            <option value="zliba.ru">zliba.ru</option>
+                            <option value="__custom__"><?= __("Dominio personalizzato...") ?></option>
+                        </select>
+                        <input
+                            id="goodlib_zlib_domain_custom"
+                            class="hidden mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                            placeholder="z-lib.example.org:8443"
+                            autocomplete="off"
+                            spellcheck="false">
+                        <p class="mt-2 text-xs text-gray-500"><?= __("Sono accettati anche domini personalizzati; se incolli un URL completo verrà salvato solo l'host.") ?></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <button onclick="closeGoodLibModal()" class="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+                <?= __("Annulla") ?>
+            </button>
+            <button onclick="saveGoodLibSettings()" id="goodlibSaveBtn" class="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 transition-colors">
+                <i class="fas fa-save mr-1"></i><?= __("Salva") ?>
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
     const csrfToken = <?= json_encode(\App\Support\Csrf::ensureToken(), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    const GOODLIB_DOMAIN_PRESETS = {
+        anna: ['annas-archive.gd', 'annas-archive.gl', 'annas-archive.pk'],
+        zlib: ['z-lib.gd', 'z-lib.gl', 'z-lib.fm', '1lib.sk', 'z-library.ec', 'zliba.ru'],
+    };
 
     // XSS protection helper
     function escapeHtml(str) {
@@ -837,6 +1012,7 @@ $pluginSettings = $pluginSettings ?? [];
         const pluginId = btn.dataset.pluginId;
         const enableServer = btn.dataset.enableServer === '1';
         const enableClient = btn.dataset.enableClient === '1';
+        const settingsUrl = btn.dataset.settingsUrl || '';
 
         // Hardening: handle corrupted JSON gracefully
         let servers = [];
@@ -847,6 +1023,7 @@ $pluginSettings = $pluginSettings ?? [];
         }
 
         document.getElementById('z39PluginId').value = pluginId;
+        document.getElementById('z39SettingsUrl').value = settingsUrl;
         document.getElementById('z39EnableServer').checked = enableServer;
         z39EnableClientCheckbox.checked = enableClient;
 
@@ -859,6 +1036,7 @@ $pluginSettings = $pluginSettings ?? [];
 
     function closeZ39ServerModal() {
         z39ServerModal.classList.add('hidden');
+        document.getElementById('z39SettingsUrl').value = '';
     }
 
     function renderZ39Servers(servers) {
@@ -932,7 +1110,10 @@ $pluginSettings = $pluginSettings ?? [];
     async function saveZ39ServerSettings(event) {
         event.preventDefault();
         const form = event.target;
-        const pluginId = document.getElementById('z39PluginId').value;
+        const settingsUrl = document.getElementById('z39SettingsUrl').value;
+        if (!settingsUrl) {
+            return;
+        }
 
         // Collect servers with validation
         const servers = [];
@@ -995,7 +1176,7 @@ $pluginSettings = $pluginSettings ?? [];
         formData.append('settings[servers]', JSON.stringify(servers));
 
         try {
-            const response = await fetch(`${window.BASE_PATH}/admin/plugins/${pluginId}/settings`, {
+            const response = await fetch(settingsUrl, {
                 method: 'POST',
                 body: formData
             });
@@ -1034,6 +1215,7 @@ $pluginSettings = $pluginSettings ?? [];
     const pluginSettingsTitle = document.getElementById('pluginSettingsTitle');
     const pluginSettingsHelper = document.getElementById('pluginSettingsHelper');
     const pluginSettingsPluginIdInput = document.getElementById('pluginSettingsPluginId');
+    const pluginSettingsUrlInput = document.getElementById('pluginSettingsUrl');
     const googleBooksKeyInput = document.getElementById('googleBooksKeyInput');
     const apiBookScraperModal = document.getElementById('apiBookScraperModal');
     let uppyInstance = null;
@@ -1332,10 +1514,11 @@ $pluginSettings = $pluginSettings ?? [];
     }
 
     function openPluginSettingsModal(triggerButton) {
-        const { pluginId, pluginName, hasKey } = triggerButton.dataset;
+        const { pluginId, pluginName, hasKey, settingsUrl } = triggerButton.dataset;
         const hasApiKey = hasKey === '1';
 
         pluginSettingsPluginIdInput.value = pluginId || '';
+        pluginSettingsUrlInput.value = settingsUrl || '';
         googleBooksKeyInput.value = '';
         pluginSettingsTitle.textContent = `${pluginName} — ${googleBooksModalTexts.titleSuffix}`;
         pluginSettingsHelper.textContent = hasApiKey ? googleBooksModalTexts.hasKey : googleBooksModalTexts.noKey;
@@ -1357,14 +1540,15 @@ $pluginSettings = $pluginSettings ?? [];
     function closePluginSettingsModal() {
         pluginSettingsModal.classList.add('hidden');
         pluginSettingsPluginIdInput.value = '';
+        pluginSettingsUrlInput.value = '';
         googleBooksKeyInput.value = '';
     }
 
     async function saveGoogleBooksKey(event) {
         event.preventDefault();
 
-        const pluginId = pluginSettingsPluginIdInput.value;
-        if (!pluginId) {
+        const settingsUrl = pluginSettingsUrlInput.value;
+        if (!settingsUrl) {
             return;
         }
 
@@ -1374,16 +1558,16 @@ $pluginSettings = $pluginSettings ?? [];
         const formData = new FormData();
         formData.append('csrf_token', csrfToken);
         formData.append('settings[google_books_api_key]', apiKey);
-        let buttonLabel = '';
+        let originalButtonHtml = '';
 
         if (submitButton) {
-            buttonLabel = submitButton.dataset.label || submitButton.textContent.trim();
+            originalButtonHtml = submitButton.innerHTML;
             submitButton.disabled = true;
             submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         }
 
         try {
-            const response = await fetch(`${window.BASE_PATH}/admin/plugins/${pluginId}/settings`, {
+            const response = await fetch(settingsUrl, {
                 method: 'POST',
                 body: formData
             });
@@ -1420,7 +1604,7 @@ $pluginSettings = $pluginSettings ?? [];
         } finally {
             if (submitButton) {
                 submitButton.disabled = false;
-                submitButton.innerHTML = `<i class="fas fa-save"></i> ${buttonLabel}`;
+                submitButton.innerHTML = originalButtonHtml;
             }
         }
     }
@@ -1432,12 +1616,14 @@ $pluginSettings = $pluginSettings ?? [];
     function openApiBookScraperModal(button) {
         const pluginId = button.dataset.pluginId;
         const apiEndpoint = button.dataset.apiEndpoint || '';
+        const settingsUrl = button.dataset.settingsUrl || '';
         const timeout = button.dataset.timeout || '10';
         const enabled = button.dataset.enabled === '1';
         const hasConfig = button.dataset.hasConfig === '1';
 
         // Populate form fields
         document.getElementById('apiScraperPluginId').value = pluginId;
+        document.getElementById('apiScraperSettingsUrl').value = settingsUrl;
         document.getElementById('apiEndpointInput').value = apiEndpoint;
         document.getElementById('apiKeyInput').value = ''; // Always empty for security
         document.getElementById('apiTimeoutInput').value = timeout;
@@ -1464,6 +1650,7 @@ $pluginSettings = $pluginSettings ?? [];
 
         // Reset form
         document.getElementById('apiScraperPluginId').value = '';
+        document.getElementById('apiScraperSettingsUrl').value = '';
         document.getElementById('apiEndpointInput').value = '';
         document.getElementById('apiKeyInput').value = '';
         document.getElementById('apiTimeoutInput').value = '10';
@@ -1488,8 +1675,8 @@ $pluginSettings = $pluginSettings ?? [];
     async function saveApiBookScraperSettings(event) {
         event.preventDefault();
 
-        const pluginId = document.getElementById('apiScraperPluginId').value;
-        if (!pluginId) {
+        const settingsUrl = document.getElementById('apiScraperSettingsUrl').value;
+        if (!settingsUrl) {
             return;
         }
 
@@ -1506,15 +1693,15 @@ $pluginSettings = $pluginSettings ?? [];
         formData.append('settings[timeout]', timeout);
         formData.append('settings[enabled]', enabled);
 
-        let buttonLabel = '';
+        let originalButtonHtml = '';
         if (submitButton) {
-            buttonLabel = submitButton.textContent.trim();
+            originalButtonHtml = submitButton.innerHTML;
             submitButton.disabled = true;
             submitButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         }
 
         try {
-            const response = await fetch(`${window.BASE_PATH}/admin/plugins/${pluginId}/settings`, {
+            const response = await fetch(settingsUrl, {
                 method: 'POST',
                 body: formData
             });
@@ -1551,8 +1738,120 @@ $pluginSettings = $pluginSettings ?? [];
         } finally {
             if (submitButton) {
                 submitButton.disabled = false;
-                submitButton.innerHTML = `<i class="fas fa-save"></i> ${buttonLabel}`;
+                submitButton.innerHTML = originalButtonHtml;
             }
         }
     }
+
+    // ─── GoodLib Settings ───────────────────────────────────────────────
+    function setGoodLibDomainField(source, value) {
+        const select = document.getElementById(`goodlib_${source}_domain_select`);
+        const customInput = document.getElementById(`goodlib_${source}_domain_custom`);
+        const normalizedValue = (value || '').trim();
+
+        if (GOODLIB_DOMAIN_PRESETS[source].includes(normalizedValue)) {
+            select.value = normalizedValue;
+            customInput.value = '';
+            customInput.classList.add('hidden');
+        } else {
+            select.value = '__custom__';
+            customInput.value = normalizedValue;
+            customInput.classList.remove('hidden');
+        }
+    }
+
+    function toggleGoodLibCustomDomain(source) {
+        const select = document.getElementById(`goodlib_${source}_domain_select`);
+        const customInput = document.getElementById(`goodlib_${source}_domain_custom`);
+        const useCustom = select.value === '__custom__';
+        customInput.classList.toggle('hidden', !useCustom);
+        if (!useCustom) {
+            customInput.value = '';
+        }
+    }
+
+    function getGoodLibDomainValue(source) {
+        const select = document.getElementById(`goodlib_${source}_domain_select`);
+        const customInput = document.getElementById(`goodlib_${source}_domain_custom`);
+        return select.value === '__custom__' ? customInput.value : select.value;
+    }
+
+    function openGoodLibModal(btn) {
+        const modal = document.getElementById('goodlibModal');
+        document.getElementById('goodlibPluginId').value = btn.dataset.pluginId;
+        document.getElementById('goodlibSettingsUrl').value = btn.dataset.settingsUrl || '';
+        document.getElementById('goodlib_anna').checked = btn.dataset.goodlibAnna === '1';
+        document.getElementById('goodlib_zlib').checked = btn.dataset.goodlibZlib === '1';
+        document.getElementById('goodlib_gutenberg').checked = btn.dataset.goodlibGutenberg === '1';
+        document.getElementById('goodlib_frontend').checked = btn.dataset.goodlibFrontend === '1';
+        document.getElementById('goodlib_admin').checked = btn.dataset.goodlibAdmin === '1';
+        setGoodLibDomainField('anna', btn.dataset.goodlibAnnaDomain || 'annas-archive.gd');
+        setGoodLibDomainField('zlib', btn.dataset.goodlibZlibDomain || 'z-lib.gd');
+        modal.classList.remove('hidden');
+    }
+
+    function closeGoodLibModal() {
+        document.getElementById('goodlibModal').classList.add('hidden');
+        document.getElementById('goodlibSettingsUrl').value = '';
+    }
+
+    async function saveGoodLibSettings() {
+        const pluginId = document.getElementById('goodlibPluginId').value;
+        const settingsUrl = document.getElementById('goodlibSettingsUrl').value;
+        const btn = document.getElementById('goodlibSaveBtn');
+        if (!settingsUrl) {
+            return;
+        }
+        btn.disabled = true;
+
+        const formData = new FormData();
+        formData.append('csrf_token', csrfToken);
+        formData.append('settings[anna_enabled]', document.getElementById('goodlib_anna').checked ? '1' : '0');
+        formData.append('settings[zlib_enabled]', document.getElementById('goodlib_zlib').checked ? '1' : '0');
+        formData.append('settings[gutenberg_enabled]', document.getElementById('goodlib_gutenberg').checked ? '1' : '0');
+        formData.append('settings[show_frontend]', document.getElementById('goodlib_frontend').checked ? '1' : '0');
+        formData.append('settings[show_admin]', document.getElementById('goodlib_admin').checked ? '1' : '0');
+        formData.append('settings[anna_domain]', getGoodLibDomainValue('anna'));
+        formData.append('settings[zlib_domain]', getGoodLibDomainValue('zlib'));
+
+        try {
+            const resp = await fetch(settingsUrl, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+            if (data.success) {
+                const configBtn = document.querySelector('[data-plugin-id="' + pluginId + '"][onclick="openGoodLibModal(this)"]');
+                if (configBtn) {
+                    configBtn.dataset.goodlibAnna = document.getElementById('goodlib_anna').checked ? '1' : '0';
+                    configBtn.dataset.goodlibZlib = document.getElementById('goodlib_zlib').checked ? '1' : '0';
+                    configBtn.dataset.goodlibGutenberg = document.getElementById('goodlib_gutenberg').checked ? '1' : '0';
+                    configBtn.dataset.goodlibFrontend = document.getElementById('goodlib_frontend').checked ? '1' : '0';
+                    configBtn.dataset.goodlibAdmin = document.getElementById('goodlib_admin').checked ? '1' : '0';
+                    // Use normalized domains from server response (strips scheme/path/query)
+                    configBtn.dataset.goodlibAnnaDomain = (data.data && data.data.anna_domain) || getGoodLibDomainValue('anna');
+                    configBtn.dataset.goodlibZlibDomain = (data.data && data.data.zlib_domain) || getGoodLibDomainValue('zlib');
+                }
+                closeGoodLibModal();
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({ icon: 'success', title: <?= json_encode(__("Successo"), JSON_HEX_TAG) ?>, text: data.message });
+                }
+            } else {
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: data.message });
+                }
+            }
+        } catch (e) {
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: e.message });
+            }
+        } finally {
+            btn.disabled = false;
+        }
+    }
+
+    // Close GoodLib modal on backdrop click
+    document.getElementById('goodlibModal')?.addEventListener('click', function(e) {
+        if (e.target === this) closeGoodLibModal();
+    });
 </script>

@@ -17,7 +17,15 @@ class ProfileController
         $uid = (int) ($_SESSION['user']['id'] ?? 0);
         if ($uid <= 0)
             return $response->withHeader('Location', RouteTranslator::route('login'))->withStatus(302);
-        $stmt = $db->prepare("SELECT id, nome, cognome, email, codice_tessera, stato, tipo_utente, data_ultimo_accesso, data_nascita, telefono, sesso, indirizzo, cod_fiscale, data_scadenza_tessera FROM utenti WHERE id = ? LIMIT 1");
+        $stmt = $db->prepare("SELECT id, nome, cognome, email, codice_tessera, stato, tipo_utente, data_ultimo_accesso, data_nascita, telefono, sesso, indirizzo, cod_fiscale, data_scadenza_tessera, locale FROM utenti WHERE id = ? LIMIT 1");
+        if (!$stmt) {
+            SecureLogger::error('ProfileController: prepare failed for profile SELECT', [
+                'user_id' => $uid,
+                'db_error' => $db->error
+            ]);
+            // Don't redirect back to profile (would loop) — return 500
+            return $response->withStatus(500);
+        }
         $stmt->bind_param('i', $uid);
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc() ?: [];
@@ -129,6 +137,10 @@ class ProfileController
         $sesso = trim(strip_tags((string) ($data['sesso'] ?? '')));
         $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
 
+        // Only process locale when the field was actually posted (single-locale installs omit it)
+        $localeProvided = \array_key_exists('locale', $data);
+        $locale = $localeProvided ? trim(strip_tags((string) $data['locale'])) : null;
+
         // Convert empty strings to null for optional fields
         $telefono = empty($telefono) ? null : $telefono;
         $data_nascita = empty($data_nascita) ? null : $data_nascita;
@@ -141,23 +153,60 @@ class ProfileController
             $sesso = null; // Invalid value, set to null
         }
 
+        // Validate locale - only allow known locales
+        if ($localeProvided) {
+            $availableLocales = \App\Support\I18n::getAvailableLocales();
+            $locale = ($locale !== '' && isset($availableLocales[$locale])) ? $locale : null;
+        }
+
         // Validate required fields
         if (empty($nome) || empty($cognome)) {
             $profileUrl = RouteTranslator::route('profile');
             return $response->withHeader('Location', $profileUrl . '?error=required_fields')->withStatus(302);
         }
 
-        // Update user (sesso can be NULL)
-        $stmt = $db->prepare("UPDATE utenti SET nome = ?, cognome = ?, telefono = ?, data_nascita = ?, cod_fiscale = ?, sesso = ?, indirizzo = ? WHERE id = ?");
-        $stmt->bind_param('sssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $uid);
+        // Update user — only include locale in SQL when the field was posted
+        if ($localeProvided) {
+            $stmt = $db->prepare("UPDATE utenti SET nome = ?, cognome = ?, telefono = ?, data_nascita = ?, cod_fiscale = ?, sesso = ?, indirizzo = ?, locale = ? WHERE id = ?");
+        } else {
+            $stmt = $db->prepare("UPDATE utenti SET nome = ?, cognome = ?, telefono = ?, data_nascita = ?, cod_fiscale = ?, sesso = ?, indirizzo = ? WHERE id = ?");
+        }
+        if (!$stmt) {
+            SecureLogger::error('ProfileController: prepare failed for profile update', [
+                'user_id' => $uid,
+                'db_error' => $db->error
+            ]);
+            $profileUrl = RouteTranslator::route('profile');
+            return $response->withHeader('Location', $profileUrl . '?error=server')->withStatus(302);
+        }
+        if ($localeProvided) {
+            $stmt->bind_param('ssssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $locale, $uid);
+        } else {
+            $stmt->bind_param('sssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $uid);
+        }
 
         if ($stmt->execute()) {
-            $_SESSION['success_message'] = __('Profilo aggiornato con successo.');
             // Update session data
             $_SESSION['user']['name'] = $nome . ' ' . $cognome;
+            // Apply locale change immediately (only when locale was in the form)
+            if ($localeProvided) {
+                if ($locale !== null) {
+                    \App\Support\I18n::setLocale($locale);
+                    $_SESSION['locale'] = $locale;
+                } else {
+                    // Reset runtime locale to site default so flash renders correctly
+                    \App\Support\I18n::setLocale(\App\Support\I18n::getInstallationLocale());
+                    unset($_SESSION['locale']);
+                }
+            }
+            // Flash message AFTER locale switch so it renders in the new language
+            $_SESSION['success_message'] = __('Profilo aggiornato con successo.');
         } else {
-            error_log("Profile update error for user $uid: " . $stmt->error);
-            $_SESSION['error_message'] = 'Errore durante l\'aggiornamento del profilo.';
+            SecureLogger::error('ProfileController: profile update failed', [
+                'user_id' => $uid,
+                'db_error' => $stmt->error
+            ]);
+            $_SESSION['error_message'] = __('Errore durante l\'aggiornamento del profilo.');
         }
 
         $stmt->close();
@@ -186,7 +235,7 @@ class ProfileController
             $response->getBody()->write($json);
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Throwable $e) {
-            error_log("getSessions error for user $uid: " . $e->getMessage());
+            SecureLogger::error('ProfileController: getSessions failed', ['user_id' => $uid, 'error' => $e->getMessage()]);
             $response->getBody()->write(json_encode(['error' => __('Errore durante il recupero delle sessioni')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
@@ -231,7 +280,7 @@ class ProfileController
 
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Throwable $e) {
-            error_log("revokeSession error for user $uid: " . $e->getMessage());
+            SecureLogger::error('ProfileController: revokeSession failed', ['user_id' => $uid, 'error' => $e->getMessage()]);
             $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca della sessione')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
@@ -266,10 +315,9 @@ class ProfileController
             $response->getBody()->write($json);
             return $response->withHeader('Content-Type', 'application/json');
         } catch (\Throwable $e) {
-            error_log("revokeAllSessions error for user $uid: " . $e->getMessage());
+            SecureLogger::error('ProfileController: revokeAllSessions failed', ['user_id' => $uid, 'error' => $e->getMessage()]);
             $response->getBody()->write(json_encode(['error' => __('Errore durante la revoca delle sessioni')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
     }
 }
-
