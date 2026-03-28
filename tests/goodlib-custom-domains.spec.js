@@ -29,7 +29,9 @@ test.describe.serial('GoodLib custom domains', () => {
   });
 
   test.afterAll(() => {
-    restorePluginSettings(pluginId, originalSettings);
+    if (pluginId > 0) {
+      restorePluginSettings(pluginId, originalSettings);
+    }
     if (book) {
       deleteTempBook(book.id);
     }

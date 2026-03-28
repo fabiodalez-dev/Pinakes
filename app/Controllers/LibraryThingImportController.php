@@ -1192,6 +1192,20 @@ class LibraryThingImportController
             $stmt->close();
         }
 
+        // Fallback to EAN/barcode to avoid duplicates
+        if (!empty($data['ean'])) {
+            $stmt = $db->prepare("SELECT id FROM libri WHERE ean = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt->bind_param('s', $data['ean']);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($row = $result->fetch_assoc()) {
+                $stmt->close();
+                $this->log("[findExistingBook] Found by EAN: {$row['id']}");
+                return (int) $row['id'];
+            }
+            $stmt->close();
+        }
+
         return null;
     }
 

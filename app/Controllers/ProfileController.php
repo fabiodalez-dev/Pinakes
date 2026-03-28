@@ -23,8 +23,8 @@ class ProfileController
                 'user_id' => $uid,
                 'db_error' => $db->error
             ]);
-            $profileUrl = RouteTranslator::route('profile');
-            return $response->withHeader('Location', $profileUrl . '?error=server')->withStatus(302);
+            // Don't redirect back to profile (would loop) — return 500
+            return $response->withStatus(500);
         }
         $stmt->bind_param('i', $uid);
         $stmt->execute();

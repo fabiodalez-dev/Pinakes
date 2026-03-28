@@ -94,6 +94,8 @@ class RememberMeMiddleware implements MiddlewareInterface
         // Load and apply user's preferred locale (only persist if setLocale succeeds)
         if (!empty($row['locale'])) {
             $locale = (string) $row['locale'];
+            // Ensure language cache is loaded (middleware may run before bootstrap i18n)
+            \App\Support\I18n::loadFromDatabase($this->db);
             if (\App\Support\I18n::setLocale($locale)) {
                 $_SESSION['locale'] = $locale;
             }
