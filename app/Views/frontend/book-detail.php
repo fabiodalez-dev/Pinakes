@@ -1705,9 +1705,9 @@ ob_start();
                     </h2>
                     <div class="details-grid">
                         <div class="details-column">
-                            <?php if (!empty($book['isbn13'])): ?>
+                            <?php if (!empty($book['isbn13']) && !($isMusic && !empty($book['ean']))): ?>
                             <div class="meta-item">
-                                <div class="meta-label"><?= $isMusic ? __('Barcode') : 'ISBN-13' ?></div>
+                                <div class="meta-label">ISBN-13</div>
                                 <div class="meta-value"><?= htmlspecialchars($book['isbn13'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
@@ -1721,7 +1721,7 @@ ob_start();
 
                             <?php if (!empty($book['ean'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">EAN</div>
+                                <div class="meta-label"><?= $isMusic ? __('Barcode') : 'EAN' ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['ean'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>

@@ -812,7 +812,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     ],
-    order: [[3, 'asc']],
+    order: [[4, 'asc']],
     pageLength: 25,
     lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
     language: typeof window.getDtLanguage === 'function' ? window.getDtLanguage() : {},
@@ -1446,7 +1446,7 @@ table#libri-table { border: 1px solid gainsboro; width: 100% !important; }
 #libri-table tbody tr:hover { @apply bg-gray-50; }
 
 /* Info column text wrapping */
-#libri-table tbody td:nth-child(4) { white-space: normal !important; word-wrap: break-word; }
+#libri-table tbody td:nth-child(5) { white-space: normal !important; word-wrap: break-word; }
 
 .dataTables_wrapper .dataTables_length select { @apply py-1.5 px-2 text-sm border border-gray-300 rounded-lg bg-white; }
 .dataTables_wrapper .dataTables_info { @apply text-sm text-gray-600 py-3; }
@@ -1462,8 +1462,10 @@ table#libri-table { border: 1px solid gainsboro; width: 100% !important; }
   .dataTables_wrapper .dataTables_length,
   .dataTables_wrapper .dataTables_info { @apply text-xs; }
 
-  /* Hide cover column on mobile */
+  /* Hide media-type and cover columns on mobile */
   #libri-table thead th:nth-child(3),
-  #libri-table tbody td:nth-child(3) { display: none; }
+  #libri-table tbody td:nth-child(3),
+  #libri-table thead th:nth-child(4),
+  #libri-table tbody td:nth-child(4) { display: none; }
 }
 </style>

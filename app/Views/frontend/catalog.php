@@ -1317,7 +1317,7 @@ ob_start();
                           ?>
                             <a href="#"
                                class="filter-option <?= $isActive ? 'active' : '' ?>"
-                               onclick="updateFilter('tipo_media', '<?= $tmValue ?>'); return false;">
+                               onclick="updateFilter('tipo_media', <?= htmlspecialchars(json_encode((string) $tmValue, JSON_HEX_TAG | JSON_HEX_APOS), ENT_QUOTES, 'UTF-8') ?>); return false;">
                               <i class="fas <?= $tmInfo['icon'] ?> me-1"></i>
                               <?= $tmInfo['label'] ?>
                             </a>

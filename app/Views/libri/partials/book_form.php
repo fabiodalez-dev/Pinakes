@@ -425,7 +425,7 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
               <label for="tipo_media" class="form-label"><?= __("Tipo Media") ?></label>
               <select id="tipo_media" name="tipo_media" class="form-input">
                 <?php foreach (\App\Support\MediaLabels::allTypes() as $value => $meta): ?>
-                  <option value="<?= $value ?>" <?= ($book['tipo_media'] ?? 'libro') === $value ? 'selected' : '' ?>>
+                  <option value="<?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?>" <?= ($book['tipo_media'] ?? 'libro') === $value ? 'selected' : '' ?>>
                     <?= __($meta['label']) ?>
                   </option>
                 <?php endforeach; ?>

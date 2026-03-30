@@ -217,10 +217,8 @@ class DiscogsPlugin
             return $currentResult;
         }
 
-        // If a higher-priority plugin already fetched a complete result, skip
-        if (is_array($currentResult) && !empty($currentResult['title']) && ($currentResult['source'] ?? '') !== 'discogs') {
-            return $currentResult;
-        }
+        // Don't skip — always try to merge Discogs data for additional fields
+        // BookDataMerger::merge() only fills missing fields, so it's safe
 
         try {
             $token = $this->getSetting('api_token');

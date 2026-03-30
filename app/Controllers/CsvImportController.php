@@ -770,7 +770,9 @@ class CsvImportController
             'genere' => !empty($row['genere']) ? trim($row['genere']) : null,
             'descrizione' => !empty($row['descrizione']) ? trim($row['descrizione']) : null,
             'formato' => !empty($row['formato']) ? trim($row['formato']) : 'cartaceo',
-            'tipo_media' => !empty($row['tipo_media']) ? trim($row['tipo_media']) : \App\Support\MediaLabels::inferTipoMedia($row['formato'] ?? ''),
+            'tipo_media' => array_key_exists('tipo_media', $row) && trim((string) ($row['tipo_media'] ?? '')) !== ''
+                ? trim($row['tipo_media'])
+                : null,
             'prezzo' => $this->validatePrice($row['prezzo'] ?? ''),
             'copie_totali' => !empty($row['copie_totali']) ? (int)$row['copie_totali'] : 1,
             'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
@@ -1240,7 +1242,7 @@ class CsvImportController
                 genere_id = ?,
                 descrizione = ?,
                 formato = ?,
-                tipo_media = ?,
+                tipo_media = COALESCE(?, tipo_media),
                 prezzo = ?,
                 editore_id = ?,
                 collana = ?,
@@ -1264,7 +1266,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $tipoMedia = !empty($data['tipo_media']) ? $data['tipo_media'] : \App\Support\MediaLabels::inferTipoMedia($formato);
+        $tipoMedia = $data['tipo_media'] ?? null; // null = keep existing (COALESCE in SQL)
         $prezzo = $data['prezzo'] ?? null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
@@ -1355,7 +1357,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
-        $tipoMedia = !empty($data['tipo_media']) ? $data['tipo_media'] : \App\Support\MediaLabels::inferTipoMedia($formato);
+        $tipoMedia = $data['tipo_media'] ?? \App\Support\MediaLabels::inferTipoMedia($formato);
         $prezzo = $data['prezzo'] ?? null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
