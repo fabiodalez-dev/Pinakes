@@ -133,25 +133,18 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
       await copieInput.fill('1');
     }
 
-    // Submit the form
+    // Submit the form (triggers SweetAlert confirmation)
     await page.locator('button[type="submit"]').first().click();
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(3000);
 
-    // Check for errors
-    const content = await page.content();
-    const hasError = content.includes('alert-error') || content.includes('error_message');
-    if (hasError) {
-      const errorEl = page.locator('.alert-error, .alert.alert-danger').first();
-      const errorText = await errorEl.textContent().catch(() => 'unknown error');
-      console.log('Save error:', errorText);
-    }
+    // Wait for and confirm SweetAlert dialog
+    const swalConfirm = page.locator('.swal2-confirm');
+    await expect(swalConfirm).toBeVisible({ timeout: 5000 });
+    await swalConfirm.click();
 
-    // Should redirect to book detail (not /crea) or show success
-    const url = page.url();
-    const savedToDetail = /\/admin\/libri\/\d+/.test(url);
-    const hasSuccess = content.includes('successo') || content.includes('success') || content.includes('aggiunto');
-    expect(savedToDetail || hasSuccess).toBe(true);
+    // Wait for navigation after save
+    await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
+    const finalUrl = page.url();
+    expect(/\/admin\/libri\/\d+/.test(finalUrl)).toBe(true);
   });
 
   test('5. Verify saved CD in database', async () => {
