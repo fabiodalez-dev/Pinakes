@@ -22,8 +22,8 @@ function dbExec(sql) {
   execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 });
 }
 
-// Known CD barcode for testing (Pink Floyd - The Dark Side of the Moon)
-const TEST_BARCODE = '5099902894225';
+// Unique barcode for testing (not used by seeded records)
+const TEST_BARCODE = '9999999999901';
 const TEST_ARTIST = 'Pink Floyd';
 
 test.describe.serial('Discogs Plugin (#87)', () => {
@@ -182,10 +182,10 @@ test.describe.serial('Discogs Plugin (#87)', () => {
 
   test('6. Frontend: music book shows Barcode instead of ISBN-13', async () => {
     // Create a music book with EAN
-    dbExec(`
-      INSERT INTO libri (titolo, formato, ean, copie_totali, copie_disponibili, created_at, updated_at)
-      VALUES ('E2E_DISCOGS_Frontend_CD', 'vinile', '${TEST_BARCODE}', 1, 1, NOW(), NOW())
-    `);
+    dbExec(
+      "INSERT INTO libri (titolo, formato, tipo_media, ean, copie_totali, copie_disponibili, created_at, updated_at) " +
+      "VALUES ('E2E_DISCOGS_Frontend_CD', 'vinile', 'disco', '" + TEST_BARCODE + "', 1, 1, NOW(), NOW())"
+    );
     const bookId = dbQuery(
       "SELECT id FROM libri WHERE titolo = 'E2E_DISCOGS_Frontend_CD' AND deleted_at IS NULL LIMIT 1"
     );
