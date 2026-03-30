@@ -8,6 +8,11 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
 // Detect music media for dynamic labels
 $isMusic = ($libro['tipo_media'] ?? '') === 'disco' || \App\Support\MediaLabels::isMusic($libro['formato'] ?? null, $libro['tipo_media'] ?? null);
 
+// Resolve tipo_media once for badge display
+$resolvedTipoMedia = !empty($libro['tipo_media']) && $libro['tipo_media'] !== 'libro'
+    ? $libro['tipo_media']
+    : ($isMusic ? 'disco' : ($libro['tipo_media'] ?? 'libro'));
+
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
     'disponibile' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-green-500 text-white',
@@ -70,8 +75,8 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <i class="fas fa-book text-gray-600"></i>
           <?php echo App\Support\HtmlHelper::e($libro['titolo'] ?? ''); ?>
           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
-            <i class="fas <?= \App\Support\MediaLabels::icon($libro['tipo_media'] ?? 'libro') ?> mr-1"></i>
-            <?= \App\Support\MediaLabels::tipoMediaDisplayName($libro['tipo_media'] ?? 'libro') ?>
+            <i class="fas <?= \App\Support\MediaLabels::icon($resolvedTipoMedia) ?> mr-1"></i>
+            <?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
           </span>
         </h1>
         <?php if (!empty($libro['sottotitolo'])): ?>

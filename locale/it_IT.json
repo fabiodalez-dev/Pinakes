@@ -32,6 +32,8 @@
     "Errore durante l'installazione: %s": "Errore durante l'installazione: %s",
     "Non autorizzato.": "Non autorizzato.",
     "Token CSRF non valido.": "Token CSRF non valido.",
+    "Token configurato": "Token configurato",
+    "Token configurato — lascia vuoto per mantenere": "Token configurato — lascia vuoto per mantenere",
     "File non trovato nell'upload.": "File non trovato nell'upload.",
     "Errore durante il caricamento del file (code: %s).": "Errore durante il caricamento del file (code: %s).",
     "Solo file ZIP sono accettati.": "Solo file ZIP sono accettati.",

@@ -20,8 +20,8 @@ class MediaLabels
      */
     public static function isMusic(?string $formato, ?string $tipoMedia = null): bool
     {
-        if ($tipoMedia === 'disco') {
-            return true;
+        if ($tipoMedia !== null && $tipoMedia !== '') {
+            return $tipoMedia === 'disco';
         }
         if ($formato === null || $formato === '') {
             return false;
@@ -168,7 +168,7 @@ class MediaLabels
             return 'libro';
         }
         $lower = strtolower(trim($formato));
-        foreach (['cd_audio', 'vinile', 'lp', 'cd', 'vinyl', 'cassetta', 'cassette'] as $m) {
+        foreach (['cd_audio', 'vinile', 'lp', 'cd', 'vinyl', 'cassetta', 'cassette', 'audiocassetta'] as $m) {
             if (str_contains($lower, $m)) {
                 return 'disco';
             }

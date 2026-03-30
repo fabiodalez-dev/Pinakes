@@ -211,6 +211,7 @@ desktop.ini
 # Test Artifacts
 # ========================================
 .playwright-mcp/
+test-results/
 
 # ========================================
 # Development Documentation (not for distribution)

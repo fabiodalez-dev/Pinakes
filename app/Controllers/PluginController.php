@@ -395,7 +395,11 @@ class PluginController
             // Discogs: personal access token
             $apiToken = trim((string) ($settings['api_token'] ?? ''));
 
-            $this->pluginManager->setSetting($pluginId, 'api_token', $apiToken, true);
+            $saved = $this->pluginManager->setSetting($pluginId, 'api_token', $apiToken, true);
+            if (!$saved) {
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore durante il salvataggio.')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
 
             $response->getBody()->write(json_encode([
                 'success' => true,

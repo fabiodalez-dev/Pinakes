@@ -27,6 +27,11 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
 // Detect music media for dynamic labels
 $isMusic = ($book['tipo_media'] ?? '') === 'disco' || \App\Support\MediaLabels::isMusic($book['formato'] ?? null, $book['tipo_media'] ?? null);
 
+// Resolve tipo_media once for badge and Schema.org
+$resolvedTipoMedia = !empty($book['tipo_media']) && $book['tipo_media'] !== 'libro'
+    ? $book['tipo_media']
+    : ($isMusic ? 'disco' : ($book['tipo_media'] ?? 'libro'));
+
 // SEO ottimizzato
 $bookTitle = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
 $bookAuthor = !empty($authors) ? html_entity_decode($authors[0]['nome'] ?? '', ENT_QUOTES, 'UTF-8') : '';
@@ -158,7 +163,7 @@ $breadcrumbSchema["itemListElement"][] = [
 // Book Schema.org
 $bookSchema = [
     "@context" => "https://schema.org",
-    "@type" => \App\Support\MediaLabels::schemaOrgType($book['tipo_media'] ?? 'libro'),
+    "@type" => \App\Support\MediaLabels::schemaOrgType($resolvedTipoMedia),
     "name" => $bookTitle,
     "url" => $canonicalUrl,
 ];
@@ -1528,7 +1533,7 @@ ob_start();
                     <h1 class="fw-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);">
                         <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                         <span class="badge bg-light text-secondary fw-normal" style="font-size: 0.5em; vertical-align: middle;">
-                            <i class="fas <?= \App\Support\MediaLabels::icon($book['tipo_media'] ?? 'libro') ?> me-1"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($book['tipo_media'] ?? 'libro') ?>
+                            <i class="fas <?= \App\Support\MediaLabels::icon($resolvedTipoMedia) ?> me-1"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
                         </span>
                     </h1>
 

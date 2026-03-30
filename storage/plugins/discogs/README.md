@@ -13,8 +13,7 @@ Il plugin si aggancia al sistema di scraping tramite tre hook:
 ### Strategia di ricerca
 
 1. Ricerca per barcode (EAN/UPC) -- `GET /database/search?barcode={ean}&type=release`
-2. Se nessun risultato, ricerca per query -- `GET /database/search?q={ean}&type=release`
-3. Recupero dettagli completi della release -- `GET /releases/{id}`
+2. Recupero dettagli completi della release -- `GET /releases/{id}`
 
 ## Mappatura dati Discogs -> Pinakes
 
@@ -67,7 +66,7 @@ Senza token le API di Discogs permettono 25 richieste al minuto. Con un token pe
 
 ## Rate Limiting
 
-Il plugin rispetta i limiti di Discogs inserendo una pausa di 1 secondo tra le chiamate API consecutive. In caso di errore 429 (rate limit exceeded) la risposta viene registrata nei log.
+Il plugin rispetta i limiti di Discogs con throttling adattivo: 1 secondo tra le chiamate quando si usa un token, 2.5 secondi senza token. In caso di errore 429 (rate limit exceeded) la risposta viene registrata nei log.
 
 ## Link utili
 

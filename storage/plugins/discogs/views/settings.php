@@ -13,14 +13,15 @@ if (!$plugin) {
 // Gestione salvataggio impostazioni
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_discogs_settings'])) {
     if (\App\Support\Csrf::validate($_POST['csrf_token'] ?? null)) {
-        $settings = [
-            'api_token' => $_POST['api_token'] ?? '',
-        ];
-
-        if ($plugin->saveSettings($settings)) {
-            $successMessage = __('Impostazioni salvate correttamente!');
-        } else {
-            $errorMessage = __('Errore nel salvataggio delle impostazioni.');
+        $apiToken = trim($_POST['api_token'] ?? '');
+        // Only update if user entered a new value
+        if ($apiToken !== '') {
+            $settings = ['api_token' => $apiToken];
+            if ($plugin->saveSettings($settings)) {
+                $successMessage = __('Impostazioni Discogs salvate correttamente.');
+            } else {
+                $errorMessage = __('Errore nel salvataggio delle impostazioni.');
+            }
         }
     } else {
         $errorMessage = __('Token CSRF non valido.');
@@ -28,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_discogs_settings
 }
 
 $currentSettings = $plugin->getSettings();
+$hasToken = !empty($currentSettings['api_token']);
 $csrfToken = \App\Support\Csrf::ensureToken();
 ?>
 
@@ -96,15 +98,18 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                         <input type="password"
                                id="api_token"
                                name="api_token"
-                               value="<?php echo htmlspecialchars($currentSettings['api_token'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                               value=""
                                class="block w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4 font-mono pr-24"
-                               placeholder="DiscogsPersonalAccessToken">
+                               placeholder="<?= $hasToken ? htmlspecialchars(__('Token configurato — lascia vuoto per mantenere'), ENT_QUOTES, 'UTF-8') : 'DiscogsPersonalAccessToken' ?>">
                         <button type="button"
                                 onclick="togglePasswordVisibility('api_token')"
                                 class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700">
                             <i class="fas fa-eye" id="api_token_icon"></i>
                         </button>
                     </div>
+                    <?php if ($hasToken): ?>
+                        <span class="text-xs text-green-600 mt-1"><i class="fas fa-check-circle"></i> <?= htmlspecialchars(__('Token configurato'), ENT_QUOTES, 'UTF-8') ?></span>
+                    <?php endif; ?>
                     <p class="mt-2 text-xs text-gray-600">
                         <i class="fas fa-external-link-alt mr-1"></i>
                         <?= __("Genera il tuo token su") ?>

@@ -1009,6 +1009,8 @@ class BookRepository
                     if ($validated !== false) {
                         $cols[$c] = $validated;
                     }
+                } elseif ($c === 'tipo_media') {
+                    $cols[$c] = $this->normalizeEnumValue((string) $data[$c], 'tipo_media', 'libro');
                 } elseif (in_array($c, ['traduttore', 'illustratore', 'curatore'], true)) {
                     $cols[$c] = \App\Support\AuthorNormalizer::normalize((string) $data[$c]);
                 } else {
@@ -1053,7 +1055,7 @@ class BookRepository
             $cols['illustratore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_illustrator']);
         }
         if ($this->hasColumn('tipo_media') && !array_key_exists('tipo_media', $cols) && !empty($data['scraped_tipo_media'])) {
-            $cols['tipo_media'] = (string) $data['scraped_tipo_media'];
+            $cols['tipo_media'] = $this->normalizeEnumValue((string) $data['scraped_tipo_media'], 'tipo_media', 'libro');
         }
         if (!$cols)
             return;

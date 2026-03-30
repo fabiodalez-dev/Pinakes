@@ -3694,6 +3694,8 @@
     "Toggle search": "Suche umschalten",
     "Token CSRF non valido": "Ungültiges CSRF-Token.",
     "Token CSRF non valido. Riprova.": "Ungültiges CSRF-Token. Bitte versuchen Sie es erneut.",
+    "Token configurato": "Token konfiguriert",
+    "Token configurato — lascia vuoto per mantenere": "Token konfiguriert — leer lassen zum Beibehalten",
     "Token di sicurezza non valido. Riprova.": "Ungültiges Sicherheitstoken. Bitte versuchen Sie es erneut.",
     "Top 10 Lettori Più Attivi": "Top 10 der aktivsten Leser",
     "Top 10 Libri Più Prestati": "Top 10 der am häufigsten ausgeliehenen Bücher",
