@@ -1,0 +1,57 @@
+{
+  "name": "discogs",
+  "display_name": "Discogs Music Scraper",
+  "description": "Integrazione con le API di Discogs per lo scraping di metadati musicali (CD, LP, vinili). Cerca per barcode (EAN) o titolo+artista e popola copertina, tracklist, etichetta e anno.",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "https://www.discogs.com",
+  "main_file": "wrapper.php",
+  "requires_php": "8.0",
+  "requires_app": "0.5.0",
+  "max_app_version": "1.0.0",
+  "metadata": {
+    "category": "scraping",
+    "tags": [
+      "api",
+      "discogs",
+      "scraping",
+      "music",
+      "vinyl",
+      "cd"
+    ],
+    "priority": 8,
+    "api_endpoints": [
+      "https://api.discogs.com/database/search",
+      "https://api.discogs.com/releases/{id}"
+    ],
+    "hooks": [
+      {
+        "name": "scrape.sources",
+        "callback_method": "addDiscogsSource",
+        "description": "Adds Discogs as a scraping source for music media",
+        "priority": 8
+      },
+      {
+        "name": "scrape.fetch.custom",
+        "callback_method": "fetchFromDiscogs",
+        "description": "Fetches metadata from Discogs API",
+        "priority": 8
+      },
+      {
+        "name": "scrape.data.modify",
+        "callback_method": "enrichWithDiscogsData",
+        "description": "Enriches data with Discogs covers and tracklists",
+        "priority": 15
+      }
+    ],
+    "features": [
+      "Ricerca per barcode (EAN/UPC)",
+      "Ricerca per titolo/artista",
+      "Copertine album ad alta risoluzione",
+      "Tracklist completa nella descrizione",
+      "Mappatura etichetta su editore",
+      "Supporto CD, vinile, cassette"
+    ]
+  }
+}
