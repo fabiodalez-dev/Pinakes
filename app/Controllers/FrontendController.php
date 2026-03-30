@@ -897,18 +897,10 @@ class FrontendController
             $types .= 'i';
         }
 
-        if (!empty($filters['tipo_media'])) {
-            // Check if column exists (may not on pre-0.5.4 databases)
-            static $hasTipoMedia = null;
-            if ($hasTipoMedia === null) {
-                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'tipo_media'");
-                $hasTipoMedia = $result !== false && $result->num_rows > 0;
-            }
-            if ($hasTipoMedia) {
-                $conditions[] = "l.tipo_media = ?";
-                $params[] = $filters['tipo_media'];
-                $types .= 's';
-            }
+        if (!empty($filters['tipo_media']) && $this->hasLibriColumn($db, 'tipo_media')) {
+            $conditions[] = "l.tipo_media = ?";
+            $params[] = $filters['tipo_media'];
+            $types .= 's';
         }
 
         return [
@@ -916,6 +908,18 @@ class FrontendController
             'params' => $params,
             'types' => $types
         ];
+    }
+
+    private function hasLibriColumn(mysqli $db, string $column): bool
+    {
+        static $columnCache = [];
+
+        if (!array_key_exists($column, $columnCache)) {
+            $result = $db->query("SHOW COLUMNS FROM libri LIKE '" . $db->real_escape_string($column) . "'");
+            $columnCache[$column] = $result !== false && $result->num_rows > 0;
+        }
+
+        return $columnCache[$column];
     }
 
     private function buildOrderBy(string $sort): string

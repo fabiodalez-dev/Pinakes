@@ -214,6 +214,45 @@ class PluginController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
+    public function settingsPage(Request $request, Response $response, array $args): Response
+    {
+        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+            return $response->withStatus(403)->withHeader('Location', '/admin/dashboard');
+        }
+
+        $pluginId = (int) $args['id'];
+        $plugin = $this->pluginManager->getPlugin($pluginId);
+        if (!$plugin) {
+            return $response->withStatus(404);
+        }
+
+        $pluginInstance = $this->pluginManager->getPluginInstance($pluginId);
+        if ($pluginInstance === null || !is_callable([$pluginInstance, 'hasSettingsPage']) || !$pluginInstance->hasSettingsPage()) {
+            return $response->withStatus(404);
+        }
+
+        $settingsViewPath = $pluginInstance->getSettingsViewPath();
+        if (!is_string($settingsViewPath) || !is_file($settingsViewPath)) {
+            return $response->withStatus(404);
+        }
+
+        if (!isset($GLOBALS['plugins'])) {
+            $GLOBALS['plugins'] = [];
+        }
+        $GLOBALS['plugins'][$plugin['name']] = $pluginInstance;
+
+        ob_start();
+        require $settingsViewPath;
+        $content = ob_get_clean();
+
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
+    }
+
     /**
      * Update plugin settings (limited to supported plugins)
      */

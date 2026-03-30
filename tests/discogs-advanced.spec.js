@@ -15,6 +15,8 @@ const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const RUN_ID = Date.now();
+const SEEDED_MUSIC_EAN = '1234567890123';
+const SEEDED_BOOK_ISBN = '9781234567897';
 
 function dbQuery(sql) {
   const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
@@ -51,12 +53,12 @@ test.describe.serial('Discogs Advanced Tests', () => {
     // Seed a music record and a book for comparison
     dbExec(
       "INSERT INTO libri (titolo, formato, tipo_media, ean, copie_totali, copie_disponibili, descrizione, note_varie, created_at, updated_at) " +
-      "VALUES ('E2E_ADV_CD_" + RUN_ID + "', 'cd_audio', 'disco', '1234567890123', 1, 1, " +
+      "VALUES ('E2E_ADV_CD_" + RUN_ID + "', 'cd_audio', 'disco', '" + SEEDED_MUSIC_EAN + "', 1, 1, " +
       "'Track One - Track Two', 'Cat: TEST-001', NOW(), NOW())"
     );
     dbExec(
       "INSERT INTO libri (titolo, formato, tipo_media, isbn13, copie_totali, copie_disponibili, descrizione, created_at, updated_at) " +
-      "VALUES ('E2E_ADV_Book_" + RUN_ID + "', 'cartaceo', 'libro', '9781234567897', 1, 1, " +
+      "VALUES ('E2E_ADV_Book_" + RUN_ID + "', 'cartaceo', 'libro', '" + SEEDED_BOOK_ISBN + "', 1, 1, " +
       "'A test book description', NOW(), NOW())"
     );
 
@@ -65,7 +67,14 @@ test.describe.serial('Discogs Advanced Tests', () => {
   });
 
   test.afterAll(async () => {
-    try { dbExec("DELETE FROM libri WHERE (titolo LIKE 'E2E_ADV_%' OR ean = '1234567890123' OR isbn13 = '9781234567897') AND deleted_at IS NULL"); } catch {}
+    try {
+      dbExec(
+        `DELETE FROM libri
+         WHERE id IN (${Number(musicBookId) || 0}, ${Number(bookBookId) || 0})
+            OR ean = '${SEEDED_MUSIC_EAN}'
+            OR isbn13 = '${SEEDED_BOOK_ISBN}'`
+      );
+    } catch {}
     await context?.close();
   });
 
@@ -114,23 +123,26 @@ test.describe.serial('Discogs Advanced Tests', () => {
   // Test 3: Schema.org uses MusicAlbum for disco, Book for libro
   // ═══════════════════════════════════════════════════════════════════
   test('3. Schema.org JSON-LD type is MusicAlbum for disco', async () => {
-    // We need the public URL for the music book — get it from sitemap or construct
-    // The book might not have an author, so book_path may not work
-    // Instead, check the admin detail for the Schema.org type (admin also renders it? No, only frontend)
-    // Use the public API to check tipo_media is returned
-    const apiResp = await page.request.get(`${BASE}/api/books?q=E2E_ADV_CD_${RUN_ID}`);
+    const musicResp = await page.request.get(`${BASE}/libro/${musicBookId}`);
+    expect(musicResp.status()).toBe(200);
+    const musicHtml = await musicResp.text();
 
-    if (apiResp.status() === 200) {
-      const apiData = await apiResp.json();
-      const books = Array.isArray(apiData) ? apiData : (apiData.results || apiData.data || []);
-      const musicBook = books.find((b) => b.titolo?.includes(`E2E_ADV_CD_${RUN_ID}`) || b.title?.includes(`E2E_ADV_CD_${RUN_ID}`));
-
-      if (musicBook) {
-        expect(musicBook.tipo_media).toBe('disco');
+    const jsonLdBlocks = Array.from(
+      musicHtml.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi),
+      (match) => match[1]
+    );
+    const schemas = jsonLdBlocks.flatMap((block) => {
+      try {
+        const parsed = JSON.parse(block.trim());
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        return [];
       }
-    }
+    });
 
-    // Also verify via direct DB that tipo_media is stored correctly
+    const musicSchema = schemas.find((schema) => schema && schema['@type'] === 'MusicAlbum');
+    expect(musicSchema, 'Frontend JSON-LD is missing MusicAlbum for disco').toBeTruthy();
+
     const tipoMedia = dbQuery(`SELECT tipo_media FROM libri WHERE id = ${musicBookId}`);
     expect(tipoMedia).toBe('disco');
 

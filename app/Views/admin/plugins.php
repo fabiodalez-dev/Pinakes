@@ -296,6 +296,13 @@ $pluginSettings = $pluginSettings ?? [];
                                         <?= __("Configura Fonti") ?>
                                     </button>
                                 <?php endif; ?>
+                                <?php if ($plugin['name'] === 'discogs'): ?>
+                                    <a href="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
+                                        class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
+                                        <i class="fas fa-cog mr-1"></i>
+                                        <?= __("Impostazioni") ?>
+                                    </a>
+                                <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
                                     <button onclick="deactivatePlugin(<?= (int)$plugin['id'] ?>)"
                                         class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-all duration-200 text-sm font-medium">

@@ -16,25 +16,94 @@ class MediaLabels
     ];
 
     /**
+     * Build normalized lookup candidates for format/media values.
+     *
+     * @return array<int, string>
+     */
+    private static function normalizedCandidates(?string $value): array
+    {
+        if ($value === null) {
+            return [];
+        }
+
+        $trimmed = trim($value);
+        if ($trimmed === '') {
+            return [];
+        }
+
+        $lower = strtolower($trimmed);
+        $underscore = preg_replace('/[\s-]+/u', '_', $lower) ?? $lower;
+        $collapsed = preg_replace('/[\s\-_]+/u', '', $lower) ?? $lower;
+
+        return array_values(array_unique([$lower, $underscore, $collapsed]));
+    }
+
+    /**
+     * Normalize explicit tipo_media or common aliases to the canonical enum.
+     */
+    public static function normalizeTipoMedia(?string $tipoMedia): ?string
+    {
+        foreach (self::normalizedCandidates($tipoMedia) as $candidate) {
+            if (isset(self::allTypes()[$candidate])) {
+                return $candidate;
+            }
+
+            if (in_array($candidate, ['book', 'books', 'paperback', 'hardcover', 'hardback', 'cartaceo', 'print', 'printed'], true)) {
+                return 'libro';
+            }
+
+            if (in_array($candidate, ['disc', 'record', 'album', 'cd', 'cdaudio', 'compactdisc', 'vinyl', 'vinile', 'lp', 'cassette', 'cassetta', 'audiocassetta'], true)) {
+                return 'disco';
+            }
+
+            if (in_array($candidate, ['audiobook', 'audiobooks', 'audiolibro'], true)) {
+                return 'audiolibro';
+            }
+
+            if (in_array($candidate, ['dvd', 'bluray', 'blu_ray', 'movie', 'film'], true)) {
+                return 'dvd';
+            }
+
+            if (in_array($candidate, ['altro', 'other'], true)) {
+                return 'altro';
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve the effective tipo_media, preferring an explicit valid value.
+     */
+    public static function resolveTipoMedia(?string $formato, ?string $tipoMedia = null): string
+    {
+        $normalized = self::normalizeTipoMedia($tipoMedia);
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        return self::inferTipoMedia($formato);
+    }
+
+    /**
      * Check if a format string indicates music media.
      */
     public static function isMusic(?string $formato, ?string $tipoMedia = null): bool
     {
-        if ($tipoMedia !== null && $tipoMedia !== '') {
-            return $tipoMedia === 'disco';
-        }
-        if ($formato === null || $formato === '') {
-            return false;
-        }
-        $lower = strtolower(trim($formato));
-        // Exact match first
-        if (in_array($lower, self::MUSIC_FORMATS, true)) {
+        if (self::resolveTipoMedia($formato, $tipoMedia) === 'disco') {
             return true;
         }
-        // Word-boundary match for generic terms
-        if (preg_match('/\b(?:music|musik)\b/i', $lower) === 1) {
-            return true;
+
+        foreach (self::normalizedCandidates($formato) as $candidate) {
+            if (in_array($candidate, self::MUSIC_FORMATS, true)) {
+                return true;
+            }
+
+            if (preg_match('/\b(?:music|musik)\b/i', $candidate) === 1) {
+                return true;
+            }
         }
+
         return false;
     }
 
@@ -70,10 +139,13 @@ class MediaLabels
         if ($formato === null || $formato === '') {
             return '';
         }
-        $lower = strtolower(trim($formato));
-        if (isset(self::$formatDisplayNames[$lower])) {
-            return __(self::$formatDisplayNames[$lower]);
+
+        foreach (self::normalizedCandidates($formato) as $candidate) {
+            if (isset(self::$formatDisplayNames[$candidate])) {
+                return __(self::$formatDisplayNames[$candidate]);
+            }
         }
+
         // Return the original value with first letter uppercase
         return ucfirst($formato);
     }
@@ -143,19 +215,22 @@ class MediaLabels
     public static function icon(?string $tipoMedia): string
     {
         $types = self::allTypes();
-        return $types[$tipoMedia ?? 'libro']['icon'] ?? 'fa-book';
+        $resolved = self::normalizeTipoMedia($tipoMedia) ?? 'libro';
+        return $types[$resolved]['icon'] ?? 'fa-book';
     }
 
     public static function schemaOrgType(?string $tipoMedia): string
     {
         $types = self::allTypes();
-        return $types[$tipoMedia ?? 'libro']['schema'] ?? 'Book';
+        $resolved = self::normalizeTipoMedia($tipoMedia) ?? 'libro';
+        return $types[$resolved]['schema'] ?? 'Book';
     }
 
     public static function tipoMediaDisplayName(?string $tipoMedia): string
     {
         $types = self::allTypes();
-        $label = $types[$tipoMedia ?? 'libro']['label'] ?? 'Libro';
+        $resolved = self::normalizeTipoMedia($tipoMedia) ?? 'libro';
+        $label = $types[$resolved]['label'] ?? 'Libro';
         return __($label);
     }
 
@@ -167,18 +242,42 @@ class MediaLabels
         if ($formato === null || $formato === '') {
             return 'libro';
         }
-        $lower = strtolower(trim($formato));
-        foreach (['cd_audio', 'vinile', 'lp', 'cd', 'vinyl', 'cassetta', 'cassette', 'audiocassetta'] as $m) {
-            if (str_contains($lower, $m)) {
+
+        $normalized = self::normalizeTipoMedia($formato);
+        if ($normalized !== null) {
+            return $normalized;
+        }
+
+        foreach (self::normalizedCandidates($formato) as $candidate) {
+            foreach (['cdaudio', 'compactdisc', 'vinile', 'vinyl', 'lp', 'cd', 'cassetta', 'cassette', 'audiocassetta'] as $musicToken) {
+                if (str_contains($candidate, $musicToken)) {
+                    return 'disco';
+                }
+            }
+
+            if (str_contains($candidate, 'audiolibro') || str_contains($candidate, 'audiobook')) {
+                return 'audiolibro';
+            }
+
+            if (str_contains($candidate, 'dvd') || str_contains($candidate, 'bluray') || str_contains($candidate, 'blu_ray')) {
+                return 'dvd';
+            }
+
+            if (str_contains($candidate, 'other') || str_contains($candidate, 'altro')) {
+                return 'altro';
+            }
+
+            if (str_contains($candidate, 'book') || str_contains($candidate, 'paperback') || str_contains($candidate, 'hardcover') || str_contains($candidate, 'hardback')) {
+                return 'libro';
+            }
+        }
+
+        foreach (self::normalizedCandidates($formato) as $candidate) {
+            if (preg_match('/\b(?:music|musik)\b/i', $candidate) === 1) {
                 return 'disco';
             }
         }
-        if (str_contains($lower, 'audiolibro') || str_contains($lower, 'audiobook')) {
-            return 'audiolibro';
-        }
-        if (str_contains($lower, 'dvd') || str_contains($lower, 'blu-ray') || str_contains($lower, 'blu_ray')) {
-            return 'dvd';
-        }
+
         return 'libro';
     }
 

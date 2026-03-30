@@ -4,23 +4,30 @@
  */
 
 // Recupera il plugin
-$plugin = $GLOBALS['plugins']['discogs'] ?? null;
+$plugin = $pluginInstance ?? ($GLOBALS['plugins']['discogs'] ?? null);
 if (!$plugin) {
     echo '<div class="alert alert-danger">Errore: Plugin non caricato correttamente.</div>';
     return;
 }
 
 // Gestione salvataggio impostazioni
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_discogs_settings'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save_discogs_settings']) || isset($_POST['clear_discogs_settings']))) {
     if (\App\Support\Csrf::validate($_POST['csrf_token'] ?? null)) {
-        $apiToken = trim($_POST['api_token'] ?? '');
-        // Only update if user entered a new value
-        if ($apiToken !== '') {
-            $settings = ['api_token' => $apiToken];
-            if ($plugin->saveSettings($settings)) {
-                $successMessage = __('Impostazioni Discogs salvate correttamente.');
+        if (isset($_POST['clear_discogs_settings'])) {
+            if ($plugin->saveSettings(['api_token' => ''])) {
+                $successMessage = __('Token Discogs rimosso correttamente.');
             } else {
                 $errorMessage = __('Errore nel salvataggio delle impostazioni.');
+            }
+        } else {
+            $apiToken = trim($_POST['api_token'] ?? '');
+            if ($apiToken !== '') {
+                $settings = ['api_token' => $apiToken];
+                if ($plugin->saveSettings($settings)) {
+                    $successMessage = __('Impostazioni Discogs salvate correttamente.');
+                } else {
+                    $errorMessage = __('Errore nel salvataggio delle impostazioni.');
+                }
             }
         }
     } else {
@@ -31,6 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_discogs_settings
 $currentSettings = $plugin->getSettings();
 $hasToken = !empty($currentSettings['api_token']);
 $csrfToken = \App\Support\Csrf::ensureToken();
+$pluginsRoute = htmlspecialchars(route_path('plugins'), ENT_QUOTES, 'UTF-8');
 ?>
 
 <div class="max-w-4xl mx-auto py-6 px-4">
@@ -135,7 +143,17 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                 <?= __("Salva Impostazioni") ?>
             </button>
 
-            <a href="<?= htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8') ?>"
+            <?php if ($hasToken): ?>
+                <button type="submit"
+                        name="clear_discogs_settings"
+                        value="1"
+                        class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-red-50 text-red-700 text-sm font-semibold hover:bg-red-100 transition-colors">
+                    <i class="fas fa-trash-alt"></i>
+                    <?= __("Rimuovi Token") ?>
+                </button>
+            <?php endif; ?>
+
+            <a href="<?= $pluginsRoute ?>"
                class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-gray-100 text-gray-700 text-sm font-semibold hover:bg-gray-200 transition-colors">
                 <i class="fas fa-arrow-left"></i>
                 <?= __("Torna ai Plugin") ?>

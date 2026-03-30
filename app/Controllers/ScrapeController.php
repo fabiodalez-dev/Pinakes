@@ -145,13 +145,10 @@ class ScrapeController
                 $payload = $this->enrichWithSbnData($payload, $cleanIsbn);
             }
 
+            $payload = $this->ensureTipoMedia($payload);
+
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $payload = $this->normalizeIsbnFields($payload, $cleanIsbn);
-
-            // Infer tipo_media from formato/source if not already set
-            if (!isset($payload['tipo_media'])) {
-                $payload['tipo_media'] = \App\Support\MediaLabels::inferTipoMedia($payload['format'] ?? $payload['formato'] ?? '');
-            }
 
             // Hook: scrape.response - Modify final JSON response
             $payload = \App\Support\Hooks::apply('scrape.response', $payload, [$cleanIsbn, $sources, ['timestamp' => time()]]);
@@ -218,13 +215,10 @@ class ScrapeController
                 $fallbackData = $this->enrichWithSbnData($fallbackData, $cleanIsbn);
             }
 
+            $fallbackData = $this->ensureTipoMedia($fallbackData);
+
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $fallbackData = $this->normalizeIsbnFields($fallbackData, $cleanIsbn);
-
-            // Infer tipo_media from formato/source if not already set
-            if (!isset($fallbackData['tipo_media'])) {
-                $fallbackData['tipo_media'] = \App\Support\MediaLabels::inferTipoMedia($fallbackData['format'] ?? $fallbackData['formato'] ?? '');
-            }
 
             // Ensure plugins can still modify/log the final payload just like regular results
             $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$cleanIsbn, $sources, ['timestamp' => time()]]);
@@ -773,9 +767,15 @@ class ScrapeController
      */
     private function normalizeIsbnFields(array $data, string $originalIsbn): array
     {
-        // Skip ISBN auto-population for non-book sources (e.g., Discogs music).
+        $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia(
+            $data['format'] ?? $data['formato'] ?? null,
+            $data['tipo_media'] ?? null
+        );
+        $data['tipo_media'] = $resolvedTipoMedia;
+
+        // Skip ISBN auto-population for non-book media.
         // The barcode is an EAN, not an ISBN — don't stuff it into isbn13/isbn10.
-        if (($data['source'] ?? '') === 'discogs') {
+        if ($resolvedTipoMedia !== 'libro') {
             return $data;
         }
 
@@ -818,5 +818,15 @@ class ScrapeController
         }
 
         return $data;
+    }
+
+    private function ensureTipoMedia(array $payload): array
+    {
+        $payload['tipo_media'] = \App\Support\MediaLabels::resolveTipoMedia(
+            $payload['format'] ?? $payload['formato'] ?? null,
+            $payload['tipo_media'] ?? null
+        );
+
+        return $payload;
     }
 }

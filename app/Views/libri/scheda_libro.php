@@ -5,13 +5,9 @@ use App\Support\ConfigStore;
 $libro = $libro ?? [];
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
-// Detect music media for dynamic labels
-$isMusic = ($libro['tipo_media'] ?? '') === 'disco' || \App\Support\MediaLabels::isMusic($libro['formato'] ?? null, $libro['tipo_media'] ?? null);
-
-// Resolve tipo_media once for badge display
-$resolvedTipoMedia = !empty($libro['tipo_media']) && $libro['tipo_media'] !== 'libro'
-    ? $libro['tipo_media']
-    : ($isMusic ? 'disco' : ($libro['tipo_media'] ?? 'libro'));
+// Resolve tipo_media once for badge display and dynamic labels
+$resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($libro['formato'] ?? null, $libro['tipo_media'] ?? null);
+$isMusic = $resolvedTipoMedia === 'disco';
 
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [

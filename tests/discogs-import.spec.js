@@ -49,7 +49,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
 
   test.afterAll(async () => {
     // Cleanup test data
-    try { dbExec("DELETE FROM libri WHERE (ean = '0720642442524' OR isbn13 LIKE '%720642442524%') AND deleted_at IS NULL"); } catch {}
+    try { dbExec("DELETE FROM libri WHERE (ean = '0720642442524' OR isbn13 = '0720642442524') AND deleted_at IS NULL"); } catch {}
     await context?.close();
   });
 
@@ -62,7 +62,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
       // The plugin is bundled, so it should auto-register on page visit
       await page.waitForTimeout(2000);
       const isActiveNow = dbQuery("SELECT COUNT(*) FROM plugins WHERE name = 'discogs' AND is_active = 1");
-      test.skip(parseInt(isActiveNow) === 0, 'Discogs plugin could not be activated');
+      expect(parseInt(isActiveNow, 10), 'Discogs plugin could not be activated').toBeGreaterThan(0);
     }
   });
 
@@ -74,10 +74,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     const importField = page.locator('#importIsbn');
     const importBtn = page.locator('#btnImportIsbn');
 
-    if (!await importBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      test.skip(true, 'Import button not visible — no scraping plugin active');
-      return;
-    }
+    await expect(importBtn, 'Import button not visible — scraping flow unavailable').toBeVisible({ timeout: 5000 });
 
     // Enter barcode and trigger import
     await importField.fill(TEST_BARCODE);
@@ -91,11 +88,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     const titleField = page.locator('input[name="titolo"]');
     const titleValue = await titleField.inputValue();
 
-    if (titleValue === '') {
-      // Scraping may have failed (rate limit, network). Check if any source populated data
-      test.skip(true, 'Scraping did not return data (possibly rate limited)');
-      return;
-    }
+    expect(titleValue.trim().length, 'Scraping did not return a title for the Discogs barcode').toBeGreaterThan(0);
 
     // Title should contain "Nevermind" (the album name)
     expect(titleValue.toLowerCase()).toContain('nevermind');
@@ -104,7 +97,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
   test('3. Verify scraped fields are populated', async () => {
     // After successful scraping, check multiple fields
     const titleValue = await page.locator('input[name="titolo"]').inputValue();
-    test.skip(titleValue === '', 'No scraped data available');
+    expect(titleValue.trim().length, 'No scraped data available after Discogs import').toBeGreaterThan(0);
 
     // Author/Artist should be populated
     // Choices.js creates items — check if any author is selected
@@ -124,7 +117,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
 
   test('4. Save the imported CD', async () => {
     const titleValue = await page.locator('input[name="titolo"]').inputValue();
-    test.skip(titleValue === '', 'No scraped data to save');
+    expect(titleValue.trim().length, 'No scraped data to save').toBeGreaterThan(0);
 
     // Set copies (required field)
     const copieInput = page.locator('input[name="copie_totali"]');
@@ -155,12 +148,10 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     if (book === '') {
       // Try isbn13
       const bookByIsbn = dbQuery(
-        `SELECT titolo, isbn13, formato FROM libri WHERE isbn13 LIKE '%720642442524%' AND deleted_at IS NULL LIMIT 1`
+        `SELECT titolo, isbn13, formato FROM libri WHERE isbn13 = '${TEST_BARCODE}' AND deleted_at IS NULL LIMIT 1`
       );
-      test.skip(bookByIsbn === '', 'CD not found in database');
-      if (bookByIsbn) {
-        expect(bookByIsbn.toLowerCase()).toContain('nevermind');
-      }
+      expect(bookByIsbn, 'CD not found in database after import/save flow').not.toBe('');
+      expect(bookByIsbn.toLowerCase()).toContain('nevermind');
       return;
     }
 
@@ -169,22 +160,19 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
 
   test('6. Verify music labels on saved CD detail page', async () => {
     const bookId = dbQuery(
-      `SELECT id FROM libri WHERE (ean = '${TEST_BARCODE}' OR isbn13 LIKE '%720642442524%') AND deleted_at IS NULL LIMIT 1`
+      `SELECT id FROM libri WHERE (ean = '${TEST_BARCODE}' OR isbn13 = '${TEST_BARCODE}') AND deleted_at IS NULL LIMIT 1`
     );
-    test.skip(bookId === '', 'CD not found for label check');
+    expect(bookId, 'CD not found for label check').not.toBe('');
 
     await page.goto(`${BASE}/admin/libri/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     const content = await page.content();
 
-    // Check format was set to a music format by the scraper
-    const formato = dbQuery(`SELECT formato FROM libri WHERE id = ${bookId}`);
+    const tipoMedia = dbQuery(`SELECT tipo_media FROM libri WHERE id = ${bookId}`);
+    expect(tipoMedia).toBe('disco');
 
-    if (formato && ['cd_audio', 'vinile', 'cd', 'vinyl'].some(f => formato.toLowerCase().includes(f))) {
-      // Music labels should be active
-      const hasMusicLabel = content.includes('Etichetta') || content.includes('Label') ||
-                            content.includes('Anno di Uscita') || content.includes('Release Year');
-      expect(hasMusicLabel).toBe(true);
-    }
+    const hasMusicLabel = content.includes('Etichetta') || content.includes('Label') ||
+                          content.includes('Anno di Uscita') || content.includes('Release Year');
+    expect(hasMusicLabel).toBe(true);
   });
 });

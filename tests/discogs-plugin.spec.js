@@ -32,6 +32,7 @@ test.describe.serial('Discogs Plugin (#87)', () => {
   /** @type {import('@playwright/test').Page} */
   let page;
   let pluginActivated = false;
+  let discogsPluginId = '';
 
   test.beforeAll(async ({ browser }) => {
     test.skip(
@@ -68,6 +69,11 @@ test.describe.serial('Discogs Plugin (#87)', () => {
     await page.goto(`${BASE}/admin/plugins`);
     await page.waitForLoadState('domcontentloaded');
     const pageContent = await page.content();
+    const discogsCard = page.locator('div[data-plugin-id]').filter({
+      has: page.getByRole('heading', { name: /discogs/i }),
+    }).first();
+    await expect(discogsCard).toBeVisible({ timeout: 5000 });
+
     // Plugin should appear in the list (installed or available)
     expect(
       pageContent.toLowerCase().includes('discogs') || parseInt(pluginExists) > 0
@@ -87,22 +93,15 @@ test.describe.serial('Discogs Plugin (#87)', () => {
       return;
     }
 
-    // Look for the discogs card and activate button
-    const discogsCard = page.locator('[data-plugin="discogs"], :text("Discogs")').first();
-    if (!await discogsCard.isVisible({ timeout: 3000 }).catch(() => false)) {
-      // Try to install first
-      const installBtn = page.locator('button:has-text("Installa")').first();
-      if (await installBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-        await installBtn.click();
-        await page.waitForLoadState('domcontentloaded');
-        await page.waitForTimeout(2000);
-      }
-    }
+    discogsPluginId = dbQuery("SELECT id FROM plugins WHERE name = 'discogs' LIMIT 1");
+    expect(discogsPluginId).not.toBe('');
 
-    // Now activate
-    await page.goto(`${BASE}/admin/plugins`);
-    await page.waitForLoadState('domcontentloaded');
-    const activateBtn = page.locator('[data-plugin="discogs"] button:has-text("Attiva"), button[data-action="activate"][data-plugin="discogs"]').first();
+    const discogsCard = page.locator('div[data-plugin-id]').filter({
+      has: page.getByRole('heading', { name: /discogs/i }),
+    }).first();
+    await expect(discogsCard, 'Discogs card not found on the plugins page').toBeVisible({ timeout: 5000 });
+
+    const activateBtn = discogsCard.getByRole('button', { name: /^Attiva$/ }).first();
     if (await activateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await activateBtn.click();
       await page.waitForLoadState('domcontentloaded');
@@ -113,28 +112,22 @@ test.describe.serial('Discogs Plugin (#87)', () => {
     const activeNow = dbQuery(
       "SELECT COUNT(*) FROM plugins WHERE name = 'discogs' AND is_active = 1"
     );
-    if (parseInt(activeNow) > 0) {
-      pluginActivated = true;
-    }
+    expect(parseInt(activeNow, 10), 'Discogs plugin failed to activate').toBeGreaterThan(0);
+    pluginActivated = true;
   });
 
   test('3. Plugin settings page loads', async () => {
     test.skip(!pluginActivated, 'Discogs plugin not activated');
+    if (!discogsPluginId) {
+      discogsPluginId = dbQuery("SELECT id FROM plugins WHERE name = 'discogs' LIMIT 1");
+    }
+    expect(discogsPluginId).not.toBe('');
 
-    // Navigate to plugin settings
-    await page.goto(`${BASE}/admin/plugins`);
+    await page.goto(`${BASE}/admin/plugins/${discogsPluginId}/settings`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Look for settings button/link for discogs
-    const settingsLink = page.locator('[data-plugin="discogs"] a:has-text("Impostazioni"), a[href*="discogs"][href*="settings"]').first();
-    if (await settingsLink.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await settingsLink.click();
-      await page.waitForLoadState('domcontentloaded');
-
-      // Verify settings form has API token field
-      const tokenField = page.locator('input[name="api_token"]');
-      expect(await tokenField.isVisible({ timeout: 3000 }).catch(() => false)).toBe(true);
-    }
+    const tokenField = page.locator('input[name="api_token"]');
+    await expect(tokenField).toBeVisible({ timeout: 3000 });
   });
 
   test('4. MediaLabels: book with music format shows adapted labels', async () => {
@@ -190,16 +183,16 @@ test.describe.serial('Discogs Plugin (#87)', () => {
       "SELECT id FROM libri WHERE titolo = 'E2E_DISCOGS_Frontend_CD' AND deleted_at IS NULL LIMIT 1"
     );
 
-    // Get the frontend URL for this book
-    const resp = await page.request.get(`${BASE}/admin/libri/${bookId}`);
+    const resp = await page.request.get(`${BASE}/libro/${bookId}`);
     expect(resp.status()).toBe(200);
 
-    // Check that on the admin page with vinyl format, labels are music-aware
+    // Check that the frontend music page uses the barcode label path
     const html = await resp.text();
     const hasBarcode = html.includes('Barcode');
     const hasMusicLabel = html.includes('Etichetta') || html.includes('Label') ||
                           html.includes('Anno di Uscita') || html.includes('Release Year');
-    expect(hasBarcode || hasMusicLabel).toBe(true);
+    expect(hasBarcode).toBe(true);
+    expect(hasMusicLabel).toBe(true);
   });
 
   test('7. Discogs scraping via ISBN import (if plugin active)', async () => {

@@ -24,13 +24,9 @@ use App\Support\ConfigStore;
 // Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
-// Detect music media for dynamic labels
-$isMusic = ($book['tipo_media'] ?? '') === 'disco' || \App\Support\MediaLabels::isMusic($book['formato'] ?? null, $book['tipo_media'] ?? null);
-
-// Resolve tipo_media once for badge and Schema.org
-$resolvedTipoMedia = !empty($book['tipo_media']) && $book['tipo_media'] !== 'libro'
-    ? $book['tipo_media']
-    : ($isMusic ? 'disco' : ($book['tipo_media'] ?? 'libro'));
+// Resolve tipo_media once for badge, labels, and Schema.org
+$resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($book['formato'] ?? null, $book['tipo_media'] ?? null);
+$isMusic = $resolvedTipoMedia === 'disco';
 
 // SEO ottimizzato
 $bookTitle = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
@@ -1717,7 +1713,12 @@ ob_start();
                     <div class="description-content">
                         <?php if (!empty($book['descrizione'])): ?>
                             <?php if ($isMusic): ?>
-                                <div class="prose prose-sm"><?= \App\Support\MediaLabels::formatTracklist(strip_tags($book['descrizione'])) ?></div>
+                                <?php $musicDescription = (string) $book['descrizione']; ?>
+                                <div class="prose prose-sm">
+                                    <?= str_contains($musicDescription, '<li')
+                                        ? \App\Support\HtmlHelper::sanitizeHtml($musicDescription)
+                                        : \App\Support\MediaLabels::formatTracklist($musicDescription) ?>
+                                </div>
                             <?php else: ?>
                                 <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($book['descrizione'], false)) ?></div>
                             <?php endif; ?>
@@ -2196,6 +2197,8 @@ ob_start();
                         $relatedAuthorsRaw = html_entity_decode($related['autori'] ?? '', ENT_QUOTES, 'UTF-8');
                         $relatedAuthorsList = array_filter(array_map('trim', preg_split('/\s*,\s*/', (string)$relatedAuthorsRaw)));
                         $relatedPublisher = html_entity_decode($related['editore'] ?? '', ENT_QUOTES, 'UTF-8');
+                        $relatedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($related['formato'] ?? null, $related['tipo_media'] ?? null);
+                        $relatedIsMusic = $relatedTipoMedia === 'disco';
                         $relatedAltParts = [];
                         if ($relatedTitle !== '') {
                             $relatedAltParts[] = sprintf(__('Copertina del libro "%s"'), $relatedTitle);
@@ -2234,7 +2237,7 @@ ob_start();
                             </a>
                         </h5>
                         <p class="related-book-author">
-                            <?= htmlspecialchars($related['autori'] ?? __($isMusic ? 'Artista sconosciuto' : 'Autore sconosciuto'), ENT_QUOTES, 'UTF-8') ?>
+                            <?= htmlspecialchars($related['autori'] ?? __($relatedIsMusic ? 'Artista sconosciuto' : 'Autore sconosciuto'), ENT_QUOTES, 'UTF-8') ?>
                         </p>
                         <div class="related-book-actions">
                             <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>"
@@ -2691,4 +2694,3 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
-

@@ -28,6 +28,7 @@ class DiscogsPlugin
     /** @phpstan-ignore-next-line Property kept for PluginManager interface compatibility */
     private ?object $hookManager = null;
     private ?int $pluginId = null;
+    private ?\App\Support\PluginManager $pluginManager = null;
     /** @var float Timestamp of last MusicBrainz API request for rate limiting */
     private static float $lastMbRequestTime = 0.0;
 
@@ -232,6 +233,11 @@ class DiscogsPlugin
             $searchResult = $this->apiRequest($searchUrl, $token);
 
             if (empty($searchResult['results'][0])) {
+                $discogsFallback = $this->searchDiscogsByTitleArtist($currentResult, $token, $isbn);
+                if ($discogsFallback !== null) {
+                    return $this->mergeBookData($currentResult, $discogsFallback);
+                }
+
                 // Discogs found nothing — try MusicBrainz as fallback
                 $mbResult = $this->searchMusicBrainz($isbn, $token);
                 if ($mbResult !== null) {
@@ -240,23 +246,10 @@ class DiscogsPlugin
                 return $currentResult;
             }
 
-            $firstResult = $searchResult['results'][0];
-
-            // Fetch full release details
-            $releaseId = $firstResult['id'] ?? null;
-            if ($releaseId === null) {
+            $discogsData = $this->fetchDiscogsReleaseFromSearchResult($searchResult['results'][0], $token, $isbn);
+            if ($discogsData === null) {
                 return $currentResult;
             }
-
-            $releaseUrl = self::API_BASE . '/releases/' . $releaseId;
-            $release = $this->apiRequest($releaseUrl, $token);
-
-            if (empty($release) || empty($release['title'])) {
-                return $currentResult;
-            }
-
-            // Map Discogs data to Pinakes format
-            $discogsData = $this->mapReleaseToPinakes($release, $firstResult, $isbn);
 
             // Merge with existing data
             return $this->mergeBookData($currentResult, $discogsData);
@@ -265,6 +258,68 @@ class DiscogsPlugin
             \App\Support\SecureLogger::error('[Discogs] Plugin Error: ' . $e->getMessage());
             return $currentResult;
         }
+    }
+
+    private function searchDiscogsByTitleArtist($currentResult, ?string $token, string $isbn): ?array
+    {
+        if (!is_array($currentResult)) {
+            return null;
+        }
+
+        $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia(
+            $currentResult['format'] ?? $currentResult['formato'] ?? null,
+            $currentResult['tipo_media'] ?? null
+        );
+        if ($resolvedTipoMedia !== 'disco') {
+            return null;
+        }
+
+        $title = trim((string) ($currentResult['title'] ?? ''));
+        if ($title === '') {
+            return null;
+        }
+
+        $artist = trim((string) ($currentResult['author'] ?? ''));
+        if ($artist === '' && !empty($currentResult['authors'])) {
+            if (is_array($currentResult['authors'])) {
+                $artist = trim((string) ($currentResult['authors'][0] ?? ''));
+            } else {
+                $artist = trim((string) $currentResult['authors']);
+            }
+        }
+
+        $query = [
+            'type=release',
+            'release_title=' . urlencode($title),
+        ];
+        if ($artist !== '') {
+            $query[] = 'artist=' . urlencode($artist);
+        }
+
+        $searchUrl = self::API_BASE . '/database/search?' . implode('&', $query);
+        $searchResult = $this->apiRequest($searchUrl, $token);
+        if (empty($searchResult['results'][0])) {
+            return null;
+        }
+
+        return $this->fetchDiscogsReleaseFromSearchResult($searchResult['results'][0], $token, $isbn);
+    }
+
+    private function fetchDiscogsReleaseFromSearchResult(array $searchResult, ?string $token, string $isbn): ?array
+    {
+        $releaseId = $searchResult['id'] ?? null;
+        if ($releaseId === null) {
+            return null;
+        }
+
+        $releaseUrl = self::API_BASE . '/releases/' . $releaseId;
+        $release = $this->apiRequest($releaseUrl, $token);
+
+        if (empty($release) || empty($release['title'])) {
+            return null;
+        }
+
+        return $this->mapReleaseToPinakes($release, $searchResult, $isbn);
     }
 
     /**
@@ -708,48 +763,15 @@ class DiscogsPlugin
      */
     private function getSetting(string $key): ?string
     {
-        if ($this->db === null) {
+        $pluginId = $this->resolvePluginId();
+        $manager = $this->getPluginManager();
+
+        if ($pluginId === null || $manager === null) {
             return null;
         }
 
-        // Resolve plugin ID if not set
-        $pluginId = $this->pluginId;
-        if ($pluginId === null) {
-            $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ? LIMIT 1");
-            if ($stmt === false) {
-                return null;
-            }
-            $pluginName = 'discogs';
-            $stmt->bind_param('s', $pluginName);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($result) {
-                $row = $result->fetch_assoc();
-                $pluginId = isset($row['id']) ? (int)$row['id'] : null;
-                $result->free();
-            }
-            $stmt->close();
-        }
-
-        if ($pluginId === null) {
-            return null;
-        }
-
-        $stmt = $this->db->prepare(
-            "SELECT setting_value FROM plugin_settings WHERE plugin_id = ? AND setting_key = ?"
-        );
-
-        if ($stmt === false) {
-            return null;
-        }
-
-        $stmt->bind_param('is', $pluginId, $key);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $row = $result ? $result->fetch_assoc() : null;
-        $stmt->close();
-
-        return $row['setting_value'] ?? null;
+        $value = $manager->getSetting($pluginId, $key);
+        return is_string($value) ? $value : null;
     }
 
     /**
@@ -773,64 +795,63 @@ class DiscogsPlugin
      */
     public function saveSettings(array $settings): bool
     {
-        if ($this->db === null) {
+        $pluginId = $this->resolvePluginId();
+        $manager = $this->getPluginManager();
+
+        if ($pluginId === null || $manager === null) {
             return false;
         }
-
-        // Resolve plugin ID if not set
-        $pluginId = $this->pluginId;
-        if ($pluginId === null) {
-            $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ? LIMIT 1");
-            if ($stmt === false) {
-                return false;
-            }
-            $pluginName = 'discogs';
-            $stmt->bind_param('s', $pluginName);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($result) {
-                $row = $result->fetch_assoc();
-                $pluginId = isset($row['id']) ? (int)$row['id'] : null;
-                $result->free();
-            }
-            $stmt->close();
-        }
-
-        if ($pluginId === null) {
-            return false;
-        }
-
-        $success = true;
 
         foreach ($settings as $key => $value) {
-            $stringValue = (string)$value;
-
-            // Delete existing
-            $deleteStmt = $this->db->prepare(
-                "DELETE FROM plugin_settings WHERE plugin_id = ? AND setting_key = ?"
-            );
-            if ($deleteStmt) {
-                $deleteStmt->bind_param('is', $pluginId, $key);
-                $deleteStmt->execute();
-                $deleteStmt->close();
-            }
-
-            // Insert new
-            $insertStmt = $this->db->prepare(
-                "INSERT INTO plugin_settings (plugin_id, setting_key, setting_value, autoload)
-                 VALUES (?, ?, ?, 1)"
-            );
-
-            if ($insertStmt) {
-                $insertStmt->bind_param('iss', $pluginId, $key, $stringValue);
-                $success = $success && $insertStmt->execute();
-                $insertStmt->close();
-            } else {
-                $success = false;
+            if (!$manager->setSetting($pluginId, (string) $key, $value, true)) {
+                return false;
             }
         }
 
-        return $success;
+        return true;
+    }
+
+    private function resolvePluginId(): ?int
+    {
+        if ($this->pluginId !== null || $this->db === null) {
+            return $this->pluginId;
+        }
+
+        $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ? LIMIT 1");
+        if ($stmt === false) {
+            return null;
+        }
+
+        $pluginName = 'discogs';
+        $stmt->bind_param('s', $pluginName);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result ? $result->fetch_assoc() : null;
+        if ($result) {
+            $result->free();
+        }
+        $stmt->close();
+
+        $this->pluginId = isset($row['id']) ? (int) $row['id'] : null;
+        return $this->pluginId;
+    }
+
+    private function getPluginManager(): ?\App\Support\PluginManager
+    {
+        if ($this->pluginManager !== null) {
+            return $this->pluginManager;
+        }
+
+        if ($this->db === null) {
+            return null;
+        }
+
+        $hookManager = $this->hookManager instanceof \App\Support\HookManager
+            ? $this->hookManager
+            : new \App\Support\HookManager($this->db);
+
+        $this->pluginManager = new \App\Support\PluginManager($this->db, $hookManager);
+        return $this->pluginManager;
     }
 
     /**

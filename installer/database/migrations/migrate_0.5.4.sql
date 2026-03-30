@@ -12,13 +12,35 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- Index for filtering
+-- Composite index for media filtering + soft delete
 SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
                    WHERE TABLE_SCHEMA = DATABASE()
                      AND TABLE_NAME = 'libri'
-                     AND INDEX_NAME = 'idx_libri_tipo_media');
+                     AND INDEX_NAME = 'idx_libri_tipo_media_deleted_at');
 SET @sql = IF(@idx_exists = 0,
-    'ALTER TABLE libri ADD INDEX idx_libri_tipo_media (tipo_media)',
+    'ALTER TABLE libri ADD INDEX idx_libri_tipo_media_deleted_at (tipo_media, deleted_at)',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @old_tipo_idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                            WHERE TABLE_SCHEMA = DATABASE()
+                              AND TABLE_NAME = 'libri'
+                              AND INDEX_NAME = 'idx_libri_tipo_media');
+SET @sql = IF(@old_tipo_idx_exists > 0,
+    'ALTER TABLE libri DROP INDEX idx_libri_tipo_media',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @old_deleted_idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                               WHERE TABLE_SCHEMA = DATABASE()
+                                 AND TABLE_NAME = 'libri'
+                                 AND INDEX_NAME = 'idx_libri_deleted_at');
+SET @sql = IF(@old_deleted_idx_exists > 0,
+    'ALTER TABLE libri DROP INDEX idx_libri_deleted_at',
     'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
@@ -27,14 +49,19 @@ DEALLOCATE PREPARE stmt;
 -- Auto-populate from existing formato values (LIKE for partial matches)
 UPDATE libri SET tipo_media = 'disco'
 WHERE tipo_media = 'libro'
-  AND (LOWER(formato) LIKE '%cd%' OR LOWER(formato) LIKE '%vinyl%' OR LOWER(formato) LIKE '%vinile%'
-       OR LOWER(formato) LIKE '%lp%' OR LOWER(formato) LIKE '%cassett%' OR LOWER(formato) LIKE '%audiocassetta%')
+  AND (LOWER(formato) LIKE '%cd%' OR LOWER(formato) LIKE '%compact disc%'
+       OR LOWER(formato) LIKE '%vinyl%' OR LOWER(formato) LIKE '%vinile%'
+       OR LOWER(formato) LIKE '%lp%' OR LOWER(formato) LIKE '%cassett%'
+       OR LOWER(formato) LIKE '%audio cassetta%' OR LOWER(formato) LIKE '%audio-cassetta%'
+       OR LOWER(formato) LIKE '%audiocassetta%')
   AND LOWER(formato) NOT LIKE '%audiolibro%' AND LOWER(formato) NOT LIKE '%audiobook%';
 
 UPDATE libri SET tipo_media = 'audiolibro'
 WHERE tipo_media = 'libro'
-  AND (LOWER(formato) LIKE '%audiolibro%' OR LOWER(formato) LIKE '%audiobook%');
+  AND (LOWER(formato) LIKE '%audiolibro%' OR LOWER(formato) LIKE '%audiobook%' OR LOWER(formato) LIKE '%audio book%');
 
 UPDATE libri SET tipo_media = 'dvd'
 WHERE tipo_media = 'libro'
-  AND (LOWER(formato) LIKE '%dvd%' OR LOWER(formato) LIKE '%blu-ray%' OR LOWER(formato) LIKE '%blu_ray%');
+  AND (LOWER(formato) LIKE '%dvd%' OR LOWER(formato) LIKE '%blu-ray%'
+       OR LOWER(formato) LIKE '%blu_ray%' OR LOWER(formato) LIKE '%blu ray%'
+       OR LOWER(formato) LIKE '%bluray%');

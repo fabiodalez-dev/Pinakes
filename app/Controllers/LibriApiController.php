@@ -146,16 +146,16 @@ class LibriApiController
 
         // Parse DataTables sorting parameters (with robust null checks to avoid notices)
         $order = $q['order'][0] ?? null;
-        $orderColumn = isset($order['column']) ? (int) $order['column'] : 3; // Default to Info column (title)
+        $orderColumn = isset($order['column']) ? (int) $order['column'] : 4; // Default to Info column (title)
         $orderDir = (isset($order['dir']) && strtoupper(trim($order['dir'])) === 'DESC') ? 'DESC' : 'ASC';
 
         // Map column indices to database fields
-        // Columns: 0=checkbox, 1=status, 2=cover, 3=info(title), 4=genre, 5=position, 6=year, 7=actions
+        // Columns: 0=checkbox, 1=status, 2=media, 3=cover, 4=info(title), 5=genre, 6=position, 7=year, 8=actions
         $orderByMap = [
-            3 => 'l.titolo',           // Info column - sort by title
-            4 => 'g.nome',             // Genre column
-            5 => 's.codice, m.numero_livello, COALESCE(l.posizione_progressiva, p.ordine)', // Position
-            6 => 'l.anno_pubblicazione', // Year column
+            4 => 'l.titolo',           // Info column - sort by title
+            5 => 'g.nome',             // Genre column
+            6 => 's.codice, m.numero_livello, COALESCE(l.posizione_progressiva, p.ordine)', // Position
+            7 => 'l.anno_pubblicazione', // Year column
         ];
 
         $orderByClause = $orderByMap[$orderColumn] ?? 'l.titolo';

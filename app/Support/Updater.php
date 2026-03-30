@@ -31,21 +31,6 @@ class Updater
     private string $tempPath;
     private string $githubToken = '';
 
-    /**
-     * Bundled plugins that are updated during app updates.
-     * scraping-pro is NOT bundled — it's a premium add-on managed separately.
-     * @var array<string>
-     */
-    private const BUNDLED_PLUGINS = [
-        'api-book-scraper',
-        'dewey-editor',
-        'digital-library',
-        'discogs',
-        'goodlib',
-        'open-library',
-        'z39-server',
-    ];
-
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
         '.env',
@@ -2218,7 +2203,7 @@ class Updater
     /**
      * Update bundled plugins from the release package.
      * copyDirectory() skips storage/plugins (preservePaths), so bundled plugins
-     * must be updated separately. Only plugins listed in BUNDLED_PLUGINS are
+     * must be updated separately. Only plugins listed in BundledPlugins::LIST are
      * updated — user-installed and premium plugins (scraping-pro) are untouched.
      */
     private function updateBundledPlugins(string $sourcePath): void
@@ -2239,7 +2224,7 @@ class Updater
         }
 
         $updated = 0;
-        foreach (self::BUNDLED_PLUGINS as $pluginName) {
+        foreach (BundledPlugins::LIST as $pluginName) {
             $sourcePluginPath = $sourcePluginsDir . '/' . $pluginName;
             if (!is_dir($sourcePluginPath)) {
                 $this->debugLog('DEBUG', 'Plugin bundled non presente nel pacchetto', ['plugin' => $pluginName]);
@@ -2248,11 +2233,34 @@ class Updater
 
             $targetPluginPath = $targetPluginsDir . '/' . $pluginName;
             $this->debugLog('INFO', 'Aggiornamento plugin bundled', ['plugin' => $pluginName]);
+            $this->removeDirectoryTree($targetPluginPath);
             $this->copyDirectoryRecursive($sourcePluginPath, $targetPluginPath);
             $updated++;
         }
 
         $this->debugLog('INFO', 'Plugin bundled aggiornati', ['count' => $updated]);
+    }
+
+    private function removeDirectoryTree(string $path): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            if ($item->isDir()) {
+                @rmdir($item->getPathname());
+            } else {
+                @unlink($item->getPathname());
+            }
+        }
+
+        @rmdir($path);
     }
 
     /**

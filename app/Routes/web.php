@@ -2867,6 +2867,12 @@ return function (App $app): void {
         return $controller->uninstall($request, $response, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->get('/admin/plugins/{id}/settings', function ($request, $response, $args) use ($app) {
+        $pluginManager = $app->getContainer()->get('pluginManager');
+        $controller = new \App\Controllers\PluginController($pluginManager);
+        return $controller->settingsPage($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
+
     // Plugin settings update
     $app->post('/admin/plugins/{id}/settings', function ($request, $response, $args) use ($app) {
         $pluginManager = $app->getContainer()->get('pluginManager');

@@ -301,10 +301,10 @@ class BookRepository
             $addField('formato', 's', $data['formato'] ?? null);
         }
         if ($this->hasColumn('tipo_media')) {
-            $val = $data['tipo_media'] ?? null;
-            if ($val === null || $val === '') {
-                $val = \App\Support\MediaLabels::inferTipoMedia($data['formato'] ?? null);
-            }
+            $val = \App\Support\MediaLabels::resolveTipoMedia(
+                $data['formato'] ?? null,
+                $data['tipo_media'] ?? null
+            );
             $addField('tipo_media', 's', $this->normalizeEnumValue($val, 'tipo_media', 'libro'));
         }
         if ($this->hasColumn('peso')) {
@@ -1058,10 +1058,10 @@ class BookRepository
             $cols['illustratore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_illustrator']);
         }
         if ($this->hasColumn('tipo_media') && !array_key_exists('tipo_media', $cols)) {
-            $val = $data['scraped_tipo_media'] ?? null;
-            if ($val === null || $val === '') {
-                $val = \App\Support\MediaLabels::inferTipoMedia($data['formato'] ?? ($data['scraped_formato'] ?? null));
-            }
+            $val = \App\Support\MediaLabels::resolveTipoMedia(
+                $data['formato'] ?? ($data['scraped_formato'] ?? null),
+                $data['scraped_tipo_media'] ?? null
+            );
             $normalized = $this->normalizeEnumValue((string) $val, 'tipo_media', 'libro');
             if ($normalized !== '') {
                 $cols['tipo_media'] = $normalized;
