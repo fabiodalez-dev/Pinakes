@@ -911,6 +911,9 @@ class LibraryThingImportController
             }
         }
 
+        // Infer tipo_media from formato
+        $result['tipo_media'] = \App\Support\MediaLabels::inferTipoMedia($result['formato'] ?? '');
+
         // Genre/Subjects
         $result['genere'] = !empty($data['Subjects']) ? trim(explode(',', $data['Subjects'])[0]) : '';
 
@@ -1282,7 +1285,7 @@ class LibraryThingImportController
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, tipo_media = ?, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, peso = ?, dimensioni = ?, data_acquisizione = ?,
                     review = ?, rating = ?, comment = ?, private_comment = ?,
@@ -1317,6 +1320,7 @@ class LibraryThingImportController
             }
             $params = array_merge($params, [
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
+                !empty($data['tipo_media']) ? $data['tipo_media'] : \App\Support\MediaLabels::inferTipoMedia($data['formato'] ?? ''),
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
@@ -1363,7 +1367,7 @@ class LibraryThingImportController
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, tipo_media = ?, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, updated_at = NOW()
                 WHERE id = ? AND deleted_at IS NULL
@@ -1389,6 +1393,7 @@ class LibraryThingImportController
             }
             $params = array_merge($params, [
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
+                !empty($data['tipo_media']) ? $data['tipo_media'] : \App\Support\MediaLabels::inferTipoMedia($data['formato'] ?? ''),
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
@@ -1446,7 +1451,7 @@ class LibraryThingImportController
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato,
+                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato, tipo_media,
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     peso, dimensioni, data_acquisizione,
@@ -1460,7 +1465,7 @@ class LibraryThingImportController
                     value, condition_lt, entry_date,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?, ?,
                     ?,
@@ -1494,6 +1499,7 @@ class LibraryThingImportController
             }
             $params = array_merge($params, [
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
+                !empty($data['tipo_media']) ? $data['tipo_media'] : \App\Support\MediaLabels::inferTipoMedia($data['formato'] ?? ''),
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
                 $copie,
@@ -1540,12 +1546,12 @@ class LibraryThingImportController
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato,
+                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato, tipo_media,
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
                 )
             ");
 
@@ -1569,6 +1575,7 @@ class LibraryThingImportController
             }
             $params = array_merge($params, [
                 !empty($data['formato']) ? $data['formato'] : 'cartaceo',
+                !empty($data['tipo_media']) ? $data['tipo_media'] : \App\Support\MediaLabels::inferTipoMedia($data['formato'] ?? ''),
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
                 $copie,

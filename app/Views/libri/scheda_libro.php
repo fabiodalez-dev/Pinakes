@@ -6,7 +6,7 @@ $libro = $libro ?? [];
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
 // Detect music media for dynamic labels
-$isMusic = \App\Support\MediaLabels::isMusic($libro['formato'] ?? null);
+$isMusic = ($libro['tipo_media'] ?? '') === 'disco' || \App\Support\MediaLabels::isMusic($libro['formato'] ?? null, $libro['tipo_media'] ?? null);
 
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
@@ -69,6 +69,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
           <i class="fas fa-book text-gray-600"></i>
           <?php echo App\Support\HtmlHelper::e($libro['titolo'] ?? ''); ?>
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+            <i class="fas <?= \App\Support\MediaLabels::icon($libro['tipo_media'] ?? 'libro') ?> mr-1"></i>
+            <?= \App\Support\MediaLabels::tipoMediaDisplayName($libro['tipo_media'] ?? 'libro') ?>
+          </span>
         </h1>
         <?php if (!empty($libro['sottotitolo'])): ?>
           <div class="text-gray-600 mt-1"><?php echo App\Support\HtmlHelper::e($libro['sottotitolo']); ?></div>
@@ -144,7 +148,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <?php endif; ?>
           <div class="text-base text-gray-600">
             <i class="fas fa-building text-gray-400 mr-2"></i>
-            <span class="font-medium"><?= \App\Support\MediaLabels::label('editore', $libro['formato'] ?? null) ?>:</span>
+            <span class="font-medium"><?= \App\Support\MediaLabels::label('editore', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?>:</span>
             <?php echo App\Support\HtmlHelper::e($libro['editore_nome'] ?? __('Non specificato')); ?>
           </div>
           <div class="text-base text-gray-600">
@@ -334,7 +338,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <?php if (!empty($libro['anno_pubblicazione'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $libro['formato'] ?? null) ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['anno_pubblicazione']; ?></dd>
             </div>
             <?php endif; ?>
@@ -363,7 +367,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <?php if (!empty($libro['numero_pagine'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('numero_pagine', $libro['formato'] ?? null) ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('numero_pagine', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['numero_pagine']; ?></dd>
             </div>
             <?php endif; ?>

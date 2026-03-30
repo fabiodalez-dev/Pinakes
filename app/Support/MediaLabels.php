@@ -18,8 +18,11 @@ class MediaLabels
     /**
      * Check if a format string indicates music media.
      */
-    public static function isMusic(?string $formato): bool
+    public static function isMusic(?string $formato, ?string $tipoMedia = null): bool
     {
+        if ($tipoMedia === 'disco') {
+            return true;
+        }
         if ($formato === null || $formato === '') {
             return false;
         }
@@ -114,12 +117,69 @@ class MediaLabels
     }
 
     /**
+     * All valid tipo_media values with their metadata.
+     * @return array<string, array{icon: string, schema: string, label: string}>
+     */
+    public static function allTypes(): array
+    {
+        return [
+            'libro' => ['icon' => 'fa-book', 'schema' => 'Book', 'label' => 'Libro'],
+            'disco' => ['icon' => 'fa-compact-disc', 'schema' => 'MusicAlbum', 'label' => 'Disco'],
+            'audiolibro' => ['icon' => 'fa-headphones', 'schema' => 'Audiobook', 'label' => 'Audiolibro'],
+            'dvd' => ['icon' => 'fa-film', 'schema' => 'Movie', 'label' => 'DVD'],
+            'altro' => ['icon' => 'fa-box', 'schema' => 'CreativeWork', 'label' => 'Altro'],
+        ];
+    }
+
+    public static function icon(?string $tipoMedia): string
+    {
+        $types = self::allTypes();
+        return $types[$tipoMedia ?? 'libro']['icon'] ?? 'fa-book';
+    }
+
+    public static function schemaOrgType(?string $tipoMedia): string
+    {
+        $types = self::allTypes();
+        return $types[$tipoMedia ?? 'libro']['schema'] ?? 'Book';
+    }
+
+    public static function tipoMediaDisplayName(?string $tipoMedia): string
+    {
+        $types = self::allTypes();
+        $label = $types[$tipoMedia ?? 'libro']['label'] ?? 'Libro';
+        return __($label);
+    }
+
+    /**
+     * Infer tipo_media from formato field (for backward compat / migration).
+     */
+    public static function inferTipoMedia(?string $formato): string
+    {
+        if ($formato === null || $formato === '') {
+            return 'libro';
+        }
+        $lower = strtolower(trim($formato));
+        foreach (['cd_audio', 'vinile', 'lp', 'cd', 'vinyl', 'cassetta', 'cassette'] as $m) {
+            if (str_contains($lower, $m)) {
+                return 'disco';
+            }
+        }
+        if (str_contains($lower, 'audiolibro') || str_contains($lower, 'audiobook')) {
+            return 'audiolibro';
+        }
+        if (str_contains($lower, 'dvd') || str_contains($lower, 'blu-ray') || str_contains($lower, 'blu_ray')) {
+            return 'dvd';
+        }
+        return 'libro';
+    }
+
+    /**
      * Get the appropriate label for a field based on format.
      * Returns the music label if format is music, otherwise the default.
      */
-    public static function label(string $field, ?string $formato = null): string
+    public static function label(string $field, ?string $formato = null, ?string $tipoMedia = null): string
     {
-        $isMusic = self::isMusic($formato);
+        $isMusic = self::isMusic($formato, $tipoMedia);
 
         return match ($field) {
             'autore', 'author' => $isMusic ? __('Artista') : __('Autore'),

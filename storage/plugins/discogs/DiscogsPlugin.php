@@ -380,6 +380,7 @@ class DiscogsPlugin
             'isbn13' => null,
             'ean' => $isbn,
             'country' => $release['country'] ?? null,
+            'tipo_media' => 'disco',
             'source' => 'discogs',
             'discogs_id' => $release['id'] ?? null,
         ];

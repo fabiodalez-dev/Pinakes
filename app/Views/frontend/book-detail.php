@@ -25,7 +25,7 @@ use App\Support\ConfigStore;
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
 // Detect music media for dynamic labels
-$isMusic = \App\Support\MediaLabels::isMusic($book['formato'] ?? null);
+$isMusic = ($book['tipo_media'] ?? '') === 'disco' || \App\Support\MediaLabels::isMusic($book['formato'] ?? null, $book['tipo_media'] ?? null);
 
 // SEO ottimizzato
 $bookTitle = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
@@ -158,7 +158,7 @@ $breadcrumbSchema["itemListElement"][] = [
 // Book Schema.org
 $bookSchema = [
     "@context" => "https://schema.org",
-    "@type" => "Book",
+    "@type" => \App\Support\MediaLabels::schemaOrgType($book['tipo_media'] ?? 'libro'),
     "name" => $bookTitle,
     "url" => $canonicalUrl,
 ];
@@ -1525,7 +1525,12 @@ ob_start();
                         </p>
                     <?php endif; ?>
 
-                    <h1 class="fw-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);"><?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?></h1>
+                    <h1 class="fw-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);">
+                        <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
+                        <span class="badge bg-light text-secondary fw-normal" style="font-size: 0.5em; vertical-align: middle;">
+                            <i class="fas <?= \App\Support\MediaLabels::icon($book['tipo_media'] ?? 'libro') ?> me-1"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($book['tipo_media'] ?? 'libro') ?>
+                        </span>
+                    </h1>
 
                     <div class="authors-list" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
@@ -1658,7 +1663,7 @@ ob_start();
                 <div class="book-description-section" id="book-description-section">
                     <h2 class="section-title">
                         <i class="fas <?= $isMusic ? 'fa-music' : 'fa-info-circle' ?>"></i>
-                        <?= \App\Support\MediaLabels::label('descrizione', $book['formato'] ?? null) ?>
+                        <?= \App\Support\MediaLabels::label('descrizione', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?>
                     </h2>
                     <div class="description-content">
                         <?php if (!empty($book['descrizione'])): ?>
@@ -1752,7 +1757,7 @@ ob_start();
                         <div class="details-column">
                             <?php if (!empty($book['anno_pubblicazione'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null) ?></div>
+                                <div class="meta-label"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['anno_pubblicazione'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
@@ -1766,7 +1771,7 @@ ob_start();
 
                             <?php if (!empty($book['numero_pagine'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label"><?= \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null) ?></div>
+                                <div class="meta-label"><?= \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['numero_pagine'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
@@ -2061,7 +2066,7 @@ ob_start();
                     <div class="card-body">
                         <?php if (!empty($book['editore'])): ?>
                         <div class="meta-item">
-                            <div class="meta-label"><?= \App\Support\MediaLabels::label('editore', $book['formato'] ?? null) ?></div>
+                            <div class="meta-label"><?= \App\Support\MediaLabels::label('editore', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                             <div class="meta-value"><?= htmlspecialchars($book['editore'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                         <?php endif; ?>

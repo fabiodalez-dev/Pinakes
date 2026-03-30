@@ -770,6 +770,7 @@ class CsvImportController
             'genere' => !empty($row['genere']) ? trim($row['genere']) : null,
             'descrizione' => !empty($row['descrizione']) ? trim($row['descrizione']) : null,
             'formato' => !empty($row['formato']) ? trim($row['formato']) : 'cartaceo',
+            'tipo_media' => !empty($row['tipo_media']) ? trim($row['tipo_media']) : \App\Support\MediaLabels::inferTipoMedia($row['formato'] ?? ''),
             'prezzo' => $this->validatePrice($row['prezzo'] ?? ''),
             'copie_totali' => !empty($row['copie_totali']) ? (int)$row['copie_totali'] : 1,
             'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
@@ -1022,6 +1023,7 @@ class CsvImportController
             'genere' => ['genere', 'genre', 'género', 'category', 'categoria'],
             'descrizione' => ['descrizione', 'description', 'descripción', 'summary', 'riassunto', 'abstract'],
             'formato' => ['formato', 'format', 'media', 'binding', 'physical description'],
+            'tipo_media' => ['tipo_media', 'media_type', 'type', 'medientyp'],
             'prezzo' => ['prezzo', 'price', 'precio', 'prix', 'preis', 'list price', 'purchase price'],
             'copie_totali' => ['copie_totali', 'copie', 'copies', 'quantity', 'quantità', 'cantidad'],
             'collana' => ['collana', 'series', 'collection', 'collections', 'colección', 'reihe'],
@@ -1238,6 +1240,7 @@ class CsvImportController
                 genere_id = ?,
                 descrizione = ?,
                 formato = ?,
+                tipo_media = ?,
                 prezzo = ?,
                 editore_id = ?,
                 collana = ?,
@@ -1261,6 +1264,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+        $tipoMedia = !empty($data['tipo_media']) ? $data['tipo_media'] : \App\Support\MediaLabels::inferTipoMedia($formato);
         $prezzo = $data['prezzo'] ?? null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
@@ -1270,7 +1274,7 @@ class CsvImportController
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssissiissdissssssi',
+            'sssssissiisssdissssssi',
             $isbn10,
             $isbn13,
             $ean,
@@ -1283,6 +1287,7 @@ class CsvImportController
             $genreId,
             $descrizione,
             $formato,
+            $tipoMedia,
             $prezzo,
             $editorId,
             $collana,
@@ -1327,13 +1332,13 @@ class CsvImportController
             INSERT INTO libri (
                 isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
                 lingua, edizione, numero_pagine, genere_id,
-                descrizione, formato, prezzo, copie_totali, copie_disponibili,
+                descrizione, formato, tipo_media, prezzo, copie_totali, copie_disponibili,
                 editore_id, collana, numero_serie, traduttore, illustratore, parole_chiave,
                 classificazione_dewey, stato, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?,
                 ?, 'disponibile', NOW()
             )
@@ -1350,6 +1355,7 @@ class CsvImportController
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
         $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+        $tipoMedia = !empty($data['tipo_media']) ? $data['tipo_media'] : \App\Support\MediaLabels::inferTipoMedia($formato);
         $prezzo = $data['prezzo'] ?? null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
@@ -1366,7 +1372,7 @@ class CsvImportController
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
         $stmt->bind_param(
-            'sssssissiissdiiissssss',
+            'sssssissiisssdiiissssss',
             $isbn10,
             $isbn13,
             $ean,
@@ -1379,6 +1385,7 @@ class CsvImportController
             $genreId,
             $descrizione,
             $formato,
+            $tipoMedia,
             $prezzo,
             $copie,
             $copie,

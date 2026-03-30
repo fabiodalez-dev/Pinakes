@@ -148,6 +148,11 @@ class ScrapeController
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $payload = $this->normalizeIsbnFields($payload, $cleanIsbn);
 
+            // Infer tipo_media from formato/source if not already set
+            if (!isset($payload['tipo_media'])) {
+                $payload['tipo_media'] = \App\Support\MediaLabels::inferTipoMedia($payload['format'] ?? $payload['formato'] ?? '');
+            }
+
             // Hook: scrape.response - Modify final JSON response
             $payload = \App\Support\Hooks::apply('scrape.response', $payload, [$cleanIsbn, $sources, ['timestamp' => time()]]);
 
@@ -215,6 +220,11 @@ class ScrapeController
 
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $fallbackData = $this->normalizeIsbnFields($fallbackData, $cleanIsbn);
+
+            // Infer tipo_media from formato/source if not already set
+            if (!isset($fallbackData['tipo_media'])) {
+                $fallbackData['tipo_media'] = \App\Support\MediaLabels::inferTipoMedia($fallbackData['format'] ?? $fallbackData['formato'] ?? '');
+            }
 
             // Ensure plugins can still modify/log the final payload just like regular results
             $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$cleanIsbn, $sources, ['timestamp' => time()]]);

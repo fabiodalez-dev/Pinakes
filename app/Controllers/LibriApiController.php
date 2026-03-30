@@ -32,6 +32,7 @@ class LibriApiController
         $anno_from = trim((string) ($q['anno_from'] ?? ''));
         $anno_to = trim((string) ($q['anno_to'] ?? ''));
         $collana = trim((string) ($q['collana'] ?? ''));
+        $tipo_media = trim((string) ($q['tipo_media'] ?? ''));
 
         // Build WHERE clause with prepared statement parameters
         $where = 'WHERE l.deleted_at IS NULL ';
@@ -135,6 +136,11 @@ class LibriApiController
         if ($collana !== '') {
             $where .= " AND l.collana LIKE ?";
             $params[] = '%' . $collana . '%';
+            $types .= 's';
+        }
+        if ($tipo_media !== '' && $this->hasColumn($db, 'tipo_media')) {
+            $where .= " AND l.tipo_media = ?";
+            $params[] = $tipo_media;
             $types .= 's';
         }
 

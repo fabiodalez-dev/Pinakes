@@ -742,6 +742,7 @@ class FrontendController
             'editore' => $params['editore'] ?? '',
             'anno_min' => $params['anno_min'] ?? '',
             'anno_max' => $params['anno_max'] ?? '',
+            'tipo_media' => $params['tipo_media'] ?? '',
             'sort' => $params['sort'] ?? 'newest'
         ];
     }
@@ -894,6 +895,12 @@ class FrontendController
             $conditions[] = "l.anno_pubblicazione <= ?";
             $params[] = $filters['anno_max'];
             $types .= 'i';
+        }
+
+        if (!empty($filters['tipo_media'])) {
+            $conditions[] = "l.tipo_media = ?";
+            $params[] = $filters['tipo_media'];
+            $types .= 's';
         }
 
         return [
