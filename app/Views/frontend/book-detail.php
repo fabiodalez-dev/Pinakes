@@ -1654,15 +1654,19 @@ ob_start();
                     <?php endif; ?>
                 </div>
 
-                <!-- Description Section -->
+                <!-- Description / Tracklist Section -->
                 <div class="book-description-section" id="book-description-section">
                     <h2 class="section-title">
-                        <i class="fas fa-info-circle"></i>
-                        <?= __("Descrizione") ?>
+                        <i class="fas <?= $isMusic ? 'fa-music' : 'fa-info-circle' ?>"></i>
+                        <?= \App\Support\MediaLabels::label('descrizione', $book['formato'] ?? null) ?>
                     </h2>
                     <div class="description-content">
                         <?php if (!empty($book['descrizione'])): ?>
-                            <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($book['descrizione'], false)) ?></div>
+                            <?php if ($isMusic): ?>
+                                <div class="prose prose-sm"><?= \App\Support\MediaLabels::formatTracklist(strip_tags($book['descrizione'])) ?></div>
+                            <?php else: ?>
+                                <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($book['descrizione'], false)) ?></div>
+                            <?php endif; ?>
                         <?php else: ?>
                             <p class="text-muted"><?= __("Nessuna descrizione disponibile per questo libro.") ?></p>
                         <?php endif; ?>
@@ -1770,7 +1774,7 @@ ob_start();
                             <?php if (!empty($book['formato'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Formato") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['formato'], ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="meta-value"><?= htmlspecialchars(\App\Support\MediaLabels::formatDisplayName($book['formato']), ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 

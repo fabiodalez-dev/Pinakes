@@ -451,36 +451,25 @@ class DiscogsPlugin
             return '';
         }
 
-        $lines = ['Tracklist:'];
-        $trackNum = 0;
-
+        $items = [];
         foreach ($tracklist as $track) {
             $trackTitle = trim($track['title'] ?? '');
             if ($trackTitle === '') {
                 continue;
             }
-
-            // Use the position from Discogs if available, otherwise auto-number
-            $position = trim($track['position'] ?? '');
-            if ($position === '') {
-                $trackNum++;
-                $position = (string)$trackNum;
-            }
-
             $duration = trim($track['duration'] ?? '');
+            $text = htmlspecialchars($trackTitle, ENT_QUOTES, 'UTF-8');
             if ($duration !== '') {
-                $lines[] = $position . '. ' . $trackTitle . ' (' . $duration . ')';
-            } else {
-                $lines[] = $position . '. ' . $trackTitle;
+                $text .= ' <span class="text-gray-400">(' . htmlspecialchars($duration, ENT_QUOTES, 'UTF-8') . ')</span>';
             }
+            $items[] = $text;
         }
 
-        // Only return if we actually have tracks
-        if (count($lines) <= 1) {
+        if (empty($items)) {
             return '';
         }
 
-        return implode("\n", $lines);
+        return '<ol class="tracklist">' . implode('', array_map(static fn(string $item): string => '<li>' . $item . '</li>', $items)) . '</ol>';
     }
 
     /**

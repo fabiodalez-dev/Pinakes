@@ -376,7 +376,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php if (!empty($libro['formato'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Formato") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['formato']); ?></dd>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(\App\Support\MediaLabels::formatDisplayName($libro['formato'])); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['lingua'])): ?>
