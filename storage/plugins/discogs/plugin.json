@@ -1,7 +1,7 @@
 {
   "name": "discogs",
-  "display_name": "Discogs Music Scraper",
-  "description": "Integrazione con le API di Discogs per lo scraping di metadati musicali (CD, LP, vinili). Cerca per barcode (EAN) o titolo+artista e popola copertina, tracklist, etichetta e anno.",
+  "display_name": "Music Scraper (Discogs, MusicBrainz, Deezer)",
+  "description": "Scraping multi-sorgente di metadati musicali: Discogs (barcode/titolo), MusicBrainz + Cover Art Archive (fallback barcode), Deezer (copertine HD). Supporta CD, LP, vinili, cassette.",
   "version": "1.0.0",
   "author": "Fabiodalez",
   "author_url": "",
@@ -15,6 +15,8 @@
     "tags": [
       "api",
       "discogs",
+      "musicbrainz",
+      "deezer",
       "scraping",
       "music",
       "vinyl",
@@ -23,7 +25,10 @@
     "priority": 8,
     "api_endpoints": [
       "https://api.discogs.com/database/search",
-      "https://api.discogs.com/releases/{id}"
+      "https://api.discogs.com/releases/{id}",
+      "https://musicbrainz.org/ws/2/release",
+      "https://coverartarchive.org/release/{mbid}",
+      "https://api.deezer.com/search/album"
     ],
     "hooks": [
       {
@@ -51,7 +56,9 @@
       "Copertine album ad alta risoluzione",
       "Tracklist completa nella descrizione",
       "Mappatura etichetta su editore",
-      "Supporto CD, vinile, cassette"
+      "Supporto CD, vinile, cassette",
+      "Fallback MusicBrainz + Cover Art Archive per barcode",
+      "Arricchimento copertine HD da Deezer"
     ]
   }
 }

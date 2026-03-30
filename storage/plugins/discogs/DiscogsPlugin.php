@@ -7,13 +7,15 @@ namespace App\Plugins\Discogs;
 use App\Support\Hooks;
 
 /**
- * Discogs API Plugin
+ * Multi-source Music Scraper Plugin (Discogs, MusicBrainz, Deezer)
  *
- * Integrates Discogs APIs for music media metadata scraping.
- * Searches by barcode (EAN/UPC) or title+artist and provides
- * cover art, tracklist, label, year and format information.
+ * Integrates Discogs, MusicBrainz + Cover Art Archive, and Deezer APIs
+ * for music media metadata scraping. Searches by barcode (EAN/UPC) with
+ * MusicBrainz as fallback, and enriches with Deezer HD covers.
  *
  * @see https://www.discogs.com/developers
+ * @see https://musicbrainz.org/doc/MusicBrainz_API
+ * @see https://developers.deezer.com/api
  */
 class DiscogsPlugin
 {
@@ -26,6 +28,8 @@ class DiscogsPlugin
     /** @phpstan-ignore-next-line Property kept for PluginManager interface compatibility */
     private ?object $hookManager = null;
     private ?int $pluginId = null;
+    /** @var float Timestamp of last MusicBrainz API request for rate limiting */
+    private static float $lastMbRequestTime = 0.0;
 
     public function __construct(?\mysqli $db = null, ?object $hookManager = null)
     {
@@ -228,6 +232,11 @@ class DiscogsPlugin
             $searchResult = $this->apiRequest($searchUrl, $token);
 
             if (empty($searchResult['results'][0])) {
+                // Discogs found nothing — try MusicBrainz as fallback
+                $mbResult = $this->searchMusicBrainz($isbn, $token);
+                if ($mbResult !== null) {
+                    return $this->mergeBookData($currentResult, $mbResult);
+                }
                 return $currentResult;
             }
 
@@ -299,6 +308,11 @@ class DiscogsPlugin
             }
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::warning('[Discogs] Cover enrichment error: ' . $e->getMessage());
+        }
+
+        // If still missing cover or genre, try Deezer enrichment
+        if ((empty($data['image']) || empty($data['genres'])) && !empty($data['title'])) {
+            $data = $this->enrichFromDeezer($data);
         }
 
         return $data;
@@ -845,9 +859,9 @@ class DiscogsPlugin
     {
         return [
             'name' => 'discogs',
-            'display_name' => 'Discogs Music Scraper',
-            'version' => '1.0.0',
-            'description' => 'Integrazione con le API di Discogs per lo scraping di metadati musicali.',
+            'display_name' => 'Music Scraper (Discogs, MusicBrainz, Deezer)',
+            'version' => '1.1.0',
+            'description' => 'Scraping multi-sorgente di metadati musicali: Discogs, MusicBrainz + Cover Art Archive, Deezer.',
         ];
     }
 
@@ -888,5 +902,307 @@ class DiscogsPlugin
         }
 
         return $existing;
+    }
+
+    // ─── MusicBrainz Integration ────────────────────────────────────────
+
+    /**
+     * Search MusicBrainz by barcode as fallback when Discogs finds nothing
+     *
+     * @param string $barcode EAN/UPC barcode
+     * @param string|null $discogsToken Discogs token (unused, kept for signature consistency)
+     * @return array|null Pinakes-formatted data or null if not found
+     */
+    private function searchMusicBrainz(string $barcode, ?string $discogsToken): ?array
+    {
+        // Search by barcode
+        $url = 'https://musicbrainz.org/ws/2/release?query=barcode:' . urlencode($barcode) . '&fmt=json&limit=1';
+        $result = $this->musicBrainzRequest($url);
+
+        if (empty($result['releases'][0])) {
+            return null;
+        }
+
+        $release = $result['releases'][0];
+        $mbid = $release['id'] ?? null;
+        if ($mbid === null || !is_string($mbid)) {
+            return null;
+        }
+
+        // Fetch full release details
+        $detailUrl = 'https://musicbrainz.org/ws/2/release/' . $mbid . '?inc=artists+labels+recordings+release-groups&fmt=json';
+        $detail = $this->musicBrainzRequest($detailUrl);
+        if (empty($detail)) {
+            return null;
+        }
+
+        // Get cover from Cover Art Archive
+        $coverUrl = $this->fetchCoverArtArchive($mbid);
+
+        return $this->mapMusicBrainzToPinakes($detail, $barcode, $coverUrl);
+    }
+
+    /**
+     * Map MusicBrainz release data to Pinakes book data format
+     *
+     * @param array $release Full release data from MusicBrainz
+     * @param string $barcode Original barcode used for search
+     * @param string|null $coverUrl Cover URL from Cover Art Archive
+     * @return array Pinakes-formatted data
+     */
+    private function mapMusicBrainzToPinakes(array $release, string $barcode, ?string $coverUrl): array
+    {
+        $title = trim($release['title'] ?? '');
+
+        // Extract artists from artist-credit array
+        $artists = [];
+        $firstArtist = '';
+        if (!empty($release['artist-credit']) && is_array($release['artist-credit'])) {
+            foreach ($release['artist-credit'] as $credit) {
+                $name = trim($credit['name'] ?? '');
+                if ($name !== '') {
+                    $artists[] = $name;
+                }
+            }
+            $firstArtist = $artists[0] ?? '';
+        }
+
+        // Build tracklist HTML from media/tracks
+        $description = '';
+        if (!empty($release['media'][0]['tracks']) && is_array($release['media'][0]['tracks'])) {
+            $items = [];
+            foreach ($release['media'][0]['tracks'] as $track) {
+                $trackTitle = trim($track['title'] ?? '');
+                if ($trackTitle === '') {
+                    continue;
+                }
+                $text = htmlspecialchars($trackTitle, ENT_QUOTES, 'UTF-8');
+                // Length is in milliseconds
+                $lengthMs = $track['length'] ?? null;
+                if ($lengthMs !== null && is_numeric($lengthMs) && (int)$lengthMs > 0) {
+                    $totalSeconds = (int)round((int)$lengthMs / 1000);
+                    $minutes = intdiv($totalSeconds, 60);
+                    $seconds = $totalSeconds % 60;
+                    $duration = $minutes . ':' . str_pad((string)$seconds, 2, '0', STR_PAD_LEFT);
+                    $text .= ' <span class="text-gray-400">(' . $duration . ')</span>';
+                }
+                $items[] = $text;
+            }
+            if (!empty($items)) {
+                $description = '<ol class="tracklist">' . implode('', array_map(
+                    static fn(string $item): string => '<li>' . $item . '</li>',
+                    $items
+                )) . '</ol>';
+            }
+        }
+
+        // Year: first 4 chars of date
+        $year = null;
+        $date = $release['date'] ?? '';
+        if (is_string($date) && strlen($date) >= 4) {
+            $year = substr($date, 0, 4);
+        }
+
+        // Publisher: first label
+        $publisher = '';
+        if (!empty($release['label-info'][0]['label']['name'])) {
+            $publisher = trim((string)$release['label-info'][0]['label']['name']);
+        }
+
+        // Format mapping
+        $format = 'altro';
+        if (!empty($release['media'][0]['format'])) {
+            $mbFormat = strtolower(trim((string)$release['media'][0]['format']));
+            $formatMap = [
+                'cd'             => 'cd_audio',
+                'vinyl'          => 'vinile',
+                'cassette'       => 'audiocassetta',
+                'digital media'  => 'digitale',
+                'dvd'            => 'dvd',
+                'blu-ray'        => 'blu_ray',
+            ];
+            foreach ($formatMap as $key => $value) {
+                if (str_contains($mbFormat, $key)) {
+                    $format = $value;
+                    break;
+                }
+            }
+        }
+
+        // Track count
+        $trackCount = 0;
+        if (!empty($release['media'][0]['tracks']) && is_array($release['media'][0]['tracks'])) {
+            $trackCount = count($release['media'][0]['tracks']);
+        }
+
+        return [
+            'title' => $title,
+            'author' => $firstArtist,
+            'authors' => $artists,
+            'description' => $description,
+            'image' => $coverUrl,
+            'cover_url' => $coverUrl,
+            'year' => $year,
+            'publisher' => $publisher,
+            'series' => '',
+            'format' => $format,
+            'genres' => '',
+            'parole_chiave' => '',
+            'isbn10' => null,
+            'isbn13' => null,
+            'ean' => $barcode,
+            'country' => $release['country'] ?? null,
+            'tipo_media' => 'disco',
+            'source' => 'musicbrainz',
+            'musicbrainz_id' => $release['id'] ?? null,
+            'numero_pagine' => $trackCount > 0 ? (string)$trackCount : null,
+        ];
+    }
+
+    /**
+     * Fetch cover art URL from the Cover Art Archive
+     *
+     * @param string $mbid MusicBrainz release ID
+     * @return string|null URL of the cover image or null if unavailable
+     */
+    private function fetchCoverArtArchive(string $mbid): ?string
+    {
+        // Cover Art Archive — no rate limit, but may 404
+        $url = 'https://coverartarchive.org/release/' . urlencode($mbid);
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_USERAGENT      => self::USER_AGENT,
+        ]);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($code !== 200 || !is_string($resp)) {
+            return null;
+        }
+
+        $data = json_decode($resp, true);
+        if (!is_array($data) || empty($data['images']) || !is_array($data['images'])) {
+            return null;
+        }
+
+        // Prefer front cover, then first image
+        foreach ($data['images'] as $img) {
+            if (!is_array($img)) {
+                continue;
+            }
+            if (($img['front'] ?? false) === true) {
+                return $img['thumbnails']['large'] ?? $img['image'] ?? null;
+            }
+        }
+
+        $firstImg = $data['images'][0];
+        if (is_array($firstImg)) {
+            return $firstImg['thumbnails']['large'] ?? $firstImg['image'] ?? null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Make a rate-limited request to the MusicBrainz API
+     *
+     * MusicBrainz enforces a strict 1 request/second limit.
+     * We use 1.1s between requests for safety margin.
+     *
+     * @param string $url Full MusicBrainz API URL
+     * @return array|null Decoded JSON response or null on failure
+     */
+    private function musicBrainzRequest(string $url): ?array
+    {
+        // MusicBrainz requires 1 req/s strictly
+        $elapsed = microtime(true) - self::$lastMbRequestTime;
+        if (self::$lastMbRequestTime > 0 && $elapsed < 1.1) {
+            usleep((int)((1.1 - $elapsed) * 1_000_000));
+        }
+        self::$lastMbRequestTime = microtime(true);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT        => self::TIMEOUT,
+            CURLOPT_USERAGENT      => self::USER_AGENT,
+            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+        ]);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($code !== 200 || !is_string($resp)) {
+            return null;
+        }
+
+        $data = json_decode($resp, true);
+        return is_array($data) ? $data : null;
+    }
+
+    // ─── Deezer Integration ─────────────────────────────────────────────
+
+    /**
+     * Enrich data with Deezer album cover and metadata
+     *
+     * Searches Deezer by title+artist to find a matching album,
+     * then fills in missing cover image.
+     *
+     * @param array $data Current Pinakes data (must have 'title')
+     * @return array Enriched data
+     */
+    private function enrichFromDeezer(array $data): array
+    {
+        $title = trim($data['title'] ?? '');
+        $artist = trim($data['author'] ?? '');
+        if ($title === '') {
+            return $data;
+        }
+
+        $query = $artist !== '' ? $artist . ' ' . $title : $title;
+        $url = 'https://api.deezer.com/search/album?q=' . urlencode($query) . '&limit=1';
+
+        // Simple rate limit — 1 second between Deezer requests
+        usleep(1_000_000);
+
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL            => $url,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 10,
+            CURLOPT_USERAGENT      => self::USER_AGENT,
+        ]);
+        $resp = curl_exec($ch);
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($code !== 200 || !is_string($resp)) {
+            return $data;
+        }
+
+        $result = json_decode($resp, true);
+        if (!is_array($result) || empty($result['data'][0])) {
+            return $data;
+        }
+
+        $album = $result['data'][0];
+        if (!is_array($album)) {
+            return $data;
+        }
+
+        // Fill missing cover with Deezer's high-quality image
+        if (empty($data['image']) && !empty($album['cover_xl'])) {
+            $data['image'] = $album['cover_xl'];
+            $data['cover_url'] = $album['cover_xl'];
+        }
+
+        return $data;
     }
 }
