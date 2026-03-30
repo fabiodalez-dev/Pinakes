@@ -49,7 +49,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
 
   test.afterAll(async () => {
     // Cleanup test data
-    try { dbExec("DELETE FROM libri WHERE ean = '0720642442524' AND deleted_at IS NULL"); } catch {}
+    try { dbExec("DELETE FROM libri WHERE (ean = '0720642442524' OR isbn13 LIKE '%720642442524%') AND deleted_at IS NULL"); } catch {}
     await context?.close();
   });
 

@@ -898,9 +898,17 @@ class FrontendController
         }
 
         if (!empty($filters['tipo_media'])) {
-            $conditions[] = "l.tipo_media = ?";
-            $params[] = $filters['tipo_media'];
-            $types .= 's';
+            // Check if column exists (may not on pre-0.5.4 databases)
+            static $hasTipoMedia = null;
+            if ($hasTipoMedia === null) {
+                $result = $db->query("SHOW COLUMNS FROM libri LIKE 'tipo_media'");
+                $hasTipoMedia = $result !== false && $result->num_rows > 0;
+            }
+            if ($hasTipoMedia) {
+                $conditions[] = "l.tipo_media = ?";
+                $params[] = $filters['tipo_media'];
+                $types .= 's';
+            }
         }
 
         return [

@@ -227,69 +227,113 @@ if ($bookCurator !== '' && !in_array($bookCurator, array_column($schemaEditors, 
     $schemaEditors[] = ["@type" => "Person", "name" => $bookCurator];
 }
 
-if (!empty($schemaAuthors)) {
-    $bookSchema["author"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
-}
-if (!empty($schemaTranslators)) {
-    $bookSchema["translator"] = count($schemaTranslators) === 1 ? $schemaTranslators[0] : $schemaTranslators;
-}
-if (!empty($schemaIllustrators)) {
-    $bookSchema["illustrator"] = count($schemaIllustrators) === 1 ? $schemaIllustrators[0] : $schemaIllustrators;
-}
-if (!empty($schemaEditors)) {
-    $bookSchema["editor"] = count($schemaEditors) === 1 ? $schemaEditors[0] : $schemaEditors;
-}
-
 if ($bookDescription) {
     $bookSchema["description"] = strip_tags($bookDescription);
 }
 
-if ($bookPublisher) {
-    $bookSchema["publisher"] = [
-        "@type" => "Organization",
-        "name" => $bookPublisher
-    ];
-}
-
-if ($bookYear) {
-    $bookSchema["datePublished"] = (string) $bookYear;
-}
-
-if ($bookISBN) {
-    $bookSchema["isbn"] = $bookISBN;
-}
-
-if (!empty($book['issn'])) {
-    $bookSchema["identifier"] = [
-        "@type" => "PropertyValue",
-        "propertyID" => "ISSN",
-        "value" => $book['issn'],
-    ];
-}
-
-if ($bookPages) {
-    $bookSchema["numberOfPages"] = (int)$bookPages;
-}
-
-if ($bookLanguage) {
-    $bookSchema["inLanguage"] = $bookLanguage;
+if ($bookCover) {
+    $bookSchema["image"] = $ogImage;
 }
 
 if ($bookGenre) {
     $bookSchema["genre"] = $bookGenre;
 }
 
-if ($bookCover) {
-    $bookSchema["image"] = $ogImage; // Use the absolute URL
+if ($bookLanguage) {
+    $bookSchema["inLanguage"] = $bookLanguage;
 }
 
-// Book edition and format
-$bookEdition = trim($book['edizione'] ?? '');
-if ($bookEdition !== '') {
-    $bookSchema["bookEdition"] = $bookEdition;
+if ($bookYear) {
+    $bookSchema["datePublished"] = (string) $bookYear;
 }
 
-// Availability — only include Offer when the book has a price (library lending is not a sale)
+// Media-specific Schema.org properties
+$schemaType = \App\Support\MediaLabels::schemaOrgType($resolvedTipoMedia);
+
+if ($schemaType === 'MusicAlbum') {
+    // MusicAlbum: use byArtist, recordLabel, numTracks
+    if (!empty($schemaAuthors)) {
+        $bookSchema["byArtist"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["recordLabel"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if ($bookPages) {
+        $bookSchema["numTracks"] = (int) $bookPages;
+    }
+    if (!empty($book['ean'])) {
+        $bookSchema["identifier"] = [
+            "@type" => "PropertyValue",
+            "propertyID" => "EAN",
+            "value" => $book['ean'],
+        ];
+    }
+} elseif ($schemaType === 'Movie') {
+    // Movie: use director, productionCompany, duration
+    if (!empty($schemaAuthors)) {
+        $bookSchema["director"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["productionCompany"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if (!empty($book['ean'])) {
+        $bookSchema["identifier"] = [
+            "@type" => "PropertyValue",
+            "propertyID" => "EAN",
+            "value" => $book['ean'],
+        ];
+    }
+} elseif ($schemaType === 'Audiobook') {
+    // Audiobook: use author, publisher, readBy (translator as narrator)
+    if (!empty($schemaAuthors)) {
+        $bookSchema["author"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["publisher"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if (!empty($schemaTranslators)) {
+        $bookSchema["readBy"] = count($schemaTranslators) === 1 ? $schemaTranslators[0] : $schemaTranslators;
+    }
+    if ($bookISBN) {
+        $bookSchema["isbn"] = $bookISBN;
+    }
+} else {
+    // Book (default): full book properties
+    if (!empty($schemaAuthors)) {
+        $bookSchema["author"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if (!empty($schemaTranslators)) {
+        $bookSchema["translator"] = count($schemaTranslators) === 1 ? $schemaTranslators[0] : $schemaTranslators;
+    }
+    if (!empty($schemaIllustrators)) {
+        $bookSchema["illustrator"] = count($schemaIllustrators) === 1 ? $schemaIllustrators[0] : $schemaIllustrators;
+    }
+    if (!empty($schemaEditors)) {
+        $bookSchema["editor"] = count($schemaEditors) === 1 ? $schemaEditors[0] : $schemaEditors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["publisher"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if ($bookISBN) {
+        $bookSchema["isbn"] = $bookISBN;
+    }
+    if (!empty($book['issn'])) {
+        $bookSchema["identifier"] = [
+            "@type" => "PropertyValue",
+            "propertyID" => "ISSN",
+            "value" => $book['issn'],
+        ];
+    }
+    if ($bookPages) {
+        $bookSchema["numberOfPages"] = (int) $bookPages;
+    }
+    $bookEdition = trim($book['edizione'] ?? '');
+    if ($bookEdition !== '') {
+        $bookSchema["bookEdition"] = $bookEdition;
+    }
+}
+
+// Availability — only include Offer when the item has a price
 if ($bookPrice) {
     $appName = (string) ConfigStore::get('app.name', __('Biblioteca'));
     $bookSchema["offers"] = [

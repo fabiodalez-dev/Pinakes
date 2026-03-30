@@ -911,8 +911,9 @@ class LibraryThingImportController
             }
         }
 
-        // Infer tipo_media from formato
-        $result['tipo_media'] = \App\Support\MediaLabels::inferTipoMedia($result['formato'] ?? '');
+        // Infer tipo_media from Media field (null when empty to avoid overwriting)
+        $mediaRaw = trim((string) ($data['Media'] ?? ''));
+        $result['tipo_media'] = $mediaRaw !== '' ? \App\Support\MediaLabels::inferTipoMedia($mediaRaw) : null;
 
         // Genre/Subjects
         $result['genere'] = !empty($data['Subjects']) ? trim(explode(',', $data['Subjects'])[0]) : '';

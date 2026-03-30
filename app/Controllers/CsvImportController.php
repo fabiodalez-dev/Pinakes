@@ -771,7 +771,7 @@ class CsvImportController
             'descrizione' => !empty($row['descrizione']) ? trim($row['descrizione']) : null,
             'formato' => !empty($row['formato']) ? trim($row['formato']) : 'cartaceo',
             'tipo_media' => array_key_exists('tipo_media', $row) && trim((string) ($row['tipo_media'] ?? '')) !== ''
-                ? trim($row['tipo_media'])
+                ? \App\Support\MediaLabels::inferTipoMedia(trim($row['tipo_media']))
                 : null,
             'prezzo' => $this->validatePrice($row['prezzo'] ?? ''),
             'copie_totali' => !empty($row['copie_totali']) ? (int)$row['copie_totali'] : 1,
@@ -1252,7 +1252,7 @@ class CsvImportController
                 parole_chiave = ?,
                 classificazione_dewey = ?,
                 updated_at = NOW()
-            WHERE id = ?
+            WHERE id = ? AND deleted_at IS NULL
         ");
 
         $isbn10 = !empty($data['isbn10']) ? $data['isbn10'] : null;
@@ -1562,7 +1562,7 @@ class CsvImportController
 
         // Update libro if we have data
         if (!empty($updates)) {
-            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ?";
+            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ? AND deleted_at IS NULL";
             $params[] = $bookId;
             $types .= 'i';
 
@@ -1603,7 +1603,7 @@ class CsvImportController
             $publisherResult = $this->getOrCreatePublisher($db, $scrapedData['publisher']);
             $editorId = $publisherResult['id'];
 
-            $stmt = $db->prepare("UPDATE libri SET editore_id = ? WHERE id = ?");
+            $stmt = $db->prepare("UPDATE libri SET editore_id = ? WHERE id = ? AND deleted_at IS NULL");
             $stmt->bind_param('ii', $editorId, $bookId);
             $stmt->execute();
             $stmt->close();

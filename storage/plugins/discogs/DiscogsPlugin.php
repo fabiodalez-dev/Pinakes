@@ -278,19 +278,18 @@ class DiscogsPlugin
      */
     public function enrichWithDiscogsData(array $data, string $isbn, array $source, array $originalPayload): array
     {
-        // If data already has an image or didn't come from Discogs, skip
+        // If data already has an image, skip
         if (!empty($data['image'])) {
             return $data;
         }
 
-        // Only enrich if the data was sourced from Discogs
-        if (($data['source'] ?? '') !== 'discogs') {
-            return $data;
-        }
-
-        // Try to fetch cover from Discogs using discogs_id
+        // Try to fetch cover from Discogs using discogs_id (regardless of source)
         $discogsId = $data['discogs_id'] ?? null;
         if ($discogsId === null) {
+            // No discogs_id — skip to Deezer enrichment below
+            if ((empty($data['image']) || empty($data['genres'])) && !empty($data['title'])) {
+                $data = $this->enrichFromDeezer($data);
+            }
             return $data;
         }
 

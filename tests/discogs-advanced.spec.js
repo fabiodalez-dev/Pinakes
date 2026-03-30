@@ -65,7 +65,7 @@ test.describe.serial('Discogs Advanced Tests', () => {
   });
 
   test.afterAll(async () => {
-    try { dbExec(`DELETE FROM libri WHERE titolo LIKE 'E2E_ADV_%_${RUN_ID}' AND deleted_at IS NULL`); } catch {}
+    try { dbExec("DELETE FROM libri WHERE (titolo LIKE 'E2E_ADV_%' OR ean = '1234567890123' OR isbn13 = '9781234567897') AND deleted_at IS NULL"); } catch {}
     await context?.close();
   });
 
