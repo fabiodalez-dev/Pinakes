@@ -40,6 +40,7 @@ class Updater
         'api-book-scraper',
         'dewey-editor',
         'digital-library',
+        'discogs',
         'goodlib',
         'open-library',
         'z39-server',

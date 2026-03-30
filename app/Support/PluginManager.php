@@ -49,6 +49,7 @@ class PluginManager
         'digital-library',
         'dewey-editor',
         'goodlib',
+        'discogs',
     ];
 
     /**
