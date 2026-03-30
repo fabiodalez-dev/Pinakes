@@ -598,13 +598,17 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card">
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-align-left text-primary"></i>
-            <?= __("Descrizione") ?>
+            <i class="fas <?= $isMusic ? 'fa-music' : 'fa-align-left' ?> text-primary"></i>
+            <?= \App\Support\MediaLabels::label('descrizione', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?>
           </h2>
         </div>
         <div class="card-body">
           <div class="prose prose-sm max-w-none text-gray-700">
-            <?php echo App\Support\HtmlHelper::sanitizeHtml(nl2br($libro['descrizione'], false)); ?>
+            <?php if ($isMusic): ?>
+              <?= \App\Support\MediaLabels::formatTracklist(strip_tags($libro['descrizione'])) ?>
+            <?php else: ?>
+              <?php echo App\Support\HtmlHelper::sanitizeHtml(nl2br($libro['descrizione'], false)); ?>
+            <?php endif; ?>
           </div>
         </div>
       </div>
