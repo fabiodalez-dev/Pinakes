@@ -325,7 +325,7 @@ class DiscogsPlugin
         $artists = $this->extractArtists($release['artists'] ?? []);
         $firstArtist = $artists[0] ?? '';
 
-        // Build tracklist description
+        // Build tracklist description as HTML <ol>
         $description = $this->buildTracklistDescription($release['tracklist'] ?? []);
 
         // Get cover image: prefer full images (requires auth), fallback to search thumbnails
@@ -338,10 +338,12 @@ class DiscogsPlugin
             $coverUrl = $searchResult['thumb'];
         }
 
-        // Extract publisher (label)
+        // Extract publisher (label + catalog number)
         $publisher = '';
+        $catalogNumber = '';
         if (!empty($release['labels'][0]['name'])) {
             $publisher = trim($release['labels'][0]['name']);
+            $catalogNumber = trim($release['labels'][0]['catno'] ?? '');
         }
 
         // Extract series
@@ -353,16 +355,85 @@ class DiscogsPlugin
         // Map Discogs format to Pinakes format
         $format = $this->mapDiscogsFormat($release['formats'] ?? []);
 
-        // Extract first genre
+        // Extract genre + styles as keywords
         $genre = '';
         if (!empty($release['genres'][0])) {
             $genre = trim($release['genres'][0]);
         }
+        $styles = [];
+        foreach ($release['styles'] ?? [] as $style) {
+            $s = trim((string) $style);
+            if ($s !== '') {
+                $styles[] = $s;
+            }
+        }
+        $keywords = implode(', ', $styles);
 
         // Year
         $year = isset($release['year']) && $release['year'] > 0
-            ? (string)$release['year']
+            ? (string) $release['year']
             : null;
+
+        // Weight in kg (Discogs gives grams)
+        $weightKg = null;
+        if (!empty($release['estimated_weight']) && is_numeric($release['estimated_weight'])) {
+            $weightKg = round((float) $release['estimated_weight'] / 1000, 3);
+        }
+
+        // Price
+        $price = null;
+        if (!empty($release['lowest_price']) && is_numeric($release['lowest_price'])) {
+            $price = (string) $release['lowest_price'];
+        }
+
+        // Number of tracks
+        $trackCount = 0;
+        foreach ($release['tracklist'] ?? [] as $track) {
+            if (($track['type_'] ?? 'track') === 'track' && trim($track['title'] ?? '') !== '') {
+                $trackCount++;
+            }
+        }
+
+        // Format quantity (number of discs)
+        $formatQty = (int) ($release['format_quantity'] ?? 1);
+
+        // Notes from Discogs
+        $discogsNotes = trim($release['notes'] ?? '');
+
+        // Build note_varie with extra metadata
+        $noteParts = [];
+        if ($catalogNumber !== '') {
+            $noteParts[] = 'Cat#: ' . $catalogNumber;
+        }
+        if (!empty($release['country'])) {
+            $noteParts[] = 'Country: ' . $release['country'];
+        }
+        if ($formatQty > 1) {
+            $noteParts[] = $formatQty . ' discs';
+        }
+        // Extra artists (producers, engineers, etc.)
+        $credits = $this->extractCredits($release['extraartists'] ?? []);
+        if ($credits !== '') {
+            $noteParts[] = $credits;
+        }
+        if ($discogsNotes !== '') {
+            $noteParts[] = $discogsNotes;
+        }
+        $noteVarie = implode("\n", $noteParts);
+
+        // Discogs URL for sameAs
+        $discogsUrl = $release['uri'] ?? null;
+
+        // Physical description (format details)
+        $physicalDesc = '';
+        if (!empty($release['formats'][0])) {
+            $fmt = $release['formats'][0];
+            $parts = [$fmt['name'] ?? ''];
+            foreach ($fmt['descriptions'] ?? [] as $desc) {
+                $parts[] = $desc;
+            }
+            $physicalDesc = implode(', ', array_filter($parts));
+        }
 
         return [
             'title' => $title,
@@ -376,6 +447,7 @@ class DiscogsPlugin
             'series' => $series ?? '',
             'format' => $format,
             'genres' => $genre,
+            'parole_chiave' => $keywords,
             'isbn10' => null,
             'isbn13' => null,
             'ean' => $isbn,
@@ -383,6 +455,13 @@ class DiscogsPlugin
             'tipo_media' => 'disco',
             'source' => 'discogs',
             'discogs_id' => $release['id'] ?? null,
+            'peso' => $weightKg,
+            'prezzo' => $price,
+            'numero_pagine' => $trackCount > 0 ? (string) $trackCount : null,
+            'note_varie' => $noteVarie !== '' ? $noteVarie : null,
+            'physical_description' => $physicalDesc !== '' ? $physicalDesc : null,
+            'numero_inventario' => $catalogNumber !== '' ? $catalogNumber : null,
+            'discogs_url' => $discogsUrl,
         ];
     }
 
@@ -433,6 +512,31 @@ class DiscogsPlugin
             }
         }
         return $names;
+    }
+
+    /**
+     * Extract credits from Discogs extraartists (producers, engineers, etc.)
+     */
+    private function extractCredits(array $extraartists): string
+    {
+        if (empty($extraartists)) {
+            return '';
+        }
+        $credits = [];
+        foreach ($extraartists as $person) {
+            $name = trim($person['name'] ?? '');
+            $role = trim($person['role'] ?? '');
+            if ($name === '' || $role === '') {
+                continue;
+            }
+            // Clean disambiguation suffix
+            $name = (string) preg_replace('/\s*\(\d+\)$/', '', $name);
+            $credits[] = $role . ': ' . $name;
+        }
+        if (empty($credits)) {
+            return '';
+        }
+        return 'Credits: ' . implode(', ', $credits);
     }
 
     /**

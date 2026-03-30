@@ -643,8 +643,8 @@ class BookRepository
         if ($this->hasColumn('formato')) {
             $addSet('formato', 's', $data['formato'] ?? null);
         }
-        if ($this->hasColumn('tipo_media')) {
-            $val = $data['tipo_media'] ?? null;
+        if ($this->hasColumn('tipo_media') && array_key_exists('tipo_media', $data)) {
+            $val = is_string($data['tipo_media']) ? $data['tipo_media'] : null;
             $addSet('tipo_media', 's', $this->normalizeEnumValue($val, 'tipo_media', 'libro'));
         }
         if ($this->hasColumn('peso')) {

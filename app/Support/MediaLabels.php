@@ -10,9 +10,9 @@ namespace App\Support;
  */
 class MediaLabels
 {
-    /** @var array<int, string> */
-    private static array $musicFormats = [
-        'cd_audio', 'vinile', 'cassetta', 'vinyl', 'lp', 'cd', 'cassette', 'audio', 'musik', 'music'
+    /** Exact music format tokens (no substring matching to avoid 'audiolibro' false positive) */
+    private const MUSIC_FORMATS = [
+        'cd_audio', 'vinile', 'cassetta', 'vinyl', 'lp', 'cd', 'cassette', 'audiocassetta',
     ];
 
     /**
@@ -27,10 +27,13 @@ class MediaLabels
             return false;
         }
         $lower = strtolower(trim($formato));
-        foreach (self::$musicFormats as $musicFormat) {
-            if (str_contains($lower, $musicFormat)) {
-                return true;
-            }
+        // Exact match first
+        if (in_array($lower, self::MUSIC_FORMATS, true)) {
+            return true;
+        }
+        // Word-boundary match for generic terms
+        if (preg_match('/\b(?:music|musik)\b/i', $lower) === 1) {
+            return true;
         }
         return false;
     }
@@ -42,12 +45,18 @@ class MediaLabels
         'cartaceo' => 'Cartaceo',
         'ebook' => 'eBook',
         'audiolibro' => 'Audiolibro',
+        'audiobook' => 'Audiolibro',
         'cd_audio' => 'CD Audio',
+        'cd' => 'CD',
         'vinile' => 'Vinile',
+        'vinyl' => 'Vinile',
         'lp' => 'LP',
         'cassetta' => 'Cassetta',
+        'cassette' => 'Cassetta',
+        'audiocassetta' => 'Audiocassetta',
         'dvd' => 'DVD',
         'blu-ray' => 'Blu-ray',
+        'blu_ray' => 'Blu-ray',
         'digitale' => 'Digitale',
         'altro' => 'Altro',
     ];
@@ -91,7 +100,7 @@ class MediaLabels
         }
 
         if ($tracks === false || count($tracks) < 2) {
-            return $text; // Not a tracklist, return as-is
+            return nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8'), false);
         }
 
         $items = [];
@@ -105,7 +114,7 @@ class MediaLabels
         }
 
         if (empty($items)) {
-            return $text;
+            return nl2br(htmlspecialchars($text, ENT_QUOTES, 'UTF-8'), false);
         }
 
         $html = '<ol class="tracklist">';
