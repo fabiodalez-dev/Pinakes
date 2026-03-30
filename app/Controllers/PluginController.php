@@ -391,6 +391,19 @@ class PluginController
                 'message' => __('Impostazioni GoodLib salvate correttamente.'),
                 'data' => $normalizedDomains,
             ]));
+        } elseif ($plugin['name'] === 'discogs') {
+            // Discogs: personal access token
+            $apiToken = trim((string) ($settings['api_token'] ?? ''));
+
+            $this->pluginManager->setSetting($pluginId, 'api_token', $apiToken, true);
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Impostazioni Discogs salvate correttamente.'),
+                'data' => [
+                    'has_token' => $apiToken !== ''
+                ]
+            ]));
         } else {
             // Plugin not supported
             error_log('[PluginController] Plugin does not support settings: ' . $plugin['name']);

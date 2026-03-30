@@ -225,20 +225,9 @@ class DiscogsPlugin
         try {
             $token = $this->getSetting('api_token');
 
-            // 1. Search by barcode
+            // Search by barcode only (no generic fallback — too unreliable)
             $searchUrl = self::API_BASE . '/database/search?barcode=' . urlencode($isbn) . '&type=release';
             $searchResult = $this->apiRequest($searchUrl, $token);
-
-            // 2. Fallback: query search
-            if (empty($searchResult['results'])) {
-                $searchUrl = self::API_BASE . '/database/search?q=' . urlencode($isbn) . '&type=release';
-                $searchResult = $this->apiRequest($searchUrl, $token);
-
-                // Rate limit: pause between API calls
-                if (!empty($searchResult['results'])) {
-                    usleep(1000000); // 1 second
-                }
-            }
 
             if (empty($searchResult['results'][0])) {
                 return $currentResult;
@@ -246,14 +235,11 @@ class DiscogsPlugin
 
             $firstResult = $searchResult['results'][0];
 
-            // 3. Fetch full release details
+            // Fetch full release details
             $releaseId = $firstResult['id'] ?? null;
             if ($releaseId === null) {
                 return $currentResult;
             }
-
-            // Rate limit between search and release fetch
-            usleep(1000000);
 
             $releaseUrl = self::API_BASE . '/releases/' . $releaseId;
             $release = $this->apiRequest($releaseUrl, $token);
@@ -547,8 +533,19 @@ class DiscogsPlugin
      * @param string|null $token Optional Discogs personal access token
      * @return array|null Decoded JSON response or null on failure
      */
+    /** @var float Timestamp of last API request for rate limiting */
+    private float $lastRequestTime = 0.0;
+
     private function apiRequest(string $url, ?string $token = null): ?array
     {
+        // Centralized rate limiting: 1s with token (60 req/min), 2.5s without (25 req/min)
+        $minInterval = ($token !== null && $token !== '') ? 1.0 : 2.5;
+        $elapsed = microtime(true) - $this->lastRequestTime;
+        if ($this->lastRequestTime > 0 && $elapsed < $minInterval) {
+            usleep((int) (($minInterval - $elapsed) * 1_000_000));
+        }
+        $this->lastRequestTime = microtime(true);
+
         $headers = [
             'Accept: application/vnd.discogs.v2.discogs+json',
         ];
@@ -661,6 +658,90 @@ class DiscogsPlugin
         return [
             'api_token' => $token !== null && $token !== '' ? '********' : '',
         ];
+    }
+
+    /**
+     * Save plugin settings to plugin_settings table
+     *
+     * @param array<string, mixed> $settings Settings key-value pairs
+     * @return bool True if all settings were saved successfully
+     */
+    public function saveSettings(array $settings): bool
+    {
+        if ($this->db === null) {
+            return false;
+        }
+
+        // Resolve plugin ID if not set
+        $pluginId = $this->pluginId;
+        if ($pluginId === null) {
+            $stmt = $this->db->prepare("SELECT id FROM plugins WHERE name = ? LIMIT 1");
+            if ($stmt === false) {
+                return false;
+            }
+            $pluginName = 'discogs';
+            $stmt->bind_param('s', $pluginName);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result) {
+                $row = $result->fetch_assoc();
+                $pluginId = isset($row['id']) ? (int)$row['id'] : null;
+                $result->free();
+            }
+            $stmt->close();
+        }
+
+        if ($pluginId === null) {
+            return false;
+        }
+
+        $success = true;
+
+        foreach ($settings as $key => $value) {
+            $stringValue = (string)$value;
+
+            // Delete existing
+            $deleteStmt = $this->db->prepare(
+                "DELETE FROM plugin_settings WHERE plugin_id = ? AND setting_key = ?"
+            );
+            if ($deleteStmt) {
+                $deleteStmt->bind_param('is', $pluginId, $key);
+                $deleteStmt->execute();
+                $deleteStmt->close();
+            }
+
+            // Insert new
+            $insertStmt = $this->db->prepare(
+                "INSERT INTO plugin_settings (plugin_id, setting_key, setting_value, autoload)
+                 VALUES (?, ?, ?, 1)"
+            );
+
+            if ($insertStmt) {
+                $insertStmt->bind_param('iss', $pluginId, $key, $stringValue);
+                $success = $success && $insertStmt->execute();
+                $insertStmt->close();
+            } else {
+                $success = false;
+            }
+        }
+
+        return $success;
+    }
+
+    /**
+     * Whether this plugin has a dedicated settings page
+     */
+    public function hasSettingsPage(): bool
+    {
+        return true;
+    }
+
+    /**
+     * Get the path to the settings view file
+     */
+    public function getSettingsViewPath(): string
+    {
+        return __DIR__ . '/views/settings.php';
     }
 
     /**

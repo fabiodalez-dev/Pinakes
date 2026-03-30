@@ -143,6 +143,8 @@ storage/plugins/discogs/*
 !storage/plugins/discogs/*.php
 !storage/plugins/discogs/*.json
 !storage/plugins/discogs/*.md
+!storage/plugins/discogs/views/
+!storage/plugins/discogs/views/*.php
 
 # Premium plugin - never track (private/commercial)
 storage/plugins/scraping-pro/

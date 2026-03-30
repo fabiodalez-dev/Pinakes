@@ -5,6 +5,9 @@ use App\Support\ConfigStore;
 $libro = $libro ?? [];
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
+// Detect music media for dynamic labels
+$isMusic = \App\Support\MediaLabels::isMusic($libro['formato'] ?? null);
+
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
     'disponibile' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-green-500 text-white',
@@ -141,7 +144,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <?php endif; ?>
           <div class="text-base text-gray-600">
             <i class="fas fa-building text-gray-400 mr-2"></i>
-            <span class="font-medium"><?= __("Editore:") ?></span>
+            <span class="font-medium"><?= \App\Support\MediaLabels::label('editore', $libro['formato'] ?? null) ?>:</span>
             <?php echo App\Support\HtmlHelper::e($libro['editore_nome'] ?? __('Non specificato')); ?>
           </div>
           <div class="text-base text-gray-600">
@@ -331,7 +334,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <?php if (!empty($libro['anno_pubblicazione'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= __("Anno pubblicazione") ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $libro['formato'] ?? null) ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['anno_pubblicazione']; ?></dd>
             </div>
             <?php endif; ?>
@@ -360,7 +363,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <?php if (!empty($libro['numero_pagine'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= __("Pagine") ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('numero_pagine', $libro['formato'] ?? null) ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['numero_pagine']; ?></dd>
             </div>
             <?php endif; ?>
