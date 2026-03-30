@@ -763,6 +763,12 @@ class ScrapeController
      */
     private function normalizeIsbnFields(array $data, string $originalIsbn): array
     {
+        // Skip ISBN auto-population for non-book sources (e.g., Discogs music).
+        // The barcode is an EAN, not an ISBN — don't stuff it into isbn13/isbn10.
+        if (($data['source'] ?? '') === 'discogs') {
+            return $data;
+        }
+
         // First, try to get variants from original search term
         $variants = IsbnFormatter::getAllVariants($originalIsbn);
 

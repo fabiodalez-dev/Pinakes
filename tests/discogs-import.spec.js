@@ -127,20 +127,31 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     test.skip(titleValue === '', 'No scraped data to save');
 
     // Set copies (required field)
-    await page.locator('input[name="copie_totali"]').fill('1');
+    const copieInput = page.locator('input[name="copie_totali"]');
+    const copieVal = await copieInput.inputValue();
+    if (!copieVal || copieVal === '0') {
+      await copieInput.fill('1');
+    }
 
     // Submit the form
     await page.locator('button[type="submit"]').first().click();
     await page.waitForLoadState('domcontentloaded');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(3000);
 
-    // Should redirect to book detail or show success
-    const url = page.url();
+    // Check for errors
     const content = await page.content();
+    const hasError = content.includes('alert-error') || content.includes('error_message');
+    if (hasError) {
+      const errorEl = page.locator('.alert-error, .alert.alert-danger').first();
+      const errorText = await errorEl.textContent().catch(() => 'unknown error');
+      console.log('Save error:', errorText);
+    }
 
-    // Either redirected to book detail or success message
-    const saved = url.includes('/admin/libri/') || content.includes('successo') || content.includes('success');
-    expect(saved).toBe(true);
+    // Should redirect to book detail (not /crea) or show success
+    const url = page.url();
+    const savedToDetail = /\/admin\/libri\/\d+/.test(url);
+    const hasSuccess = content.includes('successo') || content.includes('success') || content.includes('aggiunto');
+    expect(savedToDetail || hasSuccess).toBe(true);
   });
 
   test('5. Verify saved CD in database', async () => {
