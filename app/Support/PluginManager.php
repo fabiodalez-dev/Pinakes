@@ -48,6 +48,7 @@ class PluginManager
         'api-book-scraper',
         'digital-library',
         'dewey-editor',
+        'goodlib',
     ];
 
     /**

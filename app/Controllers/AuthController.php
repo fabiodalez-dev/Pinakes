@@ -48,7 +48,14 @@ class AuthController
         // CSRF validated by CsrfMiddleware
 
         if ($email !== '' && $password !== '') {
-            $stmt = $db->prepare("SELECT id, email, password, tipo_utente, email_verificata, stato, nome, cognome FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
+            $stmt = $db->prepare("SELECT id, email, password, tipo_utente, email_verificata, stato, nome, cognome, locale FROM utenti WHERE LOWER(email) = LOWER(?) LIMIT 1");
+            if ($stmt === false) {
+                Log::security('login.db_prepare_failed', [
+                    'ip' => $_SERVER['REMOTE_ADDR'] ?? 'unknown',
+                    'db_error' => $db->error,
+                ]);
+                return $response->withHeader('Location', RouteTranslator::route('login') . '?error=server')->withStatus(302);
+            }
             $stmt->bind_param('s', $email);
             $stmt->execute();
             $res = $stmt->get_result();
@@ -105,6 +112,14 @@ class AuthController
                     'tipo_utente' => $row['tipo_utente'],
                     'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
                 ];
+
+                // Load and apply user's preferred locale (only persist if setLocale succeeds)
+                if (!empty($row['locale'])) {
+                    $requestedLocale = (string) $row['locale'];
+                    if (\App\Support\I18n::setLocale($requestedLocale)) {
+                        $_SESSION['locale'] = $requestedLocale;
+                    }
+                }
 
                 // Handle "Remember Me" functionality with database-backed tokens
                 if ($remember) {

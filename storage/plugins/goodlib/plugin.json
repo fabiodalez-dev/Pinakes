@@ -1,0 +1,23 @@
+{
+  "name": "goodlib",
+  "display_name": "GoodLib — External Sources",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "",
+  "description": "Aggiunge badge cliccabili alla scheda libro per cercare su Anna's Archive, Z-Library e Project Gutenberg con un click. Ispirato all'estensione browser GoodLib.",
+  "main_file": "wrapper.php",
+  "requires_php": "8.0",
+  "requires_app": "0.4.0",
+  "max_app_version": "1.0.0",
+  "metadata": {
+    "category": "discovery",
+    "priority": 10,
+    "php_extensions": [],
+    "assets": {
+      "css": [],
+      "js": []
+    },
+    "hooks": []
+  }
+}

@@ -251,6 +251,14 @@ if ($bookISBN) {
     $bookSchema["isbn"] = $bookISBN;
 }
 
+if (!empty($book['issn'])) {
+    $bookSchema["identifier"] = [
+        "@type" => "PropertyValue",
+        "propertyID" => "ISSN",
+        "value" => $book['issn'],
+    ];
+}
+
 if ($bookPages) {
     $bookSchema["numberOfPages"] = (int)$bookPages;
 }

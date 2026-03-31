@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.2-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.3-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,17 +24,30 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.5.2
+## What's New in v0.5.3
 
-### 🔧 Name Normalization for Translators, Illustrators, Curators (#93)
+### 🔍 Cross-Version Consistency Fixes (v0.4.9.9–v0.5.2)
 
-- **`AuthorNormalizer`** applied to translator, illustrator, and curator fields on create, update, and scraping import
-- **Client-side normalization** — "Surname, Name" format from ISBN scraping converted to "Name Surname" for translator and illustrator fields in the book form
-- **Shared `normalizeAuthorName()`** — JS helper extracted and reused across authors, translator, illustrator
+- **`descrizione_plain` propagated** — Catalog FULLTEXT search and admin grid now use `COALESCE(NULLIF(descrizione_plain, ''), descrizione)` for LIKE conditions, completing the HTML-free search feature from v0.4.9.9
+- **ISSN in Schema.org & API** — `issn` property now emitted in Book JSON-LD and returned by the public API (`/api/books`)
+- **CollaneController atomicity** — `rename()` aborts on `prepare()` failure instead of committing partial state
+- **LibraryThing import aligned** — `descrizione_plain` (with `html_entity_decode` + spacing), ISSN normalization, `AuthorNormalizer` on traduttore, soft-delete guards on all UPDATE queries, and `descrizione_plain` column conditional (safe on pre-0.4.9.9 databases)
+- **Secondary Author Roles** — LT import now routes translators to `traduttore` field based on `Secondary Author Roles`
 
 ---
 
 ## Previous Releases
+
+<details>
+<summary><strong>v0.5.2</strong> - Name Normalization (#93)</summary>
+
+### 🔧 Name Normalization for Translators, Illustrators, Curators (#93)
+
+- **`AuthorNormalizer`** applied to translator, illustrator, and curator on create, update, and scraping
+- **Client-side normalization** — "Surname, Name" → "Name Surname" for translator/illustrator in book form
+- **Shared `normalizeAuthorName()`** JS helper across authors, translator, illustrator
+
+</details>
 
 <details>
 <summary><strong>v0.5.1</strong> - ISSN, Series Management, Multi-Volume Works (#75)</summary>

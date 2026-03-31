@@ -274,10 +274,15 @@ class CollaneController
             // Sync collane table (if it exists)
             if ($this->hasCollaneTable($db)) {
                 $stmtSync = $db->prepare("UPDATE collane SET nome = ? WHERE nome = ?");
-                if ($stmtSync) {
-                    $stmtSync->bind_param('ss', $newName, $oldName);
-                    $stmtSync->execute();
-                    $stmtSync->close();
+                if (!$stmtSync) {
+                    throw new \RuntimeException('Collane sync prepare failed: ' . $db->error);
+                }
+                $stmtSync->bind_param('ss', $newName, $oldName);
+                $ok = $stmtSync->execute();
+                $syncError = $ok ? '' : $db->error;
+                $stmtSync->close();
+                if (!$ok) {
+                    throw new \RuntimeException('Collane sync failed: ' . $syncError);
                 }
             }
 
