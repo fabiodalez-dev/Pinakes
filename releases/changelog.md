@@ -4,6 +4,85 @@ Cronologia delle versioni di Pinakes con le principali novità, fix e PR associa
 
 ---
 
+## v0.5.4 — 2026-03-31 (in corso)
+**PR:** [#100](https://github.com/fabiodalez-dev/Pinakes/pull/100) — Discogs music scraper, media types, dynamic labels
+
+### Plugin Discogs, Tipi Media, Etichette Dinamiche
+
+**Plugin Discogs (Multi-Sorgente):**
+- Scraping musica da **Discogs API** (barcode + ricerca testuale)
+- Fallback automatico su **MusicBrainz + Cover Art Archive**
+- Arricchimento cover HD da **Deezer**
+- Rate limiting per-API: 1s Discogs (auth) / 2.5s (anon), 1.1s MusicBrainz, 1s Deezer
+- Mappatura completa: titolo, artista, etichetta, anno, tracklist, generi, formato, peso, prezzo, crediti
+- Validazione barcode EAN-13 e UPC-A (hook `scrape.isbn.validate`)
+- Pagina impostazioni per token opzionale Discogs
+
+**Colonna `tipo_media`:**
+- Nuova ENUM: `libro`, `disco`, `audiolibro`, `dvd`, `altro`
+- Dropdown nel form admin con icone Font Awesome
+- Colonna icona nella lista admin con filtro
+- Auto-popolamento nella migrazione da valori `formato` esistenti
+- Backward compatibility con guard `hasColumn()` ovunque
+- Incluso in export CSV e import CSV/TSV/LibraryThing
+
+**Etichette Dinamiche (MediaLabels):**
+- Autore→Artista, Editore→Etichetta, Anno Pubblicazione→Anno di Uscita
+- Numero Pagine→Tracce, ISBN→Barcode, Descrizione→Tracklist, Collana→Discografia
+- Nomi formato leggibili: `cd_audio`→"CD Audio", `vinile`→"Vinile"
+- Tracklist formattata come `<ol>` HTML ordinata
+
+**Schema.org per Media:**
+- `MusicAlbum` (byArtist, recordLabel, numTracks) per dischi
+- `Movie` (director, productionCompany) per DVD
+- `Audiobook` (readBy) per audiolibri
+- `CreativeWork` generico per tipo "altro"
+- `Book` (isbn, numberOfPages, bookEdition) come default
+
+**Sicurezza (hardening curl):**
+- `CURLOPT_PROTOCOLS` (HTTP/HTTPS only), `CURLOPT_MAXREDIRS`, `CURLOPT_CONNECTTIMEOUT`
+- `CURLOPT_SSL_VERIFYPEER` su tutte le chiamate API
+- Cast `releaseId` a int (prevenzione SSRF)
+- `curl_error()` check su tutti i 4 siti di chiamata
+
+**Migrazione:** `migrate_0.5.4.sql` — colonna `tipo_media`, indice composito, auto-populate
+
+---
+
+## v0.5.3 — 2026-03-28
+**PR:** [#96](https://github.com/fabiodalez-dev/Pinakes/pull/96) — 4 P2 cross-version consistency findings + GoodLib plugin
+
+### Consistency Fix, Plugin GoodLib, Sicurezza
+
+**4 P2 Cross-Version Findings:**
+- Fix `LT_COLUMN_MAP` export traduttori con roundtrip (#97)
+- Fix locale login page che usava il locale errato
+- Schema.org ISSN come `identifier/PropertyValue` (non campo diretto)
+- Fix `ProfileController::update()` gestione fallimento `prepare()`
+
+**Plugin GoodLib:**
+- Nuovo plugin bundled per ricerca ISBN su Anna's Archive e Z-Library
+- Link diretti a risorse esterne dalla pagina dettaglio libro
+- Aggiunto a `Updater::BUNDLED_PLUGINS`
+
+**10 Round di CodeRabbit Review:**
+- 30+ fix di sicurezza, affidabilità e stabilità
+- Guard `hasColumn()` rafforzati
+- Miglioramenti i18n coverage
+
+---
+
+## v0.5.2 — 2026-03-22
+**PR:** [#93](https://github.com/fabiodalez-dev/Pinakes/pull/93) — Normalize translator/illustrator/curator names
+
+### Normalizzazione Nomi Traduttori/Illustratori/Curatori
+
+- **Normalizzazione nomi** per traduttori, illustratori e curatori con `AuthorNormalizer`
+- Stessa logica di normalizzazione usata per gli autori principali (inversione cognome/nome, capitalizzazione)
+- Fix CodeRabbit review findings per #93
+
+---
+
 ## v0.5.1 — 2026-03-20
 **PR:** [#95](https://github.com/fabiodalez-dev/Pinakes/pull/95) — ISSN visibility, series links, multi-volume works (#75)
 
