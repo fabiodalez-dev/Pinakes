@@ -360,7 +360,15 @@ class PluginManager
             return null;
         }
 
-        return $this->instantiatePlugin($plugin);
+        try {
+            return $this->instantiatePlugin($plugin);
+        } catch (\Throwable $e) {
+            SecureLogger::warning("[PluginManager] Failed to instantiate plugin {$plugin['name']}", [
+                'plugin_id' => $pluginId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     /**

@@ -46,6 +46,21 @@ class DiscogsPlugin
         Hooks::add('scrape.sources', [$this, 'addDiscogsSource'], 8);
         Hooks::add('scrape.fetch.custom', [$this, 'fetchFromDiscogs'], 8);
         Hooks::add('scrape.data.modify', [$this, 'enrichWithDiscogsData'], 15);
+        Hooks::add('scrape.isbn.validate', [$this, 'validateBarcode'], 5);
+    }
+
+    /**
+     * Validate barcode: accept ISBN, EAN-13, and UPC-A codes
+     */
+    public function validateBarcode(bool $isValid, string $isbn): bool
+    {
+        // If already valid (ISBN), keep it
+        if ($isValid) {
+            return true;
+        }
+        // Accept EAN-13 (13 digits) and UPC-A (12 digits)
+        $clean = preg_replace('/[^0-9]/', '', $isbn);
+        return strlen((string) $clean) === 13 || strlen((string) $clean) === 12;
     }
 
     /**
@@ -107,6 +122,7 @@ class DiscogsPlugin
             ['scrape.sources', 'addDiscogsSource', 8],
             ['scrape.fetch.custom', 'fetchFromDiscogs', 8],
             ['scrape.data.modify', 'enrichWithDiscogsData', 15],
+            ['scrape.isbn.validate', 'validateBarcode', 5],
         ];
 
         $stmt = null;
@@ -310,7 +326,12 @@ class DiscogsPlugin
         $artist = trim((string) ($currentResult['author'] ?? ''));
         if ($artist === '' && !empty($currentResult['authors'])) {
             if (is_array($currentResult['authors'])) {
-                $artist = trim((string) ($currentResult['authors'][0] ?? ''));
+                $firstAuthor = $currentResult['authors'][0] ?? '';
+                if (is_array($firstAuthor)) {
+                    $artist = trim((string) ($firstAuthor['name'] ?? ''));
+                } else {
+                    $artist = trim((string) $firstAuthor);
+                }
             } else {
                 $artist = trim((string) $currentResult['authors']);
             }
@@ -367,9 +388,11 @@ class DiscogsPlugin
         }
 
         // Only enrich from Deezer for music sources (avoid attaching music covers to books)
-        $resolvedType = \App\Support\MediaLabels::inferTipoMedia($data['format'] ?? $data['formato'] ?? '');
-        $isMusicSource = ($data['tipo_media'] ?? '') === 'disco'
-            || $resolvedType === 'disco'
+        $resolvedType = \App\Support\MediaLabels::resolveTipoMedia(
+            $data['format'] ?? $data['formato'] ?? null,
+            $data['tipo_media'] ?? null
+        );
+        $isMusicSource = $resolvedType === 'disco'
             || ($data['source'] ?? '') === 'discogs'
             || ($data['source'] ?? '') === 'musicbrainz';
 
@@ -938,7 +961,8 @@ class DiscogsPlugin
     {
         // Use BookDataMerger if available
         if (class_exists('\\App\\Support\\BookDataMerger')) {
-            return \App\Support\BookDataMerger::merge($existing, $new, 'discogs');
+            $mergeSource = $new['source'] ?? ($existing['source'] ?? 'discogs');
+            return \App\Support\BookDataMerger::merge($existing, $new, $mergeSource);
         }
 
         // Fallback: simple merge

@@ -601,7 +601,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <div class="card-body">
           <div class="prose prose-sm max-w-none text-gray-700">
             <?php if ($isMusic): ?>
-              <?= \App\Support\MediaLabels::formatTracklist(strip_tags($libro['descrizione'])) ?>
+              <?php
+              $descText = preg_replace('/<br\s*\/?>/i', "\n", $libro['descrizione']);
+              $descText = preg_replace('/<\/(?:p|div|li|h[1-6])>/i', "\n", (string) $descText);
+              $descText = strip_tags((string) $descText);
+              ?>
+              <?= \App\Support\MediaLabels::formatTracklist($descText) ?>
             <?php else: ?>
               <?php echo App\Support\HtmlHelper::sanitizeHtml(nl2br($libro['descrizione'], false)); ?>
             <?php endif; ?>

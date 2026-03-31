@@ -2259,7 +2259,15 @@ class Updater
                 }
 
                 if (is_dir($backupPath)) {
-                    $this->removeDirectoryTree($backupPath);
+                    try {
+                        $this->removeDirectoryTree($backupPath);
+                    } catch (\Throwable $cleanupError) {
+                        $this->debugLog('WARNING', 'Impossibile rimuovere backup plugin', [
+                            'plugin' => $pluginSlug,
+                            'backup' => $backupPath,
+                            'error' => $cleanupError->getMessage(),
+                        ]);
+                    }
                 }
             } catch (\Throwable $e) {
                 if (is_dir($stagingPath)) {

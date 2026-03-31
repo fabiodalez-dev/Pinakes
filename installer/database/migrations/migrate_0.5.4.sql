@@ -5,8 +5,14 @@ SET @col_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
                    WHERE TABLE_SCHEMA = DATABASE()
                      AND TABLE_NAME = 'libri'
                      AND COLUMN_NAME = 'tipo_media');
+SET @formato_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+                       WHERE TABLE_SCHEMA = DATABASE()
+                         AND TABLE_NAME = 'libri'
+                         AND COLUMN_NAME = 'formato');
 SET @sql = IF(@col_exists = 0,
-    "ALTER TABLE libri ADD COLUMN tipo_media ENUM('libro','disco','audiolibro','dvd','altro') NOT NULL DEFAULT 'libro' AFTER formato",
+    IF(@formato_exists > 0,
+        "ALTER TABLE libri ADD COLUMN tipo_media ENUM('libro','disco','audiolibro','dvd','altro') NOT NULL DEFAULT 'libro' AFTER formato",
+        "ALTER TABLE libri ADD COLUMN tipo_media ENUM('libro','disco','audiolibro','dvd','altro') NOT NULL DEFAULT 'libro'"),
     'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
