@@ -35,6 +35,28 @@ class LibraryThingImportController
     /** @var bool|null Cached result of descrizione_plain column existence check */
     private ?bool $cachedHasDescPlain = null;
 
+    /** @var bool|null Cached result of tipo_media column existence check */
+    private ?bool $cachedHasTipoMedia = null;
+
+    /**
+     * Check if tipo_media column exists (cached per controller instance).
+     */
+    private function hasTipoMediaColumn(\mysqli $db): bool
+    {
+        if ($this->cachedHasTipoMedia === null) {
+            try {
+                $checkCol = $db->query("SHOW COLUMNS FROM libri LIKE 'tipo_media'");
+                $this->cachedHasTipoMedia = $checkCol !== false && $checkCol->num_rows > 0;
+                if ($checkCol instanceof \mysqli_result) {
+                    $checkCol->free();
+                }
+            } catch (\Throwable $e) {
+                $this->cachedHasTipoMedia = false;
+            }
+        }
+        return $this->cachedHasTipoMedia;
+    }
+
     /**
      * Check if descrizione_plain column exists (cached per controller instance).
      */
@@ -1280,13 +1302,17 @@ class LibraryThingImportController
         $hasDescPlain = $this->hasDescrizionePlainColumn($db);
         $descPlainSet = $hasDescPlain ? ', descrizione_plain = ?' : '';
 
+        // Check if tipo_media column exists (cached per controller instance)
+        $hasTipoMedia = $this->hasTipoMediaColumn($db);
+        $tipoMediaSet = $hasTipoMedia ? ', tipo_media = COALESCE(?, tipo_media)' : '';
+
         if ($hasLTFields) {
             // Full update with all LibraryThing fields
             $stmt = $db->prepare("
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, tipo_media = COALESCE(?, tipo_media), prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?{$tipoMediaSet}, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, peso = ?, dimensioni = ?, data_acquisizione = ?,
                     review = ?, rating = ?, comment = ?, private_comment = ?,
@@ -1319,9 +1345,11 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
+            $params[] = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+            if ($hasTipoMedia) {
+                $params[] = \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null);
+            }
             $params = array_merge($params, [
-                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
-                \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null),
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
@@ -1368,7 +1396,7 @@ class LibraryThingImportController
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, tipo_media = COALESCE(?, tipo_media), prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?{$tipoMediaSet}, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, updated_at = NOW()
                 WHERE id = ? AND deleted_at IS NULL
@@ -1392,9 +1420,11 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
+            $params[] = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+            if ($hasTipoMedia) {
+                $params[] = \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null);
+            }
             $params = array_merge($params, [
-                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
-                \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null),
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
@@ -1440,6 +1470,11 @@ class LibraryThingImportController
         $descPlainCol = $hasDescPlain ? ', descrizione_plain' : '';
         $descPlainVal = $hasDescPlain ? ', ?' : '';
 
+        // Check if tipo_media column exists (cached per controller instance)
+        $hasTipoMedia = $this->hasTipoMediaColumn($db);
+        $tipoMediaCol = $hasTipoMedia ? ', tipo_media' : '';
+        $tipoMediaVal = $hasTipoMedia ? ', ?' : '';
+
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         if ($copie < 1) {
             $copie = 1;
@@ -1452,7 +1487,7 @@ class LibraryThingImportController
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato, tipo_media,
+                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato{$tipoMediaCol},
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     peso, dimensioni, data_acquisizione,
@@ -1466,7 +1501,7 @@ class LibraryThingImportController
                     value, condition_lt, entry_date,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?, ?,
                     ?,
@@ -1498,9 +1533,12 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
+            $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+            $params[] = $formato;
+            if ($hasTipoMedia) {
+                $params[] = \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null);
+            }
             $params = array_merge($params, [
-                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
-                \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null),
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
                 $copie,
@@ -1547,12 +1585,12 @@ class LibraryThingImportController
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato, tipo_media,
+                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato{$tipoMediaCol},
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
                 )
             ");
 
@@ -1574,9 +1612,12 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
+            $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+            $params[] = $formato;
+            if ($hasTipoMedia) {
+                $params[] = \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null);
+            }
             $params = array_merge($params, [
-                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
-                \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null),
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
                 $copie,

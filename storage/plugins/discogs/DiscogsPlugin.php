@@ -360,11 +360,18 @@ class DiscogsPlugin
             return $data;
         }
 
+        // Only enrich from Deezer for music sources (avoid attaching music covers to books)
+        $resolvedType = \App\Support\MediaLabels::inferTipoMedia($data['format'] ?? $data['formato'] ?? '');
+        $isMusicSource = ($data['tipo_media'] ?? '') === 'disco'
+            || $resolvedType === 'disco'
+            || ($data['source'] ?? '') === 'discogs'
+            || ($data['source'] ?? '') === 'musicbrainz';
+
         // Try to fetch cover from Discogs using discogs_id (regardless of source)
         $discogsId = $data['discogs_id'] ?? null;
         if ($discogsId === null) {
-            // No discogs_id — skip to Deezer enrichment below
-            if ((empty($data['image']) || empty($data['genres'])) && !empty($data['title'])) {
+            // No discogs_id — skip to Deezer enrichment below (only for music)
+            if ($isMusicSource && (empty($data['image']) || empty($data['genres'])) && !empty($data['title'])) {
                 $data = $this->enrichFromDeezer($data);
             }
             return $data;
@@ -386,8 +393,8 @@ class DiscogsPlugin
             \App\Support\SecureLogger::warning('[Discogs] Cover enrichment error: ' . $e->getMessage());
         }
 
-        // If still missing cover or genre, try Deezer enrichment
-        if ((empty($data['image']) || empty($data['genres'])) && !empty($data['title'])) {
+        // If still missing cover or genre, try Deezer enrichment (only for music)
+        if ($isMusicSource && (empty($data['image']) || empty($data['genres'])) && !empty($data['title'])) {
             $data = $this->enrichFromDeezer($data);
         }
 
