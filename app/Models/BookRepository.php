@@ -1000,7 +1000,7 @@ class BookRepository
     public function updateOptionals(int $bookId, array $data): void
     {
         $cols = [];
-        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'curatore', 'collana', 'edizione', 'tipo_media'] as $c) {
+        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'curatore', 'collana', 'edizione', 'tipo_media', 'parole_chiave'] as $c) {
             if ($this->hasColumn($c) && array_key_exists($c, $data) && $data[$c] !== '' && $data[$c] !== null) {
                 if ($c === 'numero_pagine') {
                     $validated = filter_var($data[$c], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);

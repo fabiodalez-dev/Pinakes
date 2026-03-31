@@ -456,19 +456,22 @@ class DiscogsPlugin
         // Map Discogs format to Pinakes format
         $format = $this->mapDiscogsFormat($release['formats'] ?? []);
 
-        // Extract genre + styles as keywords
-        $genre = '';
-        if (!empty($release['genres'][0])) {
-            $genre = trim($release['genres'][0]);
-        }
-        $styles = [];
-        foreach ($release['styles'] ?? [] as $style) {
-            $s = trim((string) $style);
-            if ($s !== '') {
-                $styles[] = $s;
+        // Extract all genres + styles as keywords
+        $allGenres = [];
+        foreach ($release['genres'] ?? [] as $g) {
+            $g = trim((string) $g);
+            if ($g !== '') {
+                $allGenres[] = $g;
             }
         }
-        $keywords = implode(', ', $styles);
+        foreach ($release['styles'] ?? [] as $style) {
+            $s = trim((string) $style);
+            if ($s !== '' && !in_array($s, $allGenres, true)) {
+                $allGenres[] = $s;
+            }
+        }
+        $genre = $allGenres[0] ?? '';
+        $keywords = implode(', ', $allGenres);
 
         // Year
         $year = isset($release['year']) && $release['year'] > 0

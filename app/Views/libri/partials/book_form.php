@@ -3750,12 +3750,13 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
-            // Handle keywords (parole_chiave) - categories from Google Books
+            // Handle keywords (parole_chiave) - from Google Books, Discogs, MusicBrainz
             try {
-                if (data.keywords) {
+                const kw = data.keywords || data.parole_chiave;
+                if (kw) {
                     const keywordsInput = document.querySelector('input[name="parole_chiave"]');
                     if (keywordsInput) {
-                        keywordsInput.value = data.keywords;
+                        keywordsInput.value = kw;
                     }
                 }
             } catch (err) {
