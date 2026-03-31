@@ -90,21 +90,12 @@ class MediaLabels
      */
     public static function isMusic(?string $formato, ?string $tipoMedia = null): bool
     {
-        if (self::resolveTipoMedia($formato, $tipoMedia) === 'disco') {
-            return true;
+        $normalizedTipoMedia = self::normalizeTipoMedia($tipoMedia);
+        if ($normalizedTipoMedia !== null) {
+            return $normalizedTipoMedia === 'disco';
         }
 
-        foreach (self::normalizedCandidates($formato) as $candidate) {
-            if (in_array($candidate, self::MUSIC_FORMATS, true)) {
-                return true;
-            }
-
-            if (preg_match('/\b(?:music|musik)\b/i', $candidate) === 1) {
-                return true;
-            }
-        }
-
-        return false;
+        return self::inferTipoMedia($formato) === 'disco';
     }
 
     /**

@@ -217,7 +217,7 @@ class PluginController
     public function settingsPage(Request $request, Response $response, array $args): Response
     {
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            return $response->withStatus(403)->withHeader('Location', '/admin/dashboard');
+            return $response->withStatus(403);
         }
 
         $pluginId = (int) $args['id'];

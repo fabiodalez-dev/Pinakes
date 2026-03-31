@@ -30,6 +30,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
   let page;
   /** @type {import('@playwright/test').BrowserContext} */
   let context;
+  let createdId = '';
 
   test.beforeAll(async ({ browser }) => {
     test.skip(
@@ -49,7 +50,11 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
 
   test.afterAll(async () => {
     // Cleanup test data
-    try { dbExec("DELETE FROM libri WHERE (ean = '0720642442524' OR isbn13 = '0720642442524') AND deleted_at IS NULL"); } catch {}
+    try {
+      if (createdId !== '') {
+        dbExec(`DELETE FROM libri WHERE id = ${Number(createdId)} AND deleted_at IS NULL`);
+      }
+    } catch {}
     await context?.close();
   });
 
@@ -138,30 +143,22 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
     const finalUrl = page.url();
     expect(/\/admin\/libri\/\d+/.test(finalUrl)).toBe(true);
+    const createdIdMatch = finalUrl.match(/\/admin\/libri\/(\d+)/);
+    expect(createdIdMatch, 'Could not resolve created record id from save redirect').not.toBeNull();
+    createdId = createdIdMatch?.[1] ?? '';
   });
 
   test('5. Verify saved CD in database', async () => {
+    expect(createdId, 'Created record id not captured during save').not.toBe('');
     const book = dbQuery(
-      `SELECT titolo, ean, formato FROM libri WHERE ean = '${TEST_BARCODE}' AND deleted_at IS NULL LIMIT 1`
+      `SELECT titolo, COALESCE(ean, ''), COALESCE(isbn13, ''), formato FROM libri WHERE id = ${Number(createdId)} AND deleted_at IS NULL LIMIT 1`
     );
-
-    if (book === '') {
-      // Try isbn13
-      const bookByIsbn = dbQuery(
-        `SELECT titolo, isbn13, formato FROM libri WHERE isbn13 = '${TEST_BARCODE}' AND deleted_at IS NULL LIMIT 1`
-      );
-      expect(bookByIsbn, 'CD not found in database after import/save flow').not.toBe('');
-      expect(bookByIsbn.toLowerCase()).toContain('nevermind');
-      return;
-    }
-
+    expect(book, 'CD not found in database after import/save flow').not.toBe('');
     expect(book.toLowerCase()).toContain('nevermind');
   });
 
   test('6. Verify music labels on saved CD detail page', async () => {
-    const bookId = dbQuery(
-      `SELECT id FROM libri WHERE (ean = '${TEST_BARCODE}' OR isbn13 = '${TEST_BARCODE}') AND deleted_at IS NULL LIMIT 1`
-    );
+    const bookId = createdId;
     expect(bookId, 'CD not found for label check').not.toBe('');
 
     await page.goto(`${BASE}/admin/libri/${bookId}`);

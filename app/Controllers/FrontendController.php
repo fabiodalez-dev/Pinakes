@@ -734,6 +734,10 @@ class FrontendController
     {
         // Support both 'q' (header form) and 'search' (hero form) parameters
         $searchTerm = $params['q'] ?? $params['search'] ?? '';
+        $rawTipoMedia = $params['tipo_media'] ?? '';
+        if (is_array($rawTipoMedia)) {
+            $rawTipoMedia = $rawTipoMedia[0] ?? '';
+        }
 
         return [
             'search' => $searchTerm,
@@ -742,7 +746,7 @@ class FrontendController
             'editore' => $params['editore'] ?? '',
             'anno_min' => $params['anno_min'] ?? '',
             'anno_max' => $params['anno_max'] ?? '',
-            'tipo_media' => $params['tipo_media'] ?? '',
+            'tipo_media' => trim((string) $rawTipoMedia),
             'sort' => $params['sort'] ?? 'newest'
         ];
     }

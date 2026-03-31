@@ -418,7 +418,7 @@ CREATE TABLE `libri` (
   KEY `idx_libri_titolo_sottotitolo` (`titolo`,`sottotitolo`),
   KEY `editore_id` (`editore_id`),
   KEY `idx_libri_stato` (`stato`),
-  KEY `idx_libri_tipo_media_deleted_at` (`tipo_media`,`deleted_at`),
+  KEY `idx_libri_tipo_media_deleted_at` (`deleted_at`,`tipo_media`),
   KEY `fk_libri_mensola` (`mensola_id`),
   KEY `idx_libri_scaffale_mensola` (`scaffale_id`,`mensola_id`),
   KEY `idx_libri_posizione_progressiva` (`posizione_progressiva`),

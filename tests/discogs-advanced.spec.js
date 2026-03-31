@@ -15,8 +15,8 @@ const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const RUN_ID = Date.now();
-const SEEDED_MUSIC_EAN = '1234567890123';
-const SEEDED_BOOK_ISBN = '9781234567897';
+const SEEDED_MUSIC_EAN = `2${String(RUN_ID).slice(-12)}`;
+const SEEDED_BOOK_ISBN = `978${String(RUN_ID).slice(-10)}`;
 
 function dbQuery(sql) {
   const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];

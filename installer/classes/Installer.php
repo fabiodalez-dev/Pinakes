@@ -646,7 +646,7 @@ class Installer {
                 'idx_isbn10' => 'isbn10',
                 'idx_genere_scaffale' => 'genere_id, scaffale_id',
                 'idx_sottogenere_scaffale' => 'sottogenere_id, scaffale_id',
-                'idx_libri_tipo_media_deleted_at' => 'tipo_media, deleted_at',
+                'idx_libri_tipo_media_deleted_at' => 'deleted_at, tipo_media',
             ],
             'libri_autori' => [
                 'idx_libro_autore' => 'libro_id, autore_id',

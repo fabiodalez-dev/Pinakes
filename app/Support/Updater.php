@@ -2224,27 +2224,76 @@ class Updater
         }
 
         $updated = 0;
+        $targetPluginsDirReal = realpath($targetPluginsDir);
+        if ($targetPluginsDirReal === false) {
+            throw new Exception(__('Impossibile risolvere il percorso della directory plugins.'));
+        }
+
         foreach (BundledPlugins::LIST as $pluginName) {
-            $sourcePluginPath = $sourcePluginsDir . '/' . $pluginName;
+            $pluginSlug = $this->normalizeBundledPluginSlug($pluginName);
+            $sourcePluginPath = $sourcePluginsDir . '/' . $pluginSlug;
             if (!is_dir($sourcePluginPath)) {
-                $this->debugLog('DEBUG', 'Plugin bundled non presente nel pacchetto', ['plugin' => $pluginName]);
+                $this->debugLog('DEBUG', 'Plugin bundled non presente nel pacchetto', ['plugin' => $pluginSlug]);
                 continue;
             }
 
-            $targetPluginPath = $targetPluginsDir . '/' . $pluginName;
-            $this->debugLog('INFO', 'Aggiornamento plugin bundled', ['plugin' => $pluginName]);
-            $this->removeDirectoryTree($targetPluginPath);
-            $this->copyDirectoryRecursive($sourcePluginPath, $targetPluginPath);
+            $targetPluginPath = $targetPluginsDirReal . '/' . $pluginSlug;
+            $stagingPath = $targetPluginsDirReal . '/.' . $pluginSlug . '.tmp-' . bin2hex(random_bytes(4));
+            $backupPath = $targetPluginsDirReal . '/.' . $pluginSlug . '.bak-' . bin2hex(random_bytes(4));
+
+            $this->debugLog('INFO', 'Aggiornamento plugin bundled', ['plugin' => $pluginSlug]);
+
+            try {
+                $this->copyDirectoryRecursive($sourcePluginPath, $stagingPath);
+
+                if (is_dir($targetPluginPath) && !rename($targetPluginPath, $backupPath)) {
+                    $this->removeDirectoryTree($stagingPath);
+                    throw new Exception(sprintf(__('Impossibile creare il backup del plugin: %s'), $pluginSlug));
+                }
+
+                if (!rename($stagingPath, $targetPluginPath)) {
+                    if (is_dir($backupPath) && !rename($backupPath, $targetPluginPath)) {
+                        throw new Exception(sprintf(__('Impossibile ripristinare il plugin precedente: %s'), $pluginSlug));
+                    }
+                    throw new Exception(sprintf(__('Impossibile attivare la nuova versione del plugin: %s'), $pluginSlug));
+                }
+
+                if (is_dir($backupPath)) {
+                    $this->removeDirectoryTree($backupPath);
+                }
+            } catch (\Throwable $e) {
+                if (is_dir($stagingPath)) {
+                    $this->removeDirectoryTree($stagingPath);
+                }
+                if (is_dir($backupPath) && !is_dir($targetPluginPath)) {
+                    rename($backupPath, $targetPluginPath);
+                }
+                throw $e;
+            }
+
             $updated++;
         }
 
         $this->debugLog('INFO', 'Plugin bundled aggiornati', ['count' => $updated]);
     }
 
+    private function normalizeBundledPluginSlug(string $pluginName): string
+    {
+        $pluginSlug = trim($pluginName);
+        if ($pluginSlug === '' || preg_match('/^[a-z0-9][a-z0-9-]*$/', $pluginSlug) !== 1) {
+            throw new Exception(sprintf(__('Slug plugin bundled non valido: %s'), $pluginName));
+        }
+
+        return $pluginSlug;
+    }
+
     private function removeDirectoryTree(string $path): void
     {
-        if (!is_dir($path)) {
+        if (!file_exists($path)) {
             return;
+        }
+        if (!is_dir($path)) {
+            throw new Exception(sprintf(__('Percorso plugin non valido: %s'), $path));
         }
 
         $iterator = new \RecursiveIteratorIterator(
@@ -2254,13 +2303,19 @@ class Updater
 
         foreach ($iterator as $item) {
             if ($item->isDir()) {
-                @rmdir($item->getPathname());
+                if (!rmdir($item->getPathname())) {
+                    throw new Exception(sprintf(__('Impossibile rimuovere directory: %s'), $item->getPathname()));
+                }
             } else {
-                @unlink($item->getPathname());
+                if (!unlink($item->getPathname())) {
+                    throw new Exception(sprintf(__('Impossibile rimuovere file: %s'), $item->getPathname()));
+                }
             }
         }
 
-        @rmdir($path);
+        if (!rmdir($path)) {
+            throw new Exception(sprintf(__('Impossibile rimuovere directory: %s'), $path));
+        }
     }
 
     /**

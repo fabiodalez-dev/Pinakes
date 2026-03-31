@@ -17,8 +17,25 @@ SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
                    WHERE TABLE_SCHEMA = DATABASE()
                      AND TABLE_NAME = 'libri'
                      AND INDEX_NAME = 'idx_libri_tipo_media_deleted_at');
+SET @idx_order_ok = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                     WHERE TABLE_SCHEMA = DATABASE()
+                       AND TABLE_NAME = 'libri'
+                       AND INDEX_NAME = 'idx_libri_tipo_media_deleted_at'
+                       AND ((SEQ_IN_INDEX = 1 AND COLUMN_NAME = 'deleted_at')
+                         OR (SEQ_IN_INDEX = 2 AND COLUMN_NAME = 'tipo_media')));
+SET @sql = IF(@idx_exists > 0 AND @idx_order_ok <> 2,
+    'ALTER TABLE libri DROP INDEX idx_libri_tipo_media_deleted_at',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @idx_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                   WHERE TABLE_SCHEMA = DATABASE()
+                     AND TABLE_NAME = 'libri'
+                     AND INDEX_NAME = 'idx_libri_tipo_media_deleted_at');
 SET @sql = IF(@idx_exists = 0,
-    'ALTER TABLE libri ADD INDEX idx_libri_tipo_media_deleted_at (tipo_media, deleted_at)',
+    'ALTER TABLE libri ADD INDEX idx_libri_tipo_media_deleted_at (deleted_at, tipo_media)',
     'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;

@@ -109,31 +109,53 @@ class DiscogsPlugin
             ['scrape.data.modify', 'enrichWithDiscogsData', 15],
         ];
 
-        // Delete existing hooks for this plugin
-        $this->deleteHooks();
+        $stmt = null;
+        try {
+            $this->db->begin_transaction();
 
-        foreach ($hooks as [$hookName, $method, $priority]) {
-            $stmt = $this->db->prepare(
-                "INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
-                 VALUES (?, ?, ?, ?, ?, 1, NOW())"
-            );
+            $deleteStmt = $this->db->prepare("DELETE FROM plugin_hooks WHERE plugin_id = ?");
+            if ($deleteStmt === false) {
+                throw new \RuntimeException('[Discogs] Failed to prepare hook cleanup: ' . $this->db->error);
+            }
+            $deleteStmt->bind_param('i', $this->pluginId);
+            if (!$deleteStmt->execute()) {
+                throw new \RuntimeException('[Discogs] Failed to delete existing hooks: ' . $deleteStmt->error);
+            }
+            $deleteStmt->close();
 
-            if ($stmt === false) {
-                \App\Support\SecureLogger::error("[Discogs] Failed to prepare statement: " . $this->db->error);
-                continue;
+            foreach ($hooks as [$hookName, $method, $priority]) {
+                $stmt = $this->db->prepare(
+                    "INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+                     VALUES (?, ?, ?, ?, ?, 1, NOW())"
+                );
+
+                if ($stmt === false) {
+                    throw new \RuntimeException('[Discogs] Failed to prepare statement: ' . $this->db->error);
+                }
+
+                $callbackClass = 'DiscogsPlugin';
+                $stmt->bind_param('isssi', $this->pluginId, $hookName, $callbackClass, $method, $priority);
+
+                if (!$stmt->execute()) {
+                    throw new \RuntimeException("[Discogs] Failed to register hook {$hookName}: " . $stmt->error);
+                }
+
+                $stmt->close();
+                $stmt = null;
             }
 
-            $callbackClass = 'DiscogsPlugin';
-            $stmt->bind_param('isssi', $this->pluginId, $hookName, $callbackClass, $method, $priority);
-
-            if (!$stmt->execute()) {
-                \App\Support\SecureLogger::error("[Discogs] Failed to register hook {$hookName}: " . $stmt->error);
+            $this->db->commit();
+            \App\Support\SecureLogger::debug('[Discogs] Hooks registered');
+        } catch (\Throwable $e) {
+            if ($stmt instanceof \mysqli_stmt) {
+                $stmt->close();
             }
-
-            $stmt->close();
+            try {
+                $this->db->rollback();
+            } catch (\Throwable) {
+            }
+            \App\Support\SecureLogger::error($e->getMessage());
         }
-
-        \App\Support\SecureLogger::debug('[Discogs] Hooks registered');
     }
 
     /**
@@ -233,13 +255,13 @@ class DiscogsPlugin
             $searchResult = $this->apiRequest($searchUrl, $token);
 
             if (empty($searchResult['results'][0])) {
-                $discogsFallback = $this->searchDiscogsByTitleArtist($currentResult, $token, $isbn);
+                $discogsFallback = $this->searchDiscogsByTitleArtist($currentResult, $token);
                 if ($discogsFallback !== null) {
                     return $this->mergeBookData($currentResult, $discogsFallback);
                 }
 
                 // Discogs found nothing — try MusicBrainz as fallback
-                $mbResult = $this->searchMusicBrainz($isbn, $token);
+                $mbResult = $this->searchMusicBrainz($isbn, $token, null);
                 if ($mbResult !== null) {
                     return $this->mergeBookData($currentResult, $mbResult);
                 }
@@ -260,7 +282,7 @@ class DiscogsPlugin
         }
     }
 
-    private function searchDiscogsByTitleArtist($currentResult, ?string $token, string $isbn): ?array
+    private function searchDiscogsByTitleArtist($currentResult, ?string $token): ?array
     {
         if (!is_array($currentResult)) {
             return null;
@@ -302,10 +324,10 @@ class DiscogsPlugin
             return null;
         }
 
-        return $this->fetchDiscogsReleaseFromSearchResult($searchResult['results'][0], $token, $isbn);
+        return $this->fetchDiscogsReleaseFromSearchResult($searchResult['results'][0], $token, null);
     }
 
-    private function fetchDiscogsReleaseFromSearchResult(array $searchResult, ?string $token, string $isbn): ?array
+    private function fetchDiscogsReleaseFromSearchResult(array $searchResult, ?string $token, ?string $fallbackBarcode): ?array
     {
         $releaseId = $searchResult['id'] ?? null;
         if ($releaseId === null) {
@@ -319,7 +341,7 @@ class DiscogsPlugin
             return null;
         }
 
-        return $this->mapReleaseToPinakes($release, $searchResult, $isbn);
+        return $this->mapReleaseToPinakes($release, $searchResult, $fallbackBarcode);
     }
 
     /**
@@ -379,10 +401,10 @@ class DiscogsPlugin
      *
      * @param array $release Full release data from /releases/{id}
      * @param array $searchResult Search result entry (has thumb/cover_image)
-     * @param string $isbn Original barcode/EAN used for search
+     * @param string|null $fallbackBarcode Original barcode/EAN used for a validated barcode search
      * @return array Pinakes-formatted data
      */
-    private function mapReleaseToPinakes(array $release, array $searchResult, string $isbn): array
+    private function mapReleaseToPinakes(array $release, array $searchResult, ?string $fallbackBarcode): array
     {
         // Extract album title — Discogs format is "Artist - Album Title"
         $title = $this->extractAlbumTitle($release['title'] ?? '');
@@ -501,6 +523,8 @@ class DiscogsPlugin
             $physicalDesc = implode(', ', array_filter($parts));
         }
 
+        $releaseBarcode = $fallbackBarcode ?? $this->extractBarcodeFromRelease($release, $searchResult);
+
         return [
             'title' => $title,
             'author' => $firstArtist,
@@ -516,7 +540,7 @@ class DiscogsPlugin
             'parole_chiave' => $keywords,
             'isbn10' => null,
             'isbn13' => null,
-            'ean' => $isbn,
+            'ean' => $releaseBarcode,
             'country' => $release['country'] ?? null,
             'tipo_media' => 'disco',
             'source' => 'discogs',
@@ -931,9 +955,10 @@ class DiscogsPlugin
      *
      * @param string $barcode EAN/UPC barcode
      * @param string|null $discogsToken Discogs token (unused, kept for signature consistency)
+     * @param string|null $fallbackBarcode Persist this barcode only when it was validated by the search path
      * @return array|null Pinakes-formatted data or null if not found
      */
-    private function searchMusicBrainz(string $barcode, ?string $discogsToken): ?array
+    private function searchMusicBrainz(string $barcode, ?string $discogsToken, ?string $fallbackBarcode): ?array
     {
         // Search by barcode
         $url = 'https://musicbrainz.org/ws/2/release?query=barcode:' . urlencode($barcode) . '&fmt=json&limit=1';
@@ -959,18 +984,18 @@ class DiscogsPlugin
         // Get cover from Cover Art Archive
         $coverUrl = $this->fetchCoverArtArchive($mbid);
 
-        return $this->mapMusicBrainzToPinakes($detail, $barcode, $coverUrl);
+        return $this->mapMusicBrainzToPinakes($detail, $fallbackBarcode, $coverUrl);
     }
 
     /**
      * Map MusicBrainz release data to Pinakes book data format
      *
      * @param array $release Full release data from MusicBrainz
-     * @param string $barcode Original barcode used for search
+     * @param string|null $fallbackBarcode Original barcode used for search
      * @param string|null $coverUrl Cover URL from Cover Art Archive
      * @return array Pinakes-formatted data
      */
-    private function mapMusicBrainzToPinakes(array $release, string $barcode, ?string $coverUrl): array
+    private function mapMusicBrainzToPinakes(array $release, ?string $fallbackBarcode, ?string $coverUrl): array
     {
         $title = trim($release['title'] ?? '');
 
@@ -1055,6 +1080,8 @@ class DiscogsPlugin
             $trackCount = count($release['media'][0]['tracks']);
         }
 
+        $releaseBarcode = $fallbackBarcode ?? $this->extractBarcodeFromRelease($release);
+
         return [
             'title' => $title,
             'author' => $firstArtist,
@@ -1070,13 +1097,60 @@ class DiscogsPlugin
             'parole_chiave' => '',
             'isbn10' => null,
             'isbn13' => null,
-            'ean' => $barcode,
+            'ean' => $releaseBarcode,
             'country' => $release['country'] ?? null,
             'tipo_media' => 'disco',
             'source' => 'musicbrainz',
             'musicbrainz_id' => $release['id'] ?? null,
             'numero_pagine' => $trackCount > 0 ? (string)$trackCount : null,
         ];
+    }
+
+    private function extractBarcodeFromRelease(array $release, array $searchResult = []): ?string
+    {
+        $candidates = [];
+
+        $this->appendBarcodeCandidates($candidates, $release['barcode'] ?? null);
+        $this->appendBarcodeCandidates($candidates, $searchResult['barcode'] ?? null);
+        foreach ($release['identifiers'] ?? [] as $identifier) {
+            if (!is_array($identifier)) {
+                continue;
+            }
+            $type = strtolower(trim((string) ($identifier['type'] ?? '')));
+            if ($type !== '' && !str_contains($type, 'barcode')) {
+                continue;
+            }
+            $candidates[] = (string) ($identifier['value'] ?? '');
+        }
+
+        foreach ($candidates as $candidate) {
+            $normalized = preg_replace('/\D+/', '', $candidate) ?? '';
+            if ($normalized !== '' && (strlen($normalized) === 12 || strlen($normalized) === 13)) {
+                return $normalized;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<int, string> $candidates
+     * @param mixed $value
+     */
+    private function appendBarcodeCandidates(array &$candidates, $value): void
+    {
+        if (is_array($value)) {
+            foreach ($value as $nestedValue) {
+                $this->appendBarcodeCandidates($candidates, $nestedValue);
+            }
+            return;
+        }
+
+        if ($value === null || $value === '') {
+            return;
+        }
+
+        $candidates[] = (string) $value;
     }
 
     /**

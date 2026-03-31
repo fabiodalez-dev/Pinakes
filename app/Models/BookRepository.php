@@ -1058,13 +1058,19 @@ class BookRepository
             $cols['illustratore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_illustrator']);
         }
         if ($this->hasColumn('tipo_media') && !array_key_exists('tipo_media', $cols)) {
-            $val = \App\Support\MediaLabels::resolveTipoMedia(
-                $data['formato'] ?? ($data['scraped_formato'] ?? null),
-                $data['scraped_tipo_media'] ?? null
-            );
-            $normalized = $this->normalizeEnumValue((string) $val, 'tipo_media', 'libro');
-            if ($normalized !== '') {
-                $cols['tipo_media'] = $normalized;
+            $hasMediaSignal = array_key_exists('formato', $data)
+                || array_key_exists('scraped_formato', $data)
+                || array_key_exists('scraped_tipo_media', $data);
+
+            if ($hasMediaSignal) {
+                $val = \App\Support\MediaLabels::resolveTipoMedia(
+                    $data['formato'] ?? ($data['scraped_formato'] ?? null),
+                    $data['scraped_tipo_media'] ?? null
+                );
+                $normalized = $this->normalizeEnumValue((string) $val, 'tipo_media', 'libro');
+                if ($normalized !== '') {
+                    $cols['tipo_media'] = $normalized;
+                }
             }
         }
         if (!$cols)
