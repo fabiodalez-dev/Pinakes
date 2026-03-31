@@ -1113,7 +1113,7 @@ document.addEventListener('DOMContentLoaded', function() {
       let message = '';
       if (fetched > 0) message += `${<?= json_encode(__("Copertine scaricate:"), JSON_HEX_TAG) ?>} ${fetched}\n`;
       if (alreadyHasCover > 0) message += `${<?= json_encode(__("Già presenti:"), JSON_HEX_TAG) ?>} ${alreadyHasCover}\n`;
-      if (noIsbn > 0) message += `${<?= json_encode(__("Impossibile scaricare (libro senza ISBN):"), JSON_HEX_TAG) ?>} ${noIsbn}\n`;
+      if (noIsbn > 0) message += `${<?= json_encode(__("Impossibile scaricare (senza ISBN/barcode):"), JSON_HEX_TAG) ?>} ${noIsbn}\n`;
       if (notFound > 0) message += `${<?= json_encode(__("Copertina non trovata online:"), JSON_HEX_TAG) ?>} ${notFound}\n`;
       if (errors > 0) message += `${<?= json_encode(__("Errori:"), JSON_HEX_TAG) ?>} ${errors}`;
 
