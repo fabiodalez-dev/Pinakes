@@ -1183,15 +1183,12 @@ class PluginManager
     private function loadPlugin(array $plugin): void
     {
         $instance = $this->instantiatePlugin($plugin);
-        if ($instance === null) {
-            throw new \Exception("Plugin instance could not be created for {$plugin['name']}");
-        }
 
         // Load and register hooks for this plugin
         $this->registerPluginHooks((int) $plugin['id'], $instance);
     }
 
-    private function instantiatePlugin(array $plugin): ?object
+    private function instantiatePlugin(array $plugin): object
     {
         // Save plugin data to prefixed variables before require_once
         // This prevents plugin files from overwriting $plugin variable (which some do)
@@ -1223,7 +1220,7 @@ class PluginManager
             }
         }
 
-        return is_object($instance) ? $instance : null;
+        return $instance;
     }
 
     /**
