@@ -53,6 +53,12 @@ class PluginController
                 $settings['api_key'] = $settings['api_key_exists'] ? '••••••••' : '';
             }
 
+            // Redact Discogs token — never expose to template
+            if ($plugin['name'] === 'discogs' && array_key_exists('api_token', $settings)) {
+                $settings['api_token_exists'] = $settings['api_token'] !== '';
+                $settings['api_token'] = '';
+            }
+
             $pluginSettings[$plugin['id']] = $settings;
         }
 

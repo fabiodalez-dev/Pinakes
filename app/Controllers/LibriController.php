@@ -3038,7 +3038,7 @@ class LibriController
                     $libro['numero_pagine'] ?? '',
                     $libro['genere_nome'] ?? '',
                     $libro['formato'] ?? '',
-                    $libro['tipo_media'] ?? 'libro',
+                    $libro['tipo_media'] ?? '',
                     $libro['prezzo'] ?? '',
                     $libro['copie_totali'] ?? '1',
                     $libro['collana'] ?? '',

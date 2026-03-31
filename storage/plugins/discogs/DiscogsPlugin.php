@@ -267,7 +267,7 @@ class DiscogsPlugin
                 }
 
                 // Discogs found nothing — try MusicBrainz as fallback
-                $mbResult = $this->searchMusicBrainz($isbn, $token, null);
+                $mbResult = $this->searchMusicBrainz($isbn, $token, $isbn);
                 if ($mbResult !== null) {
                     return $this->mergeBookData($currentResult, $mbResult);
                 }
