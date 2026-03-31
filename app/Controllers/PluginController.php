@@ -231,6 +231,10 @@ class PluginController
             return $response->withStatus(404);
         }
 
+        if (!is_callable([$pluginInstance, 'getSettingsViewPath'])) {
+            return $response->withStatus(404);
+        }
+
         $settingsViewPath = $pluginInstance->getSettingsViewPath();
         if (!is_string($settingsViewPath) || !is_file($settingsViewPath)) {
             return $response->withStatus(404);

@@ -10,11 +10,6 @@ namespace App\Support;
  */
 class MediaLabels
 {
-    /** Exact music format tokens (no substring matching to avoid 'audiolibro' false positive) */
-    private const MUSIC_FORMATS = [
-        'cd_audio', 'vinile', 'cassetta', 'vinyl', 'lp', 'cd', 'cassette', 'audiocassetta',
-    ];
-
     /**
      * Build normalized lookup candidates for format/media values.
      *
@@ -240,14 +235,15 @@ class MediaLabels
         }
 
         foreach (self::normalizedCandidates($formato) as $candidate) {
+            // Check audiobook BEFORE music tokens to prevent "Audiobook CD" matching as disco
+            if (str_contains($candidate, 'audiolibro') || str_contains($candidate, 'audiobook')) {
+                return 'audiolibro';
+            }
+
             foreach (['cdaudio', 'compactdisc', 'vinile', 'vinyl', 'lp', 'cd', 'cassetta', 'cassette', 'audiocassetta'] as $musicToken) {
                 if (str_contains($candidate, $musicToken)) {
                     return 'disco';
                 }
-            }
-
-            if (str_contains($candidate, 'audiolibro') || str_contains($candidate, 'audiobook')) {
-                return 'audiolibro';
             }
 
             if (str_contains($candidate, 'dvd') || str_contains($candidate, 'bluray') || str_contains($candidate, 'blu_ray')) {

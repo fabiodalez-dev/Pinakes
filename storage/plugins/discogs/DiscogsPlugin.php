@@ -155,6 +155,7 @@ class DiscogsPlugin
             } catch (\Throwable) {
             }
             \App\Support\SecureLogger::error($e->getMessage());
+            throw $e;
         }
     }
 
@@ -255,9 +256,14 @@ class DiscogsPlugin
             $searchResult = $this->apiRequest($searchUrl, $token);
 
             if (empty($searchResult['results'][0])) {
-                $discogsFallback = $this->searchDiscogsByTitleArtist($currentResult, $token);
-                if ($discogsFallback !== null) {
-                    return $this->mergeBookData($currentResult, $discogsFallback);
+                // Title/artist fallback only works when a previous scraper already
+                // provided partial data (title + artist).  When $currentResult is
+                // null (first scraper in the chain), there is nothing to search for.
+                if ($currentResult !== null && is_array($currentResult) && !empty($currentResult['title'])) {
+                    $discogsFallback = $this->searchDiscogsByTitleArtist($currentResult, $token);
+                    if ($discogsFallback !== null) {
+                        return $this->mergeBookData($currentResult, $discogsFallback);
+                    }
                 }
 
                 // Discogs found nothing — try MusicBrainz as fallback

@@ -70,7 +70,9 @@ WHERE tipo_media = 'libro'
        OR LOWER(formato) LIKE '%vinyl%' OR LOWER(formato) LIKE '%vinile%'
        OR LOWER(formato) LIKE '%lp%' OR LOWER(formato) LIKE '%cassett%'
        OR LOWER(formato) LIKE '%audio cassetta%' OR LOWER(formato) LIKE '%audio-cassetta%'
-       OR LOWER(formato) LIKE '%audiocassetta%')
+       OR LOWER(formato) LIKE '%audiocassetta%'
+       OR LOWER(formato) REGEXP '[[:<:]]music[[:>:]]'
+       OR LOWER(formato) REGEXP '[[:<:]]musik[[:>:]]')
   AND LOWER(formato) NOT LIKE '%audiolibro%' AND LOWER(formato) NOT LIKE '%audiobook%';
 
 UPDATE libri SET tipo_media = 'audiolibro'

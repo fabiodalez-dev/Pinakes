@@ -2266,7 +2266,13 @@ class Updater
                     $this->removeDirectoryTree($stagingPath);
                 }
                 if (is_dir($backupPath) && !is_dir($targetPluginPath)) {
-                    rename($backupPath, $targetPluginPath);
+                    if (!rename($backupPath, $targetPluginPath)) {
+                        $this->debugLog('ERROR', 'Impossibile ripristinare il plugin dal backup', [
+                            'plugin' => $pluginSlug,
+                            'backup' => $backupPath,
+                            'target' => $targetPluginPath,
+                        ]);
+                    }
                 }
                 throw $e;
             }
