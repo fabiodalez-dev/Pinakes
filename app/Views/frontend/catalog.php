@@ -1299,6 +1299,32 @@ ob_start();
                         </div>
                     </div>
 
+                    <!-- Media Type -->
+                    <div class="filter-section">
+                        <div class="filter-title">
+                            <i class="fas fa-compact-disc"></i>
+                            <?= __("Tipo Media") ?>
+                        </div>
+                        <div class="filter-options">
+                          <?php
+                          $currentTipo = $filters['tipo_media'] ?? '';
+                          $tipoFilters = ['' => ['icon' => 'fa-th-large', 'label' => __('Tutti i media')]];
+                          foreach (\App\Support\MediaLabels::allTypes() as $tmValue => $tmMeta) {
+                              $tipoFilters[$tmValue] = ['icon' => $tmMeta['icon'], 'label' => __($tmMeta['label'])];
+                          }
+                          foreach ($tipoFilters as $tmValue => $tmInfo):
+                            $isActive = $currentTipo === (string)$tmValue;
+                          ?>
+                            <a href="#"
+                               class="filter-option <?= $isActive ? 'active' : '' ?>"
+                               onclick="updateFilter('tipo_media', <?= htmlspecialchars(json_encode((string) $tmValue, JSON_HEX_TAG | JSON_HEX_APOS), ENT_QUOTES, 'UTF-8') ?>); return false;">
+                              <i class="fas <?= htmlspecialchars((string)$tmInfo['icon'], ENT_QUOTES, 'UTF-8') ?> me-1"></i>
+                              <?= htmlspecialchars((string)$tmInfo['label'], ENT_QUOTES, 'UTF-8') ?>
+                            </a>
+                          <?php endforeach; ?>
+                        </div>
+                    </div>
+
                     <!-- Year Range -->
                     <div class="filter-section">
                         <div class="filter-title">
@@ -1431,6 +1457,7 @@ $i18nTranslations = [
     'anno_min' => __('Anno min'),
     'anno_max' => __('Anno max'),
     'sort' => __('Ordinamento'),
+    'tipo_media' => __('Tipo Media'),
 
     // Sort labels
     'newest' => __('Più recenti'),
@@ -1592,6 +1619,7 @@ function updateActiveFiltersDisplay() {
         anno_min: i18n.anno_min,
         anno_max: i18n.anno_max,
         sort: i18n.sort,
+        tipo_media: i18n.tipo_media,
     };
 
     const sortLabels = {

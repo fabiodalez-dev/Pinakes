@@ -676,6 +676,7 @@ class LibriController
             'illustratore' => '',
             'curatore' => '',
             'numero_pagine' => null,
+            'tipo_media' => '',
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -1216,6 +1217,7 @@ class LibriController
             'illustratore' => '',
             'curatore' => '',
             'numero_pagine' => null,
+            'tipo_media' => '',
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -2998,6 +3000,7 @@ class LibriController
                 'numero_pagine',
                 'genere',
                 'formato',
+                'tipo_media',
                 'prezzo',
                 'copie_totali',
                 'collana',
@@ -3035,6 +3038,7 @@ class LibriController
                     $libro['numero_pagine'] ?? '',
                     $libro['genere_nome'] ?? '',
                     $libro['formato'] ?? '',
+                    $libro['tipo_media'] ?? '',
                     $libro['prezzo'] ?? '',
                     $libro['copie_totali'] ?? '1',
                     $libro['collana'] ?? '',

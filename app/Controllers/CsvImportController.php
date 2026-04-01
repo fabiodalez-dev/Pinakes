@@ -17,6 +17,28 @@ class CsvImportController
      */
     private const CHUNK_SIZE = 10;
 
+    /** @var bool|null Cached result of tipo_media column existence check */
+    private ?bool $cachedHasTipoMedia = null;
+
+    /**
+     * Check if tipo_media column exists (cached per controller instance).
+     */
+    private function hasTipoMediaColumn(\mysqli $db): bool
+    {
+        if ($this->cachedHasTipoMedia === null) {
+            try {
+                $checkCol = $db->query("SHOW COLUMNS FROM libri LIKE 'tipo_media'");
+                $this->cachedHasTipoMedia = $checkCol !== false && $checkCol->num_rows > 0;
+                if ($checkCol instanceof \mysqli_result) {
+                    $checkCol->free();
+                }
+            } catch (\Throwable $e) {
+                $this->cachedHasTipoMedia = false;
+            }
+        }
+        return $this->cachedHasTipoMedia;
+    }
+
     /**
      * Write log message to import log file
      */
@@ -770,6 +792,9 @@ class CsvImportController
             'genere' => !empty($row['genere']) ? trim($row['genere']) : null,
             'descrizione' => !empty($row['descrizione']) ? trim($row['descrizione']) : null,
             'formato' => !empty($row['formato']) ? trim($row['formato']) : 'cartaceo',
+            'tipo_media' => array_key_exists('tipo_media', $row) && trim((string) ($row['tipo_media'] ?? '')) !== ''
+                ? \App\Support\MediaLabels::normalizeTipoMedia(trim((string) $row['tipo_media']))
+                : null,
             'prezzo' => $this->validatePrice($row['prezzo'] ?? ''),
             'copie_totali' => !empty($row['copie_totali']) ? (int)$row['copie_totali'] : 1,
             'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
@@ -1022,6 +1047,7 @@ class CsvImportController
             'genere' => ['genere', 'genre', 'género', 'category', 'categoria'],
             'descrizione' => ['descrizione', 'description', 'descripción', 'summary', 'riassunto', 'abstract'],
             'formato' => ['formato', 'format', 'media', 'binding', 'physical description'],
+            'tipo_media' => ['tipo_media', 'media_type', 'type', 'medientyp'],
             'prezzo' => ['prezzo', 'price', 'precio', 'prix', 'preis', 'list price', 'purchase price'],
             'copie_totali' => ['copie_totali', 'copie', 'copies', 'quantity', 'quantità', 'cantidad'],
             'collana' => ['collana', 'series', 'collection', 'collections', 'colección', 'reihe'],
@@ -1224,6 +1250,9 @@ class CsvImportController
      */
     private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId): void
     {
+        $hasTipoMedia = $this->hasTipoMediaColumn($db);
+        $tipoMediaSet = $hasTipoMedia ? ', tipo_media = COALESCE(?, tipo_media)' : '';
+
         $stmt = $db->prepare("
             UPDATE libri SET
                 isbn10 = ?,
@@ -1237,7 +1266,7 @@ class CsvImportController
                 numero_pagine = ?,
                 genere_id = ?,
                 descrizione = ?,
-                formato = ?,
+                formato = ?{$tipoMediaSet},
                 prezzo = ?,
                 editore_id = ?,
                 collana = ?,
@@ -1247,7 +1276,7 @@ class CsvImportController
                 parole_chiave = ?,
                 classificazione_dewey = ?,
                 updated_at = NOW()
-            WHERE id = ?
+            WHERE id = ? AND deleted_at IS NULL
         ");
 
         $isbn10 = !empty($data['isbn10']) ? $data['isbn10'] : null;
@@ -1269,30 +1298,30 @@ class CsvImportController
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
-        $stmt->bind_param(
-            'sssssissiissdissssssi',
-            $isbn10,
-            $isbn13,
-            $ean,
-            $titolo,
-            $sottotitolo,
-            $anno,
-            $lingua,
-            $edizione,
-            $pagine,
-            $genreId,
-            $descrizione,
-            $formato,
-            $prezzo,
-            $editorId,
-            $collana,
-            $numeroSerie,
-            $traduttore,
-            $illustratore,
-            $paroleChiave,
-            $dewey,
-            $bookId
-        );
+        $params = [
+            $isbn10, $isbn13, $ean, $titolo, $sottotitolo,
+            $anno, $lingua, $edizione, $pagine, $genreId,
+            $descrizione, $formato,
+        ];
+        if ($hasTipoMedia) {
+            $params[] = \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null);
+        }
+        $params = array_merge($params, [
+            $prezzo, $editorId, $collana, $numeroSerie,
+            $traduttore, $illustratore, $paroleChiave, $dewey, $bookId,
+        ]);
+
+        $types = '';
+        foreach ($params as $p) {
+            if (is_int($p)) {
+                $types .= 'i';
+            } elseif (is_float($p)) {
+                $types .= 'd';
+            } else {
+                $types .= 's';
+            }
+        }
+        $stmt->bind_param($types, ...$params);
 
         $stmt->execute();
         $stmt->close();
@@ -1323,17 +1352,21 @@ class CsvImportController
      */
     private function insertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): int
     {
+        $hasTipoMedia = $this->hasTipoMediaColumn($db);
+        $tipoMediaCol = $hasTipoMedia ? ', tipo_media' : '';
+        $tipoMediaVal = $hasTipoMedia ? ', ?' : '';
+
         $stmt = $db->prepare("
             INSERT INTO libri (
                 isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
                 lingua, edizione, numero_pagine, genere_id,
-                descrizione, formato, prezzo, copie_totali, copie_disponibili,
+                descrizione, formato{$tipoMediaCol}, prezzo, copie_totali, copie_disponibili,
                 editore_id, collana, numero_serie, traduttore, illustratore, parole_chiave,
                 classificazione_dewey, stato, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
+                ?, ?{$tipoMediaVal}, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?,
                 ?, 'disponibile', NOW()
             )
@@ -1365,31 +1398,31 @@ class CsvImportController
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
-        $stmt->bind_param(
-            'sssssissiissdiiissssss',
-            $isbn10,
-            $isbn13,
-            $ean,
-            $titolo,
-            $sottotitolo,
-            $anno,
-            $lingua,
-            $edizione,
-            $pagine,
-            $genreId,
-            $descrizione,
-            $formato,
-            $prezzo,
-            $copie,
-            $copie,
-            $editorId,
-            $collana,
-            $numeroSerie,
-            $traduttore,
-            $illustratore,
-            $paroleChiave,
-            $dewey
-        );
+        $params = [
+            $isbn10, $isbn13, $ean, $titolo, $sottotitolo, $anno,
+            $lingua, $edizione, $pagine, $genreId,
+            $descrizione, $formato,
+        ];
+        if ($hasTipoMedia) {
+            $params[] = \App\Support\MediaLabels::resolveTipoMedia($formato, $data['tipo_media'] ?? null);
+        }
+        $params = array_merge($params, [
+            $prezzo, $copie, $copie,
+            $editorId, $collana, $numeroSerie, $traduttore, $illustratore, $paroleChiave,
+            $dewey,
+        ]);
+
+        $types = '';
+        foreach ($params as $p) {
+            if (is_int($p)) {
+                $types .= 'i';
+            } elseif (is_float($p)) {
+                $types .= 'd';
+            } else {
+                $types .= 's';
+            }
+        }
+        $stmt->bind_param($types, ...$params);
 
         $stmt->execute();
         $bookId = $db->insert_id;
@@ -1553,7 +1586,7 @@ class CsvImportController
 
         // Update libro if we have data
         if (!empty($updates)) {
-            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ?";
+            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ? AND deleted_at IS NULL";
             $params[] = $bookId;
             $types .= 'i';
 
@@ -1594,7 +1627,7 @@ class CsvImportController
             $publisherResult = $this->getOrCreatePublisher($db, $scrapedData['publisher']);
             $editorId = $publisherResult['id'];
 
-            $stmt = $db->prepare("UPDATE libri SET editore_id = ? WHERE id = ?");
+            $stmt = $db->prepare("UPDATE libri SET editore_id = ? WHERE id = ? AND deleted_at IS NULL");
             $stmt->bind_param('ii', $editorId, $bookId);
             $stmt->execute();
             $stmt->close();

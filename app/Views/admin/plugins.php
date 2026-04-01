@@ -241,7 +241,7 @@ $pluginSettings = $pluginSettings ?? [];
                                         data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                         data-plugin-type="api-book-scraper" data-has-config="<?= $hasApiConfig ? '1' : '0' ?>"
-                                        data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
+                                        data-settings-url="<?= htmlspecialchars(route_path('plugins') . '/' . (int) $plugin['id'] . '/settings', ENT_QUOTES, 'UTF-8') ?>"
                                         data-api-endpoint="<?= HtmlHelper::e($apiBookScraperSettings['api_endpoint'] ?? '') ?>"
                                         data-timeout="<?= HtmlHelper::e($apiBookScraperSettings['timeout'] ?? '10') ?>"
                                         data-enabled="<?= $isApiEnabled ? '1' : '0' ?>" onclick="openApiBookScraperModal(this)">
@@ -295,6 +295,13 @@ $pluginSettings = $pluginSettings ?? [];
                                         <i class="fas fa-cog mr-1"></i>
                                         <?= __("Configura Fonti") ?>
                                     </button>
+                                <?php endif; ?>
+                                <?php if ($plugin['name'] === 'discogs'): ?>
+                                    <a href="<?= htmlspecialchars(route_path('plugins') . '/' . (int) $plugin['id'] . '/settings', ENT_QUOTES, 'UTF-8') ?>"
+                                        class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
+                                        <i class="fas fa-cog mr-1"></i>
+                                        <?= __("Impostazioni") ?>
+                                    </a>
                                 <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
                                     <button onclick="deactivatePlugin(<?= (int)$plugin['id'] ?>)"

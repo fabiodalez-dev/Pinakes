@@ -6,6 +6,7 @@ module.exports = defineConfig({
   timeout: 120_000,
   expect: { timeout: 15_000 },
   reporter: 'list',
+  workers: 1,
   use: {
     baseURL: process.env.APP_URL || 'http://localhost:8081',
     headless: true,

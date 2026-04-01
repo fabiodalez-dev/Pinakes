@@ -39,19 +39,6 @@ class PluginManager
     }
 
     /**
-     * Bundled plugins that ship with Pinakes
-     * These are auto-registered and activated if their folders exist
-     */
-    private const BUNDLED_PLUGINS = [
-        'open-library',
-        'z39-server',
-        'api-book-scraper',
-        'digital-library',
-        'dewey-editor',
-        'goodlib',
-    ];
-
-    /**
      * Auto-register bundled plugins that exist on disk but not in database
      * This ensures bundled plugins survive updates even if DB entries were lost
      *
@@ -61,7 +48,7 @@ class PluginManager
     {
         $registered = 0;
 
-        foreach (self::BUNDLED_PLUGINS as $pluginName) {
+        foreach (BundledPlugins::LIST as $pluginName) {
             $pluginPath = $this->pluginsDir . '/' . $pluginName;
             $jsonPath = $pluginPath . '/plugin.json';
 
@@ -137,12 +124,16 @@ class PluginManager
                 continue;
             }
 
+            // Optional plugins (e.g. network-backed scrapers) start inactive
+            $isOptional = !empty($pluginMeta['metadata']['optional']);
+            $isActiveValue = $isOptional ? 0 : 1;
+
             // Insert into database
             $stmt = $this->db->prepare("
                 INSERT INTO plugins (
                     name, display_name, description, version, author, author_url, plugin_url,
                     is_active, path, main_file, requires_php, requires_app, metadata, installed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
 
             $metadata = json_encode($pluginMeta['metadata'] ?? []);
@@ -159,7 +150,7 @@ class PluginManager
             $requiresApp = $pluginMeta['requires_app'] ?? '';
 
             $stmt->bind_param(
-                'ssssssssssss',
+                'ssssssssissss',
                 $name,
                 $displayName,
                 $description,
@@ -167,6 +158,7 @@ class PluginManager
                 $author,
                 $authorUrl,
                 $pluginUrl,
+                $isActiveValue,
                 $path,
                 $mainFile,
                 $requiresPhp,
@@ -177,7 +169,8 @@ class PluginManager
             if ($stmt->execute()) {
                 $pluginId = $this->db->insert_id;
                 $registered++;
-                error_log("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, active)");
+                $activeLabel = $isOptional ? 'inactive (optional)' : 'active';
+                error_log("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, $activeLabel)");
 
                 // Run onInstall if exists
                 try {
@@ -192,11 +185,13 @@ class PluginManager
                     error_log("[PluginManager] Note: onInstall failed for $pluginName: " . $e->getMessage());
                 }
 
-                // Register hooks for active plugin
-                try {
-                    $this->runPluginMethod($pluginName, 'onActivate');
-                } catch (\Throwable $e) {
-                    error_log("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                // Register hooks only for active (non-optional) plugins
+                if (!$isOptional) {
+                    try {
+                        $this->runPluginMethod($pluginName, 'onActivate');
+                    } catch (\Throwable $e) {
+                        error_log("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                    }
                 }
             } else {
                 error_log("[PluginManager] Failed to auto-register $pluginName: " . $this->db->error);
@@ -364,6 +359,24 @@ class PluginManager
         }
 
         return $plugin ?: null;
+    }
+
+    public function getPluginInstance(int $pluginId): ?object
+    {
+        $plugin = $this->getPlugin($pluginId);
+        if ($plugin === null) {
+            return null;
+        }
+
+        try {
+            return $this->instantiatePlugin($plugin);
+        } catch (\Throwable $e) {
+            SecureLogger::warning("[PluginManager] Failed to instantiate plugin {$plugin['name']}", [
+                'plugin_id' => $pluginId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
     }
 
     /**
@@ -1185,9 +1198,17 @@ class PluginManager
      */
     private function loadPlugin(array $plugin): void
     {
+        $instance = $this->instantiatePlugin($plugin);
+
+        // Load and register hooks for this plugin
+        $this->registerPluginHooks((int) $plugin['id'], $instance);
+    }
+
+    private function instantiatePlugin(array $plugin): object
+    {
         // Save plugin data to prefixed variables before require_once
         // This prevents plugin files from overwriting $plugin variable (which some do)
-        $_pluginId = (int)$plugin['id'];
+        $_pluginId = (int) $plugin['id'];
         $_pluginName = $plugin['name'];
         $_pluginPath = $this->pluginsDir . '/' . $plugin['path'];
         $_mainFile = $_pluginPath . '/' . $plugin['main_file'];
@@ -1196,21 +1217,15 @@ class PluginManager
             throw new \Exception("Main file not found: {$_mainFile}");
         }
 
-        // Load plugin main file
-        // NOTE: Plugin files may define variables that collide with local scope
         require_once $_mainFile;
 
-        // Get plugin class name
         $className = $this->getPluginClassName($_pluginName);
-
         if (!class_exists($className)) {
             throw new \Exception("Plugin class not found: {$className}");
         }
 
-        // Instantiate plugin
         $instance = new $className($this->db, $this->hookManager);
 
-        // Pass plugin ID to the instance when supported (needed for plugin settings)
         if (is_callable([$instance, 'setPluginId'])) {
             try {
                 $instance->setPluginId($_pluginId);
@@ -1221,8 +1236,7 @@ class PluginManager
             }
         }
 
-        // Load and register hooks for this plugin
-        $this->registerPluginHooks($_pluginId, $instance);
+        return $instance;
     }
 
     /**

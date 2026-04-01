@@ -32,6 +32,8 @@
   "Errore durante l'installazione: %s": "Errore durante l'installazione: %s",
   "Non autorizzato.": "Non autorizzato.",
   "Token CSRF non valido.": "Token CSRF non valido.",
+  "Token configurato": "Token configurato",
+  "Token configurato — lascia vuoto per mantenere": "Token configurato — lascia vuoto per mantenere",
   "File non trovato nell'upload.": "File non trovato nell'upload.",
   "Errore durante il caricamento del file (code: %s).": "Errore durante il caricamento del file (code: %s).",
   "Solo file ZIP sono accettati.": "Solo file ZIP sono accettati.",
@@ -136,5 +138,14 @@
   "Invia per email": "Invia per email",
   "Copia link": "Copia link",
   "Link copiato!": "Link copiato!",
-  "Condividi": "Condividi"
+  "Condividi": "Condividi",
+  "Tipo Media": "Tipo Media",
+  "Libro": "Libro",
+  "Disco": "Disco",
+  "Tutti i media": "Tutti i media",
+  "Filtra per tipo": "Filtra per tipo",
+  "Audiolibro": "Audiolibro",
+  "DVD": "DVD",
+  "Altro": "Altro",
+  "Impossibile scaricare (senza ISBN/barcode):": "Impossibile scaricare (senza ISBN/barcode):"
 }

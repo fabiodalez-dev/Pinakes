@@ -138,6 +138,13 @@ storage/plugins/goodlib/*
 !storage/plugins/goodlib/*.md
 !storage/plugins/goodlib/views/
 !storage/plugins/goodlib/views/*.php
+!storage/plugins/discogs/
+storage/plugins/discogs/*
+!storage/plugins/discogs/*.php
+!storage/plugins/discogs/*.json
+!storage/plugins/discogs/*.md
+!storage/plugins/discogs/views/
+!storage/plugins/discogs/views/*.php
 
 # Premium plugin - never track (private/commercial)
 storage/plugins/scraping-pro/
@@ -204,6 +211,7 @@ desktop.ini
 # Test Artifacts
 # ========================================
 .playwright-mcp/
+test-results/
 
 # ========================================
 # Development Documentation (not for distribution)

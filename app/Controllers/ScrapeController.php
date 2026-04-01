@@ -145,6 +145,8 @@ class ScrapeController
                 $payload = $this->enrichWithSbnData($payload, $cleanIsbn);
             }
 
+            $payload = $this->ensureTipoMedia($payload);
+
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $payload = $this->normalizeIsbnFields($payload, $cleanIsbn);
 
@@ -212,6 +214,8 @@ class ScrapeController
             if (empty($fallbackData['classificazione_dewey'])) {
                 $fallbackData = $this->enrichWithSbnData($fallbackData, $cleanIsbn);
             }
+
+            $fallbackData = $this->ensureTipoMedia($fallbackData);
 
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $fallbackData = $this->normalizeIsbnFields($fallbackData, $cleanIsbn);
@@ -763,6 +767,18 @@ class ScrapeController
      */
     private function normalizeIsbnFields(array $data, string $originalIsbn): array
     {
+        $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia(
+            $data['format'] ?? $data['formato'] ?? null,
+            $data['tipo_media'] ?? null
+        );
+        $data['tipo_media'] = $resolvedTipoMedia;
+
+        // Skip ISBN auto-population for non-book media.
+        // The barcode is an EAN, not an ISBN — don't stuff it into isbn13/isbn10.
+        if ($resolvedTipoMedia !== 'libro') {
+            return $data;
+        }
+
         // First, try to get variants from original search term
         $variants = IsbnFormatter::getAllVariants($originalIsbn);
 
@@ -802,5 +818,15 @@ class ScrapeController
         }
 
         return $data;
+    }
+
+    private function ensureTipoMedia(array $payload): array
+    {
+        $payload['tipo_media'] = \App\Support\MediaLabels::resolveTipoMedia(
+            $payload['format'] ?? $payload['formato'] ?? null,
+            $payload['tipo_media'] ?? null
+        );
+
+        return $payload;
     }
 }

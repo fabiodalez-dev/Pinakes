@@ -300,6 +300,13 @@ class BookRepository
         if ($this->hasColumn('formato')) {
             $addField('formato', 's', $data['formato'] ?? null);
         }
+        if ($this->hasColumn('tipo_media')) {
+            $val = \App\Support\MediaLabels::resolveTipoMedia(
+                $data['formato'] ?? null,
+                $data['tipo_media'] ?? null
+            );
+            $addField('tipo_media', 's', $this->normalizeEnumValue($val, 'tipo_media', 'libro'));
+        }
         if ($this->hasColumn('peso')) {
             $addField('peso', 'd', $peso);
         }
@@ -638,6 +645,10 @@ class BookRepository
         }
         if ($this->hasColumn('formato')) {
             $addSet('formato', 's', $data['formato'] ?? null);
+        }
+        if ($this->hasColumn('tipo_media') && array_key_exists('tipo_media', $data)) {
+            $val = is_string($data['tipo_media']) ? $data['tipo_media'] : null;
+            $addSet('tipo_media', 's', $this->normalizeEnumValue($val, 'tipo_media', 'libro'));
         }
         if ($this->hasColumn('peso')) {
             $addSet('peso', 'd', $peso);
@@ -989,7 +1000,7 @@ class BookRepository
     public function updateOptionals(int $bookId, array $data): void
     {
         $cols = [];
-        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'curatore', 'collana', 'edizione'] as $c) {
+        foreach (['numero_pagine', 'ean', 'data_pubblicazione', 'anno_pubblicazione', 'traduttore', 'illustratore', 'curatore', 'collana', 'edizione', 'tipo_media', 'parole_chiave'] as $c) {
             if ($this->hasColumn($c) && array_key_exists($c, $data) && $data[$c] !== '' && $data[$c] !== null) {
                 if ($c === 'numero_pagine') {
                     $validated = filter_var($data[$c], FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
@@ -1001,6 +1012,8 @@ class BookRepository
                     if ($validated !== false) {
                         $cols[$c] = $validated;
                     }
+                } elseif ($c === 'tipo_media') {
+                    $cols[$c] = $this->normalizeEnumValue((string) $data[$c], 'tipo_media', 'libro');
                 } elseif (in_array($c, ['traduttore', 'illustratore', 'curatore'], true)) {
                     $cols[$c] = \App\Support\AuthorNormalizer::normalize((string) $data[$c]);
                 } else {
@@ -1043,6 +1056,22 @@ class BookRepository
         }
         if ($this->hasColumn('illustratore') && !isset($cols['illustratore']) && !empty($data['scraped_illustrator'])) {
             $cols['illustratore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_illustrator']);
+        }
+        if ($this->hasColumn('tipo_media') && !array_key_exists('tipo_media', $cols)) {
+            $formato = trim((string) ($data['formato'] ?? ($data['scraped_formato'] ?? '')));
+            $scrapedTipoMedia = trim((string) ($data['scraped_tipo_media'] ?? ''));
+            $hasMediaSignal = $formato !== '' || $scrapedTipoMedia !== '';
+
+            if ($hasMediaSignal) {
+                $val = \App\Support\MediaLabels::resolveTipoMedia(
+                    $formato !== '' ? $formato : null,
+                    $scrapedTipoMedia !== '' ? $scrapedTipoMedia : null
+                );
+                $normalized = $this->normalizeEnumValue((string) $val, 'tipo_media', 'libro');
+                if ($normalized !== '') {
+                    $cols['tipo_media'] = $normalized;
+                }
+            }
         }
         if (!$cols)
             return;

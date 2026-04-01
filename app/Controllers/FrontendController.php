@@ -734,6 +734,10 @@ class FrontendController
     {
         // Support both 'q' (header form) and 'search' (hero form) parameters
         $searchTerm = $params['q'] ?? $params['search'] ?? '';
+        $rawTipoMedia = $params['tipo_media'] ?? '';
+        if (is_array($rawTipoMedia)) {
+            $rawTipoMedia = $rawTipoMedia[0] ?? '';
+        }
 
         return [
             'search' => $searchTerm,
@@ -742,6 +746,7 @@ class FrontendController
             'editore' => $params['editore'] ?? '',
             'anno_min' => $params['anno_min'] ?? '',
             'anno_max' => $params['anno_max'] ?? '',
+            'tipo_media' => trim((string) $rawTipoMedia),
             'sort' => $params['sort'] ?? 'newest'
         ];
     }
@@ -896,11 +901,29 @@ class FrontendController
             $types .= 'i';
         }
 
+        if (!empty($filters['tipo_media']) && $this->hasLibriColumn($db, 'tipo_media')) {
+            $conditions[] = "l.tipo_media = ?";
+            $params[] = $filters['tipo_media'];
+            $types .= 's';
+        }
+
         return [
             'conditions' => $conditions,
             'params' => $params,
             'types' => $types
         ];
+    }
+
+    private function hasLibriColumn(mysqli $db, string $column): bool
+    {
+        static $columnCache = [];
+
+        if (!array_key_exists($column, $columnCache)) {
+            $result = $db->query("SHOW COLUMNS FROM libri LIKE '" . $db->real_escape_string($column) . "'");
+            $columnCache[$column] = $result !== false && $result->num_rows > 0;
+        }
+
+        return $columnCache[$column];
     }
 
     private function buildOrderBy(string $sort): string

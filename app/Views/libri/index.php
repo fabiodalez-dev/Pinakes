@@ -189,6 +189,21 @@ $libri = $data['libri'];
             </select>
           </div>
 
+          <!-- Media Type -->
+          <div class="w-[calc(50%-0.375rem)] md:w-36">
+            <label class="block text-xs font-medium text-gray-500 mb-1">
+              <i class="fas fa-compact-disc mr-1"></i><?= __("Tipo Media") ?>
+            </label>
+            <select id="tipo_media_filter" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-400 text-sm">
+              <option value=""><?= __("Tutti i media") ?></option>
+              <?php foreach (\App\Support\MediaLabels::allTypes() as $value => $meta): ?>
+                <option value="<?= $value ?>">
+                  <?= __($meta['label']) ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+
           <!-- More Filters Toggle -->
           <button id="toggle-advanced" class="px-3 py-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 rounded-lg transition-colors text-sm flex items-center gap-1 border border-gray-200">
             <i class="fas fa-sliders-h"></i>
@@ -296,6 +311,7 @@ $libri = $data['libri'];
                   <input type="checkbox" id="select-all" class="w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" />
                 </th>
                 <th><?= __("Stato") ?></th>
+                <th><i class="fas fa-compact-disc text-gray-400" title="<?= __("Tipo Media") ?>"></i></th>
                 <th><?= __("Cover") ?></th>
                 <th><?= __("Informazioni") ?></th>
                 <th><?= __("Genere") ?></th>
@@ -617,7 +633,8 @@ document.addEventListener('DOMContentLoaded', function() {
           posizione_id: document.getElementById('posizione_id').value || 0,
           anno_from: document.getElementById('anno_from').value,
           anno_to: document.getElementById('anno_to').value,
-          collana: collanaFilter
+          collana: collanaFilter,
+          tipo_media: document.getElementById('tipo_media_filter').value
         };
       },
       dataSrc: function(json) {
@@ -666,6 +683,19 @@ document.addEventListener('DOMContentLoaded', function() {
           return `<span class="inline-flex items-center justify-center w-6 h-6 rounded-full ${statusMeta.cls} text-white text-xs cursor-help" title="${tooltip}">
             <i class="fas ${statusMeta.icon} text-xs"></i>
           </span>`;
+        }
+      },
+      { // Media type icon
+        data: 'tipo_media',
+        orderable: false,
+        searchable: false,
+        width: '30px',
+        className: 'text-center align-middle',
+        render: function(data) {
+          const icons = { libro: 'fa-book', disco: 'fa-compact-disc', audiolibro: 'fa-headphones', dvd: 'fa-film', altro: 'fa-box' };
+          const labels = { libro: <?= json_encode(__('Libro'), JSON_HEX_TAG) ?>, disco: <?= json_encode(__('Disco'), JSON_HEX_TAG) ?>, audiolibro: <?= json_encode(__('Audiolibro'), JSON_HEX_TAG) ?>, dvd: 'DVD', altro: <?= json_encode(__('Altro'), JSON_HEX_TAG) ?> };
+          const label = labels[data] || labels.libro;
+          return '<i class="fas ' + (icons[data] || 'fa-book') + ' text-gray-400" title="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '" role="img"></i>';
         }
       },
       { // Cover
@@ -784,7 +814,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       }
     ],
-    order: [[3, 'asc']],
+    order: [[4, 'asc']],
     pageLength: 25,
     lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
     language: typeof window.getDtLanguage === 'function' ? window.getDtLanguage() : {},
@@ -821,7 +851,7 @@ document.addEventListener('DOMContentLoaded', function() {
     updateActiveFilters();
   });
 
-  ['search_text', 'search_isbn', 'stato_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to'].forEach(id => {
+  ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', reloadDebounced);
@@ -854,6 +884,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const stato = document.getElementById('stato_filter').value;
     if (stato) filters.push({ key: 'stato_filter', label: `${<?= json_encode(__("Stato"), JSON_HEX_TAG) ?>}: ${stato}`, icon: 'fa-info-circle' });
 
+    const tipoMedia = document.getElementById('tipo_media_filter').value;
+    if (tipoMedia) filters.push({ key: 'tipo_media_filter', label: `${<?= json_encode(__("Tipo Media"), JSON_HEX_TAG) ?>}: ${tipoMedia}`, icon: 'fa-compact-disc' });
+
     const genere = document.getElementById('filter_genere').value;
     if (genere && document.getElementById('genere_id').value) {
       filters.push({ key: 'genere', label: `${<?= json_encode(__("Genere"), JSON_HEX_TAG) ?>}: ${genere}`, icon: 'fa-tags' });
@@ -881,6 +914,7 @@ document.addEventListener('DOMContentLoaded', function() {
     else if (key === 'autore') { document.getElementById('filter_autore').value = ''; document.getElementById('autore_id').value = ''; }
     else if (key === 'editore') { document.getElementById('filter_editore').value = ''; document.getElementById('editore_filter').value = ''; }
     else if (key === 'stato_filter') document.getElementById('stato_filter').value = '';
+    else if (key === 'tipo_media_filter') document.getElementById('tipo_media_filter').value = '';
     else if (key === 'genere') { document.getElementById('filter_genere').value = ''; document.getElementById('genere_id').value = ''; genereUrlFilter = 0; sottogenereUrlFilter = 0; }
     table.ajax.reload();
     updateActiveFilters();
@@ -888,7 +922,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Clear all filters
   document.getElementById('clear-filters').addEventListener('click', function() {
-    ['search_text', 'search_isbn', 'stato_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to', 'filter_autore', 'filter_editore', 'filter_genere', 'filter_posizione'].forEach(id => {
+    ['search_text', 'search_isbn', 'stato_filter', 'tipo_media_filter', 'acq_from', 'acq_to', 'anno_from', 'anno_to', 'filter_autore', 'filter_editore', 'filter_genere', 'filter_posizione'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
@@ -1081,7 +1115,7 @@ document.addEventListener('DOMContentLoaded', function() {
       let message = '';
       if (fetched > 0) message += `${<?= json_encode(__("Copertine scaricate:"), JSON_HEX_TAG) ?>} ${fetched}\n`;
       if (alreadyHasCover > 0) message += `${<?= json_encode(__("Già presenti:"), JSON_HEX_TAG) ?>} ${alreadyHasCover}\n`;
-      if (noIsbn > 0) message += `${<?= json_encode(__("Impossibile scaricare (libro senza ISBN):"), JSON_HEX_TAG) ?>} ${noIsbn}\n`;
+      if (noIsbn > 0) message += `${<?= json_encode(__("Impossibile scaricare (senza ISBN/barcode):"), JSON_HEX_TAG) ?>} ${noIsbn}\n`;
       if (notFound > 0) message += `${<?= json_encode(__("Copertina non trovata online:"), JSON_HEX_TAG) ?>} ${notFound}\n`;
       if (errors > 0) message += `${<?= json_encode(__("Errori:"), JSON_HEX_TAG) ?>} ${errors}`;
 
@@ -1414,7 +1448,7 @@ table#libri-table { border: 1px solid gainsboro; width: 100% !important; }
 #libri-table tbody tr:hover { @apply bg-gray-50; }
 
 /* Info column text wrapping */
-#libri-table tbody td:nth-child(4) { white-space: normal !important; word-wrap: break-word; }
+#libri-table tbody td:nth-child(5) { white-space: normal !important; word-wrap: break-word; }
 
 .dataTables_wrapper .dataTables_length select { @apply py-1.5 px-2 text-sm border border-gray-300 rounded-lg bg-white; }
 .dataTables_wrapper .dataTables_info { @apply text-sm text-gray-600 py-3; }
@@ -1430,8 +1464,10 @@ table#libri-table { border: 1px solid gainsboro; width: 100% !important; }
   .dataTables_wrapper .dataTables_length,
   .dataTables_wrapper .dataTables_info { @apply text-xs; }
 
-  /* Hide cover column on mobile */
+  /* Hide media-type and cover columns on mobile */
   #libri-table thead th:nth-child(3),
-  #libri-table tbody td:nth-child(3) { display: none; }
+  #libri-table tbody td:nth-child(3),
+  #libri-table thead th:nth-child(4),
+  #libri-table tbody td:nth-child(4) { display: none; }
 }
 </style>
