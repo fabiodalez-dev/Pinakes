@@ -1812,6 +1812,7 @@
   "Mondadori": "Mondadori",
   "Monitora tentativi di login e eventi di sicurezza": "Monitor login attempts and security events",
   "Mostra": "Show",
+  "Mostra/nascondi token": "Show/hide token",
   "Mostra API Key": "Show API Key",
   "Mostra Cookie Analitici": "Show Analytics Cookies",
   "Mostra Cookie di Marketing": "Show Marketing Cookies",
@@ -2835,7 +2836,7 @@
   "Opera \"%s\" creata con %d volumi": "Work \"%s\" created with %d volumes",
   "Errore nella creazione dell'opera": "Error creating the work",
   "Aggiungi volume": "Add volume",
-  "Cartaceo": "Paperback",
+  "Cartaceo": "Print",
   "eBook": "eBook",
   "Audiolibro": "Audiobook",
   "CD Audio": "Audio CD",
@@ -4192,7 +4193,7 @@
   "Rende disponibile /llms.txt e lo aggiunge a robots.txt": "Makes /llms.txt available and adds it to robots.txt",
   "Disattivato": "Disabled",
   "Tipo Media": "Media Type",
-  "Disco": "Record",
+  "Disco": "Disc",
   "Tutti i media": "All media",
   "Impossibile scaricare (senza ISBN/barcode):": "Cannot download (no ISBN/barcode):"
 }

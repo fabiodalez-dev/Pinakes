@@ -1772,7 +1772,7 @@ ob_start();
                         <div class="details-column">
                             <?php if (!empty($book['isbn13']) && !($isMusic && !empty($book['ean']))): ?>
                             <div class="meta-item">
-                                <div class="meta-label">ISBN-13</div>
+                                <div class="meta-label"><?= \App\Support\MediaLabels::label('isbn13', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['isbn13'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>

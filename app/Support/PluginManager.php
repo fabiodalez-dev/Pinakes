@@ -124,12 +124,16 @@ class PluginManager
                 continue;
             }
 
+            // Optional plugins (e.g. network-backed scrapers) start inactive
+            $isOptional = !empty($pluginMeta['metadata']['optional']);
+            $isActiveValue = $isOptional ? 0 : 1;
+
             // Insert into database
             $stmt = $this->db->prepare("
                 INSERT INTO plugins (
                     name, display_name, description, version, author, author_url, plugin_url,
                     is_active, path, main_file, requires_php, requires_app, metadata, installed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
 
             $metadata = json_encode($pluginMeta['metadata'] ?? []);
@@ -146,7 +150,7 @@ class PluginManager
             $requiresApp = $pluginMeta['requires_app'] ?? '';
 
             $stmt->bind_param(
-                'ssssssssssss',
+                'ssssssssissss',
                 $name,
                 $displayName,
                 $description,
@@ -154,6 +158,7 @@ class PluginManager
                 $author,
                 $authorUrl,
                 $pluginUrl,
+                $isActiveValue,
                 $path,
                 $mainFile,
                 $requiresPhp,
@@ -164,7 +169,8 @@ class PluginManager
             if ($stmt->execute()) {
                 $pluginId = $this->db->insert_id;
                 $registered++;
-                error_log("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, active)");
+                $activeLabel = $isOptional ? 'inactive (optional)' : 'active';
+                error_log("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, $activeLabel)");
 
                 // Run onInstall if exists
                 try {
@@ -179,11 +185,13 @@ class PluginManager
                     error_log("[PluginManager] Note: onInstall failed for $pluginName: " . $e->getMessage());
                 }
 
-                // Register hooks for active plugin
-                try {
-                    $this->runPluginMethod($pluginName, 'onActivate');
-                } catch (\Throwable $e) {
-                    error_log("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                // Register hooks only for active (non-optional) plugins
+                if (!$isOptional) {
+                    try {
+                        $this->runPluginMethod($pluginName, 'onActivate');
+                    } catch (\Throwable $e) {
+                        error_log("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                    }
                 }
             } else {
                 error_log("[PluginManager] Failed to auto-register $pluginName: " . $this->db->error);

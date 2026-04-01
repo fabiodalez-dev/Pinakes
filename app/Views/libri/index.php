@@ -693,7 +693,9 @@ document.addEventListener('DOMContentLoaded', function() {
         className: 'text-center align-middle',
         render: function(data) {
           const icons = { libro: 'fa-book', disco: 'fa-compact-disc', audiolibro: 'fa-headphones', dvd: 'fa-film', altro: 'fa-box' };
-          return '<i class="fas ' + (icons[data] || 'fa-book') + ' text-gray-400" title="' + (data || 'libro') + '"></i>';
+          const labels = { libro: <?= json_encode(__('Libro'), JSON_HEX_TAG) ?>, disco: <?= json_encode(__('Disco'), JSON_HEX_TAG) ?>, audiolibro: <?= json_encode(__('Audiolibro'), JSON_HEX_TAG) ?>, dvd: 'DVD', altro: <?= json_encode(__('Altro'), JSON_HEX_TAG) ?> };
+          const label = labels[data] || labels.libro;
+          return '<i class="fas ' + (icons[data] || 'fa-book') + ' text-gray-400" title="' + escapeHtml(label) + '" aria-label="' + escapeHtml(label) + '" role="img"></i>';
         }
       },
       { // Cover

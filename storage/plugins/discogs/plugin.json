@@ -11,6 +11,7 @@
   "requires_app": "0.5.0",
   "max_app_version": "1.0.0",
   "metadata": {
+    "optional": true,
     "category": "scraping",
     "tags": [
       "api",

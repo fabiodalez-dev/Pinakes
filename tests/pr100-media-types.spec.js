@@ -47,14 +47,16 @@ test.describe.serial('PR #100: Media Types System', () => {
     await page.click('button[type="submit"]');
     await page.waitForURL(/\/admin\//, { timeout: 15000 });
 
-    // Seed 4 media types
+    // Seed 4 media types — use RUN_ID in EAN/ISBN to avoid collisions
+    const eanSuffix = String(RUN_ID).slice(-10).padStart(12, '0');
+    const isbnSuffix = '978' + String(RUN_ID).slice(-10).padStart(10, '0');
     dbExec(
       "INSERT INTO libri (titolo, formato, tipo_media, ean, copie_totali, copie_disponibili, created_at, updated_at) " +
-      "VALUES ('PR100_CD_" + RUN_ID + "', 'cd_audio', 'disco', '9990000000001', 1, 1, NOW(), NOW())"
+      "VALUES ('PR100_CD_" + RUN_ID + "', 'cd_audio', 'disco', '" + eanSuffix + "1', 1, 1, NOW(), NOW())"
     );
     dbExec(
       "INSERT INTO libri (titolo, formato, tipo_media, isbn13, copie_totali, copie_disponibili, created_at, updated_at) " +
-      "VALUES ('PR100_Book_" + RUN_ID + "', 'cartaceo', 'libro', '9789990000002', 1, 1, NOW(), NOW())"
+      "VALUES ('PR100_Book_" + RUN_ID + "', 'cartaceo', 'libro', '" + isbnSuffix + "', 1, 1, NOW(), NOW())"
     );
     dbExec(
       "INSERT INTO libri (titolo, formato, tipo_media, copie_totali, copie_disponibili, created_at, updated_at) " +
@@ -72,7 +74,7 @@ test.describe.serial('PR #100: Media Types System', () => {
   });
 
   test.afterAll(async () => {
-    try { dbExec("DELETE FROM libri WHERE (titolo LIKE 'PR100_%_" + RUN_ID + "' OR ean = '9990000000001' OR isbn13 = '9789990000002') AND deleted_at IS NULL"); } catch {}
+    try { dbExec("UPDATE libri SET deleted_at = NOW(), ean = NULL, isbn13 = NULL WHERE titolo LIKE 'PR100_%_" + RUN_ID + "' AND deleted_at IS NULL"); } catch {}
     await context?.close();
   });
 
