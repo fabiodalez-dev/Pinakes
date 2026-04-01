@@ -69,12 +69,16 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- Auto-populate from existing formato values (LIKE for partial matches)
+-- Auto-populate from existing formato values
+-- Use specific patterns to avoid false positives (%cd% matches CD-ROM, %lp% matches 'help')
 UPDATE libri SET tipo_media = 'disco'
 WHERE tipo_media = 'libro'
-  AND (LOWER(formato) LIKE '%cd%' OR LOWER(formato) LIKE '%compact disc%'
+  AND (LOWER(formato) LIKE '%cd audio%' OR LOWER(formato) LIKE '%cd_audio%'
+       OR LOWER(formato) LIKE '%cd-audio%' OR LOWER(formato) = 'cd'
+       OR LOWER(formato) LIKE '%compact disc%'
        OR LOWER(formato) LIKE '%vinyl%' OR LOWER(formato) LIKE '%vinile%'
-       OR LOWER(formato) LIKE '%lp%' OR LOWER(formato) LIKE '%cassett%'
+       OR LOWER(formato) = 'lp' OR LOWER(formato) LIKE '%lp %' OR LOWER(formato) LIKE '% lp'
+       OR LOWER(formato) LIKE '%cassett%'
        OR LOWER(formato) LIKE '%audio cassetta%' OR LOWER(formato) LIKE '%audio-cassetta%'
        OR LOWER(formato) LIKE '%audiocassetta%'
        OR LOWER(formato) REGEXP '[[:<:]]music[[:>:]]'

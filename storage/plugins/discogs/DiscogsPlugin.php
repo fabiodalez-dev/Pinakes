@@ -283,7 +283,7 @@ class DiscogsPlugin
                 }
 
                 // Discogs found nothing — try MusicBrainz as fallback
-                $mbResult = $this->searchMusicBrainz($isbn, $token, $isbn);
+                $mbResult = $this->searchMusicBrainz($isbn, $isbn);
                 if ($mbResult !== null) {
                     return $this->mergeBookData($currentResult, $mbResult);
                 }
@@ -361,7 +361,7 @@ class DiscogsPlugin
             return null;
         }
 
-        $releaseUrl = self::API_BASE . '/releases/' . $releaseId;
+        $releaseUrl = self::API_BASE . '/releases/' . (int) $releaseId;
         $release = $this->apiRequest($releaseUrl, $token);
 
         if (empty($release) || empty($release['title'])) {
@@ -757,17 +757,18 @@ class DiscogsPlugin
      * @return array|null Decoded JSON response or null on failure
      */
     /** @var float Timestamp of last API request for rate limiting */
-    private float $lastRequestTime = 0.0;
+    private static float $lastRequestTime = 0.0;
+    private static float $lastDeezerRequestTime = 0.0;
 
     private function apiRequest(string $url, ?string $token = null): ?array
     {
         // Centralized rate limiting: 1s with token (60 req/min), 2.5s without (25 req/min)
         $minInterval = ($token !== null && $token !== '') ? 1.0 : 2.5;
-        $elapsed = microtime(true) - $this->lastRequestTime;
-        if ($this->lastRequestTime > 0 && $elapsed < $minInterval) {
+        $elapsed = microtime(true) - self::$lastRequestTime;
+        if (self::$lastRequestTime > 0 && $elapsed < $minInterval) {
             usleep((int) (($minInterval - $elapsed) * 1_000_000));
         }
-        $this->lastRequestTime = microtime(true);
+        self::$lastRequestTime = microtime(true);
 
         $headers = [
             'Accept: application/vnd.discogs.v2.discogs+json',
@@ -783,6 +784,9 @@ class DiscogsPlugin
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_TIMEOUT        => self::TIMEOUT,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_USERAGENT      => self::USER_AGENT,
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_SSL_VERIFYPEER => true,
@@ -994,11 +998,10 @@ class DiscogsPlugin
      * Search MusicBrainz by barcode as fallback when Discogs finds nothing
      *
      * @param string $barcode EAN/UPC barcode
-     * @param string|null $discogsToken Discogs token (unused, kept for signature consistency)
      * @param string|null $fallbackBarcode Persist this barcode only when it was validated by the search path
      * @return array|null Pinakes-formatted data or null if not found
      */
-    private function searchMusicBrainz(string $barcode, ?string $discogsToken, ?string $fallbackBarcode): ?array
+    private function searchMusicBrainz(string $barcode, ?string $fallbackBarcode): ?array
     {
         // Search by barcode
         $url = 'https://musicbrainz.org/ws/2/release?query=barcode:' . urlencode($barcode) . '&fmt=json&limit=1';
@@ -1209,11 +1212,21 @@ class DiscogsPlugin
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_TIMEOUT        => 10,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_USERAGENT      => self::USER_AGENT,
+            CURLOPT_SSL_VERIFYPEER => true,
         ]);
         $resp = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr = curl_error($ch);
         curl_close($ch);
+
+        if ($curlErr !== '') {
+            \App\Support\SecureLogger::warning('[CoverArt] cURL error: ' . $curlErr);
+            return null;
+        }
 
         if ($code !== 200 || !is_string($resp)) {
             return null;
@@ -1266,12 +1279,22 @@ class DiscogsPlugin
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_TIMEOUT        => self::TIMEOUT,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_USERAGENT      => self::USER_AGENT,
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            CURLOPT_SSL_VERIFYPEER => true,
         ]);
         $resp = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr = curl_error($ch);
         curl_close($ch);
+
+        if ($curlErr !== '') {
+            \App\Support\SecureLogger::warning('[MusicBrainz] cURL error: ' . $curlErr);
+            return null;
+        }
 
         if ($code !== 200 || !is_string($resp)) {
             return null;
@@ -1303,19 +1326,33 @@ class DiscogsPlugin
         $query = $artist !== '' ? $artist . ' ' . $title : $title;
         $url = 'https://api.deezer.com/search/album?q=' . urlencode($query) . '&limit=1';
 
-        // Simple rate limit — 1 second between Deezer requests
-        usleep(1_000_000);
+        // Elapsed-based rate limit — 1 second between Deezer requests
+        $elapsed = microtime(true) - self::$lastDeezerRequestTime;
+        if (self::$lastDeezerRequestTime > 0 && $elapsed < 1.0) {
+            usleep((int) ((1.0 - $elapsed) * 1_000_000));
+        }
+        self::$lastDeezerRequestTime = microtime(true);
 
         $ch = curl_init();
         curl_setopt_array($ch, [
             CURLOPT_URL            => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 10,
+            CURLOPT_CONNECTTIMEOUT => 5,
+            CURLOPT_MAXREDIRS      => 5,
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_USERAGENT      => self::USER_AGENT,
+            CURLOPT_SSL_VERIFYPEER => true,
         ]);
         $resp = curl_exec($ch);
         $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlErr = curl_error($ch);
         curl_close($ch);
+
+        if ($curlErr !== '') {
+            \App\Support\SecureLogger::warning('[Deezer] cURL error: ' . $curlErr);
+            return $data;
+        }
 
         if ($code !== 200 || !is_string($resp)) {
             return $data;

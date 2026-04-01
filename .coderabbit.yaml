@@ -1,2 +1,158 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Pinakes — CodeRabbit Configuration
+# PHP/Slim 4 library management system with MySQL
+
+language: "it-IT"
+
+tone_instructions: |
+  Sii conciso e diretto. Concentrati su bug reali, vulnerabilità di sicurezza
+  e violazioni delle regole del progetto. Evita suggerimenti stilistici minori.
+
+early_access: true
+
 reviews:
-  max_files: 200
+  profile: "assertive"
+  request_changes_workflow: false
+  high_level_summary: true
+  poem: false
+  review_status: true
+
+  # ── File Filters ──────────────────────────────────────────────────
+  path_filters:
+    exclude:
+      - "vendor/**"
+      - "node_modules/**"
+      - "public/assets/tinymce/**"
+      - "public/assets/fontawesome/**"
+      - "public/assets/choices/**"
+      - "public/assets/flatpickr/**"
+      - "public/assets/sweetalert2/**"
+      - "*.min.js"
+      - "*.min.css"
+      - "*.map"
+      - "pinakes-*.zip"
+      - "pinakes-*.sha256"
+      - "test-results/**"
+
+  # ── Path-Specific Review Instructions ──────────────────────────────
+  path_instructions:
+    # Controllers — input validation, auth, soft-delete
+    - path: "app/Controllers/**"
+      instructions: |
+        - CRITICO: ogni query sulla tabella `libri` DEVE avere `AND deleted_at IS NULL`
+        - Verifica che `getParsedBody()` non sia usato per JSON — serve `json_decode((string)$request->getBody())`
+        - Input utente: validare e sanitizzare PRIMA dell'uso
+        - Sessione: `$_SESSION['user']['id']` (NON `$_SESSION['user_id']`)
+        - Eccezioni: catturare `\Throwable` non `\Exception` (strict_types TypeError extends \Error)
+        - Logging: `SecureLogger::error()` non `error_log()` per contesti sensibili
+        - Route: mai hardcodare percorsi URL, usare `route_path('key')` o `RouteTranslator::route('key')`
+        - Export CSV: tipo_media deve essere incluso, usare stringa vuota come fallback (non 'libro')
+
+    # Models / Repository — query safety
+    - path: "app/Models/**"
+      instructions: |
+        - CRITICO: ogni SELECT/UPDATE/DELETE sulla tabella `libri` DEVE avere `AND deleted_at IS NULL`
+        - Soft-delete: nullificare isbn10, isbn13, ean quando si fa soft-delete (prevent unique constraint violations)
+        - Transaction safety: mai annidare `begin_transaction()` in mysqli (causa commit implicito)
+        - Pattern: verificare `@@autocommit` per rilevare transazioni in corso
+        - hasColumn() guard per colonne aggiunte in migrazioni recenti (backward compat)
+        - tipo_media: usare `array_key_exists` guard, non sovrascrivere il valore se non esplicitamente fornito
+
+    # Views — escaping, XSS prevention
+    - path: "app/Views/**"
+      instructions: |
+        - CRITICO: `htmlspecialchars(url(...), ENT_QUOTES, 'UTF-8')` in TUTTI gli attributi HTML (href, action, src)
+        - `route_path()` richiede lo stesso escaping negli attributi HTML
+        - PHP->JS: usare `json_encode(..., JSON_HEX_TAG)` per qualsiasi dato PHP inserito in JavaScript
+        - TinyMCE: SEMPRE includere `model: 'dom'` e `license_key: 'gpl'` in ogni `tinymce.init({})`
+        - Mai usare `HtmlHelper::e()` nelle view — usare `htmlspecialchars(..., ENT_QUOTES, 'UTF-8')`
+        - Schema.org: ogni tipo_media deve avere il proprio branch con proprietà specifiche (non mescolare Book con CreativeWork)
+        - DataTable: ogni valore da API deve passare per `escapeHtml()` prima del rendering
+
+    # Support classes — helpers, utilities
+    - path: "app/Support/**"
+      instructions: |
+        - MediaLabels: `isMusic()` deve essere autoritativo su tipo_media quando impostato
+        - `inferTipoMedia()`: attenzione ai false positive su token corti ('cd' matcha 'CD-ROM', 'lp' matcha parole con 'lp')
+        - `formatTracklist()`: deve rilevare HTML pre-formattato (`<ol>`) e restituirlo as-is
+        - PluginManager: usare `\Throwable` non `\Exception`, `BundledPlugins::LIST` centralizzato
+        - Route translation: mai hardcodare percorsi, usare `RouteTranslator::route('key')`
+
+    # Plugins — API safety, rate limiting
+    - path: "storage/plugins/**"
+      instructions: |
+        - SICUREZZA: ogni chiamata curl DEVE avere CURLOPT_PROTOCOLS (HTTP/HTTPS only), CURLOPT_MAXREDIRS, CURLOPT_CONNECTTIMEOUT, CURLOPT_SSL_VERIFYPEER
+        - SSRF: validare/castare ID esterni (es. releaseId a int) prima di usarli in URL
+        - Rate limiting: deve essere elapsed-based (microtime) e static (persistere tra istanze)
+        - Ogni `curl_exec()` deve avere `curl_error()` check con logging
+        - Hook registration: transazione + rethrow on failure
+        - Non enrichire dati di libri con cover musicali (gate su resolveTipoMedia)
+
+    # Migrations — versioning, idempotency
+    - path: "installer/database/migrations/**"
+      instructions: |
+        - CRITICO: il nome del file di migrazione DEVE avere versione <= version.json (altrimenti viene silenziosamente saltata)
+        - L'updater usa `version_compare($migrationVersion, $toVersion, '<=')` — versioni superiori sono IGNORATE
+        - Ogni migrazione DEVE essere completamente idempotente (IF NOT EXISTS, IF @col_exists = 0, etc.)
+        - LIKE patterns: evitare `%cd%` e `%lp%` che matchano false positive ('CD-ROM', parole con 'lp') — usare REGEXP word boundaries
+        - Se servono più migrazioni per una release: unirle in UN file con la versione della release
+
+    # Translations — completeness
+    - path: "locale/**"
+      instructions: |
+        - Ogni chiave presente in it_IT.json DEVE essere presente anche in en_US.json e de_DE.json
+        - Le chiavi di traduzione devono corrispondere esattamente (case-sensitive)
+        - I placeholder (%s, %d) devono essere preservati in tutte le lingue
+        - Nuove chiavi aggiunte nel codice PHP/JS devono essere aggiunte in TUTTE le lingue
+
+    # Tests — E2E patterns
+    - path: "tests/**"
+      instructions: |
+        - I test E2E richiedono `/tmp/run-e2e.sh` per credenziali DB/admin
+        - `--workers=1` obbligatorio per esecuzione seriale
+        - SweetAlert: dopo form submit, verificare e cliccare `.swal2-confirm`
+        - Choices.js: usare `fill` + `waitForTimeout` + click suggestion
+        - Flatpickr: interagire via JS evaluate, non click diretto
+        - Pulizia dati test: FK-safe order (prima tabelle figlie, poi padri)
+
+    # Release scripts
+    - path: "scripts/**"
+      instructions: |
+        - MAI creare ZIP manualmente — SEMPRE usare `create-release.sh`
+        - Lo script verifica 9 file critici nel ZIP prima del rilascio
+        - `git archive` usa file COMMITTATI, non la working directory
+        - Verificare che `public/assets/tinymce/models/dom/model.min.js` sia nel ZIP
+
+  # ── Auto Review Settings ───────────────────────────────────────────
+  auto_review:
+    enabled: true
+    drafts: false
+
+  # ── Tools ──────────────────────────────────────────────────────────
+  tools:
+    phpstan:
+      enabled: true
+      config_file: "phpstan.neon"
+    shellcheck:
+      enabled: true
+    semgrep:
+      enabled: true
+    gitleaks:
+      enabled: true
+    yamllint:
+      enabled: true
+
+# ── Chat ──────────────────────────────────────────────────────────────
+chat:
+  auto_reply: true
+
+# ── Knowledge Base ────────────────────────────────────────────────────
+knowledge_base:
+  opt_out: false
+  learnings:
+    scope: "local"
+    enabled: true
+  issues:
+    scope: "auto"
+  pull_requests:
+    scope: "auto"

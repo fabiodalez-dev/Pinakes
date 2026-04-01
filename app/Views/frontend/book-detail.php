@@ -293,6 +293,21 @@ if ($schemaType === 'MusicAlbum') {
     if ($bookISBN) {
         $bookSchema["isbn"] = $bookISBN;
     }
+} elseif ($schemaType === 'CreativeWork') {
+    // CreativeWork (altro): generic properties only — no Book-specific fields
+    if (!empty($schemaAuthors)) {
+        $bookSchema["author"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["publisher"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if (!empty($book['ean'])) {
+        $bookSchema["identifier"] = [
+            "@type" => "PropertyValue",
+            "propertyID" => "EAN",
+            "value" => $book['ean'],
+        ];
+    }
 } else {
     // Book (default): full book properties
     if (!empty($schemaAuthors)) {

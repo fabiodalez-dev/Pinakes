@@ -3693,6 +3693,7 @@
   "Toggle menu": "Menü umschalten",
   "Toggle search": "Suche umschalten",
   "Token CSRF non valido": "Ungültiges CSRF-Token.",
+  "Token CSRF non valido.": "Ungültiges CSRF-Token.",
   "Token CSRF non valido. Riprova.": "Ungültiges CSRF-Token. Bitte versuchen Sie es erneut.",
   "Token configurato": "Token konfiguriert",
   "Token configurato — lascia vuoto per mantenere": "Token konfiguriert — leer lassen zum Beibehalten",

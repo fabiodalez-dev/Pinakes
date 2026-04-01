@@ -147,6 +147,11 @@ class MediaLabels
             return '';
         }
 
+        // If already formatted as HTML ordered list, return as-is
+        if (str_contains($text, '<ol') && str_contains($text, '</ol>')) {
+            return $text;
+        }
+
         // Remove "Tracklist:" prefix if present
         $text = preg_replace('/^Tracklist\s*:\s*/i', '', $text) ?? $text;
 
@@ -240,10 +245,16 @@ class MediaLabels
                 return 'audiolibro';
             }
 
-            foreach (['cdaudio', 'compactdisc', 'vinile', 'vinyl', 'lp', 'cd', 'cassetta', 'cassette', 'audiocassetta'] as $musicToken) {
+            // Long tokens: safe for substring match (unique enough)
+            foreach (['cdaudio', 'compactdisc', 'vinile', 'vinyl', 'cassetta', 'cassette', 'audiocassetta'] as $musicToken) {
                 if (str_contains($candidate, $musicToken)) {
                     return 'disco';
                 }
+            }
+            // Short tokens: exact match only to avoid false positives
+            // ('cd' would match 'cdrom', 'lp' would match 'help')
+            if ($candidate === 'cd' || $candidate === 'lp') {
+                return 'disco';
             }
 
             if (str_contains($candidate, 'dvd') || str_contains($candidate, 'bluray') || str_contains($candidate, 'blu_ray')) {

@@ -2992,6 +2992,7 @@
   "Titolo, sottotitolo, descrizione...": "Title, subtitle, description...",
   "Titolo...": "Title...",
   "Token CSRF non valido": "Invalid CSRF token.",
+  "Token CSRF non valido.": "Invalid CSRF token.",
   "Token CSRF non valido. Riprova.": "Invalid CSRF token. Please try again.",
   "Token configurato": "Token configured",
   "Token configurato — lascia vuoto per mantenere": "Token configured — leave empty to keep",
