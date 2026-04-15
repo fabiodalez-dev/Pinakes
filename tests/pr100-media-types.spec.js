@@ -190,6 +190,28 @@ test.describe.serial('PR #100: Media Types System', () => {
   // 8. CSV export includes tipo_media column
   // ═══════════════════════════════════════════════════════
   test('8. CSV export includes tipo_media', async () => {
+    // Quote-aware CSV record counter (tracklists contain embedded \n in cells)
+    const countCsvRecords = (csv) => {
+      const text = csv.replace(/^\uFEFF/, '');
+      let rows = 0, inQuote = false, hasContent = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === '"') {
+          if (inQuote && text[i + 1] === '"') { i++; continue; }
+          inQuote = !inQuote;
+          hasContent = true;
+        } else if ((ch === '\n' || ch === '\r') && !inQuote) {
+          if (hasContent) rows++;
+          hasContent = false;
+          if (ch === '\r' && text[i + 1] === '\n') i++;
+        } else {
+          hasContent = true;
+        }
+      }
+      if (hasContent) rows++;
+      return rows;
+    };
+
     const resp = await page.request.get(`${BASE}/admin/libri/export/csv?ids=${cdId},${bookId}`);
     expect(resp.status()).toBe(200);
     const body = await resp.text();
@@ -201,14 +223,9 @@ test.describe.serial('PR #100: Media Types System', () => {
     const idx = fields.indexOf('tipo_media');
     expect(idx).toBeGreaterThan(-1);
 
-    // Data rows
-    const lines = body.split('\n').filter(l => l.trim());
-    if (lines.length > 1) {
-      const row1 = lines[1].split(';');
-      // One should be disco, one empty/libro
-      const tipos = lines.slice(1).map(l => l.split(';')[idx]);
-      expect(tipos.some(t => t === 'disco')).toBe(true);
-    }
+    // #77 regression: selected export MUST return exactly header + 2 records
+    const records = countCsvRecords(body);
+    expect(records, 'Selected export (?ids=2) must have header + 2 data rows').toBe(3);
   });
 
   // ═══════════════════════════════════════════════════════

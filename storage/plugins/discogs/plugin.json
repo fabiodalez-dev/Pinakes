@@ -2,13 +2,13 @@
   "name": "discogs",
   "display_name": "Music Scraper (Discogs, MusicBrainz, Deezer)",
   "description": "Scraping multi-sorgente di metadati musicali: Discogs (barcode/titolo), MusicBrainz + Cover Art Archive (fallback barcode), Deezer (copertine HD). Supporta CD, LP, vinili, cassette.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://www.discogs.com",
   "main_file": "wrapper.php",
   "requires_php": "8.0",
-  "requires_app": "0.5.0",
+  "requires_app": "0.5.4",
   "max_app_version": "1.0.0",
   "metadata": {
     "optional": true,
@@ -35,13 +35,13 @@
       {
         "name": "scrape.sources",
         "callback_method": "addDiscogsSource",
-        "description": "Adds Discogs as a scraping source for music media",
+        "description": "Registers Discogs in the scraping source list",
         "priority": 8
       },
       {
         "name": "scrape.fetch.custom",
         "callback_method": "fetchFromDiscogs",
-        "description": "Fetches metadata from Discogs API",
+        "description": "Fetches metadata from Discogs API (with MusicBrainz fallback)",
         "priority": 8
       },
       {
@@ -49,14 +49,21 @@
         "callback_method": "enrichWithDiscogsData",
         "description": "Enriches data with Discogs covers and tracklists",
         "priority": 15
+      },
+      {
+        "name": "scrape.isbn.validate",
+        "callback_method": "validateBarcode",
+        "description": "Accepts 12/13-digit UPC/EAN barcodes (not just ISBNs) for music scraping",
+        "priority": 8
       }
     ],
     "features": [
-      "Ricerca per barcode (EAN/UPC)",
+      "Ricerca per barcode (EAN/UPC 12-13 cifre)",
       "Ricerca per titolo/artista",
       "Copertine album ad alta risoluzione",
       "Tracklist completa nella descrizione",
       "Mappatura etichetta su editore",
+      "Generi/stili Discogs salvati come parole chiave",
       "Supporto CD, vinile, cassette",
       "Fallback MusicBrainz + Cover Art Archive per barcode",
       "Arricchimento copertine HD da Deezer"

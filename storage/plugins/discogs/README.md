@@ -4,18 +4,19 @@ Plugin multi-sorgente per lo scraping di metadati musicali in Pinakes, pensato p
 
 ## Funzionamento
 
-Il plugin si aggancia al sistema di scraping tramite tre hook:
+Il plugin si aggancia al sistema di scraping tramite quattro hook:
 
 - **scrape.sources** (priorita 8) -- Registra il plugin come fonte di scraping
 - **scrape.fetch.custom** (priorita 8) -- Esegue la ricerca e il recupero dei metadati
 - **scrape.data.modify** (priorita 15) -- Arricchisce i dati con copertine mancanti
+- **scrape.isbn.validate** (priorita 8) -- Accetta codici UPC/EAN a 12-13 cifre oltre agli ISBN
 
 ### Strategia di ricerca
 
 1. Ricerca per barcode (EAN/UPC) su Discogs -- `GET /database/search?barcode={ean}&type=release`
 2. Recupero dettagli completi della release Discogs -- `GET /releases/{id}`
 3. **Fallback MusicBrainz** -- se Discogs non trova risultati, cerca su MusicBrainz per barcode
-4. **Arricchimento Deezer** -- se manca la copertina o il genere, cerca su Deezer per titolo+artista
+4. **Arricchimento Deezer** -- se manca la copertina, cerca su Deezer per titolo+artista
 
 ## Mappatura dati Discogs -> Pinakes
 
@@ -90,7 +91,7 @@ Non e richiesta autenticazione. Rate limit: 1 richiesta/secondo (rispettato auto
 
 ## Deezer (copertine HD)
 
-Se dopo Discogs e MusicBrainz la copertina o il genere sono ancora mancanti, il plugin cerca su [Deezer](https://developers.deezer.com/) per titolo+artista.
+Se dopo Discogs e MusicBrainz la copertina e ancora mancante, il plugin cerca su [Deezer](https://developers.deezer.com/) per titolo+artista (solo copertine HD, non generi).
 
 - **Ricerca album** -- `GET /search/album?q={artista}+{titolo}&limit=1`
 - **Copertina HD** -- usa `cover_xl` (1000x1000px) per la massima qualita

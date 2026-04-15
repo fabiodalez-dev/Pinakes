@@ -62,25 +62,25 @@ class PluginManager
             $pluginMeta = json_decode($json, true);
 
             if (!$pluginMeta || empty($pluginMeta['name'])) {
-                error_log("[PluginManager] Invalid plugin.json for bundled plugin: $pluginName");
+                SecureLogger::warning("[PluginManager] Invalid plugin.json for bundled plugin: $pluginName");
                 continue;
             }
 
             // Check if already registered
             $stmt = $this->db->prepare("SELECT id, version, is_active FROM plugins WHERE name = ?");
             if ($stmt === false) {
-                error_log("[PluginManager] Failed to prepare bundled plugin lookup for $pluginName: " . $this->db->error);
+                SecureLogger::warning("[PluginManager] Failed to prepare bundled plugin lookup for $pluginName: " . $this->db->error);
                 continue;
             }
             $stmt->bind_param('s', $pluginName);
             if (!$stmt->execute()) {
-                error_log("[PluginManager] Failed bundled plugin lookup execute for $pluginName: " . $stmt->error);
+                SecureLogger::warning("[PluginManager] Failed bundled plugin lookup execute for $pluginName: " . $stmt->error);
                 $stmt->close();
                 continue;
             }
             $result = $stmt->get_result();
             if ($result === false) {
-                error_log("[PluginManager] Failed bundled plugin lookup result for $pluginName: " . $stmt->error);
+                SecureLogger::warning("[PluginManager] Failed bundled plugin lookup result for $pluginName: " . $stmt->error);
                 $stmt->close();
                 continue;
             }
@@ -96,7 +96,7 @@ class PluginManager
                         "UPDATE plugins SET version = ?, display_name = ?, description = ?, metadata = ? WHERE id = ?"
                     );
                     if ($updStmt === false) {
-                        error_log("[PluginManager] Failed to prepare bundled plugin update for $pluginName: " . $this->db->error);
+                        SecureLogger::warning("[PluginManager] Failed to prepare bundled plugin update for $pluginName: " . $this->db->error);
                         continue;
                     }
                     $updDisplayName = $pluginMeta['display_name'] ?? $pluginName;
@@ -107,17 +107,17 @@ class PluginManager
                     $updated = $updStmt->execute();
                     $updStmt->close();
                     if (!$updated) {
-                        error_log("[PluginManager] Failed to update bundled plugin $pluginName: " . $this->db->error);
+                        SecureLogger::warning("[PluginManager] Failed to update bundled plugin $pluginName: " . $this->db->error);
                         continue;
                     }
-                    error_log("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
+                    SecureLogger::warning("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
 
                     // Re-register hooks only if plugin is active
                     if ((int) ($row['is_active'] ?? 0) === 1) {
                         try {
                             $this->runPluginMethod($pluginName, 'onActivate');
                         } catch (\Throwable $e) {
-                            error_log("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
+                            SecureLogger::warning("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
                         }
                     }
                 }
@@ -170,7 +170,7 @@ class PluginManager
                 $pluginId = $this->db->insert_id;
                 $registered++;
                 $activeLabel = $isOptional ? 'inactive (optional)' : 'active';
-                error_log("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, $activeLabel)");
+                SecureLogger::warning("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, $activeLabel)");
 
                 // Run onInstall if exists
                 try {
@@ -182,7 +182,7 @@ class PluginManager
                 try {
                     $this->runPluginMethod($pluginName, 'onInstall');
                 } catch (\Throwable $e) {
-                    error_log("[PluginManager] Note: onInstall failed for $pluginName: " . $e->getMessage());
+                    SecureLogger::warning("[PluginManager] Note: onInstall failed for $pluginName: " . $e->getMessage());
                 }
 
                 // Register hooks only for active (non-optional) plugins
@@ -190,18 +190,18 @@ class PluginManager
                     try {
                         $this->runPluginMethod($pluginName, 'onActivate');
                     } catch (\Throwable $e) {
-                        error_log("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                        SecureLogger::warning("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
                     }
                 }
             } else {
-                error_log("[PluginManager] Failed to auto-register $pluginName: " . $this->db->error);
+                SecureLogger::warning("[PluginManager] Failed to auto-register $pluginName: " . $this->db->error);
             }
 
             $stmt->close();
         }
 
         if ($registered > 0) {
-            error_log("[PluginManager] Auto-registered $registered bundled plugin(s)");
+            SecureLogger::warning("[PluginManager] Auto-registered $registered bundled plugin(s)");
         }
 
         return $registered;
@@ -259,7 +259,7 @@ class PluginManager
             // Check if plugin folder exists
             if (!is_dir($pluginPath)) {
                 $orphanIds[] = (int)$row['id'];
-                error_log("[PluginManager] Orphan plugin detected: '{$row['name']}' - folder missing at {$pluginPath}");
+                SecureLogger::warning("[PluginManager] Orphan plugin detected: '{$row['name']}' - folder missing at {$pluginPath}");
             }
         }
         $result->free();
@@ -272,7 +272,7 @@ class PluginManager
         // Use a loop to avoid mysqli bind_param by-reference issues with spread operator
         $stmt = $this->db->prepare("DELETE FROM plugins WHERE id = ?");
         if ($stmt === false) {
-            error_log('[PluginManager] Failed to prepare orphan plugin cleanup statement: ' . $this->db->error);
+            SecureLogger::warning('[PluginManager] Failed to prepare orphan plugin cleanup statement: ' . $this->db->error);
             return 0;
         }
 
@@ -289,7 +289,7 @@ class PluginManager
         $stmt->close();
 
         if ($deleted > 0) {
-            error_log("[PluginManager] Cleaned up {$deleted} orphan plugin(s) from database");
+            SecureLogger::warning("[PluginManager] Cleaned up {$deleted} orphan plugin(s) from database");
         }
 
         return $deleted;
@@ -388,17 +388,17 @@ class PluginManager
     public function installFromZip(string $zipPath): array
     {
         try {
-            error_log("🔌 [PluginManager] Starting plugin installation from: $zipPath");
+            SecureLogger::warning("🔌 [PluginManager] Starting plugin installation from: $zipPath");
 
             // Validate ZIP file
             if (!file_exists($zipPath)) {
-                error_log("❌ [PluginManager] ZIP file not found: $zipPath");
+                SecureLogger::warning("❌ [PluginManager] ZIP file not found: $zipPath");
                 return ['success' => false, 'message' => __('File ZIP non trovato.'), 'plugin_id' => null];
             }
 
             $fileSize = filesize($zipPath);
             if ($fileSize !== false && $fileSize > self::MAX_UPLOAD_BYTES) {
-                error_log("❌ [PluginManager] ZIP too large: {$fileSize} bytes");
+                SecureLogger::warning("❌ [PluginManager] ZIP too large: {$fileSize} bytes");
                 return ['success' => false, 'message' => __('File ZIP troppo grande. Dimensione massima: 100 MB.'), 'plugin_id' => null];
             }
 
@@ -619,13 +619,13 @@ class PluginManager
             try {
                 $this->runPluginMethod($pluginMeta['name'], 'setPluginId', [$pluginId]);
             } catch (\Throwable $e) {
-                error_log("[PluginManager] Note: Plugin doesn't have setPluginId method (not required): " . $e->getMessage());
+                SecureLogger::warning("[PluginManager] Note: Plugin doesn't have setPluginId method (not required): " . $e->getMessage());
             }
 
             // Run plugin installation hook if exists
             $this->runPluginMethod($pluginMeta['name'], 'onInstall');
 
-            error_log("✅ [PluginManager] Plugin installed successfully: {$pluginMeta['name']} (ID: $pluginId)");
+            SecureLogger::warning("✅ [PluginManager] Plugin installed successfully: {$pluginMeta['name']} (ID: $pluginId)");
 
             return [
                 'success' => true,
@@ -633,8 +633,8 @@ class PluginManager
                 'plugin_id' => $pluginId
             ];
         } catch (\Throwable $e) {
-            error_log("❌ [PluginManager] Installation error: " . $e->getMessage());
-            error_log("❌ [PluginManager] Stack trace: " . $e->getTraceAsString());
+            SecureLogger::warning("❌ [PluginManager] Installation error: " . $e->getMessage());
+            SecureLogger::warning("❌ [PluginManager] Stack trace: " . $e->getTraceAsString());
             return [
                 'success' => false,
                 'message' => 'Errore durante l\'installazione: ' . $e->getMessage(),
@@ -754,7 +754,7 @@ class PluginManager
             $this->runPluginMethod($plugin['name'], 'onUninstall');
         } catch (\Throwable $e) {
             // Continue with uninstall even if hook fails
-            error_log("Plugin uninstall hook error: " . $e->getMessage());
+            SecureLogger::warning("Plugin uninstall hook error: " . $e->getMessage());
         }
 
         // Delete from database (cascade will delete hooks, settings, data, logs)
@@ -1002,7 +1002,7 @@ class PluginManager
             $payload = base64_encode($iv . $tag . $ciphertext);
             return 'ENC:' . $payload;
         } catch (\Throwable $e) {
-            error_log('[PluginManager] Errore durante la cifratura del setting: ' . $e->getMessage());
+            SecureLogger::warning('[PluginManager] Errore durante la cifratura del setting: ' . $e->getMessage());
             return $value;
         }
     }
@@ -1018,13 +1018,13 @@ class PluginManager
 
         $key = $this->getEncryptionKey();
         if ($key === null) {
-            error_log('[PluginManager] Chiave di cifratura mancante: impossibile decrittare il valore.');
+            SecureLogger::warning('[PluginManager] Chiave di cifratura mancante: impossibile decrittare il valore.');
             return null;
         }
 
         $payload = base64_decode(substr($value, 4), true);
         if ($payload === false || strlen($payload) <= 28) {
-            error_log('[PluginManager] Payload cifrato non valido.');
+            SecureLogger::warning('[PluginManager] Payload cifrato non valido.');
             return null;
         }
 
@@ -1035,12 +1035,12 @@ class PluginManager
         try {
             $plaintext = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
             if ($plaintext === false) {
-                error_log('[PluginManager] Impossibile decrittare il valore del plugin setting.');
+                SecureLogger::warning('[PluginManager] Impossibile decrittare il valore del plugin setting.');
                 return null;
             }
             return $plaintext;
         } catch (\Throwable $e) {
-            error_log('[PluginManager] Eccezione durante la decrittazione: ' . $e->getMessage());
+            SecureLogger::warning('[PluginManager] Eccezione durante la decrittazione: ' . $e->getMessage());
             return null;
         }
     }
@@ -1181,7 +1181,7 @@ class PluginManager
             try {
                 $this->loadPlugin($plugin);
             } catch (\Throwable $e) {
-                error_log("[PluginManager] Failed to load plugin '{$plugin['name']}': " . $e->getMessage());
+                SecureLogger::warning("[PluginManager] Failed to load plugin '{$plugin['name']}': " . $e->getMessage());
                 // Continue loading other plugins even if one fails
             }
         }
@@ -1269,7 +1269,7 @@ class PluginManager
             if (method_exists($pluginInstance, $callbackMethod) || $this->hasMagicMethod($pluginInstance, $callbackMethod)) {
                 $this->hookManager->addHook($hookName, [$pluginInstance, $callbackMethod], $priority);
             } else {
-                error_log("[PluginManager] Method not found: {$callbackMethod} for hook {$hookName}");
+                SecureLogger::warning("[PluginManager] Method not found: {$callbackMethod} for hook {$hookName}");
             }
         }
 

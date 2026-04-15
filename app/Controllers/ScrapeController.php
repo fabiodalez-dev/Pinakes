@@ -767,10 +767,24 @@ class ScrapeController
      */
     private function normalizeIsbnFields(array $data, string $originalIsbn): array
     {
-        $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia(
-            $data['format'] ?? $data['formato'] ?? null,
-            $data['tipo_media'] ?? null
-        );
+        $formatRaw = $data['format'] ?? $data['formato'] ?? null;
+        $tipoMediaRaw = $data['tipo_media'] ?? null;
+
+        // If no scraper set either format or tipo_media, we cannot reliably
+        // tell whether the barcode is an ISBN or a music/DVD EAN. Skip the
+        // auto-population entirely to avoid stuffing a non-ISBN barcode into
+        // isbn13 (the old music-as-book bug). inferTipoMedia(null) defaults
+        // to 'libro' which would bypass the guard below.
+        $hasFormatSignal = $formatRaw !== null && $formatRaw !== '';
+        $hasTipoMediaSignal = $tipoMediaRaw !== null && $tipoMediaRaw !== '';
+        if (!$hasFormatSignal && !$hasTipoMediaSignal) {
+            SecureLogger::debug('[ScrapeController] Skipping ISBN normalization: no media-type signal', [
+                'isbn' => $originalIsbn,
+            ]);
+            return $data;
+        }
+
+        $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($formatRaw, $tipoMediaRaw);
         $data['tipo_media'] = $resolvedTipoMedia;
 
         // Skip ISBN auto-population for non-book media.

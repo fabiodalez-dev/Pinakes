@@ -2,9 +2,12 @@
 /**
  * Seed the catalog with books and music records.
  * This is a SEEDER — it does NOT clean up. Records persist for manual testing.
- * Run: /tmp/run-e2e.sh tests/seed-catalog.spec.js --config=tests/playwright.config.js --workers=1
+ * SKIPPED by default so regression runs don't mutate DB state.
+ * To run explicitly: E2E_RUN_SEED=1 /tmp/run-e2e.sh tests/seed-catalog.spec.js --config=tests/playwright.config.js --workers=1
  */
 const { test, expect } = require('@playwright/test');
+
+test.skip(process.env.E2E_RUN_SEED !== '1', 'Seeder skipped: set E2E_RUN_SEED=1 to run');
 const { execFileSync } = require('child_process');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';

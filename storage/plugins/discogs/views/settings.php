@@ -77,7 +77,7 @@ $pluginsRoute = htmlspecialchars(route_path('plugins'), ENT_QUOTES, 'UTF-8');
                 <div class="text-xs text-blue-800 space-y-2">
                     <p><strong><?= __("Funzionamento:") ?></strong> <?= __("Questo plugin si collega alle API di Discogs per recuperare automaticamente metadati di CD, vinili e altri supporti musicali tramite barcode (EAN/UPC) o ricerca testuale.") ?></p>
                     <p><strong><?= __("Token opzionale:") ?></strong> <?= __("Il token di accesso personale non è obbligatorio, ma aumenta il limite di richieste da 25 a 60 al minuto.") ?></p>
-                    <p><strong><?= __("Priorità:") ?></strong> <?= __("Ha priorità 8, viene interrogato dopo le fonti standard per i libri.") ?></p>
+                    <p><strong><?= __("Priorità:") ?></strong> <?= __("Ha priorità 8, viene interrogato dopo le fonti di scraping standard.") ?></p>
                 </div>
             </div>
         </div>

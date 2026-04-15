@@ -112,12 +112,13 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     // At minimum, title should be populated
     expect(titleValue.length).toBeGreaterThan(0);
 
-    // Check EAN field has the barcode
+    // Check EAN field has the barcode — and isbn13 MUST be empty.
+    // Regression guard: music barcodes must never be stuffed into isbn13
+    // (commit 7016608 + normalizeIsbnFields guard).
     const eanValue = await page.locator('input[name="ean"]').inputValue();
-    // The barcode might be in isbn13 or ean depending on the scraper
     const isbn13Value = await page.locator('input[name="isbn13"]').inputValue();
-    expect(eanValue === TEST_BARCODE || isbn13Value === TEST_BARCODE ||
-           eanValue.includes('720642442524') || isbn13Value.includes('720642442524')).toBe(true);
+    expect(eanValue, 'Barcode must land in ean for music media').toBe(TEST_BARCODE);
+    expect(isbn13Value, 'isbn13 must stay empty for non-book scraping').toBe('');
   });
 
   test('4. Save the imported CD', async () => {

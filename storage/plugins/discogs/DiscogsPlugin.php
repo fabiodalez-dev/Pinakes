@@ -267,7 +267,8 @@ class DiscogsPlugin
         try {
             $token = $this->getSetting('api_token');
 
-            // Search by barcode only (no generic fallback — too unreliable)
+            // Barcode search is the primary strategy; title/artist fallback
+            // below fires only when a previous scraper already supplied a title.
             $searchUrl = self::API_BASE . '/database/search?barcode=' . urlencode($isbn) . '&type=release';
             $searchResult = $this->apiRequest($searchUrl, $token);
 
@@ -589,7 +590,9 @@ class DiscogsPlugin
             'numero_pagine' => $trackCount > 0 ? (string) $trackCount : null,
             'note_varie' => $noteVarie !== '' ? $noteVarie : null,
             'physical_description' => $physicalDesc !== '' ? $physicalDesc : null,
-            'numero_inventario' => $catalogNumber !== '' ? $catalogNumber : null,
+            // Catalog number is recorded in note_varie ("Cat#: ...").
+            // numero_inventario is reserved for the library's internal per-copy
+            // inventory prefix — do not pre-fill from external metadata.
             'discogs_url' => $discogsUrl,
         ];
     }
@@ -803,18 +806,38 @@ class DiscogsPlugin
         }
 
         if ($httpCode !== 200 || !is_string($response) || $response === '') {
-            if ($httpCode === 429) {
-                \App\Support\SecureLogger::warning('[Discogs] Rate limit exceeded (HTTP 429)');
-            }
+            $this->logApiFailure('Discogs', (int) $httpCode, $url);
             return null;
         }
 
         $data = json_decode($response, true);
         if (!is_array($data)) {
+            \App\Support\SecureLogger::warning('[Discogs] JSON decode failed', [
+                'url' => $url,
+                'error' => json_last_error_msg(),
+            ]);
             return null;
         }
 
         return $data;
+    }
+
+    /**
+     * Log a failed external API request with severity inferred from HTTP code.
+     * 404 is treated as a normal "not found" and logged at debug level only.
+     */
+    private function logApiFailure(string $source, int $httpCode, string $url): void
+    {
+        $ctx = ['http_code' => $httpCode, 'url' => $url];
+        if ($httpCode === 404 || $httpCode === 0) {
+            \App\Support\SecureLogger::debug('[' . $source . '] Request returned ' . $httpCode, $ctx);
+            return;
+        }
+        if ($httpCode === 401 || $httpCode === 403) {
+            \App\Support\SecureLogger::error('[' . $source . '] Authentication failed (HTTP ' . $httpCode . ') — verify API token', $ctx);
+            return;
+        }
+        \App\Support\SecureLogger::warning('[' . $source . '] Request failed (HTTP ' . $httpCode . ')', $ctx);
     }
 
     // ─── Settings ───────────────────────────────────────────────────────
@@ -1229,6 +1252,7 @@ class DiscogsPlugin
         }
 
         if ($code !== 200 || !is_string($resp)) {
+            $this->logApiFailure('CoverArt', (int) $code, $url);
             return null;
         }
 
@@ -1297,11 +1321,19 @@ class DiscogsPlugin
         }
 
         if ($code !== 200 || !is_string($resp)) {
+            $this->logApiFailure('MusicBrainz', (int) $code, $url);
             return null;
         }
 
         $data = json_decode($resp, true);
-        return is_array($data) ? $data : null;
+        if (!is_array($data)) {
+            \App\Support\SecureLogger::warning('[MusicBrainz] JSON decode failed', [
+                'url' => $url,
+                'error' => json_last_error_msg(),
+            ]);
+            return null;
+        }
+        return $data;
     }
 
     // ─── Deezer Integration ─────────────────────────────────────────────
@@ -1355,11 +1387,19 @@ class DiscogsPlugin
         }
 
         if ($code !== 200 || !is_string($resp)) {
+            $this->logApiFailure('Deezer', (int) $code, $url);
             return $data;
         }
 
         $result = json_decode($resp, true);
-        if (!is_array($result) || empty($result['data'][0])) {
+        if (!is_array($result)) {
+            \App\Support\SecureLogger::warning('[Deezer] JSON decode failed', [
+                'url' => $url,
+                'error' => json_last_error_msg(),
+            ]);
+            return $data;
+        }
+        if (empty($result['data'][0])) {
             return $data;
         }
 
