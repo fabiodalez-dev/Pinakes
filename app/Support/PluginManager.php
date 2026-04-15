@@ -133,7 +133,7 @@ class PluginManager
                 INSERT INTO plugins (
                     name, display_name, description, version, author, author_url, plugin_url,
                     is_active, path, main_file, requires_php, requires_app, metadata, installed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
 
             $metadata = json_encode($pluginMeta['metadata'] ?? []);
