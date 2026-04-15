@@ -149,8 +149,14 @@ class PluginManager
             $requiresPhp = $pluginMeta['requires_php'] ?? '';
             $requiresApp = $pluginMeta['requires_app'] ?? '';
 
+            // Types must line up with the INSERT column order:
+            // s×7 (name, display_name, description, version, author, author_url, plugin_url),
+            // i (is_active), s (path), s×4 (main_file, requires_php, requires_app, metadata).
+            // Prior typo 'ssssssssissss' put `i` at position 9 (path) and `s` at position 8
+            // (is_active), causing path='discogs'/'goodlib' to be cast to int 0 — the orphan
+            // plugin cleanup then deleted the rows on the very next request.
             $stmt->bind_param(
-                'ssssssssissss',
+                'sssssssisssss',
                 $name,
                 $displayName,
                 $description,
