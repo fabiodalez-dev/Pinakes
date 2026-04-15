@@ -37,6 +37,20 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
       !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME,
       'Missing E2E env vars'
     );
+    // Skip entire suite if the app is not installed (tables don't exist).
+    // Run tests/smoke-install.spec.js first on a fresh DB.
+    try {
+      const tables = dbQuery(
+        "SELECT COUNT(*) FROM information_schema.tables " +
+        `WHERE table_schema = DATABASE() AND table_name IN ('plugins','libri','utenti')`
+      );
+      test.skip(
+        parseInt(tables, 10) < 3,
+        'App not installed (run tests/smoke-install.spec.js first)'
+      );
+    } catch {
+      test.skip(true, 'Cannot reach DB (run tests/smoke-install.spec.js first)');
+    }
     context = await browser.newContext();
     page = await context.newPage();
 

@@ -173,6 +173,19 @@ test.describe.serial('PR #100 fixes — record lifecycle', () => {
   let bookId = 0;
 
   test.beforeAll(async ({ browser }) => {
+    // Skip lifecycle suite when app is not installed — offline tests still run
+    try {
+      const tables = dbQuery(
+        "SELECT COUNT(*) FROM information_schema.tables " +
+        `WHERE table_schema = DATABASE() AND table_name IN ('libri','utenti','plugins')`
+      );
+      test.skip(
+        parseInt(tables, 10) < 3,
+        'App not installed (run tests/smoke-install.spec.js first)'
+      );
+    } catch {
+      test.skip(true, 'Cannot reach DB (run tests/smoke-install.spec.js first)');
+    }
     context = await browser.newContext();
     page = await context.newPage();
     await page.goto(`${BASE}/accedi`);

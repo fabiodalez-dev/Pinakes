@@ -37,6 +37,19 @@ test.describe.serial('PR #100: Media Types System', () => {
 
   test.beforeAll(async ({ browser }) => {
     test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME, 'Missing env vars');
+    // Skip if app is not installed yet (run smoke-install first)
+    try {
+      const tables = dbQuery(
+        "SELECT COUNT(*) FROM information_schema.tables " +
+        `WHERE table_schema = DATABASE() AND table_name IN ('libri','utenti','plugins')`
+      );
+      test.skip(
+        parseInt(tables, 10) < 3,
+        'App not installed (run tests/smoke-install.spec.js first)'
+      );
+    } catch {
+      test.skip(true, 'Cannot reach DB (run tests/smoke-install.spec.js first)');
+    }
     context = await browser.newContext();
     page = await context.newPage();
 
