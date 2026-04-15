@@ -69,16 +69,22 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
   });
 
   test('1. Verify Discogs plugin is active', async () => {
-    const isActive = dbQuery("SELECT COUNT(*) FROM plugins WHERE name = 'discogs' AND is_active = 1");
-    if (parseInt(isActive) === 0) {
-      // Activate it
-      await page.goto(`${BASE}/admin/plugins`);
-      await page.waitForLoadState('domcontentloaded');
-      // The plugin is bundled, so it should auto-register on page visit
-      await page.waitForTimeout(2000);
-      const isActiveNow = dbQuery("SELECT COUNT(*) FROM plugins WHERE name = 'discogs' AND is_active = 1");
-      expect(parseInt(isActiveNow, 10), 'Discogs plugin could not be activated').toBeGreaterThan(0);
-    }
+    // Discogs is a bundled-but-OPTIONAL plugin — on fresh install it is
+    // registered with is_active=0 (no auto-activation for optional plugins).
+    // The scraping flow requires it active, so activate it explicitly.
+    const registered = parseInt(
+      dbQuery("SELECT COUNT(*) FROM plugins WHERE name = 'discogs'"),
+      10
+    );
+    expect(registered, 'Discogs plugin must be auto-registered by PluginManager on boot').toBeGreaterThan(0);
+
+    dbExec("UPDATE plugins SET is_active = 1 WHERE name = 'discogs'");
+
+    const isActive = parseInt(
+      dbQuery("SELECT COUNT(*) FROM plugins WHERE name = 'discogs' AND is_active = 1"),
+      10
+    );
+    expect(isActive, 'Discogs plugin activation must succeed').toBe(1);
   });
 
   test('2. Import CD via barcode in book form', async () => {
