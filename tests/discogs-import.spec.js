@@ -46,6 +46,16 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     await page.fill('input[name="password"]', ADMIN_PASS);
     await page.click('button[type="submit"]');
     await page.waitForURL(/\/admin\//, { timeout: 15000 });
+
+    // Soft-delete any pre-existing record with the same barcode (e.g. from a
+    // previous run of this test that died before afterAll, or from seed data).
+    // UNIQUE constraint on ean would otherwise block the save step.
+    try {
+      dbExec(
+        `UPDATE libri SET deleted_at = NOW(), ean = NULL, isbn13 = NULL, isbn10 = NULL ` +
+        `WHERE (ean = '${TEST_BARCODE}' OR isbn13 = '${TEST_BARCODE}') AND deleted_at IS NULL`
+      );
+    } catch {}
   });
 
   test.afterAll(async () => {
