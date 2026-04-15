@@ -69,18 +69,18 @@ class PluginManager
             // Check if already registered
             $stmt = $this->db->prepare("SELECT id, version, is_active FROM plugins WHERE name = ?");
             if ($stmt === false) {
-                SecureLogger::warning("[PluginManager] Failed to prepare bundled plugin lookup for $pluginName: " . $this->db->error);
+                SecureLogger::error("[PluginManager] Failed to prepare bundled plugin lookup for $pluginName", ['db_error' => $this->db->error]);
                 continue;
             }
             $stmt->bind_param('s', $pluginName);
             if (!$stmt->execute()) {
-                SecureLogger::warning("[PluginManager] Failed bundled plugin lookup execute for $pluginName: " . $stmt->error);
+                SecureLogger::error("[PluginManager] Failed bundled plugin lookup execute for $pluginName", ['stmt_error' => $stmt->error]);
                 $stmt->close();
                 continue;
             }
             $result = $stmt->get_result();
             if ($result === false) {
-                SecureLogger::warning("[PluginManager] Failed bundled plugin lookup result for $pluginName: " . $stmt->error);
+                SecureLogger::error("[PluginManager] Failed bundled plugin lookup result for $pluginName", ['stmt_error' => $stmt->error]);
                 $stmt->close();
                 continue;
             }
@@ -96,7 +96,7 @@ class PluginManager
                         "UPDATE plugins SET version = ?, display_name = ?, description = ?, metadata = ? WHERE id = ?"
                     );
                     if ($updStmt === false) {
-                        SecureLogger::warning("[PluginManager] Failed to prepare bundled plugin update for $pluginName: " . $this->db->error);
+                        SecureLogger::error("[PluginManager] Failed to prepare bundled plugin update for $pluginName", ['db_error' => $this->db->error]);
                         continue;
                     }
                     $updDisplayName = $pluginMeta['display_name'] ?? $pluginName;
@@ -107,7 +107,7 @@ class PluginManager
                     $updated = $updStmt->execute();
                     $updStmt->close();
                     if (!$updated) {
-                        SecureLogger::warning("[PluginManager] Failed to update bundled plugin $pluginName: " . $this->db->error);
+                        SecureLogger::error("[PluginManager] Failed to update bundled plugin $pluginName", ['db_error' => $this->db->error]);
                         continue;
                     }
                     SecureLogger::warning("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
@@ -200,7 +200,10 @@ class PluginManager
                     }
                 }
             } else {
-                SecureLogger::warning("[PluginManager] Failed to auto-register $pluginName: " . $this->db->error);
+                // This is the failure mode that masked the bind_param type-swap
+                // bug (commit fb1e881). MUST be error severity so it surfaces in
+                // monitoring instead of being lost in warning-level noise.
+                SecureLogger::error("[PluginManager] Failed to auto-register $pluginName", ['db_error' => $this->db->error]);
             }
 
             $stmt->close();
@@ -278,7 +281,7 @@ class PluginManager
         // Use a loop to avoid mysqli bind_param by-reference issues with spread operator
         $stmt = $this->db->prepare("DELETE FROM plugins WHERE id = ?");
         if ($stmt === false) {
-            SecureLogger::warning('[PluginManager] Failed to prepare orphan plugin cleanup statement: ' . $this->db->error);
+            SecureLogger::error('[PluginManager] Failed to prepare orphan plugin cleanup statement', ['db_error' => $this->db->error]);
             return 0;
         }
 
@@ -377,7 +380,7 @@ class PluginManager
         try {
             return $this->instantiatePlugin($plugin);
         } catch (\Throwable $e) {
-            SecureLogger::warning("[PluginManager] Failed to instantiate plugin {$plugin['name']}", [
+            SecureLogger::error("[PluginManager] Failed to instantiate plugin {$plugin['name']}", [
                 'plugin_id' => $pluginId,
                 'error' => $e->getMessage(),
             ]);
@@ -639,7 +642,7 @@ class PluginManager
                 'plugin_id' => $pluginId
             ];
         } catch (\Throwable $e) {
-            SecureLogger::warning("❌ [PluginManager] Installation error: " . $e->getMessage());
+            SecureLogger::error("[PluginManager] Installation error", ['error' => $e->getMessage()]);
             SecureLogger::warning("❌ [PluginManager] Stack trace: " . $e->getTraceAsString());
             return [
                 'success' => false,
@@ -992,8 +995,16 @@ class PluginManager
     {
         $key = $this->getEncryptionKey();
 
-        if ($key === null || $value === '') {
+        // Empty strings bypass encryption (idempotent no-op).
+        if ($value === '') {
             return $value;
+        }
+
+        // If no encryption key is configured, refuse to persist the secret.
+        // Returning plaintext would silently store API tokens unencrypted.
+        if ($key === null) {
+            SecureLogger::error('[PluginManager] Encryption key unavailable — refusing to persist plaintext plugin setting. Configure PLUGIN_ENCRYPTION_KEY or APP_KEY in .env.');
+            throw new \RuntimeException('Plugin encryption key not configured — cannot persist secret setting.');
         }
 
         try {
@@ -1002,14 +1013,22 @@ class PluginManager
             $ciphertext = openssl_encrypt($value, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
 
             if ($ciphertext === false) {
-                return $value;
+                SecureLogger::error('[PluginManager] openssl_encrypt failed — refusing plaintext fallback', [
+                    'openssl_error' => openssl_error_string() ?: 'unknown',
+                ]);
+                throw new \RuntimeException('Plugin setting encryption failed.');
             }
 
             $payload = base64_encode($iv . $tag . $ciphertext);
             return 'ENC:' . $payload;
+        } catch (\RuntimeException $e) {
+            // Re-raise our own guards (set above) without wrapping.
+            throw $e;
         } catch (\Throwable $e) {
-            SecureLogger::warning('[PluginManager] Errore durante la cifratura del setting: ' . $e->getMessage());
-            return $value;
+            SecureLogger::error('[PluginManager] Errore durante la cifratura del setting — refusing plaintext fallback', [
+                'error' => $e->getMessage(),
+            ]);
+            throw new \RuntimeException('Plugin setting encryption failed: ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -1187,7 +1206,7 @@ class PluginManager
             try {
                 $this->loadPlugin($plugin);
             } catch (\Throwable $e) {
-                SecureLogger::warning("[PluginManager] Failed to load plugin '{$plugin['name']}': " . $e->getMessage());
+                SecureLogger::error("[PluginManager] Failed to load plugin '{$plugin['name']}'", ['error' => $e->getMessage()]);
                 // Continue loading other plugins even if one fails
             }
         }

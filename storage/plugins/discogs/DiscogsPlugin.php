@@ -46,7 +46,7 @@ class DiscogsPlugin
         Hooks::add('scrape.sources', [$this, 'addDiscogsSource'], 8);
         Hooks::add('scrape.fetch.custom', [$this, 'fetchFromDiscogs'], 8);
         Hooks::add('scrape.data.modify', [$this, 'enrichWithDiscogsData'], 15);
-        Hooks::add('scrape.isbn.validate', [$this, 'validateBarcode'], 5);
+        Hooks::add('scrape.isbn.validate', [$this, 'validateBarcode'], 8);
     }
 
     /**
@@ -122,7 +122,7 @@ class DiscogsPlugin
             ['scrape.sources', 'addDiscogsSource', 8],
             ['scrape.fetch.custom', 'fetchFromDiscogs', 8],
             ['scrape.data.modify', 'enrichWithDiscogsData', 15],
-            ['scrape.isbn.validate', 'validateBarcode', 5],
+            ['scrape.isbn.validate', 'validateBarcode', 8],
         ];
 
         $stmt = null;
@@ -789,7 +789,8 @@ class DiscogsPlugin
             CURLOPT_TIMEOUT        => self::TIMEOUT,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_USERAGENT      => self::USER_AGENT,
             CURLOPT_HTTPHEADER     => $headers,
             CURLOPT_SSL_VERIFYPEER => true,
@@ -1036,12 +1037,15 @@ class DiscogsPlugin
 
         $release = $result['releases'][0];
         $mbid = $release['id'] ?? null;
-        if ($mbid === null || !is_string($mbid)) {
+        // Validate MBID as a MusicBrainz UUID (lowercase hex + dashes, 36 chars).
+        // Defence in depth: a compromised/spoofed upstream response must not be
+        // able to inject `..`, `?`, `#`, or anything else into the detail URL.
+        if (!is_string($mbid) || !preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/', $mbid)) {
             return null;
         }
 
         // Fetch full release details
-        $detailUrl = 'https://musicbrainz.org/ws/2/release/' . $mbid . '?inc=artists+labels+recordings+release-groups&fmt=json';
+        $detailUrl = 'https://musicbrainz.org/ws/2/release/' . rawurlencode($mbid) . '?inc=artists+labels+recordings+release-groups&fmt=json';
         $detail = $this->musicBrainzRequest($detailUrl);
         if (empty($detail)) {
             return null;
@@ -1237,7 +1241,8 @@ class DiscogsPlugin
             CURLOPT_TIMEOUT        => 10,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_USERAGENT      => self::USER_AGENT,
             CURLOPT_SSL_VERIFYPEER => true,
         ]);
@@ -1305,7 +1310,8 @@ class DiscogsPlugin
             CURLOPT_TIMEOUT        => self::TIMEOUT,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_USERAGENT      => self::USER_AGENT,
             CURLOPT_HTTPHEADER     => ['Accept: application/json'],
             CURLOPT_SSL_VERIFYPEER => true,
@@ -1372,7 +1378,8 @@ class DiscogsPlugin
             CURLOPT_TIMEOUT        => 10,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_MAXREDIRS      => 5,
-            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTPS,
+            CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_USERAGENT      => self::USER_AGENT,
             CURLOPT_SSL_VERIFYPEER => true,
         ]);

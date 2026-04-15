@@ -81,8 +81,9 @@ WHERE tipo_media = 'libro'
        OR LOWER(formato) LIKE '%cassett%'
        OR LOWER(formato) LIKE '%audio cassetta%' OR LOWER(formato) LIKE '%audio-cassetta%'
        OR LOWER(formato) LIKE '%audiocassetta%'
-       OR LOWER(formato) REGEXP '[[:<:]]music[[:>:]]'
-       OR LOWER(formato) REGEXP '[[:<:]]musik[[:>:]]')
+       -- MySQL 8.0.4+ removed POSIX [[:<:]]/[[:>:]] — use ICU \b word boundary.
+       OR LOWER(formato) REGEXP '\\bmusic\\b'
+       OR LOWER(formato) REGEXP '\\bmusik\\b')
   AND LOWER(formato) NOT LIKE '%audiolibro%' AND LOWER(formato) NOT LIKE '%audiobook%';
 
 UPDATE libri SET tipo_media = 'audiolibro'

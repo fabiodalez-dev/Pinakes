@@ -778,8 +778,14 @@ class ScrapeController
         $hasFormatSignal = $formatRaw !== null && $formatRaw !== '';
         $hasTipoMediaSignal = $tipoMediaRaw !== null && $tipoMediaRaw !== '';
         if (!$hasFormatSignal && !$hasTipoMediaSignal) {
-            SecureLogger::debug('[ScrapeController] Skipping ISBN normalization: no media-type signal', [
+            // This is a real scraper bug surfacing: the plugin returned a
+            // partial payload without indicating media type. Warning (not
+            // debug) because it leaves the book half-populated and the admin
+            // needs to investigate which scraper misbehaved.
+            SecureLogger::warning('[ScrapeController] Scraper returned no media-type signal — skipping ISBN normalization', [
                 'isbn' => $originalIsbn,
+                'source' => $data['source'] ?? $data['_source'] ?? 'unknown',
+                'payload_keys' => array_keys($data),
             ]);
             return $data;
         }
