@@ -410,6 +410,9 @@ hackernews.md
 docs/reference/bug-gemini.md
 docs/reference/analisi-sicurezza.md
 scripts/generate_dewey_json.py
+scripts/create-release-local.sh
+pinakes-v*-local.zip
+pinakes-v*-local.zip.sha256
 docs/reference/start-server.md
 docs/reference/security-audit-report.md
 docs/reference/routes-to-add.md
