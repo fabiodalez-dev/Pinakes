@@ -65,6 +65,14 @@ test.describe.serial('Smoke: clean install + core operations', () => {
 
   let installerAvailable = true;
 
+  // RUN_ID makes titles/author names unique per test run, so re-running the
+  // suite against an already-populated DB does not hit Choices.js autocomplete
+  // on a matching existing record.
+  const RUN_ID = Date.now().toString(36);
+  const BOOK_TITLE = `Il Nome della Rosa ${RUN_ID}`;
+  const BOOK_TITLE_UPDATED = `${BOOK_TITLE} - Edizione Rivista`;
+  const AUTHOR_NAME = `Umberto Eco ${RUN_ID}`;
+
   test.beforeAll(async ({ browser }) => {
     context = await browser.newContext();
     page = await context.newPage();
@@ -211,12 +219,12 @@ test.describe.serial('Smoke: clean install + core operations', () => {
     await page.waitForLoadState('networkidle');
 
     // Fill title
-    await page.fill('#titolo', 'Il Nome della Rosa');
+    await page.fill('#titolo', BOOK_TITLE);
 
     // Create author inline via Choices.js
     // Target the author search input specifically (not the publisher one)
     const authorInput = page.locator('.choices__input--cloned[aria-label*="autori"]');
-    await authorInput.fill('Umberto Eco');
+    await authorInput.fill(AUTHOR_NAME);
     await authorInput.press('Enter');
 
     // Wait for the author item to appear in the Choices.js widget
@@ -243,7 +251,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
 
     // Get the book ID from the API for later tests
     const listResp = await page.request.get(
-      `${BASE}/api/libri?start=0&length=5&search[value]=${encodeURIComponent('Il Nome della Rosa')}`
+      `${BASE}/api/libri?start=0&length=5&search[value]=${encodeURIComponent(BOOK_TITLE)}`
     );
     const listData = await listResp.json();
     expect(listData.data.length).toBeGreaterThan(0);
@@ -281,7 +289,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
     await page.waitForLoadState('networkidle');
 
     // Change the title
-    await page.fill('#titolo', 'Il Nome della Rosa - Edizione Rivista');
+    await page.fill('#titolo', BOOK_TITLE_UPDATED);
 
     // Submit — SweetAlert2 confirmation dialog
     await page.locator('#bookForm button[type="submit"]').click();
