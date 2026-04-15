@@ -297,12 +297,16 @@ test.describe.serial('Smoke: clean install + core operations', () => {
     await page.locator('.swal2-confirm').click();
     await page.waitForURL(/admin\/libri(?!.*modifica)/, { timeout: 15000 });
 
-    // Verify the title was updated via API
+    // Verify the title was updated via API — search by RUN_ID so we only
+    // match the record this run created (the DB may hold titles from prior runs).
     const listResp = await page.request.get(
-      `${BASE}/api/libri?start=0&length=5&search[value]=${encodeURIComponent('Edizione Rivista')}`
+      `${BASE}/api/libri?start=0&length=5&search[value]=${encodeURIComponent(RUN_ID)}`
     );
     const listData = await listResp.json();
     expect(listData.data.length).toBeGreaterThan(0);
-    expect(listData.data[0].titolo).toContain('Edizione Rivista');
+    const match = listData.data.find(
+      (b) => typeof b.titolo === 'string' && b.titolo.includes('Edizione Rivista')
+    );
+    expect(match, 'Updated title must contain Edizione Rivista').toBeTruthy();
   });
 });
