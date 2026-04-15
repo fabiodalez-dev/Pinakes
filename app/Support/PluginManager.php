@@ -110,7 +110,7 @@ class PluginManager
                         SecureLogger::error("[PluginManager] Failed to update bundled plugin $pluginName", ['db_error' => $this->db->error]);
                         continue;
                     }
-                    SecureLogger::warning("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
+                    SecureLogger::info("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
 
                     // Re-register hooks only if plugin is active
                     if ((int) ($row['is_active'] ?? 0) === 1) {
@@ -176,7 +176,7 @@ class PluginManager
                 $pluginId = $this->db->insert_id;
                 $registered++;
                 $activeLabel = $isOptional ? 'inactive (optional)' : 'active';
-                SecureLogger::warning("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, $activeLabel)");
+                SecureLogger::info("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, $activeLabel)");
 
                 // Run onInstall if exists
                 try {
@@ -210,7 +210,7 @@ class PluginManager
         }
 
         if ($registered > 0) {
-            SecureLogger::warning("[PluginManager] Auto-registered $registered bundled plugin(s)");
+            SecureLogger::info("[PluginManager] Auto-registered $registered bundled plugin(s)");
         }
 
         return $registered;
@@ -298,7 +298,7 @@ class PluginManager
         $stmt->close();
 
         if ($deleted > 0) {
-            SecureLogger::warning("[PluginManager] Cleaned up {$deleted} orphan plugin(s) from database");
+            SecureLogger::info("[PluginManager] Cleaned up {$deleted} orphan plugin(s) from database");
         }
 
         return $deleted;
@@ -634,7 +634,7 @@ class PluginManager
             // Run plugin installation hook if exists
             $this->runPluginMethod($pluginMeta['name'], 'onInstall');
 
-            SecureLogger::warning("✅ [PluginManager] Plugin installed successfully: {$pluginMeta['name']} (ID: $pluginId)");
+            SecureLogger::info("[PluginManager] Plugin installed successfully: {$pluginMeta['name']} (ID: $pluginId)");
 
             return [
                 'success' => true,
@@ -643,7 +643,7 @@ class PluginManager
             ];
         } catch (\Throwable $e) {
             SecureLogger::error("[PluginManager] Installation error", ['error' => $e->getMessage()]);
-            SecureLogger::warning("❌ [PluginManager] Stack trace: " . $e->getTraceAsString());
+            SecureLogger::error("[PluginManager] Stack trace: " . $e->getTraceAsString());
             return [
                 'success' => false,
                 'message' => 'Errore durante l\'installazione: ' . $e->getMessage(),
