@@ -39,6 +39,10 @@ class BulkEnrichController
      */
     public function start(Request $request, Response $response, mysqli $db): Response
     {
+        // Batch scraping can exceed the default 30s max_execution_time
+        // (each book takes ~2-5s for API calls + 1s inter-book rate limit).
+        set_time_limit(300);
+
         $service = new BulkEnrichmentService($db);
 
         try {
