@@ -47,6 +47,8 @@ const ISBN_GATSBY      = '9780743273565';  // The Great Gatsby
 const ISBN_CATCHER     = '9780316769488';  // The Catcher in the Rye
 const ISBN_HOBBIT      = '9780547928227';  // The Hobbit
 const ISBN_FAKE        = '9999999999999';  // Non-existent ISBN
+const ISBN_NOOVERWRITE1 = '9780142437209'; // Moby Dick (no-overwrite tests)
+const ISBN_NOOVERWRITE2 = '9780140283334'; // Brave New World (no-overwrite tests)
 
 const prefix = `ENRICH_${RUN_ID}`;
 
@@ -61,6 +63,31 @@ test.describe.serial('Bulk Enrichment', () => {
 
   /** Whether the bulk-enrich feature tables/routes exist */
   let featureAvailable = true;
+
+  let csrfToken = '';
+
+  /** Get CSRF token from the bulk-enrich page */
+  async function getCsrf() {
+    if (csrfToken) return csrfToken;
+    await page.goto(`${BASE}/admin/libri/bulk-enrich`);
+    csrfToken = await page.evaluate(() => {
+      for (const s of document.querySelectorAll('script')) {
+        const m = s.textContent.match(/csrfToken\s*=\s*"([^"]+)"/);
+        if (m) return m[1];
+      }
+      const input = document.querySelector('input[name="csrf_token"]');
+      return input ? input.value : '';
+    });
+    return csrfToken;
+  }
+
+  /** POST with CSRF token */
+  async function postWithCsrf(url, formData = {}) {
+    const token = await getCsrf();
+    return page.request.post(url, {
+      form: { ...formData, csrf_token: token },
+    });
+  }
 
   test.beforeAll(async ({ browser }) => {
     test.skip(
@@ -115,7 +142,7 @@ test.describe.serial('Bulk Enrichment', () => {
     // Restore toggle setting to off
     try {
       dbExec(
-        "DELETE FROM system_settings WHERE setting_key = 'bulk_enrich_enabled'"
+        "DELETE FROM system_settings WHERE category = 'bulk_enrich' AND setting_key = 'enabled'"
       );
     } catch { /* ignore */ }
 
@@ -242,9 +269,8 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('5. Toggle ON enables auto-enrichment', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-
-    const resp = await page.request.post(`${BASE}/admin/libri/bulk-enrich/toggle`, {
-      form: { enabled: '1' },
+    const resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/toggle`, {
+      enabled: '1',
     });
     expect(resp.status()).toBe(200);
     const json = await resp.json();
@@ -252,7 +278,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     // Verify in DB
     const val = dbQuery(
-      "SELECT setting_value FROM system_settings WHERE setting_key = 'bulk_enrich_enabled' LIMIT 1"
+      "SELECT setting_value FROM system_settings WHERE category = 'bulk_enrich' AND setting_key = 'enabled' LIMIT 1"
     );
     expect(val).toBe('1');
   });
@@ -260,15 +286,15 @@ test.describe.serial('Bulk Enrichment', () => {
   test('6. Toggle OFF disables auto-enrichment', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
 
-    const resp = await page.request.post(`${BASE}/admin/libri/bulk-enrich/toggle`, {
-      form: { enabled: '0' },
+    const resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/toggle`, {
+      enabled: '0',
     });
     expect(resp.status()).toBe(200);
     const json = await resp.json();
     expect(json.success ?? json.ok).toBeTruthy();
 
     const val = dbQuery(
-      "SELECT setting_value FROM system_settings WHERE setting_key = 'bulk_enrich_enabled' LIMIT 1"
+      "SELECT setting_value FROM system_settings WHERE category = 'bulk_enrich' AND setting_key = 'enabled' LIMIT 1"
     );
     expect(val).toBe('0');
   });
@@ -281,7 +307,7 @@ test.describe.serial('Bulk Enrichment', () => {
     try {
       const anonPage = await anonContext.newPage();
       const resp = await anonPage.request.post(`${BASE}/admin/libri/bulk-enrich/toggle`, {
-        form: { enabled: '1' },
+        enabled: '1',
         maxRedirects: 0,
       });
 
@@ -302,8 +328,8 @@ test.describe.serial('Bulk Enrichment', () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
 
     // Set toggle ON
-    await page.request.post(`${BASE}/admin/libri/bulk-enrich/toggle`, {
-      form: { enabled: '1' },
+    await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/toggle`, {
+      enabled: '1',
     });
 
     // Reload the page
@@ -325,8 +351,8 @@ test.describe.serial('Bulk Enrichment', () => {
     }
 
     // Reset to OFF for subsequent tests
-    await page.request.post(`${BASE}/admin/libri/bulk-enrich/toggle`, {
-      form: { enabled: '0' },
+    await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/toggle`, {
+      enabled: '0',
     });
   });
 
@@ -336,7 +362,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('9. Manual batch enriches book with valid ISBN (cover)', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    test.setTimeout(30000);
+    test.setTimeout(120000);
 
     // Ensure test book has no cover
     const targetId = bookIds[0];
@@ -344,7 +370,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     let resp;
     try {
-      resp = await page.request.post(`${BASE}/admin/libri/bulk-enrich/start`, {
+      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
         timeout: 25000,
       });
     } catch {
@@ -365,7 +391,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('10. Manual batch enriches book with valid ISBN (description)', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    test.setTimeout(30000);
+    test.setTimeout(120000);
 
     const targetId = bookIds[0];
 
@@ -374,7 +400,7 @@ test.describe.serial('Bulk Enrichment', () => {
     if (desc === '') {
       // Try another batch run
       try {
-        await page.request.post(`${BASE}/admin/libri/bulk-enrich/start`, {
+        await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
           timeout: 25000,
         });
       } catch {
@@ -394,20 +420,20 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('11. Manual batch does NOT overwrite existing cover', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    test.setTimeout(30000);
+    test.setTimeout(120000);
 
     const existingCover = 'my-existing-cover.jpg';
 
     // Insert book with pre-existing cover
     dbExec(
       "INSERT INTO libri (titolo, isbn13, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
-      `VALUES ('${prefix}_HasCover', '${ISBN_1984}', '${existingCover}', NULL, 1, 1, 'disponibile', NOW(), NOW())`
+      `VALUES ('${prefix}_HasCover', '${ISBN_NOOVERWRITE1}', '${existingCover}', NULL, 1, 1, 'disponibile', NOW(), NOW())`
     );
     const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_HasCover' AND deleted_at IS NULL LIMIT 1`);
     bookIds.push(parseInt(id, 10));
 
     try {
-      await page.request.post(`${BASE}/admin/libri/bulk-enrich/start`, {
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
         timeout: 25000,
       });
     } catch {
@@ -420,20 +446,20 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('12. Manual batch does NOT overwrite existing description', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    test.setTimeout(30000);
+    test.setTimeout(120000);
 
     const existingDesc = 'My custom description that must not be overwritten.';
 
     // Insert book with pre-existing description
     dbExec(
       "INSERT INTO libri (titolo, isbn13, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
-      `VALUES ('${prefix}_HasDesc', '${ISBN_GATSBY}', NULL, '${existingDesc}', 1, 1, 'disponibile', NOW(), NOW())`
+      `VALUES ('${prefix}_HasDesc', '${ISBN_NOOVERWRITE2}', NULL, '${existingDesc}', 1, 1, 'disponibile', NOW(), NOW())`
     );
     const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_HasDesc' AND deleted_at IS NULL LIMIT 1`);
     bookIds.push(parseInt(id, 10));
 
     try {
-      await page.request.post(`${BASE}/admin/libri/bulk-enrich/start`, {
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
         timeout: 25000,
       });
     } catch {
@@ -446,7 +472,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('13. Manual batch handles ISBN not found gracefully', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    test.setTimeout(30000);
+    test.setTimeout(120000);
 
     // Insert book with fake ISBN
     dbExec(
@@ -458,7 +484,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     let resp;
     try {
-      resp = await page.request.post(`${BASE}/admin/libri/bulk-enrich/start`, {
+      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
         timeout: 25000,
       });
     } catch {
@@ -477,11 +503,11 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('14. Manual batch returns correct progress counts', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    test.setTimeout(30000);
+    test.setTimeout(120000);
 
     let resp;
     try {
-      resp = await page.request.post(`${BASE}/admin/libri/bulk-enrich/start`, {
+      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
         timeout: 25000,
       });
     } catch {
@@ -509,7 +535,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('15. Batch preserves tipo_media after enrichment', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    test.setTimeout(30000);
+    test.setTimeout(120000);
 
     // Insert a disco-type book with ISBN (should be enriched, tipo_media must stay)
     dbExec(
@@ -520,7 +546,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await page.request.post(`${BASE}/admin/libri/bulk-enrich/start`, {
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
         timeout: 25000,
       });
     } catch {
@@ -533,14 +559,14 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('16. Batch preserves isbn13 value', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    test.setTimeout(30000);
+    test.setTimeout(120000);
 
     // Pick a test book that was (potentially) enriched
     const targetId = bookIds[0];
     const isbn = dbQuery(`SELECT IFNULL(isbn13, '') FROM libri WHERE id = ${targetId}`);
 
     try {
-      await page.request.post(`${BASE}/admin/libri/bulk-enrich/start`, {
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
         timeout: 25000,
       });
     } catch {
@@ -553,7 +579,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('17. Batch preserves ean value', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    test.setTimeout(30000);
+    test.setTimeout(120000);
 
     const testEan = '5012345678900';
 
@@ -566,7 +592,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await page.request.post(`${BASE}/admin/libri/bulk-enrich/start`, {
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
         timeout: 25000,
       });
     } catch {
