@@ -96,7 +96,7 @@ test.describe.serial('Bulk Enrichment', () => {
     const isbns = [ISBN_MOCKINGBIRD, ISBN_1984, ISBN_GATSBY, ISBN_CATCHER, ISBN_HOBBIT];
     for (let i = 0; i < isbns.length; i++) {
       dbExec(
-        "INSERT INTO libri (titolo, isbn13, copertina, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
+        "INSERT INTO libri (titolo, isbn13, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
         `VALUES ('${prefix}_Book${i}', '${isbns[i]}', NULL, NULL, 1, 1, 'disponibile', NOW(), NOW())`
       );
       const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_Book${i}' AND deleted_at IS NULL LIMIT 1`);
@@ -139,7 +139,7 @@ test.describe.serial('Bulk Enrichment', () => {
       dbQuery(
         "SELECT COUNT(*) FROM libri " +
         "WHERE isbn13 IS NOT NULL AND isbn13 != '' " +
-        "AND (copertina IS NULL OR copertina = '' OR descrizione IS NULL OR descrizione = '') " +
+        "AND (copertina_url IS NULL OR copertina_url = '' OR descrizione IS NULL OR descrizione = '') " +
         "AND deleted_at IS NULL"
       ),
       10
@@ -158,7 +158,7 @@ test.describe.serial('Bulk Enrichment', () => {
       dbQuery(
         "SELECT COUNT(*) FROM libri " +
         "WHERE isbn13 IS NOT NULL AND isbn13 != '' " +
-        "AND (copertina IS NULL OR copertina = '' OR descrizione IS NULL OR descrizione = '') " +
+        "AND (copertina_url IS NULL OR copertina_url = '' OR descrizione IS NULL OR descrizione = '') " +
         "AND deleted_at IS NULL"
       ),
       10
@@ -174,7 +174,7 @@ test.describe.serial('Bulk Enrichment', () => {
       dbQuery(
         "SELECT COUNT(*) FROM libri " +
         "WHERE isbn13 IS NOT NULL AND isbn13 != '' " +
-        "AND (copertina IS NULL OR copertina = '' OR descrizione IS NULL OR descrizione = '') " +
+        "AND (copertina_url IS NULL OR copertina_url = '' OR descrizione IS NULL OR descrizione = '') " +
         "AND deleted_at IS NULL"
       ),
       10
@@ -194,7 +194,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     // Insert a book WITHOUT isbn13 — should NOT appear in pending count
     dbExec(
-      "INSERT INTO libri (titolo, isbn13, copertina, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
+      "INSERT INTO libri (titolo, isbn13, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
       `VALUES ('${prefix}_NoISBN', NULL, NULL, NULL, 1, 1, 'disponibile', NOW(), NOW())`
     );
 
@@ -202,7 +202,7 @@ test.describe.serial('Bulk Enrichment', () => {
       dbQuery(
         "SELECT COUNT(*) FROM libri " +
         "WHERE isbn13 IS NOT NULL AND isbn13 != '' " +
-        "AND (copertina IS NULL OR copertina = '' OR descrizione IS NULL OR descrizione = '') " +
+        "AND (copertina_url IS NULL OR copertina_url = '' OR descrizione IS NULL OR descrizione = '') " +
         "AND deleted_at IS NULL"
       ),
       10
@@ -224,13 +224,13 @@ test.describe.serial('Bulk Enrichment', () => {
 
     // Insert a fully-populated book — should NOT be pending
     dbExec(
-      "INSERT INTO libri (titolo, isbn13, copertina, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
+      "INSERT INTO libri (titolo, isbn13, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
       `VALUES ('${prefix}_Complete', '9780140449136', 'cover.jpg', 'A great book.', 1, 1, 'disponibile', NOW(), NOW())`
     );
 
     const completeInPending = dbQuery(
       `SELECT COUNT(*) FROM libri WHERE titolo = '${prefix}_Complete' ` +
-      "AND (copertina IS NULL OR copertina = '' OR descrizione IS NULL OR descrizione = '') " +
+      "AND (copertina_url IS NULL OR copertina_url = '' OR descrizione IS NULL OR descrizione = '') " +
       "AND deleted_at IS NULL"
     );
     expect(completeInPending).toBe('0');
@@ -340,7 +340,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     // Ensure test book has no cover
     const targetId = bookIds[0];
-    dbExec(`UPDATE libri SET copertina = NULL WHERE id = ${targetId}`);
+    dbExec(`UPDATE libri SET copertina_url = NULL WHERE id = ${targetId}`);
 
     let resp;
     try {
@@ -356,7 +356,7 @@ test.describe.serial('Bulk Enrichment', () => {
     const json = await resp.json();
 
     // After batch, check if cover was populated (may depend on API availability)
-    const cover = dbQuery(`SELECT IFNULL(copertina, '') FROM libri WHERE id = ${targetId}`);
+    const cover = dbQuery(`SELECT IFNULL(copertina_url, '') FROM libri WHERE id = ${targetId}`);
     if (json.enriched > 0) {
       expect(cover.length).toBeGreaterThan(0);
     }
@@ -400,7 +400,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     // Insert book with pre-existing cover
     dbExec(
-      "INSERT INTO libri (titolo, isbn13, copertina, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
+      "INSERT INTO libri (titolo, isbn13, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
       `VALUES ('${prefix}_HasCover', '${ISBN_1984}', '${existingCover}', NULL, 1, 1, 'disponibile', NOW(), NOW())`
     );
     const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_HasCover' AND deleted_at IS NULL LIMIT 1`);
@@ -414,7 +414,7 @@ test.describe.serial('Bulk Enrichment', () => {
       // API unreachable — cover should still be original
     }
 
-    const cover = dbQuery(`SELECT IFNULL(copertina, '') FROM libri WHERE id = ${id}`);
+    const cover = dbQuery(`SELECT IFNULL(copertina_url, '') FROM libri WHERE id = ${id}`);
     expect(cover).toBe(existingCover);
   });
 
@@ -426,7 +426,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     // Insert book with pre-existing description
     dbExec(
-      "INSERT INTO libri (titolo, isbn13, copertina, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
+      "INSERT INTO libri (titolo, isbn13, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
       `VALUES ('${prefix}_HasDesc', '${ISBN_GATSBY}', NULL, '${existingDesc}', 1, 1, 'disponibile', NOW(), NOW())`
     );
     const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_HasDesc' AND deleted_at IS NULL LIMIT 1`);
@@ -450,7 +450,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     // Insert book with fake ISBN
     dbExec(
-      "INSERT INTO libri (titolo, isbn13, copertina, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
+      "INSERT INTO libri (titolo, isbn13, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
       `VALUES ('${prefix}_FakeISBN', '${ISBN_FAKE}', NULL, NULL, 1, 1, 'disponibile', NOW(), NOW())`
     );
     const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_FakeISBN' AND deleted_at IS NULL LIMIT 1`);
@@ -513,7 +513,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     // Insert a disco-type book with ISBN (should be enriched, tipo_media must stay)
     dbExec(
-      "INSERT INTO libri (titolo, isbn13, tipo_media, copertina, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
+      "INSERT INTO libri (titolo, isbn13, tipo_media, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
       `VALUES ('${prefix}_Disco', '${ISBN_CATCHER}', 'disco', NULL, NULL, 1, 1, 'disponibile', NOW(), NOW())`
     );
     const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_Disco' AND deleted_at IS NULL LIMIT 1`);
@@ -559,7 +559,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     // Insert book with EAN
     dbExec(
-      "INSERT INTO libri (titolo, isbn13, ean, copertina, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
+      "INSERT INTO libri (titolo, isbn13, ean, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
       `VALUES ('${prefix}_WithEAN', '${ISBN_HOBBIT}', '${testEan}', NULL, NULL, 1, 1, 'disponibile', NOW(), NOW())`
     );
     const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_WithEAN' AND deleted_at IS NULL LIMIT 1`);
