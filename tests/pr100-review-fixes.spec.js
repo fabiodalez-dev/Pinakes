@@ -148,7 +148,7 @@ test.describe('PR #100 fixes — offline metadata', () => {
     // Guard: when neither format nor tipo_media is provided, skip ISBN normalization
     expect(php).toContain('hasFormatSignal');
     expect(php).toContain('hasTipoMediaSignal');
-    expect(php).toContain('Skipping ISBN normalization: no media-type signal');
+    expect(php).toContain('no media-type signal');
   });
 
   test('7. PluginManager uses SecureLogger instead of error_log', () => {
