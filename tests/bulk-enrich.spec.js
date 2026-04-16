@@ -533,8 +533,8 @@ test.describe.serial('Bulk Enrichment', () => {
     expect(typeof results.processed).toBe('number');
     expect(results.processed).toBeGreaterThanOrEqual(0);
 
-    // enriched + not_found + errors should equal processed
-    const sum = (results.enriched || 0) + (results.not_found || 0) + (results.errors || 0);
+    // enriched + not_found + errors + skipped should equal processed
+    const sum = (results.enriched || 0) + (results.not_found || 0) + (results.errors || 0) + (results.skipped || 0);
     expect(sum).toBe(results.processed);
   });
 

@@ -354,6 +354,7 @@ class BulkEnrichmentService
             'processed' => 0,
             'enriched' => 0,
             'not_found' => 0,
+            'skipped' => 0,
             'errors' => 0,
             'details' => [],
         ];
@@ -379,7 +380,9 @@ class BulkEnrichmentService
                 case 'error':
                     $summary['errors']++;
                     break;
-                // 'skipped' is not counted in error/not_found
+                case 'skipped':
+                    $summary['skipped']++;
+                    break;
             }
 
             $summary['details'][] = $bookResult;
