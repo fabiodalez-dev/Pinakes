@@ -274,6 +274,7 @@ test.describe.serial('Bulk Enrichment', () => {
     });
     expect(resp.status()).toBe(200);
     const json = await resp.json();
+    const results = json.results ?? json;
     expect(json.success ?? json.ok).toBeTruthy();
 
     // Verify in DB
@@ -291,6 +292,7 @@ test.describe.serial('Bulk Enrichment', () => {
     });
     expect(resp.status()).toBe(200);
     const json = await resp.json();
+    const results = json.results ?? json;
     expect(json.success ?? json.ok).toBeTruthy();
 
     const val = dbQuery(
@@ -380,10 +382,11 @@ test.describe.serial('Bulk Enrichment', () => {
 
     expect(resp.status()).toBe(200);
     const json = await resp.json();
+    const results = json.results ?? json;
 
     // After batch, check if cover was populated (may depend on API availability)
     const cover = dbQuery(`SELECT IFNULL(copertina_url, '') FROM libri WHERE id = ${targetId}`);
-    if (json.enriched > 0) {
+    if (results.enriched > 0) {
       expect(cover.length).toBeGreaterThan(0);
     }
     // If enriched === 0, API may be rate-limited — acceptable
@@ -494,10 +497,11 @@ test.describe.serial('Bulk Enrichment', () => {
 
     expect(resp.status()).toBe(200);
     const json = await resp.json();
+    const results = json.results ?? json;
 
-    // Response should indicate at least one not_found (or the fake ISBN was skipped)
-    expect(json).toHaveProperty('not_found');
-    expect(json.not_found).toBeGreaterThanOrEqual(0);
+    // Response has results nested under 'results' key
+    expect(results).toHaveProperty('not_found');
+    expect(results.not_found).toBeGreaterThanOrEqual(0);
     // No crash — server returned valid JSON
   });
 
@@ -517,20 +521,21 @@ test.describe.serial('Bulk Enrichment', () => {
 
     expect(resp.status()).toBe(200);
     const json = await resp.json();
+    const results = json.results ?? json;
 
     // Response must contain progress counters
-    expect(json).toHaveProperty('processed');
-    expect(json).toHaveProperty('enriched');
-    expect(json).toHaveProperty('not_found');
-    expect(json).toHaveProperty('errors');
+    expect(results).toHaveProperty('processed');
+    expect(results).toHaveProperty('enriched');
+    expect(results).toHaveProperty('not_found');
+    expect(results).toHaveProperty('errors');
 
     // processed must be a non-negative number
-    expect(typeof json.processed).toBe('number');
-    expect(json.processed).toBeGreaterThanOrEqual(0);
+    expect(typeof results.processed).toBe('number');
+    expect(results.processed).toBeGreaterThanOrEqual(0);
 
     // enriched + not_found + errors should equal processed
-    const sum = (json.enriched || 0) + (json.not_found || 0) + (json.errors || 0);
-    expect(sum).toBe(json.processed);
+    const sum = (results.enriched || 0) + (results.not_found || 0) + (results.errors || 0);
+    expect(sum).toBe(results.processed);
   });
 
   test('15. Batch preserves tipo_media after enrichment', async () => {
