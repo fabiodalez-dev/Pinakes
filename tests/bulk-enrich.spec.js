@@ -545,7 +545,7 @@ test.describe.serial('Bulk Enrichment', () => {
     // Insert a disco-type book with ISBN (should be enriched, tipo_media must stay)
     dbExec(
       "INSERT INTO libri (titolo, isbn13, tipo_media, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
-      `VALUES ('${prefix}_Disco', '${ISBN_CATCHER}', 'disco', NULL, NULL, 1, 1, 'disponibile', NOW(), NOW())`
+      `VALUES ('${prefix}_Disco', '9780670020553', 'disco', NULL, NULL, 1, 1, 'disponibile', NOW(), NOW())`
     );
     const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_Disco' AND deleted_at IS NULL LIMIT 1`);
     bookIds.push(parseInt(id, 10));
