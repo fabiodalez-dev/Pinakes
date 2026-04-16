@@ -293,7 +293,10 @@ class DiscogsPlugin
 
             $discogsData = $this->fetchDiscogsReleaseFromSearchResult($searchResult['results'][0], $token, $isbn);
             if ($discogsData === null) {
-                return $currentResult;
+                $mbResult = $this->searchMusicBrainz($isbn, $isbn);
+                return $mbResult !== null
+                    ? $this->mergeBookData($currentResult, $mbResult)
+                    : $currentResult;
             }
 
             // Merge with existing data

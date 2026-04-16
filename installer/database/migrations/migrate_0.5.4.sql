@@ -69,29 +69,43 @@ PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
--- Auto-populate from existing formato values
+-- Auto-populate from existing formato values (only if formato column exists)
 -- Use specific patterns to avoid false positives (%cd% matches CD-ROM, %lp% matches 'help')
-UPDATE libri SET tipo_media = 'disco'
-WHERE tipo_media = 'libro'
-  AND (LOWER(formato) LIKE '%cd audio%' OR LOWER(formato) LIKE '%cd_audio%'
-       OR LOWER(formato) LIKE '%cd-audio%' OR LOWER(formato) = 'cd'
-       OR LOWER(formato) LIKE '%compact disc%'
-       OR LOWER(formato) LIKE '%vinyl%' OR LOWER(formato) LIKE '%vinile%'
-       OR LOWER(formato) = 'lp' OR LOWER(formato) LIKE '%lp %' OR LOWER(formato) LIKE '% lp'
-       OR LOWER(formato) LIKE '%cassett%'
-       OR LOWER(formato) LIKE '%audio cassetta%' OR LOWER(formato) LIKE '%audio-cassetta%'
-       OR LOWER(formato) LIKE '%audiocassetta%'
-       -- MySQL 8.0.4+ removed POSIX [[:<:]]/[[:>:]] — use ICU \b word boundary.
-       OR LOWER(formato) REGEXP '\\bmusic\\b'
-       OR LOWER(formato) REGEXP '\\bmusik\\b')
-  AND LOWER(formato) NOT LIKE '%audiolibro%' AND LOWER(formato) NOT LIKE '%audiobook%';
+SET @sql = IF(@formato_exists > 0,
+    "UPDATE libri SET tipo_media = 'disco'
+     WHERE tipo_media = 'libro'
+       AND (LOWER(formato) LIKE '%cd audio%' OR LOWER(formato) LIKE '%cd_audio%'
+            OR LOWER(formato) LIKE '%cd-audio%' OR LOWER(formato) = 'cd'
+            OR LOWER(formato) LIKE '%compact disc%'
+            OR LOWER(formato) LIKE '%vinyl%' OR LOWER(formato) LIKE '%vinile%'
+            OR LOWER(formato) = 'lp' OR LOWER(formato) LIKE '%lp %' OR LOWER(formato) LIKE '% lp'
+            OR LOWER(formato) LIKE '%cassett%'
+            OR LOWER(formato) LIKE '%audio cassetta%' OR LOWER(formato) LIKE '%audio-cassetta%'
+            OR LOWER(formato) LIKE '%audiocassetta%'
+            OR LOWER(formato) REGEXP '\\\\bmusic\\\\b'
+            OR LOWER(formato) REGEXP '\\\\bmusik\\\\b')
+       AND LOWER(formato) NOT LIKE '%audiolibro%' AND LOWER(formato) NOT LIKE '%audiobook%'",
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-UPDATE libri SET tipo_media = 'audiolibro'
-WHERE tipo_media = 'libro'
-  AND (LOWER(formato) LIKE '%audiolibro%' OR LOWER(formato) LIKE '%audiobook%' OR LOWER(formato) LIKE '%audio book%');
+SET @sql = IF(@formato_exists > 0,
+    "UPDATE libri SET tipo_media = 'audiolibro'
+     WHERE tipo_media = 'libro'
+       AND (LOWER(formato) LIKE '%audiolibro%' OR LOWER(formato) LIKE '%audiobook%' OR LOWER(formato) LIKE '%audio book%')",
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
-UPDATE libri SET tipo_media = 'dvd'
-WHERE tipo_media = 'libro'
-  AND (LOWER(formato) LIKE '%dvd%' OR LOWER(formato) LIKE '%blu-ray%'
-       OR LOWER(formato) LIKE '%blu_ray%' OR LOWER(formato) LIKE '%blu ray%'
-       OR LOWER(formato) LIKE '%bluray%');
+SET @sql = IF(@formato_exists > 0,
+    "UPDATE libri SET tipo_media = 'dvd'
+     WHERE tipo_media = 'libro'
+       AND (LOWER(formato) LIKE '%dvd%' OR LOWER(formato) LIKE '%blu-ray%'
+            OR LOWER(formato) LIKE '%blu_ray%' OR LOWER(formato) LIKE '%blu ray%'
+            OR LOWER(formato) LIKE '%bluray%')",
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

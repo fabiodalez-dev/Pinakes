@@ -791,7 +791,7 @@ class CsvImportController
             'numero_pagine' => !empty($row['numero_pagine']) ? (int)$row['numero_pagine'] : null,
             'genere' => !empty($row['genere']) ? trim($row['genere']) : null,
             'descrizione' => !empty($row['descrizione']) ? trim($row['descrizione']) : null,
-            'formato' => !empty($row['formato']) ? trim($row['formato']) : 'cartaceo',
+            'formato' => !empty($row['formato']) ? trim($row['formato']) : null,
             'tipo_media' => array_key_exists('tipo_media', $row) && trim((string) ($row['tipo_media'] ?? '')) !== ''
                 ? \App\Support\MediaLabels::normalizeTipoMedia(trim((string) $row['tipo_media']))
                 : null,
@@ -1289,7 +1289,8 @@ class CsvImportController
         $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
-        $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+        $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null) : null;
+        $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
         $prezzo = $data['prezzo'] ?? null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
@@ -1304,7 +1305,7 @@ class CsvImportController
             $descrizione, $formato,
         ];
         if ($hasTipoMedia) {
-            $params[] = \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null);
+            $params[] = $tipoMedia;
         }
         $params = array_merge($params, [
             $prezzo, $editorId, $collana, $numeroSerie,
@@ -1382,7 +1383,8 @@ class CsvImportController
         $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
-        $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+        $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null) : null;
+        $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
         $prezzo = $data['prezzo'] ?? null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
@@ -1404,7 +1406,7 @@ class CsvImportController
             $descrizione, $formato,
         ];
         if ($hasTipoMedia) {
-            $params[] = \App\Support\MediaLabels::resolveTipoMedia($formato, $data['tipo_media'] ?? null);
+            $params[] = $tipoMedia;
         }
         $params = array_merge($params, [
             $prezzo, $copie, $copie,

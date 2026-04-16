@@ -147,9 +147,9 @@ class MediaLabels
             return '';
         }
 
-        // If already formatted as HTML ordered list, return as-is
+        // If already formatted as HTML ordered list, sanitize and return
         if (str_contains($text, '<ol') && str_contains($text, '</ol>')) {
-            return $text;
+            return strip_tags($text, '<ol><li><span><br>');
         }
 
         // Remove "Tracklist:" prefix if present

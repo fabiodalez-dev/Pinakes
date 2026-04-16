@@ -26,11 +26,6 @@ const DB_NAME = process.env.E2E_DB_NAME || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const REPO_ROOT = path.resolve(__dirname, '..');
 
-test.skip(
-  !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME,
-  'E2E credentials not configured'
-);
-
 // ─── DB helpers ───────────────────────────────────────────────────────────
 function mysqlArgs() {
   const args = ['-u', DB_USER, `-p${DB_PASS}`];
@@ -173,6 +168,10 @@ test.describe.serial('PR #100 fixes — record lifecycle', () => {
   let bookId = 0;
 
   test.beforeAll(async ({ browser }) => {
+    test.skip(
+      !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME,
+      'E2E credentials not configured'
+    );
     // Skip lifecycle suite when app is not installed — offline tests still run
     try {
       const tables = dbQuery(

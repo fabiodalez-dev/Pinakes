@@ -842,11 +842,14 @@ class ScrapeController
 
     private function ensureTipoMedia(array $payload): array
     {
-        $payload['tipo_media'] = \App\Support\MediaLabels::resolveTipoMedia(
-            $payload['format'] ?? $payload['formato'] ?? null,
-            $payload['tipo_media'] ?? null
-        );
+        $format = $payload['format'] ?? $payload['formato'] ?? null;
+        $tipoMedia = $payload['tipo_media'] ?? null;
 
+        if (($format === null || $format === '') && ($tipoMedia === null || $tipoMedia === '')) {
+            return $payload;
+        }
+
+        $payload['tipo_media'] = \App\Support\MediaLabels::resolveTipoMedia($format, $tipoMedia);
         return $payload;
     }
 }

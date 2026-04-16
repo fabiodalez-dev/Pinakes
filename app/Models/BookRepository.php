@@ -646,9 +646,8 @@ class BookRepository
         if ($this->hasColumn('formato')) {
             $addSet('formato', 's', $data['formato'] ?? null);
         }
-        if ($this->hasColumn('tipo_media') && array_key_exists('tipo_media', $data)) {
-            $val = is_string($data['tipo_media']) ? $data['tipo_media'] : null;
-            $addSet('tipo_media', 's', $this->normalizeEnumValue($val, 'tipo_media', 'libro'));
+        if ($this->hasColumn('tipo_media') && array_key_exists('tipo_media', $data) && is_string($data['tipo_media'])) {
+            $addSet('tipo_media', 's', $this->normalizeEnumValue($data['tipo_media'], 'tipo_media', 'libro'));
         }
         if ($this->hasColumn('peso')) {
             $addSet('peso', 'd', $peso);
@@ -1013,6 +1012,7 @@ class BookRepository
                         $cols[$c] = $validated;
                     }
                 } elseif ($c === 'tipo_media') {
+                    if (!is_string($data[$c])) { continue; }
                     $cols[$c] = $this->normalizeEnumValue((string) $data[$c], 'tipo_media', 'libro');
                 } elseif (in_array($c, ['traduttore', 'illustratore', 'curatore'], true)) {
                     $cols[$c] = \App\Support\AuthorNormalizer::normalize((string) $data[$c]);

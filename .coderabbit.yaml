@@ -19,20 +19,19 @@ reviews:
 
   # ── File Filters ──────────────────────────────────────────────────
   path_filters:
-    exclude:
-      - "vendor/**"
-      - "node_modules/**"
-      - "public/assets/tinymce/**"
-      - "public/assets/fontawesome/**"
-      - "public/assets/choices/**"
-      - "public/assets/flatpickr/**"
-      - "public/assets/sweetalert2/**"
-      - "*.min.js"
-      - "*.min.css"
-      - "*.map"
-      - "pinakes-*.zip"
-      - "pinakes-*.sha256"
-      - "test-results/**"
+    - "!vendor/**"
+    - "!node_modules/**"
+    - "!public/assets/tinymce/**"
+    - "!public/assets/fontawesome/**"
+    - "!public/assets/choices/**"
+    - "!public/assets/flatpickr/**"
+    - "!public/assets/sweetalert2/**"
+    - "!*.min.js"
+    - "!*.min.css"
+    - "!*.map"
+    - "!pinakes-*.zip"
+    - "!pinakes-*.sha256"
+    - "!test-results/**"
 
   # ── Path-Specific Review Instructions ──────────────────────────────
   path_instructions:
@@ -132,7 +131,6 @@ reviews:
   tools:
     phpstan:
       enabled: true
-      config_file: "phpstan.neon"
     shellcheck:
       enabled: true
     semgrep:
@@ -151,7 +149,6 @@ knowledge_base:
   opt_out: false
   learnings:
     scope: "local"
-    enabled: true
   issues:
     scope: "auto"
   pull_requests:

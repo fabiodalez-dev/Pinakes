@@ -1345,9 +1345,10 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
-            $params[] = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+            $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null) : null;
+            $params[] = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
             if ($hasTipoMedia) {
-                $params[] = \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null);
+                $params[] = $tipoMedia;
             }
             $params = array_merge($params, [
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
@@ -1420,9 +1421,10 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
-            $params[] = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+            $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null) : null;
+            $params[] = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
             if ($hasTipoMedia) {
-                $params[] = \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null);
+                $params[] = $tipoMedia;
             }
             $params = array_merge($params, [
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
@@ -1533,10 +1535,11 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
-            $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+            $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null) : null;
+            $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
             $params[] = $formato;
             if ($hasTipoMedia) {
-                $params[] = \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null);
+                $params[] = $tipoMedia;
             }
             $params = array_merge($params, [
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
@@ -1612,10 +1615,11 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
-            $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+            $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null) : null;
+            $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
             $params[] = $formato;
             if ($hasTipoMedia) {
-                $params[] = \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null);
+                $params[] = $tipoMedia;
             }
             $params = array_merge($params, [
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,

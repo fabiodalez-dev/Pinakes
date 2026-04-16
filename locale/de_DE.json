@@ -4191,7 +4191,6 @@
   "È uno standard emergente (<a href=\"https://llmstxt.org\" target=\"_blank\" rel=\"noopener\" class=\"underline\">llmstxt.org</a>) che fornisce ai motori AI un sommario strutturato del sito in formato Markdown. Quando attivo, il file viene generato dinamicamente con le statistiche della biblioteca, le pagine pubbliche e le informazioni API.": "Ein aufkommender Standard (<a href=\"https://llmstxt.org\" target=\"_blank\" rel=\"noopener\" class=\"underline\">llmstxt.org</a>), der KI-Systemen eine strukturierte Markdown-Zusammenfassung der Website bereitstellt. Wenn aktiviert, wird die Datei dynamisch mit Bibliotheksstatistiken, öffentlichen Seiten und API-Informationen generiert.",
   "Abilita llms.txt": "llms.txt aktivieren",
   "Rende disponibile /llms.txt e lo aggiunge a robots.txt": "Macht /llms.txt verfügbar und fügt es zur robots.txt hinzu",
-  "Disattivato": "Deaktiviert",
   "Tipo Media": "Medientyp",
   "Disco": "Schallplatte",
   "Tutti i media": "Alle Medien",

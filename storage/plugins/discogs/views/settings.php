@@ -20,7 +20,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && (isset($_POST['save_discogs_setting
                 $errorMessage = __('Errore nel salvataggio delle impostazioni.');
             }
         } else {
-            $apiToken = trim($_POST['api_token'] ?? '');
+            $rawToken = $_POST['api_token'] ?? '';
+            $apiToken = is_string($rawToken) ? trim($rawToken) : '';
             if ($apiToken !== '') {
                 $settings = ['api_token' => $apiToken];
                 if ($plugin->saveSettings($settings)) {

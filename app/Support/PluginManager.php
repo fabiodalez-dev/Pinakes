@@ -631,8 +631,20 @@ class PluginManager
                 SecureLogger::warning("[PluginManager] Note: Plugin doesn't have setPluginId method (not required): " . $e->getMessage());
             }
 
-            // Run plugin installation hook if exists
-            $this->runPluginMethod($pluginMeta['name'], 'onInstall');
+            // Run plugin installation hook if exists — rollback on failure
+            try {
+                $this->runPluginMethod($pluginMeta['name'], 'onInstall');
+            } catch (\Throwable $e) {
+                SecureLogger::error("[PluginManager] onInstall failed, rolling back", ['error' => $e->getMessage()]);
+                // Remove the plugins row
+                $delStmt = $this->db->prepare("DELETE FROM plugins WHERE id = ?");
+                $delStmt->bind_param('i', $pluginId);
+                $delStmt->execute();
+                $delStmt->close();
+                // Remove extracted files
+                $this->deleteDirectory($pluginPath);
+                throw $e;
+            }
 
             SecureLogger::info("[PluginManager] Plugin installed successfully: {$pluginMeta['name']} (ID: $pluginId)");
 
@@ -980,10 +992,21 @@ class PluginManager
         ");
 
         $valueStr = is_array($value) || is_object($value) ? json_encode($value) : (string)$value;
-        $valueStr = $this->encryptPluginSettingValue($valueStr);
-        $stmt->bind_param('issi', $pluginId, $key, $valueStr, $autoloadInt);
-        $result = $stmt->execute();
-        $stmt->close();
+
+        try {
+            $valueStr = $this->encryptPluginSettingValue($valueStr);
+            $stmt->bind_param('issi', $pluginId, $key, $valueStr, $autoloadInt);
+            $result = $stmt->execute();
+        } catch (\Throwable $e) {
+            SecureLogger::error('[PluginManager] setSetting failed', [
+                'plugin_id' => $pluginId,
+                'key'       => $key,
+                'error'     => $e->getMessage(),
+            ]);
+            return false;
+        } finally {
+            $stmt->close();
+        }
 
         return $result;
     }

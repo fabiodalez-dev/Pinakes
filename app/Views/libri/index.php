@@ -311,7 +311,7 @@ $libri = $data['libri'];
                   <input type="checkbox" id="select-all" class="w-4 h-4 rounded border-gray-300 text-gray-800 focus:ring-gray-500 cursor-pointer" />
                 </th>
                 <th><?= __("Stato") ?></th>
-                <th><i class="fas fa-compact-disc text-gray-400" title="<?= __("Tipo Media") ?>"></i></th>
+                <th aria-label="<?= __("Tipo Media") ?>"><i class="fas fa-compact-disc text-gray-400" title="<?= __("Tipo Media") ?>" aria-hidden="true"></i></th>
                 <th><?= __("Cover") ?></th>
                 <th><?= __("Informazioni") ?></th>
                 <th><?= __("Genere") ?></th>

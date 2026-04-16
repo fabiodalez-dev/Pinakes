@@ -97,7 +97,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       await page.locator('button[type="submit"]').first().click();
       const swal = page.locator('.swal2-confirm');
       if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-      await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 }).catch(() => {});
+      await expect(page).toHaveURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
       console.log(`  ✓ ${rec.note}`);
     });
   }
@@ -132,7 +132,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       await page.locator('button[type="submit"]').first().click();
       const swal = page.locator('.swal2-confirm');
       if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-      await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 }).catch(() => {});
+      await expect(page).toHaveURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
       console.log(`  ✓ ${book.note}`);
     });
   }
@@ -158,7 +158,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       await page.locator('button[type="submit"]').first().click();
       const swal = page.locator('.swal2-confirm');
       if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-      await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 }).catch(() => {});
+      await expect(page).toHaveURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
       console.log(`  ✓ ${entry.titolo}`);
     });
   }

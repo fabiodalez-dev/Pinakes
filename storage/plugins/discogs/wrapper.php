@@ -31,7 +31,7 @@ if (!class_exists('DiscogsPlugin', false)) {
          */
         public function activate(): void
         {
-            if (method_exists($this->instance, 'activate')) {
+            if (is_callable([$this->instance, 'activate'])) {
                 $this->instance->activate();
             }
         }
@@ -41,7 +41,7 @@ if (!class_exists('DiscogsPlugin', false)) {
          */
         public function onDeactivate(): void
         {
-            if (method_exists($this->instance, 'onDeactivate')) {
+            if (is_callable([$this->instance, 'onDeactivate'])) {
                 $this->instance->onDeactivate();
             }
             \App\Support\SecureLogger::debug('[Discogs] Plugin deactivated');
@@ -52,7 +52,7 @@ if (!class_exists('DiscogsPlugin', false)) {
          */
         public function onInstall(): void
         {
-            if (method_exists($this->instance, 'onInstall')) {
+            if (is_callable([$this->instance, 'onInstall'])) {
                 $this->instance->onInstall();
             }
             \App\Support\SecureLogger::debug('[Discogs] Plugin installed');
@@ -63,9 +63,9 @@ if (!class_exists('DiscogsPlugin', false)) {
          */
         public function onActivate(): void
         {
-            if (method_exists($this->instance, 'onActivate')) {
+            if (is_callable([$this->instance, 'onActivate'])) {
                 $this->instance->onActivate();
-            } elseif (method_exists($this->instance, 'activate')) {
+            } elseif (is_callable([$this->instance, 'activate'])) {
                 $this->instance->activate();
             }
             \App\Support\SecureLogger::debug('[Discogs] Plugin activated');
@@ -76,7 +76,7 @@ if (!class_exists('DiscogsPlugin', false)) {
          */
         public function onUninstall(): void
         {
-            if (method_exists($this->instance, 'onUninstall')) {
+            if (is_callable([$this->instance, 'onUninstall'])) {
                 $this->instance->onUninstall();
             }
             \App\Support\SecureLogger::debug('[Discogs] Plugin uninstalled');
@@ -87,7 +87,9 @@ if (!class_exists('DiscogsPlugin', false)) {
          */
         public function setPluginId(int $pluginId): void
         {
-            $this->instance->setPluginId($pluginId);
+            if (is_callable([$this->instance, 'setPluginId'])) {
+                $this->instance->setPluginId($pluginId);
+            }
         }
 
         /**
@@ -95,7 +97,7 @@ if (!class_exists('DiscogsPlugin', false)) {
          */
         public function __call($method, $args)
         {
-            if (method_exists($this->instance, $method)) {
+            if (is_callable([$this->instance, $method])) {
                 return call_user_func_array([$this->instance, $method], $args);
             }
 

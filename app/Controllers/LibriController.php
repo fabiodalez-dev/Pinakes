@@ -676,7 +676,6 @@ class LibriController
             'illustratore' => '',
             'curatore' => '',
             'numero_pagine' => null,
-            'tipo_media' => '',
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed
@@ -1217,7 +1216,6 @@ class LibriController
             'illustratore' => '',
             'curatore' => '',
             'numero_pagine' => null,
-            'tipo_media' => '',
         ];
 
         // Merge LibraryThing fields defaults only if plugin installed

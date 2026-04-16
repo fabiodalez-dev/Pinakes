@@ -129,6 +129,23 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
   });
 
   test.afterAll(async () => {
+    // Clean up records created during this test run
+    const ids = [manualBookId, importedBookId, manualDiscId, importedDisc1Id, importedDisc2Id]
+      .filter(id => id > 0);
+    if (ids.length > 0) {
+      try {
+        const idList = ids.join(',');
+        execFileSync('mysql', mysqlArgs(
+          `DELETE FROM libri WHERE id IN (${idList})`
+        ), { encoding: 'utf-8', timeout: 10000 });
+      } catch { /* best-effort cleanup */ }
+    }
+    // Also remove any stragglers matched by RUN_TAG
+    try {
+      execFileSync('mysql', mysqlArgs(
+        `DELETE FROM libri WHERE titolo LIKE '${RUN_TAG}%'`
+      ), { encoding: 'utf-8', timeout: 10000 });
+    } catch { /* best-effort cleanup */ }
     await context?.close();
   });
 
