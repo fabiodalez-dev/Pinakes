@@ -1333,6 +1333,33 @@ TSV_Book1_${RUN_ID}\tTSV Author\tTSV Publisher\t2024`;
   });
 
   test('10.4 Export CSV and verify structure (#77)', async () => {
+    // Count CSV records honoring quoted fields that may contain newlines
+    // (e.g. multi-line tracklists in descrizione). Naive split('\n') would
+    // over-count because music records from the Discogs plugin embed \n
+    // inside quoted CSV cells.
+    const countCsvRecords = (csv) => {
+      const text = csv.replace(/^\uFEFF/, ''); // strip UTF-8 BOM
+      let rows = 0;
+      let inQuote = false;
+      let hasContent = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        if (ch === '"') {
+          if (inQuote && text[i + 1] === '"') { i++; continue; } // escaped ""
+          inQuote = !inQuote;
+          hasContent = true;
+        } else if ((ch === '\n' || ch === '\r') && !inQuote) {
+          if (hasContent) rows++;
+          hasContent = false;
+          if (ch === '\r' && text[i + 1] === '\n') i++;
+        } else {
+          hasContent = true;
+        }
+      }
+      if (hasContent) rows++;
+      return rows;
+    };
+
     // Get 2 book IDs
     const idsRaw = dbQuery(
       "SELECT GROUP_CONCAT(id) FROM (SELECT id FROM libri WHERE deleted_at IS NULL ORDER BY id LIMIT 2) t"
@@ -1344,7 +1371,7 @@ TSV_Book1_${RUN_ID}\tTSV Author\tTSV Publisher\t2024`;
     const allResp = await page.request.get(`${BASE}/admin/libri/export/csv`);
     expect(allResp.ok()).toBeTruthy();
     const allCsv = await allResp.text();
-    const allLines = allCsv.trim().split('\n');
+    const allRecords = countCsvRecords(allCsv);
 
     // Export SELECTED (regression #77)
     const selectedResp = await page.request.get(
@@ -1352,12 +1379,12 @@ TSV_Book1_${RUN_ID}\tTSV Author\tTSV Publisher\t2024`;
     );
     expect(selectedResp.ok()).toBeTruthy();
     const selectedCsv = await selectedResp.text();
-    const selectedLines = selectedCsv.trim().split('\n');
+    const selectedRecords = countCsvRecords(selectedCsv);
 
-    // Selected export should have fewer rows than all
-    expect(allLines.length).toBeGreaterThan(selectedLines.length);
+    // Selected export should have fewer records than all
+    expect(allRecords).toBeGreaterThan(selectedRecords);
     // Selected: header + exactly 2 data rows
-    expect(selectedLines.length).toBe(3);
+    expect(selectedRecords).toBe(3);
   });
 });
 

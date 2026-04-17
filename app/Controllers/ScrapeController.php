@@ -145,6 +145,8 @@ class ScrapeController
                 $payload = $this->enrichWithSbnData($payload, $cleanIsbn);
             }
 
+            $payload = $this->ensureTipoMedia($payload);
+
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $payload = $this->normalizeIsbnFields($payload, $cleanIsbn);
 
@@ -212,6 +214,8 @@ class ScrapeController
             if (empty($fallbackData['classificazione_dewey'])) {
                 $fallbackData = $this->enrichWithSbnData($fallbackData, $cleanIsbn);
             }
+
+            $fallbackData = $this->ensureTipoMedia($fallbackData);
 
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $fallbackData = $this->normalizeIsbnFields($fallbackData, $cleanIsbn);
@@ -763,6 +767,40 @@ class ScrapeController
      */
     private function normalizeIsbnFields(array $data, string $originalIsbn): array
     {
+        $formatRaw = $data['format'] ?? $data['formato'] ?? null;
+        $tipoMediaRaw = $data['tipo_media'] ?? null;
+
+        // Distinguish "validated ISBN request" (e.g. byIsbn accepted a real
+        // ISBN-10/13) from "plugin-accepted barcode request" (e.g. Discogs
+        // validateBarcode accepted a 12/13-digit EAN/UPC that's NOT an ISBN).
+        // For the former we can always assume `libro` and backfill ISBN fields
+        // safely. For the latter, missing media signals mean the plugin was
+        // partial — skip backfill to avoid the music-as-book regression.
+        $hasFormatSignal    = $formatRaw !== null && $formatRaw !== '';
+        $hasTipoMediaSignal = $tipoMediaRaw !== null && $tipoMediaRaw !== '';
+        $isValidatedIsbn    = IsbnFormatter::isValid($originalIsbn);
+        if (!$hasFormatSignal && !$hasTipoMediaSignal && !$isValidatedIsbn) {
+            // Barcode-only request (no ISBN format) AND no media signal from
+            // the plugin → can't safely decide. Warning because either the
+            // plugin misbehaved OR the barcode is non-book media without
+            // explicit labelling.
+            SecureLogger::warning('[ScrapeController] Barcode request with no media-type signal — skipping ISBN normalization', [
+                'isbn' => $originalIsbn,
+                'source' => $data['source'] ?? $data['_source'] ?? 'unknown',
+                'payload_keys' => array_keys($data),
+            ]);
+            return $data;
+        }
+
+        $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($formatRaw, $tipoMediaRaw);
+        $data['tipo_media'] = $resolvedTipoMedia;
+
+        // Skip ISBN auto-population for non-book media.
+        // The barcode is an EAN, not an ISBN — don't stuff it into isbn13/isbn10.
+        if ($resolvedTipoMedia !== 'libro') {
+            return $data;
+        }
+
         // First, try to get variants from original search term
         $variants = IsbnFormatter::getAllVariants($originalIsbn);
 
@@ -802,5 +840,18 @@ class ScrapeController
         }
 
         return $data;
+    }
+
+    private function ensureTipoMedia(array $payload): array
+    {
+        $format = $payload['format'] ?? $payload['formato'] ?? null;
+        $tipoMedia = $payload['tipo_media'] ?? null;
+
+        if (($format === null || $format === '') && ($tipoMedia === null || $tipoMedia === '')) {
+            return $payload;
+        }
+
+        $payload['tipo_media'] = \App\Support\MediaLabels::resolveTipoMedia($format, $tipoMedia);
+        return $payload;
     }
 }

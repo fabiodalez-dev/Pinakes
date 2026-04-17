@@ -32,6 +32,7 @@ class LibriApiController
         $anno_from = trim((string) ($q['anno_from'] ?? ''));
         $anno_to = trim((string) ($q['anno_to'] ?? ''));
         $collana = trim((string) ($q['collana'] ?? ''));
+        $tipo_media = trim((string) ($q['tipo_media'] ?? ''));
 
         // Build WHERE clause with prepared statement parameters
         $where = 'WHERE l.deleted_at IS NULL ';
@@ -137,23 +138,40 @@ class LibriApiController
             $params[] = '%' . $collana . '%';
             $types .= 's';
         }
+        if ($tipo_media !== '' && $this->hasColumn($db, 'tipo_media')) {
+            if ($tipo_media === 'libro') {
+                // On upgraded installs, legacy rows have NULL/empty tipo_media.
+                // Treat them as books (the default) so the "Libro" filter
+                // doesn't hide them until a backfill job has run.
+                $where .= " AND (l.tipo_media = ? OR l.tipo_media IS NULL OR l.tipo_media = '')";
+                $params[] = $tipo_media;
+                $types  .= 's';
+            } else {
+                $where .= " AND l.tipo_media = ?";
+                $params[] = $tipo_media;
+                $types  .= 's';
+            }
+        }
 
         // Parse DataTables sorting parameters (with robust null checks to avoid notices)
         $order = $q['order'][0] ?? null;
-        $orderColumn = isset($order['column']) ? (int) $order['column'] : 3; // Default to Info column (title)
+        $orderColumn = isset($order['column']) ? (int) $order['column'] : 4; // Default to Info column (title)
         $orderDir = (isset($order['dir']) && strtoupper(trim($order['dir'])) === 'DESC') ? 'DESC' : 'ASC';
 
         // Map column indices to database fields
-        // Columns: 0=checkbox, 1=status, 2=cover, 3=info(title), 4=genre, 5=position, 6=year, 7=actions
-        $orderByMap = [
-            3 => 'l.titolo',           // Info column - sort by title
-            4 => 'g.nome',             // Genre column
-            5 => 's.codice, m.numero_livello, COALESCE(l.posizione_progressiva, p.ordine)', // Position
-            6 => 'l.anno_pubblicazione', // Year column
-        ];
-
-        $orderByClause = $orderByMap[$orderColumn] ?? 'l.titolo';
-        $orderBy = "ORDER BY {$orderByClause} {$orderDir}";
+        // Columns: 0=checkbox, 1=status, 2=media, 3=cover, 4=info(title), 5=genre, 6=position, 7=year, 8=actions
+        // Position column uses multi-column sort — each component needs the direction applied
+        if ($orderColumn === 6) {
+            $orderBy = "ORDER BY s.codice {$orderDir}, m.numero_livello {$orderDir}, COALESCE(l.posizione_progressiva, p.ordine) {$orderDir}";
+        } else {
+            $orderByMap = [
+                4 => 'l.titolo',
+                5 => 'g.nome',
+                7 => 'l.anno_pubblicazione',
+            ];
+            $orderByClause = $orderByMap[$orderColumn] ?? 'l.titolo';
+            $orderBy = "ORDER BY {$orderByClause} {$orderDir}";
+        }
 
         // Count total records with prepared statement (excluding soft-deleted)
         $total_sql = 'SELECT COUNT(*) AS c FROM libri l WHERE l.deleted_at IS NULL';

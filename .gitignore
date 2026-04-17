@@ -138,6 +138,27 @@ storage/plugins/goodlib/*
 !storage/plugins/goodlib/*.md
 !storage/plugins/goodlib/views/
 !storage/plugins/goodlib/views/*.php
+!storage/plugins/discogs/
+storage/plugins/discogs/*
+!storage/plugins/discogs/*.php
+!storage/plugins/discogs/*.json
+!storage/plugins/discogs/*.md
+!storage/plugins/discogs/views/
+!storage/plugins/discogs/views/*.php
+!storage/plugins/deezer/
+storage/plugins/deezer/*
+!storage/plugins/deezer/*.php
+!storage/plugins/deezer/*.json
+!storage/plugins/deezer/*.md
+!storage/plugins/deezer/views/
+!storage/plugins/deezer/views/*.php
+!storage/plugins/musicbrainz/
+storage/plugins/musicbrainz/*
+!storage/plugins/musicbrainz/*.php
+!storage/plugins/musicbrainz/*.json
+!storage/plugins/musicbrainz/*.md
+!storage/plugins/musicbrainz/views/
+!storage/plugins/musicbrainz/views/*.php
 
 # Premium plugin - never track (private/commercial)
 storage/plugins/scraping-pro/
@@ -204,6 +225,7 @@ desktop.ini
 # Test Artifacts
 # ========================================
 .playwright-mcp/
+test-results/
 
 # ========================================
 # Development Documentation (not for distribution)
@@ -402,6 +424,14 @@ hackernews.md
 docs/reference/bug-gemini.md
 docs/reference/analisi-sicurezza.md
 scripts/generate_dewey_json.py
+scripts/create-release-local.sh
+scripts/reinstall-test.sh
+pinakes-v*-local.zip
+pinakes-v*-local.zip.sha256
+
+# Reinstall / upgrade regression runbook (local-only, not committed)
+reinstall_test.md
+tests/manual-upgrade-real.spec.js
 docs/reference/start-server.md
 docs/reference/security-audit-report.md
 docs/reference/routes-to-add.md
@@ -423,6 +453,7 @@ internal/
 updater.md
 updater_new.md
 scraping-pro-*.zip
+scraping-pro-*.zip.sha256
 fix-autoloader.php
 test-upgrade/
 .playwright-cli/

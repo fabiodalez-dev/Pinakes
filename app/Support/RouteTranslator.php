@@ -46,6 +46,7 @@ class RouteTranslator
         'catalog_legacy' => '/catalog.php',
         'book' => '/book',
         'book_legacy' => '/book-detail.php',
+        'plugins' => '/admin/plugins',
         'author' => '/author',
         'publisher' => '/publisher',
         'genre' => '/genre',

@@ -24,6 +24,10 @@ use App\Support\ConfigStore;
 // Check if catalogue-only mode is enabled (hides loans, reservations, wishlist)
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 
+// Resolve tipo_media once for badge, labels, and Schema.org
+$resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($book['formato'] ?? null, $book['tipo_media'] ?? null);
+$isMusic = $resolvedTipoMedia === 'disco';
+
 // SEO ottimizzato
 $bookTitle = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
 $bookAuthor = !empty($authors) ? html_entity_decode($authors[0]['nome'] ?? '', ENT_QUOTES, 'UTF-8') : '';
@@ -155,7 +159,7 @@ $breadcrumbSchema["itemListElement"][] = [
 // Book Schema.org
 $bookSchema = [
     "@context" => "https://schema.org",
-    "@type" => "Book",
+    "@type" => \App\Support\MediaLabels::schemaOrgType($resolvedTipoMedia),
     "name" => $bookTitle,
     "url" => $canonicalUrl,
 ];
@@ -219,69 +223,128 @@ if ($bookCurator !== '' && !in_array($bookCurator, array_column($schemaEditors, 
     $schemaEditors[] = ["@type" => "Person", "name" => $bookCurator];
 }
 
-if (!empty($schemaAuthors)) {
-    $bookSchema["author"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
-}
-if (!empty($schemaTranslators)) {
-    $bookSchema["translator"] = count($schemaTranslators) === 1 ? $schemaTranslators[0] : $schemaTranslators;
-}
-if (!empty($schemaIllustrators)) {
-    $bookSchema["illustrator"] = count($schemaIllustrators) === 1 ? $schemaIllustrators[0] : $schemaIllustrators;
-}
-if (!empty($schemaEditors)) {
-    $bookSchema["editor"] = count($schemaEditors) === 1 ? $schemaEditors[0] : $schemaEditors;
-}
-
 if ($bookDescription) {
     $bookSchema["description"] = strip_tags($bookDescription);
 }
 
-if ($bookPublisher) {
-    $bookSchema["publisher"] = [
-        "@type" => "Organization",
-        "name" => $bookPublisher
-    ];
-}
-
-if ($bookYear) {
-    $bookSchema["datePublished"] = (string) $bookYear;
-}
-
-if ($bookISBN) {
-    $bookSchema["isbn"] = $bookISBN;
-}
-
-if (!empty($book['issn'])) {
-    $bookSchema["identifier"] = [
-        "@type" => "PropertyValue",
-        "propertyID" => "ISSN",
-        "value" => $book['issn'],
-    ];
-}
-
-if ($bookPages) {
-    $bookSchema["numberOfPages"] = (int)$bookPages;
-}
-
-if ($bookLanguage) {
-    $bookSchema["inLanguage"] = $bookLanguage;
+if ($bookCover) {
+    $bookSchema["image"] = $ogImage;
 }
 
 if ($bookGenre) {
     $bookSchema["genre"] = $bookGenre;
 }
 
-if ($bookCover) {
-    $bookSchema["image"] = $ogImage; // Use the absolute URL
+if ($bookLanguage) {
+    $bookSchema["inLanguage"] = $bookLanguage;
 }
 
-// Book edition and format
-$bookEdition = trim($book['edizione'] ?? '');
-if ($bookEdition !== '') {
-    $bookSchema["bookEdition"] = $bookEdition;
+if ($bookYear) {
+    $bookSchema["datePublished"] = (string) $bookYear;
 }
 
-// Availability — only include Offer when the book has a price (library lending is not a sale)
+// Media-specific Schema.org properties
+$schemaType = \App\Support\MediaLabels::schemaOrgType($resolvedTipoMedia);
+
+if ($schemaType === 'MusicAlbum') {
+    // MusicAlbum: use byArtist, recordLabel, numTracks
+    if (!empty($schemaAuthors)) {
+        $bookSchema["byArtist"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["recordLabel"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if ($bookPages) {
+        $bookSchema["numTracks"] = (int) $bookPages;
+    }
+    if (!empty($book['ean'])) {
+        $bookSchema["identifier"] = [
+            "@type" => "PropertyValue",
+            "propertyID" => "EAN",
+            "value" => $book['ean'],
+        ];
+    }
+} elseif ($schemaType === 'Movie') {
+    // Movie: use director, productionCompany, duration
+    if (!empty($schemaAuthors)) {
+        $bookSchema["director"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["productionCompany"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if (!empty($book['ean'])) {
+        $bookSchema["identifier"] = [
+            "@type" => "PropertyValue",
+            "propertyID" => "EAN",
+            "value" => $book['ean'],
+        ];
+    }
+} elseif ($schemaType === 'Audiobook') {
+    // Audiobook: use author, publisher, readBy (translator as narrator)
+    if (!empty($schemaAuthors)) {
+        $bookSchema["author"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["publisher"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if (!empty($schemaTranslators)) {
+        $bookSchema["readBy"] = count($schemaTranslators) === 1 ? $schemaTranslators[0] : $schemaTranslators;
+    }
+    if ($bookISBN) {
+        $bookSchema["isbn"] = $bookISBN;
+    }
+} elseif ($schemaType === 'CreativeWork') {
+    // CreativeWork (altro): generic properties only — no Book-specific fields
+    if (!empty($schemaAuthors)) {
+        $bookSchema["author"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["publisher"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if (!empty($book['ean'])) {
+        $bookSchema["identifier"] = [
+            "@type" => "PropertyValue",
+            "propertyID" => "EAN",
+            "value" => $book['ean'],
+        ];
+    }
+} else {
+    // Book (default): full book properties
+    if (!empty($schemaAuthors)) {
+        $bookSchema["author"] = count($schemaAuthors) === 1 ? $schemaAuthors[0] : $schemaAuthors;
+    }
+    if (!empty($schemaTranslators)) {
+        $bookSchema["translator"] = count($schemaTranslators) === 1 ? $schemaTranslators[0] : $schemaTranslators;
+    }
+    if (!empty($schemaIllustrators)) {
+        $bookSchema["illustrator"] = count($schemaIllustrators) === 1 ? $schemaIllustrators[0] : $schemaIllustrators;
+    }
+    if (!empty($schemaEditors)) {
+        $bookSchema["editor"] = count($schemaEditors) === 1 ? $schemaEditors[0] : $schemaEditors;
+    }
+    if ($bookPublisher) {
+        $bookSchema["publisher"] = ["@type" => "Organization", "name" => $bookPublisher];
+    }
+    if ($bookISBN) {
+        $bookSchema["isbn"] = $bookISBN;
+    }
+    if (!empty($book['issn'])) {
+        $bookSchema["identifier"] = [
+            "@type" => "PropertyValue",
+            "propertyID" => "ISSN",
+            "value" => $book['issn'],
+        ];
+    }
+    if ($bookPages) {
+        $bookSchema["numberOfPages"] = (int) $bookPages;
+    }
+    $bookEdition = trim($book['edizione'] ?? '');
+    if ($bookEdition !== '') {
+        $bookSchema["bookEdition"] = $bookEdition;
+    }
+}
+
+// Availability — only include Offer when the item has a price
 if ($bookPrice) {
     $appName = (string) ConfigStore::get('app.name', __('Biblioteca'));
     $bookSchema["offers"] = [
@@ -1522,7 +1585,12 @@ ob_start();
                         </p>
                     <?php endif; ?>
 
-                    <h1 class="fw-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);"><?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?></h1>
+                    <h1 class="fw-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);">
+                        <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
+                        <span class="badge bg-light text-secondary fw-normal" style="font-size: 0.5em; vertical-align: middle;">
+                            <i class="fas <?= \App\Support\MediaLabels::icon($resolvedTipoMedia) ?> me-1"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
+                        </span>
+                    </h1>
 
                     <div class="authors-list" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
@@ -1651,15 +1719,24 @@ ob_start();
                     <?php endif; ?>
                 </div>
 
-                <!-- Description Section -->
+                <!-- Description / Tracklist Section -->
                 <div class="book-description-section" id="book-description-section">
                     <h2 class="section-title">
-                        <i class="fas fa-info-circle"></i>
-                        <?= __("Descrizione") ?>
+                        <i class="fas <?= $isMusic ? 'fa-music' : 'fa-info-circle' ?>"></i>
+                        <?= \App\Support\MediaLabels::label('descrizione', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?>
                     </h2>
                     <div class="description-content">
                         <?php if (!empty($book['descrizione'])): ?>
-                            <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($book['descrizione'], false)) ?></div>
+                            <?php if ($isMusic): ?>
+                                <?php $musicDescription = (string) $book['descrizione']; ?>
+                                <div class="prose prose-sm">
+                                    <?= str_contains($musicDescription, '<li')
+                                        ? \App\Support\HtmlHelper::sanitizeHtml($musicDescription)
+                                        : \App\Support\MediaLabels::formatTracklist($musicDescription) ?>
+                                </div>
+                            <?php else: ?>
+                                <div class="prose prose-sm"><?= \App\Support\HtmlHelper::sanitizeHtml(nl2br($book['descrizione'], false)) ?></div>
+                            <?php endif; ?>
                         <?php else: ?>
                             <p class="text-muted"><?= __("Nessuna descrizione disponibile per questo libro.") ?></p>
                         <?php endif; ?>
@@ -1693,14 +1770,14 @@ ob_start();
                     </h2>
                     <div class="details-grid">
                         <div class="details-column">
-                            <?php if (!empty($book['isbn13'])): ?>
+                            <?php if (!empty($book['isbn13']) && !($isMusic && !empty($book['ean']))): ?>
                             <div class="meta-item">
-                                <div class="meta-label">ISBN-13</div>
+                                <div class="meta-label"><?= \App\Support\MediaLabels::label('isbn13', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['isbn13'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
-                            <?php if (!empty($book['isbn10'])): ?>
+                            <?php if (!$isMusic && !empty($book['isbn10'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label">ISBN-10</div>
                                 <div class="meta-value"><?= htmlspecialchars($book['isbn10'], ENT_QUOTES, 'UTF-8') ?></div>
@@ -1709,7 +1786,7 @@ ob_start();
 
                             <?php if (!empty($book['ean'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label">EAN</div>
+                                <div class="meta-label"><?= $isMusic ? __('Barcode') : 'EAN' ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['ean'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
@@ -1745,7 +1822,7 @@ ob_start();
                         <div class="details-column">
                             <?php if (!empty($book['anno_pubblicazione'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label"><?= __("Anno di Pubblicazione") ?></div>
+                                <div class="meta-label"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['anno_pubblicazione'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
@@ -1759,7 +1836,7 @@ ob_start();
 
                             <?php if (!empty($book['numero_pagine'])): ?>
                             <div class="meta-item">
-                                <div class="meta-label"><?= __("Numero di Pagine") ?></div>
+                                <div class="meta-label"><?= \App\Support\MediaLabels::label('numero_pagine', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                                 <div class="meta-value"><?= htmlspecialchars($book['numero_pagine'], ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
@@ -1767,7 +1844,7 @@ ob_start();
                             <?php if (!empty($book['formato'])): ?>
                             <div class="meta-item">
                                 <div class="meta-label"><?= __("Formato") ?></div>
-                                <div class="meta-value"><?= htmlspecialchars($book['formato'], ENT_QUOTES, 'UTF-8') ?></div>
+                                <div class="meta-value"><?= htmlspecialchars(\App\Support\MediaLabels::formatDisplayName($book['formato']), ENT_QUOTES, 'UTF-8') ?></div>
                             </div>
                             <?php endif; ?>
 
@@ -2054,7 +2131,7 @@ ob_start();
                     <div class="card-body">
                         <?php if (!empty($book['editore'])): ?>
                         <div class="meta-item">
-                            <div class="meta-label"><?= __("Editore") ?></div>
+                            <div class="meta-label"><?= \App\Support\MediaLabels::label('editore', $book['formato'] ?? null, $book['tipo_media'] ?? null) ?></div>
                             <div class="meta-value"><?= htmlspecialchars($book['editore'], ENT_QUOTES, 'UTF-8') ?></div>
                         </div>
                         <?php endif; ?>
@@ -2135,6 +2212,8 @@ ob_start();
                         $relatedAuthorsRaw = html_entity_decode($related['autori'] ?? '', ENT_QUOTES, 'UTF-8');
                         $relatedAuthorsList = array_filter(array_map('trim', preg_split('/\s*,\s*/', (string)$relatedAuthorsRaw)));
                         $relatedPublisher = html_entity_decode($related['editore'] ?? '', ENT_QUOTES, 'UTF-8');
+                        $relatedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($related['formato'] ?? null, $related['tipo_media'] ?? null);
+                        $relatedIsMusic = $relatedTipoMedia === 'disco';
                         $relatedAltParts = [];
                         if ($relatedTitle !== '') {
                             $relatedAltParts[] = sprintf(__('Copertina del libro "%s"'), $relatedTitle);
@@ -2173,7 +2252,7 @@ ob_start();
                             </a>
                         </h5>
                         <p class="related-book-author">
-                            <?= htmlspecialchars($related['autori'] ?? __('Autore sconosciuto'), ENT_QUOTES, 'UTF-8') ?>
+                            <?= htmlspecialchars($related['autori'] ?? __($relatedIsMusic ? 'Artista sconosciuto' : 'Autore sconosciuto'), ENT_QUOTES, 'UTF-8') ?>
                         </p>
                         <div class="related-book-actions">
                             <a href="<?= htmlspecialchars(book_url($related), ENT_QUOTES, 'UTF-8'); ?>"
@@ -2630,4 +2709,3 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
-

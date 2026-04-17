@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.3-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.5-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,9 +24,71 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.5.3
+## What's New in v0.5.5
 
-### 🔍 Cross-Version Consistency Fixes (v0.4.9.9–v0.5.2)
+### 📥 Bulk ISBN Enrichment (#87 follow-up)
+
+- **New Admin page `/admin/libri/bulk-enrich`** — automatic enrichment of books with missing covers/descriptions using their ISBN/EAN
+- **Manual batch** — process 20 books per click through all active scraping plugins (Open Library, Google Books, Discogs, MusicBrainz, Deezer, scraping-pro if installed). Rate-limited to 1 request per 2 minutes to protect upstream APIs
+- **Cron-driven** — configurable background enrichment via `scripts/bulk-enrich-cron.php` with atomic `flock(LOCK_EX|LOCK_NB)` locking
+- **No-overwrite guarantee** — only fills NULL or empty fields, never touches populated data
+- **Empty-string safe** — `NULLIF(TRIM(col), '')` on `isbn13/isbn10/ean` so legacy rows with blank identifiers don't shadow populated ones
+
+### 🔌 New bundled scraping plugins
+
+- **Discogs** — music metadata (CD, vinyl, cassette) via UPC/EAN barcode or text search. Registers 4 hooks (`scrape.isbn.validate`, `scrape.sources`, `scrape.fetch.custom`, `scrape.data.modify`)
+- **MusicBrainz** — fallback music metadata source
+- **Deezer** — cover art + track listings for audio media
+- **GoodLib** — custom-domain book metadata scraper
+
+### 🎯 Upgrade/Install robustness
+
+- **Fixed** `public/installer/assets` symlink → real directory (manual upgrade used to crash with `copy(): The second argument cannot be a directory` on installs where the dir had been materialized)
+- **Release ZIP guard** — `create-release.sh` now scans ZIP metadata via `zipinfo` and aborts if any symlink entry would ship (prevents regressions like the one above)
+- **Reinstall regression test** — full end-to-end suite (`scripts/reinstall-test.sh` + `tests/manual-upgrade-real.spec.js`) that exercises the real admin UI upgrade flow (upload ZIP → click "Avvia" → `Updater::performUpdateFromFile`) instead of bypassing via rsync. Runs the full Playwright suite on both a fresh install and an upgraded install
+
+### 🧹 CodeRabbit Major fixes (16 items)
+
+- **`BulkEnrichController::start`** — no longer leaks raw exception messages to clients; logs via `SecureLogger` and returns a generic 500
+- **`BulkEnrichController::toggle`** — `filter_var(FILTER_VALIDATE_BOOL)` so `"false"/"0"/"off"` correctly disable the feature
+- **`BulkEnrichmentService::setEnabled`** — returns bool; controller propagates DB failures instead of swallowing them
+- **`BulkEnrichmentService::enrichBook`** — checks the `UPDATE` execute() result before marking the book as enriched (prevents false-positive success logs on DB failure)
+- **`ScrapeController::normalizeIsbnFields`** — distinguishes validated ISBN requests (via `IsbnFormatter::isValid`) from plugin-accepted barcode requests, so legitimate book lookups no longer skip ISBN backfill when the scraper omits `format`/`tipo_media`
+- **Accessible switch** — `aria-label` + `aria-labelledby` on `#toggle-enrichment`
+- Full list in `updater.md` Version History.
+
+### 🌐 i18n
+
+- **168 new translations** added to `en_US.json` + `de_DE.json` — all strings introduced in this branch are now fully localised. `it_IT.json` stays minimal (fallback-to-key)
+
+### Migrations
+
+No new migrations. All DB changes ship in existing `migrate_0.5.4.sql`. Running v0.5.5 on a v0.5.4 install is a code-only upgrade.
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.5.4</strong> - Discogs Plugin + Media Type + Plugin Manager Hardening</summary>
+
+### 🎵 Discogs music scraper plugin (#87)
+
+- **New `tipo_media` ENUM** (`libro/disco/audiolibro/dvd/altro`) on `libri` with composite index `(deleted_at, tipo_media)`
+- **Heuristic backfill** from `formato` using anchored LIKE patterns (avoids `%cd%` matching CD-ROM, `%lp%` matching "help")
+- **Discogs + MusicBrainz + CoverArtArchive + Deezer** chain with 4 hooks (incl. `scrape.isbn.validate` for UPC-12/13)
+- **Barcode → ISBN guard** in `ScrapeController::normalizeIsbnFields` — skips normalization when no format/tipo_media signal to avoid the EAN-in-`isbn13` regression
+- **PluginManager** migrated from `error_log` → `SecureLogger` (31 call sites)
+
+### Post-release hotfixes (rolled into v0.5.4)
+
+- `autoRegisterBundledPlugins` INSERT had 14 columns / 13 values after CodeRabbit round 11 — fresh installs crashed with "Column count doesn't match value count" (fixed in `c9bd82c`)
+- Same method's `bind_param('ssssssssissss')` had positions 8+9 swapped — `path='discogs'` was cast to int `0`, orphan-detection then deleted the rows (fixed in `fb1e881`)
+
+</details>
+
+<details>
+<summary><strong>v0.5.3</strong> - Cross-Version Consistency Fixes (v0.4.9.9–v0.5.2)</summary>
 
 - **`descrizione_plain` propagated** — Catalog FULLTEXT search and admin grid now use `COALESCE(NULLIF(descrizione_plain, ''), descrizione)` for LIKE conditions, completing the HTML-free search feature from v0.4.9.9
 - **ISSN in Schema.org & API** — `issn` property now emitted in Book JSON-LD and returned by the public API (`/api/books`)
@@ -34,9 +96,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **LibraryThing import aligned** — `descrizione_plain` (with `html_entity_decode` + spacing), ISSN normalization, `AuthorNormalizer` on traduttore, soft-delete guards on all UPDATE queries, and `descrizione_plain` column conditional (safe on pre-0.4.9.9 databases)
 - **Secondary Author Roles** — LT import now routes translators to `traduttore` field based on `Secondary Author Roles`
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.5.2</strong> - Name Normalization (#93)</summary>

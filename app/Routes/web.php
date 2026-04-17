@@ -1364,6 +1364,31 @@ return function (App $app): void {
         return $controller->syncCovers($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(1, 120))->add(new AdminAuthMiddleware()); // 1 request per 2 minutes (long-running operation)
 
+    // Bulk enrichment routes
+    $app->get('/admin/libri/bulk-enrich', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\BulkEnrichController();
+        return $controller->index($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    // Bulk enrich start: up to 20 external scrapes per request. Rate-limit
+    // prevents double-clicks + retries from overlapping batches and burning
+    // upstream quota (Discogs / Google Books / Open Library have per-minute
+    // limits). Same shape as sync-covers above.
+    $app->post('/admin/libri/bulk-enrich/start', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\BulkEnrichController();
+        return $controller->start($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(1, 120)) // 1 req / 2 min
+      ->add(new CsrfMiddleware())
+      ->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/libri/bulk-enrich/toggle', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\BulkEnrichController();
+        return $controller->toggle($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Fallback GET to avoid 405 if user navigates directly
     $app->get('/admin/libri/update/{id:\d+}', function ($request, $response, $args) {
         return $response->withHeader('Location', '/admin/libri/modifica/' . (int) $args['id'])->withStatus(302);
@@ -2866,6 +2891,12 @@ return function (App $app): void {
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->uninstall($request, $response, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/plugins/{id}/settings', function ($request, $response, $args) use ($app) {
+        $pluginManager = $app->getContainer()->get('pluginManager');
+        $controller = new \App\Controllers\PluginController($pluginManager);
+        return $controller->settingsPage($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
 
     // Plugin settings update
     $app->post('/admin/plugins/{id}/settings', function ($request, $response, $args) use ($app) {

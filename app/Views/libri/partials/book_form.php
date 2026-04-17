@@ -422,6 +422,16 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-body form-section">
           <div class="form-grid-3">
             <div>
+              <label for="tipo_media" class="form-label"><?= __("Tipo Media") ?></label>
+              <select id="tipo_media" name="tipo_media" class="form-input">
+                <?php foreach (\App\Support\MediaLabels::allTypes() as $value => $meta): ?>
+                  <option value="<?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?>" <?= ($book['tipo_media'] ?? 'libro') === $value ? 'selected' : '' ?>>
+                    <?= __($meta['label']) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div>
               <label for="formato" class="form-label"><?= __("Formato") ?></label>
               <input id="formato" name="formato" type="text" class="form-input" placeholder="<?= __('es. Copertina rigida, Brossura') ?>" value="<?php echo HtmlHelper::e($book['formato'] ?? ''); ?>" />
             </div>
@@ -3602,6 +3612,17 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
+            // Auto-set tipo_media from scraped data
+            try {
+                if (data.tipo_media) {
+                    const tipoMediaSelect = document.getElementById('tipo_media');
+                    if (tipoMediaSelect) {
+                        tipoMediaSelect.value = data.tipo_media;
+                    }
+                }
+            } catch (err) {
+            }
+
             // Handle series (collana)
             try {
                 if (data.series) {
@@ -3729,12 +3750,13 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
-            // Handle keywords (parole_chiave) - categories from Google Books
+            // Handle keywords (parole_chiave) - from Google Books, Discogs, MusicBrainz
             try {
-                if (data.keywords) {
+                const kw = data.keywords || data.parole_chiave;
+                if (kw) {
                     const keywordsInput = document.querySelector('input[name="parole_chiave"]');
                     if (keywordsInput) {
-                        keywordsInput.value = data.keywords;
+                        keywordsInput.value = kw;
                     }
                 }
             } catch (err) {
