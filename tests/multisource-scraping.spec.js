@@ -129,23 +129,37 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
   });
 
   test.afterAll(async () => {
-    // Clean up records created during this test run
+    // Soft-delete + null unique-indexed columns, matching the app's normal
+    // delete path (see CLAUDE.md "Soft-Delete Consistency"). Hard DELETE on
+    // `libri` fails on FK constraints (copie, libri_autori) and silent catch
+    // hides the leak — use UPDATE + nullification so dependents stay valid.
     const ids = [manualBookId, importedBookId, manualDiscId, importedDisc1Id, importedDisc2Id]
       .filter(id => id > 0);
+    const errors = [];
     if (ids.length > 0) {
       try {
         const idList = ids.join(',');
         execFileSync('mysql', mysqlArgs(
-          `DELETE FROM libri WHERE id IN (${idList})`
+          `UPDATE libri SET deleted_at = NOW(), ean = NULL, isbn13 = NULL, ` +
+          `isbn10 = NULL WHERE id IN (${idList}) AND deleted_at IS NULL`
         ), { encoding: 'utf-8', timeout: 10000 });
-      } catch { /* best-effort cleanup */ }
+      } catch (err) {
+        errors.push(`ids cleanup: ${err.message}`);
+      }
     }
-    // Also remove any stragglers matched by RUN_TAG
+    // RUN_TAG stragglers — same soft-delete treatment
     try {
       execFileSync('mysql', mysqlArgs(
-        `DELETE FROM libri WHERE titolo LIKE '${RUN_TAG}%'`
+        `UPDATE libri SET deleted_at = NOW(), ean = NULL, isbn13 = NULL, ` +
+        `isbn10 = NULL WHERE titolo LIKE '${RUN_TAG}%' AND deleted_at IS NULL`
       ), { encoding: 'utf-8', timeout: 10000 });
-    } catch { /* best-effort cleanup */ }
+    } catch (err) {
+      errors.push(`RUN_TAG cleanup: ${err.message}`);
+    }
+    if (errors.length > 0) {
+      // Surface so CI notices teardown failures instead of swallowing
+      console.error('[multisource-scraping teardown]', errors.join(' | '));
+    }
     await context?.close();
   });
 

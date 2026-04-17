@@ -84,7 +84,9 @@ $enabled = $enabled ?? false;
             <div class="flex items-center gap-4">
                 <button type="button" id="toggle-enrichment"
                     class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 <?= $enabled ? 'bg-blue-600' : 'bg-gray-200' ?>"
-                    role="switch" aria-checked="<?= $enabled ? 'true' : 'false' ?>">
+                    role="switch" aria-checked="<?= $enabled ? 'true' : 'false' ?>"
+                    aria-label="<?= htmlspecialchars(__('Arricchimento Automatico'), ENT_QUOTES, 'UTF-8') ?>"
+                    aria-labelledby="toggle-label">
                     <span class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out <?= $enabled ? 'translate-x-5' : 'translate-x-0' ?>"></span>
                 </button>
                 <span id="toggle-label" class="text-sm font-medium <?= $enabled ? 'text-green-700' : 'text-gray-500' ?>">

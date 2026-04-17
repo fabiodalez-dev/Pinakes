@@ -207,6 +207,14 @@ test.describe.serial('Discogs Plugin (#87)', () => {
       return;
     }
 
+    // Attach console error listener BEFORE the scrape so we capture any
+    // JS error that fires during import. Previously the listener was added
+    // after the scrape and never asserted, so a silent JS failure passed.
+    const consoleErrors = [];
+    page.on('console', msg => {
+      if (msg.type() === 'error') consoleErrors.push(msg.text());
+    });
+
     // Try importing with a known CD barcode
     await page.locator('#importIsbn').fill(TEST_BARCODE);
     await importBtn.click();
@@ -236,11 +244,15 @@ test.describe.serial('Discogs Plugin (#87)', () => {
           expect(descText.length).toBeGreaterThan(0);
         }
       }
-    } else {
-      // Scraping might have failed (rate limit, network) — that's OK for CI
-      // Just verify no JS errors occurred
-      const logs = [];
-      page.on('console', msg => { if (msg.type() === 'error') logs.push(msg.text()); });
     }
+    // Whether scraping succeeded (populated the title) or failed gracefully
+    // (rate limit / network), the page must not have thrown any console errors.
+    // Known-benign errors (e.g., ad-blockers blocking CDN maps in dev) can be
+    // allowlisted here if they surface in CI.
+    const unexpectedErrors = consoleErrors.filter(e =>
+      !e.includes('Awesomplete') && !e.includes('.map') && !e.includes('favicon')
+    );
+    expect(unexpectedErrors, `console errors during scrape: ${unexpectedErrors.join(' | ')}`)
+      .toEqual([]);
   });
 });

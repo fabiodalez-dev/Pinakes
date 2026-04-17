@@ -183,6 +183,17 @@ if [ "$PHPSTAN_COUNT" -gt 0 ]; then
     MISSING=$((MISSING + 1))
 fi
 
+# Detect symlinks in the ZIP via zipinfo metadata (macOS `unzip` would recreate
+# them, but PHP ZipArchive on Linux extracts as 22-byte regular files → Updater
+# then fails copy(file, existing_dir). Broke v0.5.4 manual upgrade in prod.)
+SYMLINKS_IN_ZIP=$(zipinfo "$ZIPFILE" 2>/dev/null | awk '/^l/ {print $NF}')
+if [ -n "$SYMLINKS_IN_ZIP" ]; then
+    echo -e "${RED}  ✗ Symlinks in ZIP — will break Updater.copyDirectory() in production:${NC}"
+    echo "$SYMLINKS_IN_ZIP" | sed 's/^/    /'
+    echo -e "${RED}    Fix: replace the symlink in the repo with a real directory containing the files.${NC}"
+    MISSING=$((MISSING + 1))
+fi
+
 # Verify version matches
 ZIP_VERSION=$(jq -r '.version' "$VERIFY_DIR/pinakes-v${VERSION}/version.json")
 if [ "$ZIP_VERSION" != "$VERSION" ]; then

@@ -66,22 +66,35 @@ if (!$service->isEnabled()) {
     exit(0);
 }
 
-// Acquire lock file
-if (file_exists($lockFile)) {
-    // Check if the lock is stale (older than 30 minutes)
-    $lockAge = time() - (int) filemtime($lockFile);
-    if ($lockAge < 1800) {
-        logMessage('Another instance is running (lock file exists, age: ' . $lockAge . 's). Exiting.', $logFile);
-        $db->close();
-        exit(0);
-    }
-    logMessage('WARNING: Stale lock file detected (age: ' . $lockAge . 's). Removing and proceeding.', $logFile);
-    unlink($lockFile);
+// Acquire lock ATOMICALLY via flock(LOCK_EX | LOCK_NB). The previous
+// file_exists() / file_put_contents() sequence was racy: two cron invocations
+// could both observe "no lock" and both start a batch, doubling upstream API
+// usage. flock on an open handle is an OS-level mutex.
+$lockHandle = fopen($lockFile, 'c+');
+if ($lockHandle === false) {
+    logMessage('ERROR: cannot open lock file ' . $lockFile . '. Exiting.', $logFile);
+    $db->close();
+    exit(1);
 }
+if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    // Another instance owns the lock. Report PID if readable for diagnostics.
+    rewind($lockHandle);
+    $existingPid = trim((string) fread($lockHandle, 32));
+    logMessage(
+        'Another instance is running (PID: ' . ($existingPid !== '' ? $existingPid : 'unknown') . '). Exiting.',
+        $logFile
+    );
+    fclose($lockHandle); // releases nothing (we don't hold it); just closes fd
+    $db->close();
+    exit(0);
+}
+// We hold the lock. Write our PID + keep the fd open until script end.
+ftruncate($lockHandle, 0);
+rewind($lockHandle);
+fwrite($lockHandle, (string) getmypid());
+fflush($lockHandle);
 
-// Create lock file
-file_put_contents($lockFile, (string) getmypid());
-
+$exitCode = 0;
 try {
     logMessage('Starting bulk enrichment...', $logFile);
 
@@ -118,13 +131,17 @@ try {
         ), $logFile);
     }
 } catch (\Throwable $e) {
+    // Non-zero exit so cron + monitoring record the run as FAILED, not success.
     logMessage('FATAL ERROR: ' . $e->getMessage(), $logFile);
+    $exitCode = 1;
 } finally {
-    // Release lock
-    if (file_exists($lockFile)) {
-        unlink($lockFile);
+    // Release flock + close fd, then remove lock file so next run starts clean
+    if (is_resource($lockHandle)) {
+        flock($lockHandle, LOCK_UN);
+        fclose($lockHandle);
     }
+    @unlink($lockFile);
     $db->close();
 }
 
-exit(0);
+exit($exitCode);

@@ -81,10 +81,19 @@ test.describe.serial('Bulk Enrichment', () => {
     return csrfToken;
   }
 
-  /** POST with CSRF token */
-  async function postWithCsrf(url, formData = {}) {
+  /**
+   * POST with CSRF token.
+   * @param {string} url
+   * @param {object} formData - fields to send as form body (merged with csrf_token)
+   * @param {object} requestOptions - Playwright request options (timeout, headers, ...).
+   *   Previously formData was spread into page.request.post options, so callers
+   *   passing `{ timeout: 25000 }` ended up sending `timeout` as a form field
+   *   instead of raising the request timeout. Keep them separated.
+   */
+  async function postWithCsrf(url, formData = {}, requestOptions = {}) {
     const token = await getCsrf();
     return page.request.post(url, {
+      ...requestOptions,
       form: { ...formData, csrf_token: token },
     });
   }
@@ -338,19 +347,13 @@ test.describe.serial('Bulk Enrichment', () => {
     await page.goto(`${BASE}/admin/libri/bulk-enrich`);
     await page.waitForLoadState('domcontentloaded');
 
-    // The toggle should reflect ON state — check for checked attribute or active class
-    const toggle = page.locator('input[name="enabled"], input[type="checkbox"][name*="enrich"]').first();
-    if (await toggle.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const isChecked = await toggle.isChecked();
-      expect(isChecked).toBe(true);
-    } else {
-      // Fallback: check that the page content reflects the ON state
-      const content = await page.content();
-      const hasOnIndicator = content.includes('checked') ||
-                             content.includes('active') ||
-                             content.includes('enabled');
-      expect(hasOnIndicator).toBe(true);
-    }
+    // The view renders a button[role="switch"][aria-checked], NOT a native
+    // checkbox. The previous fallback on generic substrings like "enabled"
+    // gave false positives because those words appear in inline JS on the
+    // page regardless of state. Read the real control + aria-checked.
+    const switchBtn = page.locator('#toggle-enrichment');
+    await expect(switchBtn).toBeVisible({ timeout: 5000 });
+    await expect(switchBtn).toHaveAttribute('aria-checked', 'true');
 
     // Reset to OFF for subsequent tests
     await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/toggle`, {
@@ -372,9 +375,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     let resp;
     try {
-      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
-        timeout: 25000,
-      });
+      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       test.skip(true, 'Enrichment API unreachable or timed out');
       return;
@@ -403,9 +404,7 @@ test.describe.serial('Bulk Enrichment', () => {
     if (desc === '') {
       // Try another batch run
       try {
-        await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
-          timeout: 25000,
-        });
+        await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
       } catch {
         test.skip(true, 'Enrichment API unreachable or timed out');
         return;
@@ -436,9 +435,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
-        timeout: 25000,
-      });
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — cover should still be original
     }
@@ -462,9 +459,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
-        timeout: 25000,
-      });
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — description should still be original
     }
@@ -487,9 +482,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     let resp;
     try {
-      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
-        timeout: 25000,
-      });
+      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       test.skip(true, 'Enrichment API unreachable or timed out');
       return;
@@ -511,9 +504,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     let resp;
     try {
-      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
-        timeout: 25000,
-      });
+      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       test.skip(true, 'Enrichment API unreachable or timed out');
       return;
@@ -551,9 +542,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
-        timeout: 25000,
-      });
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — field should still be preserved
     }
@@ -571,9 +560,7 @@ test.describe.serial('Bulk Enrichment', () => {
     const isbn = dbQuery(`SELECT IFNULL(isbn13, '') FROM libri WHERE id = ${targetId}`);
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
-        timeout: 25000,
-      });
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — isbn13 should still be preserved
     }
@@ -597,9 +584,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {
-        timeout: 25000,
-      });
+      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — ean should still be preserved
     }

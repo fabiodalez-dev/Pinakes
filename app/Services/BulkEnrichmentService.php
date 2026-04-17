@@ -34,10 +34,18 @@ class BulkEnrichmentService
         $missingDescription = 0;
         $pending = 0;
 
+        // Note: identifier columns are checked via NULLIF(TRIM(col), '')
+        // because legacy imports sometimes wrote empty strings rather than
+        // NULL. Without NULLIF, an isbn13='' would count as "has ISBN" here
+        // and then $book['isbn13'] ?? would pick '' over a populated isbn10.
+        $hasIdentifier = '(NULLIF(TRIM(isbn13), \'\') IS NOT NULL'
+                       . ' OR NULLIF(TRIM(isbn10), \'\') IS NOT NULL'
+                       . ' OR NULLIF(TRIM(ean), \'\') IS NOT NULL)';
+
         // Total books with at least one ISBN identifier
         $result = $this->db->query("
             SELECT COUNT(*) AS cnt FROM libri
-            WHERE (isbn13 IS NOT NULL OR isbn10 IS NOT NULL OR ean IS NOT NULL)
+            WHERE {$hasIdentifier}
               AND deleted_at IS NULL
         ");
         if ($result) {
@@ -48,7 +56,7 @@ class BulkEnrichmentService
         // Books missing cover
         $result = $this->db->query("
             SELECT COUNT(*) AS cnt FROM libri
-            WHERE (isbn13 IS NOT NULL OR isbn10 IS NOT NULL OR ean IS NOT NULL)
+            WHERE {$hasIdentifier}
               AND deleted_at IS NULL
               AND (copertina_url IS NULL OR copertina_url = '')
         ");
@@ -60,7 +68,7 @@ class BulkEnrichmentService
         // Books missing description
         $result = $this->db->query("
             SELECT COUNT(*) AS cnt FROM libri
-            WHERE (isbn13 IS NOT NULL OR isbn10 IS NOT NULL OR ean IS NOT NULL)
+            WHERE {$hasIdentifier}
               AND deleted_at IS NULL
               AND (descrizione IS NULL OR descrizione = '')
         ");
@@ -72,7 +80,7 @@ class BulkEnrichmentService
         // Books pending enrichment (missing cover OR description)
         $result = $this->db->query("
             SELECT COUNT(*) AS cnt FROM libri
-            WHERE (isbn13 IS NOT NULL OR isbn10 IS NOT NULL OR ean IS NOT NULL)
+            WHERE {$hasIdentifier}
               AND deleted_at IS NULL
               AND (copertina_url IS NULL OR copertina_url = ''
                    OR descrizione IS NULL OR descrizione = '')
@@ -105,7 +113,9 @@ class BulkEnrichmentService
         $stmt = $this->db->prepare("
             SELECT id, isbn13, isbn10, ean
             FROM libri
-            WHERE (isbn13 IS NOT NULL OR isbn10 IS NOT NULL OR ean IS NOT NULL)
+            WHERE (NULLIF(TRIM(isbn13), '') IS NOT NULL
+                   OR NULLIF(TRIM(isbn10), '') IS NOT NULL
+                   OR NULLIF(TRIM(ean), '') IS NOT NULL)
               AND deleted_at IS NULL
               AND (copertina_url IS NULL OR copertina_url = ''
                    OR descrizione IS NULL OR descrizione = '')
@@ -125,8 +135,9 @@ class BulkEnrichmentService
 
         $books = [];
         while ($row = $result->fetch_assoc()) {
-            // Priority: isbn13 > isbn10 > ean
-            $isbn = $row['isbn13'] ?? $row['isbn10'] ?? $row['ean'] ?? '';
+            // Priority: isbn13 > isbn10 > ean, treating empty/whitespace as
+            // missing (so a blank isbn13 doesn't win over a populated isbn10).
+            $isbn = $this->firstNonEmpty([$row['isbn13'] ?? null, $row['isbn10'] ?? null, $row['ean'] ?? null]);
             if ($isbn !== '') {
                 $books[] = [
                     'id' => (int) $row['id'],
@@ -138,6 +149,26 @@ class BulkEnrichmentService
         $stmt->close();
 
         return $books;
+    }
+
+    /**
+     * Return the first value in the list that is not null and not
+     * whitespace-only. Empty string when nothing qualifies.
+     *
+     * @param array<int, string|null> $values
+     */
+    private function firstNonEmpty(array $values): string
+    {
+        foreach ($values as $v) {
+            if ($v === null) {
+                continue;
+            }
+            $trimmed = trim($v);
+            if ($trimmed !== '') {
+                return $trimmed;
+            }
+        }
+        return '';
     }
 
     /**
@@ -184,8 +215,14 @@ class BulkEnrichmentService
                 return $result;
             }
 
-            // Determine ISBN to scrape (priority: isbn13 > isbn10 > ean)
-            $isbn = $book['isbn13'] ?? $book['isbn10'] ?? $book['ean'] ?? '';
+            // Determine ISBN to scrape (priority: isbn13 > isbn10 > ean).
+            // Empty/whitespace values are treated as missing so a blank
+            // isbn13 doesn't shadow a populated isbn10.
+            $isbn = $this->firstNonEmpty([
+                $book['isbn13'] ?? null,
+                $book['isbn10'] ?? null,
+                $book['ean'] ?? null,
+            ]);
             if ($isbn === '') {
                 $result['status'] = 'skipped';
                 return $result;
@@ -313,7 +350,18 @@ class BulkEnrichmentService
             }
 
             $updateStmt->bind_param($types, ...$values);
-            $updateStmt->execute();
+            if (!$updateStmt->execute()) {
+                // Never mark as enriched when the UPDATE failed — would hide
+                // a real DB write failure behind a success log and the admin
+                // UI would falsely show the book as processed.
+                SecureLogger::error('[BulkEnrichment] UPDATE execute failed', [
+                    'book_id' => $bookId,
+                    'error'   => $updateStmt->error,
+                    'fields'  => $fieldsUpdated,
+                ]);
+                $updateStmt->close();
+                return $result; // status stays 'error'
+            }
             $updateStmt->close();
 
             // Handle authors (via libri_autori junction table) — only if book has no authors
@@ -447,10 +495,9 @@ class BulkEnrichmentService
 
     /**
      * Enable or disable bulk enrichment.
-     *
-     * @param bool $enabled
+     * @return bool true on success, false on prepare/execute failure
      */
-    public function setEnabled(bool $enabled): void
+    public function setEnabled(bool $enabled): bool
     {
         $value = $enabled ? '1' : '0';
         $category = 'bulk_enrich';
@@ -465,12 +512,18 @@ class BulkEnrichmentService
             SecureLogger::error('[BulkEnrichment] Failed to prepare setEnabled query', [
                 'error' => $this->db->error,
             ]);
-            return;
+            return false;
         }
 
         $stmt->bind_param('sss', $category, $key, $value);
-        $stmt->execute();
+        $ok = $stmt->execute();
+        if (!$ok) {
+            SecureLogger::error('[BulkEnrichment] setEnabled execute failed', [
+                'error' => $stmt->error,
+            ]);
+        }
         $stmt->close();
+        return $ok;
     }
 
     /**

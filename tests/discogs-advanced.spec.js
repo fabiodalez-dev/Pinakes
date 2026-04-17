@@ -43,8 +43,10 @@ test.describe.serial('Discogs Advanced Tests', () => {
     context = await browser.newContext();
     page = await context.newPage();
 
-    // Login
-    await page.goto(`${BASE}/accedi`);
+    // Login via the always-available /login fallback (works regardless of
+    // install locale — Italian installs translate to /accedi but /login is a
+    // permanent alias). Avoids breaking on German/English installations.
+    await page.goto(`${BASE}/login`);
     await page.fill('input[name="email"]', ADMIN_EMAIL);
     await page.fill('input[name="password"]', ADMIN_PASS);
     await page.click('button[type="submit"]');
@@ -123,7 +125,17 @@ test.describe.serial('Discogs Advanced Tests', () => {
   // Test 3: Schema.org uses MusicAlbum for disco, Book for libro
   // ═══════════════════════════════════════════════════════════════════
   test('3. Schema.org JSON-LD type is MusicAlbum for disco', async () => {
-    const musicResp = await page.request.get(`${BASE}/libro/${musicBookId}`);
+    // Derive the public book URL from the admin detail page rather than
+    // hardcoding the Italian `/libro/` slug — EN installs use `/book/`, DE
+    // `/buch/`. We follow the "Vedi scheda pubblica" link exposed by the
+    // admin UI, which RouteTranslator builds for the active locale.
+    await page.goto(`${BASE}/admin/libri/${musicBookId}`);
+    const publicUrl = await page.locator('a[href*="/libro/"], a[href*="/book/"], a[href*="/buch/"]')
+      .first()
+      .getAttribute('href');
+    expect(publicUrl, 'admin page must expose a public-detail link').not.toBeNull();
+    const fullUrl = publicUrl.startsWith('http') ? publicUrl : BASE + publicUrl;
+    const musicResp = await page.request.get(fullUrl);
     expect(musicResp.status()).toBe(200);
     const musicHtml = await musicResp.text();
 

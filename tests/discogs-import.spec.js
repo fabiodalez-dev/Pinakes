@@ -73,12 +73,22 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
   });
 
   test.afterAll(async () => {
-    // Cleanup test data
-    try {
-      if (createdId !== '') {
-        dbExec(`DELETE FROM libri WHERE id = ${Number(createdId)} AND deleted_at IS NULL`);
+    // Soft-delete + null unique-indexed columns (app convention from CLAUDE.md).
+    // Do NOT hard-delete: copie/libri_autori FK rows would orphan or block the
+    // DELETE. Using the soft-delete path is how the admin UI deletes books and
+    // is safe regardless of related data.
+    if (createdId !== '') {
+      const id = Number(createdId);
+      try {
+        dbExec(
+          `UPDATE libri SET deleted_at = NOW(), ean = NULL, isbn13 = NULL, ` +
+          `isbn10 = NULL WHERE id = ${id} AND deleted_at IS NULL`
+        );
+      } catch (err) {
+        console.error(`[discogs-import teardown] soft-delete failed for id=${id}:`, err.message);
+        throw err;
       }
-    } catch {}
+    }
     await context?.close();
   });
 

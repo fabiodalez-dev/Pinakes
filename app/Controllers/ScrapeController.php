@@ -770,19 +770,21 @@ class ScrapeController
         $formatRaw = $data['format'] ?? $data['formato'] ?? null;
         $tipoMediaRaw = $data['tipo_media'] ?? null;
 
-        // If no scraper set either format or tipo_media, we cannot reliably
-        // tell whether the barcode is an ISBN or a music/DVD EAN. Skip the
-        // auto-population entirely to avoid stuffing a non-ISBN barcode into
-        // isbn13 (the old music-as-book bug). inferTipoMedia(null) defaults
-        // to 'libro' which would bypass the guard below.
-        $hasFormatSignal = $formatRaw !== null && $formatRaw !== '';
+        // Distinguish "validated ISBN request" (e.g. byIsbn accepted a real
+        // ISBN-10/13) from "plugin-accepted barcode request" (e.g. Discogs
+        // validateBarcode accepted a 12/13-digit EAN/UPC that's NOT an ISBN).
+        // For the former we can always assume `libro` and backfill ISBN fields
+        // safely. For the latter, missing media signals mean the plugin was
+        // partial — skip backfill to avoid the music-as-book regression.
+        $hasFormatSignal    = $formatRaw !== null && $formatRaw !== '';
         $hasTipoMediaSignal = $tipoMediaRaw !== null && $tipoMediaRaw !== '';
-        if (!$hasFormatSignal && !$hasTipoMediaSignal) {
-            // This is a real scraper bug surfacing: the plugin returned a
-            // partial payload without indicating media type. Warning (not
-            // debug) because it leaves the book half-populated and the admin
-            // needs to investigate which scraper misbehaved.
-            SecureLogger::warning('[ScrapeController] Scraper returned no media-type signal — skipping ISBN normalization', [
+        $isValidatedIsbn    = IsbnFormatter::isValid($originalIsbn);
+        if (!$hasFormatSignal && !$hasTipoMediaSignal && !$isValidatedIsbn) {
+            // Barcode-only request (no ISBN format) AND no media signal from
+            // the plugin → can't safely decide. Warning because either the
+            // plugin misbehaved OR the barcode is non-book media without
+            // explicit labelling.
+            SecureLogger::warning('[ScrapeController] Barcode request with no media-type signal — skipping ISBN normalization', [
                 'isbn' => $originalIsbn,
                 'source' => $data['source'] ?? $data['_source'] ?? 'unknown',
                 'payload_keys' => array_keys($data),

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\BulkEnrichmentService;
+use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -53,10 +54,21 @@ class BulkEnrichController
                 'results' => $results,
             ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG));
         } catch (\Throwable $e) {
+            // Log full details server-side; never leak raw exception messages
+            // (may contain DB schema hints, paths, credentials, stack traces).
+            SecureLogger::error('BulkEnrichController::start failed', [
+                'exception' => get_class($e),
+                'message'   => $e->getMessage(),
+                'file'      => $e->getFile(),
+                'line'      => $e->getLine(),
+            ]);
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'error' => $e->getMessage(),
+                'error'   => __('Errore durante l\'arricchimento'),
             ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG));
+            return $response
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
         }
 
         return $response->withHeader('Content-Type', 'application/json');
@@ -65,14 +77,31 @@ class BulkEnrichController
     /**
      * POST: Toggle automatic enrichment (cron) on/off
      * CSRF validated by CsrfMiddleware
+     *
+     * Accepts `enabled` as a string ("1"/"0"/"true"/"false") OR boolean. Using
+     * `!empty()` alone would have treated "0" (string) as truthy in a subtle
+     * way in older PHP quirks around form-urlencoded booleans — use filter_var
+     * with FILTER_VALIDATE_BOOL so "false", "0", "off", "no" disable correctly.
      */
     public function toggle(Request $request, Response $response, mysqli $db): Response
     {
-        $data = (array) $request->getParsedBody();
-        $enabled = !empty($data['enabled']);
+        $data    = (array) $request->getParsedBody();
+        $raw     = $data['enabled'] ?? false;
+        $enabled = (bool) filter_var($raw, FILTER_VALIDATE_BOOL);
 
         $service = new BulkEnrichmentService($db);
-        $service->setEnabled($enabled);
+        if (!$service->setEnabled($enabled)) {
+            SecureLogger::error('BulkEnrichController::toggle persist failed', [
+                'requested' => $enabled,
+            ]);
+            $response->getBody()->write(json_encode([
+                'success' => false,
+                'error'   => __('Errore nel salvataggio delle impostazioni.'),
+            ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG));
+            return $response
+                ->withHeader('Content-Type', 'application/json')
+                ->withStatus(500);
+        }
 
         $response->getBody()->write(json_encode([
             'success' => true,

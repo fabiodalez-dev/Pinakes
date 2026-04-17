@@ -1371,11 +1371,17 @@ return function (App $app): void {
         return $controller->index($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
+    // Bulk enrich start: up to 20 external scrapes per request. Rate-limit
+    // prevents double-clicks + retries from overlapping batches and burning
+    // upstream quota (Discogs / Google Books / Open Library have per-minute
+    // limits). Same shape as sync-covers above.
     $app->post('/admin/libri/bulk-enrich/start', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\BulkEnrichController();
         return $controller->start($request, $response, $db);
-    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    })->add(new \App\Middleware\RateLimitMiddleware(1, 120)) // 1 req / 2 min
+      ->add(new CsrfMiddleware())
+      ->add(new AdminAuthMiddleware());
 
     $app->post('/admin/libri/bulk-enrich/toggle', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
