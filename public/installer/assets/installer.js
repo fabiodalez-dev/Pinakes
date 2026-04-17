@@ -17,14 +17,17 @@ function testDatabaseConnection() {
     btn.disabled = true;
     btn.innerHTML = `<span class="spinner"></span> ${getInstallerTranslation('testing', 'Testing...')}`;
 
+    // Null-safe: if any field element is missing on the current step variant,
+    // avoid a TypeError that would leave the button stuck in "Testing...".
+    const getVal = (id) => document.getElementById(id)?.value ?? '';
     const formData = new FormData();
     formData.append('action', 'test_connection');
-    formData.append('host', document.getElementById('db_host').value);
-    formData.append('username', document.getElementById('db_username').value);
-    formData.append('password', document.getElementById('db_password').value);
-    formData.append('database', document.getElementById('db_database').value);
-    formData.append('port', document.getElementById('db_port').value);
-    formData.append('socket', document.getElementById('db_socket').value);
+    formData.append('host', getVal('db_host'));
+    formData.append('username', getVal('db_username'));
+    formData.append('password', getVal('db_password'));
+    formData.append('database', getVal('db_database'));
+    formData.append('port', getVal('db_port'));
+    formData.append('socket', getVal('db_socket'));
 
     fetch('index.php?step=2', {
         method: 'POST',
@@ -50,7 +53,16 @@ function testDatabaseConnection() {
     })
     .finally(() => {
         btn.disabled = false;
-        btn.textContent = getInstallerTranslation('testButton', 'Test Connection');
+        // Preserve the <i class="fas fa-plug"></i> icon that step2.php injects
+        // inside the button. textContent would strip child nodes and delete
+        // the icon on every test cycle — rebuild via safe DOM APIs instead.
+        while (btn.firstChild) btn.removeChild(btn.firstChild);
+        const icon = document.createElement('i');
+        icon.className = 'fas fa-plug';
+        btn.appendChild(icon);
+        btn.appendChild(document.createTextNode(
+            ' ' + getInstallerTranslation('testButton', 'Test Connection')
+        ));
     });
 }
 
@@ -73,11 +85,14 @@ function autoDetectSocket() {
     const host = document.getElementById('db_host')?.value;
     const socketField = document.getElementById('db_socket');
 
-    if (host === 'localhost' && socketField) {
+    // Only populate the socket if the user hasn't already entered one (or
+    // the server-rendered value) — avoid clobbering on every host-change
+    // event or on page load when the field is prefilled from a retry.
+    if (host === 'localhost' && socketField && socketField.value.trim() === '') {
         fetch('index.php?action=detect_socket')
             .then(response => response.json())
             .then(data => {
-                if (data.socket) {
+                if (data.socket && socketField.value.trim() === '') {
                     socketField.value = data.socket;
                 }
             })
@@ -124,23 +139,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Progress animation for installation step
-function animateProgress(percentage) {
-    const progressBar = document.querySelector('.progress-bar-fill');
-    if (progressBar) {
-        progressBar.style.width = percentage + '%';
-    }
-}
-
-// Simulate installation progress (for Step 3)
-function simulateInstallProgress() {
-    let progress = 0;
-    const interval = setInterval(() => {
-        progress += 10;
-        animateProgress(progress);
-
-        if (progress >= 100) {
-            clearInterval(interval);
-        }
-    }, 300);
-}
+// (removed: simulateInstallProgress / animateProgress — dead code. Step 3
+// template implements its own inline progress animation and never called
+// these helpers. CodeRabbit nitpick.)

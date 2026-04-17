@@ -126,6 +126,18 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     context = await browser.newContext();
     page = await context.newPage();
     await loginAsAdmin(page);
+
+    // Discogs is a bundled-but-OPTIONAL plugin (registered with is_active=0
+    // on fresh install, no auto-activation). Activate it explicitly so test
+    // #1 (hook-order assertion) and the Discogs barcode flows below don't
+    // rely on cross-file test ordering (Playwright's alphabetical default
+    // would happen to run discogs-import.spec.js first, which was the only
+    // reason it was passing — not an intentional contract).
+    try {
+      execFileSync('mysql', mysqlArgs("UPDATE plugins SET is_active = 1 WHERE name = 'discogs'"), {
+        encoding: 'utf-8', timeout: 10000,
+      });
+    } catch { /* best-effort — if row doesn't exist yet, test 1 will fail loud */ }
   });
 
   test.afterAll(async () => {
@@ -194,7 +206,10 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
 
     expect(payload.title).toBeTruthy();
     expect(payload.tipo_media).toBe('libro');
-    expect(payload.classificazione_dewey).toBe('188');
+    // Loose match: upstream can return '188', '188.7', etc. depending on
+    // cataloging precision. We only care that the record IS classified in
+    // the 188 (Ancient Western Philosophy) range, not the exact depth.
+    expect(payload.classificazione_dewey).toMatch(/^188/);
     expect(payload.isbn13).toBe(ITALIAN_ISBN);
     expect((payload.collana || payload.series || '').length).toBeGreaterThan(0);
   });
@@ -304,8 +319,12 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     await page.waitForLoadState('domcontentloaded');
     const html = await page.content();
 
-    const hasMusicBadge = html.includes('fa-compact-disc') || html.includes('Barcode');
-    expect(hasMusicBadge).toBe(true);
+    // Only music-specific markers. "Barcode" alone would also match the
+    // generic form field label and hide a regression of MediaLabels.
+    const hasMusicBadge = html.includes('fa-compact-disc')
+      || html.includes('Etichetta')
+      || html.includes('Anno di Uscita');
+    expect(hasMusicBadge, 'music-specific marker missing on admin detail page').toBe(true);
   });
 
   test('12. Admin can import and save a Discogs music release from Nevermind barcode', async () => {
@@ -337,9 +356,14 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     await page.waitForLoadState('domcontentloaded');
     const html = await page.content();
 
+    // Music labels (localized) indicate MediaLabels is routing the page
+    // correctly. For the secondary signal we match the actual stored EAN
+    // in the page — the generic word "Barcode" alone matched any form
+    // field label and hid regressions (CodeRabbit nitpick).
     const hasMusicLabel = html.includes('Etichetta') || html.includes('Label');
-    const hasBarcode = html.includes('Barcode') || html.includes(NEVERMIND_BARCODE);
-    expect(hasMusicLabel || hasBarcode).toBe(true);
+    const hasStoredEan = html.includes(IMPORTED_DISC_1_EAN);
+    expect(hasMusicLabel || hasStoredEan,
+      'neither music label nor stored EAN on the admin detail page').toBe(true);
   });
 
   test('14. Admin can import and save a second Discogs release from Meddle barcode', async () => {

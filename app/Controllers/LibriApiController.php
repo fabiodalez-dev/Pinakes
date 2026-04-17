@@ -139,9 +139,18 @@ class LibriApiController
             $types .= 's';
         }
         if ($tipo_media !== '' && $this->hasColumn($db, 'tipo_media')) {
-            $where .= " AND l.tipo_media = ?";
-            $params[] = $tipo_media;
-            $types .= 's';
+            if ($tipo_media === 'libro') {
+                // On upgraded installs, legacy rows have NULL/empty tipo_media.
+                // Treat them as books (the default) so the "Libro" filter
+                // doesn't hide them until a backfill job has run.
+                $where .= " AND (l.tipo_media = ? OR l.tipo_media IS NULL OR l.tipo_media = '')";
+                $params[] = $tipo_media;
+                $types  .= 's';
+            } else {
+                $where .= " AND l.tipo_media = ?";
+                $params[] = $tipo_media;
+                $types  .= 's';
+            }
         }
 
         // Parse DataTables sorting parameters (with robust null checks to avoid notices)

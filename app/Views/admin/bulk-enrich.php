@@ -133,6 +133,13 @@ $enabled = $enabled ?? false;
 
 <script>
 const csrfToken = <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>;
+// Route URLs built server-side once — no per-fetch string concatenation of
+// window.BASE_PATH + hardcoded path. If the route changes or the subfolder
+// install prefix shifts, there's a single source of truth (url() helper).
+const BULK_ENRICH_URLS = <?= json_encode([
+    'toggle' => url('/admin/libri/bulk-enrich/toggle'),
+    'start'  => url('/admin/libri/bulk-enrich/start'),
+], JSON_HEX_TAG) ?>;
 
 // Toggle automatic enrichment
 document.getElementById('toggle-enrichment').addEventListener('click', async function () {
@@ -141,7 +148,7 @@ document.getElementById('toggle-enrichment').addEventListener('click', async fun
     const newState = !isCurrentlyEnabled;
 
     try {
-        const response = await fetch(window.BASE_PATH + '/admin/libri/bulk-enrich/toggle', {
+        const response = await fetch(BULK_ENRICH_URLS.toggle, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
@@ -196,7 +203,7 @@ document.getElementById('btn-enrich-now').addEventListener('click', async functi
     text.textContent = <?= json_encode(__("Elaborazione in corso..."), JSON_HEX_TAG) ?>;
 
     try {
-        const response = await fetch(window.BASE_PATH + '/admin/libri/bulk-enrich/start', {
+        const response = await fetch(BULK_ENRICH_URLS.start, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',

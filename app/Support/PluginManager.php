@@ -589,6 +589,22 @@ class PluginManager
                 is_active, path, main_file, requires_php, requires_app, metadata, installed_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, NOW())
         ");
+        if ($stmt === false) {
+            // prepare() can fail on schema issues; the extracted plugin dir
+            // would otherwise sit on disk and make the next install retry
+            // trip "Directory plugin già esistente" even though no plugin
+            // row exists. Clean up before returning.
+            $this->deleteDirectory($pluginPath);
+            SecureLogger::error('[PluginManager] Failed to prepare plugin INSERT', [
+                'plugin'   => $pluginMeta['name'] ?? 'unknown',
+                'db_error' => $this->db->error,
+            ]);
+            return [
+                'success'   => false,
+                'message'   => __('Errore nel salvataggio delle impostazioni.'),
+                'plugin_id' => null,
+            ];
+        }
 
         $metadata = json_encode($pluginMeta['metadata'] ?? []);
 

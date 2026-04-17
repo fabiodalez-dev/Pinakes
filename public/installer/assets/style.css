@@ -17,7 +17,7 @@
 }
 
 body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji', sans-serif;
     background: #f8f9fb;
     min-height: 100vh;
     display: flex;
@@ -93,8 +93,11 @@ body {
 }
 
 .installer-header {
-    background: #000000;
-    color: white;
+    /* White header so .installer-header h1 (dark) and .installer-header p
+       (muted gray) remain legible — the previous black background made them
+       invisible. CodeRabbit #95-128. */
+    background: #ffffff;
+    color: var(--brand-dark);
     padding: 30px;
     text-align: center;
     border-bottom: 3px solid #d60361;
@@ -285,9 +288,11 @@ body {
 }
 
 .alert-warning {
-    background: var(--brand-bg);
-    border-color: var(--brand-silver);
-    color: var(--brand-dark);
+    /* Amber/yellow warning palette — visually distinct from .alert-info.
+       Previously both used --brand-bg + --brand-dark and were indistinguishable. */
+    background: #fff8e1;
+    border-color: #f59e0b;
+    color: #78350f;
 }
 
 .alert-info {

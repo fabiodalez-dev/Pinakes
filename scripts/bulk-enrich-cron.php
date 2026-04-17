@@ -135,12 +135,17 @@ try {
     logMessage('FATAL ERROR: ' . $e->getMessage(), $logFile);
     $exitCode = 1;
 } finally {
-    // Release flock + close fd, then remove lock file so next run starts clean
+    // Release flock + close fd. Keep the lock FILE on disk so the inode
+    // stays stable: unlinking here would reintroduce a race where another
+    // process could recreate the pathname with a new inode and bypass the
+    // lock held by an earlier lingering fd. We truncate+rewind so a leftover
+    // stale PID doesn't confuse the next run's diagnostics.
     if (is_resource($lockHandle)) {
+        ftruncate($lockHandle, 0);
+        rewind($lockHandle);
         flock($lockHandle, LOCK_UN);
         fclose($lockHandle);
     }
-    @unlink($lockFile);
     $db->close();
 }
 

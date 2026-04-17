@@ -39,6 +39,17 @@ test.describe.serial('Discogs Plugin (#87)', () => {
       !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME,
       'Missing E2E env vars'
     );
+    // Pre-clean: afterAll() is best-effort. If a previous run crashed before
+    // cleanup, an existing row with ean=TEST_BARCODE would trip the UNIQUE
+    // index on libri.ean before test 6 reaches any assertion. Nullify the
+    // unique cols + soft-delete (CLAUDE.md soft-delete consistency).
+    try {
+      dbExec(
+        `UPDATE libri SET deleted_at = NOW(), ean = NULL, isbn13 = NULL, ` +
+        `isbn10 = NULL WHERE (ean = '${TEST_BARCODE}' OR isbn13 = '${TEST_BARCODE}') AND deleted_at IS NULL`
+      );
+    } catch { /* best-effort */ }
+
     context = await browser.newContext();
     page = await context.newPage();
 

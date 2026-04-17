@@ -174,7 +174,9 @@ test.describe.serial('Bulk Enrichment', () => {
     const pendingCount = parseInt(
       dbQuery(
         "SELECT COUNT(*) FROM libri " +
-        "WHERE isbn13 IS NOT NULL AND isbn13 != '' " +
+        "WHERE (NULLIF(TRIM(isbn13), '') IS NOT NULL " +
+        "  OR NULLIF(TRIM(isbn10), '') IS NOT NULL " +
+        "  OR NULLIF(TRIM(ean), '') IS NOT NULL) " +
         "AND (copertina_url IS NULL OR copertina_url = '' OR descrizione IS NULL OR descrizione = '') " +
         "AND deleted_at IS NULL"
       ),
@@ -193,7 +195,9 @@ test.describe.serial('Bulk Enrichment', () => {
     const countBefore = parseInt(
       dbQuery(
         "SELECT COUNT(*) FROM libri " +
-        "WHERE isbn13 IS NOT NULL AND isbn13 != '' " +
+        "WHERE (NULLIF(TRIM(isbn13), '') IS NOT NULL " +
+        "  OR NULLIF(TRIM(isbn10), '') IS NOT NULL " +
+        "  OR NULLIF(TRIM(ean), '') IS NOT NULL) " +
         "AND (copertina_url IS NULL OR copertina_url = '' OR descrizione IS NULL OR descrizione = '') " +
         "AND deleted_at IS NULL"
       ),
@@ -209,7 +213,9 @@ test.describe.serial('Bulk Enrichment', () => {
     const countAfter = parseInt(
       dbQuery(
         "SELECT COUNT(*) FROM libri " +
-        "WHERE isbn13 IS NOT NULL AND isbn13 != '' " +
+        "WHERE (NULLIF(TRIM(isbn13), '') IS NOT NULL " +
+        "  OR NULLIF(TRIM(isbn10), '') IS NOT NULL " +
+        "  OR NULLIF(TRIM(ean), '') IS NOT NULL) " +
         "AND (copertina_url IS NULL OR copertina_url = '' OR descrizione IS NULL OR descrizione = '') " +
         "AND deleted_at IS NULL"
       ),
@@ -237,7 +243,9 @@ test.describe.serial('Bulk Enrichment', () => {
     const pendingCount = parseInt(
       dbQuery(
         "SELECT COUNT(*) FROM libri " +
-        "WHERE isbn13 IS NOT NULL AND isbn13 != '' " +
+        "WHERE (NULLIF(TRIM(isbn13), '') IS NOT NULL " +
+        "  OR NULLIF(TRIM(isbn10), '') IS NOT NULL " +
+        "  OR NULLIF(TRIM(ean), '') IS NOT NULL) " +
         "AND (copertina_url IS NULL OR copertina_url = '' OR descrizione IS NULL OR descrizione = '') " +
         "AND deleted_at IS NULL"
       ),
@@ -385,12 +393,18 @@ test.describe.serial('Bulk Enrichment', () => {
     const json = await resp.json();
     const results = json.results ?? json;
 
-    // After batch, check if cover was populated (may depend on API availability)
-    const cover = dbQuery(`SELECT IFNULL(copertina_url, '') FROM libri WHERE id = ${targetId}`);
-    if (results.enriched > 0) {
+    // Only assert the DB row if THIS specific target was in the batch's
+    // details. `results.enriched > 0` alone could reflect a different book
+    // being enriched — that would make this test flaky on any setup where
+    // another pending row is processed first.
+    const targetDetail = (results.details ?? []).find(
+      d => Number(d.book_id ?? d.id) === Number(targetId) && d.status === 'enriched'
+    );
+    if (targetDetail) {
+      const cover = dbQuery(`SELECT IFNULL(copertina_url, '') FROM libri WHERE id = ${targetId} AND deleted_at IS NULL LIMIT 1`);
       expect(cover.length).toBeGreaterThan(0);
     }
-    // If enriched === 0, API may be rate-limited — acceptable
+    // Else: either API rate-limited or batch touched another row — acceptable.
   });
 
   test('10. Manual batch enriches book with valid ISBN (description)', async () => {
