@@ -138,8 +138,12 @@ CRITICAL_FILES=(
 # Bundled plugins that MUST be in the ZIP (scraping-pro is premium, NOT bundled)
 BUNDLED_PLUGINS=(
     "api-book-scraper"
+    "deezer"
     "dewey-editor"
     "digital-library"
+    "discogs"
+    "goodlib"
+    "musicbrainz"
     "open-library"
     "z39-server"
 )

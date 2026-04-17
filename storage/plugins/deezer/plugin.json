@@ -1,0 +1,43 @@
+{
+  "name": "deezer",
+  "display_name": "Deezer Music Search",
+  "description": "Integrazione con Deezer per arricchire i dati musicali. Cerca per titolo/artista, fornisce copertine HD, tracklist con durate, genere. Nessun token richiesto.",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "https://developers.deezer.com",
+  "main_file": "wrapper.php",
+  "requires_php": "8.0",
+  "requires_app": "0.5.0",
+  "max_app_version": "0.5.5",
+  "metadata": {
+    "category": "scraping",
+    "tags": [
+      "api",
+      "deezer",
+      "scraping",
+      "music",
+      "covers"
+    ],
+    "priority": 15,
+    "api_endpoints": [
+      "https://api.deezer.com/search/album",
+      "https://api.deezer.com/album/{id}"
+    ],
+    "hooks": [
+      {
+        "name": "scrape.data.modify",
+        "callback_method": "enrichWithDeezerData",
+        "description": "Enriches existing music data with Deezer covers, genres and tracklist",
+        "priority": 15
+      }
+    ],
+    "features": [
+      "Arricchimento dati da Discogs/MusicBrainz",
+      "Copertine HD (1000x1000)",
+      "Tracklist con durate",
+      "Generi musicali",
+      "Nessun token richiesto"
+    ]
+  }
+}

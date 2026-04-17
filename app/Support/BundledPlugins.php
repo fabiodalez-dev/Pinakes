@@ -7,10 +7,12 @@ final class BundledPlugins
 {
     public const LIST = [
         'api-book-scraper',
+        'deezer',
         'dewey-editor',
         'digital-library',
         'discogs',
         'goodlib',
+        'musicbrainz',
         'open-library',
         'z39-server',
     ];
