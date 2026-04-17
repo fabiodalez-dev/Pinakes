@@ -1768,9 +1768,16 @@ async function initializeDewey() {
       const code = path[i];
       const parentCode = i === 0 ? null : path[i - 1];
 
-      // Assicurati che il dropdown per questo livello esista
+      // Assicurati che il dropdown per questo livello esista. Se loadLevel
+      // ritorna null (parent non trovato nel JSON o API vuota) interrompi
+      // la navigazione: codici Dewey più specifici del JSON (es. '305.42097'
+      // legacy) sono trattati come custom — il fallback sotto mostrerà il
+      // codice nel breadcrumb senza tentare altri livelli.
       if (container.children.length <= i) {
-        await loadLevel(parentCode, i);
+        const loadedSelect = await loadLevel(parentCode, i);
+        if (!loadedSelect) {
+          break;
+        }
       }
 
       // Trova e seleziona l'opzione nel dropdown

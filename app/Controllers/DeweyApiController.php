@@ -254,17 +254,27 @@ class DeweyApiController
                         }
                     }
                 } else {
-                    // Cerca il nodo parent e ritorna i suoi figli
+                    // Cerca il nodo parent e ritorna i suoi figli.
+                    //
+                    // Parent non trovato = nessun figlio tracciato. Restituiamo
+                    // array vuoto con 200 invece di 404: i codici Dewey legacy
+                    // del DB possono essere più specifici del JSON (es. libri
+                    // importati con '305.42097' quando il JSON ferma a '305.4').
+                    // Il frontend usa len === 0 come segnale di leaf per
+                    // interrompere la ricorsione naturalmente, così la navigazione
+                    // del cascade si ferma senza errori 404 spuri in console.
                     $parent = $this->findNodeByCode($data, $parentCode);
-                    if ($parent === null) {
-                        $response->getBody()->write(json_encode(['error' => __('Codice parent non trovato.')], JSON_UNESCAPED_UNICODE));
-                        return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
-                    }
-                    if (isset($parent['children'])) {
+                    if ($parent !== null && isset($parent['children'])) {
                         foreach ($parent['children'] as $child) {
+                            // Skip children con name vuoto (dati sporchi nel JSON
+                            // o nel DB): mostrerebbero un'opzione dropdown illeggibile.
+                            $name = trim((string) ($child['name'] ?? ''));
+                            if ($name === '') {
+                                continue;
+                            }
                             $children[] = [
                                 'code' => $child['code'],
-                                'name' => $child['name'],
+                                'name' => $name,
                                 'level' => $child['level'],
                                 'has_children' => !empty($child['children'])
                             ];
