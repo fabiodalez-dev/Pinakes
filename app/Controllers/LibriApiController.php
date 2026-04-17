@@ -151,15 +151,18 @@ class LibriApiController
 
         // Map column indices to database fields
         // Columns: 0=checkbox, 1=status, 2=media, 3=cover, 4=info(title), 5=genre, 6=position, 7=year, 8=actions
-        $orderByMap = [
-            4 => 'l.titolo',           // Info column - sort by title
-            5 => 'g.nome',             // Genre column
-            6 => 's.codice, m.numero_livello, COALESCE(l.posizione_progressiva, p.ordine)', // Position
-            7 => 'l.anno_pubblicazione', // Year column
-        ];
-
-        $orderByClause = $orderByMap[$orderColumn] ?? 'l.titolo';
-        $orderBy = "ORDER BY {$orderByClause} {$orderDir}";
+        // Position column uses multi-column sort — each component needs the direction applied
+        if ($orderColumn === 6) {
+            $orderBy = "ORDER BY s.codice {$orderDir}, m.numero_livello {$orderDir}, COALESCE(l.posizione_progressiva, p.ordine) {$orderDir}";
+        } else {
+            $orderByMap = [
+                4 => 'l.titolo',
+                5 => 'g.nome',
+                7 => 'l.anno_pubblicazione',
+            ];
+            $orderByClause = $orderByMap[$orderColumn] ?? 'l.titolo';
+            $orderBy = "ORDER BY {$orderByClause} {$orderDir}";
+        }
 
         // Count total records with prepared statement (excluding soft-deleted)
         $total_sql = 'SELECT COUNT(*) AS c FROM libri l WHERE l.deleted_at IS NULL';

@@ -147,9 +147,18 @@ class MediaLabels
             return '';
         }
 
-        // If already formatted as HTML ordered list, sanitize and return
+        // If already formatted as HTML ordered list, rebuild with escaped content.
+        // strip_tags() preserves attributes on allowed tags (onclick, onerror, etc.)
+        // so we extract <li> text content and rebuild a clean <ol> instead.
         if (str_contains($text, '<ol') && str_contains($text, '</ol>')) {
-            return strip_tags($text, '<ol><li><span><br>');
+            if (preg_match_all('/<li[^>]*>(.*?)<\/li>/si', $text, $matches)) {
+                $items = array_map(static function (string $item): string {
+                    return '<li>' . htmlspecialchars(strip_tags($item), ENT_QUOTES, 'UTF-8') . '</li>';
+                }, $matches[1]);
+                return '<ol class="tracklist">' . implode('', $items) . '</ol>';
+            }
+            // Fallback: strip all HTML and return plain text
+            return htmlspecialchars(strip_tags($text), ENT_QUOTES, 'UTF-8');
         }
 
         // Remove "Tracklist:" prefix if present

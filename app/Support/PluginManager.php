@@ -135,6 +135,12 @@ class PluginManager
                     is_active, path, main_file, requires_php, requires_app, metadata, installed_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
+            if ($stmt === false) {
+                SecureLogger::error("[PluginManager] Failed to prepare bundled plugin insert for $pluginName", [
+                    'db_error' => $this->db->error,
+                ]);
+                continue;
+            }
 
             $metadata = json_encode($pluginMeta['metadata'] ?? []);
             $name = $pluginMeta['name'];
@@ -990,6 +996,14 @@ class PluginManager
             VALUES (?, ?, ?, ?, NOW())
             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), autoload = VALUES(autoload), updated_at = NOW()
         ");
+        if ($stmt === false) {
+            SecureLogger::error('[PluginManager] setSetting prepare failed', [
+                'plugin_id' => $pluginId,
+                'key' => $key,
+                'db_error' => $this->db->error,
+            ]);
+            return false;
+        }
 
         $valueStr = is_array($value) || is_object($value) ? json_encode($value) : (string)$value;
 
