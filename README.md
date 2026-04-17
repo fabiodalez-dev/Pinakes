@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.5-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.6-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -23,6 +23,30 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
 
 ---
+
+## What's New in v0.5.6
+
+### 🐛 Fix — Dewey cascade 404s on legacy deep codes
+
+Opening the admin book-edit form on any record whose `classificazione_dewey`
+is more specific than the JSON catalog (e.g. `305.42097` when
+`data/dewey/dewey_completo_it.json` ships up to `305.4` for that subtree)
+fired a chain of 404s in the browser console: `/api/dewey/children?parent_code=305.42`,
+`...=305.420`, `...=305.4209`, `...=305.42097`. No functional breakage,
+but visually alarming and a false signal during debugging.
+
+- **`DeweyApiController::getChildren`** now returns `200 []` when the
+  parent code isn't found in the JSON (leaf semantics). Empty-name
+  children are also skipped so they don't surface as blank dropdown
+  options.
+- **`book_form.php` `navigateToCode()`** breaks the cascade loop when
+  `loadLevel()` returns null — the custom-code fallback below already
+  handles rendering the untraceable code in the breadcrumb.
+- New regression test `tests/dewey-cascade-404.spec.js` seeds a book
+  with `305.42097` and asserts zero 404s + zero console errors when
+  opening the edit form in a real Chromium.
+
+v0.5.6 includes everything from v0.5.5 plus this Dewey fix.
 
 ## What's New in v0.5.5
 
