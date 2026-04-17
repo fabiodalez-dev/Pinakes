@@ -591,7 +591,7 @@ test.describe.serial('Bulk Enrichment', () => {
     // Insert book with EAN
     dbExec(
       "INSERT INTO libri (titolo, isbn13, ean, copertina_url, descrizione, copie_totali, copie_disponibili, stato, created_at, updated_at) " +
-      `VALUES ('${prefix}_WithEAN', '${ISBN_HOBBIT}', '${testEan}', NULL, NULL, 1, 1, 'disponibile', NOW(), NOW())`
+      `VALUES ('${prefix}_WithEAN', '9780684801223', '${testEan}', NULL, NULL, 1, 1, 'disponibile', NOW(), NOW())`
     );
     const id = dbQuery(`SELECT id FROM libri WHERE titolo = '${prefix}_WithEAN' AND deleted_at IS NULL LIMIT 1`);
     bookIds.push(parseInt(id, 10));
