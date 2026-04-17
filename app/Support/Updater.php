@@ -1996,6 +1996,25 @@ class Updater
             $this->debugLog('INFO', 'Aggiornamento plugin bundled');
             $this->updateBundledPlugins($sourcePath);
 
+            // Sync DB rows for bundled plugins that are NEW in this release
+            // (no previous row in `plugins`). Without this, the new rows are
+            // inserted only on the next HTTP request
+            // (public/index.php → loadActivePlugins → autoRegisterBundledPlugins).
+            // That meant an admin viewing /admin/plugins right after upgrade
+            // saw the old plugin list until a second page load. Run it here
+            // so the admin list is correct on first view post-upgrade.
+            try {
+                // Same constructor shape as config/container.php:163-168. Reusing
+                // the inline build keeps the Updater free of the DI container.
+                $pluginManager = new PluginManager($this->db, new HookManager($this->db));
+                $registered    = $pluginManager->autoRegisterBundledPlugins();
+                $this->debugLog('INFO', 'Sync plugin bundled post-install', ['registered' => $registered]);
+            } catch (\Throwable $e) {
+                $this->debugLog('WARNING', 'Auto-register plugin bundled non riuscito (non bloccante)', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             // Clean up orphan files
             $this->debugLog('INFO', 'Pulizia file orfani');
             $this->cleanupOrphanFiles($sourcePath);

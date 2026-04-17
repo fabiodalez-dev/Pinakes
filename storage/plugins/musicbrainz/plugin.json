@@ -9,7 +9,7 @@
   "main_file": "wrapper.php",
   "requires_php": "8.0",
   "requires_app": "0.5.0",
-  "max_app_version": "0.5.6",
+  "max_app_version": "0.5.7",
   "metadata": {
     "category": "scraping",
     "tags": [
@@ -51,6 +51,7 @@
       "Mappatura etichetta su editore",
       "Supporto CD, vinile, cassette",
       "Nessun token richiesto (open data)"
-    ]
+    ],
+    "optional": true
   }
 }
