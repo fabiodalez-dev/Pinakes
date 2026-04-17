@@ -266,7 +266,23 @@ echo ""
 # ============================================================================
 echo -e "${YELLOW}[8/9] Uploading files to GitHub release...${NC}"
 
-gh release upload "v${VERSION}" "$ZIPFILE" "${ZIPFILE}.sha256" --clobber
+# Build the asset list — always ZIP + its checksum, plus optional patch files
+# (post-install-patch.php / pre-update-patch.php) when present in repo root.
+# Those patch files are release-specific hotfixes dropped next to the script
+# by the maintainer; they're gitignored so they don't bleed into main.
+UPLOAD_ASSETS=("$ZIPFILE" "${ZIPFILE}.sha256")
+for PATCH in post-install-patch.php pre-update-patch.php; do
+    if [ -f "$PATCH" ]; then
+        # Ensure checksum is fresh — the Updater verifies SHA-256 of the patch
+        # before executing it, so a stale .sha256 would cause the patch to be
+        # silently ignored on user installs.
+        shasum -a 256 "$PATCH" > "${PATCH}.sha256"
+        UPLOAD_ASSETS+=("$PATCH" "${PATCH}.sha256")
+        echo -e "${YELLOW}  + Attaching $PATCH (+ checksum)${NC}"
+    fi
+done
+
+gh release upload "v${VERSION}" "${UPLOAD_ASSETS[@]}" --clobber
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ ERROR: File upload failed${NC}"

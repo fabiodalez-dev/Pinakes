@@ -457,3 +457,9 @@ scraping-pro-*.zip.sha256
 fix-autoloader.php
 test-upgrade/
 .playwright-cli/
+
+# Post-install-patch release artifacts (uploaded to release, not committed)
+post-install-patch.php
+post-install-patch.php.sha256
+pre-update-patch.php
+pre-update-patch.php.sha256
