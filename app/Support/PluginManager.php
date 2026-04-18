@@ -271,11 +271,37 @@ class PluginManager
         while ($row = $result->fetch_assoc()) {
             $pluginPath = $this->pluginsDir . '/' . $row['path'];
 
-            // Check if plugin folder exists
-            if (!is_dir($pluginPath)) {
-                $orphanIds[] = (int)$row['id'];
-                SecureLogger::warning("[PluginManager] Orphan plugin detected: '{$row['name']}' - folder missing at {$pluginPath}");
+            if (is_dir($pluginPath)) {
+                continue;
             }
+
+            // NEVER delete a bundled plugin, even if the folder is temporarily
+            // missing. Bundled plugins are part of the release ZIP and get
+            // re-materialised on the next upgrade. If we delete the DB row now,
+            // the post-install-patch SQL inserted during the upgrade would be
+            // wiped out too, and the admin panel would show a broken plugin
+            // list until manual intervention. Deactivate if still active,
+            // surface a WARNING, move on.
+            if (in_array($row['name'], BundledPlugins::LIST, true)) {
+                SecureLogger::warning(
+                    "[PluginManager] Bundled plugin '{$row['name']}' folder missing at {$pluginPath} — " .
+                    "NOT removing from DB (bundled plugins stay registered, waiting for files to be re-copied)"
+                );
+                if ((int)($row['is_active'] ?? 0) === 1) {
+                    $deactivate = $this->db->prepare("UPDATE plugins SET is_active = 0 WHERE id = ?");
+                    if ($deactivate !== false) {
+                        $pid = (int)$row['id'];
+                        $deactivate->bind_param('i', $pid);
+                        $deactivate->execute();
+                        $deactivate->close();
+                        SecureLogger::info("[PluginManager] Deactivated bundled plugin '{$row['name']}' until folder is restored");
+                    }
+                }
+                continue;
+            }
+
+            $orphanIds[] = (int)$row['id'];
+            SecureLogger::warning("[PluginManager] Orphan plugin detected: '{$row['name']}' - folder missing at {$pluginPath}");
         }
         $result->free();
 
