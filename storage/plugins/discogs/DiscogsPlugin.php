@@ -50,17 +50,136 @@ class DiscogsPlugin
     }
 
     /**
-     * Validate barcode: accept ISBN, EAN-13, and UPC-A codes
+     * Validate barcode: accept ISBN, EAN-13, UPC-A, and Discogs Catalog Numbers.
+     *
+     * Discogs identifies releases through three distinct keys:
+     *   - EAN-13/UPC-A (barcode printed on the jewel case / sleeve)
+     *   - Catalog Number a.k.a. Cat# (printed on the disc / spine / label —
+     *     alphanumeric, e.g. "CDP 7912682", "SRX-6272", "DGC-24425-2", "LC 03098")
+     *   - Free-text (title + artist)
+     *
+     * Historically this plugin only accepted the first form, which meant any
+     * release older than barcode adoption (~1980) or any promo/limited pressing
+     * without a printed EAN couldn't be imported (see issue #101 — Bonnie Raitt
+     * "Nick of Time", Capitol CDP 7912682). Now we also accept Cat# patterns
+     * and route them to the `catno=` search parameter in fetchFromDiscogs().
      */
     public function validateBarcode(bool $isValid, string $isbn): bool
     {
-        // If already valid (ISBN), keep it
         if ($isValid) {
-            return true;
+            return true; // already a valid ISBN-10/13
         }
-        // Accept EAN-13 (13 digits) and UPC-A (12 digits)
-        $clean = preg_replace('/[^0-9]/', '', $isbn);
-        return strlen((string) $clean) === 13 || strlen((string) $clean) === 12;
+        if (self::isNumericBarcode($isbn)) {
+            return true; // EAN-13 or UPC-A
+        }
+        return self::isCatalogNumber($isbn);
+    }
+
+    /**
+     * True when the input is a pure-digit EAN-13 (13 digits) or UPC-A (12 digits).
+     */
+    private static function isNumericBarcode(string $input): bool
+    {
+        $digits = preg_replace('/[^0-9]/', '', $input);
+        $len = strlen((string) $digits);
+        // Also require that the input was basically digits-only (no letters),
+        // otherwise "CDP 7912682" would strip to "7912682" and we'd dispatch
+        // it as a barcode by mistake. preg_match ensures letter-free input.
+        if ($len !== 13 && $len !== 12) {
+            return false;
+        }
+        return preg_match('/^[\s0-9\-]+$/', $input) === 1;
+    }
+
+    /**
+     * True when the input looks like a Discogs Catalog Number.
+     *
+     * Heuristic: alphanumeric (letters + digits + spaces + hyphens + dots),
+     * length 4-30, must contain at least one digit AND either a letter OR a
+     * separator. The separator relaxation accepts pure-numeric Cat# strings
+     * like BMG's "74321 66847 2" — pure-digit strings without separators
+     * would already have been caught by isNumericBarcode() as EAN/UPC.
+     */
+    private static function isCatalogNumber(string $input): bool
+    {
+        $trimmed = trim($input);
+        $len = strlen($trimmed);
+        if ($len < 4 || $len > 30) {
+            return false;
+        }
+        if (preg_match('/^[A-Za-z0-9][A-Za-z0-9 .\-_\/]*[A-Za-z0-9]$/', $trimmed) !== 1) {
+            return false;
+        }
+        $hasLetter    = preg_match('/[A-Za-z]/', $trimmed) === 1;
+        $hasDigit     = preg_match('/[0-9]/', $trimmed) === 1;
+        $hasSeparator = preg_match('/[ .\-_\/]/', $trimmed) === 1;
+        return $hasDigit && ($hasLetter || $hasSeparator);
+    }
+
+    /**
+     * Public helper so fetchFromDiscogs / searchMusicBrainz can pick the
+     * right API parameter (barcode= vs catno=). Kept alongside
+     * validateBarcode so the routing stays consistent with validation.
+     */
+    public static function identifierKind(string $input): string
+    {
+        if (self::isNumericBarcode($input)) {
+            return 'barcode';
+        }
+        if (self::isCatalogNumber($input)) {
+            return 'catno';
+        }
+        return 'unknown';
+    }
+
+    /**
+     * Return the canonical form of a search identifier for the given kind.
+     *
+     * For `barcode`: strips separators (e.g. "5099902-988023" → "5099902988023")
+     * so the value is always stored in the `ean` column as pure digits and
+     * the Discogs `barcode=` query hits exact matches.
+     * For `catno` / `unknown`: just trim whitespace — preserves spaces and
+     * punctuation that are semantically part of Discogs catalog numbers.
+     *
+     * Falls back to the trimmed input if normalization somehow yields empty
+     * (defence against unexpected input — isNumericBarcode already guarantees
+     * a digit is present for the `barcode` branch).
+     */
+    public static function canonicalSearchIdentifier(string $input, string $kind): string
+    {
+        if ($kind === 'barcode') {
+            $digits = preg_replace('/\D+/', '', $input);
+            if ($digits !== null && $digits !== '') {
+                return $digits;
+            }
+        }
+        return trim($input);
+    }
+
+    /**
+     * Build the MusicBrainz Lucene `field:value` fragment for an identifier.
+     *
+     * Lucene treats spaces as AND separators, so `catno:CDP 7912682` is
+     * parsed as `catno:CDP AND 7912682` and matches the wrong documents.
+     * Wrapping catno values in double quotes forces phrase interpretation
+     * (https://musicbrainz.org/doc/Indexed_Search_Syntax). Barcodes are
+     * always pure-digit, so quoting them is unnecessary; we still strip
+     * non-digits for canonical form.
+     *
+     * Returns the raw `field:value` string — caller is responsible for
+     * rawurlencode() when composing the URL.
+     */
+    public static function buildMusicBrainzQuery(string $input): string
+    {
+        $kind = self::identifierKind($input);
+        $field = $kind === 'catno' ? 'catno' : 'barcode';
+        if ($kind === 'catno') {
+            $value = '"' . addcslashes($input, '"\\') . '"';
+        } else {
+            $digits = preg_replace('/\D+/', '', $input);
+            $value = ($digits !== null && $digits !== '') ? $digits : $input;
+        }
+        return $field . ':' . $value;
     }
 
     /**
@@ -267,9 +386,27 @@ class DiscogsPlugin
         try {
             $token = $this->getSetting('api_token');
 
-            // Barcode search is the primary strategy; title/artist fallback
-            // below fires only when a previous scraper already supplied a title.
-            $searchUrl = self::API_BASE . '/database/search?barcode=' . urlencode($isbn) . '&type=release';
+            // Route to the correct Discogs search parameter based on the input
+            // shape. Pure digits (12-13) → ?barcode=XXX (EAN/UPC on the case).
+            // Alphanumeric → ?catno=XXX (printed on the disc/spine, e.g.
+            // "CDP 7912682"). This covers releases without a printed barcode
+            // (older pressings, promos, limited editions).
+            $kind = self::identifierKind($isbn);
+            $param = $kind === 'catno' ? 'catno' : 'barcode';
+            // Normalize before searching AND before persisting: a user-entered
+            // "5099902-988023" becomes the canonical "5099902988023" so the
+            // `ean` column never receives a hyphenated/non-canonical form.
+            // canonicalSearchIdentifier() strips non-digits for barcode and
+            // just trims for catno (preserving "CDP 7912682" intact).
+            $searchIdentifier = self::canonicalSearchIdentifier($isbn, $kind);
+            // Only persist the input as a barcode when it IS a barcode —
+            // otherwise `CDP 7912682` (Cat#) would end up in the `ean` column
+            // via mapReleaseToPinakes / mapMusicBrainzToPinakes. For Cat#
+            // searches we leave the barcode detection to extractBarcodeFromRelease()
+            // against the upstream payload.
+            $fallbackBarcode = $kind === 'barcode' ? $searchIdentifier : null;
+            $searchUrl = self::API_BASE . '/database/search?' . $param . '='
+                . urlencode($searchIdentifier) . '&type=release';
             $searchResult = $this->apiRequest($searchUrl, $token);
 
             if (empty($searchResult['results'][0])) {
@@ -284,16 +421,16 @@ class DiscogsPlugin
                 }
 
                 // Discogs found nothing — try MusicBrainz as fallback
-                $mbResult = $this->searchMusicBrainz($isbn, $isbn);
+                $mbResult = $this->searchMusicBrainz($isbn, $fallbackBarcode);
                 if ($mbResult !== null) {
                     return $this->mergeBookData($currentResult, $mbResult);
                 }
                 return $currentResult;
             }
 
-            $discogsData = $this->fetchDiscogsReleaseFromSearchResult($searchResult['results'][0], $token, $isbn);
+            $discogsData = $this->fetchDiscogsReleaseFromSearchResult($searchResult['results'][0], $token, $fallbackBarcode);
             if ($discogsData === null) {
-                $mbResult = $this->searchMusicBrainz($isbn, $isbn);
+                $mbResult = $this->searchMusicBrainz($isbn, $fallbackBarcode);
                 return $mbResult !== null
                     ? $this->mergeBookData($currentResult, $mbResult)
                     : $currentResult;
@@ -1030,8 +1167,11 @@ class DiscogsPlugin
      */
     private function searchMusicBrainz(string $barcode, ?string $fallbackBarcode): ?array
     {
-        // Search by barcode
-        $url = 'https://musicbrainz.org/ws/2/release?query=barcode:' . urlencode($barcode) . '&fmt=json&limit=1';
+        // MusicBrainz supports both `barcode:` and `catno:` Lucene-style
+        // filters. Pick the right one + quote multi-word Cat# values.
+        $url = 'https://musicbrainz.org/ws/2/release?query='
+            . rawurlencode(self::buildMusicBrainzQuery($barcode))
+            . '&fmt=json&limit=1';
         $result = $this->musicBrainzRequest($url);
 
         if (empty($result['releases'][0])) {

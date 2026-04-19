@@ -301,6 +301,7 @@ phpunit.xml
 tests/*
 !tests/*.spec.js
 !tests/*.config.js
+!tests/*.unit.php
 !tests/helpers/
 tests/helpers/*
 !tests/helpers/*.php
