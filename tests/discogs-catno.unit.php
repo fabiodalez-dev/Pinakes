@@ -67,6 +67,17 @@ $check(DiscogsPlugin::identifierKind('DGC-24425-2')   === 'catno',   'DGC-24425-
 $check(DiscogsPlugin::identifierKind('nonsense!!!')   === 'unknown', 'special chars → unknown');
 $check(DiscogsPlugin::identifierKind('')              === 'unknown', 'empty → unknown');
 
+echo "\nbuildMusicBrainzQuery — Lucene field:value:\n";
+// CodeRabbit regression: `catno:CDP 7912682` without quotes is parsed by
+// Lucene as `catno:CDP AND 7912682`, returning false-positives. Must be
+// wrapped in double quotes (MusicBrainz Indexed Search Syntax docs).
+$check(DiscogsPlugin::buildMusicBrainzQuery('CDP 7912682') === 'catno:"CDP 7912682"',   'catno multi-word is quoted');
+$check(DiscogsPlugin::buildMusicBrainzQuery('SRX-6272')    === 'catno:"SRX-6272"',      'catno single-token is still quoted (safe)');
+$check(DiscogsPlugin::buildMusicBrainzQuery('5099902988023') === 'barcode:5099902988023', 'EAN-13 → barcode field, unquoted');
+$check(DiscogsPlugin::buildMusicBrainzQuery('5099902-988023') === 'barcode:5099902988023', 'EAN-13 with hyphen → digits stripped');
+$check(DiscogsPlugin::buildMusicBrainzQuery('077778364627') === 'barcode:077778364627',  'UPC-A → barcode, zero-prefix preserved');
+$check(DiscogsPlugin::buildMusicBrainzQuery('74321 66847 2') === 'catno:"74321 66847 2"', 'BMG pure-numeric Cat# quoted');
+
 echo "\n================================\n";
 echo "Passed: $passed   Failed: $failed\n";
 exit($failed > 0 ? 1 : 0);

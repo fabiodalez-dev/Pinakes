@@ -133,6 +133,32 @@ class DiscogsPlugin
     }
 
     /**
+     * Build the MusicBrainz Lucene `field:value` fragment for an identifier.
+     *
+     * Lucene treats spaces as AND separators, so `catno:CDP 7912682` is
+     * parsed as `catno:CDP AND 7912682` and matches the wrong documents.
+     * Wrapping catno values in double quotes forces phrase interpretation
+     * (https://musicbrainz.org/doc/Indexed_Search_Syntax). Barcodes are
+     * always pure-digit, so quoting them is unnecessary; we still strip
+     * non-digits for canonical form.
+     *
+     * Returns the raw `field:value` string — caller is responsible for
+     * rawurlencode() when composing the URL.
+     */
+    public static function buildMusicBrainzQuery(string $input): string
+    {
+        $kind = self::identifierKind($input);
+        $field = $kind === 'catno' ? 'catno' : 'barcode';
+        if ($kind === 'catno') {
+            $value = '"' . addcslashes($input, '"\\') . '"';
+        } else {
+            $digits = preg_replace('/\D+/', '', $input);
+            $value = ($digits !== null && $digits !== '') ? $digits : $input;
+        }
+        return $field . ':' . $value;
+    }
+
+    /**
      * Called when plugin is installed via PluginManager
      */
     public function onInstall(): void
@@ -343,6 +369,12 @@ class DiscogsPlugin
             // (older pressings, promos, limited editions).
             $kind = self::identifierKind($isbn);
             $param = $kind === 'catno' ? 'catno' : 'barcode';
+            // Only persist the input as a barcode when it IS a barcode —
+            // otherwise `CDP 7912682` (Cat#) would end up in the `ean` column
+            // via mapReleaseToPinakes / mapMusicBrainzToPinakes. For Cat#
+            // searches we leave the barcode detection to extractBarcodeFromRelease()
+            // against the upstream payload.
+            $fallbackBarcode = $kind === 'barcode' ? $isbn : null;
             $searchUrl = self::API_BASE . '/database/search?' . $param . '='
                 . urlencode($isbn) . '&type=release';
             $searchResult = $this->apiRequest($searchUrl, $token);
@@ -359,16 +391,16 @@ class DiscogsPlugin
                 }
 
                 // Discogs found nothing — try MusicBrainz as fallback
-                $mbResult = $this->searchMusicBrainz($isbn, $isbn);
+                $mbResult = $this->searchMusicBrainz($isbn, $fallbackBarcode);
                 if ($mbResult !== null) {
                     return $this->mergeBookData($currentResult, $mbResult);
                 }
                 return $currentResult;
             }
 
-            $discogsData = $this->fetchDiscogsReleaseFromSearchResult($searchResult['results'][0], $token, $isbn);
+            $discogsData = $this->fetchDiscogsReleaseFromSearchResult($searchResult['results'][0], $token, $fallbackBarcode);
             if ($discogsData === null) {
-                $mbResult = $this->searchMusicBrainz($isbn, $isbn);
+                $mbResult = $this->searchMusicBrainz($isbn, $fallbackBarcode);
                 return $mbResult !== null
                     ? $this->mergeBookData($currentResult, $mbResult)
                     : $currentResult;
@@ -1106,13 +1138,10 @@ class DiscogsPlugin
     private function searchMusicBrainz(string $barcode, ?string $fallbackBarcode): ?array
     {
         // MusicBrainz supports both `barcode:` and `catno:` Lucene-style
-        // filters. Pick the right one based on the input shape so a Cat#
-        // like "CDP 7912682" doesn't get passed as a barcode search (which
-        // would always return zero results).
-        $kind = self::identifierKind($barcode);
-        $field = $kind === 'catno' ? 'catno' : 'barcode';
-        $url = 'https://musicbrainz.org/ws/2/release?query=' . $field . ':'
-            . urlencode($barcode) . '&fmt=json&limit=1';
+        // filters. Pick the right one + quote multi-word Cat# values.
+        $url = 'https://musicbrainz.org/ws/2/release?query='
+            . rawurlencode(self::buildMusicBrainzQuery($barcode))
+            . '&fmt=json&limit=1';
         $result = $this->musicBrainzRequest($url);
 
         if (empty($result['releases'][0])) {
