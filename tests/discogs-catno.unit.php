@@ -78,6 +78,16 @@ $check(DiscogsPlugin::buildMusicBrainzQuery('5099902-988023') === 'barcode:50999
 $check(DiscogsPlugin::buildMusicBrainzQuery('077778364627') === 'barcode:077778364627',  'UPC-A → barcode, zero-prefix preserved');
 $check(DiscogsPlugin::buildMusicBrainzQuery('74321 66847 2') === 'catno:"74321 66847 2"', 'BMG pure-numeric Cat# quoted');
 
+echo "\ncanonicalSearchIdentifier — normalization before persisting fallback:\n";
+// CodeRabbit regression: 5099902-988023 was accepted as barcode but the
+// raw hyphenated form flowed through fallbackBarcode into mapReleaseToPinakes,
+// persisting a non-canonical value in the `ean` column.
+$check(DiscogsPlugin::canonicalSearchIdentifier('5099902-988023', 'barcode') === '5099902988023', 'hyphenated EAN → digits-only');
+$check(DiscogsPlugin::canonicalSearchIdentifier('5099902988023',  'barcode') === '5099902988023', 'clean EAN unchanged');
+$check(DiscogsPlugin::canonicalSearchIdentifier(' 077778364627 ', 'barcode') === '077778364627',  'UPC-A padded with whitespace → trimmed');
+$check(DiscogsPlugin::canonicalSearchIdentifier('CDP 7912682',    'catno')   === 'CDP 7912682',   'Cat# kept intact (spaces preserved)');
+$check(DiscogsPlugin::canonicalSearchIdentifier('  SRX-6272  ',   'catno')   === 'SRX-6272',      'Cat# trimmed but not stripped');
+
 echo "\n================================\n";
 echo "Passed: $passed   Failed: $failed\n";
 exit($failed > 0 ? 1 : 0);

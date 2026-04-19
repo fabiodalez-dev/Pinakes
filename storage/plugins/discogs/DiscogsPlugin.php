@@ -133,6 +133,30 @@ class DiscogsPlugin
     }
 
     /**
+     * Return the canonical form of a search identifier for the given kind.
+     *
+     * For `barcode`: strips separators (e.g. "5099902-988023" → "5099902988023")
+     * so the value is always stored in the `ean` column as pure digits and
+     * the Discogs `barcode=` query hits exact matches.
+     * For `catno` / `unknown`: just trim whitespace — preserves spaces and
+     * punctuation that are semantically part of Discogs catalog numbers.
+     *
+     * Falls back to the trimmed input if normalization somehow yields empty
+     * (defence against unexpected input — isNumericBarcode already guarantees
+     * a digit is present for the `barcode` branch).
+     */
+    public static function canonicalSearchIdentifier(string $input, string $kind): string
+    {
+        if ($kind === 'barcode') {
+            $digits = preg_replace('/\D+/', '', $input);
+            if ($digits !== null && $digits !== '') {
+                return $digits;
+            }
+        }
+        return trim($input);
+    }
+
+    /**
      * Build the MusicBrainz Lucene `field:value` fragment for an identifier.
      *
      * Lucene treats spaces as AND separators, so `catno:CDP 7912682` is
@@ -369,14 +393,20 @@ class DiscogsPlugin
             // (older pressings, promos, limited editions).
             $kind = self::identifierKind($isbn);
             $param = $kind === 'catno' ? 'catno' : 'barcode';
+            // Normalize before searching AND before persisting: a user-entered
+            // "5099902-988023" becomes the canonical "5099902988023" so the
+            // `ean` column never receives a hyphenated/non-canonical form.
+            // canonicalSearchIdentifier() strips non-digits for barcode and
+            // just trims for catno (preserving "CDP 7912682" intact).
+            $searchIdentifier = self::canonicalSearchIdentifier($isbn, $kind);
             // Only persist the input as a barcode when it IS a barcode —
             // otherwise `CDP 7912682` (Cat#) would end up in the `ean` column
             // via mapReleaseToPinakes / mapMusicBrainzToPinakes. For Cat#
             // searches we leave the barcode detection to extractBarcodeFromRelease()
             // against the upstream payload.
-            $fallbackBarcode = $kind === 'barcode' ? $isbn : null;
+            $fallbackBarcode = $kind === 'barcode' ? $searchIdentifier : null;
             $searchUrl = self::API_BASE . '/database/search?' . $param . '='
-                . urlencode($isbn) . '&type=release';
+                . urlencode($searchIdentifier) . '&type=release';
             $searchResult = $this->apiRequest($searchUrl, $token);
 
             if (empty($searchResult['results'][0])) {
