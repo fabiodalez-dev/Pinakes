@@ -4,21 +4,30 @@ declare(strict_types=1);
 
 namespace App\Plugins\Archives;
 
+use App\Support\HookManager;
+use App\Support\SecureLogger;
+use mysqli;
+
 /**
  * Archives plugin — ISAD(G) / ISAAR(CPF) support for Pinakes.
  *
- * SKELETON for issue #103. Introduces two new tables:
- *   - archival_units   : hierarchical archival records (fonds/series/file/item)
- *   - authority_records: persons, corporate bodies, families (ISAAR(CPF))
+ * Phase 1a (issue #103). Introduces three tables:
+ *   - archival_units             : hierarchical archival records (fonds/series/file/item)
+ *   - authority_records          : persons, corporate bodies, families (ISAAR(CPF))
+ *   - archival_unit_authority    : M:N link between the two with a role enum
  *
  * The design mirrors the ABA (Copenhagen) mapping of ISAD(G) onto an extended
  * danMARC2 — see README.md for the ISAD(G) → column crosswalk.
  *
- * Nothing UI- or API-facing is wired yet. Activating the plugin creates the
- * tables; deactivating keeps them (data preservation).
+ * Activation creates the schema via ensureSchema() executed against the host's
+ * mysqli connection. Deactivation is a no-op: the tables stay in place because
+ * archival records are typically more valuable than a clean uninstall.
  */
 class ArchivesPlugin
 {
+    private mysqli $db;
+    private HookManager $hookManager;
+
     /**
      * Logical archival-unit levels, per ISAD(G) 3.1.4.
      * Ordered from most-inclusive (1) to least (4).
@@ -39,13 +48,21 @@ class ArchivesPlugin
         'family'    => 'Family (genealogical authority)',
     ];
 
-    public function __construct()
+    /**
+     * PluginManager::runPluginMethod() instantiates every plugin with
+     * ($this->db, $this->hookManager) — see PluginManager.php:878. The plugin
+     * must match this signature even if the hooks aren't wired yet.
+     */
+    public function __construct(mysqli $db, HookManager $hookManager)
     {
+        $this->db = $db;
+        $this->hookManager = $hookManager;
     }
 
     /**
      * Called by PluginManager when the plugin is activated via the admin UI.
-     * Creates the archival schema if missing. Idempotent.
+     * Creates the archival schema if missing. Idempotent: the DDLs use
+     * CREATE TABLE IF NOT EXISTS so re-activation is safe.
      */
     public function onActivate(): void
     {
@@ -60,6 +77,60 @@ class ArchivesPlugin
      */
     public function onDeactivate(): void
     {
+        // Deliberate no-op: preserve archival data on deactivation.
+        // Manual DROP is only available via a future admin "Uninstall archives"
+        // action with an explicit confirmation.
+    }
+
+    /**
+     * Execute the DDL for archival_units, authority_records, and the
+     * M:N link table. Errors are logged but don't abort activation —
+     * the admin can inspect the log and retry. Partial success is
+     * acceptable because each CREATE is IF NOT EXISTS + independent.
+     *
+     * @return array{created: list<string>, failed: list<string>}
+     */
+    public function ensureSchema(): array
+    {
+        $steps = [
+            'archival_units'          => self::ddlArchivalUnits(),
+            'authority_records'       => self::ddlAuthorityRecords(),
+            'archival_unit_authority' => self::ddlArchivalAuthorityLinks(),
+        ];
+
+        $created = [];
+        $failed = [];
+
+        foreach ($steps as $table => $ddl) {
+            try {
+                $result = $this->db->query($ddl);
+                if ($result === false) {
+                    $failed[] = $table;
+                    SecureLogger::warning(
+                        '[Archives] CREATE TABLE failed for ' . $table . ': ' . $this->db->error
+                    );
+                } else {
+                    $created[] = $table;
+                }
+            } catch (\Throwable $e) {
+                $failed[] = $table;
+                SecureLogger::error(
+                    '[Archives] Exception during CREATE TABLE ' . $table . ': ' . $e->getMessage()
+                );
+            }
+        }
+
+        return ['created' => $created, 'failed' => $failed];
+    }
+
+    /**
+     * Expose the injected HookManager. Kept as a public accessor rather than
+     * a private unused property so static analysis is happy and tests can
+     * verify the DI wiring without reflection.
+     */
+    public function getHookManager(): HookManager
+    {
+        return $this->hookManager;
     }
 
     /**
@@ -94,23 +165,6 @@ class ArchivesPlugin
                 'description' => 'Share authority_records with the legacy `libri.autori` table',
             ],
         ];
-    }
-
-    /**
-     * Create archival tables if they do not exist. Uses the global mysqli
-     * connection conventionally exposed as `Database::getInstance()->getMysqli()`
-     * in Pinakes — keep in sync with the host's DI container when wiring.
-     *
-     * Schema is intentionally minimal: core ISAD(G) 3.1-3.5 fields only.
-     * Extensions (3.6 note area, 3.7 control area, finding aids) will land
-     * in follow-up migrations once CRUD is in place.
-     */
-    private function ensureSchema(): void
-    {
-        // TODO: wire to the host's Database service (see app/Support/Database.php).
-        // Deliberately not executing raw queries here yet — the skeleton ships
-        // the DDL as string constants so reviewers can audit schema intent
-        // before we touch production DBs.
     }
 
     /**

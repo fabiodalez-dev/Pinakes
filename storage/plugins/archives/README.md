@@ -1,6 +1,6 @@
 # Archives plugin — ISAD(G) / ISAAR(CPF) support for Pinakes
 
-**Status: SKELETON (v0.1.0-skeleton)** — schema design + metadata only. No CRUD UI, no MARCXML I/O, no unified search integration yet.
+**Status: PHASE 1a — schema creation** (v0.1.0). Activation creates the three tables (`archival_units`, `authority_records`, `archival_unit_authority`) via `ensureSchema()`. No CRUD UI, no MARCXML I/O, no unified search integration yet.
 
 Tracks issue [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 
