@@ -4474,5 +4474,8 @@
   "Colore": "Farbe",
   "Misto": "Gemischt",
   "Cerca un authority record…": "Normdatensatz suchen…",
-  "Digita almeno 2 caratteri per cercare tra i authority record.": "Mindestens 2 Zeichen eingeben, um Normdatensätze zu suchen."
+  "Digita almeno 2 caratteri per cercare tra i authority record.": "Mindestens 2 Zeichen eingeben, um Normdatensätze zu suchen.",
+  "Validazione XSD strict (rifiuta file non conformi a MARC21 Slim)": "Strikte XSD-Validierung (Dateien ablehnen, die nicht MARC21 Slim entsprechen)",
+  "La validazione XSD usa lo schema MARC21 Slim v1.1 (Library of Congress). Molti export di sistemi archivistici non sono strict-compliant: usa questa opzione solo con file che sai essere conformi.": "Die XSD-Validierung verwendet das MARC21-Slim-Schema v1.1 (Library of Congress). Viele Exporte aus Archivsystemen sind nicht strikt-konform: nur bei garantiert konformen Dateien aktivieren.",
+  "Errori XSD (%d)": "XSD-Fehler (%d)"
 }

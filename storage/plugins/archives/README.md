@@ -1,6 +1,8 @@
 # Archives plugin — ISAD(G) / ISAAR(CPF) support for Pinakes
 
-**Status: PHASE 7 — JS type-ahead for authority attach** (v0.9.1). On top of phases 1-5: the authority-attach widget in `archival_units` show.php now loads results on-demand via the `/admin/archives/api/authorities/search` JSON endpoint (scaffolded in phase 3). No more 500-option `<select>` in the DOM. Inline vanilla JS (no framework dependency), all result rendering uses `createElement` + `textContent` (no innerHTML) so authority names containing HTML are escaped safely. 200ms debounce, min 2-char query, same-origin fetch. Still missing: XSD validation (optional; would require shipping MARC21 Slim schema), Z39.50 server (separate plugin).
+**Status: PHASE 4d — MARC21 Slim XSD validation** (v0.9.2). On top of all previous phases: the MARCXML import form now ships an optional "Strict XSD" checkbox that runs the uploaded file through `DOMDocument::schemaValidate()` against the bundled `schemas/MARC21slim.xsd` (v1.1, Library of Congress) before touching the DB. In strict mode, any XSD violation aborts the import and lists every error (line number + libxml message) in the result view. Soft mode (default) ignores XSD results and keeps the phase-4b UPSERT flow. The XSD is standalone (no `xml.xsd` import) and adds ~7 KB to the plugin.
+
+**SRU/Z39.50 exposure for archival records** is NOT handled by this plugin: the existing `z39-server` plugin serves `libri` rows only (`classes/SRUServer.php:413`). An archival SRU endpoint would be phase 6 (separate PR) — either as an extension to `z39-server` or as a new endpoint inside `archives`.
 
 Tracks issue [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 

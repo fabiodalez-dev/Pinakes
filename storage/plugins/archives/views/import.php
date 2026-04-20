@@ -1,10 +1,11 @@
 <?php
 /**
- * Archives — MARCXML import view (phase 4 + 4b).
+ * Archives — MARCXML import view (phase 4 / 4b / 4d).
  *
  * @var array{
  *     success: bool,
  *     dry_run: bool,
+ *     strict_xsd?: bool,
  *     parsed: list<array<string, mixed>>,
  *     parsed_authorities: list<array<string, mixed>>,
  *     inserted: list<array<string, mixed>>,
@@ -12,6 +13,7 @@
  *     skipped: list<array<string, mixed>>,
  *     inserted_authorities: list<array<string, mixed>>,
  *     skipped_authorities: list<array<string, mixed>>,
+ *     xsd_errors?: list<string>,
  *     errors: list<string>
  * }|null $result
  */
@@ -39,6 +41,19 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
                     <?php endforeach; ?>
                 </ul>
             </div>
+        <?php endif; ?>
+
+        <?php if (!empty($result['xsd_errors'])): ?>
+            <details class="bg-orange-50 border-l-4 border-orange-400 p-4 mb-4 rounded" open>
+                <summary class="text-sm font-semibold text-orange-800 cursor-pointer">
+                    <?= sprintf(__("Errori XSD (%d)"), count($result['xsd_errors'])) ?>
+                </summary>
+                <ul class="mt-2 text-xs text-orange-700 list-disc list-inside font-mono max-h-64 overflow-auto">
+                    <?php foreach ($result['xsd_errors'] as $err): ?>
+                        <li><?= $e($err) ?></li>
+                    <?php endforeach; ?>
+                </ul>
+            </details>
         <?php endif; ?>
 
         <?php if ($result['dry_run']): ?>
@@ -180,8 +195,17 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
             <span class="text-gray-700"><?= __("Dry-run (analizza senza inserire)") ?></span>
         </label>
 
+        <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="strict_xsd" value="1"
+                   class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+            <span class="text-gray-700"><?= __("Validazione XSD strict (rifiuta file non conformi a MARC21 Slim)") ?></span>
+        </label>
+
         <p class="text-xs text-gray-500">
             <?= __("Consiglio: esegui prima un dry-run per verificare la mappatura dei campi, poi disabilita il checkbox per l'insert.") ?>
+        </p>
+        <p class="text-xs text-gray-500">
+            <?= __("La validazione XSD usa lo schema MARC21 Slim v1.1 (Library of Congress). Molti export di sistemi archivistici non sono strict-compliant: usa questa opzione solo con file che sai essere conformi.") ?>
         </p>
 
         <div class="flex items-center justify-end space-x-3 pt-4 border-t">

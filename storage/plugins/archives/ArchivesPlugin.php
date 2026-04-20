@@ -1705,10 +1705,12 @@ class ArchivesPlugin
         $file = $uploaded['marcxml'] ?? null;
         $body = (array) $request->getParsedBody();
         $dryRun = !empty($body['dry_run']);
+        $strictXsd = !empty($body['strict_xsd']);
 
         $result = [
             'success'             => false,
             'dry_run'             => $dryRun,
+            'strict_xsd'          => $strictXsd,
             'parsed'              => [],
             'parsed_authorities'  => [],
             'inserted'            => [],
@@ -1716,6 +1718,7 @@ class ArchivesPlugin
             'skipped'             => [],
             'inserted_authorities'=> [],
             'skipped_authorities' => [],
+            'xsd_errors'          => [],
             'errors'              => [],
         ];
 
@@ -1726,6 +1729,24 @@ class ArchivesPlugin
         }
 
         $xmlContent = (string) $file->getStream();
+
+        // Phase 4d: optional XSD validation against the MARC21 Slim schema
+        // bundled in storage/plugins/archives/schemas/MARC21slim.xsd.
+        // When strict mode is on and the document fails validation, abort
+        // before touching the DB. Soft mode (default) runs the validator
+        // informationally — errors are shown but the import proceeds.
+        if ($strictXsd) {
+            $xsdErrors = $this->validateMarcXmlSchema($xmlContent);
+            if (!empty($xsdErrors)) {
+                $result['xsd_errors'] = $xsdErrors;
+                $result['errors'][] = sprintf(
+                    '%d XSD validation error(s). Import aborted (strict mode).',
+                    count($xsdErrors)
+                );
+                return $this->renderView($response, 'import', ['result' => $result]);
+            }
+        }
+
         $parsed = $this->parseMarcXml($xmlContent);
         if (isset($parsed['error'])) {
             $result['errors'][] = $parsed['error'];
@@ -2001,6 +2022,57 @@ class ArchivesPlugin
             $xw->endElement();
         }
         $xw->endElement();
+    }
+
+    /**
+     * Phase 4d — validate MARCXML against the bundled MARC21 Slim XSD.
+     *
+     * Returns a list of human-readable error strings (empty = valid).
+     * The XSD ships in storage/plugins/archives/schemas/MARC21slim.xsd
+     * (v1.1 from the Library of Congress, standalone — no xml.xsd import).
+     *
+     * Uses DOMDocument::schemaValidate() with libxml error capture so we
+     * can surface each violation to the admin instead of an unhelpful
+     * "validation failed" boolean.
+     *
+     * @return list<string>
+     */
+    private function validateMarcXmlSchema(string $xml): array
+    {
+        $xsdPath = __DIR__ . '/schemas/MARC21slim.xsd';
+        if (!is_file($xsdPath)) {
+            return ['MARC21 Slim XSD not shipped with the plugin at ' . $xsdPath];
+        }
+
+        $prev = libxml_use_internal_errors(true);
+        libxml_clear_errors();
+
+        $doc = new \DOMDocument();
+        $loaded = $doc->loadXML($xml, LIBXML_NONET);
+        if (!$loaded) {
+            $errs = libxml_get_errors();
+            libxml_clear_errors();
+            libxml_use_internal_errors($prev);
+            $out = [];
+            foreach ($errs as $err) {
+                $out[] = 'XML parse: line ' . $err->line . ': ' . trim($err->message);
+            }
+            return $out !== [] ? $out : ['XML parse failed (no details)'];
+        }
+
+        $valid = $doc->schemaValidate($xsdPath);
+        $errors = [];
+        if (!$valid) {
+            foreach (libxml_get_errors() as $err) {
+                $errors[] = 'XSD: line ' . $err->line . ': ' . trim($err->message);
+            }
+            if ($errors === []) {
+                $errors[] = 'XSD validation failed (no details)';
+            }
+        }
+        libxml_clear_errors();
+        libxml_use_internal_errors($prev);
+        return $errors;
     }
 
     /**

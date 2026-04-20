@@ -166,6 +166,10 @@ storage/plugins/archives/*
 !storage/plugins/archives/*.md
 !storage/plugins/archives/views/
 !storage/plugins/archives/views/*.php
+!storage/plugins/archives/views/authorities/
+!storage/plugins/archives/views/authorities/*.php
+!storage/plugins/archives/schemas/
+!storage/plugins/archives/schemas/*.xsd
 
 # Premium plugin - never track (private/commercial)
 storage/plugins/scraping-pro/

@@ -278,5 +278,8 @@
   "Misto": "Misto",
   "Cerca un authority record…": "Cerca un authority record…",
   "Digita almeno 2 caratteri per cercare tra i authority record.": "Digita almeno 2 caratteri per cercare tra i authority record.",
-  "Nessun risultato": "Nessun risultato"
+  "Nessun risultato": "Nessun risultato",
+  "Validazione XSD strict (rifiuta file non conformi a MARC21 Slim)": "Validazione XSD strict (rifiuta file non conformi a MARC21 Slim)",
+  "La validazione XSD usa lo schema MARC21 Slim v1.1 (Library of Congress). Molti export di sistemi archivistici non sono strict-compliant: usa questa opzione solo con file che sai essere conformi.": "La validazione XSD usa lo schema MARC21 Slim v1.1 (Library of Congress). Molti export di sistemi archivistici non sono strict-compliant: usa questa opzione solo con file che sai essere conformi.",
+  "Errori XSD (%d)": "Errori XSD (%d)"
 }
