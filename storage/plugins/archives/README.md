@@ -1,6 +1,6 @@
 # Archives plugin — ISAD(G) / ISAAR(CPF) support for Pinakes
 
-**Status: PHASE 1d — user-facing polish** (v0.4.0). Activation creates the three tables via `ensureSchema()`, registers `app.routes.register` + `admin.menu.render` hooks. `/admin/archives` supports list + show + create + edit + soft-delete, is reachable from the admin sidebar, and ships with IT/EN/DE translations. Playwright E2E spec covers the full CRUD loop. Still missing: authority-records CRUD, MARCXML I/O, unified search.
+**Status: PHASE 2 — authority records CRUD + linking** (v0.5.0). Plus everything from phase 1 (schema + archival_units CRUD + sidebar + i18n + E2E). Now also ships: full ISAAR(CPF) authority-records CRUD at `/admin/archives/authorities`, plus an M:N link UI on the archival-unit detail page to attach/detach authorities with a role enum (creator/subject/recipient/custodian/associated). Still missing: linkage to the legacy `libri.autori` column, MARCXML I/O, unified cross-entity search, biographical ISAAR fields beyond the phase-2 minimum.
 
 Tracks issue [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 

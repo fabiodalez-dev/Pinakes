@@ -4,6 +4,9 @@
  *
  * @var array<string, mixed> $row
  * @var string|null $parent_title
+ * @var list<array<string, mixed>> $linked_authorities
+ * @var list<array<string, mixed>> $available_authorities
+ * @var list<string> $authority_roles
  */
 declare(strict_types=1);
 
@@ -118,5 +121,86 @@ $id = (int) $row['id'];
                 </div>
             <?php endif; ?>
         </dl>
+    </div>
+
+    <!-- Authority records linked to this archival_unit -->
+    <div class="bg-white shadow rounded-lg overflow-hidden mt-6">
+        <div class="px-6 py-3 bg-gray-50 border-b flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-gray-700"><?= __("Authority records collegati") ?></h2>
+            <a href="<?= $e(url('/admin/archives/authorities')) ?>" class="text-xs text-blue-600 hover:underline">
+                <?= __("Gestisci authorities") ?>
+            </a>
+        </div>
+
+        <?php $typeBadge = ['person'=>'bg-indigo-100 text-indigo-800','corporate'=>'bg-amber-100 text-amber-800','family'=>'bg-pink-100 text-pink-800']; ?>
+
+        <?php if (empty($linked_authorities)): ?>
+            <p class="px-6 py-4 text-sm text-gray-500 italic">
+                <?= __("Nessun authority record collegato. Aggiungine uno qui sotto.") ?>
+            </p>
+        <?php else: ?>
+            <ul class="divide-y divide-gray-200">
+                <?php foreach ($linked_authorities as $auth): ?>
+                    <?php
+                    $authType = (string) ($auth['type'] ?? '');
+                    $authBadge = $typeBadge[$authType] ?? 'bg-gray-100 text-gray-800';
+                    $authId = (int) ($auth['id'] ?? 0);
+                    ?>
+                    <li class="px-6 py-3 flex items-center justify-between text-sm">
+                        <div class="flex items-center gap-3">
+                            <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $authBadge ?>"><?= $e($authType) ?></span>
+                            <a href="<?= $e(url('/admin/archives/authorities/' . $authId)) ?>" class="text-blue-600 hover:underline">
+                                <?= $e((string) ($auth['authorised_form'] ?? '')) ?>
+                            </a>
+                            <?php if (!empty($auth['dates_of_existence'])): ?>
+                                <span class="text-xs text-gray-400 italic">(<?= $e((string) $auth['dates_of_existence']) ?>)</span>
+                            <?php endif; ?>
+                            <span class="text-xs text-gray-500"><?= __("ruolo:") ?> <strong><?= $e((string) $auth['role']) ?></strong></span>
+                        </div>
+                        <form method="POST"
+                              action="<?= $e(url('/admin/archives/' . $id . '/authorities/' . $authId . '/detach')) ?>"
+                              onsubmit="return confirm('<?= $e(__("Rimuovere questo collegamento?")) ?>');"
+                              class="inline">
+                            <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                            <button type="submit" class="text-xs text-red-600 hover:underline"><?= __("scollega") ?></button>
+                        </form>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+
+        <!-- Attach form (only if at least one authority exists) -->
+        <?php if (!empty($available_authorities)): ?>
+            <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/authorities/attach')) ?>"
+                  class="px-6 py-4 border-t bg-gray-50 flex items-center gap-2">
+                <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                <select name="authority_id" required
+                        class="flex-1 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="">— <?= __("Seleziona un authority record") ?> —</option>
+                    <?php foreach ($available_authorities as $a): ?>
+                        <option value="<?= (int) $a['id'] ?>">
+                            [<?= $e((string) $a['type']) ?>] <?= $e((string) $a['authorised_form']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <select name="role" required
+                        class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                    <?php foreach ($authority_roles as $r): ?>
+                        <option value="<?= $e($r) ?>"><?= $e($r) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit"
+                        class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                    <?= __("Collega") ?>
+                </button>
+            </form>
+        <?php else: ?>
+            <p class="px-6 py-4 text-sm text-gray-500 italic border-t">
+                <?= __("Nessun authority record disponibile.") ?>
+                <a href="<?= $e(url('/admin/archives/authorities/new')) ?>" class="text-blue-600 hover:underline">
+                    <?= __("Crealo ora") ?>
+                </a>.
+            </p>
+        <?php endif; ?>
     </div>
 </div>

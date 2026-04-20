@@ -57,6 +57,18 @@ class ArchivesPlugin
     ];
 
     /**
+     * Roles an authority can play relative to an archival_unit.
+     * Mirrors MARC 100/600/700/710 semantics in the ABA format.
+     */
+    public const AUTHORITY_ROLES = [
+        'creator'    => 'Creator (provenienza / 710)',
+        'subject'    => 'Subject (soggetto / 610)',
+        'recipient'  => 'Recipient (destinatario)',
+        'custodian'  => 'Custodian (conservatore)',
+        'associated' => 'Associated (correlato)',
+    ];
+
+    /**
      * PluginManager::runPluginMethod() instantiates every plugin with
      * ($this->db, $this->hookManager) — see PluginManager.php:878. The plugin
      * must match this signature even if the hooks aren't wired yet.
@@ -283,6 +295,91 @@ class ArchivesPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->destroyAction($request, $response, (int) $args['id']);
         })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // ── Phase 2 — authority_records CRUD ────────────────────────────────
+        // Deliberately nested under /admin/archives/ so the whole archival
+        // area is behind a single mental prefix and the plugin owns its
+        // URL-space cleanly.
+
+        $app->get('/admin/archives/authorities', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->authorityIndexAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/authorities/new', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->authorityNewAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/authorities/new', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->authorityStoreAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->get('/admin/archives/authorities/{id:[0-9]+}', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->authorityShowAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/authorities/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->authorityEditAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/authorities/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->authorityUpdateAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post('/admin/archives/authorities/{id:[0-9]+}/delete', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->authorityDestroyAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // ── Phase 2 — link authority ↔ archival_unit ───────────────────────
+        // Nested under the archival_unit so the URL captures the subject.
+
+        $app->post('/admin/archives/{id:[0-9]+}/authorities/attach', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->attachAuthorityAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post(
+            '/admin/archives/{id:[0-9]+}/authorities/{authority_id:[0-9]+}/detach',
+            function (
+                ServerRequestInterface $request,
+                ResponseInterface $response,
+                array $args
+            ) use ($plugin): ResponseInterface {
+                return $plugin->detachAuthorityAction(
+                    $request,
+                    $response,
+                    (int) $args['id'],
+                    (int) $args['authority_id']
+                );
+            }
+        )->add($csrfMiddleware)->add($adminMiddleware);
     }
 
     /**
@@ -476,8 +573,11 @@ class ArchivesPlugin
             $parentTitle = $parent !== null ? (string) $parent['constructed_title'] : null;
         }
         return $this->renderView($response, 'show', [
-            'row'          => $row,
-            'parent_title' => $parentTitle,
+            'row'                  => $row,
+            'parent_title'         => $parentTitle,
+            'linked_authorities'   => $this->fetchAuthoritiesForArchivalUnit($id),
+            'available_authorities'=> $this->listAllAuthorities(),
+            'authority_roles'      => array_keys(self::AUTHORITY_ROLES),
         ]);
     }
 
@@ -634,6 +734,471 @@ class ArchivesPlugin
         $stmt->execute();
         $stmt->close();
         return $response->withHeader('Location', '/admin/archives')->withStatus(303);
+    }
+
+    // ── Phase 2 — authority_records handlers ────────────────────────────
+
+    /**
+     * GET /admin/archives/authorities — list authority_records, newest first.
+     */
+    public function authorityIndexAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $rows = [];
+        $result = $this->db->query(
+            "SELECT id, type, authorised_form, dates_of_existence, created_at
+               FROM authority_records
+              WHERE deleted_at IS NULL
+              ORDER BY authorised_form ASC
+              LIMIT 500"
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        } else {
+            SecureLogger::warning('[Archives] authority index query failed: ' . $this->db->error);
+        }
+        return $this->renderView($response, 'authorities/index', ['rows' => $rows]);
+    }
+
+    /**
+     * GET /admin/archives/authorities/new — blank authority form.
+     */
+    public function authorityNewAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        return $this->renderView($response, 'authorities/form', [
+            'types'  => array_keys(self::AUTHORITY_TYPES),
+            'values' => [],
+            'errors' => [],
+        ]);
+    }
+
+    /**
+     * POST /admin/archives/authorities/new — validate + INSERT.
+     *
+     * Minimum viable fields:
+     *   - type                ∈ AUTHORITY_TYPES (required)
+     *   - authorised_form     required, ≤500 chars (ISAAR 5.1.2)
+     *   - dates_of_existence  optional, ≤255 chars (ISAAR 5.2.1 — free text,
+     *     e.g. "1888–1976" or "fl. 1920s")
+     *   - history             optional (ISAAR 5.2.2)
+     *   - functions           optional (ISAAR 5.2.5)
+     */
+    public function authorityStoreAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $body = (array) $request->getParsedBody();
+        $values = [
+            'type'               => (string) ($body['type'] ?? ''),
+            'authorised_form'    => trim((string) ($body['authorised_form'] ?? '')),
+            'dates_of_existence' => trim((string) ($body['dates_of_existence'] ?? '')),
+            'history'            => trim((string) ($body['history'] ?? '')),
+            'functions'          => trim((string) ($body['functions'] ?? '')),
+        ];
+        $errors = $this->validateAuthority($values);
+
+        if (!empty($errors)) {
+            return $this->renderView($response, 'authorities/form', [
+                'types'  => array_keys(self::AUTHORITY_TYPES),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO authority_records
+                (type, authorised_form, dates_of_existence, history, functions)
+             VALUES (?, ?, ?, ?, ?)'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] authority store prepare failed: ' . $this->db->error);
+            $errors['_global'] = 'Database error. Check the log and retry.';
+            return $this->renderView($response, 'authorities/form', [
+                'types'  => array_keys(self::AUTHORITY_TYPES),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+
+        $datesParam     = $values['dates_of_existence'] !== '' ? $values['dates_of_existence'] : null;
+        $historyParam   = $values['history']   !== '' ? $values['history']   : null;
+        $functionsParam = $values['functions'] !== '' ? $values['functions'] : null;
+
+        $stmt->bind_param(
+            'sssss',
+            $values['type'],
+            $values['authorised_form'],
+            $datesParam,
+            $historyParam,
+            $functionsParam
+        );
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] authority INSERT failed: ' . $stmt->error);
+            $stmt->close();
+            $errors['_global'] = 'Insert failed. Check the log.';
+            return $this->renderView($response, 'authorities/form', [
+                'types'  => array_keys(self::AUTHORITY_TYPES),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+        $stmt->close();
+
+        return $response
+            ->withHeader('Location', '/admin/archives/authorities')
+            ->withStatus(303);
+    }
+
+    /**
+     * GET /admin/archives/authorities/{id} — read-only detail view.
+     * Also renders the list of archival_units this authority is linked to
+     * so reviewers can see the provenance at a glance.
+     */
+    public function authorityShowAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findAuthorityById($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        $links = $this->fetchArchivalUnitsForAuthority($id);
+        return $this->renderView($response, 'authorities/show', [
+            'row'   => $row,
+            'links' => $links,
+        ]);
+    }
+
+    /**
+     * GET /admin/archives/authorities/{id}/edit — pre-populated form.
+     */
+    public function authorityEditAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findAuthorityById($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        return $this->renderView($response, 'authorities/form', [
+            'mode'   => 'edit',
+            'id'     => $id,
+            'types'  => array_keys(self::AUTHORITY_TYPES),
+            'values' => $row,
+            'errors' => [],
+        ]);
+    }
+
+    /**
+     * POST /admin/archives/authorities/{id}/edit — validate + UPDATE.
+     */
+    public function authorityUpdateAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $existing = $this->findAuthorityById($id);
+        if ($existing === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        $body = (array) $request->getParsedBody();
+        $values = [
+            'type'               => (string) ($body['type'] ?? ''),
+            'authorised_form'    => trim((string) ($body['authorised_form'] ?? '')),
+            'dates_of_existence' => trim((string) ($body['dates_of_existence'] ?? '')),
+            'history'            => trim((string) ($body['history'] ?? '')),
+            'functions'          => trim((string) ($body['functions'] ?? '')),
+        ];
+        $errors = $this->validateAuthority($values);
+
+        if (!empty($errors)) {
+            return $this->renderView($response, 'authorities/form', [
+                'mode'   => 'edit',
+                'id'     => $id,
+                'types'  => array_keys(self::AUTHORITY_TYPES),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE authority_records
+                SET type = ?, authorised_form = ?, dates_of_existence = ?,
+                    history = ?, functions = ?
+              WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] authority update prepare failed: ' . $this->db->error);
+            $errors['_global'] = 'Database error. Check the log and retry.';
+            return $this->renderView($response, 'authorities/form', [
+                'mode'   => 'edit',
+                'id'     => $id,
+                'types'  => array_keys(self::AUTHORITY_TYPES),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+        $datesParam     = $values['dates_of_existence'] !== '' ? $values['dates_of_existence'] : null;
+        $historyParam   = $values['history']   !== '' ? $values['history']   : null;
+        $functionsParam = $values['functions'] !== '' ? $values['functions'] : null;
+        $stmt->bind_param(
+            'sssssi',
+            $values['type'],
+            $values['authorised_form'],
+            $datesParam,
+            $historyParam,
+            $functionsParam,
+            $id
+        );
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] authority UPDATE failed: ' . $stmt->error);
+            $stmt->close();
+            $errors['_global'] = 'Update failed. Check the log.';
+            return $this->renderView($response, 'authorities/form', [
+                'mode'   => 'edit',
+                'id'     => $id,
+                'types'  => array_keys(self::AUTHORITY_TYPES),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+        $stmt->close();
+
+        return $response
+            ->withHeader('Location', '/admin/archives/authorities/' . $id)
+            ->withStatus(303);
+    }
+
+    /**
+     * POST /admin/archives/authorities/{id}/delete — soft-delete.
+     * Link rows in archival_unit_authority are kept intact because we
+     * keep the data; they simply won't surface since the join filters
+     * on deleted_at IS NULL.
+     */
+    public function authorityDestroyAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $stmt = $this->db->prepare(
+            'UPDATE authority_records SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] authority delete prepare failed: ' . $this->db->error);
+            return $response->withHeader('Location', '/admin/archives/authorities/' . $id)->withStatus(303);
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
+        return $response->withHeader('Location', '/admin/archives/authorities')->withStatus(303);
+    }
+
+    /**
+     * POST /admin/archives/{id}/authorities/attach — link an existing authority
+     * to an archival_unit with a role. Idempotent: INSERT IGNORE via the
+     * composite PK on (archival_unit_id, authority_id, role).
+     *
+     * Body: authority_id (int, required), role (∈ AUTHORITY_ROLES, required).
+     */
+    public function attachAuthorityAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $archivalUnitId
+    ): ResponseInterface {
+        if ($this->findById($archivalUnitId) === null) {
+            return $this->renderNotFound($response, $archivalUnitId);
+        }
+        $body = (array) $request->getParsedBody();
+        $authorityId = isset($body['authority_id']) ? (int) $body['authority_id'] : 0;
+        $role = (string) ($body['role'] ?? '');
+
+        if ($authorityId > 0 && array_key_exists($role, self::AUTHORITY_ROLES)) {
+            if ($this->findAuthorityById($authorityId) !== null) {
+                $stmt = $this->db->prepare(
+                    'INSERT IGNORE INTO archival_unit_authority
+                        (archival_unit_id, authority_id, role)
+                     VALUES (?, ?, ?)'
+                );
+                if ($stmt !== false) {
+                    $stmt->bind_param('iis', $archivalUnitId, $authorityId, $role);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+            }
+        }
+
+        return $response
+            ->withHeader('Location', '/admin/archives/' . $archivalUnitId)
+            ->withStatus(303);
+    }
+
+    /**
+     * POST /admin/archives/{id}/authorities/{authority_id}/detach — remove
+     * every role-link between the unit and the authority. A finer-grained
+     * per-role detach is possible later via a querystring, but the UI only
+     * needs "remove this authority from this unit" at this stage.
+     */
+    public function detachAuthorityAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $archivalUnitId,
+        int $authorityId
+    ): ResponseInterface {
+        $stmt = $this->db->prepare(
+            'DELETE FROM archival_unit_authority
+              WHERE archival_unit_id = ? AND authority_id = ?'
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('ii', $archivalUnitId, $authorityId);
+            $stmt->execute();
+            $stmt->close();
+        }
+        return $response
+            ->withHeader('Location', '/admin/archives/' . $archivalUnitId)
+            ->withStatus(303);
+    }
+
+    /**
+     * Fetch one non-deleted authority_record by id, or null.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function findAuthorityById(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM authority_records WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] findAuthorityById prepare failed: ' . $this->db->error);
+            return null;
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * Return all archival_units currently linked to the given authority_id.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchArchivalUnitsForAuthority(int $authorityId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT au.id, au.reference_code, au.level, au.constructed_title, aua.role
+               FROM archival_unit_authority aua
+               JOIN archival_units au ON au.id = aua.archival_unit_id AND au.deleted_at IS NULL
+              WHERE aua.authority_id = ?
+              ORDER BY FIELD(au.level,\'fonds\',\'series\',\'file\',\'item\'), au.reference_code'
+        );
+        if ($stmt === false) {
+            return $rows;
+        }
+        $stmt->bind_param('i', $authorityId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * Return all authorities linked to the given archival_unit_id.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function fetchAuthoritiesForArchivalUnit(int $archivalUnitId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT ar.id, ar.type, ar.authorised_form, ar.dates_of_existence, aua.role
+               FROM archival_unit_authority aua
+               JOIN authority_records ar ON ar.id = aua.authority_id AND ar.deleted_at IS NULL
+              WHERE aua.archival_unit_id = ?
+              ORDER BY ar.authorised_form'
+        );
+        if ($stmt === false) {
+            return $rows;
+        }
+        $stmt->bind_param('i', $archivalUnitId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * Return every non-deleted authority as a flat list, so the attach
+     * form's <select> can offer them. Limited to 500 for safety; phase 3
+     * will introduce a type-ahead search instead.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function listAllAuthorities(): array
+    {
+        $rows = [];
+        $result = $this->db->query(
+            "SELECT id, type, authorised_form
+               FROM authority_records
+              WHERE deleted_at IS NULL
+              ORDER BY authorised_form
+              LIMIT 500"
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        return $rows;
+    }
+
+    /**
+     * Validate a payload for authority insert/update.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, string>
+     */
+    private function validateAuthority(array $values): array
+    {
+        $errors = [];
+        $type = (string) ($values['type'] ?? '');
+        if (!array_key_exists($type, self::AUTHORITY_TYPES)) {
+            $errors['type'] = 'Type must be one of person/corporate/family (ISAAR 5.1.1).';
+        }
+        $name = (string) ($values['authorised_form'] ?? '');
+        if ($name === '') {
+            $errors['authorised_form'] = 'Authorised form is required (ISAAR 5.1.2).';
+        } elseif (strlen($name) > 500) {
+            $errors['authorised_form'] = 'Authorised form must be 500 characters or fewer.';
+        }
+        if (isset($values['dates_of_existence']) && strlen((string) $values['dates_of_existence']) > 255) {
+            $errors['dates_of_existence'] = 'Dates of existence must be 255 characters or fewer.';
+        }
+        return $errors;
     }
 
     /**
