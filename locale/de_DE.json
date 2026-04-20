@@ -4472,5 +4472,7 @@
   "Video (vm)": "Video (vm)",
   "Bianco e nero": "Schwarzweiß",
   "Colore": "Farbe",
-  "Misto": "Gemischt"
+  "Misto": "Gemischt",
+  "Cerca un authority record…": "Normdatensatz suchen…",
+  "Digita almeno 2 caratteri per cercare tra i authority record.": "Mindestens 2 Zeichen eingeben, um Normdatensätze zu suchen."
 }

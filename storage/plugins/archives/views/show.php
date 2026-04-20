@@ -216,31 +216,134 @@ $id = (int) $row['id'];
             </ul>
         <?php endif; ?>
 
-        <!-- Attach form (only if at least one authority exists) -->
+        <!-- Attach form with type-ahead (phase 7) -->
         <?php if (!empty($available_authorities)): ?>
             <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/authorities/attach')) ?>"
-                  class="px-6 py-4 border-t bg-gray-50 flex items-center gap-2">
+                  class="px-6 py-4 border-t bg-gray-50 relative"
+                  data-archives-attach>
                 <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-                <select name="authority_id" required
-                        class="flex-1 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">— <?= __("Seleziona un authority record") ?> —</option>
-                    <?php foreach ($available_authorities as $a): ?>
-                        <option value="<?= (int) $a['id'] ?>">
-                            [<?= $e((string) $a['type']) ?>] <?= $e((string) $a['authorised_form']) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <select name="role" required
-                        class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
-                    <?php foreach ($authority_roles as $r): ?>
-                        <option value="<?= $e($r) ?>"><?= $e($r) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <button type="submit"
-                        class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
-                    <?= __("Collega") ?>
-                </button>
+                <div class="flex items-center gap-2">
+                    <div class="flex-1 relative">
+                        <input type="text" id="archives-auth-input-<?= (int) $id ?>"
+                               data-typeahead-input
+                               placeholder="<?= $e(__("Cerca un authority record…")) ?>"
+                               autocomplete="off"
+                               class="block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                        <input type="hidden" name="authority_id" id="archives-auth-id-<?= (int) $id ?>" required>
+                        <ul data-typeahead-results
+                            class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto text-sm">
+                        </ul>
+                    </div>
+                    <select name="role" required
+                            class="rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                        <?php foreach ($authority_roles as $r): ?>
+                            <option value="<?= $e($r) ?>"><?= $e($r) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="submit"
+                            class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                        <?= __("Collega") ?>
+                    </button>
+                </div>
+                <p class="text-xs text-gray-500 mt-2">
+                    <?= __("Digita almeno 2 caratteri per cercare tra i authority record.") ?>
+                </p>
             </form>
+            <?php
+            // Phase 7: inline script — keep the plugin self-contained. All DOM
+            // construction uses createElement + textContent (no innerHTML) so
+            // an authority name containing `<script>` (or any HTML) renders
+            // as literal text, never as markup. The JSON endpoint is the
+            // only source of result content, fetched same-origin.
+            $searchUrl = url('/admin/archives/api/authorities/search');
+            $msgNoResults = __("Nessun risultato");
+            ?>
+            <script>
+            (function () {
+                var form = document.querySelector('form[data-archives-attach]');
+                if (!form) return;
+                var input = form.querySelector('[data-typeahead-input]');
+                var hidden = form.querySelector('input[name="authority_id"]');
+                var results = form.querySelector('[data-typeahead-results]');
+                var searchUrl = <?= json_encode($searchUrl, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+                var noResultsMsg = <?= json_encode($msgNoResults, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+                var debounceTimer = null;
+                var lastQuery = '';
+
+                function clearResults() {
+                    while (results.firstChild) {
+                        results.removeChild(results.firstChild);
+                    }
+                }
+
+                function hideResults() {
+                    results.classList.add('hidden');
+                    clearResults();
+                }
+
+                function renderResults(rows) {
+                    clearResults();
+                    if (!rows.length) {
+                        var empty = document.createElement('li');
+                        empty.className = 'px-3 py-2 text-gray-500 italic';
+                        empty.textContent = noResultsMsg;
+                        results.appendChild(empty);
+                        results.classList.remove('hidden');
+                        return;
+                    }
+                    for (var i = 0; i < rows.length; i++) {
+                        var r = rows[i];
+                        var li = document.createElement('li');
+                        li.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50';
+                        li.dataset.id = String(r.id);
+                        var label = '[' + r.type + '] ' + r.authorised_form;
+                        if (r.dates_of_existence) { label += ' (' + r.dates_of_existence + ')'; }
+                        li.dataset.label = label;
+                        li.textContent = label;
+                        results.appendChild(li);
+                    }
+                    results.classList.remove('hidden');
+                }
+
+                function search(q) {
+                    if (q.length < 2) { hideResults(); return; }
+                    if (q === lastQuery) return;
+                    lastQuery = q;
+                    fetch(searchUrl + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+                        .then(function (r) { return r.ok ? r.json() : { results: [] }; })
+                        .then(function (data) { renderResults(data.results || []); })
+                        .catch(function () { hideResults(); });
+                }
+
+                input.addEventListener('input', function () {
+                    clearTimeout(debounceTimer);
+                    var q = input.value.trim();
+                    hidden.value = '';
+                    debounceTimer = setTimeout(function () { search(q); }, 200);
+                });
+
+                results.addEventListener('click', function (ev) {
+                    var li = ev.target.closest('li[data-id]');
+                    if (!li) return;
+                    hidden.value = li.dataset.id;
+                    input.value = li.dataset.label;
+                    hideResults();
+                });
+
+                document.addEventListener('click', function (ev) {
+                    if (!form.contains(ev.target)) hideResults();
+                });
+
+                form.addEventListener('submit', function (ev) {
+                    if (!hidden.value) {
+                        ev.preventDefault();
+                        input.focus();
+                        input.classList.add('border-red-400');
+                        setTimeout(function () { input.classList.remove('border-red-400'); }, 1500);
+                    }
+                });
+            })();
+            </script>
         <?php else: ?>
             <p class="px-6 py-4 text-sm text-gray-500 italic border-t">
                 <?= __("Nessun authority record disponibile.") ?>

@@ -275,5 +275,8 @@
   "Video (vm)": "Video (vm)",
   "Bianco e nero": "Bianco e nero",
   "Colore": "Colore",
-  "Misto": "Misto"
+  "Misto": "Misto",
+  "Cerca un authority record…": "Cerca un authority record…",
+  "Digita almeno 2 caratteri per cercare tra i authority record.": "Digita almeno 2 caratteri per cercare tra i authority record.",
+  "Nessun risultato": "Nessun risultato"
 }
