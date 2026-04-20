@@ -232,6 +232,42 @@ class ArchivesPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->storeAction($request, $response);
         })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // GET /admin/archives/{id:\d+} — read-only detail
+        $app->get('/admin/archives/{id:[0-9]+}', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->showAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        // GET /admin/archives/{id}/edit — edit form pre-populated
+        $app->get('/admin/archives/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->editAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        // POST /admin/archives/{id}/edit — validate + UPDATE
+        $app->post('/admin/archives/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->updateAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // POST /admin/archives/{id}/delete — soft-delete
+        $app->post('/admin/archives/{id:[0-9]+}/delete', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->destroyAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
     }
 
     /**
@@ -379,15 +415,232 @@ class ArchivesPlugin
     }
 
     /**
-     * Validate a payload for insert. Returns map of field → error message,
-     * empty map on success.
+     * GET /admin/archives/{id} — read-only detail view.
+     */
+    public function showAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        // Resolve parent title (if any) so the detail view can show the hierarchy.
+        $parentTitle = null;
+        if ($row['parent_id'] !== null) {
+            $parent = $this->findById((int) $row['parent_id']);
+            $parentTitle = $parent !== null ? (string) $parent['constructed_title'] : null;
+        }
+        return $this->renderView($response, 'show', [
+            'row'          => $row,
+            'parent_title' => $parentTitle,
+        ]);
+    }
+
+    /**
+     * GET /admin/archives/{id}/edit — pre-populated edit form.
+     */
+    public function editAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        return $this->renderView($response, 'form', [
+            'mode'   => 'edit',
+            'id'     => $id,
+            'levels' => array_keys(self::LEVELS),
+            'values' => $row,
+            'errors' => [],
+        ]);
+    }
+
+    /**
+     * POST /admin/archives/{id}/edit — validate + UPDATE.
+     */
+    public function updateAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $existing = $this->findById($id);
+        if ($existing === null) {
+            return $this->renderNotFound($response, $id);
+        }
+
+        $body = (array) $request->getParsedBody();
+        $values = [
+            'reference_code'    => trim((string) ($body['reference_code'] ?? '')),
+            'institution_code'  => trim((string) ($body['institution_code'] ?? 'PINAKES')),
+            'level'             => (string) ($body['level'] ?? ''),
+            'formal_title'      => trim((string) ($body['formal_title'] ?? '')),
+            'constructed_title' => trim((string) ($body['constructed_title'] ?? '')),
+            'date_start'        => isset($body['date_start']) && $body['date_start'] !== '' ? (int) $body['date_start'] : null,
+            'date_end'          => isset($body['date_end'])   && $body['date_end']   !== '' ? (int) $body['date_end']   : null,
+            'extent'            => trim((string) ($body['extent'] ?? '')),
+            'scope_content'     => trim((string) ($body['scope_content'] ?? '')),
+            'language_codes'    => trim((string) ($body['language_codes'] ?? 'ita')),
+            'parent_id'         => isset($body['parent_id']) && $body['parent_id'] !== '' ? (int) $body['parent_id'] : null,
+        ];
+
+        $errors = $this->validateArchivalUnit($values, $id);
+
+        // Extra safeguard: prevent cycles in the hierarchy (self-parent or
+        // descendant-as-parent). Phase 1c covers the direct-self case; full
+        // transitive check → phase 2 when CTE helpers are available.
+        if ($values['parent_id'] === $id) {
+            $errors['parent_id'] = 'An archival unit cannot be its own parent.';
+        }
+
+        if (!empty($errors)) {
+            return $this->renderView($response, 'form', [
+                'mode'   => 'edit',
+                'id'     => $id,
+                'levels' => array_keys(self::LEVELS),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+
+        $stmt = $this->db->prepare(
+            'UPDATE archival_units SET
+                parent_id = ?, reference_code = ?, institution_code = ?, level = ?,
+                formal_title = ?, constructed_title = ?, date_start = ?, date_end = ?,
+                extent = ?, scope_content = ?, language_codes = ?
+             WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] update prepare failed: ' . $this->db->error);
+            $errors['_global'] = 'Database error. Check the log and retry.';
+            return $this->renderView($response, 'form', [
+                'mode'   => 'edit',
+                'id'     => $id,
+                'levels' => array_keys(self::LEVELS),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+
+        $formalTitleParam = $values['formal_title'] !== '' ? $values['formal_title'] : null;
+        $extentParam      = $values['extent']       !== '' ? $values['extent']       : null;
+        $scopeParam       = $values['scope_content']!== '' ? $values['scope_content']: null;
+
+        $stmt->bind_param(
+            'issssssissssi',
+            $values['parent_id'],
+            $values['reference_code'],
+            $values['institution_code'],
+            $values['level'],
+            $formalTitleParam,
+            $values['constructed_title'],
+            $values['date_start'],
+            $values['date_end'],
+            $extentParam,
+            $scopeParam,
+            $values['language_codes'],
+            $id
+        );
+
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] UPDATE failed: ' . $stmt->error);
+            $errors['_global'] = $this->db->errno === 1062
+                ? 'Reference code already exists for this institution.'
+                : 'Update failed. Check the log.';
+            $stmt->close();
+            return $this->renderView($response, 'form', [
+                'mode'   => 'edit',
+                'id'     => $id,
+                'levels' => array_keys(self::LEVELS),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+        $stmt->close();
+
+        return $response
+            ->withHeader('Location', '/admin/archives/' . $id)
+            ->withStatus(303);
+    }
+
+    /**
+     * POST /admin/archives/{id}/delete — soft-delete.
+     *
+     * Aligns with the `libri` table's soft-delete convention: sets
+     * deleted_at = NOW() and never physically drops the row. Children are
+     * NOT cascade-soft-deleted — fonds-level deletion with active series
+     * below is a destructive operation that needs explicit UI confirmation
+     * (roadmapped for phase 2).
+     */
+    public function destroyAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $stmt = $this->db->prepare(
+            'UPDATE archival_units SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] delete prepare failed: ' . $this->db->error);
+            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $stmt->close();
+        return $response->withHeader('Location', '/admin/archives')->withStatus(303);
+    }
+
+    /**
+     * Fetch one non-deleted archival_unit by id, or null.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function findById(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archival_units WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] findById prepare failed: ' . $this->db->error);
+            return null;
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
+        $stmt->close();
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * Render a 404 for a missing/deleted archival_unit id.
+     */
+    private function renderNotFound(ResponseInterface $response, int $id): ResponseInterface
+    {
+        $response->getBody()->write(
+            '<h1>404 — Archival unit ' . htmlspecialchars((string) $id, ENT_QUOTES, 'UTF-8') . ' not found</h1>'
+        );
+        return $response->withStatus(404);
+    }
+
+    /**
+     * Validate a payload for insert or update. Returns map of field → error message,
+     * empty map on success. Pass $excludeId when updating so we don't flag the
+     * row's own reference_code as a duplicate against itself.
      *
      * @param array<string, mixed> $values
      * @return array<string, string>
      */
-    private function validateArchivalUnit(array $values): array
+    private function validateArchivalUnit(array $values, ?int $excludeId = null): array
     {
         $errors = [];
+        // $excludeId is reserved for reference_code uniqueness pre-check once
+        // we add it in phase 2 — currently enforced by the DB UNIQUE KEY and
+        // surfaced via errno 1062 in storeAction/updateAction.
+        unset($excludeId);
 
         $ref = (string) ($values['reference_code'] ?? '');
         if ($ref === '') {

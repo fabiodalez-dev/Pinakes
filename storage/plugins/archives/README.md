@@ -1,6 +1,6 @@
 # Archives plugin — ISAD(G) / ISAAR(CPF) support for Pinakes
 
-**Status: PHASE 1b — list + create CRUD** (v0.2.0). Activation creates the three tables (`archival_units`, `authority_records`, `archival_unit_authority`) via `ensureSchema()` AND registers the `app.routes.register` hook so `/admin/archives` + `/admin/archives/new` respond. Still missing: edit/update/destroy, authority-records CRUD, MARCXML I/O, unified search.
+**Status: PHASE 1c — full CRUD on archival_units** (v0.3.0). Activation creates the three tables via `ensureSchema()` AND registers the `app.routes.register` hook. The `/admin/archives` area now supports list + show + create + edit + soft-delete. Still missing: sidebar menu entry, i18n (IT/EN/DE), Playwright E2E, authority-records CRUD, MARCXML I/O, unified search.
 
 Tracks issue [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 

@@ -39,14 +39,24 @@ $renderRow = function (array $row, int $depth) use (&$renderRow, $byParent, $e):
             $dateRange .= '–' . (string) $row['date_end'];
         }
     }
+    $rowId = (int) $row['id'];
+    $viewUrl = $e(url('/admin/archives/' . $rowId));
+    $editUrl = $e(url('/admin/archives/' . $rowId . '/edit'));
     $html  = '<tr class="hover:bg-gray-50 border-b">';
-    $html .= '<td class="px-4 py-2 font-mono text-xs text-gray-500">' . $e((string) $row['reference_code']) . '</td>';
+    $html .= '<td class="px-4 py-2 font-mono text-xs text-gray-500">';
+    $html .= '<a href="' . $viewUrl . '" class="text-blue-600 hover:underline">' . $e((string) $row['reference_code']) . '</a>';
+    $html .= '</td>';
     $html .= '<td class="px-4 py-2">';
     $html .= '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded ' . $badgeClass . '">' . $e((string) $row['level']) . '</span>';
     $html .= '</td>';
-    $html .= '<td class="px-4 py-2">' . $indent . $e((string) $row['constructed_title']) . '</td>';
+    $html .= '<td class="px-4 py-2">' . $indent;
+    $html .= '<a href="' . $viewUrl . '" class="text-gray-900 hover:underline">' . $e((string) $row['constructed_title']) . '</a>';
+    $html .= '</td>';
     $html .= '<td class="px-4 py-2 text-sm text-gray-600">' . $e($dateRange) . '</td>';
     $html .= '<td class="px-4 py-2 text-sm text-gray-600">' . $e((string) ($row['extent'] ?? '')) . '</td>';
+    $html .= '<td class="px-4 py-2 text-right text-sm whitespace-nowrap">';
+    $html .= '<a href="' . $editUrl . '" class="text-blue-600 hover:underline">modifica</a>';
+    $html .= '</td>';
     $html .= '</tr>';
 
     // Recurse into children, if any.
@@ -102,6 +112,7 @@ $rootRows = $byParent[0] ?? [];
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Titolo</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estensione</th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Azioni</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">

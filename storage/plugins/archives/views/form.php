@@ -1,16 +1,26 @@
 <?php
 /**
- * Archives — create form view.
+ * Archives — create/edit form view.
  *
  * @var list<string> $levels
  * @var array<string, mixed> $values
  * @var array<string, string> $errors
+ * @var string|null $mode   'create' (default) or 'edit'
+ * @var int|null $id        required when $mode === 'edit'
  */
 declare(strict_types=1);
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $val = static fn(string $k): string => $e((string) ($values[$k] ?? ''));
 $err = static fn(string $k): ?string => $errors[$k] ?? null;
+
+$mode   = ($mode ?? 'create') === 'edit' ? 'edit' : 'create';
+$editId = $mode === 'edit' ? (int) ($id ?? 0) : null;
+$formAction = $mode === 'edit'
+    ? url('/admin/archives/' . (int) $editId . '/edit')
+    : url('/admin/archives/new');
+$pageTitle = $mode === 'edit' ? 'Modifica record archivistico' : 'Nuovo record archivistico';
+$submitLabel = $mode === 'edit' ? 'Salva modifiche' : 'Crea record';
 
 $levelLabels = [
     'fonds'  => 'Fondo (archivio completo di un creatore)',
@@ -23,9 +33,9 @@ $levelLabels = [
     <div class="mb-6">
         <nav class="text-sm text-gray-500 mb-2">
             <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline">Archivi</a>
-            &nbsp;&raquo;&nbsp; Nuovo record
+            &nbsp;&raquo;&nbsp; <?= $mode === 'edit' ? 'Modifica record #' . $e((string) $editId) : 'Nuovo record' ?>
         </nav>
-        <h1 class="text-2xl font-bold text-gray-900">Nuovo record archivistico</h1>
+        <h1 class="text-2xl font-bold text-gray-900"><?= $e($pageTitle) ?></h1>
         <p class="text-sm text-gray-600 mt-1">
             Compila i campi ISAD(G) 3.1 (area di identificazione). Campi aggiuntivi (3.2-3.7)
             saranno disponibili nella vista di modifica dopo la creazione.
@@ -38,7 +48,7 @@ $levelLabels = [
         </div>
     <?php endif; ?>
 
-    <form method="POST" action="<?= $e(url('/admin/archives/new')) ?>" class="bg-white shadow rounded-lg p-6 space-y-5">
+    <form method="POST" action="<?= $e($formAction) ?>" class="bg-white shadow rounded-lg p-6 space-y-5">
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -200,7 +210,7 @@ $levelLabels = [
             </a>
             <button type="submit"
                     class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
-                Crea record
+                <?= $e($submitLabel) ?>
             </button>
         </div>
     </form>
