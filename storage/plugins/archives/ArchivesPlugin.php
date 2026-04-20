@@ -431,6 +431,49 @@ class ArchivesPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->authorityTypeaheadAction($request, $response);
         })->add($adminMiddleware);
+
+        // ── Phase 4 — MARCXML import / export ──────────────────────────────
+        // Uses the ABA archive-format crosswalk documented in README.md so
+        // the output round-trips with existing archival systems (Reindex,
+        // ARKIS II) without any bespoke translation layer.
+
+        $app->get('/admin/archives/export.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportCollectionAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/{id:[0-9]+}/export.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportArchivalUnitAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/authorities/{id:[0-9]+}/export.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportAuthorityAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        // Import form (GET) + submit (POST multipart/form-data)
+        $app->get('/admin/archives/import', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->importFormAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/import', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->importSubmitAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
     }
 
     /**
@@ -1373,6 +1416,564 @@ class ArchivesPlugin
             $result->free();
         }
         return $rows;
+    }
+
+    // ── Phase 4 — MARCXML import / export ──────────────────────────────
+
+    /**
+     * GET /admin/archives/{id}/export.xml — MARCXML for one archival_unit.
+     * Streams the document via XMLWriter (memory-safe even for large fonds
+     * with many 248 repeats).
+     */
+    public function exportArchivalUnitAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $xw->startElementNs(null, 'collection', 'http://www.loc.gov/MARC21/slim');
+        $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
+        $xw->endElement();
+        $xw->endDocument();
+
+        return $this->xmlResponse($response, $xw->outputMemory(), ((string) $row['reference_code']) . '.xml');
+    }
+
+    /**
+     * GET /admin/archives/authorities/{id}/export.xml — MARCXML for one
+     * authority record.
+     */
+    public function exportAuthorityAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findAuthorityById($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $xw->startElementNs(null, 'collection', 'http://www.loc.gov/MARC21/slim');
+        $this->writeAuthorityMarcRecord($xw, $row);
+        $xw->endElement();
+        $xw->endDocument();
+
+        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string) $row['authorised_form']) ?: 'authority';
+        return $this->xmlResponse($response, $xw->outputMemory(), 'authority_' . $slug . '.xml');
+    }
+
+    /**
+     * GET /admin/archives/export.xml?ids=1,2,3 — bulk export. Without `ids`,
+     * exports all non-deleted archival_units (capped at 1000).
+     */
+    public function exportCollectionAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $params = $request->getQueryParams();
+        $idsParam = (string) ($params['ids'] ?? '');
+        $ids = [];
+        if ($idsParam !== '') {
+            foreach (explode(',', $idsParam) as $raw) {
+                $n = (int) trim($raw);
+                if ($n > 0) { $ids[] = $n; }
+            }
+        }
+
+        $rows = [];
+        if (empty($ids)) {
+            $result = $this->db->query(
+                "SELECT * FROM archival_units WHERE deleted_at IS NULL
+                  ORDER BY FIELD(level,'fonds','series','file','item'), reference_code
+                  LIMIT 1000"
+            );
+            if ($result instanceof \mysqli_result) {
+                while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+                $result->free();
+            }
+        } else {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $this->db->prepare(
+                "SELECT * FROM archival_units
+                  WHERE id IN ($placeholders) AND deleted_at IS NULL
+                  ORDER BY FIELD(level,'fonds','series','file','item'), reference_code"
+            );
+            if ($stmt !== false) {
+                $types = str_repeat('i', count($ids));
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if ($result instanceof \mysqli_result) {
+                    while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+                    $result->free();
+                }
+                $stmt->close();
+            }
+        }
+
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $xw->startElementNs(null, 'collection', 'http://www.loc.gov/MARC21/slim');
+        foreach ($rows as $row) {
+            $auth = $this->fetchAuthoritiesForArchivalUnit((int) $row['id']);
+            $this->writeArchivalUnitMarcRecord($xw, $row, $auth);
+        }
+        $xw->endElement();
+        $xw->endDocument();
+
+        return $this->xmlResponse($response, $xw->outputMemory(), 'archives_export.xml');
+    }
+
+    /**
+     * GET /admin/archives/import — render the upload form.
+     */
+    public function importFormAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        return $this->renderView($response, 'import', ['result' => null]);
+    }
+
+    /**
+     * POST /admin/archives/import — parse uploaded MARCXML, insert or preview.
+     * Form has a `dry_run` checkbox that bypasses the INSERTs.
+     * Phase 4 only handles archival_unit records; authority imports are 4b.
+     */
+    public function importSubmitAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $uploaded = $request->getUploadedFiles();
+        $file = $uploaded['marcxml'] ?? null;
+        $body = (array) $request->getParsedBody();
+        $dryRun = !empty($body['dry_run']);
+
+        $result = [
+            'success'  => false,
+            'dry_run'  => $dryRun,
+            'parsed'   => [],
+            'inserted' => [],
+            'errors'   => [],
+        ];
+
+        if (!$file instanceof \Psr\Http\Message\UploadedFileInterface
+            || $file->getError() !== UPLOAD_ERR_OK) {
+            $result['errors'][] = 'Upload failed or no file provided.';
+            return $this->renderView($response, 'import', ['result' => $result]);
+        }
+
+        $xmlContent = (string) $file->getStream();
+        $parsed = $this->parseMarcXml($xmlContent);
+        if (isset($parsed['error'])) {
+            $result['errors'][] = $parsed['error'];
+            return $this->renderView($response, 'import', ['result' => $result]);
+        }
+        $result['parsed'] = $parsed['records'] ?? [];
+
+        if (!$dryRun) {
+            foreach ($result['parsed'] as $record) {
+                $id = $this->insertImportedArchivalUnit($record);
+                if ($id > 0) {
+                    $result['inserted'][] = ['id' => $id, 'reference_code' => $record['reference_code'] ?? ''];
+                } else {
+                    $result['errors'][] = 'Failed to insert: ' . ($record['reference_code'] ?? '(no ref)');
+                }
+            }
+            $result['success'] = count($result['inserted']) > 0;
+        } else {
+            $result['success'] = true;
+        }
+        return $this->renderView($response, 'import', ['result' => $result]);
+    }
+
+    /**
+     * Emit one <record type="Bibliographic"> for an archival_unit, following
+     * the ABA crosswalk. Authorities render as 100/110/600/610/700/710
+     * based on (type, role).
+     *
+     * @param array<string, mixed> $row
+     * @param list<array<string, mixed>> $authorities
+     */
+    private function writeArchivalUnitMarcRecord(\XMLWriter $xw, array $row, array $authorities): void
+    {
+        $xw->startElement('record');
+        $xw->writeAttribute('type', 'Bibliographic');
+
+        $this->writeMarcDatafield($xw, '001', [
+            'a' => (string) ($row['reference_code'] ?? ''),
+            'b' => (string) ($row['institution_code'] ?? 'PINAKES'),
+            'd' => isset($row['registration_date']) ? (string) $row['registration_date'] : null,
+        ]);
+
+        $sub008 = [];
+        if (!empty($row['date_start'])) { $sub008['a'] = (string) $row['date_start']; }
+        if (!empty($row['date_end']))   { $sub008['z'] = (string) $row['date_end']; }
+        $levelMap = ['fonds' => 'a', 'series' => 'b', 'file' => 'c', 'item' => 'd'];
+        if (isset($levelMap[$row['level'] ?? ''])) { $sub008['c'] = $levelMap[$row['level']]; }
+        if (!empty($row['language_codes'])) { $sub008['l'] = (string) $row['language_codes']; }
+        $this->writeMarcDatafield($xw, '008', $sub008);
+
+        if (!empty($row['formal_title'])) {
+            $this->writeMarcDatafield($xw, '241', ['a' => (string) $row['formal_title']]);
+        }
+        if (!empty($row['constructed_title'])) {
+            $this->writeMarcDatafield($xw, '245', ['a' => (string) $row['constructed_title']]);
+        }
+        if (!empty($row['date_start'])) {
+            $dateText = (string) $row['date_start']
+                . (!empty($row['date_end']) && $row['date_end'] !== $row['date_start']
+                    ? '-' . (string) $row['date_end']
+                    : '');
+            $this->writeMarcDatafield($xw, '260', ['c' => $dateText]);
+        }
+        if (!empty($row['extent'])) {
+            $this->writeMarcDatafield($xw, '300', ['a' => (string) $row['extent']]);
+        }
+        $sub501 = [];
+        if (!empty($row['predominant_dates'])) { $sub501['a'] = (string) $row['predominant_dates']; }
+        if (!empty($row['date_gaps']))         { $sub501['b'] = (string) $row['date_gaps']; }
+        $this->writeMarcDatafield($xw, '501', $sub501);
+
+        if (!empty($row['scope_content'])) {
+            $this->writeMarcDatafield($xw, '504', ['a' => (string) $row['scope_content']]);
+        }
+        $sub512 = [];
+        if (!empty($row['registration_date']))  { $sub512['a'] = (string) $row['registration_date']; }
+        if (!empty($row['material_status']))    { $sub512['b'] = (string) $row['material_status']; }
+        if (!empty($row['arrangement_system'])) { $sub512['c'] = (string) $row['arrangement_system']; }
+        $this->writeMarcDatafield($xw, '512', $sub512);
+
+        if (!empty($row['access_conditions'])) {
+            $this->writeMarcDatafield($xw, '513', ['a' => (string) $row['access_conditions']]);
+        }
+        $sub518 = [];
+        if (!empty($row['access_conditions']))  { $sub518['a'] = (string) $row['access_conditions']; }
+        if (!empty($row['reproduction_rules'])) { $sub518['b'] = (string) $row['reproduction_rules']; }
+        $this->writeMarcDatafield($xw, '518', $sub518);
+
+        $sub520 = [];
+        if (!empty($row['archival_history']))   { $sub520['a'] = (string) $row['archival_history']; }
+        if (!empty($row['acquisition_source'])) { $sub520['b'] = (string) $row['acquisition_source']; }
+        $this->writeMarcDatafield($xw, '520', $sub520);
+
+        if (!empty($row['related_units'])) {
+            $this->writeMarcDatafield($xw, '525', ['a' => (string) $row['related_units']]);
+        }
+        if (!empty($row['finding_aids'])) {
+            $this->writeMarcDatafield($xw, '526', ['a' => (string) $row['finding_aids']]);
+        }
+        $sub529 = [];
+        if (!empty($row['originals_location'])) { $sub529['a'] = (string) $row['originals_location']; }
+        if (!empty($row['copies_location']))    { $sub529['b'] = (string) $row['copies_location']; }
+        $this->writeMarcDatafield($xw, '529', $sub529);
+
+        if (!empty($row['physical_location'])) {
+            $this->writeMarcDatafield($xw, '852', ['c' => (string) $row['physical_location']]);
+        }
+
+        foreach ($authorities as $auth) {
+            $tag = $this->authorityTagFor((string) ($auth['type'] ?? ''), (string) ($auth['role'] ?? 'associated'));
+            $this->writeMarcDatafield($xw, $tag, [
+                'a' => (string) ($auth['authorised_form'] ?? ''),
+                'd' => (string) ($auth['dates_of_existence'] ?? ''),
+                'e' => (string) ($auth['role'] ?? ''),
+            ]);
+        }
+
+        $xw->endElement();
+    }
+
+    /**
+     * Emit one <record type="Authority"> for an ISAAR authority record.
+     *
+     * @param array<string, mixed> $row
+     */
+    private function writeAuthorityMarcRecord(\XMLWriter $xw, array $row): void
+    {
+        $xw->startElement('record');
+        $xw->writeAttribute('type', 'Authority');
+
+        $this->writeMarcDatafield($xw, '001', [
+            'a' => 'authority_' . (string) $row['id'],
+            'b' => 'PINAKES',
+        ]);
+
+        $tag = ((string) ($row['type'] ?? '') === 'corporate') ? '110' : '100';
+        $this->writeMarcDatafield($xw, $tag, [
+            'a' => (string) ($row['authorised_form'] ?? ''),
+            'd' => (string) ($row['dates_of_existence'] ?? ''),
+        ]);
+
+        foreach (['parallel_forms', 'other_forms'] as $field) {
+            if (!empty($row[$field])) {
+                foreach (preg_split('/\r?\n/', (string) $row[$field]) ?: [] as $line) {
+                    $line = trim($line);
+                    if ($line !== '') {
+                        $this->writeMarcDatafield($xw, '400', ['a' => $line]);
+                    }
+                }
+            }
+        }
+
+        $extra = [
+            '024' => 'identifiers',
+            '370' => 'places',
+            '368' => 'legal_status',
+            '372' => 'functions',
+            '377' => 'mandates',
+            '373' => 'internal_structure',
+        ];
+        foreach ($extra as $marcTag => $col) {
+            if (!empty($row[$col])) {
+                $this->writeMarcDatafield($xw, $marcTag, ['a' => (string) $row[$col]]);
+            }
+        }
+
+        $bio = trim(((string) ($row['history'] ?? '')) . "\n" . ((string) ($row['general_context'] ?? '')));
+        if ($bio !== '') {
+            $this->writeMarcDatafield($xw, '678', ['a' => $bio]);
+        }
+
+        $xw->endElement();
+    }
+
+    /**
+     * Map (authority_type, role) → MARC tag for archival_unit export.
+     */
+    private function authorityTagFor(string $type, string $role): string
+    {
+        if ($role === 'creator') { return $type === 'corporate' ? '110' : '100'; }
+        if ($role === 'subject') { return $type === 'corporate' ? '610' : '600'; }
+        return $type === 'corporate' ? '710' : '700';
+    }
+
+    /**
+     * Write a MARC datafield with non-empty subfields; skip if all empty.
+     *
+     * @param array<string, string|null> $subfields
+     */
+    private function writeMarcDatafield(\XMLWriter $xw, string $tag, array $subfields): void
+    {
+        $filtered = array_filter($subfields, static fn($v) => $v !== null && $v !== '');
+        if (empty($filtered)) {
+            return;
+        }
+        $xw->startElement('datafield');
+        $xw->writeAttribute('tag', $tag);
+        $xw->writeAttribute('ind1', ' ');
+        $xw->writeAttribute('ind2', ' ');
+        foreach ($filtered as $code => $value) {
+            $xw->startElement('subfield');
+            $xw->writeAttribute('code', (string) $code);
+            $xw->text((string) $value);
+            $xw->endElement();
+        }
+        $xw->endElement();
+    }
+
+    /**
+     * Parse a MARCXML document; return {records: [...]} or {error: '...'}.
+     *
+     * @return array{records?: list<array<string, mixed>>, error?: string}
+     */
+    private function parseMarcXml(string $xml): array
+    {
+        $prev = libxml_use_internal_errors(true);
+        $doc = simplexml_load_string($xml, \SimpleXMLElement::class, LIBXML_NOCDATA);
+        libxml_use_internal_errors($prev);
+
+        if ($doc === false) {
+            $errs = libxml_get_errors();
+            libxml_clear_errors();
+            return ['error' => 'XML parse error: ' . ($errs[0]->message ?? 'unknown')];
+        }
+        $doc->registerXPathNamespace('m', 'http://www.loc.gov/MARC21/slim');
+
+        $records = [];
+        $nodes = $doc->xpath('//m:record');
+        if ($nodes === false || count($nodes) === 0) {
+            $nodes = $doc->xpath('//record') ?: [];
+        }
+
+        foreach ($nodes as $rec) {
+            $type = (string) ($rec['type'] ?? 'Bibliographic');
+            if ($type === 'Authority') { continue; }
+
+            $fields = $this->collectMarcFields($rec);
+            $level = $this->decodeLevel($this->marcSub($fields, '008', 'c'));
+            $refCode = $this->marcSub($fields, '001', 'a');
+            $constructed = $this->marcSub($fields, '245', 'a');
+            if ($refCode === null || $constructed === null || $level === null) {
+                continue;
+            }
+            $dateStartRaw = $this->marcSub($fields, '008', 'a');
+            $dateEndRaw   = $this->marcSub($fields, '008', 'z');
+            $records[] = [
+                'reference_code'      => $refCode,
+                'institution_code'    => $this->marcSub($fields, '001', 'b') ?? 'PINAKES',
+                'level'               => $level,
+                'formal_title'        => $this->marcSub($fields, '241', 'a'),
+                'constructed_title'   => $constructed,
+                'date_start'          => $dateStartRaw !== null ? (int) $dateStartRaw : null,
+                'date_end'            => $dateEndRaw   !== null ? (int) $dateEndRaw   : null,
+                'extent'              => $this->marcSub($fields, '300', 'a'),
+                'scope_content'       => $this->marcSub($fields, '504', 'a'),
+                'language_codes'      => $this->marcSub($fields, '008', 'l'),
+                'archival_history'    => $this->marcSub($fields, '520', 'a'),
+                'acquisition_source'  => $this->marcSub($fields, '520', 'b'),
+                'access_conditions'   => $this->marcSub($fields, '513', 'a')
+                                        ?? $this->marcSub($fields, '518', 'a'),
+                'reproduction_rules'  => $this->marcSub($fields, '518', 'b'),
+                'related_units'       => $this->marcSub($fields, '525', 'a'),
+                'finding_aids'        => $this->marcSub($fields, '526', 'a'),
+            ];
+        }
+        return ['records' => $records];
+    }
+
+    /**
+     * Return the value of subfield $code for tag $tag, or null if missing.
+     *
+     * @param array<string, array<string, string>> $fields
+     */
+    private function marcSub(array $fields, string $tag, string $code): ?string
+    {
+        if (!isset($fields[$tag])) {
+            return null;
+        }
+        $sub = $fields[$tag];
+        return $sub[$code] ?? null;
+    }
+
+    /**
+     * Flatten a <record>'s datafields into a tag→subfield-code map.
+     *
+     * @return array<string, array<string, string>>
+     */
+    private function collectMarcFields(\SimpleXMLElement $record): array
+    {
+        $out = [];
+        $children = $record->children('http://www.loc.gov/MARC21/slim');
+        if (count($children) === 0) {
+            $children = $record->children();
+        }
+        foreach ($children as $field) {
+            if ($field->getName() !== 'datafield') { continue; }
+            $tag = (string) $field['tag'];
+            $subs = [];
+            $subChildren = $field->children('http://www.loc.gov/MARC21/slim');
+            if (count($subChildren) === 0) {
+                $subChildren = $field->children();
+            }
+            foreach ($subChildren as $sub) {
+                if ($sub->getName() !== 'subfield') { continue; }
+                $subs[(string) $sub['code']] = trim((string) $sub);
+            }
+            if (!empty($subs)) {
+                $out[$tag] = $subs;
+            }
+        }
+        return $out;
+    }
+
+    private function decodeLevel(?string $code): ?string
+    {
+        return match ($code) {
+            'a' => 'fonds',
+            'b' => 'series',
+            'c' => 'file',
+            'd' => 'item',
+            default => null,
+        };
+    }
+
+    /**
+     * INSERT an imported archival_unit and return its id, or 0 on failure.
+     *
+     * @param array<string, mixed> $r
+     */
+    private function insertImportedArchivalUnit(array $r): int
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO archival_units
+                (reference_code, institution_code, level, formal_title,
+                 constructed_title, date_start, date_end, extent,
+                 scope_content, language_codes, archival_history,
+                 acquisition_source, access_conditions, reproduction_rules,
+                 related_units, finding_aids)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] import prepare failed: ' . $this->db->error);
+            return 0;
+        }
+        $formalTitle       = $r['formal_title']       ?? null;
+        $extent            = $r['extent']             ?? null;
+        $scopeContent      = $r['scope_content']      ?? null;
+        $languageCodes     = $r['language_codes']     ?? null;
+        $archivalHistory   = $r['archival_history']   ?? null;
+        $acquisitionSource = $r['acquisition_source'] ?? null;
+        $accessConditions  = $r['access_conditions']  ?? null;
+        $reproductionRules = $r['reproduction_rules'] ?? null;
+        $relatedUnits      = $r['related_units']      ?? null;
+        $findingAids       = $r['finding_aids']       ?? null;
+        $dateStart         = $r['date_start']         ?? null;
+        $dateEnd           = $r['date_end']           ?? null;
+
+        // 16 params: 5 strings + 2 ints + 9 strings → 'sssss' + 'ii' + 'sssssssss'
+        $stmt->bind_param(
+            'sssssiisssssssss',
+            $r['reference_code'],
+            $r['institution_code'],
+            $r['level'],
+            $formalTitle,
+            $r['constructed_title'],
+            $dateStart,
+            $dateEnd,
+            $extent,
+            $scopeContent,
+            $languageCodes,
+            $archivalHistory,
+            $acquisitionSource,
+            $accessConditions,
+            $reproductionRules,
+            $relatedUnits,
+            $findingAids
+        );
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] import INSERT failed: ' . $stmt->error);
+            $stmt->close();
+            return 0;
+        }
+        $id = (int) $stmt->insert_id;
+        $stmt->close();
+        return $id;
+    }
+
+    /**
+     * Compose a ResponseInterface carrying MARCXML.
+     */
+    private function xmlResponse(ResponseInterface $response, string $xml, string $filename): ResponseInterface
+    {
+        $response = $response
+            ->withHeader('Content-Type', 'application/marcxml+xml; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+        $response->getBody()->write($xml);
+        return $response;
     }
 
     // ── Phase 3 — unified cross-entity search ──────────────────────────

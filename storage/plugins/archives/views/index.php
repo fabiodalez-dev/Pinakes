@@ -95,6 +95,14 @@ $rootRows = $byParent[0] ?? [];
                class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">
                 <?= __("Authority records") ?>
             </a>
+            <a href="<?= $e(url('/admin/archives/import')) ?>"
+               class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">
+                <?= __("Importa MARCXML") ?>
+            </a>
+            <a href="<?= $e(url('/admin/archives/export.xml')) ?>"
+               class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">
+                <?= __("Esporta MARCXML") ?>
+            </a>
             <a href="<?= $e(url('/admin/archives/new')) ?>"
                class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

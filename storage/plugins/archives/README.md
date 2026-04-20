@@ -1,6 +1,6 @@
 # Archives plugin — ISAD(G) / ISAAR(CPF) support for Pinakes
 
-**Status: PHASE 3 — unified cross-entity search + full ISAAR + autori linkage** (v0.7.0). On top of phases 1 + 2: (a) all eight additional ISAAR(CPF) fields land in the authority form (parallel_forms, other_forms, identifiers, places, legal_status, mandates, internal_structure, general_context), (b) a new `autori_authority_link` table reconciles library-side `autori` rows with archival authority records, and (c) `/admin/archives/search` ships a FULLTEXT cross-entity search across archival_units + authority_records + reconciled autori. Still missing: type-ahead JSON frontend glue (endpoint ships, consumer wiring is later), MARCXML I/O, photographic-items extension.
+**Status: PHASE 4 — MARCXML import/export** (v0.8.0). On top of phases 1-3: (a) per-record and bulk MARCXML export (`/admin/archives/{id}/export.xml`, `/admin/archives/authorities/{id}/export.xml`, `/admin/archives/export.xml?ids=…`) streamed via `XMLWriter` using the ABA field crosswalk (001/008/241/245/260/300/504/512/513/518/520/525/526/529 + 100/110/600/610/700/710 for linked authorities); (b) upload-based MARCXML import at `/admin/archives/import` with dry-run preview; (c) authority-record export uses MARC21 authority tags (100/110 + 400 tracings + 024/370/368/372/377/373/678 for ISAAR elements). Still missing: MARCXML authority import (phase 4b), Z39.50 server (separate plugin), photographic items (phase 5).
 
 Tracks issue [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 

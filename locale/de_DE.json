@@ -4433,5 +4433,20 @@
   "Vai ad Autori": "Zu den Autoren",
   "Nessun autore di libreria collegato. Associa un autore qui sotto per unificare libri e archivi nella ricerca.": "Keine Bibliotheksautoren verknüpft. Verknüpfen Sie unten einen, um Bücher und Archive in der Suche zusammenzuführen.",
   "Seleziona un autore di libreria": "Bibliotheksautor auswählen",
-  "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.": "Die ersten 100 Autoren werden angezeigt. Type-ahead-Suche für längere Listen folgt in einer späteren Phase."
+  "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.": "Die ersten 100 Autoren werden angezeigt. Type-ahead-Suche für längere Listen folgt in einer späteren Phase.",
+  "Importa MARCXML": "MARCXML importieren",
+  "Esporta MARCXML": "MARCXML exportieren",
+  "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche. Gli authority record nel file vengono ignorati in questa fase.": "Laden Sie eine MARCXML-Datei (ABA / MARC21-Slim-Format) hoch, um Archiveinheiten zu importieren. Normdatensätze in der Datei werden in dieser Phase ignoriert.",
+  "Errori durante l'importazione": "Fehler beim Import",
+  "Dry-run:": "Testlauf:",
+  "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.": "%d Datensätze gefunden. Es wurde nichts eingefügt. Entfernen Sie den Haken bei 'Testlauf' und wiederholen Sie den Vorgang, um zu importieren.",
+  "Importati %d record su %d.": "%d von %d Datensätzen importiert.",
+  "Record analizzati": "Analysierte Datensätze",
+  "preview": "Vorschau",
+  "inserito": "eingefügt",
+  "saltato": "übersprungen",
+  "File MARCXML": "MARCXML-Datei",
+  "Dry-run (analizza senza inserire)": "Testlauf (analysieren ohne einzufügen)",
+  "Consiglio: esegui prima un dry-run per verificare la mappatura dei campi, poi disabilita il checkbox per l'insert.": "Tipp: Führen Sie zuerst einen Testlauf durch, um das Feld-Mapping zu prüfen, und deaktivieren Sie dann das Kontrollkästchen, um tatsächlich zu importieren.",
+  "Analizza / Importa": "Analysieren / Importieren"
 }

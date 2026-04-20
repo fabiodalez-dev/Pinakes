@@ -233,5 +233,21 @@
   "Vai ad Autori": "Vai ad Autori",
   "Nessun autore di libreria collegato. Associa un autore qui sotto per unificare libri e archivi nella ricerca.": "Nessun autore di libreria collegato. Associa un autore qui sotto per unificare libri e archivi nella ricerca.",
   "Seleziona un autore di libreria": "Seleziona un autore di libreria",
-  "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.": "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase."
+  "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.": "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.",
+  "Importa MARCXML": "Importa MARCXML",
+  "Esporta MARCXML": "Esporta MARCXML",
+  "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche. Gli authority record nel file vengono ignorati in questa fase.": "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche. Gli authority record nel file vengono ignorati in questa fase.",
+  "Errori durante l'importazione": "Errori durante l'importazione",
+  "Dry-run:": "Dry-run:",
+  "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.": "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.",
+  "Importati %d record su %d.": "Importati %d record su %d.",
+  "Record analizzati": "Record analizzati",
+  "Stato": "Stato",
+  "preview": "preview",
+  "inserito": "inserito",
+  "saltato": "saltato",
+  "File MARCXML": "File MARCXML",
+  "Dry-run (analizza senza inserire)": "Dry-run (analizza senza inserire)",
+  "Consiglio: esegui prima un dry-run per verificare la mappatura dei campi, poi disabilita il checkbox per l'insert.": "Consiglio: esegui prima un dry-run per verificare la mappatura dei campi, poi disabilita il checkbox per l'insert.",
+  "Analizza / Importa": "Analizza / Importa"
 }

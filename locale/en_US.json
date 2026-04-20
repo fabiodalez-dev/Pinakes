@@ -4433,5 +4433,20 @@
   "Vai ad Autori": "Go to Authors",
   "Nessun autore di libreria collegato. Associa un autore qui sotto per unificare libri e archivi nella ricerca.": "No library authors linked. Link one below to unify books and archives in search.",
   "Seleziona un autore di libreria": "Select a library author",
-  "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.": "Showing the first 100 authors. Type-ahead search for longer lists is coming in a future phase."
+  "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.": "Showing the first 100 authors. Type-ahead search for longer lists is coming in a future phase.",
+  "Importa MARCXML": "Import MARCXML",
+  "Esporta MARCXML": "Export MARCXML",
+  "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche. Gli authority record nel file vengono ignorati in questa fase.": "Upload a MARCXML file (ABA / MARC21 Slim format) to import archival units. Authority records in the file are ignored at this phase.",
+  "Errori durante l'importazione": "Errors during import",
+  "Dry-run:": "Dry-run:",
+  "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.": "%d records found. Nothing was inserted. Uncheck 'Dry-run' and retry to perform the insert.",
+  "Importati %d record su %d.": "Imported %d records out of %d.",
+  "Record analizzati": "Parsed records",
+  "preview": "preview",
+  "inserito": "inserted",
+  "saltato": "skipped",
+  "File MARCXML": "MARCXML file",
+  "Dry-run (analizza senza inserire)": "Dry-run (parse without inserting)",
+  "Consiglio: esegui prima un dry-run per verificare la mappatura dei campi, poi disabilita il checkbox per l'insert.": "Tip: run a dry-run first to verify field mapping, then uncheck the box to actually insert.",
+  "Analizza / Importa": "Parse / Import"
 }
