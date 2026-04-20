@@ -63,10 +63,21 @@ class ArchivesPlugin
      * Called by PluginManager when the plugin is activated via the admin UI.
      * Creates the archival schema if missing. Idempotent: the DDLs use
      * CREATE TABLE IF NOT EXISTS so re-activation is safe.
+     *
+     * Throws on partial-schema failure so PluginManager does not mark the
+     * plugin active with missing tables. The exception bubbles up to the
+     * admin UI where it surfaces as a red flash; SecureLogger has already
+     * captured the per-table reason inside ensureSchema().
      */
     public function onActivate(): void
     {
-        $this->ensureSchema();
+        $result = $this->ensureSchema();
+        if (!empty($result['failed'])) {
+            throw new \RuntimeException(
+                '[Archives] Schema activation failed for: ' . implode(', ', $result['failed'])
+                . '. See app.log for the mysqli error emitted during each CREATE TABLE.'
+            );
+        }
         // Hook registration will iterate plannedHooks() once wiring lands.
     }
 
