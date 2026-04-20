@@ -73,9 +73,9 @@ $rootRows = $byParent[0] ?? [];
 <div class="p-6 max-w-7xl mx-auto">
     <div class="flex items-center justify-between mb-6">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900">Archivi</h1>
+            <h1 class="text-2xl font-bold text-gray-900"><?= __("Archivi") ?></h1>
             <p class="text-sm text-gray-600 mt-1">
-                Gestione materiale archivistico secondo standard ISAD(G) / ISAAR(CPF).
+                <?= __("Gestione materiale archivistico secondo standard ISAD(G) / ISAAR(CPF).") ?>
                 <a href="https://github.com/fabiodalez-dev/Pinakes/issues/103"
                    class="text-blue-600 hover:underline" target="_blank" rel="noopener">
                     Issue #103
@@ -88,18 +88,18 @@ $rootRows = $byParent[0] ?? [];
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M12 4v16m8-8H4"/>
             </svg>
-            Nuovo record archivistico
+            <?= __("Nuovo record archivistico") ?>
         </a>
     </div>
 
     <?php if (empty($rows)): ?>
         <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
             <p class="text-sm text-yellow-800">
-                <strong>Nessun record archivistico.</strong>
-                Crea il primo fondo (<em>fonds</em>) per iniziare a strutturare l'archivio.
+                <strong><?= __("Nessun record archivistico.") ?></strong>
+                <?= __("Crea il primo fondo (fonds) per iniziare a strutturare l'archivio.") ?>
             </p>
             <p class="text-xs text-yellow-700 mt-2">
-                Gerarchia consigliata: <code>Fondo → Serie → Fascicolo → Unità</code> (ISAD(G) 3.1.4).
+                <?= __("Gerarchia consigliata: Fondo → Serie → Fascicolo → Unità (ISAD(G) 3.1.4).") ?>
             </p>
         </div>
     <?php else: ?>
@@ -107,12 +107,12 @@ $rootRows = $byParent[0] ?? [];
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Livello</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Titolo</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estensione</th>
-                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Azioni</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Reference") ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Livello") ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Titolo") ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Date") ?></th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Estensione") ?></th>
+                        <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __("Azioni") ?></th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">

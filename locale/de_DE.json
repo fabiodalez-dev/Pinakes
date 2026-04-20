@@ -961,7 +961,7 @@
   "Database installato (46 tabelle)": "Datenbank installiert (46 Tabellen)",
   "Database:": "Datenbank:",
   "DataIntegrity warning (store loan)": "DataIntegrity-Warnung (Ausleihe speichern)",
-  "Date": "Termine",
+  "Date": "Datierung",
   "Date di Lettura": "Lesedaten",
   "Date Non Valide": "Ungültige Daten",
   "Dati Account": "Kontodaten",
@@ -1520,7 +1520,7 @@
   "Esportazione di tutti i %d libri del catalogo": "Export aller %d Bücher aus dem Katalog",
   "Esportazione di tutti i %d utenti": "Export aller %d Benutzer",
   "Essenziali:": "Erforderlich:",
-  "Estensione": "Erweiterung",
+  "Estensione": "Umfang",
   "Estensione del file non valida.": "Ungültige Dateierweiterung.",
   "Estensioni": "Erweiterungen",
   "Estrazione del pacchetto fallita": "Paketentpackung fehlgeschlagen",
@@ -4363,5 +4363,13 @@
   "💡 Non hai accesso SSH?": "💡 Sie haben keinen SSH-Zugang?",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"/cookies\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Wichtig: Sie müssen die von diesen Skripten erfassten Cookies manuell auf der <a href=\"/cookies\" target=\"_blank\" class=\"underline font-semibold\">Cookie-Seite</a> auflisten, um die DSGVO-Konformität zu gewährleisten.",
   "📋 Istruzioni SSH (Click per espandere/chiudere)": "📋 SSH-Anleitung (Klicken zum Ein-/Ausklappen)",
-  "🔒 Sicurezza Importante": "🔒 Wichtige Sicherheit"
+  "🔒 Sicurezza Importante": "🔒 Wichtige Sicherheit",
+  "Archivi": "Archive",
+  "Materiale archivistico (ISAD(G))": "Archivalien (ISAD(G))",
+  "Gestione materiale archivistico secondo standard ISAD(G) / ISAAR(CPF).": "Verwaltung von Archivalien nach den ISAD(G) / ISAAR(CPF)-Standards.",
+  "Nuovo record archivistico": "Neuer Archivdatensatz",
+  "Nessun record archivistico.": "Noch keine Archivdatensätze.",
+  "Crea il primo fondo (fonds) per iniziare a strutturare l'archivio.": "Legen Sie den ersten Bestand (Fonds) an, um den Archivaufbau zu beginnen.",
+  "Gerarchia consigliata: Fondo → Serie → Fascicolo → Unità (ISAD(G) 3.1.4).": "Empfohlene Hierarchie: Bestand → Serie → Akte → Einzelstück (ISAD(G) 3.1.4).",
+  "Reference": "Signatur"
 }

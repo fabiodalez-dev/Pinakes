@@ -1520,7 +1520,7 @@
   "Esportazione di tutti i %d libri del catalogo": "Exporting all %d books from the catalog",
   "Esportazione di tutti i %d utenti": "Exporting all %d users",
   "Essenziali:": "Essential:",
-  "Estensione": "Extension",
+  "Estensione": "Extent",
   "Estensione del file non valida.": "Invalid file extension.",
   "Estensioni": "Extensions",
   "Estrazione del pacchetto fallita": "Package extraction failed",
@@ -4363,5 +4363,13 @@
   "💡 Non hai accesso SSH?": "💡 Don't have SSH access?",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"/cookies\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Important: You must manually list cookies tracked by these scripts in the <a href=\"/cookies\" target=\"_blank\" class=\"underline font-semibold\">Cookie Page</a> for GDPR compliance.",
   "📋 Istruzioni SSH (Click per espandere/chiudere)": "📋 SSH Instructions (Click to expand/collapse)",
-  "🔒 Sicurezza Importante": "🔒 Important Security"
+  "🔒 Sicurezza Importante": "🔒 Important Security",
+  "Archivi": "Archives",
+  "Materiale archivistico (ISAD(G))": "Archival material (ISAD(G))",
+  "Gestione materiale archivistico secondo standard ISAD(G) / ISAAR(CPF).": "Archival-material management per the ISAD(G) / ISAAR(CPF) international standards.",
+  "Nuovo record archivistico": "New archival record",
+  "Nessun record archivistico.": "No archival records yet.",
+  "Crea il primo fondo (fonds) per iniziare a strutturare l'archivio.": "Create the first fonds to begin structuring your archive.",
+  "Gerarchia consigliata: Fondo → Serie → Fascicolo → Unità (ISAD(G) 3.1.4).": "Recommended hierarchy: Fonds → Series → File → Item (ISAD(G) 3.1.4).",
+  "Reference": "Reference"
 }

@@ -147,5 +147,18 @@
   "Audiolibro": "Audiolibro",
   "DVD": "DVD",
   "Altro": "Altro",
-  "Impossibile scaricare (senza ISBN/barcode):": "Impossibile scaricare (senza ISBN/barcode):"
+  "Impossibile scaricare (senza ISBN/barcode):": "Impossibile scaricare (senza ISBN/barcode):",
+  "Archivi": "Archivi",
+  "Materiale archivistico (ISAD(G))": "Materiale archivistico (ISAD(G))",
+  "Gestione materiale archivistico secondo standard ISAD(G) / ISAAR(CPF).": "Gestione materiale archivistico secondo standard ISAD(G) / ISAAR(CPF).",
+  "Nuovo record archivistico": "Nuovo record archivistico",
+  "Nessun record archivistico.": "Nessun record archivistico.",
+  "Crea il primo fondo (fonds) per iniziare a strutturare l'archivio.": "Crea il primo fondo (fonds) per iniziare a strutturare l'archivio.",
+  "Gerarchia consigliata: Fondo → Serie → Fascicolo → Unità (ISAD(G) 3.1.4).": "Gerarchia consigliata: Fondo → Serie → Fascicolo → Unità (ISAD(G) 3.1.4).",
+  "Reference": "Reference",
+  "Livello": "Livello",
+  "Titolo": "Titolo",
+  "Date": "Date",
+  "Estensione": "Estensione",
+  "Azioni": "Azioni"
 }

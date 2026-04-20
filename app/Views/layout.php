@@ -300,6 +300,13 @@ $htmlLang = substr($currentLocale, 0, 2);
             </div>
           </a>
 
+          <?php
+          // Plugin hook: lets optional plugins (e.g. archives) inject their own
+          // sidebar menu entries. Handlers echo HTML directly. Matches the
+          // existing admin-sidebar Tailwind pattern used above.
+          \App\Support\Hooks::do('admin.menu.render');
+          ?>
+
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
             href="<?= htmlspecialchars(url('/admin/utenti'), ENT_QUOTES, 'UTF-8') ?>">
             <div

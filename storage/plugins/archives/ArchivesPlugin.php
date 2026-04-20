@@ -75,7 +75,8 @@ class ArchivesPlugin
     public function onActivate(): void
     {
         $this->ensureSchema();
-        $this->registerHookInDb('app.routes.register', 'registerRoutes', 10);
+        $this->registerHookInDb('app.routes.register', 'registerRoutes',     10);
+        $this->registerHookInDb('admin.menu.render',   'renderAdminMenuEntry', 10);
     }
 
     /**
@@ -268,6 +269,34 @@ class ArchivesPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->destroyAction($request, $response, (int) $args['id']);
         })->add($csrfMiddleware)->add($adminMiddleware);
+    }
+
+    /**
+     * Hook callback for `admin.menu.render`. Echoes a sidebar nav entry
+     * matching the Tailwind pattern used by the core menu items in
+     * `app/Views/layout.php`. Action-style hook — output goes to the
+     * response buffer directly, no return value needed.
+     */
+    public function renderAdminMenuEntry(): void
+    {
+        // Guard the base path via url() just like every other sidebar item.
+        $href = htmlspecialchars(url('/admin/archives'), ENT_QUOTES, 'UTF-8');
+        $title = function_exists('__') ? __('Archivi') : 'Archivi';
+        $subtitle = function_exists('__') ? __('Materiale archivistico (ISAD(G))') : 'Materiale archivistico (ISAD(G))';
+        echo <<<HTML
+
+          <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"
+            href="$href">
+            <div class="flex items-center justify-center w-8 h-8 rounded-lg bg-gray-100 group-hover:bg-gray-200 transition-all duration-200">
+              <i class="fas fa-archive text-gray-600"></i>
+            </div>
+            <div class="ml-3">
+              <div class="font-medium">$title</div>
+              <div class="text-xs text-gray-500">$subtitle</div>
+            </div>
+          </a>
+
+        HTML;
     }
 
     /**
