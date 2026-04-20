@@ -7,6 +7,8 @@ namespace App\Plugins\Archives;
 use App\Support\HookManager;
 use App\Support\SecureLogger;
 use mysqli;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 /**
  * Archives plugin — ISAD(G) / ISAAR(CPF) support for Pinakes.
@@ -27,6 +29,12 @@ class ArchivesPlugin
 {
     private mysqli $db;
     private HookManager $hookManager;
+    private ?int $pluginId = null;
+
+    public function setPluginId(int $pluginId): void
+    {
+        $this->pluginId = $pluginId;
+    }
 
     /**
      * Logical archival-unit levels, per ISAD(G) 3.1.4.
@@ -61,25 +69,78 @@ class ArchivesPlugin
 
     /**
      * Called by PluginManager when the plugin is activated via the admin UI.
-     * Creates the archival schema if missing. Idempotent: the DDLs use
-     * CREATE TABLE IF NOT EXISTS so re-activation is safe.
+     * Creates the archival schema if missing + registers the `app.routes.register`
+     * hook so registerRoutes() runs during every request bootstrap. Idempotent.
      */
     public function onActivate(): void
     {
         $this->ensureSchema();
-        // Hook registration will iterate plannedHooks() once wiring lands.
+        $this->registerHookInDb('app.routes.register', 'registerRoutes', 10);
     }
 
     /**
      * Called when deactivated. Keeps the tables in place — dropping them
      * would delete archival records, which are probably more valuable than
-     * a clean uninstall.
+     * a clean uninstall. Hooks are removed so routes stop responding.
      */
     public function onDeactivate(): void
     {
-        // Deliberate no-op: preserve archival data on deactivation.
-        // Manual DROP is only available via a future admin "Uninstall archives"
-        // action with an explicit confirmation.
+        $this->deleteHooksFromDb();
+    }
+
+    /**
+     * Register a hook for this plugin in the `plugin_hooks` table.
+     * Pattern borrowed from DeweyEditorPlugin — see storage/plugins/dewey-editor.
+     */
+    private function registerHookInDb(string $hookName, string $method, int $priority): void
+    {
+        if ($this->pluginId === null) {
+            SecureLogger::warning('[Archives] pluginId not set; cannot register hook ' . $hookName);
+            return;
+        }
+        // Clear existing entries for this (plugin, hook, method) to avoid
+        // duplicates on re-activation.
+        $del = $this->db->prepare(
+            'DELETE FROM plugin_hooks WHERE plugin_id = ? AND hook_name = ? AND callback_method = ?'
+        );
+        if ($del !== false) {
+            $del->bind_param('iss', $this->pluginId, $hookName, $method);
+            $del->execute();
+            $del->close();
+        }
+        $stmt = $this->db->prepare(
+            'INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+             VALUES (?, ?, ?, ?, ?, 1, NOW())'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] prepare() failed: ' . $this->db->error);
+            return;
+        }
+        // PluginManager instantiates the global proxy class (no namespace).
+        $callbackClass = 'ArchivesPlugin';
+        $stmt->bind_param('isssi', $this->pluginId, $hookName, $callbackClass, $method, $priority);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] hook insert failed: ' . $stmt->error);
+        }
+        $stmt->close();
+    }
+
+    /**
+     * Remove every hook registration this plugin owns. Called from onDeactivate()
+     * so routes + filters stop being invoked once the plugin goes inactive.
+     */
+    private function deleteHooksFromDb(): void
+    {
+        if ($this->pluginId === null) {
+            return;
+        }
+        $stmt = $this->db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ?');
+        if ($stmt === false) {
+            return;
+        }
+        $stmt->bind_param('i', $this->pluginId);
+        $stmt->execute();
+        $stmt->close();
     }
 
     /**
@@ -131,6 +192,283 @@ class ArchivesPlugin
     public function getHookManager(): HookManager
     {
         return $this->hookManager;
+    }
+
+    // ── Phase 1b — route registration + CRUD handlers ─────────────────
+
+    /**
+     * Hook callback for `app.routes.register`. Attaches /admin/archives routes
+     * to the Slim app. Kept in the plugin itself (not in app/Controllers) so
+     * deactivating the plugin cleanly removes the routes.
+     *
+     * @param \Slim\App<\Psr\Container\ContainerInterface|null> $app
+     */
+    public function registerRoutes($app): void
+    {
+        $plugin = $this;
+        $adminMiddleware = new \App\Middleware\AdminAuthMiddleware();
+        $csrfMiddleware  = new \App\Middleware\CsrfMiddleware();
+
+        // GET /admin/archives — list
+        $app->get('/admin/archives', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->indexAction($request, $response);
+        })->add($adminMiddleware);
+
+        // GET /admin/archives/new — blank create form
+        $app->get('/admin/archives/new', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->newAction($request, $response);
+        })->add($adminMiddleware);
+
+        // POST /admin/archives/new — validate + INSERT + redirect
+        $app->post('/admin/archives/new', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->storeAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+    }
+
+    /**
+     * GET /admin/archives — render the list of archival_units as a tree-flavoured
+     * table (parent rows before children, visual indent by level).
+     */
+    public function indexAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $rows = [];
+        // Order by level first so fonds appear before their series/files/items,
+        // then by reference_code for stable ordering inside a level. A proper
+        // recursive CTE tree view is roadmapped for Phase 2.
+        $result = $this->db->query(
+            "SELECT id, parent_id, reference_code, level, constructed_title, formal_title,
+                    date_start, date_end, extent, language_codes, created_at
+               FROM archival_units
+              WHERE deleted_at IS NULL
+              ORDER BY FIELD(level, 'fonds','series','file','item'), reference_code ASC
+              LIMIT 500"
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        } else {
+            SecureLogger::warning('[Archives] index query failed: ' . $this->db->error);
+        }
+
+        return $this->renderView($response, 'index', ['rows' => $rows]);
+    }
+
+    /**
+     * GET /admin/archives/new — blank create form. Supplies the LEVELS constant
+     * so the view can render the level dropdown without hardcoding.
+     */
+    public function newAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        return $this->renderView($response, 'form', [
+            'levels' => array_keys(self::LEVELS),
+            'values' => [],
+            'errors' => [],
+        ]);
+    }
+
+    /**
+     * POST /admin/archives/new — validate + INSERT new archival_unit.
+     *
+     * Validation rules (minimum viable for phase 1b):
+     *   - reference_code    required, <=64 chars, unique within institution
+     *   - level             required, must be one of LEVELS
+     *   - constructed_title required, <=500 chars
+     *   - date_start / date_end optional, SMALLINT range (-32768..32767)
+     *   - parent_id         optional, if set must point to an existing non-deleted row
+     *
+     * On failure re-renders the form with errors + previously-entered values.
+     * On success redirects to /admin/archives (303 See Other).
+     */
+    public function storeAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $body = (array) $request->getParsedBody();
+
+        $values = [
+            'reference_code'    => trim((string) ($body['reference_code'] ?? '')),
+            'institution_code'  => trim((string) ($body['institution_code'] ?? 'PINAKES')),
+            'level'             => (string) ($body['level'] ?? ''),
+            'formal_title'      => trim((string) ($body['formal_title'] ?? '')),
+            'constructed_title' => trim((string) ($body['constructed_title'] ?? '')),
+            'date_start'        => $body['date_start'] !== '' && isset($body['date_start']) ? (int) $body['date_start'] : null,
+            'date_end'          => $body['date_end']   !== '' && isset($body['date_end'])   ? (int) $body['date_end']   : null,
+            'extent'            => trim((string) ($body['extent'] ?? '')),
+            'scope_content'     => trim((string) ($body['scope_content'] ?? '')),
+            'language_codes'    => trim((string) ($body['language_codes'] ?? 'ita')),
+            'parent_id'         => isset($body['parent_id']) && $body['parent_id'] !== '' ? (int) $body['parent_id'] : null,
+        ];
+
+        $errors = $this->validateArchivalUnit($values);
+
+        if (!empty($errors)) {
+            return $this->renderView($response, 'form', [
+                'levels' => array_keys(self::LEVELS),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+
+        $stmt = $this->db->prepare(
+            'INSERT INTO archival_units
+                (parent_id, reference_code, institution_code, level, formal_title,
+                 constructed_title, date_start, date_end, extent, scope_content, language_codes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] store prepare failed: ' . $this->db->error);
+            $errors['_global'] = 'Database error. Check the log and retry.';
+            return $this->renderView($response, 'form', [
+                'levels' => array_keys(self::LEVELS),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+
+        $formalTitleParam = $values['formal_title'] !== '' ? $values['formal_title'] : null;
+        $extentParam      = $values['extent']       !== '' ? $values['extent']       : null;
+        $scopeParam       = $values['scope_content']!== '' ? $values['scope_content']: null;
+
+        $stmt->bind_param(
+            'issssssissss',
+            // MySQLi requires strict param types in order. i=int, s=string.
+            // We pass all nullables as strings when null because mysqli coerces.
+            $values['parent_id'],
+            $values['reference_code'],
+            $values['institution_code'],
+            $values['level'],
+            $formalTitleParam,
+            $values['constructed_title'],
+            $values['date_start'],
+            $values['date_end'],
+            $extentParam,
+            $scopeParam,
+            $values['language_codes']
+        );
+
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] INSERT failed: ' . $stmt->error);
+            $stmt->close();
+            $errors['_global'] = 'Insert failed. ' . ($this->db->errno === 1062 ? 'Reference code already exists.' : 'Check the log.');
+            return $this->renderView($response, 'form', [
+                'levels' => array_keys(self::LEVELS),
+                'values' => $values,
+                'errors' => $errors,
+            ]);
+        }
+        $stmt->close();
+
+        return $response
+            ->withHeader('Location', '/admin/archives')
+            ->withStatus(303);
+    }
+
+    /**
+     * Validate a payload for insert. Returns map of field → error message,
+     * empty map on success.
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, string>
+     */
+    private function validateArchivalUnit(array $values): array
+    {
+        $errors = [];
+
+        $ref = (string) ($values['reference_code'] ?? '');
+        if ($ref === '') {
+            $errors['reference_code'] = 'Reference code is required (ISAD(G) 3.1.1).';
+        } elseif (strlen($ref) > 64) {
+            $errors['reference_code'] = 'Reference code must be 64 characters or fewer.';
+        }
+
+        $level = (string) ($values['level'] ?? '');
+        if (!array_key_exists($level, self::LEVELS)) {
+            $errors['level'] = 'Level must be one of fonds/series/file/item (ISAD(G) 3.1.4).';
+        }
+
+        $title = (string) ($values['constructed_title'] ?? '');
+        if ($title === '') {
+            $errors['constructed_title'] = 'Title is required (ISAD(G) 3.1.2).';
+        } elseif (strlen($title) > 500) {
+            $errors['constructed_title'] = 'Title must be 500 characters or fewer.';
+        }
+
+        foreach (['date_start', 'date_end'] as $dateField) {
+            $v = $values[$dateField] ?? null;
+            if ($v !== null && ($v < -32768 || $v > 32767)) {
+                $errors[$dateField] = 'Year out of range (SMALLINT -32768..32767).';
+            }
+        }
+
+        if (isset($values['date_start'], $values['date_end'])
+            && is_int($values['date_start']) && is_int($values['date_end'])
+            && $values['date_end'] < $values['date_start']
+        ) {
+            $errors['date_end'] = 'End year cannot precede start year.';
+        }
+
+        if (!empty($values['parent_id']) && is_int($values['parent_id'])) {
+            $check = $this->db->prepare(
+                'SELECT id FROM archival_units WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($check !== false) {
+                $parentId = $values['parent_id'];
+                $check->bind_param('i', $parentId);
+                $check->execute();
+                $res = $check->get_result();
+                if ($res === false || $res->num_rows === 0) {
+                    $errors['parent_id'] = 'Parent archival unit not found or deleted.';
+                }
+                $check->close();
+            }
+        }
+
+        return $errors;
+    }
+
+    /**
+     * Render a plugin view with the core layout wrapper.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function renderView(ResponseInterface $response, string $view, array $data): ResponseInterface
+    {
+        $viewFile = __DIR__ . '/views/' . $view . '.php';
+        if (!is_file($viewFile)) {
+            SecureLogger::error('[Archives] view not found: ' . $viewFile);
+            $response->getBody()->write('Archives view missing: ' . htmlspecialchars($view, ENT_QUOTES, 'UTF-8'));
+            return $response->withStatus(500);
+        }
+
+        // Extract view data into local variables expected by the view partials.
+        extract($data, EXTR_SKIP);
+
+        ob_start();
+        require $viewFile;
+        $content = (string) ob_get_clean();
+
+        // Reuse the core admin layout for consistent chrome (sidebar, header).
+        ob_start();
+        require __DIR__ . '/../../../app/Views/layout.php';
+        $html = (string) ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
     }
 
     /**
