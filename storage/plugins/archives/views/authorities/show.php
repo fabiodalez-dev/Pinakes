@@ -3,7 +3,9 @@
  * Authorities — show (detail) view.
  *
  * @var array<string, mixed> $row
- * @var list<array<string, mixed>> $links  archival_units linked to this authority
+ * @var list<array<string, mixed>> $links             archival_units linked to this authority
+ * @var list<array<string, mixed>> $linked_autori     autori rows linked via autori_authority_link
+ * @var list<array<string, mixed>> $available_autori  all autori (capped @100) for the attach <select>
  */
 declare(strict_types=1);
 
@@ -111,6 +113,71 @@ $id = (int) $row['id'];
                     </li>
                 <?php endforeach; ?>
             </ul>
+        <?php endif; ?>
+    </div>
+
+    <!-- Phase 2b — linked `autori` rows (library-side authors) -->
+    <div class="bg-white shadow rounded-lg overflow-hidden mt-6">
+        <div class="px-6 py-3 bg-gray-50 border-b flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-gray-700"><?= __("Autori di libreria collegati") ?></h2>
+            <a href="<?= $e(url('/admin/autori')) ?>" class="text-xs text-blue-600 hover:underline">
+                <?= __("Vai ad Autori") ?>
+            </a>
+        </div>
+
+        <?php if (empty($linked_autori)): ?>
+            <p class="px-6 py-4 text-sm text-gray-500 italic">
+                <?= __("Nessun autore di libreria collegato. Associa un autore qui sotto per unificare libri e archivi nella ricerca.") ?>
+            </p>
+        <?php else: ?>
+            <ul class="divide-y divide-gray-200">
+                <?php foreach ($linked_autori as $a): ?>
+                    <?php $aid = (int) ($a['id'] ?? 0); ?>
+                    <li class="px-6 py-3 flex items-center justify-between text-sm">
+                        <div class="flex items-center gap-3">
+                            <a href="<?= $e(url('/admin/autori/' . $aid)) ?>" class="text-blue-600 hover:underline">
+                                <?= $e((string) ($a['nome'] ?? '')) ?>
+                            </a>
+                            <?php if (!empty($a['data_nascita']) || !empty($a['data_morte'])): ?>
+                                <span class="text-xs text-gray-400 italic">
+                                    (<?= $e((string) ($a['data_nascita'] ?? '')) ?>–<?= $e((string) ($a['data_morte'] ?? '')) ?>)
+                                </span>
+                            <?php endif; ?>
+                            <span class="text-xs text-gray-500">
+                                <?= (int) ($a['book_count'] ?? 0) ?> <?= __("libri") ?>
+                            </span>
+                        </div>
+                        <form method="POST"
+                              action="<?= $e(url('/admin/archives/authorities/' . $id . '/autori/' . $aid . '/unlink')) ?>"
+                              onsubmit="return confirm('<?= $e(__("Rimuovere questo collegamento?")) ?>');"
+                              class="inline">
+                            <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                            <button type="submit" class="text-xs text-red-600 hover:underline"><?= __("scollega") ?></button>
+                        </form>
+                    </li>
+                <?php endforeach; ?>
+            </ul>
+        <?php endif; ?>
+
+        <?php if (!empty($available_autori)): ?>
+            <form method="POST" action="<?= $e(url('/admin/archives/authorities/' . $id . '/autori/link')) ?>"
+                  class="px-6 py-4 border-t bg-gray-50 flex items-center gap-2">
+                <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                <select name="autori_id" required
+                        class="flex-1 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
+                    <option value="">— <?= __("Seleziona un autore di libreria") ?> —</option>
+                    <?php foreach ($available_autori as $a): ?>
+                        <option value="<?= (int) $a['id'] ?>"><?= $e((string) $a['nome']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button type="submit"
+                        class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                    <?= __("Collega") ?>
+                </button>
+            </form>
+            <p class="px-6 pb-3 text-xs text-gray-500 italic">
+                <?= __("Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.") ?>
+            </p>
         <?php endif; ?>
     </div>
 </div>

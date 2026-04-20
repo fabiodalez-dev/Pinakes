@@ -184,6 +184,7 @@ class ArchivesPlugin
             'archival_units'          => self::ddlArchivalUnits(),
             'authority_records'       => self::ddlAuthorityRecords(),
             'archival_unit_authority' => self::ddlArchivalAuthorityLinks(),
+            'autori_authority_link'   => self::ddlAutoriAuthorityLink(),
         ];
 
         $created = [];
@@ -380,6 +381,56 @@ class ArchivesPlugin
                 );
             }
         )->add($csrfMiddleware)->add($adminMiddleware);
+
+        // ── Phase 2b — link authority ↔ libri.autori ───────────────────────
+        // Reconciles a bibliographic `autori` row with an ISAAR authority so
+        // books + archives of the same entity surface together in search.
+
+        $app->post('/admin/archives/authorities/{id:[0-9]+}/autori/link', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->linkAutoreAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post(
+            '/admin/archives/authorities/{id:[0-9]+}/autori/{autori_id:[0-9]+}/unlink',
+            function (
+                ServerRequestInterface $request,
+                ResponseInterface $response,
+                array $args
+            ) use ($plugin): ResponseInterface {
+                return $plugin->unlinkAutoreAction(
+                    $request,
+                    $response,
+                    (int) $args['id'],
+                    (int) $args['autori_id']
+                );
+            }
+        )->add($csrfMiddleware)->add($adminMiddleware);
+
+        // ── Phase 3 — unified cross-entity search ──────────────────────────
+        // Single-page search that returns archival_units + authority_records
+        // (+ reconciled autori) in one view. Uses FULLTEXT indexes on the
+        // archival tables we created in phase 1a; the autori side joins
+        // via the phase-2b link table so books + archives of the same
+        // authority cluster together.
+
+        $app->get('/admin/archives/search', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->unifiedSearchAction($request, $response);
+        })->add($adminMiddleware);
+
+        // Type-ahead JSON endpoint for the authority attach <select>.
+        $app->get('/admin/archives/api/authorities/search', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->authorityTypeaheadAction($request, $response);
+        })->add($adminMiddleware);
     }
 
     /**
@@ -793,14 +844,7 @@ class ArchivesPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        $body = (array) $request->getParsedBody();
-        $values = [
-            'type'               => (string) ($body['type'] ?? ''),
-            'authorised_form'    => trim((string) ($body['authorised_form'] ?? '')),
-            'dates_of_existence' => trim((string) ($body['dates_of_existence'] ?? '')),
-            'history'            => trim((string) ($body['history'] ?? '')),
-            'functions'          => trim((string) ($body['functions'] ?? '')),
-        ];
+        $values = $this->extractAuthorityPayload($request);
         $errors = $this->validateAuthority($values);
 
         if (!empty($errors)) {
@@ -813,8 +857,10 @@ class ArchivesPlugin
 
         $stmt = $this->db->prepare(
             'INSERT INTO authority_records
-                (type, authorised_form, dates_of_existence, history, functions)
-             VALUES (?, ?, ?, ?, ?)'
+                (type, authorised_form, parallel_forms, other_forms, identifiers,
+                 dates_of_existence, history, places, legal_status, functions,
+                 mandates, internal_structure, general_context)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         if ($stmt === false) {
             SecureLogger::error('[Archives] authority store prepare failed: ' . $this->db->error);
@@ -826,17 +872,23 @@ class ArchivesPlugin
             ]);
         }
 
-        $datesParam     = $values['dates_of_existence'] !== '' ? $values['dates_of_existence'] : null;
-        $historyParam   = $values['history']   !== '' ? $values['history']   : null;
-        $functionsParam = $values['functions'] !== '' ? $values['functions'] : null;
-
+        $p = $this->nullableAuthorityParams($values);
+        // 13 strings (type + authorised_form + 11 nullable)
         $stmt->bind_param(
-            'sssss',
+            'sssssssssssss',
             $values['type'],
             $values['authorised_form'],
-            $datesParam,
-            $historyParam,
-            $functionsParam
+            $p['parallel_forms'],
+            $p['other_forms'],
+            $p['identifiers'],
+            $p['dates_of_existence'],
+            $p['history'],
+            $p['places'],
+            $p['legal_status'],
+            $p['functions'],
+            $p['mandates'],
+            $p['internal_structure'],
+            $p['general_context']
         );
         if (!$stmt->execute()) {
             SecureLogger::error('[Archives] authority INSERT failed: ' . $stmt->error);
@@ -871,8 +923,10 @@ class ArchivesPlugin
         }
         $links = $this->fetchArchivalUnitsForAuthority($id);
         return $this->renderView($response, 'authorities/show', [
-            'row'   => $row,
-            'links' => $links,
+            'row'             => $row,
+            'links'           => $links,
+            'linked_autori'   => $this->fetchAutoriForAuthority($id),
+            'available_autori'=> $this->searchAutori('', 100),
         ]);
     }
 
@@ -909,14 +963,7 @@ class ArchivesPlugin
         if ($existing === null) {
             return $this->renderNotFound($response, $id);
         }
-        $body = (array) $request->getParsedBody();
-        $values = [
-            'type'               => (string) ($body['type'] ?? ''),
-            'authorised_form'    => trim((string) ($body['authorised_form'] ?? '')),
-            'dates_of_existence' => trim((string) ($body['dates_of_existence'] ?? '')),
-            'history'            => trim((string) ($body['history'] ?? '')),
-            'functions'          => trim((string) ($body['functions'] ?? '')),
-        ];
+        $values = $this->extractAuthorityPayload($request);
         $errors = $this->validateAuthority($values);
 
         if (!empty($errors)) {
@@ -931,8 +978,10 @@ class ArchivesPlugin
 
         $stmt = $this->db->prepare(
             'UPDATE authority_records
-                SET type = ?, authorised_form = ?, dates_of_existence = ?,
-                    history = ?, functions = ?
+                SET type = ?, authorised_form = ?, parallel_forms = ?, other_forms = ?,
+                    identifiers = ?, dates_of_existence = ?, history = ?, places = ?,
+                    legal_status = ?, functions = ?, mandates = ?, internal_structure = ?,
+                    general_context = ?
               WHERE id = ? AND deleted_at IS NULL'
         );
         if ($stmt === false) {
@@ -946,16 +995,23 @@ class ArchivesPlugin
                 'errors' => $errors,
             ]);
         }
-        $datesParam     = $values['dates_of_existence'] !== '' ? $values['dates_of_existence'] : null;
-        $historyParam   = $values['history']   !== '' ? $values['history']   : null;
-        $functionsParam = $values['functions'] !== '' ? $values['functions'] : null;
+        $p = $this->nullableAuthorityParams($values);
+        // 13 strings (type + authorised_form + 11 nullable) + 1 int (id) = 'sssssssssssssi'
         $stmt->bind_param(
-            'sssssi',
+            'sssssssssssssi',
             $values['type'],
             $values['authorised_form'],
-            $datesParam,
-            $historyParam,
-            $functionsParam,
+            $p['parallel_forms'],
+            $p['other_forms'],
+            $p['identifiers'],
+            $p['dates_of_existence'],
+            $p['history'],
+            $p['places'],
+            $p['legal_status'],
+            $p['functions'],
+            $p['mandates'],
+            $p['internal_structure'],
+            $p['general_context'],
             $id
         );
         if (!$stmt->execute()) {
@@ -1067,6 +1123,149 @@ class ArchivesPlugin
     }
 
     /**
+     * POST /admin/archives/authorities/{id}/autori/link — link an existing
+     * bibliographic `autori` row to the authority record. Idempotent via
+     * composite PK on (autori_id, authority_id).
+     *
+     * Body: autori_id (int, required). Missing/invalid → no-op + 303.
+     */
+    public function linkAutoreAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $authorityId
+    ): ResponseInterface {
+        if ($this->findAuthorityById($authorityId) === null) {
+            return $this->renderNotFound($response, $authorityId);
+        }
+        $body = (array) $request->getParsedBody();
+        $autoreId = isset($body['autori_id']) ? (int) $body['autori_id'] : 0;
+
+        if ($autoreId > 0 && $this->autoreExists($autoreId)) {
+            $stmt = $this->db->prepare(
+                'INSERT IGNORE INTO autori_authority_link (autori_id, authority_id) VALUES (?, ?)'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('ii', $autoreId, $authorityId);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
+        return $response
+            ->withHeader('Location', '/admin/archives/authorities/' . $authorityId)
+            ->withStatus(303);
+    }
+
+    /**
+     * POST /admin/archives/authorities/{id}/autori/{autori_id}/unlink —
+     * remove the (autori_id, authority_id) link row.
+     */
+    public function unlinkAutoreAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $authorityId,
+        int $autoreId
+    ): ResponseInterface {
+        $stmt = $this->db->prepare(
+            'DELETE FROM autori_authority_link WHERE authority_id = ? AND autori_id = ?'
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('ii', $authorityId, $autoreId);
+            $stmt->execute();
+            $stmt->close();
+        }
+        return $response
+            ->withHeader('Location', '/admin/archives/authorities/' . $authorityId)
+            ->withStatus(303);
+    }
+
+    /**
+     * True when an `autori` row with this id exists in the core schema.
+     * Core autori currently hard-delete, so no deleted_at filter needed.
+     */
+    private function autoreExists(int $autoreId): bool
+    {
+        $stmt = $this->db->prepare('SELECT 1 FROM autori WHERE id = ? LIMIT 1');
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('i', $autoreId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $exists = $result instanceof \mysqli_result && $result->num_rows > 0;
+        $stmt->close();
+        return $exists;
+    }
+
+    /**
+     * Return all `autori` rows linked to the given authority_id + a count
+     * of their books so the UI can show "Stauning (12 libri)" at a glance.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function fetchAutoriForAuthority(int $authorityId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT a.id, a.nome, a.data_nascita, a.data_morte,
+                    (SELECT COUNT(*) FROM libri_autori la WHERE la.autore_id = a.id) AS book_count
+               FROM autori_authority_link aal
+               JOIN autori a ON a.id = aal.autori_id
+              WHERE aal.authority_id = ?
+              ORDER BY a.nome'
+        );
+        if ($stmt === false) {
+            return $rows;
+        }
+        $stmt->bind_param('i', $authorityId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * Search `autori` by name fragment. Returns up to $limit rows. Used
+     * by the "link library author" UI in authorities/show.php — MVP is a
+     * flat <select> populated with all autori but that's unbounded, so
+     * we cap and hint a type-ahead for phase 3.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function searchAutori(string $q, int $limit = 50): array
+    {
+        $rows = [];
+        $q = trim($q);
+        if ($q === '') {
+            $result = $this->db->query('SELECT id, nome FROM autori ORDER BY nome LIMIT ' . (int) $limit);
+            if ($result instanceof \mysqli_result) {
+                while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+                $result->free();
+            }
+            return $rows;
+        }
+        $like = '%' . $q . '%';
+        $stmt = $this->db->prepare('SELECT id, nome FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT ?');
+        if ($stmt === false) {
+            return $rows;
+        }
+        $stmt->bind_param('si', $like, $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) { $rows[] = $row; }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
      * Fetch one non-deleted authority_record by id, or null.
      *
      * @return array<string, mixed>|null
@@ -1174,6 +1373,222 @@ class ArchivesPlugin
             $result->free();
         }
         return $rows;
+    }
+
+    // ── Phase 3 — unified cross-entity search ──────────────────────────
+
+    /**
+     * GET /admin/archives/search?q=... — cross-entity search.
+     *
+     * Hits three sources in a single request:
+     *   1. archival_units (FULLTEXT on title + scope_content + archival_history)
+     *   2. authority_records (FULLTEXT on authorised_form + history + functions)
+     *   3. autori (FULLTEXT on nome) — only when reconciled to an authority
+     *      via autori_authority_link, so bibliographic hits without an
+     *      ISAAR counterpart don't flood the view (use /admin/autori for those).
+     *
+     * FULLTEXT NATURAL LANGUAGE mode gives us relevance ranking for free;
+     * we cap each source at 50 rows. Empty query renders the empty form.
+     */
+    public function unifiedSearchAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $params = $request->getQueryParams();
+        $q = trim((string) ($params['q'] ?? ''));
+        $results = [
+            'archival_units'    => [],
+            'authority_records' => [],
+            'linked_autori'     => [],
+        ];
+
+        if ($q !== '' && strlen($q) >= 2) {
+            $results['archival_units']    = $this->searchArchivalUnits($q, 50);
+            $results['authority_records'] = $this->searchAuthorityRecords($q, 50);
+            $results['linked_autori']     = $this->searchReconciledAutori($q, 25);
+        }
+
+        return $this->renderView($response, 'search', [
+            'q'       => $q,
+            'results' => $results,
+        ]);
+    }
+
+    /**
+     * GET /admin/archives/api/authorities/search?q=... — JSON type-ahead
+     * for the authority attach <select> on archival_units show.php.
+     * Returns up to 25 rows matching either `authorised_form` LIKE or
+     * FULLTEXT relevance when the query is longer than 3 chars.
+     */
+    public function authorityTypeaheadAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $params = $request->getQueryParams();
+        $q = trim((string) ($params['q'] ?? ''));
+        $rows = [];
+        if ($q !== '') {
+            $rows = $this->searchAuthorityRecords($q, 25);
+        }
+        $response = $response->withHeader('Content-Type', 'application/json');
+        $response->getBody()->write(json_encode([
+            'query'   => $q,
+            'results' => $rows,
+        ]) ?: '[]');
+        return $response;
+    }
+
+    /**
+     * FULLTEXT search against archival_units. Strips non-deleted rows,
+     * orders by relevance, caps at $limit.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function searchArchivalUnits(string $q, int $limit): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT id, reference_code, level, constructed_title, formal_title,
+                    date_start, date_end, extent,
+                    MATCH(formal_title, constructed_title, scope_content, archival_history)
+                        AGAINST (? IN NATURAL LANGUAGE MODE) AS score
+               FROM archival_units
+              WHERE deleted_at IS NULL
+                AND MATCH(formal_title, constructed_title, scope_content, archival_history)
+                        AGAINST (? IN NATURAL LANGUAGE MODE)
+              ORDER BY score DESC
+              LIMIT ?'
+        );
+        if ($stmt === false) {
+            return $rows;
+        }
+        $stmt->bind_param('ssi', $q, $q, $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * FULLTEXT search against authority_records.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function searchAuthorityRecords(string $q, int $limit): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT id, type, authorised_form, dates_of_existence,
+                    MATCH(authorised_form, parallel_forms, history, functions)
+                        AGAINST (? IN NATURAL LANGUAGE MODE) AS score
+               FROM authority_records
+              WHERE deleted_at IS NULL
+                AND MATCH(authorised_form, parallel_forms, history, functions)
+                        AGAINST (? IN NATURAL LANGUAGE MODE)
+              ORDER BY score DESC
+              LIMIT ?'
+        );
+        if ($stmt === false) {
+            return $rows;
+        }
+        $stmt->bind_param('ssi', $q, $q, $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * FULLTEXT search against `autori.nome` — scoped to rows that are
+     * reconciled to an authority_record so non-archival authors don't
+     * flood the cross-entity view (they're reachable via /admin/autori).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function searchReconciledAutori(string $q, int $limit): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT a.id, a.nome, aal.authority_id,
+                    ar.authorised_form, ar.type AS authority_type,
+                    (SELECT COUNT(*) FROM libri_autori la WHERE la.autore_id = a.id) AS book_count,
+                    MATCH(a.nome) AGAINST (? IN NATURAL LANGUAGE MODE) AS score
+               FROM autori a
+               JOIN autori_authority_link aal ON aal.autori_id = a.id
+               JOIN authority_records ar ON ar.id = aal.authority_id AND ar.deleted_at IS NULL
+              WHERE MATCH(a.nome) AGAINST (? IN NATURAL LANGUAGE MODE)
+              ORDER BY score DESC
+              LIMIT ?'
+        );
+        if ($stmt === false) {
+            return $rows;
+        }
+        $stmt->bind_param('ssi', $q, $q, $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * Extract + normalise the authority form payload. Covers both the
+     * phase-2 minimum fields (type, authorised_form, dates_of_existence,
+     * history, functions) and the phase-2b extensions (parallel_forms,
+     * other_forms, identifiers, places, legal_status, mandates,
+     * internal_structure, general_context).
+     *
+     * @return array<string, string>
+     */
+    private function extractAuthorityPayload(ServerRequestInterface $request): array
+    {
+        $body = (array) $request->getParsedBody();
+        $keys = [
+            'type', 'authorised_form',
+            'parallel_forms', 'other_forms', 'identifiers',
+            'dates_of_existence', 'history', 'places', 'legal_status',
+            'functions', 'mandates', 'internal_structure', 'general_context',
+        ];
+        $out = [];
+        foreach ($keys as $k) {
+            $out[$k] = trim((string) ($body[$k] ?? ''));
+        }
+        return $out;
+    }
+
+    /**
+     * Convert empty strings to null for the nullable text columns so
+     * MySQL doesn't persist empty strings (which would defeat COALESCE).
+     * The required columns (type, authorised_form) are NOT in this set —
+     * they pass through as-is.
+     *
+     * @param array<string, string> $values
+     * @return array<string, string|null>
+     */
+    private function nullableAuthorityParams(array $values): array
+    {
+        $out = [];
+        $fields = [
+            'parallel_forms', 'other_forms', 'identifiers',
+            'dates_of_existence', 'history', 'places', 'legal_status',
+            'functions', 'mandates', 'internal_structure', 'general_context',
+        ];
+        foreach ($fields as $f) {
+            $v = $values[$f] ?? '';
+            $out[$f] = $v !== '' ? $v : null;
+        }
+        return $out;
     }
 
     /**
@@ -1508,6 +1923,34 @@ class ArchivesPlugin
             KEY idx_authority (authority_id, role),
             CONSTRAINT fk_aua_unit FOREIGN KEY (archival_unit_id) REFERENCES archival_units(id) ON DELETE CASCADE,
             CONSTRAINT fk_aua_auth FOREIGN KEY (authority_id)     REFERENCES authority_records(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for the M:N link between existing `autori` rows (the bibliographic
+     * author table) and `authority_records`. Lets an archivist reconcile a
+     * library-side author with an ISAAR authority so fonds/series/files
+     * related to that person or corporate body surface in unified search
+     * alongside their books.
+     *
+     * Composite PK (autori_id, authority_id) — one link per pair, which is
+     * the realistic case (no role here: "who IS who" is not a role, it's an
+     * identity assertion). FK to `autori.id` without a hard ON DELETE action
+     * because removing an author row is already a significant operation in
+     * the core schema; we'll need manual cleanup if the core ever soft-deletes
+     * authors (it currently hard-deletes via `AutoriController`).
+     */
+    public static function ddlAutoriAuthorityLink(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS autori_authority_link (
+            autori_id    INT             NOT NULL,
+            authority_id BIGINT UNSIGNED NOT NULL,
+            created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (autori_id, authority_id),
+            KEY idx_authority_autore (authority_id),
+            CONSTRAINT fk_aal_authority FOREIGN KEY (authority_id) REFERENCES authority_records(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         SQL;
     }

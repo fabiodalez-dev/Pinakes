@@ -1,6 +1,6 @@
 # Archives plugin — ISAD(G) / ISAAR(CPF) support for Pinakes
 
-**Status: PHASE 2 — authority records CRUD + linking** (v0.5.0). Plus everything from phase 1 (schema + archival_units CRUD + sidebar + i18n + E2E). Now also ships: full ISAAR(CPF) authority-records CRUD at `/admin/archives/authorities`, plus an M:N link UI on the archival-unit detail page to attach/detach authorities with a role enum (creator/subject/recipient/custodian/associated). Still missing: linkage to the legacy `libri.autori` column, MARCXML I/O, unified cross-entity search, biographical ISAAR fields beyond the phase-2 minimum.
+**Status: PHASE 3 — unified cross-entity search + full ISAAR + autori linkage** (v0.7.0). On top of phases 1 + 2: (a) all eight additional ISAAR(CPF) fields land in the authority form (parallel_forms, other_forms, identifiers, places, legal_status, mandates, internal_structure, general_context), (b) a new `autori_authority_link` table reconciles library-side `autori` rows with archival authority records, and (c) `/admin/archives/search` ships a FULLTEXT cross-entity search across archival_units + authority_records + reconciled autori. Still missing: type-ahead JSON frontend glue (endpoint ships, consumer wiring is later), MARCXML I/O, photographic-items extension.
 
 Tracks issue [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 

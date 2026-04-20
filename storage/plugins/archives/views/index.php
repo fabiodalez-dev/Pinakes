@@ -82,14 +82,27 @@ $rootRows = $byParent[0] ?? [];
                 </a>
             </p>
         </div>
-        <a href="<?= $e(url('/admin/archives/new')) ?>"
-           class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition">
-            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M12 4v16m8-8H4"/>
-            </svg>
-            <?= __("Nuovo record archivistico") ?>
-        </a>
+        <div class="flex items-center gap-2">
+            <a href="<?= $e(url('/admin/archives/search')) ?>"
+               class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">
+                <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <?= __("Ricerca") ?>
+            </a>
+            <a href="<?= $e(url('/admin/archives/authorities')) ?>"
+               class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">
+                <?= __("Authority records") ?>
+            </a>
+            <a href="<?= $e(url('/admin/archives/new')) ?>"
+               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                <?= __("Nuovo record archivistico") ?>
+            </a>
+        </div>
     </div>
 
     <?php if (empty($rows)): ?>
