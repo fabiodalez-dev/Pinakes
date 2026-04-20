@@ -249,5 +249,11 @@
   "File MARCXML": "File MARCXML",
   "Dry-run (analizza senza inserire)": "Dry-run (analizza senza inserire)",
   "Consiglio: esegui prima un dry-run per verificare la mappatura dei campi, poi disabilita il checkbox per l'insert.": "Consiglio: esegui prima un dry-run per verificare la mappatura dei campi, poi disabilita il checkbox per l'insert.",
-  "Analizza / Importa": "Analizza / Importa"
+  "Analizza / Importa": "Analizza / Importa",
+  "trovati %d record archivistici e %d authority record. Nessuna riga è stata inserita.": "trovati %d record archivistici e %d authority record. Nessuna riga è stata inserita.",
+  "Archivi: %d inseriti, %d aggiornati. Authority: %d inseriti, %d saltati (duplicati).": "Archivi: %d inseriti, %d aggiornati. Authority: %d inseriti, %d saltati (duplicati).",
+  "aggiornato": "aggiornato",
+  "duplicato (saltato)": "duplicato (saltato)",
+  "Unità archivistiche analizzate": "Unità archivistiche analizzate",
+  "Authority record analizzati": "Authority record analizzati"
 }

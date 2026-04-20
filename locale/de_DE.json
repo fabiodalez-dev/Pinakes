@@ -4448,5 +4448,11 @@
   "File MARCXML": "MARCXML-Datei",
   "Dry-run (analizza senza inserire)": "Testlauf (analysieren ohne einzufügen)",
   "Consiglio: esegui prima un dry-run per verificare la mappatura dei campi, poi disabilita il checkbox per l'insert.": "Tipp: Führen Sie zuerst einen Testlauf durch, um das Feld-Mapping zu prüfen, und deaktivieren Sie dann das Kontrollkästchen, um tatsächlich zu importieren.",
-  "Analizza / Importa": "Analysieren / Importieren"
+  "Analizza / Importa": "Analysieren / Importieren",
+  "trovati %d record archivistici e %d authority record. Nessuna riga è stata inserita.": "%d Archivdatensätze und %d Normdatensätze gefunden. Es wurde nichts eingefügt.",
+  "Archivi: %d inseriti, %d aggiornati. Authority: %d inseriti, %d saltati (duplicati).": "Archive: %d eingefügt, %d aktualisiert. Normdaten: %d eingefügt, %d übersprungen (Duplikate).",
+  "aggiornato": "aktualisiert",
+  "duplicato (saltato)": "Duplikat (übersprungen)",
+  "Unità archivistiche analizzate": "Analysierte Archiveinheiten",
+  "Authority record analizzati": "Analysierte Normdatensätze"
 }

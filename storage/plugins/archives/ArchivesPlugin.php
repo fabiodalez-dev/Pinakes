@@ -1549,9 +1549,15 @@ class ArchivesPlugin
     }
 
     /**
-     * POST /admin/archives/import — parse uploaded MARCXML, insert or preview.
-     * Form has a `dry_run` checkbox that bypasses the INSERTs.
-     * Phase 4 only handles archival_unit records; authority imports are 4b.
+     * POST /admin/archives/import — parse uploaded MARCXML, UPSERT or preview.
+     *
+     * Now handles BOTH `<record type="Bibliographic">` and `<record type="Authority">`
+     * (phase 4b). Bibliographic records UPSERT by (institution_code, reference_code)
+     * so re-importing an exported file is idempotent — already-present rows
+     * report as "updated" and never trigger a duplicate-key error. Authorities
+     * INSERT only (no natural key to UPSERT against in ISAAR), so duplicate
+     * authority names from re-import are reported as "skipped" via a
+     * pre-check on (type, authorised_form).
      */
     public function importSubmitAction(
         ServerRequestInterface $request,
@@ -1563,11 +1569,16 @@ class ArchivesPlugin
         $dryRun = !empty($body['dry_run']);
 
         $result = [
-            'success'  => false,
-            'dry_run'  => $dryRun,
-            'parsed'   => [],
-            'inserted' => [],
-            'errors'   => [],
+            'success'             => false,
+            'dry_run'             => $dryRun,
+            'parsed'              => [],
+            'parsed_authorities'  => [],
+            'inserted'            => [],
+            'updated'             => [],
+            'skipped'             => [],
+            'inserted_authorities'=> [],
+            'skipped_authorities' => [],
+            'errors'              => [],
         ];
 
         if (!$file instanceof \Psr\Http\Message\UploadedFileInterface
@@ -1582,18 +1593,45 @@ class ArchivesPlugin
             $result['errors'][] = $parsed['error'];
             return $this->renderView($response, 'import', ['result' => $result]);
         }
-        $result['parsed'] = $parsed['records'] ?? [];
+        $result['parsed']             = $parsed['records']     ?? [];
+        $result['parsed_authorities'] = $parsed['authorities'] ?? [];
 
         if (!$dryRun) {
             foreach ($result['parsed'] as $record) {
-                $id = $this->insertImportedArchivalUnit($record);
-                if ($id > 0) {
-                    $result['inserted'][] = ['id' => $id, 'reference_code' => $record['reference_code'] ?? ''];
+                $upsert = $this->upsertImportedArchivalUnit($record);
+                if ($upsert['action'] === 'inserted') {
+                    $result['inserted'][] = ['id' => $upsert['id'], 'reference_code' => $record['reference_code'] ?? ''];
+                } elseif ($upsert['action'] === 'updated') {
+                    $result['updated'][] = ['id' => $upsert['id'], 'reference_code' => $record['reference_code'] ?? ''];
                 } else {
-                    $result['errors'][] = 'Failed to insert: ' . ($record['reference_code'] ?? '(no ref)');
+                    $result['errors'][] = 'Failed to upsert: ' . ($record['reference_code'] ?? '(no ref)');
                 }
             }
-            $result['success'] = count($result['inserted']) > 0;
+            foreach ($result['parsed_authorities'] as $auth) {
+                $existing = $this->findAuthorityByName(
+                    (string) $auth['type'],
+                    (string) $auth['authorised_form']
+                );
+                if ($existing !== null) {
+                    $result['skipped_authorities'][] = [
+                        'id'              => $existing,
+                        'authorised_form' => $auth['authorised_form'],
+                    ];
+                    continue;
+                }
+                $newId = $this->insertImportedAuthority($auth);
+                if ($newId > 0) {
+                    $result['inserted_authorities'][] = [
+                        'id'              => $newId,
+                        'authorised_form' => $auth['authorised_form'],
+                    ];
+                } else {
+                    $result['errors'][] = 'Failed to insert authority: ' . ($auth['authorised_form'] ?? '(no name)');
+                }
+            }
+            $result['success'] = (count($result['inserted']) + count($result['updated'])
+                                + count($result['inserted_authorities'])) > 0
+                              || empty($result['errors']);
         } else {
             $result['success'] = true;
         }
@@ -1786,9 +1824,14 @@ class ArchivesPlugin
     }
 
     /**
-     * Parse a MARCXML document; return {records: [...]} or {error: '...'}.
+     * Parse a MARCXML document. Returns either:
+     *   - {error: string}                               on parse failure
+     *   - {records: list<...>, authorities: list<...>}  on success
      *
-     * @return array{records?: list<array<string, mixed>>, error?: string}
+     * `records` are bibliographic archival_unit payloads; `authorities`
+     * are ISAAR authority-record payloads. Either list may be empty.
+     *
+     * @return array{records?: list<array<string, mixed>>, authorities?: list<array<string, mixed>>, error?: string}
      */
     private function parseMarcXml(string $xml): array
     {
@@ -1804,6 +1847,7 @@ class ArchivesPlugin
         $doc->registerXPathNamespace('m', 'http://www.loc.gov/MARC21/slim');
 
         $records = [];
+        $authorities = [];
         $nodes = $doc->xpath('//m:record');
         if ($nodes === false || count($nodes) === 0) {
             $nodes = $doc->xpath('//record') ?: [];
@@ -1811,9 +1855,17 @@ class ArchivesPlugin
 
         foreach ($nodes as $rec) {
             $type = (string) ($rec['type'] ?? 'Bibliographic');
-            if ($type === 'Authority') { continue; }
-
             $fields = $this->collectMarcFields($rec);
+
+            if ($type === 'Authority') {
+                $authRow = $this->buildAuthorityRowFromMarc($fields);
+                if ($authRow !== null) {
+                    $authorities[] = $authRow;
+                }
+                continue;
+            }
+
+            // Default: bibliographic archival_unit.
             $level = $this->decodeLevel($this->marcSub($fields, '008', 'c'));
             $refCode = $this->marcSub($fields, '001', 'a');
             $constructed = $this->marcSub($fields, '245', 'a');
@@ -1842,7 +1894,58 @@ class ArchivesPlugin
                 'finding_aids'        => $this->marcSub($fields, '526', 'a'),
             ];
         }
-        return ['records' => $records];
+        return ['records' => $records, 'authorities' => $authorities];
+    }
+
+    /**
+     * Build an authority-row payload from a parsed MARC field map.
+     * Returns null when required fields (type, authorised_form) are
+     * missing so the caller can report a skipped record.
+     *
+     * Tag conventions mirror writeAuthorityMarcRecord():
+     *   100 / 110 → name (100 person/family, 110 corporate)
+     *   400       → parallel_forms / other_forms (joined with newline on import)
+     *   024 370 368 372 377 373 → ISAAR extended elements
+     *   678       → history + general_context (joined; split heuristic below)
+     *
+     * @param array<string, array<string, string>> $fields
+     * @return array<string, mixed>|null
+     */
+    private function buildAuthorityRowFromMarc(array $fields): ?array
+    {
+        // Choose the MARC tag that carries the name.
+        $personName    = $this->marcSub($fields, '100', 'a');
+        $corporateName = $this->marcSub($fields, '110', 'a');
+        $name = $personName ?? $corporateName;
+        if ($name === null || $name === '') {
+            return null;
+        }
+        // Type inference: 110 → corporate; 100 + family-hint → family; else person.
+        $type = $corporateName !== null ? 'corporate' : 'person';
+
+        $dates = $this->marcSub($fields, '100', 'd')
+              ?? $this->marcSub($fields, '110', 'd');
+
+        // 400 rolls up parallel + other forms. Multiple 400s collapse to null
+        // here because our collectMarcFields() keeps last-write; round-trip
+        // multi-400 is a known limitation documented in phase 4b README.
+        $parallel = $this->marcSub($fields, '400', 'a');
+
+        return [
+            'type'               => $type,
+            'authorised_form'    => $name,
+            'parallel_forms'     => $parallel,
+            'other_forms'        => null,
+            'identifiers'        => $this->marcSub($fields, '024', 'a'),
+            'dates_of_existence' => $dates,
+            'history'            => $this->marcSub($fields, '678', 'a'),
+            'places'             => $this->marcSub($fields, '370', 'a'),
+            'legal_status'       => $this->marcSub($fields, '368', 'a'),
+            'functions'          => $this->marcSub($fields, '372', 'a'),
+            'mandates'           => $this->marcSub($fields, '377', 'a'),
+            'internal_structure' => $this->marcSub($fields, '373', 'a'),
+            'general_context'    => null,
+        ];
     }
 
     /**
@@ -1902,24 +2005,46 @@ class ArchivesPlugin
     }
 
     /**
-     * INSERT an imported archival_unit and return its id, or 0 on failure.
+     * UPSERT an imported archival_unit by (institution_code, reference_code)
+     * — the unique key already declared in DDL. Returns:
+     *   {action: 'inserted'|'updated'|'failed', id: int}
+     *
+     * On insert: id is the new auto_increment value.
+     * On update: id is fetched via SELECT on the unique key (mysqli's
+     * insert_id returns 0 for ON DUPLICATE KEY UPDATE that matched).
      *
      * @param array<string, mixed> $r
+     * @return array{action: string, id: int}
      */
-    private function insertImportedArchivalUnit(array $r): int
+    private function upsertImportedArchivalUnit(array $r): array
     {
-        $stmt = $this->db->prepare(
-            'INSERT INTO archival_units
-                (reference_code, institution_code, level, formal_title,
-                 constructed_title, date_start, date_end, extent,
-                 scope_content, language_codes, archival_history,
-                 acquisition_source, access_conditions, reproduction_rules,
-                 related_units, finding_aids)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-        );
+        $sql = 'INSERT INTO archival_units
+                  (reference_code, institution_code, level, formal_title,
+                   constructed_title, date_start, date_end, extent,
+                   scope_content, language_codes, archival_history,
+                   acquisition_source, access_conditions, reproduction_rules,
+                   related_units, finding_aids)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                  level = VALUES(level),
+                  formal_title = VALUES(formal_title),
+                  constructed_title = VALUES(constructed_title),
+                  date_start = VALUES(date_start),
+                  date_end = VALUES(date_end),
+                  extent = VALUES(extent),
+                  scope_content = VALUES(scope_content),
+                  language_codes = VALUES(language_codes),
+                  archival_history = VALUES(archival_history),
+                  acquisition_source = VALUES(acquisition_source),
+                  access_conditions = VALUES(access_conditions),
+                  reproduction_rules = VALUES(reproduction_rules),
+                  related_units = VALUES(related_units),
+                  finding_aids = VALUES(finding_aids),
+                  deleted_at = NULL';
+        $stmt = $this->db->prepare($sql);
         if ($stmt === false) {
-            SecureLogger::error('[Archives] import prepare failed: ' . $this->db->error);
-            return 0;
+            SecureLogger::error('[Archives] upsert prepare failed: ' . $this->db->error);
+            return ['action' => 'failed', 'id' => 0];
         }
         $formalTitle       = $r['formal_title']       ?? null;
         $extent            = $r['extent']             ?? null;
@@ -1934,7 +2059,6 @@ class ArchivesPlugin
         $dateStart         = $r['date_start']         ?? null;
         $dateEnd           = $r['date_end']           ?? null;
 
-        // 16 params: 5 strings + 2 ints + 9 strings → 'sssss' + 'ii' + 'sssssssss'
         $stmt->bind_param(
             'sssssiisssssssss',
             $r['reference_code'],
@@ -1955,7 +2079,120 @@ class ArchivesPlugin
             $findingAids
         );
         if (!$stmt->execute()) {
-            SecureLogger::error('[Archives] import INSERT failed: ' . $stmt->error);
+            SecureLogger::error('[Archives] upsert exec failed: ' . $stmt->error);
+            $stmt->close();
+            return ['action' => 'failed', 'id' => 0];
+        }
+        // mysqli affected_rows: 1=inserted, 2=updated, 0=no-change.
+        $affected = $stmt->affected_rows;
+        $insertId = (int) $stmt->insert_id;
+        $stmt->close();
+
+        $action = $affected === 1 ? 'inserted' : 'updated';
+
+        if ($insertId === 0) {
+            // ON DUPLICATE KEY UPDATE matched — look up id by the natural key.
+            $sel = $this->db->prepare(
+                'SELECT id FROM archival_units
+                  WHERE institution_code = ? AND reference_code = ?
+                  LIMIT 1'
+            );
+            if ($sel !== false) {
+                $sel->bind_param('ss', $r['institution_code'], $r['reference_code']);
+                $sel->execute();
+                $rs = $sel->get_result();
+                if ($rs instanceof \mysqli_result) {
+                    $row = $rs->fetch_assoc();
+                    if (is_array($row)) {
+                        $insertId = (int) $row['id'];
+                    }
+                }
+                $sel->close();
+            }
+        }
+
+        return ['action' => $action, 'id' => $insertId];
+    }
+
+    /**
+     * Look up an existing authority_record by (type, authorised_form).
+     * Returns its id or null. Used by the authority-import path to skip
+     * exact duplicates so re-importing the same MARCXML is idempotent.
+     */
+    private function findAuthorityByName(string $type, string $authorisedForm): ?int
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id FROM authority_records
+              WHERE type = ? AND authorised_form = ? AND deleted_at IS NULL
+              LIMIT 1'
+        );
+        if ($stmt === false) {
+            return null;
+        }
+        $stmt->bind_param('ss', $type, $authorisedForm);
+        $stmt->execute();
+        $rs = $stmt->get_result();
+        $id = null;
+        if ($rs instanceof \mysqli_result) {
+            $row = $rs->fetch_assoc();
+            if (is_array($row)) {
+                $id = (int) $row['id'];
+            }
+        }
+        $stmt->close();
+        return $id;
+    }
+
+    /**
+     * INSERT an imported authority_record and return its id, or 0 on failure.
+     * Mirrors authorityStoreAction() but takes the parsed MARC payload
+     * instead of a request body.
+     *
+     * @param array<string, mixed> $a
+     */
+    private function insertImportedAuthority(array $a): int
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO authority_records
+                (type, authorised_form, parallel_forms, other_forms, identifiers,
+                 dates_of_existence, history, places, legal_status, functions,
+                 mandates, internal_structure, general_context)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] authority import prepare failed: ' . $this->db->error);
+            return 0;
+        }
+        $parallel        = $a['parallel_forms']     ?? null;
+        $other           = $a['other_forms']        ?? null;
+        $identifiers     = $a['identifiers']        ?? null;
+        $dates           = $a['dates_of_existence'] ?? null;
+        $history         = $a['history']            ?? null;
+        $places          = $a['places']             ?? null;
+        $legalStatus     = $a['legal_status']       ?? null;
+        $functions       = $a['functions']          ?? null;
+        $mandates        = $a['mandates']           ?? null;
+        $internalStruct  = $a['internal_structure'] ?? null;
+        $generalContext  = $a['general_context']    ?? null;
+
+        $stmt->bind_param(
+            'sssssssssssss',
+            $a['type'],
+            $a['authorised_form'],
+            $parallel,
+            $other,
+            $identifiers,
+            $dates,
+            $history,
+            $places,
+            $legalStatus,
+            $functions,
+            $mandates,
+            $internalStruct,
+            $generalContext
+        );
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] authority import INSERT failed: ' . $stmt->error);
             $stmt->close();
             return 0;
         }

@@ -1,8 +1,19 @@
 <?php
 /**
- * Archives — MARCXML import view (phase 4).
+ * Archives — MARCXML import view (phase 4 + 4b).
  *
- * @var array{success: bool, dry_run: bool, parsed: list<array<string, mixed>>, inserted: list<array<string, mixed>>, errors: list<string>}|null $result
+ * @var array{
+ *     success: bool,
+ *     dry_run: bool,
+ *     parsed: list<array<string, mixed>>,
+ *     parsed_authorities: list<array<string, mixed>>,
+ *     inserted: list<array<string, mixed>>,
+ *     updated: list<array<string, mixed>>,
+ *     skipped: list<array<string, mixed>>,
+ *     inserted_authorities: list<array<string, mixed>>,
+ *     skipped_authorities: list<array<string, mixed>>,
+ *     errors: list<string>
+ * }|null $result
  */
 declare(strict_types=1);
 
@@ -35,16 +46,24 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
                 <p class="text-sm text-blue-800">
                     <strong><?= __("Dry-run:") ?></strong>
                     <?= sprintf(
-                        /* TRANSLATORS: %d = number of records found */
-                        __("trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert."),
-                        count($result['parsed'])
+                        /* TRANSLATORS: %d = bibliographic records, %d = authority records */
+                        __("trovati %d record archivistici e %d authority record. Nessuna riga è stata inserita."),
+                        count($result['parsed']),
+                        count($result['parsed_authorities'])
                     ) ?>
                 </p>
             </div>
         <?php elseif ($result['success']): ?>
             <div class="bg-green-50 border-l-4 border-green-400 p-4 mb-4 rounded">
                 <p class="text-sm text-green-800">
-                    <?= sprintf(__("Importati %d record su %d."), count($result['inserted']), count($result['parsed'])) ?>
+                    <?= sprintf(
+                        /* TRANSLATORS: %d=inserted, %d=updated, %d=auth-inserted, %d=auth-skipped */
+                        __("Archivi: %d inseriti, %d aggiornati. Authority: %d inseriti, %d saltati (duplicati)."),
+                        count($result['inserted']),
+                        count($result['updated']),
+                        count($result['inserted_authorities']),
+                        count($result['skipped_authorities'])
+                    ) ?>
                 </p>
             </div>
         <?php endif; ?>
@@ -52,7 +71,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
         <?php if (!empty($result['parsed'])): ?>
             <div class="bg-white shadow rounded-lg overflow-hidden mb-6">
                 <div class="px-6 py-3 bg-gray-50 border-b">
-                    <h2 class="text-sm font-semibold text-gray-700"><?= __("Record analizzati") ?></h2>
+                    <h2 class="text-sm font-semibold text-gray-700"><?= __("Unità archivistiche analizzate") ?></h2>
                 </div>
                 <table class="min-w-full divide-y divide-gray-200 text-sm">
                     <thead class="bg-gray-50">
@@ -67,6 +86,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
                     <tbody class="bg-white divide-y divide-gray-200">
                         <?php
                         $insertedRefs = array_column($result['inserted'], 'reference_code');
+                        $updatedRefs  = array_column($result['updated'], 'reference_code');
                         foreach ($result['parsed'] as $rec):
                             $ref = (string) ($rec['reference_code'] ?? '');
                             $dateRange = '';
@@ -76,15 +96,63 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
                                     $dateRange .= '–' . (string) $rec['date_end'];
                                 }
                             }
-                            $status = $result['dry_run']
-                                ? __("preview")
-                                : (in_array($ref, $insertedRefs, true) ? __("inserito") : __("saltato"));
+                            if ($result['dry_run']) {
+                                $status = __("preview");
+                            } elseif (in_array($ref, $insertedRefs, true)) {
+                                $status = __("inserito");
+                            } elseif (in_array($ref, $updatedRefs, true)) {
+                                $status = __("aggiornato");
+                            } else {
+                                $status = __("saltato");
+                            }
                         ?>
                             <tr>
                                 <td class="px-4 py-2 font-mono text-xs text-gray-600"><?= $e($ref) ?></td>
                                 <td class="px-4 py-2"><?= $e((string) ($rec['level'] ?? '')) ?></td>
                                 <td class="px-4 py-2"><?= $e((string) ($rec['constructed_title'] ?? '')) ?></td>
                                 <td class="px-4 py-2 text-xs text-gray-600"><?= $e($dateRange) ?></td>
+                                <td class="px-4 py-2 text-xs"><?= $e($status) ?></td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($result['parsed_authorities'])): ?>
+            <div class="bg-white shadow rounded-lg overflow-hidden mb-6">
+                <div class="px-6 py-3 bg-gray-50 border-b">
+                    <h2 class="text-sm font-semibold text-gray-700"><?= __("Authority record analizzati") ?></h2>
+                </div>
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Tipo") ?></th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Forma autorizzata") ?></th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Datazione") ?></th>
+                            <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Stato") ?></th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <?php
+                        $authInsertedNames = array_column($result['inserted_authorities'], 'authorised_form');
+                        $authSkippedNames  = array_column($result['skipped_authorities'], 'authorised_form');
+                        foreach ($result['parsed_authorities'] as $a):
+                            $name = (string) ($a['authorised_form'] ?? '');
+                            if ($result['dry_run']) {
+                                $status = __("preview");
+                            } elseif (in_array($name, $authInsertedNames, true)) {
+                                $status = __("inserito");
+                            } elseif (in_array($name, $authSkippedNames, true)) {
+                                $status = __("duplicato (saltato)");
+                            } else {
+                                $status = __("saltato");
+                            }
+                        ?>
+                            <tr>
+                                <td class="px-4 py-2 text-xs"><?= $e((string) ($a['type'] ?? '')) ?></td>
+                                <td class="px-4 py-2"><?= $e($name) ?></td>
+                                <td class="px-4 py-2 text-xs text-gray-600"><?= $e((string) ($a['dates_of_existence'] ?? '')) ?></td>
                                 <td class="px-4 py-2 text-xs"><?= $e($status) ?></td>
                             </tr>
                         <?php endforeach; ?>
