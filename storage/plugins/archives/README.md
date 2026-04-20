@@ -12,7 +12,7 @@ The canonical real-world mapping of ISAD(G) onto a MARC-like serialisation comes
 
 ## Data model (skeleton)
 
-Three tables (DDL exposed as string constants in `ArchivesPlugin::ddl*()` methods — NOT yet executed; review before enabling):
+Three tables (DDL exposed via `ArchivesPlugin::ddl*()` methods and executed by `ensureSchema()` when `onActivate()` fires — review before enabling the plugin):
 
 ### `archival_units` (hierarchical)
 

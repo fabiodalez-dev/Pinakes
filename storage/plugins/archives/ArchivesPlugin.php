@@ -69,13 +69,27 @@ class ArchivesPlugin
 
     /**
      * Called by PluginManager when the plugin is activated via the admin UI.
-     * Creates the archival schema if missing + registers the `app.routes.register`
-     * hook so registerRoutes() runs during every request bootstrap. Idempotent.
+     * Creates the archival schema if missing, then registers the plugin's
+     * runtime hooks (`app.routes.register` + `admin.menu.render`).
+     * Idempotent: the DDLs use CREATE TABLE IF NOT EXISTS and each hook
+     * insert is preceded by a targeted DELETE (see registerHookInDb).
+     *
+     * Throws on partial-schema failure so PluginManager does not mark the
+     * plugin active with missing tables and so the hooks are not registered
+     * against a broken schema. The exception bubbles up to the admin UI
+     * where it surfaces as a red flash; SecureLogger has already captured
+     * the per-table reason inside ensureSchema().
      */
     public function onActivate(): void
     {
-        $this->ensureSchema();
-        $this->registerHookInDb('app.routes.register', 'registerRoutes',     10);
+        $result = $this->ensureSchema();
+        if (!empty($result['failed'])) {
+            throw new \RuntimeException(
+                '[Archives] Schema activation failed for: ' . implode(', ', $result['failed'])
+                . '. See app.log for the mysqli error emitted during each CREATE TABLE.'
+            );
+        }
+        $this->registerHookInDb('app.routes.register', 'registerRoutes',       10);
         $this->registerHookInDb('admin.menu.render',   'renderAdminMenuEntry', 10);
     }
 
