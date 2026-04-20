@@ -3,6 +3,8 @@
  * Archives — create/edit form view.
  *
  * @var list<string> $levels
+ * @var list<string> $specific_materials
+ * @var list<string> $color_modes
  * @var array<string, mixed> $values
  * @var array<string, string> $errors
  * @var string|null $mode   'create' (default) or 'edit'
@@ -202,6 +204,114 @@ $levelLabels = [
                 <?php endif; ?>
             </div>
         </div>
+
+        <!-- Phase 5 — photographic / material-type fields (all optional) -->
+        <details class="border rounded-md bg-gray-50" <?= !empty($values['specific_material']) && $values['specific_material'] !== 'text' ? 'open' : '' ?>>
+            <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700">
+                <?= __("Materiale specifico (foto, poster, cartoline…)") ?>
+            </summary>
+            <div class="p-4 space-y-4 border-t bg-white">
+                <?php
+                $materialLabels = [
+                    'text'       => __('Testo / manoscritto (bf)'),
+                    'photograph' => __('Fotografia (hf)'),
+                    'poster'     => __('Poster (hp)'),
+                    'postcard'   => __('Cartolina (hm)'),
+                    'drawing'    => __('Disegno / opera grafica (hd)'),
+                    'audio'      => __('Registrazione audio (lm)'),
+                    'video'      => __('Video (vm)'),
+                    'other'      => __('Altro'),
+                ];
+                $colorLabels = [
+                    'bw'    => __('Bianco e nero'),
+                    'color' => __('Colore'),
+                    'mixed' => __('Misto'),
+                ];
+                $specsList = $specific_materials;
+                $colorsList = $color_modes;
+                ?>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="specific_material" class="block text-sm font-medium text-gray-700 mb-1">
+                            <?= __("Tipo di materiale") ?>
+                            <span class="text-xs text-gray-500 font-normal">(ABA billedmarc 009*g)</span>
+                        </label>
+                        <select name="specific_material" id="specific_material"
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                            <?php foreach ($specsList as $s): ?>
+                                <option value="<?= $e($s) ?>" <?= (($values['specific_material'] ?? 'text') === $s) ? 'selected' : '' ?>>
+                                    <?= $e($materialLabels[$s] ?? $s) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="color_mode" class="block text-sm font-medium text-gray-700 mb-1">
+                            <?= __("Modalità colore") ?>
+                            <span class="text-xs text-gray-500 font-normal">(MARC 300*b)</span>
+                        </label>
+                        <select name="color_mode" id="color_mode"
+                                class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                            <option value="">—</option>
+                            <?php foreach ($colorsList as $c): ?>
+                                <option value="<?= $e($c) ?>" <?= (($values['color_mode'] ?? '') === $c) ? 'selected' : '' ?>>
+                                    <?= $e($colorLabels[$c] ?? $c) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label for="dimensions" class="block text-sm font-medium text-gray-700 mb-1">
+                        <?= __("Dimensioni") ?>
+                        <span class="text-xs text-gray-500 font-normal">(MARC 300*c — <?= __("es. \"15×10 cm\" o \"35mm\"") ?>)</span>
+                    </label>
+                    <input type="text" name="dimensions" id="dimensions"
+                           value="<?= $val('dimensions') ?>" maxlength="100"
+                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="photographer" class="block text-sm font-medium text-gray-700 mb-1">
+                            <?= __("Fotografo / autore primario") ?>
+                            <span class="text-xs text-gray-500 font-normal">(MARC 245*e)</span>
+                        </label>
+                        <input type="text" name="photographer" id="photographer"
+                               value="<?= $val('photographer') ?>" maxlength="255"
+                               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="publisher" class="block text-sm font-medium text-gray-700 mb-1">
+                            <?= __("Editore") ?>
+                            <span class="text-xs text-gray-500 font-normal">(MARC 245*f)</span>
+                        </label>
+                        <input type="text" name="publisher" id="publisher"
+                               value="<?= $val('publisher') ?>" maxlength="255"
+                               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label for="collection_name" class="block text-sm font-medium text-gray-700 mb-1">
+                            <?= __("Collezione") ?>
+                            <span class="text-xs text-gray-500 font-normal">(MARC 096*c)</span>
+                        </label>
+                        <input type="text" name="collection_name" id="collection_name"
+                               value="<?= $val('collection_name') ?>" maxlength="255"
+                               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="local_classification" class="block text-sm font-medium text-gray-700 mb-1">
+                            <?= __("Classificazione locale") ?>
+                            <span class="text-xs text-gray-500 font-normal">(MARC 088*a — <?= __("es. DK5") ?>)</span>
+                        </label>
+                        <input type="text" name="local_classification" id="local_classification"
+                               value="<?= $val('local_classification') ?>" maxlength="64"
+                               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                    </div>
+                </div>
+            </div>
+        </details>
 
         <div class="flex items-center justify-end space-x-3 pt-4 border-t">
             <a href="<?= $e(url('/admin/archives')) ?>"

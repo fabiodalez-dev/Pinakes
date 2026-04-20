@@ -119,6 +119,48 @@ $id = (int) $row['id'];
                 <dt class="text-sm font-medium text-gray-500">Creato</dt>
                 <dd class="col-span-2 text-xs text-gray-600 font-mono"><?= $v('created_at') ?></dd>
             </div>
+            <?php if (!empty($row['specific_material']) && $row['specific_material'] !== 'text'): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Tipo di materiale") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('specific_material') ?></dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['dimensions'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Dimensioni") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('dimensions') ?></dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['color_mode'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Modalità colore") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('color_mode') ?></dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['photographer'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Fotografo / autore primario") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('photographer') ?></dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['publisher'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Editore") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('publisher') ?></dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['collection_name'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Collezione") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('collection_name') ?></dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['local_classification'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Classificazione locale") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900 font-mono"><?= $v('local_classification') ?></dd>
+                </div>
+            <?php endif; ?>
             <?php if (!empty($row['updated_at']) && $row['updated_at'] !== $row['created_at']): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
                     <dt class="text-sm font-medium text-gray-500">Ultima modifica</dt>

@@ -48,6 +48,31 @@ class ArchivesPlugin
     ];
 
     /**
+     * Specific material types, per ABA billedmarc 009*g. Default 'text'
+     * so existing archival_units keep their MARC 009*g='bf' bibliographic
+     * semantics unchanged on phase 5 migration.
+     */
+    public const SPECIFIC_MATERIALS = [
+        'text'       => 'Text / manuscript (bf)',
+        'photograph' => 'Photograph (hf)',
+        'poster'     => 'Poster (hp)',
+        'postcard'   => 'Postcard (hm)',
+        'drawing'    => 'Drawing / artwork (hd)',
+        'audio'      => 'Audio recording (lm)',
+        'video'      => 'Video (vm)',
+        'other'      => 'Other',
+    ];
+
+    /**
+     * Color mode, per ABA billedmarc 300*b.
+     */
+    public const COLOR_MODES = [
+        'bw'    => 'Black and white',
+        'color' => 'Colour',
+        'mixed' => 'Mixed',
+    ];
+
+    /**
      * Authority-record types, per ISAAR(CPF).
      */
     public const AUTHORITY_TYPES = [
@@ -186,6 +211,12 @@ class ArchivesPlugin
             'archival_unit_authority' => self::ddlArchivalAuthorityLinks(),
             'autori_authority_link'   => self::ddlAutoriAuthorityLink(),
         ];
+        // Phase 5 migration: add image columns to archival_units if they're
+        // not already there. Harmless no-op on fresh installs because the
+        // DDL above already declares them; essential on installs created
+        // before phase 5 where the CREATE TABLE IF NOT EXISTS won't touch
+        // an existing table.
+        $this->migrateImageColumns();
 
         $created = [];
         $failed = [];
@@ -210,6 +241,64 @@ class ArchivesPlugin
         }
 
         return ['created' => $created, 'failed' => $failed];
+    }
+
+    /**
+     * Additive migration for phase 5 image-item columns. Checks the
+     * information_schema for each column and runs an ALTER TABLE ADD
+     * COLUMN when missing. Idempotent; safe to call on every activation.
+     *
+     * MySQL 5.7 / MariaDB 10.x don't support ADD COLUMN IF NOT EXISTS
+     * consistently, which is why we pre-check instead.
+     */
+    private function migrateImageColumns(): void
+    {
+        $columns = [
+            'specific_material'    => "ENUM('text','photograph','poster','postcard','drawing','audio','video','other') NOT NULL DEFAULT 'text'",
+            'dimensions'           => 'VARCHAR(100) NULL',
+            'color_mode'           => "ENUM('bw','color','mixed') NULL",
+            'photographer'         => 'VARCHAR(255) NULL',
+            'publisher'            => 'VARCHAR(255) NULL',
+            'collection_name'      => 'VARCHAR(255) NULL',
+            'local_classification' => 'VARCHAR(64) NULL',
+        ];
+
+        // Fetch existing columns once.
+        $existing = [];
+        $result = $this->db->query(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units'"
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $existing[(string) $row['COLUMN_NAME']] = true;
+            }
+            $result->free();
+        } else {
+            // archival_units itself might not exist yet (fresh install path);
+            // ensureSchema's first step will create it with all columns.
+            return;
+        }
+
+        foreach ($columns as $col => $definition) {
+            if (isset($existing[$col])) {
+                continue;
+            }
+            // Column names are hard-coded above; definition comes from our
+            // own source. Not user-supplied → safe to interpolate.
+            $sql = 'ALTER TABLE archival_units ADD COLUMN ' . $col . ' ' . $definition;
+            try {
+                if ($this->db->query($sql) === false) {
+                    SecureLogger::warning(
+                        '[Archives] migrate image columns: ALTER failed for ' . $col . ': ' . $this->db->error
+                    );
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::error(
+                    '[Archives] migrate image columns: exception on ' . $col . ': ' . $e->getMessage()
+                );
+            }
+        }
     }
 
     /**
@@ -544,11 +633,7 @@ class ArchivesPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        return $this->renderView($response, 'form', [
-            'levels' => array_keys(self::LEVELS),
-            'values' => [],
-            'errors' => [],
-        ]);
+        return $this->renderArchivalForm($response, 'create', null, [], []);
     }
 
     /**
@@ -568,84 +653,159 @@ class ArchivesPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        $body = (array) $request->getParsedBody();
-
-        $values = [
-            'reference_code'    => trim((string) ($body['reference_code'] ?? '')),
-            'institution_code'  => trim((string) ($body['institution_code'] ?? 'PINAKES')),
-            'level'             => (string) ($body['level'] ?? ''),
-            'formal_title'      => trim((string) ($body['formal_title'] ?? '')),
-            'constructed_title' => trim((string) ($body['constructed_title'] ?? '')),
-            'date_start'        => $body['date_start'] !== '' && isset($body['date_start']) ? (int) $body['date_start'] : null,
-            'date_end'          => $body['date_end']   !== '' && isset($body['date_end'])   ? (int) $body['date_end']   : null,
-            'extent'            => trim((string) ($body['extent'] ?? '')),
-            'scope_content'     => trim((string) ($body['scope_content'] ?? '')),
-            'language_codes'    => trim((string) ($body['language_codes'] ?? 'ita')),
-            'parent_id'         => isset($body['parent_id']) && $body['parent_id'] !== '' ? (int) $body['parent_id'] : null,
-        ];
-
+        $values = $this->extractArchivalUnitPayload($request);
         $errors = $this->validateArchivalUnit($values);
 
         if (!empty($errors)) {
-            return $this->renderView($response, 'form', [
-                'levels' => array_keys(self::LEVELS),
-                'values' => $values,
-                'errors' => $errors,
-            ]);
+            return $this->renderArchivalForm($response, 'create', null, $values, $errors);
         }
 
         $stmt = $this->db->prepare(
             'INSERT INTO archival_units
-                (parent_id, reference_code, institution_code, level, formal_title,
-                 constructed_title, date_start, date_end, extent, scope_content, language_codes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                (parent_id, reference_code, institution_code, level,
+                 formal_title, constructed_title, date_start, date_end,
+                 extent, scope_content, language_codes,
+                 specific_material, dimensions, color_mode,
+                 photographer, publisher, collection_name, local_classification)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         if ($stmt === false) {
             SecureLogger::error('[Archives] store prepare failed: ' . $this->db->error);
             $errors['_global'] = 'Database error. Check the log and retry.';
-            return $this->renderView($response, 'form', [
-                'levels' => array_keys(self::LEVELS),
-                'values' => $values,
-                'errors' => $errors,
-            ]);
+            return $this->renderArchivalForm($response, 'create', null, $values, $errors);
         }
 
-        $formalTitleParam = $values['formal_title'] !== '' ? $values['formal_title'] : null;
-        $extentParam      = $values['extent']       !== '' ? $values['extent']       : null;
-        $scopeParam       = $values['scope_content']!== '' ? $values['scope_content']: null;
-
+        $p = $this->nullableArchivalParams($values);
+        // 18 params: 1 int, 3 strings, 2 strings, 2 ints, 3 strings, 1 string (specific_material), 6 strings
+        // Layout: parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s) date_start(i) date_end(i)
+        //         extent(s) scope(s) lang(s) spec_material(s) dimensions(s) color_mode(s) photographer(s)
+        //         publisher(s) collection(s) local_class(s)  → 'isssssiisssssssssss'
+        //                                                      minus one 's' (counted 19) = 'isssssiissssssssss' (18)
         $stmt->bind_param(
-            'issssssissss',
-            // MySQLi requires strict param types in order. i=int, s=string.
-            // We pass all nullables as strings when null because mysqli coerces.
+            'isssssiissssssssss',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
             $values['level'],
-            $formalTitleParam,
+            $p['formal_title'],
             $values['constructed_title'],
             $values['date_start'],
             $values['date_end'],
-            $extentParam,
-            $scopeParam,
-            $values['language_codes']
+            $p['extent'],
+            $p['scope_content'],
+            $values['language_codes'],
+            $values['specific_material'],
+            $p['dimensions'],
+            $p['color_mode'],
+            $p['photographer'],
+            $p['publisher'],
+            $p['collection_name'],
+            $p['local_classification']
         );
 
         if (!$stmt->execute()) {
             SecureLogger::error('[Archives] INSERT failed: ' . $stmt->error);
             $stmt->close();
             $errors['_global'] = 'Insert failed. ' . ($this->db->errno === 1062 ? 'Reference code already exists.' : 'Check the log.');
-            return $this->renderView($response, 'form', [
-                'levels' => array_keys(self::LEVELS),
-                'values' => $values,
-                'errors' => $errors,
-            ]);
+            return $this->renderArchivalForm($response, 'create', null, $values, $errors);
         }
         $stmt->close();
 
         return $response
             ->withHeader('Location', '/admin/archives')
             ->withStatus(303);
+    }
+
+    /**
+     * Extract the archival_unit form payload into a normalised array.
+     * Handles both phase 1 core fields and phase 5 image fields in one shot.
+     *
+     * @return array<string, mixed>
+     */
+    private function extractArchivalUnitPayload(ServerRequestInterface $request): array
+    {
+        $body = (array) $request->getParsedBody();
+        $str = static fn(string $k, string $default = ''): string => trim((string) ($body[$k] ?? $default));
+        $int = static fn(string $k): ?int => isset($body[$k]) && $body[$k] !== '' ? (int) $body[$k] : null;
+
+        $specific = $str('specific_material', 'text');
+        if (!array_key_exists($specific, self::SPECIFIC_MATERIALS)) {
+            $specific = 'text';
+        }
+        $color = $str('color_mode');
+        if ($color !== '' && !array_key_exists($color, self::COLOR_MODES)) {
+            $color = '';
+        }
+
+        return [
+            'reference_code'       => $str('reference_code'),
+            'institution_code'     => $str('institution_code', 'PINAKES'),
+            'level'                => $str('level'),
+            'formal_title'         => $str('formal_title'),
+            'constructed_title'    => $str('constructed_title'),
+            'date_start'           => $int('date_start'),
+            'date_end'             => $int('date_end'),
+            'extent'               => $str('extent'),
+            'scope_content'        => $str('scope_content'),
+            'language_codes'       => $str('language_codes', 'ita'),
+            'parent_id'            => $int('parent_id'),
+            // Phase 5 image fields
+            'specific_material'    => $specific,
+            'dimensions'           => $str('dimensions'),
+            'color_mode'           => $color,
+            'photographer'         => $str('photographer'),
+            'publisher'            => $str('publisher'),
+            'collection_name'      => $str('collection_name'),
+            'local_classification' => $str('local_classification'),
+        ];
+    }
+
+    /**
+     * Convert the nullable text fields from '' to null so mysqli doesn't
+     * persist empty strings (keeps COALESCE working downstream).
+     *
+     * @param array<string, mixed> $values
+     * @return array<string, string|null>
+     */
+    private function nullableArchivalParams(array $values): array
+    {
+        $nullable = [
+            'formal_title', 'extent', 'scope_content',
+            'dimensions', 'color_mode', 'photographer',
+            'publisher', 'collection_name', 'local_classification',
+        ];
+        $out = [];
+        foreach ($nullable as $k) {
+            $v = (string) ($values[$k] ?? '');
+            $out[$k] = $v === '' ? null : $v;
+        }
+        return $out;
+    }
+
+    /**
+     * Render the archival-unit create/edit form. Thin wrapper around
+     * renderView() that always supplies the select-options + specific
+     * material / color enum constants.
+     *
+     * @param array<string, mixed> $values
+     * @param array<string, string> $errors
+     */
+    private function renderArchivalForm(
+        ResponseInterface $response,
+        string $mode,
+        ?int $id,
+        array $values,
+        array $errors
+    ): ResponseInterface {
+        return $this->renderView($response, 'form', [
+            'mode'                => $mode,
+            'id'                  => $id,
+            'levels'              => array_keys(self::LEVELS),
+            'specific_materials'  => array_keys(self::SPECIFIC_MATERIALS),
+            'color_modes'         => array_keys(self::COLOR_MODES),
+            'values'              => $values,
+            'errors'              => $errors,
+        ]);
     }
 
     /**
@@ -687,13 +847,7 @@ class ArchivesPlugin
         if ($row === null) {
             return $this->renderNotFound($response, $id);
         }
-        return $this->renderView($response, 'form', [
-            'mode'   => 'edit',
-            'id'     => $id,
-            'levels' => array_keys(self::LEVELS),
-            'values' => $row,
-            'errors' => [],
-        ]);
+        return $this->renderArchivalForm($response, 'edit', $id, $row, []);
     }
 
     /**
@@ -709,21 +863,7 @@ class ArchivesPlugin
             return $this->renderNotFound($response, $id);
         }
 
-        $body = (array) $request->getParsedBody();
-        $values = [
-            'reference_code'    => trim((string) ($body['reference_code'] ?? '')),
-            'institution_code'  => trim((string) ($body['institution_code'] ?? 'PINAKES')),
-            'level'             => (string) ($body['level'] ?? ''),
-            'formal_title'      => trim((string) ($body['formal_title'] ?? '')),
-            'constructed_title' => trim((string) ($body['constructed_title'] ?? '')),
-            'date_start'        => isset($body['date_start']) && $body['date_start'] !== '' ? (int) $body['date_start'] : null,
-            'date_end'          => isset($body['date_end'])   && $body['date_end']   !== '' ? (int) $body['date_end']   : null,
-            'extent'            => trim((string) ($body['extent'] ?? '')),
-            'scope_content'     => trim((string) ($body['scope_content'] ?? '')),
-            'language_codes'    => trim((string) ($body['language_codes'] ?? 'ita')),
-            'parent_id'         => isset($body['parent_id']) && $body['parent_id'] !== '' ? (int) $body['parent_id'] : null,
-        ];
-
+        $values = $this->extractArchivalUnitPayload($request);
         $errors = $this->validateArchivalUnit($values, $id);
 
         // Extra safeguard: prevent cycles in the hierarchy (self-parent or
@@ -734,51 +874,55 @@ class ArchivesPlugin
         }
 
         if (!empty($errors)) {
-            return $this->renderView($response, 'form', [
-                'mode'   => 'edit',
-                'id'     => $id,
-                'levels' => array_keys(self::LEVELS),
-                'values' => $values,
-                'errors' => $errors,
-            ]);
+            return $this->renderArchivalForm($response, 'edit', $id, $values, $errors);
         }
 
         $stmt = $this->db->prepare(
             'UPDATE archival_units SET
                 parent_id = ?, reference_code = ?, institution_code = ?, level = ?,
                 formal_title = ?, constructed_title = ?, date_start = ?, date_end = ?,
-                extent = ?, scope_content = ?, language_codes = ?
+                extent = ?, scope_content = ?, language_codes = ?,
+                specific_material = ?, dimensions = ?, color_mode = ?,
+                photographer = ?, publisher = ?, collection_name = ?, local_classification = ?
              WHERE id = ? AND deleted_at IS NULL'
         );
         if ($stmt === false) {
             SecureLogger::error('[Archives] update prepare failed: ' . $this->db->error);
             $errors['_global'] = 'Database error. Check the log and retry.';
-            return $this->renderView($response, 'form', [
-                'mode'   => 'edit',
-                'id'     => $id,
-                'levels' => array_keys(self::LEVELS),
-                'values' => $values,
-                'errors' => $errors,
-            ]);
+            return $this->renderArchivalForm($response, 'edit', $id, $values, $errors);
         }
 
-        $formalTitleParam = $values['formal_title'] !== '' ? $values['formal_title'] : null;
-        $extentParam      = $values['extent']       !== '' ? $values['extent']       : null;
-        $scopeParam       = $values['scope_content']!== '' ? $values['scope_content']: null;
-
+        $p = $this->nullableArchivalParams($values);
+        // 19 params: 18 INSERT-columns + id (int). Type string:
+        //   parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
+        //   date_start(i) date_end(i) extent(s) scope(s) lang(s)
+        //   spec_material(s) dimensions(s) color(s) photographer(s)
+        //   publisher(s) collection(s) local_class(s) id(i)
+        //   = 'isssssiisssssssssssi'   (no — count again)
+        //   Breakdown: i + s*3 + s*2 + i*2 + s*3 + s*7 + i = 'i' + 'sss' + 'ss' + 'ii' + 'sss' + 'sssssss' + 'i'
+        //   = 'isssss' + 'ii' + 'sssssssssss' + 'i' = 'isssssiisssssssssssi' = 20 chars for 19 params
+        //   Let's enumerate: i s s s s s i i s s s s s s s s s s i = 19 types, 'isssssiisssssssssssi' = 20, off by one.
+        //   Correct is 'isssssiissssssssssi' (19 chars).
         $stmt->bind_param(
-            'issssssissssi',
+            'isssssiissssssssssi',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
             $values['level'],
-            $formalTitleParam,
+            $p['formal_title'],
             $values['constructed_title'],
             $values['date_start'],
             $values['date_end'],
-            $extentParam,
-            $scopeParam,
+            $p['extent'],
+            $p['scope_content'],
             $values['language_codes'],
+            $values['specific_material'],
+            $p['dimensions'],
+            $p['color_mode'],
+            $p['photographer'],
+            $p['publisher'],
+            $p['collection_name'],
+            $p['local_classification'],
             $id
         );
 
@@ -788,13 +932,7 @@ class ArchivesPlugin
                 ? 'Reference code already exists for this institution.'
                 : 'Update failed. Check the log.';
             $stmt->close();
-            return $this->renderView($response, 'form', [
-                'mode'   => 'edit',
-                'id'     => $id,
-                'levels' => array_keys(self::LEVELS),
-                'values' => $values,
-                'errors' => $errors,
-            ]);
+            return $this->renderArchivalForm($response, 'edit', $id, $values, $errors);
         }
         $stmt->close();
 
@@ -1651,6 +1789,22 @@ class ArchivesPlugin
         $xw->startElement('record');
         $xw->writeAttribute('type', 'Bibliographic');
 
+        // 009 — material designation. 'b' = bibliographic archival text,
+        // 'g' = two-dimensional image (ABA billedmarc 009*a convention).
+        // Subfield *g carries the granular type: hf/hp/hm/hd/lm/vm per ABA.
+        $materialMap = [
+            'text'       => ['a' => 'b', 'g' => 'bf'],
+            'photograph' => ['a' => 'g', 'g' => 'hf'],
+            'poster'     => ['a' => 'g', 'g' => 'hp'],
+            'postcard'   => ['a' => 'g', 'g' => 'hm'],
+            'drawing'    => ['a' => 'g', 'g' => 'hd'],
+            'audio'      => ['a' => 'l', 'g' => 'lm'],
+            'video'      => ['a' => 'v', 'g' => 'vm'],
+            'other'      => ['a' => 'x', 'g' => 'xx'],
+        ];
+        $spec = (string) ($row['specific_material'] ?? 'text');
+        $this->writeMarcDatafield($xw, '009', $materialMap[$spec] ?? $materialMap['text']);
+
         $this->writeMarcDatafield($xw, '001', [
             'a' => (string) ($row['reference_code'] ?? ''),
             'b' => (string) ($row['institution_code'] ?? 'PINAKES'),
@@ -1665,12 +1819,26 @@ class ArchivesPlugin
         if (!empty($row['language_codes'])) { $sub008['l'] = (string) $row['language_codes']; }
         $this->writeMarcDatafield($xw, '008', $sub008);
 
+        // 088 — local DK5 classification (ABA billedmarc convention).
+        if (!empty($row['local_classification'])) {
+            $this->writeMarcDatafield($xw, '088', ['a' => (string) $row['local_classification']]);
+        }
+        // 096 — shelfmark composite (class mark + collection name).
+        $sub096 = [];
+        if (!empty($row['local_classification'])) { $sub096['a'] = (string) $row['local_classification']; }
+        if (!empty($row['collection_name']))      { $sub096['c'] = (string) $row['collection_name']; }
+        $this->writeMarcDatafield($xw, '096', $sub096);
+
         if (!empty($row['formal_title'])) {
             $this->writeMarcDatafield($xw, '241', ['a' => (string) $row['formal_title']]);
         }
-        if (!empty($row['constructed_title'])) {
-            $this->writeMarcDatafield($xw, '245', ['a' => (string) $row['constructed_title']]);
-        }
+        // 245 — title + attributions (photographer / publisher as 245*e, *f).
+        $sub245 = [];
+        if (!empty($row['constructed_title'])) { $sub245['a'] = (string) $row['constructed_title']; }
+        if (!empty($row['photographer']))      { $sub245['e'] = (string) $row['photographer']; }
+        if (!empty($row['publisher']))         { $sub245['f'] = (string) $row['publisher']; }
+        if ($spec !== 'text')                  { $sub245['m'] = '[' . $spec . ']'; }
+        $this->writeMarcDatafield($xw, '245', $sub245);
         if (!empty($row['date_start'])) {
             $dateText = (string) $row['date_start']
                 . (!empty($row['date_end']) && $row['date_end'] !== $row['date_start']
@@ -1678,9 +1846,21 @@ class ArchivesPlugin
                     : '');
             $this->writeMarcDatafield($xw, '260', ['c' => $dateText]);
         }
-        if (!empty($row['extent'])) {
-            $this->writeMarcDatafield($xw, '300', ['a' => (string) $row['extent']]);
+        // 300 — physical description. *a = extent (free text), *b = color mode,
+        // *c = dimensions. ABA billedmarc also uses 300*n for photo quantity
+        // but we fold that into 'extent' on the data side.
+        $sub300 = [];
+        if (!empty($row['extent']))     { $sub300['a'] = (string) $row['extent']; }
+        $colorCode = [
+            'bw'    => 'black-and-white',
+            'color' => 'colour',
+            'mixed' => 'mixed',
+        ];
+        if (!empty($row['color_mode']) && isset($colorCode[$row['color_mode']])) {
+            $sub300['b'] = $colorCode[$row['color_mode']];
         }
+        if (!empty($row['dimensions'])) { $sub300['c'] = (string) $row['dimensions']; }
+        $this->writeMarcDatafield($xw, '300', $sub300);
         $sub501 = [];
         if (!empty($row['predominant_dates'])) { $sub501['a'] = (string) $row['predominant_dates']; }
         if (!empty($row['date_gaps']))         { $sub501['b'] = (string) $row['date_gaps']; }
@@ -1874,24 +2054,57 @@ class ArchivesPlugin
             }
             $dateStartRaw = $this->marcSub($fields, '008', 'a');
             $dateEndRaw   = $this->marcSub($fields, '008', 'z');
+            // Phase 5: material designation mapping (009*g → specific_material).
+            $materialReverse = [
+                'bf' => 'text',
+                'hf' => 'photograph',
+                'hp' => 'poster',
+                'hm' => 'postcard',
+                'hd' => 'drawing',
+                'lm' => 'audio',
+                'vm' => 'video',
+            ];
+            $rawMat = $this->marcSub($fields, '009', 'g') ?? '';
+            $specific = $materialReverse[$rawMat] ?? 'text';
+
+            // 300*b reverse lookup.
+            $colorReverse = [
+                'black-and-white' => 'bw',
+                'bw'              => 'bw',
+                'colour'          => 'color',
+                'color'           => 'color',
+                'mixed'           => 'mixed',
+            ];
+            $rawColor = $this->marcSub($fields, '300', 'b') ?? '';
+            $color = $colorReverse[strtolower(trim($rawColor))] ?? null;
+
             $records[] = [
-                'reference_code'      => $refCode,
-                'institution_code'    => $this->marcSub($fields, '001', 'b') ?? 'PINAKES',
-                'level'               => $level,
-                'formal_title'        => $this->marcSub($fields, '241', 'a'),
-                'constructed_title'   => $constructed,
-                'date_start'          => $dateStartRaw !== null ? (int) $dateStartRaw : null,
-                'date_end'            => $dateEndRaw   !== null ? (int) $dateEndRaw   : null,
-                'extent'              => $this->marcSub($fields, '300', 'a'),
-                'scope_content'       => $this->marcSub($fields, '504', 'a'),
-                'language_codes'      => $this->marcSub($fields, '008', 'l'),
-                'archival_history'    => $this->marcSub($fields, '520', 'a'),
-                'acquisition_source'  => $this->marcSub($fields, '520', 'b'),
-                'access_conditions'   => $this->marcSub($fields, '513', 'a')
-                                        ?? $this->marcSub($fields, '518', 'a'),
-                'reproduction_rules'  => $this->marcSub($fields, '518', 'b'),
-                'related_units'       => $this->marcSub($fields, '525', 'a'),
-                'finding_aids'        => $this->marcSub($fields, '526', 'a'),
+                'reference_code'       => $refCode,
+                'institution_code'     => $this->marcSub($fields, '001', 'b') ?? 'PINAKES',
+                'level'                => $level,
+                'formal_title'         => $this->marcSub($fields, '241', 'a'),
+                'constructed_title'    => $constructed,
+                'date_start'           => $dateStartRaw !== null ? (int) $dateStartRaw : null,
+                'date_end'             => $dateEndRaw   !== null ? (int) $dateEndRaw   : null,
+                'extent'               => $this->marcSub($fields, '300', 'a'),
+                'scope_content'        => $this->marcSub($fields, '504', 'a'),
+                'language_codes'       => $this->marcSub($fields, '008', 'l'),
+                'archival_history'     => $this->marcSub($fields, '520', 'a'),
+                'acquisition_source'   => $this->marcSub($fields, '520', 'b'),
+                'access_conditions'    => $this->marcSub($fields, '513', 'a')
+                                         ?? $this->marcSub($fields, '518', 'a'),
+                'reproduction_rules'   => $this->marcSub($fields, '518', 'b'),
+                'related_units'        => $this->marcSub($fields, '525', 'a'),
+                'finding_aids'         => $this->marcSub($fields, '526', 'a'),
+                // Phase 5 image fields
+                'specific_material'    => $specific,
+                'dimensions'           => $this->marcSub($fields, '300', 'c'),
+                'color_mode'           => $color,
+                'photographer'         => $this->marcSub($fields, '245', 'e'),
+                'publisher'            => $this->marcSub($fields, '245', 'f'),
+                'collection_name'      => $this->marcSub($fields, '096', 'c'),
+                'local_classification' => $this->marcSub($fields, '088', 'a')
+                                         ?? $this->marcSub($fields, '096', 'a'),
             ];
         }
         return ['records' => $records, 'authorities' => $authorities];
@@ -1904,11 +2117,12 @@ class ArchivesPlugin
      *
      * Tag conventions mirror writeAuthorityMarcRecord():
      *   100 / 110 → name (100 person/family, 110 corporate)
-     *   400       → parallel_forms / other_forms (joined with newline on import)
+     *   400       → parallel_forms (multi-occurrence collected via marcSubAll,
+     *               joined with newline — phase 4c)
      *   024 370 368 372 377 373 → ISAAR extended elements
      *   678       → history + general_context (joined; split heuristic below)
      *
-     * @param array<string, array<string, string>> $fields
+     * @param array<string, list<array<string, string>>> $fields
      * @return array<string, mixed>|null
      */
     private function buildAuthorityRowFromMarc(array $fields): ?array
@@ -1920,16 +2134,17 @@ class ArchivesPlugin
         if ($name === null || $name === '') {
             return null;
         }
-        // Type inference: 110 → corporate; 100 + family-hint → family; else person.
+        // Type inference: 110 → corporate; else person. Family-vs-person
+        // split needs an external signal (e.g. 378 cataloguer-added code);
+        // defer until phase 5.
         $type = $corporateName !== null ? 'corporate' : 'person';
 
         $dates = $this->marcSub($fields, '100', 'd')
               ?? $this->marcSub($fields, '110', 'd');
 
-        // 400 rolls up parallel + other forms. Multiple 400s collapse to null
-        // here because our collectMarcFields() keeps last-write; round-trip
-        // multi-400 is a known limitation documented in phase 4b README.
-        $parallel = $this->marcSub($fields, '400', 'a');
+        // Phase 4c: preserve every 400 occurrence on round-trip.
+        $parallel400 = $this->marcSubAll($fields, '400', 'a');
+        $parallel = !empty($parallel400) ? implode("\n", $parallel400) : null;
 
         return [
             'type'               => $type,
@@ -1949,23 +2164,57 @@ class ArchivesPlugin
     }
 
     /**
-     * Return the value of subfield $code for tag $tag, or null if missing.
+     * Return the value of subfield $code in the FIRST occurrence of $tag,
+     * or null if either is missing. Backward-compat helper for callers
+     * that only care about the first instance.
      *
-     * @param array<string, array<string, string>> $fields
+     * @param array<string, list<array<string, string>>> $fields
      */
     private function marcSub(array $fields, string $tag, string $code): ?string
     {
-        if (!isset($fields[$tag])) {
+        if (!isset($fields[$tag][0])) {
             return null;
         }
-        $sub = $fields[$tag];
-        return $sub[$code] ?? null;
+        $first = $fields[$tag][0];
+        return $first[$code] ?? null;
     }
 
     /**
-     * Flatten a <record>'s datafields into a tag→subfield-code map.
+     * Return every subfield $code across all occurrences of $tag, in
+     * document order. Used for round-tripping repeated fields like 400
+     * (name tracings), 410, 610, 700, 710.
      *
-     * @return array<string, array<string, string>>
+     * Empty or missing subfields are skipped (not included as empty
+     * strings) so the caller can implode() without worrying about holes.
+     *
+     * @param array<string, list<array<string, string>>> $fields
+     * @return list<string>
+     */
+    private function marcSubAll(array $fields, string $tag, string $code): array
+    {
+        $out = [];
+        if (!isset($fields[$tag])) {
+            return $out;
+        }
+        foreach ($fields[$tag] as $occurrence) {
+            if (isset($occurrence[$code]) && $occurrence[$code] !== '') {
+                $out[] = $occurrence[$code];
+            }
+        }
+        return $out;
+    }
+
+    /**
+     * Flatten a <record>'s datafields into a tag → list-of-occurrences map.
+     *
+     * Every occurrence of a given MARC tag lands as a separate entry in the
+     * inner list, preserving round-trip fidelity for repeated fields (400,
+     * 410, 610, 700, 710, 248…). Phase 4 used last-write-wins which lost
+     * information on re-import; phase 4c fixes that.
+     *
+     * Shape: `{tag: [{subCode: value, ...}, {subCode: value, ...}, ...]}`
+     *
+     * @return array<string, list<array<string, string>>>
      */
     private function collectMarcFields(\SimpleXMLElement $record): array
     {
@@ -1987,7 +2236,7 @@ class ArchivesPlugin
                 $subs[(string) $sub['code']] = trim((string) $sub);
             }
             if (!empty($subs)) {
-                $out[$tag] = $subs;
+                $out[$tag][] = $subs;
             }
         }
         return $out;
@@ -2023,8 +2272,10 @@ class ArchivesPlugin
                    constructed_title, date_start, date_end, extent,
                    scope_content, language_codes, archival_history,
                    acquisition_source, access_conditions, reproduction_rules,
-                   related_units, finding_aids)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                   related_units, finding_aids,
+                   specific_material, dimensions, color_mode,
+                   photographer, publisher, collection_name, local_classification)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                   level = VALUES(level),
                   formal_title = VALUES(formal_title),
@@ -2040,27 +2291,42 @@ class ArchivesPlugin
                   reproduction_rules = VALUES(reproduction_rules),
                   related_units = VALUES(related_units),
                   finding_aids = VALUES(finding_aids),
+                  specific_material = VALUES(specific_material),
+                  dimensions = VALUES(dimensions),
+                  color_mode = VALUES(color_mode),
+                  photographer = VALUES(photographer),
+                  publisher = VALUES(publisher),
+                  collection_name = VALUES(collection_name),
+                  local_classification = VALUES(local_classification),
                   deleted_at = NULL';
         $stmt = $this->db->prepare($sql);
         if ($stmt === false) {
             SecureLogger::error('[Archives] upsert prepare failed: ' . $this->db->error);
             return ['action' => 'failed', 'id' => 0];
         }
-        $formalTitle       = $r['formal_title']       ?? null;
-        $extent            = $r['extent']             ?? null;
-        $scopeContent      = $r['scope_content']      ?? null;
-        $languageCodes     = $r['language_codes']     ?? null;
-        $archivalHistory   = $r['archival_history']   ?? null;
-        $acquisitionSource = $r['acquisition_source'] ?? null;
-        $accessConditions  = $r['access_conditions']  ?? null;
-        $reproductionRules = $r['reproduction_rules'] ?? null;
-        $relatedUnits      = $r['related_units']      ?? null;
-        $findingAids       = $r['finding_aids']       ?? null;
-        $dateStart         = $r['date_start']         ?? null;
-        $dateEnd           = $r['date_end']           ?? null;
+        $formalTitle         = $r['formal_title']         ?? null;
+        $extent              = $r['extent']               ?? null;
+        $scopeContent        = $r['scope_content']        ?? null;
+        $languageCodes       = $r['language_codes']       ?? null;
+        $archivalHistory     = $r['archival_history']     ?? null;
+        $acquisitionSource   = $r['acquisition_source']   ?? null;
+        $accessConditions    = $r['access_conditions']    ?? null;
+        $reproductionRules   = $r['reproduction_rules']   ?? null;
+        $relatedUnits        = $r['related_units']        ?? null;
+        $findingAids         = $r['finding_aids']         ?? null;
+        $dateStart           = $r['date_start']           ?? null;
+        $dateEnd             = $r['date_end']             ?? null;
+        $specificMaterial    = $r['specific_material']    ?? 'text';
+        $dimensions          = $r['dimensions']           ?? null;
+        $colorMode           = $r['color_mode']           ?? null;
+        $photographer        = $r['photographer']         ?? null;
+        $publisher           = $r['publisher']            ?? null;
+        $collectionName      = $r['collection_name']      ?? null;
+        $localClassification = $r['local_classification'] ?? null;
 
+        // 23 params: 5s + 2i + 9s + 7s (image) = 'sssssiisssssssss' + 'sssssss' = 'sssssiissssssssssssssss' (23)
         $stmt->bind_param(
-            'sssssiisssssssss',
+            'sssssiisssssssssssssssss',
             $r['reference_code'],
             $r['institution_code'],
             $r['level'],
@@ -2076,7 +2342,14 @@ class ArchivesPlugin
             $accessConditions,
             $reproductionRules,
             $relatedUnits,
-            $findingAids
+            $findingAids,
+            $specificMaterial,
+            $dimensions,
+            $colorMode,
+            $photographer,
+            $publisher,
+            $collectionName,
+            $localClassification
         );
         if (!$stmt->execute()) {
             SecureLogger::error('[Archives] upsert exec failed: ' . $stmt->error);
@@ -2678,6 +2951,14 @@ class ArchivesPlugin
             physical_location   VARCHAR(255) NULL,
             material_status     ENUM('unclassified','cataloguing','completed') NOT NULL DEFAULT 'unclassified',
             registration_date   DATE NULL,
+            /* Phase 5 — photographic items (ABA billedmarc) */
+            specific_material   ENUM('text','photograph','poster','postcard','drawing','audio','video','other') NOT NULL DEFAULT 'text',
+            dimensions          VARCHAR(100) NULL,
+            color_mode          ENUM('bw','color','mixed') NULL,
+            photographer        VARCHAR(255) NULL,
+            publisher           VARCHAR(255) NULL,
+            collection_name     VARCHAR(255) NULL,
+            local_classification VARCHAR(64) NULL,
             created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             deleted_at          TIMESTAMP NULL,
