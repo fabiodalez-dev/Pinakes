@@ -2281,7 +2281,9 @@ class ArchivesPlugin
         ];
         foreach ($extra as $marcTag => $col) {
             if (!empty($row[$col])) {
-                $this->writeMarcDatafield($xw, $marcTag, ['a' => (string) $row[$col]]);
+                // PHP coerces numeric-looking keys ('370') to int when
+                // iterating the array; cast back to string for the writer.
+                $this->writeMarcDatafield($xw, (string) $marcTag, ['a' => (string) $row[$col]]);
             }
         }
 
@@ -2600,7 +2602,14 @@ class ArchivesPlugin
         }
         foreach ($children as $field) {
             if ($field->getName() !== 'datafield') { continue; }
-            $tag = (string) $field['tag'];
+            // SimpleXML quirk: when $children comes from
+            // ->children('namespace'), `$field['tag']` returns empty; the
+            // attribute is only reachable via ->attributes(). See phase-4d
+            // regression — unit tests never caught this because they
+            // exercise DDL string shape only.
+            $fAttrs = $field->attributes();
+            $tag = $fAttrs !== null ? (string) ($fAttrs['tag'] ?? '') : '';
+            if ($tag === '') { continue; }
             $subs = [];
             $subChildren = $field->children('http://www.loc.gov/MARC21/slim');
             if (count($subChildren) === 0) {
@@ -2608,7 +2617,10 @@ class ArchivesPlugin
             }
             foreach ($subChildren as $sub) {
                 if ($sub->getName() !== 'subfield') { continue; }
-                $subs[(string) $sub['code']] = trim((string) $sub);
+                $sAttrs = $sub->attributes();
+                $code = $sAttrs !== null ? (string) ($sAttrs['code'] ?? '') : '';
+                if ($code === '') { continue; }
+                $subs[$code] = trim((string) $sub);
             }
             if (!empty($subs)) {
                 $out[$tag][] = $subs;
@@ -2699,9 +2711,9 @@ class ArchivesPlugin
         $collectionName      = $r['collection_name']      ?? null;
         $localClassification = $r['local_classification'] ?? null;
 
-        // 23 params: 5s + 2i + 9s + 7s (image) = 'sssssiisssssssss' + 'sssssss' = 'sssssiissssssssssssssss' (23)
+        // 23 params: 5s + 2i + 16s = 'sssssiissssssssssssssss' (23 chars)
         $stmt->bind_param(
-            'sssssiisssssssssssssssss',
+            'sssssiissssssssssssssss',
             $r['reference_code'],
             $r['institution_code'],
             $r['level'],
