@@ -563,6 +563,21 @@ class ArchivesPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->importSubmitAction($request, $response);
         })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // ── Phase 6 — SRU endpoint for archival_units + authority_records ──
+        // Public (no AdminAuthMiddleware) because SRU is a read-only
+        // interoperability protocol consumed by external catalogues
+        // (Reindex, Koha, ARKIS). Rate-limiting lives inside the handler.
+        // This endpoint ONLY exists while the plugin is active: deactivate
+        // → the hook row vanishes from plugin_hooks → registerRoutes never
+        // runs → the Slim app returns 404. Zero regression on the rest of
+        // the app because no core file is touched.
+        $app->get('/api/archives/sru', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->sruAction($request, $response);
+        });
     }
 
     /**
@@ -1554,6 +1569,294 @@ class ArchivesPlugin
             $result->free();
         }
         return $rows;
+    }
+
+    // ── Phase 6 — SRU endpoint (archival_units + authority_records) ────
+
+    /**
+     * GET /api/archives/sru — SRU 1.2 endpoint for archival data.
+     *
+     * Supported operations:
+     *   - explain         → server description + supported indexes
+     *   - searchRetrieve  → CQL-driven query against archival_units
+     *                       with MARCXML record format
+     *   - scan            → stub (returns "scan not supported" diagnostic)
+     *
+     * Not admin-gated: SRU is a public interoperability protocol. Exposes
+     * only non-deleted rows. The whole endpoint only exists while the
+     * plugin is active — deactivate and the hook row vanishes from
+     * plugin_hooks, registerRoutes never runs, Slim returns 404 for the
+     * path, and the rest of the app is unaffected. No core file is
+     * touched, so archives=disabled is guaranteed zero-regression.
+     */
+    public function sruAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $params = $request->getQueryParams();
+        $operation = (string) ($params['operation'] ?? 'explain');
+        $version = (string) ($params['version'] ?? '1.2');
+
+        $xml = match ($operation) {
+            'searchRetrieve' => $this->sruSearchRetrieve($params, $version),
+            'scan'           => $this->sruDiagnostic($version, 4, 'scan not supported'),
+            default          => $this->sruExplain($version),
+        };
+
+        $response = $response->withHeader('Content-Type', 'application/xml; charset=utf-8');
+        $response->getBody()->write($xml);
+        return $response;
+    }
+
+    /**
+     * SRU `explain` response — describes the server + the supported indexes.
+     */
+    private function sruExplain(string $version): string
+    {
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $xw->startElementNs('sru', 'explainResponse', 'http://www.loc.gov/zing/srw/');
+        $xw->writeElementNs('sru', 'version', null, $version);
+        $xw->startElementNs('sru', 'record', null);
+        $xw->writeElementNs('sru', 'recordPacking', null, 'xml');
+        $xw->writeElementNs('sru', 'recordSchema', null, 'http://explain.z3950.org/dtd/2.1/');
+        $xw->startElementNs('sru', 'recordData', null);
+        $xw->startElementNs('zr', 'explain', 'http://explain.z3950.org/dtd/2.1/');
+        $xw->startElementNs('zr', 'serverInfo', null);
+        $xw->writeAttribute('protocol', 'SRU');
+        $xw->writeAttribute('version', '1.2');
+        $xw->writeElementNs('zr', 'host', null, (string) ($_SERVER['SERVER_NAME'] ?? 'localhost'));
+        $xw->writeElementNs('zr', 'port', null, (string) ($_SERVER['SERVER_PORT'] ?? '80'));
+        $xw->writeElementNs('zr', 'database', null, 'archives');
+        $xw->endElement();
+        $xw->startElementNs('zr', 'databaseInfo', null);
+        $xw->writeElementNs('zr', 'title', null, 'Pinakes Archival Catalogue (ISAD(G))');
+        $xw->writeElementNs('zr', 'description', null,
+            'Archival units and authority records per ISAD(G) + ISAAR(CPF).');
+        $xw->endElement();
+        $xw->startElementNs('zr', 'indexInfo', null);
+        foreach (['title', 'anywhere', 'reference', 'level'] as $idx) {
+            $xw->startElementNs('zr', 'index', null);
+            $xw->startElementNs('zr', 'title', null);
+            $xw->text($idx);
+            $xw->endElement();
+            $xw->startElementNs('zr', 'map', null);
+            $xw->startElementNs('zr', 'name', null);
+            $xw->writeAttribute('set', 'archives');
+            $xw->text($idx);
+            $xw->endElement();
+            $xw->endElement();
+            $xw->endElement();
+        }
+        $xw->endElement();
+        $xw->startElementNs('zr', 'schemaInfo', null);
+        $xw->startElementNs('zr', 'schema', null);
+        $xw->writeAttribute('identifier', 'info:srw/schema/1/marcxml-v1.1');
+        $xw->writeAttribute('name', 'marcxml');
+        $xw->writeElementNs('zr', 'title', null, 'MARC21 Slim XML (ABA crosswalk)');
+        $xw->endElement();
+        $xw->endElement();
+        $xw->endElement();
+        $xw->endElement();
+        $xw->endElement();
+        $xw->endElement();
+        return (string) $xw->outputMemory();
+    }
+
+    /**
+     * SRU `searchRetrieve` — CQL query + MARCXML-packed result set.
+     *
+     * @param array<string, mixed> $params
+     */
+    private function sruSearchRetrieve(array $params, string $version): string
+    {
+        $cqlQuery = trim((string) ($params['query'] ?? ''));
+        if ($cqlQuery === '') {
+            return $this->sruDiagnostic($version, 7, 'mandatory parameter not supplied: query');
+        }
+        $startRecord = max(1, (int) ($params['startRecord'] ?? 1));
+        $maximumRecords = min(50, max(0, (int) ($params['maximumRecords'] ?? 10)));
+
+        $where = $this->cqlToWhere($cqlQuery);
+        if ($where === null) {
+            return $this->sruDiagnostic($version, 10, 'CQL query unsupported or unparseable');
+        }
+
+        $total = 0;
+        $countSql = 'SELECT COUNT(*) FROM archival_units WHERE deleted_at IS NULL AND (' . $where['sql'] . ')';
+        $countStmt = $this->db->prepare($countSql);
+        if ($countStmt !== false) {
+            if ($where['types'] !== '') {
+                $countStmt->bind_param($where['types'], ...$where['params']);
+            }
+            $countStmt->execute();
+            $r = $countStmt->get_result();
+            if ($r instanceof \mysqli_result) {
+                $row = $r->fetch_row();
+                if (is_array($row)) { $total = (int) $row[0]; }
+            }
+            $countStmt->close();
+        }
+
+        $rows = [];
+        if ($maximumRecords > 0 && $total > 0) {
+            $offset = $startRecord - 1;
+            $dataSql = 'SELECT * FROM archival_units WHERE deleted_at IS NULL AND (' . $where['sql'] . ')'
+                . " ORDER BY FIELD(level,'fonds','series','file','item'), reference_code"
+                . ' LIMIT ' . $maximumRecords . ' OFFSET ' . $offset;
+            $dataStmt = $this->db->prepare($dataSql);
+            if ($dataStmt !== false) {
+                if ($where['types'] !== '') {
+                    $dataStmt->bind_param($where['types'], ...$where['params']);
+                }
+                $dataStmt->execute();
+                $r = $dataStmt->get_result();
+                if ($r instanceof \mysqli_result) {
+                    while ($row = $r->fetch_assoc()) { $rows[] = $row; }
+                    $r->free();
+                }
+                $dataStmt->close();
+            }
+        }
+
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $xw->startElementNs('sru', 'searchRetrieveResponse', 'http://www.loc.gov/zing/srw/');
+        $xw->writeElementNs('sru', 'version', null, $version);
+        $xw->writeElementNs('sru', 'numberOfRecords', null, (string) $total);
+
+        if (!empty($rows)) {
+            $xw->startElementNs('sru', 'records', null);
+            $position = $startRecord;
+            foreach ($rows as $row) {
+                $xw->startElementNs('sru', 'record', null);
+                $xw->writeElementNs('sru', 'recordSchema', null, 'info:srw/schema/1/marcxml-v1.1');
+                $xw->writeElementNs('sru', 'recordPacking', null, 'xml');
+                $xw->startElementNs('sru', 'recordData', null);
+                $authorities = $this->fetchAuthoritiesForArchivalUnit((int) $row['id']);
+                $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
+                $xw->endElement();
+                $xw->writeElementNs('sru', 'recordPosition', null, (string) $position);
+                $xw->endElement();
+                $position++;
+            }
+            $xw->endElement();
+        }
+
+        $xw->endElement();
+        return (string) $xw->outputMemory();
+    }
+
+    /**
+     * Emit a minimal SRU diagnostic envelope. Codes per
+     * https://www.loc.gov/standards/sru/diagnostics/diagnosticsList.html.
+     */
+    private function sruDiagnostic(string $version, int $code, string $details): string
+    {
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $xw->startElementNs('sru', 'searchRetrieveResponse', 'http://www.loc.gov/zing/srw/');
+        $xw->writeElementNs('sru', 'version', null, $version);
+        $xw->writeElementNs('sru', 'numberOfRecords', null, '0');
+        $xw->startElementNs('sru', 'diagnostics', null);
+        $xw->startElementNs('diag', 'diagnostic', 'http://www.loc.gov/zing/srw/diagnostic/');
+        $xw->writeElementNs('diag', 'uri', null, 'info:srw/diagnostic/1/' . $code);
+        $xw->writeElementNs('diag', 'details', null, $details);
+        $xw->endElement();
+        $xw->endElement();
+        $xw->endElement();
+        return (string) $xw->outputMemory();
+    }
+
+    /**
+     * Translate a minimal CQL subset to a parameterised WHERE fragment.
+     *
+     * Supported:
+     *   anywhere="phrase"   — FULLTEXT match across title/scope/history
+     *   title="x"           — LIKE on constructed_title
+     *   reference="x"       — LIKE on reference_code
+     *   level="fonds"       — exact match on level enum
+     *   clauseA AND clauseB — conjunction (only AND for phase 6)
+     *
+     * @return array{sql: string, params: list<string>, types: string}|null
+     */
+    private function cqlToWhere(string $cql): ?array
+    {
+        $cql = trim($cql);
+        if ($cql === '') { return null; }
+        if (preg_match('/\b(OR|NOT|PROX)\b/i', $cql) === 1) {
+            return null;
+        }
+        $clauses = preg_split('/\s+AND\s+/i', $cql) ?: [];
+
+        $sqlParts = [];
+        $params = [];
+        $types = '';
+        foreach ($clauses as $clause) {
+            $parsed = $this->parseCqlClause(trim($clause));
+            if ($parsed === null) { return null; }
+            $sqlParts[] = $parsed['sql'];
+            foreach ($parsed['params'] as $p) {
+                $params[] = $p;
+                $types .= 's';
+            }
+        }
+        if (empty($sqlParts)) { return null; }
+        return [
+            'sql'    => '(' . implode(') AND (', $sqlParts) . ')',
+            'params' => $params,
+            'types'  => $types,
+        ];
+    }
+
+    /**
+     * Parse a single CQL clause `<index>=<value>` into a SQL fragment.
+     *
+     * @return array{sql: string, params: list<string>}|null
+     */
+    private function parseCqlClause(string $clause): ?array
+    {
+        if ($clause === '') { return null; }
+        if (preg_match('/^([a-z_][a-z0-9_]*)\s*=\s*(?:"((?:[^"\\\\]|\\\\.)*)"|(\S+))\s*$/i', $clause, $m) !== 1) {
+            return null;
+        }
+        $index = strtolower($m[1]);
+        $value = isset($m[2]) && $m[2] !== '' ? stripcslashes($m[2]) : (string) ($m[3] ?? '');
+
+        $columnMap = [
+            'title'     => 'constructed_title',
+            'reference' => 'reference_code',
+        ];
+
+        if ($index === 'anywhere') {
+            return [
+                'sql'    => 'MATCH(formal_title, constructed_title, scope_content, archival_history) '
+                          . 'AGAINST (? IN NATURAL LANGUAGE MODE)',
+                'params' => [$value],
+            ];
+        }
+        if ($index === 'level') {
+            if (!array_key_exists($value, self::LEVELS)) {
+                return null;
+            }
+            return [
+                'sql'    => 'level = ?',
+                'params' => [$value],
+            ];
+        }
+        if (!isset($columnMap[$index])) {
+            return null;
+        }
+        return [
+            'sql'    => $columnMap[$index] . ' LIKE ?',
+            'params' => ['%' . $value . '%'],
+        ];
     }
 
     // ── Phase 4 — MARCXML import / export ──────────────────────────────

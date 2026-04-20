@@ -1,8 +1,8 @@
 # Archives plugin — ISAD(G) / ISAAR(CPF) support for Pinakes
 
-**Status: PHASE 4d — MARC21 Slim XSD validation** (v0.9.2). On top of all previous phases: the MARCXML import form now ships an optional "Strict XSD" checkbox that runs the uploaded file through `DOMDocument::schemaValidate()` against the bundled `schemas/MARC21slim.xsd` (v1.1, Library of Congress) before touching the DB. In strict mode, any XSD violation aborts the import and lists every error (line number + libxml message) in the result view. Soft mode (default) ignores XSD results and keeps the phase-4b UPSERT flow. The XSD is standalone (no `xml.xsd` import) and adds ~7 KB to the plugin.
+**Status: PHASE 6 — SRU endpoint for archival interoperability** (v1.0.0). All phases 1-5 + 7 + 4d + 6 shipped. The plugin now exposes `/api/archives/sru` — an SRU 1.2 read-only endpoint for external catalogues (Reindex, Koha, ARKIS) to query the archival_units catalogue via CQL, receiving MARCXML records per the ABA crosswalk. The existing `z39-server` plugin (which serves only `libri` rows) remains untouched: zero regressions on its SRU endpoint, and when `archives` is deactivated the `/api/archives/sru` route disappears automatically via the `app.routes.register` hook machinery.
 
-**SRU/Z39.50 exposure for archival records** is NOT handled by this plugin: the existing `z39-server` plugin serves `libri` rows only (`classes/SRUServer.php:413`). An archival SRU endpoint would be phase 6 (separate PR) — either as an extension to `z39-server` or as a new endpoint inside `archives`.
+Supported SRU operations: `explain` (server description + indexes), `searchRetrieve` (CQL → MARCXML, max 50 records per page), `scan` (stub diagnostic). Supported CQL subset: `title="…"`, `reference="…"`, `level="fonds|series|file|item"`, `anywhere="…"` (full-text via the existing FULLTEXT index), joined with `AND`. Unsupported operators (`OR`, `NOT`, `PROX`) return SRU diagnostic 10.
 
 Tracks issue [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 
