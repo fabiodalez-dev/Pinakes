@@ -1,0 +1,38 @@
+{
+  "name": "archives",
+  "display_name": "Archives (ISAD(G) / ISAAR(CPF))",
+  "description": "Gestione di materiale archivistico e fotografico seguendo gli standard internazionali ISAD(G) (General International Standard Archival Description) e ISAAR(CPF) (authority record per persone, enti, famiglie). Modello gerarchico a 4 livelli — Fondo → Serie → Fascicolo → Unità. Ispirato al formato ABA (Arbejderbevægelsens Bibliotek og Arkiv, Copenhagen) e a ARKIS II degli Archivi Nazionali Svedesi.",
+  "version": "0.1.0-skeleton",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "https://github.com/fabiodalez-dev/Pinakes/issues/103",
+  "main_file": "wrapper.php",
+  "requires_php": "8.1",
+  "requires_app": "0.5.9",
+  "metadata": {
+    "category": "archives",
+    "tags": [
+      "isad-g",
+      "isaar-cpf",
+      "marc21",
+      "danmarc2",
+      "archives",
+      "authority-records",
+      "hierarchical"
+    ],
+    "priority": 10,
+    "features": [
+      "Modello gerarchico a 4 livelli (Fonds / Series / File / Item)",
+      "Mapping completo ISAD(G) 3.1-3.7 → campi MARC-like",
+      "Authority records ISAAR(CPF) per persone/enti/famiglie",
+      "Unified search cross-entity (libri + archivi + authority)",
+      "Import/export MARCXML (roadmap)"
+    ],
+    "optional": true,
+    "status": "skeleton",
+    "references": [
+      "https://www.ica.org/en/isadg-general-international-standard-archival-description-second-edition",
+      "https://www.ica.org/en/isaar-cpf-international-standard-archival-authority-record-corporate-bodies-persons-and-families-2nd"
+    ]
+  }
+}

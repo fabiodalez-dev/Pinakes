@@ -159,6 +159,13 @@ storage/plugins/musicbrainz/*
 !storage/plugins/musicbrainz/*.md
 !storage/plugins/musicbrainz/views/
 !storage/plugins/musicbrainz/views/*.php
+!storage/plugins/archives/
+storage/plugins/archives/*
+!storage/plugins/archives/*.php
+!storage/plugins/archives/*.json
+!storage/plugins/archives/*.md
+!storage/plugins/archives/views/
+!storage/plugins/archives/views/*.php
 
 # Premium plugin - never track (private/commercial)
 storage/plugins/scraping-pro/
