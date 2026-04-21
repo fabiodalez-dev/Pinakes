@@ -4516,5 +4516,21 @@
   "Serie": "Serie",
   "Fascicolo": "Akte",
   "Unità": "Einzelstück",
-  "Gestisci record di autorità": "Normdatensätze verwalten"
+  "Gestisci record di autorità": "Normdatensätze verwalten",
+  "Consulta i fondi archivistici e le collezioni documentarie. Ogni unità è descritta secondo lo standard ISAD(G) — navigazione gerarchica per fondo, serie, fascicolo, unità.": "Durchsuchen Sie Archivbestände und dokumentarische Sammlungen. Jede Einheit wird nach dem ISAD(G)-Standard beschrieben — hierarchische Navigation: Bestand, Serie, Akte, Einzelstück.",
+  "Nessun fondo pubblicato.": "Noch keine Bestände veröffentlicht.",
+  "L'archivio non contiene ancora unità di primo livello.": "Das Archiv enthält noch keine obersten Einheiten.",
+  "%d unità archivistiche di primo livello.": "%d Archiveinheiten auf oberster Ebene.",
+  "Persona": "Person",
+  "Ente": "Körperschaft",
+  "Famiglia": "Familie",
+  "Creatore": "Urheber",
+  "Soggetto": "Gegenstand",
+  "Destinatario": "Empfänger",
+  "Conservatore": "Verwahrer",
+  "Associato": "Zugeordnet",
+  "Soggetti produttori e associati": "Urheber und zugeordnete Entitäten",
+  "Unità discendenti (%d)": "Untergeordnete Einheiten (%d)",
+  "Storia archivistica": "Archivgeschichte",
+  "Condizioni di accesso": "Zugangsbedingungen"
 }

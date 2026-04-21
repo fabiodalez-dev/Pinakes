@@ -4516,5 +4516,21 @@
   "Serie": "Series",
   "Fascicolo": "File",
   "Unità": "Item",
-  "Gestisci record di autorità": "Manage authority records"
+  "Gestisci record di autorità": "Manage authority records",
+  "Consulta i fondi archivistici e le collezioni documentarie. Ogni unità è descritta secondo lo standard ISAD(G) — navigazione gerarchica per fondo, serie, fascicolo, unità.": "Browse archival fonds and documentary collections. Each unit is described following the ISAD(G) standard — hierarchical navigation: fonds, series, file, item.",
+  "Nessun fondo pubblicato.": "No fonds published yet.",
+  "L'archivio non contiene ancora unità di primo livello.": "The archive doesn't have any top-level units yet.",
+  "%d unità archivistiche di primo livello.": "%d top-level archival units.",
+  "Persona": "Person",
+  "Ente": "Corporate body",
+  "Famiglia": "Family",
+  "Creatore": "Creator",
+  "Soggetto": "Subject",
+  "Destinatario": "Recipient",
+  "Conservatore": "Custodian",
+  "Associato": "Associated",
+  "Soggetti produttori e associati": "Creators and associated entities",
+  "Unità discendenti (%d)": "Descendant units (%d)",
+  "Storia archivistica": "Archival history",
+  "Condizioni di accesso": "Access conditions"
 }

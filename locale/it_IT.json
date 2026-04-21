@@ -323,5 +323,22 @@
   "Serie": "Serie",
   "Fascicolo": "Fascicolo",
   "Unità": "Unità",
-  "Gestisci record di autorità": "Gestisci record di autorità"
+  "Gestisci record di autorità": "Gestisci record di autorità",
+  "Archivio": "Archivio",
+  "Consulta i fondi archivistici e le collezioni documentarie. Ogni unità è descritta secondo lo standard ISAD(G) — navigazione gerarchica per fondo, serie, fascicolo, unità.": "Consulta i fondi archivistici e le collezioni documentarie. Ogni unità è descritta secondo lo standard ISAD(G) — navigazione gerarchica per fondo, serie, fascicolo, unità.",
+  "Nessun fondo pubblicato.": "Nessun fondo pubblicato.",
+  "L'archivio non contiene ancora unità di primo livello.": "L'archivio non contiene ancora unità di primo livello.",
+  "%d unità archivistiche di primo livello.": "%d unità archivistiche di primo livello.",
+  "Persona": "Persona",
+  "Ente": "Ente",
+  "Famiglia": "Famiglia",
+  "Creatore": "Creatore",
+  "Soggetto": "Soggetto",
+  "Destinatario": "Destinatario",
+  "Conservatore": "Conservatore",
+  "Associato": "Associato",
+  "Soggetti produttori e associati": "Soggetti produttori e associati",
+  "Unità discendenti (%d)": "Unità discendenti (%d)",
+  "Storia archivistica": "Storia archivistica",
+  "Condizioni di accesso": "Condizioni di accesso"
 }

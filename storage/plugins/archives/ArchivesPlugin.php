@@ -593,6 +593,39 @@ class ArchivesPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->sruAction($request, $response);
         });
+
+        // ── Public frontend — read-only browsable view of archival_units ──
+        // Lets the public catalogue expose the archive alongside the book
+        // catalogue. No auth — archives are public cultural material. The
+        // route is localised via RouteTranslator so /archivio (it) /archive
+        // (en) /archiv (de) all resolve to the same action.
+        $publicRouteFor = static function (string $locale) {
+            return \App\Support\RouteTranslator::getRouteForLocale('archives', $locale);
+        };
+        $publicIndex = function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->publicIndexAction($request, $response);
+        };
+        $publicShow = function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->publicShowAction($request, $response, (int) $args['id']);
+        };
+        // English fallback routes + localised variants. Follows the same
+        // pattern used for /libri, /autori etc. in app/Routes/web.php.
+        $app->get('/archive', $publicIndex);
+        $app->get('/archive/{id:[0-9]+}', $publicShow);
+        foreach (['it_IT', 'en_US', 'de_DE'] as $locale) {
+            $base = $publicRouteFor($locale);
+            if (!empty($base) && $base !== '/archive') {
+                $app->get($base, $publicIndex);
+                $app->get($base . '/{id:[0-9]+}', $publicShow);
+            }
+        }
     }
 
     /**
@@ -1610,6 +1643,163 @@ class ArchivesPlugin
      * path, and the rest of the app is unaffected. No core file is
      * touched, so archives=disabled is guaranteed zero-regression.
      */
+
+    // ── Public frontend actions ──────────────────────────────────────────
+
+    /**
+     * GET /archivio (it) / /archive (en) / /archiv (de) — public index.
+     * Lists all root-level (parent_id IS NULL) archival_units. Anonymous
+     * browsing; no auth required.
+     */
+    public function publicIndexAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            "SELECT id, reference_code, level, formal_title, constructed_title,
+                    date_start, date_end, extent, scope_content, specific_material
+               FROM archival_units
+              WHERE deleted_at IS NULL AND parent_id IS NULL
+              ORDER BY FIELD(level, 'fonds','series','file','item'), reference_code ASC
+              LIMIT 500"
+        );
+        if ($stmt !== false) {
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result instanceof \mysqli_result) {
+                while ($r = $result->fetch_assoc()) {
+                    $rows[] = $r;
+                }
+                $result->free();
+            }
+            $stmt->close();
+        }
+        $viewPath = __DIR__ . '/views/public/index.php';
+        return $this->renderPublic($response, $viewPath, [
+            'rows' => $rows,
+            'total' => count($rows),
+        ]);
+    }
+
+    /**
+     * GET /archivio/{id} / /archive/{id} / /archiv/{id} — public detail.
+     * Renders a single archival_unit with its children (if any), linked
+     * authorities, and ISAD(G) context fields. 404 if not found.
+     */
+    public function publicShowAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        // Children (direct descendants only — deeper hierarchy needs CTE).
+        $children = [];
+        $stmt = $this->db->prepare(
+            "SELECT id, reference_code, level, constructed_title, date_start, date_end
+               FROM archival_units
+              WHERE parent_id = ? AND deleted_at IS NULL
+              ORDER BY FIELD(level, 'fonds','series','file','item'), reference_code ASC"
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result instanceof \mysqli_result) {
+                while ($r = $result->fetch_assoc()) {
+                    $children[] = $r;
+                }
+                $result->free();
+            }
+            $stmt->close();
+        }
+        // Linked authorities.
+        $authorities = [];
+        $stmt = $this->db->prepare(
+            "SELECT ar.id, ar.type, ar.authorised_form, ar.dates_of_existence, aua.role
+               FROM archival_unit_authority aua
+               JOIN authority_records ar ON ar.id = aua.authority_id
+              WHERE aua.archival_unit_id = ? AND ar.deleted_at IS NULL
+              ORDER BY FIELD(aua.role, 'creator','subject','custodian','recipient','associated'),
+                       ar.authorised_form ASC"
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result instanceof \mysqli_result) {
+                while ($r = $result->fetch_assoc()) {
+                    $authorities[] = $r;
+                }
+                $result->free();
+            }
+            $stmt->close();
+        }
+        // Breadcrumb trail (parent chain up to root).
+        $breadcrumb = [];
+        $current = $row['parent_id'] !== null ? (int) $row['parent_id'] : 0;
+        $safetyCap = 20;
+        while ($current > 0 && $safetyCap-- > 0) {
+            $parent = $this->findById($current);
+            if ($parent === null) {
+                break;
+            }
+            array_unshift($breadcrumb, [
+                'id'    => (int) $parent['id'],
+                'title' => (string) ($parent['constructed_title'] ?? ''),
+            ]);
+            $current = $parent['parent_id'] !== null ? (int) $parent['parent_id'] : 0;
+        }
+        $viewPath = __DIR__ . '/views/public/show.php';
+        return $this->renderPublic($response, $viewPath, [
+            'row'         => $row,
+            'children'    => $children,
+            'authorities' => $authorities,
+            'breadcrumb'  => $breadcrumb,
+        ]);
+    }
+
+    /**
+     * Render a public view wrapped in the site's public layout (the
+     * same header/footer used by /catalogo, /autore, etc.). Falls back
+     * to a minimal HTML shell if the layout isn't available.
+     *
+     * @param array<string, mixed> $data
+     */
+    private function renderPublic(ResponseInterface $response, string $viewPath, array $data): ResponseInterface
+    {
+        if (!is_file($viewPath)) {
+            $response->getBody()->write('<h1>Archive view not found</h1>');
+            return $response->withStatus(500);
+        }
+        // Two-pass render: inner view → frontend layout. Same pattern as
+        // UserDashboardController + UserWishlistController. The layout
+        // consumes $content + $title and wraps them in the public shell
+        // (header/nav/footer shared with /catalogo, /autore, etc.).
+        ob_start();
+        extract($data, EXTR_SKIP);
+        include $viewPath;
+        $content = (string) ob_get_clean();
+
+        $title = ($data['row']['constructed_title'] ?? null)
+            ? ((string) $data['row']['constructed_title'] . ' — ' . __('Archivio'))
+            : __('Archivio');
+
+        $layoutPath = __DIR__ . '/../../../app/Views/frontend/layout.php';
+        if (!is_file($layoutPath)) {
+            $response->getBody()->write($content);
+            return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+        }
+        ob_start();
+        include $layoutPath;
+        $html = (string) ob_get_clean();
+        $response->getBody()->write($html);
+        return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
+    }
+
     public function sruAction(
         ServerRequestInterface $request,
         ResponseInterface $response

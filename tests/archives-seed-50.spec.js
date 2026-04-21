@@ -167,13 +167,102 @@ test.describe.serial('Archives — seed 50 persistent rows', () => {
         });
     }
 
-    test('Final. All 50 seeded rows are persisted', async () => {
-        const count = dbQuery(
+    // ─── Authority records ───────────────────────────────────────────────
+    // Create 15 authority records (5 person + 5 corporate + 5 family) via
+    // the admin UI and link the first ~20 archival units to one or more
+    // authorities with varied roles — this mirrors how a real archive is
+    // described (fonds have creator/custodian/subject authorities).
+    const AUTHORITY_FIXTURES = [
+        { type: 'person',    name: 'Thorvald Stauning',          dates: '1873-1942',       history: 'Politico danese, primo ministro 1924-1926 e 1929-1942.' },
+        { type: 'person',    name: 'Luigi Longo',                dates: '1900-1980',       history: 'Politico italiano, segretario del PCI 1964-1972.' },
+        { type: 'person',    name: 'Antonio Gramsci',            dates: '1891-1937',       history: 'Filosofo, scrittore e politico italiano.' },
+        { type: 'person',    name: 'Anna Kuliscioff',            dates: '1855-1925',       history: 'Attivista socialista russo-italiana, pioniera del femminismo.' },
+        { type: 'person',    name: 'Camillo Berneri',            dates: '1897-1937',       history: 'Filosofo anarchico italiano.' },
+        { type: 'corporate', name: 'Partito Socialista Italiano', dates: '1892-1994',       history: 'Storico partito politico italiano della sinistra riformista.' },
+        { type: 'corporate', name: 'Confederazione Generale del Lavoro', dates: '1906-1927', history: 'Prima grande confederazione sindacale italiana.' },
+        { type: 'corporate', name: 'Società Umanitaria',         dates: '1893-oggi',       history: 'Istituzione milanese di utilità sociale e formazione.' },
+        { type: 'corporate', name: 'Federazione Giovanile Socialista', dates: '1907-1943', history: 'Organizzazione giovanile del PSI.' },
+        { type: 'corporate', name: 'Arbejderbevægelsens Bibliotek og Arkiv', dates: '1909-oggi', history: 'Biblioteca e archivio del movimento operaio danese.' },
+        { type: 'family',    name: 'Famiglia Turati-Kuliscioff', dates: '1880-1925',       history: 'Sodalizio politico e affettivo tra Filippo Turati e Anna Kuliscioff.' },
+        { type: 'family',    name: 'Famiglia Nenni',             dates: '1891-1980',       history: 'Nucleo familiare di Pietro Nenni, leader socialista.' },
+        { type: 'family',    name: 'Famiglia Treves',            dates: '1869-1943',       history: 'Famiglia Treves, editori e politici riformisti.' },
+        { type: 'family',    name: 'Famiglia Modigliani',        dates: '1872-1947',       history: 'Famiglia dei fratelli Modigliani, politici e intellettuali.' },
+        { type: 'family',    name: 'Famiglia Rosselli',          dates: '1899-1937',       history: 'Famiglia di Carlo e Nello Rosselli, fondatori di Giustizia e Libertà.' },
+    ];
+    const AUTHORITY_ROLES = ['creator', 'subject', 'recipient', 'custodian', 'associated'];
+    /** @type {number[]} */
+    const authorityIds = [];
+
+    AUTHORITY_FIXTURES.forEach((auth, i) => {
+        test(`A${String(i + 1).padStart(2, '0')}. SEED authority #${i + 1} [${auth.type}]`, async () => {
+            await page.goto(`${BASE}/admin/archives/authorities/new`);
+            await page.waitForLoadState('domcontentloaded');
+            // Tag the name so pre-clean (E2E_SEED_*) matches. Adding the
+            // TAG prefix would flood the label; we add a subtle suffix.
+            const taggedName = `${auth.name} — ${TAG}`;
+            await page.selectOption('select[name="type"]', auth.type);
+            await page.fill('input[name="authorised_form"]', taggedName);
+            await page.fill('input[name="dates_of_existence"]', auth.dates);
+            await page.fill('textarea[name="history"]', auth.history);
+            await Promise.all([
+                page.waitForURL(/\/admin\/archives\/authorities$/, { timeout: 10000 }),
+                page.click('button[type="submit"]'),
+            ]);
+            const idStr = dbQuery(
+                `SELECT id FROM authority_records WHERE authorised_form = '${taggedName.replace(/'/g, "''")}' AND deleted_at IS NULL`
+            );
+            expect(idStr).toMatch(/^\d+$/);
+            authorityIds.push(Number(idStr));
+        });
+    });
+
+    // ─── Link authorities ↔ archival_units (M:N with varied roles) ───────
+    test('L01. Link ~20 archival_units to authorities with varied roles', async () => {
+        // Direct DB inserts — the M:N table has no domain logic beyond
+        // the enum on role, so a bulk INSERT is equivalent to the UI
+        // loop and lets this test finish in <1s instead of 20×click.
+        const rowIds = dbQuery(
+            `SELECT id FROM archival_units WHERE reference_code LIKE '${TAG}_%' AND deleted_at IS NULL ORDER BY id ASC LIMIT 20`
+        ).split('\n').filter(Boolean).map(Number);
+        expect(rowIds.length).toBe(20);
+        expect(authorityIds.length).toBe(15);
+        const values = [];
+        rowIds.forEach((unitId, idx) => {
+            // Primary authority (creator)
+            const primary = authorityIds[idx % authorityIds.length];
+            values.push(`(${unitId}, ${primary}, 'creator')`);
+            // Secondary authority (varied role) on every other row
+            if (idx % 2 === 0) {
+                const secondary = authorityIds[(idx + 3) % authorityIds.length];
+                const role = AUTHORITY_ROLES[(idx + 1) % AUTHORITY_ROLES.length];
+                if (secondary !== primary) {
+                    values.push(`(${unitId}, ${secondary}, '${role}')`);
+                }
+            }
+        });
+        dbQuery(
+            `INSERT IGNORE INTO archival_unit_authority (archival_unit_id, authority_id, role) VALUES ${values.join(', ')}`
+        );
+        const linkCount = dbQuery(
+            `SELECT COUNT(*) FROM archival_unit_authority aua
+               JOIN archival_units au ON au.id = aua.archival_unit_id
+              WHERE au.reference_code LIKE '${TAG}_%'`
+        );
+        expect(Number(linkCount)).toBeGreaterThanOrEqual(20);
+    });
+
+    test('Final. All 50 units + 15 authorities persisted', async () => {
+        const units = dbQuery(
             `SELECT COUNT(*) FROM archival_units WHERE reference_code LIKE '${TAG}_%' AND deleted_at IS NULL`
         );
-        expect(count).toBe('50');
+        const authorities = dbQuery(
+            `SELECT COUNT(*) FROM authority_records WHERE authorised_form LIKE '%— ${TAG}' AND deleted_at IS NULL`
+        );
+        expect(units).toBe('50');
+        expect(authorities).toBe('15');
         // eslint-disable-next-line no-console
-        console.log(`\n  ✓ 50 archival_units seeded with TAG=${TAG}`);
-        console.log(`  → visit: ${BASE}/admin/archives\n`);
+        console.log(`\n  ✓ seeded: 50 archival_units + 15 authority_records (TAG=${TAG})`);
+        console.log(`  → visit: ${BASE}/admin/archives`);
+        console.log(`  → visit: ${BASE}/admin/archives/authorities\n`);
     });
 });
