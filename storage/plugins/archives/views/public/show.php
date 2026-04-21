@@ -86,6 +86,71 @@ $specific  = (string) ($row['specific_material'] ?? '');
 <?php if ($isAudio): ?>
     <link rel="stylesheet" href="<?= $e(url('/assets/vendor/green-audio-player/css/green-audio-player.min.css')) ?>">
 <?php endif; ?>
+<?php
+// Schema.org JSON-LD. archival_units map cleanly onto `ArchiveComponent`
+// (fonds/series/file) or `ArchiveOrganization`; for individual items we
+// fall back to `CreativeWork` + `isPartOf` chain. `Dataset` is reserved
+// for bulk/statistical material; `Book` doesn't fit archival description.
+$schemaType = match ($level) {
+    'fonds'  => 'ArchiveComponent',
+    'series' => 'ArchiveComponent',
+    'file'   => 'ArchiveComponent',
+    'item'   => 'CreativeWork',
+    default  => 'CreativeWork',
+};
+$canonicalSelf = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/')
+    . $archiveBase . '/'
+    . slugify_text((string) ($row['constructed_title'] ?? ''))
+    . '-' . (int) $row['id'];
+$schema = [
+    '@context'    => 'https://schema.org',
+    '@type'       => $schemaType,
+    'name'        => (string) ($row['constructed_title'] ?? ''),
+    'alternateName' => (string) ($row['formal_title'] ?? ''),
+    'identifier'  => (string) ($row['reference_code'] ?? ''),
+    'url'         => $canonicalSelf,
+    'description' => (string) ($row['scope_content'] ?? ''),
+    'inLanguage'  => (string) ($row['language_codes'] ?? ''),
+    'temporalCoverage' => !empty($row['date_start'])
+        ? ((string) $row['date_start'] . (!empty($row['date_end']) && $row['date_end'] !== $row['date_start'] ? '/' . (string) $row['date_end'] : ''))
+        : null,
+    'holdingArchive' => [
+        '@type' => 'ArchiveOrganization',
+        'identifier' => (string) ($row['institution_code'] ?? ''),
+    ],
+    'about' => array_map(
+        static fn(array $a): array => [
+            '@type' => ($a['type'] ?? '') === 'corporate' ? 'Organization' : (($a['type'] ?? '') === 'family' ? 'Organization' : 'Person'),
+            'name'  => (string) ($a['authorised_form'] ?? ''),
+            'description' => (string) ($a['dates_of_existence'] ?? ''),
+        ],
+        $authorities
+    ),
+];
+if (!empty($breadcrumb)) {
+    $schema['isPartOf'] = array_map(
+        static fn(array $c): array => [
+            '@type' => 'ArchiveComponent',
+            'name'  => $c['title'],
+            'url'   => rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . $archiveBase . '/' . slugify_text((string) $c['title']) . '-' . (int) $c['id'],
+        ],
+        $breadcrumb
+    );
+}
+if ($coverUrl !== '') {
+    $schema['image'] = $coverUrl;
+}
+if ($docUrl !== '') {
+    $schema['associatedMedia'] = [
+        '@type' => $isAudio ? 'AudioObject' : 'MediaObject',
+        'contentUrl' => $docUrl,
+        'encodingFormat' => $docMime,
+    ];
+}
+$schema = array_filter($schema, static fn($v) => $v !== null && $v !== '' && $v !== []);
+$archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_HEX_TAG);
+?>
+<script type="application/ld+json"><?= $archiveSchema ?: '{}' ?></script>
 
 <section class="archive-hero">
     <div class="container hero-content">
@@ -158,7 +223,7 @@ $specific  = (string) ($row['specific_material'] ?? '');
                             </li>
                             <?php foreach ($breadcrumb as $crumb): ?>
                                 <li class="breadcrumb-item">
-                                    <a href="<?= $e(url($archiveBase . '/' . (int) $crumb['id'])) ?>">
+                                    <a href="<?= $e(url($archiveBase . '/' . slugify_text($crumb['title']) . '-' . (int) $crumb['id'])) ?>">
                                         <?= $e($crumb['title']) ?>
                                     </a>
                                 </li>
@@ -247,7 +312,7 @@ $specific  = (string) ($row['specific_material'] ?? '');
                                     <span class="badge <?= $e($cBadge) ?>">
                                         <i class="fas <?= $e($cIcon) ?> me-1"></i><?= $e($levelLabel[$cLevel] ?? $cLevel) ?>
                                     </span>
-                                    <a class="flex-fill fw-medium" href="<?= $e(url($archiveBase . '/' . (int) $child['id'])) ?>">
+                                    <a class="flex-fill fw-medium" href="<?= $e(url($archiveBase . '/' . slugify_text((string) $child['constructed_title']) . '-' . (int) $child['id'])) ?>">
                                         <?= $e((string) $child['constructed_title']) ?>
                                     </a>
                                     <span class="ref-mono small d-none d-md-inline"><?= $e((string) $child['reference_code']) ?></span>

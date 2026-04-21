@@ -644,16 +644,21 @@ class ArchivesPlugin
             ResponseInterface $response,
             array $args
         ) use ($plugin): ResponseInterface {
-            return $plugin->publicShowAction($request, $response, (int) $args['id']);
+            return $plugin->publicShowAction($request, $response, (int) $args['id'], (string) ($args['slug'] ?? ''));
         };
         // English fallback routes + localised variants. Follows the same
         // pattern used for /libri, /autori etc. in app/Routes/web.php.
+        // Two URL shapes for the detail page:
+        //   - /archivio/{slug}-{id}      SEO-friendly, canonical
+        //   - /archivio/{id}             legacy/short form, 301-redirects to the slug form
         $app->get('/archive', $publicIndex);
+        $app->get('/archive/{slug:[a-z0-9-]+}-{id:[0-9]+}', $publicShow);
         $app->get('/archive/{id:[0-9]+}', $publicShow);
         foreach (['it_IT', 'en_US', 'de_DE'] as $locale) {
             $base = $publicRouteFor($locale);
             if (!empty($base) && $base !== '/archive') {
                 $app->get($base, $publicIndex);
+                $app->get($base . '/{slug:[a-z0-9-]+}-{id:[0-9]+}', $publicShow);
                 $app->get($base . '/{id:[0-9]+}', $publicShow);
             }
         }
@@ -1964,18 +1969,29 @@ class ArchivesPlugin
     }
 
     /**
-     * GET /archivio/{id} / /archive/{id} / /archiv/{id} — public detail.
-     * Renders a single archival_unit with its children (if any), linked
-     * authorities, and ISAD(G) context fields. 404 if not found.
+     * Detail page. Two URL shapes accepted:
+     *   - /archivio/{slug}-{id}  (canonical, SEO-friendly)
+     *   - /archivio/{id}          (legacy → 301 to canonical form)
+     * When the client used the legacy shape — or a slug that no longer
+     * matches the current title — we emit a 301 to the canonical URL so
+     * search engines converge on a single URL per archival unit.
      */
     public function publicShowAction(
         ServerRequestInterface $request,
         ResponseInterface $response,
-        int $id
+        int $id,
+        string $slugFromUrl = ''
     ): ResponseInterface {
         $row = $this->findById($id);
         if ($row === null) {
             return $this->renderNotFound($response, $id);
+        }
+
+        $expectedSlug = slugify_text((string) ($row['constructed_title'] ?? ''));
+        if ($expectedSlug !== '' && $slugFromUrl !== $expectedSlug) {
+            $base = \App\Support\RouteTranslator::route('archives') ?: '/archive';
+            $canonical = $base . '/' . $expectedSlug . '-' . $id;
+            return $response->withHeader('Location', url($canonical))->withStatus(301);
         }
         // Children (direct descendants only — deeper hierarchy needs CTE).
         $children = [];
@@ -2068,6 +2084,38 @@ class ArchivesPlugin
         $title = ($data['row']['constructed_title'] ?? null)
             ? ((string) $data['row']['constructed_title'] . ' — ' . __('Archivio'))
             : __('Archivio');
+
+        // Shortcut the layout's plugin-activation probe — we're inside
+        // a live archive page, so the menu must display the Archivio
+        // entry without a second DB round-trip.
+        $archivesAvailable = true;
+        $archivesRoute = \App\Support\RouteTranslator::route('archives') ?: '/archive';
+
+        // Expose SEO variables to the layout's <head> — canonical URL,
+        // description, and the optional Schema.org JSON-LD block
+        // produced by the inner view (see public/show.php).
+        $seoTitle = $title;
+        if (!empty($data['row']['scope_content'])) {
+            $seoDescription = mb_substr(
+                (string) $data['row']['scope_content'],
+                0,
+                160
+            );
+        } elseif (!empty($data['row']['constructed_title'])) {
+            $seoDescription = (string) $data['row']['constructed_title'] . ' — ' . __('Archivio');
+        } else {
+            $seoDescription = __('Consulta i fondi archivistici e le collezioni documentarie.');
+        }
+        if (isset($data['row']['id']) && isset($data['row']['constructed_title'])) {
+            $seoCanonical = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/')
+                . $archivesRoute . '/'
+                . slugify_text((string) $data['row']['constructed_title'])
+                . '-' . (int) $data['row']['id'];
+        } else {
+            $seoCanonical = rtrim(\App\Support\HtmlHelper::getBaseUrl(), '/') . $archivesRoute;
+        }
+        // $archiveSchema is populated by show.php (Schema.org JSON-LD).
+        $archiveSchema = $archiveSchema ?? null;
 
         $layoutPath = __DIR__ . '/../../../app/Views/frontend/layout.php';
         if (!is_file($layoutPath)) {

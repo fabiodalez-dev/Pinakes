@@ -65,14 +65,15 @@ if (isset($container)) {
 $eventsEnabled = ConfigStore::get('cms.events_page_enabled', '1') === '1';
 
 // Archive menu entry — shown only when the archives plugin is active AND
-// at least one archival_unit is published. Quick LIMIT 1 query so the
-// cost is negligible; gracefully skipped if the table doesn't exist
-// (plugin disabled → table may still exist from a prior activation,
-// but the plugin row toggles visibility anyway).
-$archivesAvailable = false;
-$archivesRoute = '/archive';
+// at least one archival_unit is published. Plugin views can pre-populate
+// $archivesAvailable / $archivesRoute (e.g. the /archivio page already
+// knows the plugin is active and doesn't need a second round-trip); the
+// fallback path below covers other pages (home, catalog, book-detail)
+// using the $container DB connection.
+$archivesAvailable = $archivesAvailable ?? false;
+$archivesRoute = $archivesRoute ?? '/archive';
 try {
-    if (isset($container)) {
+    if (!$archivesAvailable && isset($container)) {
         $dbConn = $container->get('db');
         if ($dbConn instanceof mysqli) {
             $pluginCheck = $dbConn->query("SELECT 1 FROM plugins WHERE name = 'archives' AND is_active = 1 LIMIT 1");

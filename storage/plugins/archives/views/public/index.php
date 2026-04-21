@@ -46,7 +46,7 @@ $archiveBase = \App\Support\RouteTranslator::route('archives') ?: '/archive';
             <?php foreach ($rows as $row):
                 $level = (string) $row['level'];
                 $badge = $levelBadgeClass[$level] ?? 'text-bg-secondary';
-                $detailUrl = $e(url($archiveBase . '/' . (int) $row['id']));
+                $detailUrl = $e(url($archiveBase . '/' . slugify_text((string) $row['constructed_title']) . '-' . (int) $row['id']));
                 $dateRange = '';
                 if (!empty($row['date_start'])) {
                     $dateRange = (string) $row['date_start'];
