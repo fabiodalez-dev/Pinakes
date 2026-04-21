@@ -2,6 +2,9 @@
 /**
  * Public index — list of root-level archival_units.
  *
+ * Uses the same Bootstrap 5 base classes as /catalogo and /events so
+ * the archive browser feels native inside the public frontend shell.
+ *
  * @var list<array<string, mixed>> $rows
  * @var int                        $total
  */
@@ -15,37 +18,75 @@ $levelLabel = [
     'file'   => __('Fascicolo'),
     'item'   => __('Unità'),
 ];
-$levelBadge = [
-    'fonds'  => 'bg-purple-100 text-purple-800',
-    'series' => 'bg-blue-100 text-blue-800',
-    'file'   => 'bg-green-100 text-green-800',
-    'item'   => 'bg-gray-100 text-gray-800',
+// Bootstrap badge colour — uses text-bg-* utilities (BS5.2+).
+$levelBadgeClass = [
+    'fonds'  => 'text-bg-primary',
+    'series' => 'text-bg-info',
+    'file'   => 'text-bg-success',
+    'item'   => 'text-bg-secondary',
 ];
-$archiveBase = \App\Support\RouteTranslator::route('archives');
+$archiveBase = \App\Support\RouteTranslator::route('archives') ?: '/archive';
 ?>
-<section class="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-    <header class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2"><?= __("Archivio") ?></h1>
-        <p class="text-gray-600 text-sm leading-relaxed">
+
+<style>
+    .archive-hero {
+        padding: 3rem 0 2rem;
+    }
+    .archive-hero h1 {
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--text-primary);
+    }
+    .archive-hero p {
+        color: var(--text-secondary);
+        font-size: 1.05rem;
+        max-width: 780px;
+    }
+    .archive-card {
+        transition: box-shadow .2s ease, transform .2s ease;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        height: 100%;
+    }
+    .archive-card:hover {
+        box-shadow: 0 8px 24px rgba(0,0,0,.08);
+        transform: translateY(-2px);
+    }
+    .archive-card .card-title a {
+        color: var(--text-primary);
+        text-decoration: none;
+    }
+    .archive-card .card-title a:hover {
+        color: var(--color-primary);
+    }
+    .archive-card .ref {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: .78rem;
+        color: var(--text-secondary);
+    }
+</style>
+
+<main class="container py-4">
+    <section class="archive-hero">
+        <h1 class="mb-2"><?= __("Archivio") ?></h1>
+        <p class="mb-0">
             <?= __("Consulta i fondi archivistici e le collezioni documentarie. Ogni unità è descritta secondo lo standard ISAD(G) — navigazione gerarchica per fondo, serie, fascicolo, unità.") ?>
         </p>
-    </header>
+    </section>
 
     <?php if (empty($rows)): ?>
-        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-            <p class="text-sm text-yellow-800">
-                <strong><?= __("Nessun fondo pubblicato.") ?></strong>
-                <?= __("L'archivio non contiene ancora unità di primo livello.") ?>
-            </p>
+        <div class="alert alert-warning" role="alert">
+            <strong><?= __("Nessun fondo pubblicato.") ?></strong>
+            <?= __("L'archivio non contiene ancora unità di primo livello.") ?>
         </div>
     <?php else: ?>
-        <p class="text-sm text-gray-500 mb-4">
+        <p class="text-muted small mb-3">
             <?= sprintf(__("%d unità archivistiche di primo livello."), $total) ?>
         </p>
-        <ul class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="row g-3">
             <?php foreach ($rows as $row):
                 $level = (string) $row['level'];
-                $badgeCls = $levelBadge[$level] ?? 'bg-gray-100 text-gray-800';
+                $badge = $levelBadgeClass[$level] ?? 'text-bg-secondary';
                 $detailUrl = $e(url($archiveBase . '/' . (int) $row['id']));
                 $dateRange = '';
                 if (!empty($row['date_start'])) {
@@ -55,31 +96,31 @@ $archiveBase = \App\Support\RouteTranslator::route('archives');
                     }
                 }
             ?>
-                <li class="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition p-5">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $e($badgeCls) ?>">
-                            <?= $e($levelLabel[$level] ?? $level) ?>
-                        </span>
-                        <span class="text-xs text-gray-400 font-mono"><?= $e((string) $row['reference_code']) ?></span>
-                    </div>
-                    <h2 class="text-lg font-semibold text-gray-900 mb-1">
-                        <a href="<?= $detailUrl ?>" class="hover:text-blue-600 hover:underline">
-                            <?= $e((string) $row['constructed_title']) ?>
-                        </a>
-                    </h2>
-                    <?php if ($dateRange !== ''): ?>
-                        <p class="text-xs text-gray-500 mb-2"><?= $e($dateRange) ?></p>
-                    <?php endif; ?>
-                    <?php if (!empty($row['scope_content'])): ?>
-                        <p class="text-sm text-gray-700 line-clamp-3">
-                            <?= $e(mb_substr((string) $row['scope_content'], 0, 200)) ?><?= mb_strlen((string) $row['scope_content']) > 200 ? '…' : '' ?>
-                        </p>
-                    <?php endif; ?>
-                    <?php if (!empty($row['extent'])): ?>
-                        <p class="text-xs text-gray-500 mt-2 italic"><?= $e((string) $row['extent']) ?></p>
-                    <?php endif; ?>
-                </li>
+                <div class="col-12 col-md-6 col-lg-4">
+                    <article class="card archive-card rounded-3">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span class="badge <?= $e($badge) ?>"><?= $e($levelLabel[$level] ?? $level) ?></span>
+                                <span class="ref"><?= $e((string) $row['reference_code']) ?></span>
+                            </div>
+                            <h2 class="card-title h6 mb-1">
+                                <a href="<?= $detailUrl ?>"><?= $e((string) $row['constructed_title']) ?></a>
+                            </h2>
+                            <?php if ($dateRange !== ''): ?>
+                                <p class="text-muted small mb-2"><?= $e($dateRange) ?></p>
+                            <?php endif; ?>
+                            <?php if (!empty($row['scope_content'])): ?>
+                                <p class="card-text small text-body-secondary mb-2">
+                                    <?= $e(mb_substr((string) $row['scope_content'], 0, 180)) ?><?= mb_strlen((string) $row['scope_content']) > 180 ? '…' : '' ?>
+                                </p>
+                            <?php endif; ?>
+                            <?php if (!empty($row['extent'])): ?>
+                                <p class="small fst-italic text-muted mb-0"><?= $e((string) $row['extent']) ?></p>
+                            <?php endif; ?>
+                        </div>
+                    </article>
+                </div>
             <?php endforeach; ?>
-        </ul>
+        </div>
     <?php endif; ?>
-</section>
+</main>

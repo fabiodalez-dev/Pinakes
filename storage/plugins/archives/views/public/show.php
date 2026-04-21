@@ -17,11 +17,11 @@ $levelLabel = [
     'file'   => __('Fascicolo'),
     'item'   => __('Unità'),
 ];
-$levelBadge = [
-    'fonds'  => 'bg-purple-100 text-purple-800',
-    'series' => 'bg-blue-100 text-blue-800',
-    'file'   => 'bg-green-100 text-green-800',
-    'item'   => 'bg-gray-100 text-gray-800',
+$levelBadgeClass = [
+    'fonds'  => 'text-bg-primary',
+    'series' => 'text-bg-info',
+    'file'   => 'text-bg-success',
+    'item'   => 'text-bg-secondary',
 ];
 $typeLabel = [
     'person'    => __('Persona'),
@@ -53,7 +53,7 @@ $roleLabel = [
     'associated' => __('Associato'),
 ];
 
-$archiveBase = \App\Support\RouteTranslator::route('archives');
+$archiveBase = \App\Support\RouteTranslator::route('archives') ?: '/archive';
 $level = (string) $row['level'];
 $dateRange = '';
 if (!empty($row['date_start'])) {
@@ -63,145 +63,188 @@ if (!empty($row['date_start'])) {
     }
 }
 ?>
-<article class="max-w-4xl mx-auto px-4 sm:px-6 py-10">
-    <nav class="text-sm text-gray-500 mb-4 flex flex-wrap gap-1">
-        <a href="<?= $e(url($archiveBase)) ?>" class="hover:text-blue-600 hover:underline"><?= __("Archivio") ?></a>
-        <?php foreach ($breadcrumb as $crumb): ?>
-            <span>&raquo;</span>
-            <a href="<?= $e(url($archiveBase . '/' . (int) $crumb['id'])) ?>" class="hover:text-blue-600 hover:underline">
-                <?= $e($crumb['title']) ?>
-            </a>
-        <?php endforeach; ?>
-        <span>&raquo;</span>
-        <span class="text-gray-700"><?= $e((string) $row['constructed_title']) ?></span>
+
+<style>
+    .archive-detail {
+        padding: 2rem 0 3rem;
+    }
+    .archive-detail h1 {
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: var(--text-primary);
+    }
+    .archive-detail .ref {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: var(--text-secondary);
+    }
+    .archive-detail .card {
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+    }
+    .archive-detail dl.isad dt {
+        color: var(--text-secondary);
+        font-size: .85rem;
+        font-weight: 500;
+    }
+    .archive-detail dl.isad dd {
+        color: var(--text-primary);
+        margin-bottom: .75rem;
+    }
+    .archive-detail .breadcrumb a {
+        color: var(--text-secondary);
+        text-decoration: none;
+    }
+    .archive-detail .breadcrumb a:hover {
+        color: var(--color-primary);
+    }
+</style>
+
+<main class="container archive-detail">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item">
+                <a href="<?= $e(url($archiveBase)) ?>"><?= __("Archivio") ?></a>
+            </li>
+            <?php foreach ($breadcrumb as $crumb): ?>
+                <li class="breadcrumb-item">
+                    <a href="<?= $e(url($archiveBase . '/' . (int) $crumb['id'])) ?>">
+                        <?= $e($crumb['title']) ?>
+                    </a>
+                </li>
+            <?php endforeach; ?>
+            <li class="breadcrumb-item active" aria-current="page">
+                <?= $e((string) $row['constructed_title']) ?>
+            </li>
+        </ol>
     </nav>
 
-    <header class="mb-6">
-        <div class="flex items-center gap-3 mb-2">
-            <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $e($levelBadge[$level] ?? 'bg-gray-100 text-gray-800') ?>">
+    <header class="mb-4">
+        <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="badge <?= $e($levelBadgeClass[$level] ?? 'text-bg-secondary') ?>">
                 <?= $e($levelLabel[$level] ?? $level) ?>
             </span>
-            <span class="text-xs text-gray-400 font-mono"><?= $e((string) $row['reference_code']) ?></span>
+            <span class="ref small"><?= $e((string) $row['reference_code']) ?></span>
         </div>
-        <h1 class="text-3xl font-bold text-gray-900"><?= $e((string) $row['constructed_title']) ?></h1>
+        <h1 class="mb-1"><?= $e((string) $row['constructed_title']) ?></h1>
         <?php if (!empty($row['formal_title']) && $row['formal_title'] !== $row['constructed_title']): ?>
-            <p class="text-gray-600 italic mt-1"><?= $e((string) $row['formal_title']) ?></p>
+            <p class="text-body-secondary fst-italic mb-1"><?= $e((string) $row['formal_title']) ?></p>
         <?php endif; ?>
         <?php if ($dateRange !== ''): ?>
-            <p class="text-sm text-gray-500 mt-2"><?= $e($dateRange) ?></p>
+            <p class="text-muted small"><?= $e($dateRange) ?></p>
         <?php endif; ?>
     </header>
 
-    <!-- Identity + content -->
-    <div class="bg-white shadow-sm rounded-lg border border-gray-200 overflow-hidden mb-6">
-        <dl class="divide-y divide-gray-200">
-            <?php if (!empty($row['extent'])): ?>
-                <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <dt class="text-sm font-medium text-gray-500"><?= __("Estensione e supporto") ?></dt>
-                    <dd class="md:col-span-2 text-sm text-gray-900"><?= $e((string) $row['extent']) ?></dd>
-                </div>
-            <?php endif; ?>
-            <?php if (!empty($row['scope_content'])): ?>
-                <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <dt class="text-sm font-medium text-gray-500"><?= __("Ambito e contenuto") ?></dt>
-                    <dd class="md:col-span-2 text-sm text-gray-900 whitespace-pre-line"><?= $e((string) $row['scope_content']) ?></dd>
-                </div>
-            <?php endif; ?>
-            <?php if (!empty($row['specific_material']) && $row['specific_material'] !== 'text'): ?>
-                <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <dt class="text-sm font-medium text-gray-500"><?= __("Tipo di materiale") ?></dt>
-                    <dd class="md:col-span-2 text-sm text-gray-900">
-                        <?= $e($materialLabels[(string) $row['specific_material']] ?? (string) $row['specific_material']) ?>
-                    </dd>
-                </div>
-            <?php endif; ?>
-            <?php if (!empty($row['photographer'])): ?>
-                <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <dt class="text-sm font-medium text-gray-500"><?= __("Fotografo / autore primario") ?></dt>
-                    <dd class="md:col-span-2 text-sm text-gray-900"><?= $e((string) $row['photographer']) ?></dd>
-                </div>
-            <?php endif; ?>
-            <?php if (!empty($row['language_codes'])): ?>
-                <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <dt class="text-sm font-medium text-gray-500"><?= __("Lingua") ?></dt>
-                    <dd class="md:col-span-2 text-sm text-gray-900 font-mono"><?= $e((string) $row['language_codes']) ?></dd>
-                </div>
-            <?php endif; ?>
-            <?php if (!empty($row['archival_history'])): ?>
-                <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <dt class="text-sm font-medium text-gray-500"><?= __("Storia archivistica") ?></dt>
-                    <dd class="md:col-span-2 text-sm text-gray-900 whitespace-pre-line"><?= $e((string) $row['archival_history']) ?></dd>
-                </div>
-            <?php endif; ?>
-            <?php if (!empty($row['access_conditions'])): ?>
-                <div class="px-6 py-4 grid grid-cols-1 md:grid-cols-3 gap-2">
-                    <dt class="text-sm font-medium text-gray-500"><?= __("Condizioni di accesso") ?></dt>
-                    <dd class="md:col-span-2 text-sm text-gray-900"><?= $e((string) $row['access_conditions']) ?></dd>
-                </div>
-            <?php endif; ?>
-        </dl>
-    </div>
-
-    <!-- Authorities -->
-    <?php if (!empty($authorities)): ?>
-        <div class="bg-white shadow-sm rounded-lg border border-gray-200 mb-6">
-            <div class="px-6 py-3 bg-gray-50 border-b">
-                <h2 class="text-sm font-semibold text-gray-700"><?= __("Soggetti produttori e associati") ?></h2>
-            </div>
-            <ul class="divide-y divide-gray-200">
-                <?php foreach ($authorities as $auth): ?>
-                    <li class="px-6 py-3 flex items-center justify-between text-sm">
-                        <div class="flex items-center gap-3">
-                            <span class="text-xs text-gray-400"><?= $e($typeLabel[(string) $auth['type']] ?? (string) $auth['type']) ?></span>
-                            <span class="font-medium text-gray-900"><?= $e((string) $auth['authorised_form']) ?></span>
-                            <?php if (!empty($auth['dates_of_existence'])): ?>
-                                <span class="text-xs text-gray-500 italic">(<?= $e((string) $auth['dates_of_existence']) ?>)</span>
-                            <?php endif; ?>
-                        </div>
-                        <span class="text-xs text-gray-500 uppercase tracking-wider">
-                            <?= $e($roleLabel[(string) $auth['role']] ?? (string) $auth['role']) ?>
-                        </span>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
-        </div>
-    <?php endif; ?>
-
-    <!-- Children -->
-    <?php if (!empty($children)): ?>
-        <div class="bg-white shadow-sm rounded-lg border border-gray-200 mb-6">
-            <div class="px-6 py-3 bg-gray-50 border-b">
-                <h2 class="text-sm font-semibold text-gray-700">
-                    <?= sprintf(__("Unità discendenti (%d)"), count($children)) ?>
-                </h2>
-            </div>
-            <ul class="divide-y divide-gray-200">
-                <?php foreach ($children as $child):
-                    $cLevel = (string) $child['level'];
-                    $cBadge = $levelBadge[$cLevel] ?? 'bg-gray-100 text-gray-800';
-                    $cDate = '';
-                    if (!empty($child['date_start'])) {
-                        $cDate = (string) $child['date_start'];
-                        if (!empty($child['date_end']) && $child['date_end'] !== $child['date_start']) {
-                            $cDate .= '–' . (string) $child['date_end'];
-                        }
-                    }
-                ?>
-                    <li class="px-6 py-3 flex items-center gap-3 text-sm">
-                        <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $e($cBadge) ?>">
-                            <?= $e($levelLabel[$cLevel] ?? $cLevel) ?>
-                        </span>
-                        <a href="<?= $e(url($archiveBase . '/' . (int) $child['id'])) ?>"
-                           class="text-blue-600 hover:underline flex-1">
-                            <?= $e((string) $child['constructed_title']) ?>
-                        </a>
-                        <span class="text-xs text-gray-400 font-mono"><?= $e((string) $child['reference_code']) ?></span>
-                        <?php if ($cDate !== ''): ?>
-                            <span class="text-xs text-gray-500"><?= $e($cDate) ?></span>
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <!-- Identity + content -->
+            <div class="card rounded-3 mb-3">
+                <div class="card-body">
+                    <dl class="isad mb-0">
+                        <?php if (!empty($row['extent'])): ?>
+                            <dt><?= __("Estensione e supporto") ?></dt>
+                            <dd><?= $e((string) $row['extent']) ?></dd>
                         <?php endif; ?>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
+                        <?php if (!empty($row['scope_content'])): ?>
+                            <dt><?= __("Ambito e contenuto") ?></dt>
+                            <dd class="text-pre-wrap"><?= $e((string) $row['scope_content']) ?></dd>
+                        <?php endif; ?>
+                        <?php if (!empty($row['specific_material']) && $row['specific_material'] !== 'text'): ?>
+                            <dt><?= __("Tipo di materiale") ?></dt>
+                            <dd><?= $e($materialLabels[(string) $row['specific_material']] ?? (string) $row['specific_material']) ?></dd>
+                        <?php endif; ?>
+                        <?php if (!empty($row['photographer'])): ?>
+                            <dt><?= __("Fotografo / autore primario") ?></dt>
+                            <dd><?= $e((string) $row['photographer']) ?></dd>
+                        <?php endif; ?>
+                        <?php if (!empty($row['language_codes'])): ?>
+                            <dt><?= __("Lingua") ?></dt>
+                            <dd class="ref small"><?= $e((string) $row['language_codes']) ?></dd>
+                        <?php endif; ?>
+                        <?php if (!empty($row['archival_history'])): ?>
+                            <dt><?= __("Storia archivistica") ?></dt>
+                            <dd class="text-pre-wrap"><?= $e((string) $row['archival_history']) ?></dd>
+                        <?php endif; ?>
+                        <?php if (!empty($row['access_conditions'])): ?>
+                            <dt><?= __("Condizioni di accesso") ?></dt>
+                            <dd><?= $e((string) $row['access_conditions']) ?></dd>
+                        <?php endif; ?>
+                    </dl>
+                </div>
+            </div>
+
+            <!-- Children -->
+            <?php if (!empty($children)): ?>
+                <div class="card rounded-3">
+                    <div class="card-header bg-body-tertiary">
+                        <h2 class="h6 mb-0">
+                            <?= sprintf(__("Unità discendenti (%d)"), count($children)) ?>
+                        </h2>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <?php foreach ($children as $child):
+                            $cLevel = (string) $child['level'];
+                            $cBadge = $levelBadgeClass[$cLevel] ?? 'text-bg-secondary';
+                            $cDate = '';
+                            if (!empty($child['date_start'])) {
+                                $cDate = (string) $child['date_start'];
+                                if (!empty($child['date_end']) && $child['date_end'] !== $child['date_start']) {
+                                    $cDate .= '–' . (string) $child['date_end'];
+                                }
+                            }
+                        ?>
+                            <li class="list-group-item d-flex align-items-center gap-2">
+                                <span class="badge <?= $e($cBadge) ?>">
+                                    <?= $e($levelLabel[$cLevel] ?? $cLevel) ?>
+                                </span>
+                                <a class="flex-fill" href="<?= $e(url($archiveBase . '/' . (int) $child['id'])) ?>">
+                                    <?= $e((string) $child['constructed_title']) ?>
+                                </a>
+                                <span class="ref small d-none d-md-inline"><?= $e((string) $child['reference_code']) ?></span>
+                                <?php if ($cDate !== ''): ?>
+                                    <span class="text-muted small"><?= $e($cDate) ?></span>
+                                <?php endif; ?>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
         </div>
-    <?php endif; ?>
-</article>
+
+        <div class="col-lg-4">
+            <!-- Authorities -->
+            <?php if (!empty($authorities)): ?>
+                <div class="card rounded-3">
+                    <div class="card-header bg-body-tertiary">
+                        <h2 class="h6 mb-0"><?= __("Soggetti produttori e associati") ?></h2>
+                    </div>
+                    <ul class="list-group list-group-flush">
+                        <?php foreach ($authorities as $auth): ?>
+                            <li class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-start gap-2">
+                                    <div>
+                                        <div class="fw-semibold">
+                                            <?= $e((string) $auth['authorised_form']) ?>
+                                        </div>
+                                        <div class="small text-muted">
+                                            <?= $e($typeLabel[(string) $auth['type']] ?? (string) $auth['type']) ?>
+                                            <?php if (!empty($auth['dates_of_existence'])): ?>
+                                                · <?= $e((string) $auth['dates_of_existence']) ?>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <span class="badge text-bg-light">
+                                        <?= $e($roleLabel[(string) $auth['role']] ?? (string) $auth['role']) ?>
+                                    </span>
+                                </div>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</main>
+
+<style>
+    .text-pre-wrap { white-space: pre-line; }
+</style>
