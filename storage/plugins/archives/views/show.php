@@ -50,7 +50,7 @@ $id = (int) $row['id'];
 ?>
 <div class="p-6 max-w-4xl mx-auto">
     <nav class="text-sm text-gray-500 mb-2">
-        <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline">Archivi</a>
+        <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __("Archivi") ?></a>
         &nbsp;&raquo;&nbsp; <?= $v('reference_code') ?>
     </nav>
 
@@ -65,7 +65,7 @@ $id = (int) $row['id'];
             <h1 class="text-2xl font-bold text-gray-900"><?= $v('constructed_title') ?></h1>
             <?php if (!empty($row['formal_title']) && $row['formal_title'] !== $row['constructed_title']): ?>
                 <p class="text-sm italic text-gray-600 mt-1">
-                    Titolo formale: <?= $v('formal_title') ?>
+                    <?= __("Titolo formale:") ?> <?= $v('formal_title') ?>
                 </p>
             <?php endif; ?>
         </div>
@@ -73,11 +73,11 @@ $id = (int) $row['id'];
             <a href="<?= $e(url('/admin/archives/' . $id . '/export.xml')) ?>"
                class="btn-secondary"
                title="<?= $e(__("Esporta MARCXML")) ?>">
-                MARCXML
+                <?= __("MARCXML") ?>
             </a>
             <a href="<?= $e(url('/admin/archives/' . $id . '/edit')) ?>"
                class="btn-secondary">
-                Modifica
+                <?= __("Modifica") ?>
             </a>
             <?php
             // Aligned with the rest of Pinakes: destructive confirmations
@@ -103,12 +103,12 @@ $id = (int) $row['id'];
     <div class="bg-white shadow rounded-lg overflow-hidden">
         <dl class="divide-y divide-gray-200">
             <div class="px-6 py-3 grid grid-cols-3 gap-4">
-                <dt class="text-sm font-medium text-gray-500">Istituzione</dt>
+                <dt class="text-sm font-medium text-gray-500"><?= __("Istituzione") ?></dt>
                 <dd class="col-span-2 text-sm text-gray-900 font-mono"><?= $v('institution_code') ?></dd>
             </div>
             <?php if ($parent_title !== null): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
-                    <dt class="text-sm font-medium text-gray-500">Unità padre</dt>
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Unità padre") ?></dt>
                     <dd class="col-span-2 text-sm text-gray-900">
                         <a href="<?= $e(url('/admin/archives/' . (int) $row['parent_id'])) ?>"
                            class="text-blue-600 hover:underline">
@@ -119,30 +119,30 @@ $id = (int) $row['id'];
             <?php endif; ?>
             <?php if ($dateRange !== ''): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
-                    <dt class="text-sm font-medium text-gray-500">Date estreme</dt>
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Date estreme") ?></dt>
                     <dd class="col-span-2 text-sm text-gray-900"><?= $e($dateRange) ?></dd>
                 </div>
             <?php endif; ?>
             <?php if (!empty($row['extent'])): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
-                    <dt class="text-sm font-medium text-gray-500">Estensione</dt>
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Estensione") ?></dt>
                     <dd class="col-span-2 text-sm text-gray-900"><?= $v('extent') ?></dd>
                 </div>
             <?php endif; ?>
             <?php if (!empty($row['scope_content'])): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
-                    <dt class="text-sm font-medium text-gray-500">Ambito e contenuto</dt>
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Ambito e contenuto") ?></dt>
                     <dd class="col-span-2 text-sm text-gray-900 whitespace-pre-wrap"><?= $v('scope_content') ?></dd>
                 </div>
             <?php endif; ?>
             <?php if (!empty($row['language_codes'])): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
-                    <dt class="text-sm font-medium text-gray-500">Lingua</dt>
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Lingua") ?></dt>
                     <dd class="col-span-2 text-sm text-gray-900 font-mono"><?= $v('language_codes') ?></dd>
                 </div>
             <?php endif; ?>
             <div class="px-6 py-3 grid grid-cols-3 gap-4">
-                <dt class="text-sm font-medium text-gray-500">Creato</dt>
+                <dt class="text-sm font-medium text-gray-500"><?= __("Creato") ?></dt>
                 <dd class="col-span-2 text-xs text-gray-600 font-mono"><?= $v('created_at') ?></dd>
             </div>
             <?php if (!empty($row['specific_material']) && $row['specific_material'] !== 'text'): ?>
@@ -189,7 +189,7 @@ $id = (int) $row['id'];
             <?php endif; ?>
             <?php if (!empty($row['updated_at']) && $row['updated_at'] !== $row['created_at']): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
-                    <dt class="text-sm font-medium text-gray-500">Ultima modifica</dt>
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Ultima modifica") ?></dt>
                     <dd class="col-span-2 text-xs text-gray-600 font-mono"><?= $v('updated_at') ?></dd>
                 </div>
             <?php endif; ?>

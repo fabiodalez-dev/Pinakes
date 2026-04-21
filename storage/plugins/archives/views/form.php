@@ -21,32 +21,31 @@ $editId = $mode === 'edit' ? (int) ($id ?? 0) : null;
 $formAction = $mode === 'edit'
     ? url('/admin/archives/' . (int) $editId . '/edit')
     : url('/admin/archives/new');
-$pageTitle = $mode === 'edit' ? 'Modifica record archivistico' : 'Nuovo record archivistico';
-$submitLabel = $mode === 'edit' ? 'Salva modifiche' : 'Crea record';
+$pageTitle = $mode === 'edit' ? __('Modifica record archivistico') : __('Nuovo record archivistico');
+$submitLabel = $mode === 'edit' ? __('Salva modifiche') : __('Crea record');
 
 $levelLabels = [
-    'fonds'  => 'Fondo (archivio completo di un creatore)',
-    'series' => 'Serie (raggruppamento per funzione/forma)',
-    'file'   => 'Fascicolo (case file, volume)',
-    'item'   => 'Unità (lettera, nota, memo)',
+    'fonds'  => __('Fondo (archivio completo di un creatore)'),
+    'series' => __('Serie (raggruppamento per funzione/forma)'),
+    'file'   => __('Fascicolo (case file, volume)'),
+    'item'   => __('Unità (lettera, nota, memo)'),
 ];
 ?>
 <div class="p-6 max-w-4xl mx-auto">
     <div class="mb-6">
         <nav class="text-sm text-gray-500 mb-2">
-            <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline">Archivi</a>
-            &nbsp;&raquo;&nbsp; <?= $mode === 'edit' ? 'Modifica record #' . $e((string) $editId) : 'Nuovo record' ?>
+            <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __('Archivi') ?></a>
+            &nbsp;&raquo;&nbsp; <?= $mode === 'edit' ? __('Modifica record') . ' #' . $e((string) $editId) : __('Nuovo record') ?>
         </nav>
         <h1 class="text-2xl font-bold text-gray-900"><?= $e($pageTitle) ?></h1>
         <p class="text-sm text-gray-600 mt-1">
-            Compila i campi ISAD(G) 3.1 (area di identificazione). Campi aggiuntivi (3.2-3.7)
-            saranno disponibili nella vista di modifica dopo la creazione.
+            <?= __("Compila i campi ISAD(G) 3.1 (area di identificazione). Campi aggiuntivi (3.2-3.7) saranno disponibili nella vista di modifica dopo la creazione.") ?>
         </p>
     </div>
 
     <?php if (!empty($errors['_global'])): ?>
         <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-4 rounded">
-            <p class="text-sm text-red-800"><strong>Errore:</strong> <?= $e($errors['_global']) ?></p>
+            <p class="text-sm text-red-800"><strong><?= __("Errore:") ?></strong> <?= $e($errors['_global']) ?></p>
         </div>
     <?php endif; ?>
 
@@ -57,7 +56,7 @@ $levelLabels = [
             <!-- reference_code -->
             <div>
                 <label for="reference_code" class="form-label">
-                    Reference Code <span class="text-red-500">*</span>
+                    <?= __("Reference Code") ?> <span class="text-red-500">*</span>
                     <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.1.1)</span>
                 </label>
                 <input type="text" name="reference_code" id="reference_code"
@@ -71,7 +70,7 @@ $levelLabels = [
             <!-- institution_code -->
             <div>
                 <label for="institution_code" class="form-label">
-                    Codice istituzione
+                    <?= __("Codice istituzione") ?>
                 </label>
                 <input type="text" name="institution_code" id="institution_code"
                        value="<?= $val('institution_code') !== '' ? $val('institution_code') : ($mode === 'create' ? 'PINAKES' : '') ?>"
@@ -83,12 +82,12 @@ $levelLabels = [
         <!-- level -->
         <div>
             <label for="level" class="form-label">
-                Livello di descrizione <span class="text-red-500">*</span>
+                <?= __("Livello di descrizione") ?> <span class="text-red-500">*</span>
                 <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.1.4)</span>
             </label>
             <select name="level" id="level" required
                     class="form-input <?= $err('level') ? 'border-red-500' : '' ?>">
-                <option value="">— Seleziona un livello —</option>
+                <option value="">— <?= __("Seleziona un livello") ?> —</option>
                 <?php foreach ($levels as $lvl): ?>
                     <option value="<?= $e($lvl) ?>" <?= ($values['level'] ?? '') === $lvl ? 'selected' : '' ?>>
                         <?= $e($levelLabels[$lvl] ?? $lvl) ?>
@@ -103,7 +102,7 @@ $levelLabels = [
         <!-- formal_title -->
         <div>
             <label for="formal_title" class="form-label">
-                Titolo formale
+                <?= __("Titolo formale") ?>
                 <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.1.2 — MARC 241*a, se presente sul materiale)</span>
             </label>
             <input type="text" name="formal_title" id="formal_title"
@@ -114,7 +113,7 @@ $levelLabels = [
         <!-- constructed_title -->
         <div>
             <label for="constructed_title" class="form-label">
-                Titolo attribuito <span class="text-red-500">*</span>
+                <?= __("Titolo attribuito") ?> <span class="text-red-500">*</span>
                 <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.1.2 — MARC 245*a, titolo dato dall'archivista)</span>
             </label>
             <input type="text" name="constructed_title" id="constructed_title"
@@ -129,7 +128,7 @@ $levelLabels = [
             <!-- date_start -->
             <div>
                 <label for="date_start" class="form-label">
-                    Anno iniziale
+                    <?= __("Anno iniziale") ?>
                     <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.1.3)</span>
                 </label>
                 <input type="number" name="date_start" id="date_start"
@@ -143,7 +142,7 @@ $levelLabels = [
             <!-- date_end -->
             <div>
                 <label for="date_end" class="form-label">
-                    Anno finale
+                    <?= __("Anno finale") ?>
                 </label>
                 <input type="number" name="date_end" id="date_end"
                        value="<?= $val('date_end') ?>" min="-32768" max="32767"
@@ -157,7 +156,7 @@ $levelLabels = [
         <!-- extent -->
         <div>
             <label for="extent" class="form-label">
-                Estensione e supporto
+                <?= __("Estensione e supporto") ?>
                 <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.1.5 — es. "1357 scatole, 613 volumi")</span>
             </label>
             <input type="text" name="extent" id="extent"
@@ -168,7 +167,7 @@ $levelLabels = [
         <!-- scope_content -->
         <div>
             <label for="scope_content" class="form-label">
-                Ambito e contenuto
+                <?= __("Ambito e contenuto") ?>
                 <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.3.1 — abstract)</span>
             </label>
             <textarea name="scope_content" id="scope_content" rows="4"
@@ -179,7 +178,7 @@ $levelLabels = [
             <!-- language_codes -->
             <div>
                 <label for="language_codes" class="form-label">
-                    Codice lingua
+                    <?= __("Codice lingua") ?>
                     <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.4.3 — ISO 639-2, es. "ita", "eng", "dan")</span>
                 </label>
                 <input type="text" name="language_codes" id="language_codes"
@@ -191,7 +190,7 @@ $levelLabels = [
             <!-- parent_id -->
             <div>
                 <label for="parent_id" class="form-label">
-                    ID unità padre (gerarchia)
+                    <?= __("ID unità padre (gerarchia)") ?>
                 </label>
                 <input type="number" name="parent_id" id="parent_id"
                        value="<?= $val('parent_id') ?>" min="1"
@@ -316,7 +315,7 @@ $levelLabels = [
         <div class="flex items-center justify-end space-x-3 pt-4 border-t">
             <a href="<?= $e(url('/admin/archives')) ?>"
                class="btn-secondary">
-                Annulla
+                <?= __("Annulla") ?>
             </a>
             <button type="submit"
                     class="btn-primary">
