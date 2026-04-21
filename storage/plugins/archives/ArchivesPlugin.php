@@ -626,6 +626,57 @@ class ArchivesPlugin
                 $app->get($base . '/{id:[0-9]+}', $publicShow);
             }
         }
+
+        // Serve plugin-local CSS/JS so the inline-style blocks can be
+        // replaced by a real stylesheet. Same pattern as the
+        // digital-library plugin. `/plugins/archives/assets/css/<file>.css`.
+        $app->get('/plugins/archives/assets/{type}/{filename}', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->serveAsset($request, $response, $args);
+        });
+    }
+
+    /**
+     * Serve plugin-local static assets (CSS / JS) with a realpath check
+     * to reject path traversal. Mirrors DigitalLibraryPlugin::serveAsset.
+     */
+    public function serveAsset(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $type = (string) ($args['type'] ?? '');
+        $filename = (string) ($args['filename'] ?? '');
+        if (!in_array($type, ['css', 'js'], true)) {
+            return $response->withStatus(404);
+        }
+        if (!preg_match('/^[A-Za-z0-9._-]+$/', $filename)) {
+            return $response->withStatus(404);
+        }
+        $baseDir = realpath(__DIR__ . '/assets/' . $type);
+        if ($baseDir === false) {
+            return $response->withStatus(404);
+        }
+        $filePath = realpath($baseDir . DIRECTORY_SEPARATOR . $filename);
+        if ($filePath === false
+            || !str_starts_with($filePath, $baseDir . DIRECTORY_SEPARATOR)
+            || !is_file($filePath)) {
+            return $response->withStatus(404);
+        }
+        $mime = $type === 'css'
+            ? 'text/css; charset=UTF-8'
+            : 'application/javascript; charset=UTF-8';
+        $contents = file_get_contents($filePath);
+        if ($contents === false) {
+            return $response->withStatus(500);
+        }
+        $response->getBody()->write($contents);
+        return $response
+            ->withHeader('Content-Type', $mime)
+            ->withHeader('Cache-Control', 'public, max-age=31536000');
     }
 
     /**
