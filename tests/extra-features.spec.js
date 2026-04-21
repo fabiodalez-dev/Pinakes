@@ -848,14 +848,28 @@ test.describe.serial('Infrastructure', () => {
     await loginPage.locator('button[type="submit"]').click();
     await loginPage.waitForURL(/admin|bacheca|dashboard/, { timeout: 15000 });
 
-    // Change password back via profile
+    // Change password back via profile. The password-change form requires
+    // current_password — omitting it makes the server silently reject the
+    // update, leaving the admin account with `newPassword` and bricking
+    // every subsequent test's beforeAll login.
     await loginPage.goto(`${BASE}/profilo`);
     await loginPage.waitForLoadState('networkidle');
+    await loginPage.fill('#current_password', newPassword);
     await loginPage.fill('#password', ADMIN_PASS);
     await loginPage.fill('#password_confirm', ADMIN_PASS);
     const pwForm = loginPage.locator('form[action*="password"]').first();
     await pwForm.locator('button[type="submit"]').click();
     await loginPage.waitForLoadState('networkidle');
+    // DB sanity-check: the restore must have persisted. If current_password
+    // validation fails (e.g. admin flow requires more rigour) the subsequent
+    // test group's beforeAll will 401 and cascade to "did not run".
+    const restoredHash = dbQuery(
+      `SELECT password FROM utenti WHERE email = '${ADMIN_EMAIL}'`
+    );
+    expect(
+      restoredHash,
+      'password restore must replace the reset hash; otherwise downstream tests cascade to did-not-run'
+    ).not.toBe(tokenAfter);
     await loginCtx.close();
   });
 });
