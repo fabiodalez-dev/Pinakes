@@ -24,12 +24,16 @@ class RateLimitMiddleware implements MiddlewareInterface
 
     public function process(Request $request, RequestHandler $handler): Response
     {
-        // Test-env escape hatch — when running Playwright E2E suites the
-        // 5/300s login throttle saturates after ~6 beforeAll hooks and
-        // subsequent test blocks cascade to "did not run". Opt-in via
-        // PINAKES_E2E_BYPASS_RATE_LIMIT=1 in the env (NOT shipped to
-        // production .env); the flag is ignored when absent or empty so
-        // production is unaffected. See docs/E2E-TESTING.md.
+        // Test-env escape hatch — opt-in via PINAKES_E2E_BYPASS_RATE_LIMIT=1
+        // in the env (NOT shipped to production .env). When set, the flag
+        // bypasses *every* instance of this middleware, not only the login
+        // throttle — also register/forgot-password and any future route
+        // that wires this middleware in. That is exactly what an E2E
+        // suite with ~30 serial describe blocks (each with a beforeAll
+        // login) needs: without this flag the 5/300s throttle saturates
+        // after ~6 hooks and the remaining tests cascade to "did not run".
+        // Production is unaffected — the flag is ignored when absent or
+        // empty, and only `1`/`true` enables it.
         $bypassFlag = $_ENV['PINAKES_E2E_BYPASS_RATE_LIMIT']
             ?? getenv('PINAKES_E2E_BYPASS_RATE_LIMIT')
             ?: '';
