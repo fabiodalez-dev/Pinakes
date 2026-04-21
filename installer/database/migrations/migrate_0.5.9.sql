@@ -41,7 +41,9 @@ CREATE TABLE IF NOT EXISTS archival_units (
     material_status      ENUM('unclassified','cataloguing','completed') NOT NULL DEFAULT 'unclassified',
     registration_date    DATE NULL,
     -- Phase 5 — photographic items (ABA billedmarc)
-    specific_material    ENUM('text','photograph','poster','postcard','drawing','audio','video','other') NOT NULL DEFAULT 'text',
+    specific_material    ENUM('text','photograph','poster','postcard','drawing','audio','video','other',
+                              'map','picture','object','film','microform','electronic','mixed')
+                         NOT NULL DEFAULT 'text',
     dimensions           VARCHAR(100) NULL,
     color_mode           ENUM('bw','color','mixed') NULL,
     photographer         VARCHAR(255) NULL,
@@ -150,6 +152,27 @@ PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 
 SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='local_classification');
 SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN local_classification VARCHAR(64) NULL", 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- archival_units — extend specific_material ENUM with ABA billedmarc +
+-- MARC21 material-form codes (map/picture/object/film/microform/
+-- electronic/mixed). New values appended after the original phase-5
+-- eight, so ENUM ordinals 1-8 stay stable and the ALTER is
+-- metadata-only (no data rewrite). Only runs when the column type
+-- doesn't already include the new values.
+SET @enum_has_mixed := (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'archival_units'
+       AND COLUMN_NAME = 'specific_material'
+       AND COLUMN_TYPE LIKE '%mixed%'
+);
+SET @s := IF(@enum_has_mixed = 0,
+    "ALTER TABLE archival_units MODIFY COLUMN specific_material
+        ENUM('text','photograph','poster','postcard','drawing','audio','video','other',
+             'map','picture','object','film','microform','electronic','mixed')
+        NOT NULL DEFAULT 'text'",
+    'SELECT 1');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 
 -- archival_units — FULLTEXT index (may be missing on older ensureSchema())

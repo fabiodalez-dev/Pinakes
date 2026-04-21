@@ -4505,5 +4505,12 @@
   "Unità padre": "Übergeordnete Einheit",
   "Date estreme": "Laufzeit",
   "Titolo formale:": "Formaler Titel:",
-  "MARCXML": "MARCXML"
+  "MARCXML": "MARCXML",
+  "Mappa / cartografia (hk)": "Karte / Kartografie (hk)",
+  "Immagine / stampa / dipinto (hb)": "Bild / Druck / Gemälde (hb)",
+  "Oggetto tridimensionale / realia (ho)": "Dreidimensionales Objekt / Realia (ho)",
+  "Pellicola cinematografica (lf)": "Kinofilm (lf)",
+  "Microforma (bm)": "Mikroform (bm)",
+  "Risorsa elettronica / nato-digitale (le)": "Elektronische Ressource / born-digital (le)",
+  "Materiale misto (zz)": "Gemischte Materialien (zz)"
 }

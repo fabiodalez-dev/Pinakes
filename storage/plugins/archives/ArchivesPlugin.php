@@ -51,6 +51,13 @@ class ArchivesPlugin
      * Specific material types, per ABA billedmarc 009*g. Default 'text'
      * so existing archival_units keep their MARC 009*g='bf' bibliographic
      * semantics unchanged on phase 5 migration.
+     *
+     * The set covers the full ABA billedmarc pictorial (h-prefix), audio-
+     * visual (l-prefix) and bibliographic (b-prefix) material-form codes
+     * plus MARC21 336/338 content/carrier types used in real archival
+     * collections. New values are appended after the original phase-5
+     * eight so ENUM ordinal positions 1-8 stay stable — this lets MySQL
+     * treat the ENUM extension as a metadata-only ALTER.
      */
     public const SPECIFIC_MATERIALS = [
         'text'       => 'Text / manuscript (bf)',
@@ -61,6 +68,14 @@ class ArchivesPlugin
         'audio'      => 'Audio recording (lm)',
         'video'      => 'Video (vm)',
         'other'      => 'Other',
+        // Phase 5+ additions — append-only (new ENUM ordinals).
+        'map'        => 'Map / cartographic (hk)',
+        'picture'    => 'Picture / print / painting (hb)',
+        'object'     => 'Three-dimensional object / realia (ho)',
+        'film'       => 'Motion-picture film (lf)',
+        'microform'  => 'Microform (bm)',
+        'electronic' => 'Electronic resource / born-digital (le)',
+        'mixed'      => 'Mixed materials (zz)',
     ];
 
     /**
@@ -254,7 +269,7 @@ class ArchivesPlugin
     private function migrateImageColumns(): void
     {
         $columns = [
-            'specific_material'    => "ENUM('text','photograph','poster','postcard','drawing','audio','video','other') NOT NULL DEFAULT 'text'",
+            'specific_material'    => "ENUM('text','photograph','poster','postcard','drawing','audio','video','other','map','picture','object','film','microform','electronic','mixed') NOT NULL DEFAULT 'text'",
             'dimensions'           => 'VARCHAR(100) NULL',
             'color_mode'           => "ENUM('bw','color','mixed') NULL",
             'photographer'         => 'VARCHAR(255) NULL',
@@ -3464,7 +3479,7 @@ class ArchivesPlugin
             material_status     ENUM('unclassified','cataloguing','completed') NOT NULL DEFAULT 'unclassified',
             registration_date   DATE NULL,
             /* Phase 5 — photographic items (ABA billedmarc) */
-            specific_material   ENUM('text','photograph','poster','postcard','drawing','audio','video','other') NOT NULL DEFAULT 'text',
+            specific_material   ENUM('text','photograph','poster','postcard','drawing','audio','video','other','map','picture','object','film','microform','electronic','mixed') NOT NULL DEFAULT 'text',
             dimensions          VARCHAR(100) NULL,
             color_mode          ENUM('bw','color','mixed') NULL,
             photographer        VARCHAR(255) NULL,

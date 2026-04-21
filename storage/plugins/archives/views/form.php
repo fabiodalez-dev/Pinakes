@@ -220,6 +220,13 @@ $levelLabels = [
                     'audio'      => __('Registrazione audio (lm)'),
                     'video'      => __('Video (vm)'),
                     'other'      => __('Altro'),
+                    'map'        => __('Mappa / cartografia (hk)'),
+                    'picture'    => __('Immagine / stampa / dipinto (hb)'),
+                    'object'     => __('Oggetto tridimensionale / realia (ho)'),
+                    'film'       => __('Pellicola cinematografica (lf)'),
+                    'microform'  => __('Microforma (bm)'),
+                    'electronic' => __('Risorsa elettronica / nato-digitale (le)'),
+                    'mixed'      => __('Materiale misto (zz)'),
                 ];
                 $colorLabels = [
                     'bw'    => __('Bianco e nero'),

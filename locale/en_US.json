@@ -4505,5 +4505,12 @@
   "Unità padre": "Parent unit",
   "Date estreme": "Outer dates",
   "Titolo formale:": "Formal title:",
-  "MARCXML": "MARCXML"
+  "MARCXML": "MARCXML",
+  "Mappa / cartografia (hk)": "Map / cartographic (hk)",
+  "Immagine / stampa / dipinto (hb)": "Picture / print / painting (hb)",
+  "Oggetto tridimensionale / realia (ho)": "Three-dimensional object / realia (ho)",
+  "Pellicola cinematografica (lf)": "Motion-picture film (lf)",
+  "Microforma (bm)": "Microform (bm)",
+  "Risorsa elettronica / nato-digitale (le)": "Electronic resource / born-digital (le)",
+  "Materiale misto (zz)": "Mixed materials (zz)"
 }
