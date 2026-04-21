@@ -104,7 +104,7 @@ $rootRows = $byParent[0] ?? [];
         </div>
         <div class="flex items-center gap-2">
             <a href="<?= $e(url('/admin/archives/search')) ?>"
-               class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">
+               class="btn-secondary inline-flex items-center">
                 <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                           d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -112,19 +112,19 @@ $rootRows = $byParent[0] ?? [];
                 <?= __("Ricerca") ?>
             </a>
             <a href="<?= $e(url('/admin/archives/authorities')) ?>"
-               class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">
+               class="btn-secondary inline-flex items-center">
                 <?= __("Authority records") ?>
             </a>
             <a href="<?= $e(url('/admin/archives/import')) ?>"
-               class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">
+               class="btn-secondary inline-flex items-center">
                 <?= __("Importa MARCXML") ?>
             </a>
             <a href="<?= $e(url('/admin/archives/export.xml')) ?>"
-               class="inline-flex items-center px-3 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50">
+               class="btn-secondary inline-flex items-center">
                 <?= __("Esporta MARCXML") ?>
             </a>
             <a href="<?= $e(url('/admin/archives/new')) ?>"
-               class="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 transition">
+               class="btn-primary inline-flex items-center">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                 </svg>

@@ -284,5 +284,6 @@
   "Errori XSD (%d)": "Errori XSD (%d)",
   "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche e authority record presenti nel file.": "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche e authority record presenti nel file.",
   "Mostrati %d record su un massimo di %d per pagina.": "Mostrati %d record su un massimo di %d per pagina.",
-  "Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste.": "Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste."
+  "Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste.": "Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste.",
+  "Conferma": "Conferma"
 }

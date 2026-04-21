@@ -13,6 +13,23 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $v = static fn(string $k): string => $e((string) ($row[$k] ?? ''));
 
+/**
+ * Safely serialise a PHP value as a JS literal for use INSIDE an HTML
+ * attribute delimited with double quotes (e.g. `onclick="..."`).
+ *
+ * JSON_HEX_QUOT would escape the delimiter quotes of the JS string itself,
+ * producing invalid JS like `archivesSwalConfirm(\u0022foo\u0022, …)`.
+ * The right escape here is htmlspecialchars: `"` becomes `&quot;`, which
+ * the HTML parser decodes back to `"` before handing the attribute value
+ * to the JS engine — so the JS parser sees valid `"foo"` literals.
+ */
+$jsAttr = static fn(mixed $x): string =>
+    htmlspecialchars(
+        (string) json_encode($x, JSON_UNESCAPED_UNICODE),
+        ENT_QUOTES,
+        'UTF-8'
+    );
+
 $dateRange = '';
 if ($row['date_start'] !== null) {
     $dateRange = (string) $row['date_start'];
@@ -54,31 +71,30 @@ $id = (int) $row['id'];
         </div>
         <div class="flex items-center gap-2">
             <a href="<?= $e(url('/admin/archives/' . $id . '/export.xml')) ?>"
-               class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+               class="btn-secondary"
                title="<?= $e(__("Esporta MARCXML")) ?>">
                 MARCXML
             </a>
             <a href="<?= $e(url('/admin/archives/' . $id . '/edit')) ?>"
-               class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+               class="btn-secondary">
                 Modifica
             </a>
             <?php
-            // SECURITY: json_encode produces a safe JS literal. Hand-written
-            // backslash escapes inside an HTML attribute fail because the
-            // browser decodes &#039;/\' before JS parsing — the confirm
-            // prompt would disappear and the form would submit silently.
-            $confirmDeleteUnit = json_encode(
-                __("Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste."),
-                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
-            );
+            // Aligned with the rest of Pinakes: destructive confirmations
+            // go through SweetAlert2 (loaded globally in app/Views/layout.php).
+            // json_encode serialises the localised message + button labels as
+            // JS literals so apostrophes/quotes in any locale survive the
+            // HTML-attribute → JS parse round-trip.
+            $archivesDeleteUnitId = 'archivesDeleteUnit_' . $id;
             ?>
-            <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/delete')) ?>"
-                  onsubmit="return confirm(<?= $confirmDeleteUnit ?>);"
+            <form id="<?= $e($archivesDeleteUnitId) ?>"
+                  method="POST" action="<?= $e(url('/admin/archives/' . $id . '/delete')) ?>"
                   class="inline">
                 <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-                <button type="submit"
-                        class="px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50">
-                    Elimina
+                <button type="button"
+                        class="btn-danger"
+                        onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeleteUnitId) ?>, <?= $jsAttr(__("Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste.")) ?>, <?= $jsAttr(__("Elimina")) ?>)">
+                    <?= __("Elimina") ?>
                 </button>
             </form>
         </div>
@@ -214,12 +230,13 @@ $id = (int) $row['id'];
                             <?php endif; ?>
                             <span class="text-xs text-gray-500"><?= __("ruolo:") ?> <strong><?= $e((string) $auth['role']) ?></strong></span>
                         </div>
-                        <form method="POST"
+                        <?php $detachId = 'archivesDetachAuth_' . $id . '_' . $authId; ?>
+                        <form id="<?= $e($detachId) ?>" method="POST"
                               action="<?= $e(url('/admin/archives/' . $id . '/authorities/' . $authId . '/detach')) ?>"
-                              onsubmit="return confirm(<?= json_encode(__('Rimuovere questo collegamento?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);"
                               class="inline">
                             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-                            <button type="submit" class="text-xs text-red-600 hover:underline"><?= __("scollega") ?></button>
+                            <button type="button" class="text-xs text-red-600 hover:underline"
+                                    onclick="archivesSwalConfirm(<?= $jsAttr($detachId) ?>, <?= $jsAttr(__('Rimuovere questo collegamento?')) ?>, <?= $jsAttr(__('scollega')) ?>)"><?= __("scollega") ?></button>
                         </form>
                     </li>
                 <?php endforeach; ?>
@@ -251,7 +268,7 @@ $id = (int) $row['id'];
                         <?php endforeach; ?>
                     </select>
                     <button type="submit"
-                            class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                            class="btn-primary">
                         <?= __("Collega") ?>
                     </button>
                 </div>
@@ -364,3 +381,31 @@ $id = (int) $row['id'];
         <?php endif; ?>
     </div>
 </div>
+
+<?php /* SweetAlert2 confirm helper — matches the pattern used elsewhere
+          in Pinakes. Defined with an idempotency guard so multiple views
+          can load it without redefining. */ ?>
+<script>
+if (typeof window.archivesSwalConfirm !== 'function') {
+    window.archivesSwalConfirm = function (formId, message, confirmLabel) {
+        var form = document.getElementById(formId);
+        if (!form) return;
+        // Graceful fallback if Swal somehow isn't loaded on the page.
+        if (typeof Swal === 'undefined' || !Swal.fire) {
+            if (window.confirm(message)) form.submit();
+            return;
+        }
+        Swal.fire({
+            title: message,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: confirmLabel || <?= json_encode(__('Conferma'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            cancelButtonText: <?= json_encode(__('Annulla'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            focusCancel: true,
+            reverseButtons: true
+        }).then(function (r) {
+            if (r && r.isConfirmed) form.submit();
+        });
+    };
+}
+</script>

@@ -41,7 +41,7 @@ $totalHits = count($results['archival_units']) + count($results['authority_recor
                autofocus minlength="2"
                class="flex-1 rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
         <button type="submit"
-                class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                class="btn-primary">
             <?= __("Cerca") ?>
         </button>
     </form>

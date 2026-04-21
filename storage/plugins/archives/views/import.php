@@ -182,7 +182,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
         <div>
-            <label for="marcxml" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="marcxml" class="form-label">
                 <?= __("File MARCXML") ?> <span class="text-red-500">*</span>
             </label>
             <input type="file" name="marcxml" id="marcxml" accept=".xml,application/xml,application/marcxml+xml" required
@@ -210,11 +210,11 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 
         <div class="flex items-center justify-end space-x-3 pt-4 border-t">
             <a href="<?= $e(url('/admin/archives')) ?>"
-               class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+               class="btn-secondary">
                 <?= __("Annulla") ?>
             </a>
             <button type="submit"
-                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                    class="btn-primary">
                 <?= __("Analizza / Importa") ?>
             </button>
         </div>

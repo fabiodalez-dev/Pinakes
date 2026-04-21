@@ -12,6 +12,12 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $v = static fn(string $k): string => $e((string) ($row[$k] ?? ''));
 
+/** Safely serialise a value as a JS literal inside an HTML double-quoted
+ *  attribute — see views/show.php for the rationale.
+ */
+$jsAttr = static fn(mixed $x): string =>
+    htmlspecialchars((string) json_encode($x, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');
+
 $typeBadge = [
     'person'    => 'bg-indigo-100 text-indigo-800',
     'corporate' => 'bg-amber-100 text-amber-800',
@@ -49,26 +55,17 @@ $id = (int) $row['id'];
         </div>
         <div class="flex items-center gap-2">
             <a href="<?= $e(url('/admin/archives/authorities/' . $id . '/edit')) ?>"
-               class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+               class="btn-secondary">
                 <?= __("Modifica") ?>
             </a>
-            <?php
-            // SECURITY: confirm() message must be serialised as a JS literal.
-            // htmlspecialchars would encode ' as &#039;, the HTML parser then
-            // decodes it BEFORE handing to the JS engine, yielding:
-            //     confirm('... L'operazione ...');   → SyntaxError
-            // The form would silently submit without a confirmation prompt.
-            $confirmDeleteAuthority = json_encode(
-                __("Eliminare questo authority record? L'operazione è reversibile (soft-delete)."),
-                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
-            );
-            ?>
-            <form method="POST" action="<?= $e(url('/admin/archives/authorities/' . $id . '/delete')) ?>"
-                  onsubmit="return confirm(<?= $confirmDeleteAuthority ?>);"
+            <?php $archivesDeleteAuthId = 'archivesDeleteAuth_' . $id; ?>
+            <form id="<?= $e($archivesDeleteAuthId) ?>"
+                  method="POST" action="<?= $e(url('/admin/archives/authorities/' . $id . '/delete')) ?>"
                   class="inline">
                 <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-                <button type="submit"
-                        class="px-3 py-1.5 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50">
+                <button type="button"
+                        class="btn-danger"
+                        onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeleteAuthId) ?>, <?= $jsAttr(__("Eliminare questo authority record? L'operazione è reversibile (soft-delete).")) ?>, <?= $jsAttr(__("Elimina")) ?>)">
                     <?= __("Elimina") ?>
                 </button>
             </form>
@@ -158,12 +155,13 @@ $id = (int) $row['id'];
                                 <?= (int) ($a['book_count'] ?? 0) ?> <?= __("libri") ?>
                             </span>
                         </div>
-                        <form method="POST"
+                        <?php $unlinkAutoreId = 'archivesUnlinkAutore_' . $id . '_' . $aid; ?>
+                        <form id="<?= $e($unlinkAutoreId) ?>" method="POST"
                               action="<?= $e(url('/admin/archives/authorities/' . $id . '/autori/' . $aid . '/unlink')) ?>"
-                              onsubmit="return confirm(<?= json_encode(__('Rimuovere questo collegamento?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);"
                               class="inline">
                             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-                            <button type="submit" class="text-xs text-red-600 hover:underline"><?= __("scollega") ?></button>
+                            <button type="button" class="text-xs text-red-600 hover:underline"
+                                    onclick="archivesSwalConfirm(<?= $jsAttr($unlinkAutoreId) ?>, <?= $jsAttr(__('Rimuovere questo collegamento?')) ?>, <?= $jsAttr(__('scollega')) ?>)"><?= __("scollega") ?></button>
                         </form>
                     </li>
                 <?php endforeach; ?>
@@ -182,7 +180,7 @@ $id = (int) $row['id'];
                     <?php endforeach; ?>
                 </select>
                 <button type="submit"
-                        class="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                        class="btn-primary">
                     <?= __("Collega") ?>
                 </button>
             </form>
@@ -192,3 +190,29 @@ $id = (int) $row['id'];
         <?php endif; ?>
     </div>
 </div>
+
+<?php /* SweetAlert2 confirm helper (idempotent guard). See views/show.php for
+          details — defined twice because each Slim response is a fresh page. */ ?>
+<script>
+if (typeof window.archivesSwalConfirm !== 'function') {
+    window.archivesSwalConfirm = function (formId, message, confirmLabel) {
+        var form = document.getElementById(formId);
+        if (!form) return;
+        if (typeof Swal === 'undefined' || !Swal.fire) {
+            if (window.confirm(message)) form.submit();
+            return;
+        }
+        Swal.fire({
+            title: message,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: confirmLabel || <?= json_encode(__('Conferma'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            cancelButtonText: <?= json_encode(__('Annulla'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            focusCancel: true,
+            reverseButtons: true
+        }).then(function (r) {
+            if (r && r.isConfirmed) form.submit();
+        });
+    };
+}
+</script>

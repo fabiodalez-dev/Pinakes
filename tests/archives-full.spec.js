@@ -348,22 +348,17 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         await expect(page.locator('body')).toContainText('E2E Full Test Fonds');
     });
 
-    // NOTE on confirm()/SweetAlert2: the rest of Pinakes uses SweetAlert2 v11
-    // for confirmation modals, but the archives plugin deliberately relies on
-    // native window.confirm() inside onsubmit for its destructive forms. This
-    // keeps the plugin free of any JS-framework dependency — activation/
-    // deactivation stays self-contained. If the UI is later ported to Swal2,
-    // these tests must switch to page.click('.swal2-confirm') instead of
-    // the page.once('dialog', ...) handler below.
+    // Destructive confirmations go through SweetAlert2 (same pattern as the
+    // rest of Pinakes). The button is <button type="button"> — clicking it
+    // opens the swal modal; we then click .swal2-confirm which fires the
+    // real form submit.
     test('15. Detach authority from fonds', async () => {
         const fondsId = dbQuery(`SELECT id FROM archival_units WHERE reference_code = '${FONDS_REF}' AND deleted_at IS NULL`);
         const authId = dbQuery(`SELECT id FROM authority_records WHERE authorised_form = '${AUTH_NAME_PERSON}' AND deleted_at IS NULL`);
         await page.goto(`${BASE}/admin/archives/${fondsId}`);
-        page.once('dialog', d => d.accept());
-        await Promise.all([
-            page.waitForURL(new RegExp(`/admin/archives/${fondsId}$`), { timeout: 10000 }),
-            page.click('button:has-text("scollega"), button:has-text("unlink")'),
-        ]);
+        await page.click('button:has-text("scollega"), button:has-text("unlink")');
+        await page.locator('.swal2-confirm').click();
+        await page.waitForURL(new RegExp(`/admin/archives/${fondsId}$`), { timeout: 10000 });
         const count = dbQuery(
             `SELECT COUNT(*) FROM archival_unit_authority
               WHERE archival_unit_id = ${fondsId} AND authority_id = ${authId}`

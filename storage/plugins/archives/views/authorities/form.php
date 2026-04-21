@@ -53,12 +53,12 @@ $typeLabels = [
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
         <div>
-            <label for="type" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="type" class="form-label">
                 <?= __("Tipo di entità") ?> <span class="text-red-500">*</span>
                 <span class="text-xs text-gray-500 font-normal">(ISAAR 5.1.1)</span>
             </label>
             <select name="type" id="type" required
-                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm <?= $err('type') ? 'border-red-500' : '' ?>">
+                    class="form-input <?= $err('type') ? 'border-red-500' : '' ?>">
                 <option value="">— <?= __("Seleziona un tipo") ?> —</option>
                 <?php foreach ($types as $t): ?>
                     <option value="<?= $e($t) ?>" <?= ($values['type'] ?? '') === $t ? 'selected' : '' ?>>
@@ -72,47 +72,47 @@ $typeLabels = [
         </div>
 
         <div>
-            <label for="authorised_form" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="authorised_form" class="form-label">
                 <?= __("Forma autorizzata del nome") ?> <span class="text-red-500">*</span>
                 <span class="text-xs text-gray-500 font-normal">(ISAAR 5.1.2)</span>
             </label>
             <input type="text" name="authorised_form" id="authorised_form"
                    value="<?= $val('authorised_form') ?>" maxlength="500" required
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm <?= $err('authorised_form') ? 'border-red-500' : '' ?>">
+                   class="form-input <?= $err('authorised_form') ? 'border-red-500' : '' ?>">
             <?php if ($err('authorised_form')): ?>
                 <p class="mt-1 text-xs text-red-600"><?= $e($err('authorised_form')) ?></p>
             <?php endif; ?>
         </div>
 
         <div>
-            <label for="dates_of_existence" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="dates_of_existence" class="form-label">
                 <?= __("Date di esistenza") ?>
                 <span class="text-xs text-gray-500 font-normal">(ISAAR 5.2.1 — <?= __("es. \"1888–1976\" o \"fl. 1920s\"") ?>)</span>
             </label>
             <input type="text" name="dates_of_existence" id="dates_of_existence"
                    value="<?= $val('dates_of_existence') ?>" maxlength="255"
-                   class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm <?= $err('dates_of_existence') ? 'border-red-500' : '' ?>">
+                   class="form-input <?= $err('dates_of_existence') ? 'border-red-500' : '' ?>">
             <?php if ($err('dates_of_existence')): ?>
                 <p class="mt-1 text-xs text-red-600"><?= $e($err('dates_of_existence')) ?></p>
             <?php endif; ?>
         </div>
 
         <div>
-            <label for="history" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="history" class="form-label">
                 <?= __("Storia") ?>
                 <span class="text-xs text-gray-500 font-normal">(ISAAR 5.2.2)</span>
             </label>
             <textarea name="history" id="history" rows="4"
-                      class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"><?= $val('history') ?></textarea>
+                      class="form-input"><?= $val('history') ?></textarea>
         </div>
 
         <div>
-            <label for="functions" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="functions" class="form-label">
                 <?= __("Funzioni, occupazioni, attività") ?>
                 <span class="text-xs text-gray-500 font-normal">(ISAAR 5.2.5)</span>
             </label>
             <textarea name="functions" id="functions" rows="3"
-                      class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"><?= $val('functions') ?></textarea>
+                      class="form-input"><?= $val('functions') ?></textarea>
         </div>
 
         <!-- Phase 2b — extended ISAAR fields (all optional) -->
@@ -122,81 +122,81 @@ $typeLabels = [
             </summary>
             <div class="p-4 space-y-4 border-t bg-white">
                 <div>
-                    <label for="parallel_forms" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="parallel_forms" class="form-label">
                         <?= __("Forme parallele del nome") ?>
                         <span class="text-xs text-gray-500 font-normal">(ISAAR 5.1.3)</span>
                     </label>
                     <textarea name="parallel_forms" id="parallel_forms" rows="2"
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"><?= $val('parallel_forms') ?></textarea>
+                              class="form-input"><?= $val('parallel_forms') ?></textarea>
                 </div>
                 <div>
-                    <label for="other_forms" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="other_forms" class="form-label">
                         <?= __("Altre forme del nome") ?>
                         <span class="text-xs text-gray-500 font-normal">(ISAAR 5.1.5 — <?= __("pseudonimi, varianti storiche") ?>)</span>
                     </label>
                     <textarea name="other_forms" id="other_forms" rows="2"
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"><?= $val('other_forms') ?></textarea>
+                              class="form-input"><?= $val('other_forms') ?></textarea>
                 </div>
                 <div>
-                    <label for="identifiers" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="identifiers" class="form-label">
                         <?= __("Identificatori") ?>
                         <span class="text-xs text-gray-500 font-normal">(ISAAR 5.1.6 — <?= __("es. VIAF, ISNI, ORCID") ?>)</span>
                     </label>
                     <input type="text" name="identifiers" id="identifiers"
                            value="<?= $val('identifiers') ?>" maxlength="500"
-                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                           class="form-input">
                 </div>
                 <div>
-                    <label for="places" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="places" class="form-label">
                         <?= __("Luoghi") ?>
                         <span class="text-xs text-gray-500 font-normal">(ISAAR 5.2.3)</span>
                     </label>
                     <textarea name="places" id="places" rows="2"
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"><?= $val('places') ?></textarea>
+                              class="form-input"><?= $val('places') ?></textarea>
                 </div>
                 <div>
-                    <label for="legal_status" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="legal_status" class="form-label">
                         <?= __("Status giuridico") ?>
                         <span class="text-xs text-gray-500 font-normal">(ISAAR 5.2.4)</span>
                     </label>
                     <input type="text" name="legal_status" id="legal_status"
                            value="<?= $val('legal_status') ?>" maxlength="255"
-                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                           class="form-input">
                 </div>
                 <div>
-                    <label for="mandates" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="mandates" class="form-label">
                         <?= __("Mandati / fonti di autorità") ?>
                         <span class="text-xs text-gray-500 font-normal">(ISAAR 5.2.6)</span>
                     </label>
                     <textarea name="mandates" id="mandates" rows="2"
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"><?= $val('mandates') ?></textarea>
+                              class="form-input"><?= $val('mandates') ?></textarea>
                 </div>
                 <div>
-                    <label for="internal_structure" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="internal_structure" class="form-label">
                         <?= __("Struttura interna / genealogia") ?>
                         <span class="text-xs text-gray-500 font-normal">(ISAAR 5.2.7)</span>
                     </label>
                     <textarea name="internal_structure" id="internal_structure" rows="2"
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"><?= $val('internal_structure') ?></textarea>
+                              class="form-input"><?= $val('internal_structure') ?></textarea>
                 </div>
                 <div>
-                    <label for="general_context" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="general_context" class="form-label">
                         <?= __("Contesto generale") ?>
                         <span class="text-xs text-gray-500 font-normal">(ISAAR 5.2.8)</span>
                     </label>
                     <textarea name="general_context" id="general_context" rows="2"
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"><?= $val('general_context') ?></textarea>
+                              class="form-input"><?= $val('general_context') ?></textarea>
                 </div>
             </div>
         </details>
 
         <div class="flex items-center justify-end space-x-3 pt-4 border-t">
             <a href="<?= $e(url('/admin/archives/authorities')) ?>"
-               class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+               class="btn-secondary">
                 <?= __("Annulla") ?>
             </a>
             <button type="submit"
-                    class="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">
+                    class="btn-primary">
                 <?= $e($submitLabel) ?>
             </button>
         </div>
