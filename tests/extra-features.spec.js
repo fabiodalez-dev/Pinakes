@@ -240,8 +240,12 @@ test.describe.serial('User Profile & Dashboard', () => {
     await page.goto(`${BASE}/profilo`);
     await page.waitForLoadState('networkidle');
 
-    // Fill password change form
+    // Fill password change form. The form has three required fields:
+    // current_password (verified by the server against the current hash),
+    // password (new), and password_confirm. Skipping current_password
+    // makes the server silently reject the update.
     const newPassword = 'NewPass9876!';
+    await page.fill('#current_password', testUserPass);
     await page.fill('#password', newPassword);
     await page.fill('#password_confirm', newPassword);
 
