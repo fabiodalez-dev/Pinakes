@@ -155,7 +155,7 @@ $archiveSchema = json_encode($schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UN
 <section class="archive-hero">
     <div class="container hero-content">
         <div class="row align-items-center">
-            <div class="col-lg-4 mb-4 mb-lg-0">
+            <div class="col-lg-4 mb-4 mb-lg-0 d-flex justify-content-center align-items-center">
                 <?php if ($coverUrl !== ''): ?>
                     <img class="archive-cover-large"
                          src="<?= $e($coverUrl) ?>"
