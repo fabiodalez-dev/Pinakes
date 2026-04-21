@@ -217,13 +217,13 @@ test.describe.serial('Archives plugin CRUD (#103 phase 1d)', () => {
         await page.goto(`${BASE}/admin/archives/${seriesId}`);
         await page.waitForLoadState('domcontentloaded');
 
-        // Playwright auto-dismisses the confirm() by default unless we stub it.
-        page.once('dialog', dialog => dialog.accept());
-
-        await Promise.all([
-            page.waitForURL(/\/admin\/archives$/, { timeout: 10000 }),
-            page.click('form button:has-text("Elimina")'),
-        ]);
+        // Destructive confirmations go through SweetAlert2 (same pattern as
+        // the rest of Pinakes). The button is <button type="button">; clicking
+        // it opens the swal modal — clicking .swal2-confirm fires the real
+        // form submit. See views/show.php archivesSwalConfirm helper.
+        await page.click('form button:has-text("Elimina")');
+        await page.locator('.swal2-confirm').click();
+        await page.waitForURL(/\/admin\/archives$/, { timeout: 10000 });
 
         // Row still exists but deleted_at is set.
         const deletedAt = dbQuery(

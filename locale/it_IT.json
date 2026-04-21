@@ -236,7 +236,6 @@
   "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.": "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.",
   "Importa MARCXML": "Importa MARCXML",
   "Esporta MARCXML": "Esporta MARCXML",
-  "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche. Gli authority record nel file vengono ignorati in questa fase.": "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche. Gli authority record nel file vengono ignorati in questa fase.",
   "Errori durante l'importazione": "Errori durante l'importazione",
   "Dry-run:": "Dry-run:",
   "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.": "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.",

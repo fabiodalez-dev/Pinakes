@@ -102,7 +102,10 @@ test.describe.serial('Archives authorities CRUD + linking (#103 phase 2)', () =>
     test('2. Authority index page renders', async () => {
         await page.goto(`${BASE}/admin/archives/authorities`);
         await page.waitForLoadState('domcontentloaded');
-        const hasEmpty = await page.locator('text=No authority records, text=Nessun authority record').first().isVisible().catch(() => false);
+        // Playwright text selectors don't treat comma as OR — the old
+        // `'text=A, text=B'` selector was always matching the literal string.
+        // Use a regex (`getByText`) so both IT and EN copy match.
+        const hasEmpty = await page.getByText(/Nessun authority record|No authority records/i).first().isVisible().catch(() => false);
         const hasTable = await page.locator('table thead').isVisible().catch(() => false);
         expect(hasEmpty || hasTable).toBe(true);
     });
@@ -135,8 +138,15 @@ test.describe.serial('Archives authorities CRUD + linking (#103 phase 2)', () =>
 
         await page.goto(`${BASE}/admin/archives/${fondsId}`);
         await page.waitForLoadState('domcontentloaded');
-        // Attach form is at the bottom of the archival_unit detail.
-        await page.selectOption('select[name="authority_id"]', authId);
+        // Phase 7 replaced the plain <select name="authority_id"> with a
+        // type-ahead input + hidden <input name="authority_id"> that gets
+        // filled by JS on option click. We skip the UI interaction and set
+        // the hidden value directly — the server-side attach path is what
+        // this test exercises. Mirrors archives-full.spec.js test 13.
+        await page.evaluate((id) => {
+            const hidden = document.querySelector('input[name="authority_id"]');
+            if (hidden instanceof HTMLInputElement) { hidden.value = String(id); }
+        }, authId);
         await page.selectOption('select[name="role"]', 'creator');
         await Promise.all([
             page.waitForURL(new RegExp(`/admin/archives/${fondsId}$`), { timeout: 10000 }),
@@ -182,11 +192,12 @@ test.describe.serial('Archives authorities CRUD + linking (#103 phase 2)', () =>
         const authId = dbQuery(`SELECT id FROM authority_records WHERE authorised_form = '${AUTH_NAME_UPDATED}' AND deleted_at IS NULL`);
 
         await page.goto(`${BASE}/admin/archives/${fondsId}`);
-        page.once('dialog', d => d.accept());
-        await Promise.all([
-            page.waitForURL(new RegExp(`/admin/archives/${fondsId}$`), { timeout: 10000 }),
-            page.click('button:has-text("scollega"), button:has-text("unlink")'),
-        ]);
+        // Destructive confirmations go through SweetAlert2 (archivesSwalConfirm
+        // helper in views/authorities/show.php). Click the button, then the
+        // swal confirm, which fires the real form submit.
+        await page.click('button:has-text("scollega"), button:has-text("unlink")');
+        await page.locator('.swal2-confirm').click();
+        await page.waitForURL(new RegExp(`/admin/archives/${fondsId}$`), { timeout: 10000 });
 
         const linkCount = dbQuery(
             `SELECT COUNT(*) FROM archival_unit_authority
@@ -198,11 +209,9 @@ test.describe.serial('Archives authorities CRUD + linking (#103 phase 2)', () =>
     test('9. Soft-delete the authority', async () => {
         const authId = dbQuery(`SELECT id FROM authority_records WHERE authorised_form = '${AUTH_NAME_UPDATED}' AND deleted_at IS NULL`);
         await page.goto(`${BASE}/admin/archives/authorities/${authId}`);
-        page.once('dialog', d => d.accept());
-        await Promise.all([
-            page.waitForURL(/\/admin\/archives\/authorities$/, { timeout: 10000 }),
-            page.click('button:has-text("Elimina"), button:has-text("Delete")'),
-        ]);
+        await page.click('button:has-text("Elimina"), button:has-text("Delete")');
+        await page.locator('.swal2-confirm').click();
+        await page.waitForURL(/\/admin\/archives\/authorities$/, { timeout: 10000 });
 
         const deletedAt = dbQuery(`SELECT deleted_at FROM authority_records WHERE id = ${authId}`);
         expect(deletedAt).not.toBe('NULL');
