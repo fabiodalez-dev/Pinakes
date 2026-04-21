@@ -881,11 +881,17 @@ class ArchivesPlugin
         $values = $this->extractArchivalUnitPayload($request);
         $errors = $this->validateArchivalUnit($values, $id);
 
-        // Extra safeguard: prevent cycles in the hierarchy (self-parent or
-        // descendant-as-parent). Phase 1c covers the direct-self case; full
-        // transitive check → phase 2 when CTE helpers are available.
+        // Extra safeguard: prevent cycles in the hierarchy. Besides the
+        // direct self-parent case, an editor could still pick a *descendant*
+        // as parent — e.g. A→B→C then assign A.parent_id = C, producing a
+        // A→B→C→A cycle. Walk up from the proposed parent; if we meet $id
+        // we would be creating a loop. The tree is shallow in practice so a
+        // plain PHP loop is fine (capped at 100 hops to harden against
+        // pathological data).
         if ($values['parent_id'] === $id) {
             $errors['parent_id'] = 'An archival unit cannot be its own parent.';
+        } elseif ($values['parent_id'] !== null && $this->parentWouldCreateCycle($id, (int) $values['parent_id'])) {
+            $errors['parent_id'] = 'An archival unit cannot be moved under one of its own descendants.';
         }
 
         if (!empty($errors)) {
@@ -1886,7 +1892,12 @@ class ArchivesPlugin
         $xw->endElement();
         $xw->endDocument();
 
-        return $this->xmlResponse($response, $xw->outputMemory(), ((string) $row['reference_code']) . '.xml');
+        // Sanitize the reference_code before putting it in Content-Disposition:
+        // reference codes can legitimately contain `/`, `.`, spaces, and even
+        // quotes, which would produce malformed headers or path traversal.
+        // Same slug pattern used by the authority export below.
+        $slug = preg_replace('/[^A-Za-z0-9_-]+/', '_', (string) $row['reference_code']) ?: 'archival_unit';
+        return $this->xmlResponse($response, $xw->outputMemory(), $slug . '.xml');
     }
 
     /**
@@ -2914,9 +2925,12 @@ class ArchivesPlugin
 
     /**
      * GET /admin/archives/api/authorities/search?q=... — JSON type-ahead
-     * for the authority attach <select> on archival_units show.php.
-     * Returns up to 25 rows matching either `authorised_form` LIKE or
-     * FULLTEXT relevance when the query is longer than 3 chars.
+     * for the authority attach widget on archival_units show.php.
+     * Returns up to 25 rows matching `authorised_form` by LIKE-prefix or
+     * FULLTEXT relevance (whichever yields hits). The FULLTEXT index has
+     * an innodb_ft_min_token_size (default 3), so queries of 1-2 chars
+     * OR short prefixes like "St" would otherwise return nothing — we
+     * always run a LIKE pass and merge the results.
      */
     public function authorityTypeaheadAction(
         ServerRequestInterface $request,
@@ -2926,7 +2940,7 @@ class ArchivesPlugin
         $q = trim((string) ($params['q'] ?? ''));
         $rows = [];
         if ($q !== '') {
-            $rows = $this->searchAuthorityRecords($q, 25);
+            $rows = $this->searchAuthorityRecordsForTypeahead($q, 25);
         }
         $response = $response->withHeader('Content-Type', 'application/json');
         $response->getBody()->write(json_encode([
@@ -2934,6 +2948,67 @@ class ArchivesPlugin
             'results' => $rows,
         ]) ?: '[]');
         return $response;
+    }
+
+    /**
+     * Type-ahead friendly search: LIKE-prefix first (always produces hits
+     * for short queries that FULLTEXT would ignore below min_token_size),
+     * then top up with FULLTEXT relevance matches when there is budget
+     * left. De-duplicates by id, preserves LIKE-prefix order first.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function searchAuthorityRecordsForTypeahead(string $q, int $limit): array
+    {
+        $rows = [];
+        $seen = [];
+
+        // Pass 1 — LIKE prefix on authorised_form. Escape `%` and `_` in
+        // the user query so literal wildcards don't leak through.
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
+        $likePattern = $escaped . '%';
+        $stmt = $this->db->prepare(
+            "SELECT id, type, authorised_form, dates_of_existence
+               FROM authority_records
+              WHERE deleted_at IS NULL
+                AND authorised_form LIKE ?
+              ORDER BY authorised_form ASC
+              LIMIT ?"
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('si', $likePattern, $limit);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result instanceof \mysqli_result) {
+                while ($r = $result->fetch_assoc()) {
+                    $rows[] = $r;
+                    $seen[(int) $r['id']] = true;
+                }
+                $result->free();
+            }
+            $stmt->close();
+        }
+
+        // Pass 2 — FULLTEXT for any remaining budget. Only runs when the
+        // query is long enough to have a chance of matching.
+        $remaining = $limit - count($rows);
+        if ($remaining > 0 && strlen($q) >= 3) {
+            foreach ($this->searchAuthorityRecords($q, $remaining + count($seen)) as $r) {
+                $rid = (int) $r['id'];
+                if (isset($seen[$rid])) {
+                    continue;
+                }
+                // Strip the `score` column — typeahead clients don't need it.
+                unset($r['score']);
+                $rows[] = $r;
+                $seen[$rid] = true;
+                if (count($rows) >= $limit) {
+                    break;
+                }
+            }
+        }
+
+        return $rows;
     }
 
     /**
@@ -3134,6 +3209,56 @@ class ArchivesPlugin
         $row = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
         $stmt->close();
         return is_array($row) ? $row : null;
+    }
+
+    /**
+     * Check if setting $proposedParentId as the parent of $childId would
+     * introduce a cycle. Walks up from the proposed parent via parent_id
+     * and returns true if $childId appears in the chain. Capped at 100
+     * hops to harden against pathological (pre-existing) cycles in the
+     * data — we must not loop forever on corrupt rows.
+     *
+     * Assumes $childId !== $proposedParentId (direct-self case is handled
+     * by the caller, which is cheaper than a query).
+     */
+    private function parentWouldCreateCycle(int $childId, int $proposedParentId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT parent_id FROM archival_units WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] parentWouldCreateCycle prepare failed: ' . $this->db->error);
+            // Fail closed — treat as cycle so the edit is rejected rather
+            // than letting a potentially-corrupt row through silently.
+            return true;
+        }
+        $current = $proposedParentId;
+        $visited = [];
+        for ($i = 0; $i < 100; $i++) {
+            if ($current === $childId) {
+                $stmt->close();
+                return true;
+            }
+            if (isset($visited[$current])) {
+                // Pre-existing cycle in the data (not one we would create).
+                // Break out and let the edit proceed; surfacing this here
+                // would block unrelated edits on corrupt rows.
+                break;
+            }
+            $visited[$current] = true;
+            $stmt->bind_param('i', $current);
+            if (!$stmt->execute()) {
+                break;
+            }
+            $res = $stmt->get_result();
+            $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+            if (!is_array($row) || $row['parent_id'] === null) {
+                break;
+            }
+            $current = (int) $row['parent_id'];
+        }
+        $stmt->close();
+        return false;
     }
 
     /**

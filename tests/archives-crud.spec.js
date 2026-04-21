@@ -33,14 +33,16 @@ const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
 // Build mysql CLI args safely — passing bare `-p` (when DB_PASS is empty)
 // triggers an interactive password prompt that hangs the test until timeout.
-// Only append `-p${DB_PASS}` when a password is actually set.
+// Only append `-p${DB_PASS}` when a password is actually set. When `sql`
+// is the empty string the `-e` flag is omitted so callers can pipe SQL
+// via stdin.
 function mysqlArgs(sql, batch = false) {
     const args = ['-u', DB_USER];
     if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
     if (DB_SOCKET) args.push('-S', DB_SOCKET);
     args.push(DB_NAME);
     if (batch) args.push('-N', '-B');
-    args.push('-e', sql);
+    if (sql !== '') args.push('-e', sql);
     return args;
 }
 function dbQuery(sql) {

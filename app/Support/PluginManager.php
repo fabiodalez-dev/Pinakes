@@ -738,9 +738,17 @@ class PluginManager
             return ['success' => false, 'message' => __('File principale del plugin non trovato.')];
         }
 
-        // Run plugin activation hook
+        // Run plugin activation hook on a single instance so the pluginId
+        // set by instantiatePlugin() (via setPluginId) persists through
+        // the onActivate() call. Without this, plugins that write to
+        // plugin_hooks during onActivate() — e.g. archives — would see
+        // pluginId=null and silently no-op, shipping an installed-but-
+        // unrouted plugin. See ArchivesPlugin::registerHookInDb() guard.
         try {
-            $this->runPluginMethod($plugin['name'], 'onActivate');
+            $instance = $this->instantiatePlugin($plugin);
+            if (method_exists($instance, 'onActivate')) {
+                $instance->onActivate();
+            }
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => __('Errore durante l\'attivazione: %s', $e->getMessage())];
         }
@@ -776,9 +784,14 @@ class PluginManager
             return ['success' => false, 'message' => __('Plugin già disattivato.')];
         }
 
-        // Run plugin deactivation hook
+        // Run plugin deactivation hook on a single instance (see
+        // activatePlugin() — same reasoning). Plugins that prune
+        // plugin_hooks rows during onDeactivate() need pluginId set.
         try {
-            $this->runPluginMethod($plugin['name'], 'onDeactivate');
+            $instance = $this->instantiatePlugin($plugin);
+            if (method_exists($instance, 'onDeactivate')) {
+                $instance->onDeactivate();
+            }
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => __('Errore durante la disattivazione: %s', $e->getMessage())];
         }
@@ -818,9 +831,15 @@ class PluginManager
             }
         }
 
-        // Run plugin uninstall hook
+        // Run plugin uninstall hook on a single instance (see
+        // activatePlugin() — same reasoning). onUninstall() can perform
+        // FK-aware cleanup with pluginId set before the plugins row is
+        // deleted.
         try {
-            $this->runPluginMethod($plugin['name'], 'onUninstall');
+            $instance = $this->instantiatePlugin($plugin);
+            if (method_exists($instance, 'onUninstall')) {
+                $instance->onUninstall();
+            }
         } catch (\Throwable $e) {
             // Continue with uninstall even if hook fails
             SecureLogger::warning("Plugin uninstall hook error: " . $e->getMessage());
@@ -846,7 +865,11 @@ class PluginManager
     }
 
     /**
-     * Run a plugin method if it exists
+     * Run a plugin method if it exists. Each call creates a fresh plugin
+     * object — for lifecycle flows where instance state must persist
+     * between multiple calls (e.g. setPluginId followed by onActivate),
+     * build the instance via {@see instantiatePlugin()} (which also
+     * wires up setPluginId) and invoke methods on it directly.
      *
      * @param string $pluginName
      * @param string $method

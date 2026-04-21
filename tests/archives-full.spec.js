@@ -33,14 +33,16 @@ const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
 // Build mysql CLI args safely — passing bare `-p` (when DB_PASS is empty)
 // triggers an interactive password prompt that hangs the test until timeout.
-// Only append `-p${DB_PASS}` when a password is actually set.
+// Only append `-p${DB_PASS}` when a password is actually set. When `sql`
+// is the empty string the `-e` flag is omitted so callers can pipe SQL
+// via stdin (used for applying migration files).
 function mysqlArgs(sql, batch = false) {
     const args = ['-u', DB_USER];
     if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
     if (DB_SOCKET) args.push('-S', DB_SOCKET);
     args.push(DB_NAME);
     if (batch) args.push('-N', '-B');
-    args.push('-e', sql);
+    if (sql !== '') args.push('-e', sql);
     return args;
 }
 function dbQuery(sql) {
@@ -110,44 +112,62 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
     // ─── Phase 1: schema + activation + sidebar ────────────────────────
 
     test('01. Plugin is active + schema tables exist', async () => {
-        // On fresh installs the plugin is auto-registered (is_active=0) by
-        // PluginManager's autoRegisterBundledPlugins() but the 0.5.9
-        // migration hasn't run (version.json is still 0.5.8 at this stage).
-        // Simulate the full activation path: apply the migration (fresh-
-        // install tables) + flip is_active=1 + hit /admin/plugins once so
-        // loadActivePlugins() loads the plugin for subsequent requests.
+        // Run the 0.5.9 migration first (version.json is 0.5.8 on fresh
+        // installs), then activate the plugin through the real admin UI so
+        // PluginManager::activatePlugin() runs setPluginId() + onActivate()
+        // and the hook rows get written naturally. This guards against
+        // silent hook-registration regressions — the previous version of
+        // this test manually inserted the rows, masking the real flow.
         const fs = require('fs');
         const path = require('path');
         const migPath = path.join(__dirname, '..', 'installer', 'database', 'migrations', 'migrate_0.5.9.sql');
         if (fs.existsSync(migPath)) {
-            const { execFileSync } = require('child_process');
-            const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME];
-            if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
-            execFileSync('mysql', args, {
+            execFileSync('mysql', mysqlArgs(''), {
                 input: fs.readFileSync(migPath, 'utf-8'),
                 encoding: 'utf-8',
                 timeout: 15000,
             });
         }
-        dbExec("UPDATE plugins SET is_active = 1 WHERE name = 'archives'");
-        // ArchivesPlugin::onActivate() normally writes the two hook rows
-        // (app.routes.register + admin.menu.render) into plugin_hooks.
-        // Simulate that here since we bypassed the admin UI click.
+        // Reset: deactivate and scrub hooks so we assert the UI-click is what
+        // re-registers them. PluginManager::deactivatePlugin() would do this
+        // too, but it refuses when is_active=0 already, so we force-reset here.
         const pluginId = dbQuery("SELECT id FROM plugins WHERE name = 'archives'");
         if (pluginId !== '') {
             dbExec(`DELETE FROM plugin_hooks WHERE plugin_id = ${pluginId}`);
-            dbExec(
-                `INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
-                 VALUES (${pluginId}, 'app.routes.register', 'ArchivesPlugin', 'registerRoutes', 10, 1, NOW()),
-                        (${pluginId}, 'admin.menu.render',   'ArchivesPlugin', 'renderAdminMenuEntry', 10, 1, NOW())`
-            );
+            dbExec(`UPDATE plugins SET is_active = 0 WHERE id = ${pluginId}`);
         }
-        // Trigger loadActivePlugins() on the next request.
+        // Activate via the admin UI — exercises the real
+        // runPluginMethod('setPluginId') + runPluginMethod('onActivate') path.
+        // The UI button opens a Swal confirm; we click `.swal2-confirm` which
+        // kicks the POST /admin/plugins/{id}/activate fetch and then reloads
+        // the page. Wait for the POST response so we assert against a settled
+        // DB state, not a pending one.
         await page.goto(`${BASE}/admin/plugins`);
         await page.waitForLoadState('domcontentloaded');
+        const activateBtn = page.locator(`button[onclick^="activatePlugin("]`, { hasText: 'Attiva' }).first();
+        if (await activateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+            await activateBtn.click();
+            await page.locator('.swal2-confirm').first().click();
+            await page.waitForResponse(r =>
+                /\/admin\/plugins\/\d+\/activate$/.test(r.url()) && r.request().method() === 'POST',
+                { timeout: 15000 });
+            // Dismiss the success Swal (if present) and wait for reload.
+            const okBtn = page.locator('.swal2-confirm');
+            if (await okBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+                await okBtn.click();
+            }
+            await page.waitForLoadState('domcontentloaded');
+        }
 
         const nowActive = dbQuery("SELECT is_active FROM plugins WHERE name = 'archives'");
         expect(nowActive).toBe('1');
+        // Regression guard: real activation must populate plugin_hooks.
+        const hookCount = dbQuery(
+            `SELECT COUNT(*) FROM plugin_hooks ph
+               JOIN plugins p ON p.id = ph.plugin_id
+              WHERE p.name = 'archives' AND ph.is_active = 1`
+        );
+        expect(parseInt(hookCount, 10), 'onActivate() must write plugin_hooks rows').toBeGreaterThanOrEqual(2);
         for (const t of ['archival_units', 'authority_records', 'archival_unit_authority', 'autori_authority_link']) {
             const count = dbQuery(
                 `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = '${t}'`
