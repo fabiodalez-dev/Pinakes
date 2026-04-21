@@ -50,6 +50,13 @@ CREATE TABLE IF NOT EXISTS archival_units (
     publisher            VARCHAR(255) NULL,
     collection_name      VARCHAR(255) NULL,
     local_classification VARCHAR(64)  NULL,
+    -- Phase 5+ per-document assets (optional cover image + downloadable
+    -- file). All four columns default to NULL; non-null values are
+    -- relative URLs under /uploads/archives/.
+    cover_image_path     VARCHAR(500) NULL,
+    document_path        VARCHAR(500) NULL,
+    document_mime        VARCHAR(100) NULL,
+    document_filename    VARCHAR(255) NULL,
     created_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at           TIMESTAMP NULL,
@@ -173,6 +180,24 @@ SET @s := IF(@enum_has_mixed = 0,
              'map','picture','object','film','microform','electronic','mixed')
         NOT NULL DEFAULT 'text'",
     'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- archival_units — per-document assets (cover + downloadable file).
+-- Idempotent: add only if missing. All NULL-able, no data migration.
+SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='cover_image_path');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN cover_image_path VARCHAR(500) NULL", 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='document_path');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN document_path VARCHAR(500) NULL", 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='document_mime');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN document_mime VARCHAR(100) NULL", 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='document_filename');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN document_filename VARCHAR(255) NULL", 'SELECT 1');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 
 -- archival_units — FULLTEXT index (may be missing on older ensureSchema())

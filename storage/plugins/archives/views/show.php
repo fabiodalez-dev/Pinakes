@@ -225,6 +225,85 @@ $id = (int) $row['id'];
         </dl>
     </div>
 
+    <!-- Cover image + downloadable document -->
+    <div class="bg-white shadow rounded-lg overflow-hidden mt-6">
+        <div class="px-6 py-3 bg-gray-50 border-b">
+            <h2 class="text-sm font-semibold text-gray-700"><?= __("Copertina e documento") ?></h2>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Cover -->
+            <div>
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    <?= __("Immagine di copertina") ?>
+                </h3>
+                <?php if (!empty($row['cover_image_path'])): ?>
+                    <img src="<?= $e(url((string) $row['cover_image_path'])) ?>"
+                         alt="<?= $e((string) $row['constructed_title']) ?>"
+                         class="max-w-xs rounded-md border border-gray-200 mb-3">
+                    <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/remove-asset')) ?>"
+                          class="inline" onsubmit="return confirm('<?= $e(__("Rimuovere la copertina?")) ?>');">
+                        <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                        <input type="hidden" name="type" value="cover">
+                        <button type="submit" class="text-xs text-red-600 hover:underline">
+                            <?= __("Rimuovi copertina") ?>
+                        </button>
+                    </form>
+                <?php else: ?>
+                    <p class="text-xs text-gray-500 italic mb-3"><?= __("Nessuna copertina caricata.") ?></p>
+                <?php endif; ?>
+                <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/upload-cover')) ?>"
+                      enctype="multipart/form-data" class="space-y-2">
+                    <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                    <input type="file" name="cover" accept="image/jpeg,image/png,image/webp" required
+                           class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <p class="text-xs text-gray-400"><?= __("JPEG, PNG o WebP. Max 8 MB.") ?></p>
+                    <button type="submit" class="btn-secondary text-xs"><?= __("Carica copertina") ?></button>
+                </form>
+            </div>
+
+            <!-- Document -->
+            <div>
+                <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                    <?= __("Documento scaricabile") ?>
+                </h3>
+                <?php if (!empty($row['document_path'])): ?>
+                    <div class="border border-gray-200 rounded-md p-3 mb-3 bg-gray-50">
+                        <p class="text-sm text-gray-900 mb-1">
+                            <i class="fas fa-file-alt mr-1"></i>
+                            <a href="<?= $e(url((string) $row['document_path'])) ?>"
+                               target="_blank" rel="noopener"
+                               class="text-blue-600 hover:underline">
+                                <?= $e((string) ($row['document_filename'] ?? basename((string) $row['document_path']))) ?>
+                            </a>
+                        </p>
+                        <?php if (!empty($row['document_mime'])): ?>
+                            <p class="text-xs text-gray-500 font-mono"><?= $e((string) $row['document_mime']) ?></p>
+                        <?php endif; ?>
+                    </div>
+                    <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/remove-asset')) ?>"
+                          class="inline" onsubmit="return confirm('<?= $e(__("Rimuovere il documento?")) ?>');">
+                        <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                        <input type="hidden" name="type" value="document">
+                        <button type="submit" class="text-xs text-red-600 hover:underline">
+                            <?= __("Rimuovi documento") ?>
+                        </button>
+                    </form>
+                <?php else: ?>
+                    <p class="text-xs text-gray-500 italic mb-3"><?= __("Nessun documento caricato.") ?></p>
+                <?php endif; ?>
+                <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/upload-document')) ?>"
+                      enctype="multipart/form-data" class="space-y-2">
+                    <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                    <input type="file" name="document"
+                           accept="application/pdf,application/epub+zip,audio/mpeg,audio/mp4,audio/ogg,audio/wav,video/mp4,video/webm,image/tiff,image/jpeg,image/png" required
+                           class="block w-full text-xs text-gray-500 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <p class="text-xs text-gray-400"><?= __("PDF, ePub, audio (mp3/m4a/ogg/wav), video (mp4/webm), immagini (tiff/jpg/png). Max 200 MB.") ?></p>
+                    <button type="submit" class="btn-secondary text-xs"><?= __("Carica documento") ?></button>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Authority records linked to this archival_unit -->
     <div class="bg-white shadow rounded-lg overflow-hidden mt-6">
         <div class="px-6 py-3 bg-gray-50 border-b flex items-center justify-between">

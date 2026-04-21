@@ -276,6 +276,10 @@ class ArchivesPlugin
             'publisher'            => 'VARCHAR(255) NULL',
             'collection_name'      => 'VARCHAR(255) NULL',
             'local_classification' => 'VARCHAR(64) NULL',
+            'cover_image_path'     => 'VARCHAR(500) NULL',
+            'document_path'        => 'VARCHAR(500) NULL',
+            'document_mime'        => 'VARCHAR(100) NULL',
+            'document_filename'    => 'VARCHAR(255) NULL',
         ];
 
         // Fetch existing columns once.
@@ -399,6 +403,33 @@ class ArchivesPlugin
             array $args
         ) use ($plugin): ResponseInterface {
             return $plugin->destroyAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // POST /admin/archives/{id}/upload-cover — cover image (jpg/png/webp)
+        $app->post('/admin/archives/{id:[0-9]+}/upload-cover', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->uploadCoverAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // POST /admin/archives/{id}/upload-document — PDF, ePub, audio/video
+        $app->post('/admin/archives/{id:[0-9]+}/upload-document', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->uploadDocumentAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // POST /admin/archives/{id}/remove-asset — drops cover or document
+        $app->post('/admin/archives/{id:[0-9]+}/remove-asset', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->removeAssetAction($request, $response, (int) $args['id']);
         })->add($csrfMiddleware)->add($adminMiddleware);
 
         // ── Phase 2 — authority_records CRUD ────────────────────────────────
@@ -1086,6 +1117,205 @@ class ArchivesPlugin
         $stmt->execute();
         $stmt->close();
         return $response->withHeader('Location', '/admin/archives')->withStatus(303);
+    }
+
+    // ── Phase 5+ — cover + document asset upload ─────────────────────────
+
+    /**
+     * Accept a JPEG/PNG/WebP cover image and persist the relative URL
+     * in `archival_units.cover_image_path`. Files land under
+     * `public/uploads/archives/covers/<id>.<ext>` so nginx serves them
+     * directly. Size cap 8 MB; mime checked via finfo (not just the
+     * browser-provided type) to reject masqueraded uploads.
+     */
+    public function uploadCoverAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        return $this->handleAssetUpload(
+            $request,
+            $response,
+            $id,
+            'cover',
+            ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'],
+            8 * 1024 * 1024
+        );
+    }
+
+    /**
+     * Accept a PDF / ePub / audio / video document and persist
+     * `document_path`, `document_mime`, `document_filename`. Size
+     * cap 200 MB. Mime whitelist covers the common archival formats.
+     */
+    public function uploadDocumentAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        return $this->handleAssetUpload(
+            $request,
+            $response,
+            $id,
+            'document',
+            [
+                'application/pdf'         => 'pdf',
+                'application/epub+zip'    => 'epub',
+                'audio/mpeg'              => 'mp3',
+                'audio/mp4'               => 'm4a',
+                'audio/ogg'               => 'ogg',
+                'audio/wav'               => 'wav',
+                'audio/x-wav'             => 'wav',
+                'video/mp4'               => 'mp4',
+                'video/webm'              => 'webm',
+                'image/tiff'              => 'tiff',
+                'image/jpeg'              => 'jpg',
+                'image/png'               => 'png',
+            ],
+            200 * 1024 * 1024
+        );
+    }
+
+    /**
+     * Remove the cover or document asset referenced by the row —
+     * unlinks the file and nulls the path columns. Expects POST with
+     * type=cover|document in the body.
+     */
+    public function removeAssetAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $parsed = (array) $request->getParsedBody();
+        $type = (string) ($parsed['type'] ?? '');
+        if (!in_array($type, ['cover', 'document'], true)) {
+            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        }
+        $row = $this->findById($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+
+        if ($type === 'cover') {
+            $currentPath = (string) ($row['cover_image_path'] ?? '');
+            $sql = 'UPDATE archival_units SET cover_image_path = NULL WHERE id = ?';
+        } else {
+            $currentPath = (string) ($row['document_path'] ?? '');
+            $sql = 'UPDATE archival_units SET document_path = NULL, document_mime = NULL, document_filename = NULL WHERE id = ?';
+        }
+
+        if ($currentPath !== '') {
+            $fsPath = __DIR__ . '/../../../public' . $currentPath;
+            if (is_file($fsPath)) {
+                @unlink($fsPath);
+            }
+        }
+        $stmt = $this->db->prepare($sql);
+        if ($stmt !== false) {
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+    }
+
+    /**
+     * Shared upload pipeline used by uploadCoverAction + uploadDocumentAction.
+     *
+     * @param array<string, string> $mimeToExt   allowed mime → extension map
+     * @param int                   $maxBytes    per-file size cap
+     */
+    private function handleAssetUpload(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id,
+        string $kind,
+        array $mimeToExt,
+        int $maxBytes
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        $files = (array) $request->getUploadedFiles();
+        $key = $kind === 'cover' ? 'cover' : 'document';
+        $upload = $files[$key] ?? null;
+        if (!($upload instanceof \Psr\Http\Message\UploadedFileInterface)) {
+            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        }
+        if ($upload->getError() !== UPLOAD_ERR_OK) {
+            SecureLogger::warning('[Archives] upload error', ['kind' => $kind, 'err' => $upload->getError()]);
+            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        }
+        if ($upload->getSize() !== null && $upload->getSize() > $maxBytes) {
+            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        }
+
+        // Detect mime via finfo on the temp stream — the browser-provided
+        // type is user-controlled and unreliable.
+        $stream = $upload->getStream();
+        $tmpPath = $stream->getMetadata('uri');
+        $mime = '';
+        if (is_string($tmpPath) && function_exists('finfo_open')) {
+            $finfo = finfo_open(FILEINFO_MIME_TYPE);
+            if ($finfo !== false) {
+                $detected = finfo_file($finfo, $tmpPath);
+                if (is_string($detected)) {
+                    $mime = $detected;
+                }
+                finfo_close($finfo);
+            }
+        }
+        if ($mime === '' || !isset($mimeToExt[$mime])) {
+            SecureLogger::warning('[Archives] upload rejected — mime not in allow-list', [
+                'kind' => $kind, 'mime' => $mime,
+            ]);
+            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        }
+        $ext = $mimeToExt[$mime];
+
+        // Remove any previous file to avoid orphans.
+        $existingPathField = $kind === 'cover' ? 'cover_image_path' : 'document_path';
+        $existingPath = (string) ($row[$existingPathField] ?? '');
+        if ($existingPath !== '') {
+            $oldFs = __DIR__ . '/../../../public' . $existingPath;
+            if (is_file($oldFs)) {
+                @unlink($oldFs);
+            }
+        }
+
+        $targetDirRel = $kind === 'cover'
+            ? '/uploads/archives/covers'
+            : '/uploads/archives/documents';
+        $targetDirFs = __DIR__ . '/../../../public' . $targetDirRel;
+        if (!is_dir($targetDirFs)) {
+            @mkdir($targetDirFs, 0755, true);
+        }
+        $basename = $id . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
+        $upload->moveTo($targetDirFs . '/' . $basename);
+        $relPath = $targetDirRel . '/' . $basename;
+
+        if ($kind === 'cover') {
+            $stmt = $this->db->prepare('UPDATE archival_units SET cover_image_path = ? WHERE id = ?');
+            if ($stmt !== false) {
+                $stmt->bind_param('si', $relPath, $id);
+                $stmt->execute();
+                $stmt->close();
+            }
+        } else {
+            $clientName = (string) ($upload->getClientFilename() ?: ('archive-' . $id . '.' . $ext));
+            // Strip any path component from the client-provided name.
+            $clientName = basename($clientName);
+            $stmt = $this->db->prepare(
+                'UPDATE archival_units SET document_path = ?, document_mime = ?, document_filename = ? WHERE id = ?'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('sssi', $relPath, $mime, $clientName, $id);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
+        return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
     }
 
     // ── Phase 2 — authority_records handlers ────────────────────────────
@@ -3727,6 +3957,10 @@ class ArchivesPlugin
             publisher           VARCHAR(255) NULL,
             collection_name     VARCHAR(255) NULL,
             local_classification VARCHAR(64) NULL,
+            cover_image_path    VARCHAR(500) NULL,
+            document_path       VARCHAR(500) NULL,
+            document_mime       VARCHAR(100) NULL,
+            document_filename   VARCHAR(255) NULL,
             created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             deleted_at          TIMESTAMP NULL,

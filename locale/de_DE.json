@@ -4532,5 +4532,21 @@
   "Soggetti produttori e associati": "Urheber und zugeordnete Entitäten",
   "Unità discendenti (%d)": "Untergeordnete Einheiten (%d)",
   "Storia archivistica": "Archivgeschichte",
-  "Condizioni di accesso": "Zugangsbedingungen"
+  "Condizioni di accesso": "Zugangsbedingungen",
+  "Copertina e documento": "Titelbild und Dokument",
+  "Immagine di copertina": "Titelbild",
+  "Rimuovere la copertina?": "Titelbild entfernen?",
+  "Rimuovi copertina": "Titelbild entfernen",
+  "Nessuna copertina caricata.": "Kein Titelbild hochgeladen.",
+  "Carica copertina": "Titelbild hochladen",
+  "JPEG, PNG o WebP. Max 8 MB.": "JPEG, PNG oder WebP. Max. 8 MB.",
+  "Documento scaricabile": "Herunterladbares Dokument",
+  "Nessun documento caricato.": "Kein Dokument hochgeladen.",
+  "Rimuovere il documento?": "Dokument entfernen?",
+  "Rimuovi documento": "Dokument entfernen",
+  "Carica documento": "Dokument hochladen",
+  "PDF, ePub, audio (mp3/m4a/ogg/wav), video (mp4/webm), immagini (tiff/jpg/png). Max 200 MB.": "PDF, ePub, Audio (mp3/m4a/ogg/wav), Video (mp4/webm), Bilder (tiff/jpg/png). Max. 200 MB.",
+  "Scarica documento": "Dokument herunterladen",
+  "Descrizione archivistica": "Archivbeschreibung",
+  "Identificativi": "Identifikatoren"
 }

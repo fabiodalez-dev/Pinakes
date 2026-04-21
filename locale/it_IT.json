@@ -340,5 +340,21 @@
   "Soggetti produttori e associati": "Soggetti produttori e associati",
   "Unità discendenti (%d)": "Unità discendenti (%d)",
   "Storia archivistica": "Storia archivistica",
-  "Condizioni di accesso": "Condizioni di accesso"
+  "Condizioni di accesso": "Condizioni di accesso",
+  "Copertina e documento": "Copertina e documento",
+  "Immagine di copertina": "Immagine di copertina",
+  "Rimuovere la copertina?": "Rimuovere la copertina?",
+  "Rimuovi copertina": "Rimuovi copertina",
+  "Nessuna copertina caricata.": "Nessuna copertina caricata.",
+  "Carica copertina": "Carica copertina",
+  "JPEG, PNG o WebP. Max 8 MB.": "JPEG, PNG o WebP. Max 8 MB.",
+  "Documento scaricabile": "Documento scaricabile",
+  "Nessun documento caricato.": "Nessun documento caricato.",
+  "Rimuovere il documento?": "Rimuovere il documento?",
+  "Rimuovi documento": "Rimuovi documento",
+  "Carica documento": "Carica documento",
+  "PDF, ePub, audio (mp3/m4a/ogg/wav), video (mp4/webm), immagini (tiff/jpg/png). Max 200 MB.": "PDF, ePub, audio (mp3/m4a/ogg/wav), video (mp4/webm), immagini (tiff/jpg/png). Max 200 MB.",
+  "Scarica documento": "Scarica documento",
+  "Descrizione archivistica": "Descrizione archivistica",
+  "Identificativi": "Identificativi"
 }

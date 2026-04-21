@@ -4532,5 +4532,21 @@
   "Soggetti produttori e associati": "Creators and associated entities",
   "Unità discendenti (%d)": "Descendant units (%d)",
   "Storia archivistica": "Archival history",
-  "Condizioni di accesso": "Access conditions"
+  "Condizioni di accesso": "Access conditions",
+  "Copertina e documento": "Cover and document",
+  "Immagine di copertina": "Cover image",
+  "Rimuovere la copertina?": "Remove cover image?",
+  "Rimuovi copertina": "Remove cover",
+  "Nessuna copertina caricata.": "No cover uploaded yet.",
+  "Carica copertina": "Upload cover",
+  "JPEG, PNG o WebP. Max 8 MB.": "JPEG, PNG or WebP. Max 8 MB.",
+  "Documento scaricabile": "Downloadable document",
+  "Nessun documento caricato.": "No document uploaded yet.",
+  "Rimuovere il documento?": "Remove the document?",
+  "Rimuovi documento": "Remove document",
+  "Carica documento": "Upload document",
+  "PDF, ePub, audio (mp3/m4a/ogg/wav), video (mp4/webm), immagini (tiff/jpg/png). Max 200 MB.": "PDF, ePub, audio (mp3/m4a/ogg/wav), video (mp4/webm), images (tiff/jpg/png). Max 200 MB.",
+  "Scarica documento": "Download document",
+  "Descrizione archivistica": "Archival description",
+  "Identificativi": "Identifiers"
 }
