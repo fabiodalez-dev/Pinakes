@@ -188,7 +188,6 @@
   "Archivi collegati": "Archivi collegati",
   "Questo authority record non è ancora collegato a nessun archivio.": "Questo authority record non è ancora collegato a nessun archivio.",
   "Authority records collegati": "Authority records collegati",
-  "Gestisci authorities": "Gestisci authorities",
   "Nessun authority record collegato. Aggiungine uno qui sotto.": "Nessun authority record collegato. Aggiungine uno qui sotto.",
   "Seleziona un authority record": "Seleziona un authority record",
   "Collega": "Collega",
@@ -323,5 +322,6 @@
   "Fondo": "Fondo",
   "Serie": "Serie",
   "Fascicolo": "Fascicolo",
-  "Unità": "Unità"
+  "Unità": "Unità",
+  "Gestisci record di autorità": "Gestisci record di autorità"
 }

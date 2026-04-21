@@ -4398,7 +4398,6 @@
   "Archivi collegati": "Verknüpfte Archiveinheiten",
   "Questo authority record non è ancora collegato a nessun archivio.": "Dieser Normdatensatz ist noch mit keiner Archiveinheit verknüpft.",
   "Authority records collegati": "Verknüpfte Normdatensätze",
-  "Gestisci authorities": "Normdaten verwalten",
   "Nessun authority record collegato. Aggiungine uno qui sotto.": "Keine Normdatensätze verknüpft. Fügen Sie unten einen hinzu.",
   "Seleziona un authority record": "Normdatensatz auswählen",
   "Collega": "Verknüpfen",
@@ -4516,5 +4515,6 @@
   "Fondo": "Bestand",
   "Serie": "Serie",
   "Fascicolo": "Akte",
-  "Unità": "Einzelstück"
+  "Unità": "Einzelstück",
+  "Gestisci record di autorità": "Normdatensätze verwalten"
 }

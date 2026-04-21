@@ -143,12 +143,40 @@ $id = (int) $row['id'];
             <?php endif; ?>
             <div class="px-6 py-3 grid grid-cols-3 gap-4">
                 <dt class="text-sm font-medium text-gray-500"><?= __("Creato") ?></dt>
-                <dd class="col-span-2 text-xs text-gray-600 font-mono"><?= $v('created_at') ?></dd>
+                <dd class="col-span-2 text-xs text-gray-600 font-mono"><?= $e(format_date((string) ($row['created_at'] ?? ''), true, '/')) ?></dd>
             </div>
             <?php if (!empty($row['specific_material']) && $row['specific_material'] !== 'text'): ?>
+                <?php
+                // Localise the ENUM value. Falls back to the raw code
+                // if the locale cache doesn't have the label — future
+                // ENUM additions won't render as "[material_key]".
+                $materialLabelsShow = [
+                    'text'       => __('Testo / manoscritto (bf)'),
+                    'photograph' => __('Fotografia (hf)'),
+                    'poster'     => __('Poster (hp)'),
+                    'postcard'   => __('Cartolina (hm)'),
+                    'drawing'    => __('Disegno / opera grafica (hd)'),
+                    'audio'      => __('Registrazione audio (lm)'),
+                    'video'      => __('Video (vm)'),
+                    'other'      => __('Altro'),
+                    'map'        => __('Mappa / cartografia (hk)'),
+                    'picture'    => __('Immagine / stampa / dipinto (hb)'),
+                    'object'     => __('Oggetto tridimensionale / realia (ho)'),
+                    'film'       => __('Pellicola cinematografica (lf)'),
+                    'microform'  => __('Microforma (bm)'),
+                    'electronic' => __('Risorsa elettronica / nato-digitale (le)'),
+                    'mixed'      => __('Materiale misto (zz)'),
+                ];
+                $colorLabelsShow = [
+                    'bw'    => __('Bianco e nero'),
+                    'color' => __('Colore'),
+                    'mixed' => __('Misto'),
+                ];
+                $specKey = (string) $row['specific_material'];
+                ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
                     <dt class="text-sm font-medium text-gray-500"><?= __("Tipo di materiale") ?></dt>
-                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('specific_material') ?></dd>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $e($materialLabelsShow[$specKey] ?? $specKey) ?></dd>
                 </div>
             <?php endif; ?>
             <?php if (!empty($row['dimensions'])): ?>
@@ -158,9 +186,10 @@ $id = (int) $row['id'];
                 </div>
             <?php endif; ?>
             <?php if (!empty($row['color_mode'])): ?>
+                <?php $colorKey = (string) $row['color_mode']; ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
                     <dt class="text-sm font-medium text-gray-500"><?= __("Modalità colore") ?></dt>
-                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('color_mode') ?></dd>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $e($colorLabelsShow[$colorKey] ?? $colorKey) ?></dd>
                 </div>
             <?php endif; ?>
             <?php if (!empty($row['photographer'])): ?>
@@ -190,7 +219,7 @@ $id = (int) $row['id'];
             <?php if (!empty($row['updated_at']) && $row['updated_at'] !== $row['created_at']): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
                     <dt class="text-sm font-medium text-gray-500"><?= __("Ultima modifica") ?></dt>
-                    <dd class="col-span-2 text-xs text-gray-600 font-mono"><?= $v('updated_at') ?></dd>
+                    <dd class="col-span-2 text-xs text-gray-600 font-mono"><?= $e(format_date((string) $row['updated_at'], true, '/')) ?></dd>
                 </div>
             <?php endif; ?>
         </dl>
@@ -201,7 +230,7 @@ $id = (int) $row['id'];
         <div class="px-6 py-3 bg-gray-50 border-b flex items-center justify-between">
             <h2 class="text-sm font-semibold text-gray-700"><?= __("Authority records collegati") ?></h2>
             <a href="<?= $e(url('/admin/archives/authorities')) ?>" class="text-xs text-blue-600 hover:underline">
-                <?= __("Gestisci authorities") ?>
+                <?= __("Gestisci record di autorità") ?>
             </a>
         </div>
 

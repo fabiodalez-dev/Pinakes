@@ -4398,7 +4398,6 @@
   "Archivi collegati": "Linked archival units",
   "Questo authority record non è ancora collegato a nessun archivio.": "This authority record is not yet linked to any archival unit.",
   "Authority records collegati": "Linked authority records",
-  "Gestisci authorities": "Manage authorities",
   "Nessun authority record collegato. Aggiungine uno qui sotto.": "No authority records linked. Add one below.",
   "Seleziona un authority record": "Select an authority record",
   "Collega": "Link",
@@ -4516,5 +4515,6 @@
   "Fondo": "Fonds",
   "Serie": "Series",
   "Fascicolo": "File",
-  "Unità": "Item"
+  "Unità": "Item",
+  "Gestisci record di autorità": "Manage authority records"
 }
