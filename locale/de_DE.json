@@ -4433,7 +4433,6 @@
   "Vai ad Autori": "Zu den Autoren",
   "Nessun autore di libreria collegato. Associa un autore qui sotto per unificare libri e archivi nella ricerca.": "Keine Bibliotheksautoren verknüpft. Verknüpfen Sie unten einen, um Bücher und Archive in der Suche zusammenzuführen.",
   "Seleziona un autore di libreria": "Bibliotheksautor auswählen",
-  "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.": "Erste 100 Autoren werden angezeigt. Nutze die Type-Ahead-Suche für längere Listen.",
   "Importa MARCXML": "MARCXML importieren",
   "Esporta MARCXML": "MARCXML exportieren",
   "Errori durante l'importazione": "Fehler beim Import",
@@ -4512,5 +4511,10 @@
   "Pellicola cinematografica (lf)": "Kinofilm (lf)",
   "Microforma (bm)": "Mikroform (bm)",
   "Risorsa elettronica / nato-digitale (le)": "Elektronische Ressource / born-digital (le)",
-  "Materiale misto (zz)": "Gemischte Materialien (zz)"
+  "Materiale misto (zz)": "Gemischte Materialien (zz)",
+  "Mostrati primi 100 autori. Usa la ricerca type-ahead per liste più lunghe.": "Erste 100 Autoren werden angezeigt. Nutze die Type-Ahead-Suche für längere Listen.",
+  "Fondo": "Bestand",
+  "Serie": "Serie",
+  "Fascicolo": "Akte",
+  "Unità": "Einzelstück"
 }

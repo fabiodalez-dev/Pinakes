@@ -71,18 +71,36 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
     /** @type {import('@playwright/test').Page} */
     let page;
 
+    // FK-safe cleanup — archival_units has a self-referencing parent_id,
+    // so a blanket DELETE can fail (or partially succeed) if rows are
+    // processed parent-before-child. Delete children first, then roots.
+    // Link tables are cleared first to avoid blocking the unit delete.
+    function cleanupFullRows() {
+        dbExec(`DELETE aua FROM archival_unit_authority aua
+                JOIN archival_units au ON au.id = aua.archival_unit_id
+                WHERE au.reference_code LIKE '${TAG}%'`);
+        dbExec(`DELETE aal FROM autori_authority_link aal
+                JOIN authority_records ar ON ar.id = aal.authority_id
+                WHERE ar.authorised_form LIKE '${TAG}%'`);
+        // Children first (parent_id IS NOT NULL) — self-FK safe.
+        dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%' AND parent_id IS NOT NULL`);
+        dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%'`);
+        dbExec(`DELETE FROM authority_records WHERE authorised_form LIKE '${TAG}%'`);
+    }
+
     test.beforeAll(async ({ browser }) => {
-        // Pre-clean in FK-safe order.
         try {
-            dbExec(`DELETE aua FROM archival_unit_authority aua
-                    JOIN archival_units au ON au.id = aua.archival_unit_id
-                    WHERE au.reference_code LIKE '${TAG}%'`);
-            dbExec(`DELETE aal FROM autori_authority_link aal
-                    JOIN authority_records ar ON ar.id = aal.authority_id
-                    WHERE ar.authorised_form LIKE '${TAG}%'`);
-            dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%'`);
-            dbExec(`DELETE FROM authority_records WHERE authorised_form LIKE '${TAG}%'`);
-        } catch { /* tables may not exist yet on fresh installs without the plugin active */ }
+            cleanupFullRows();
+        } catch (err) {
+            // Tables may not exist yet on fresh installs without the plugin
+            // active — suppress the "table doesn't exist" case, but surface
+            // any other failure so real cleanup bugs don't hide silently.
+            const msg = String(err?.message || err);
+            if (!/doesn.?t exist|Table .* doesn't exist/i.test(msg)) {
+                // eslint-disable-next-line no-console
+                console.error('[archives-full beforeAll cleanup]', msg);
+            }
+        }
 
         context = await browser.newContext();
         page = await context.newPage();
@@ -97,15 +115,11 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
 
     test.afterAll(async () => {
         try {
-            dbExec(`DELETE aua FROM archival_unit_authority aua
-                    JOIN archival_units au ON au.id = aua.archival_unit_id
-                    WHERE au.reference_code LIKE '${TAG}%'`);
-            dbExec(`DELETE aal FROM autori_authority_link aal
-                    JOIN authority_records ar ON ar.id = aal.authority_id
-                    WHERE ar.authorised_form LIKE '${TAG}%'`);
-            dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%'`);
-            dbExec(`DELETE FROM authority_records WHERE authorised_form LIKE '${TAG}%'`);
-        } catch { /* best-effort */ }
+            cleanupFullRows();
+        } catch (err) {
+            // eslint-disable-next-line no-console
+            console.error('[archives-full afterAll cleanup]', String(err?.message || err));
+        }
         await context?.close();
     });
 

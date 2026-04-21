@@ -205,7 +205,22 @@ $levelLabels = [
         </div>
 
         <!-- Phase 5 — photographic / material-type fields (all optional) -->
-        <details class="border rounded-md bg-gray-50" <?= !empty($values['specific_material']) && $values['specific_material'] !== 'text' ? 'open' : '' ?>>
+        <?php
+        // Keep the "Materiale specifico" section open not only when a
+        // non-default specific_material is selected, but also when any
+        // of the correlated photo/material fields has a value — so a
+        // re-render after a validation error doesn't hide data that the
+        // user already typed.
+        $materialExtras = ['dimensions', 'color_mode', 'photographer', 'publisher', 'collection_name', 'local_classification'];
+        $materialOpen = !empty($values['specific_material']) && $values['specific_material'] !== 'text';
+        foreach ($materialExtras as $mk) {
+            if (!empty($values[$mk])) {
+                $materialOpen = true;
+                break;
+            }
+        }
+        ?>
+        <details class="border rounded-md bg-gray-50" <?= $materialOpen ? 'open' : '' ?>>
             <summary class="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700">
                 <?= __("Materiale specifico (foto, poster, cartoline…)") ?>
             </summary>

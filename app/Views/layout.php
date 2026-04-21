@@ -303,8 +303,13 @@ $htmlLang = substr($currentLocale, 0, 2);
           <?php
           // Plugin hook: lets optional plugins (e.g. archives) inject their own
           // sidebar menu entries. Handlers echo HTML directly. Matches the
-          // existing admin-sidebar Tailwind pattern used above.
-          \App\Support\Hooks::do('admin.menu.render');
+          // existing admin-sidebar Tailwind pattern used above. Only fire for
+          // admin/staff — the sidebar is already hidden via `display: none` for
+          // regular users, but running the hook would still execute plugin
+          // callbacks and embed admin markup in the DOM for non-privileged users.
+          if ($isAdminOrStaff) {
+              \App\Support\Hooks::do('admin.menu.render');
+          }
           ?>
 
           <a class="nav-link group flex items-center px-4 py-3 rounded-lg transition-all duration-200 hover:bg-gray-100 text-gray-700 hover:text-gray-900"

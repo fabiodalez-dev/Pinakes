@@ -4433,7 +4433,6 @@
   "Vai ad Autori": "Go to Authors",
   "Nessun autore di libreria collegato. Associa un autore qui sotto per unificare libri e archivi nella ricerca.": "No library authors linked. Link one below to unify books and archives in search.",
   "Seleziona un autore di libreria": "Select a library author",
-  "Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.": "Showing first 100 authors. Use the type-ahead search for longer lists.",
   "Importa MARCXML": "Import MARCXML",
   "Esporta MARCXML": "Export MARCXML",
   "Errori durante l'importazione": "Errors during import",
@@ -4512,5 +4511,10 @@
   "Pellicola cinematografica (lf)": "Motion-picture film (lf)",
   "Microforma (bm)": "Microform (bm)",
   "Risorsa elettronica / nato-digitale (le)": "Electronic resource / born-digital (le)",
-  "Materiale misto (zz)": "Mixed materials (zz)"
+  "Materiale misto (zz)": "Mixed materials (zz)",
+  "Mostrati primi 100 autori. Usa la ricerca type-ahead per liste più lunghe.": "Showing first 100 authors. Use the type-ahead search for longer lists.",
+  "Fondo": "Fonds",
+  "Serie": "Series",
+  "Fascicolo": "File",
+  "Unità": "Item"
 }

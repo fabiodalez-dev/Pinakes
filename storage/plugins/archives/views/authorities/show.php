@@ -185,7 +185,7 @@ $id = (int) $row['id'];
                 </button>
             </form>
             <p class="px-6 pb-3 text-xs text-gray-500 italic">
-                <?= __("Mostrati primi 100 autori. Per liste più lunghe, una ricerca type-ahead arriverà nella prossima fase.") ?>
+                <?= __("Mostrati primi 100 autori. Usa la ricerca type-ahead per liste più lunghe.") ?>
             </p>
         <?php endif; ?>
     </div>

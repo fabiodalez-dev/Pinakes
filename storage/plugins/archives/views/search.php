@@ -20,6 +20,20 @@ $typeBadge = [
     'corporate' => 'bg-amber-100 text-amber-800',
     'family'    => 'bg-pink-100 text-pink-800',
 ];
+// Localised labels so the badge shows "Fondo" / "Persona (biografica)"
+// rather than the raw DB enum (fonds / person). Matches the pattern
+// already used in authorities/index.php.
+$levelLabel = [
+    'fonds'  => __('Fondo'),
+    'series' => __('Serie'),
+    'file'   => __('Fascicolo'),
+    'item'   => __('Unità'),
+];
+$typeLabel = [
+    'person'    => __('Persona (biografica)'),
+    'corporate' => __('Ente (organizzazione, sindacato, partito)'),
+    'family'    => __('Famiglia (genealogica)'),
+];
 
 $totalHits = count($results['archival_units']) + count($results['authority_records']) + count($results['linked_autori']);
 ?>
@@ -88,7 +102,7 @@ $totalHits = count($results['archival_units']) + count($results['authority_recor
                         ?>
                         <li class="px-6 py-3">
                             <div class="flex items-center gap-3">
-                                <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $badge ?>"><?= $e($lvl) ?></span>
+                                <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $badge ?>"><?= $e($levelLabel[$lvl] ?? $lvl) ?></span>
                                 <a href="<?= $e(url('/admin/archives/' . $rid)) ?>" class="text-blue-600 hover:underline font-medium">
                                     <?= $e((string) $row['constructed_title']) ?>
                                 </a>
@@ -121,7 +135,7 @@ $totalHits = count($results['archival_units']) + count($results['authority_recor
                         ?>
                         <li class="px-6 py-3">
                             <div class="flex items-center gap-3">
-                                <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $badge ?>"><?= $e($type) ?></span>
+                                <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $badge ?>"><?= $e($typeLabel[$type] ?? $type) ?></span>
                                 <a href="<?= $e(url('/admin/archives/authorities/' . $rid)) ?>" class="text-blue-600 hover:underline font-medium">
                                     <?= $e((string) $row['authorised_form']) ?>
                                 </a>
