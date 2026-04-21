@@ -334,26 +334,29 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         const authId = dbQuery(`SELECT id FROM authority_records WHERE authorised_form = '${AUTH_NAME_PERSON}' AND deleted_at IS NULL`);
         await page.goto(`${BASE}/admin/archives/${fondsId}`);
 
-        // Phase 7 assertions: type-ahead UI wiring is present.
-        await expect(page.locator('[data-typeahead-input]')).toBeVisible();
-        await expect(page.locator('[data-typeahead-results]')).toBeHidden();
-
-        // The JSON endpoint responds 200 + correct shape (API check — the
-        // FULLTEXT MATCH can't score our tag-prefixed fixture rows so we
-        // verify the endpoint works with a real dictionary word instead).
-        const sr = await page.request.get(`${BASE}/admin/archives/api/authorities/search?q=Danish`);
-        expect(sr.status()).toBe(200);
-        const srJson = await sr.json();
-        expect(Array.isArray(srJson.results)).toBe(true);
-
-        // The attach action itself: inject the hidden authority_id (which
-        // the type-ahead would set on option click) and submit. We've
-        // already proved the type-ahead UI renders; exercising the
-        // server-side attach path is what this test is really about.
-        await page.evaluate((id) => {
-            const hidden = document.querySelector('input[name="authority_id"]');
-            if (hidden instanceof HTMLInputElement) { hidden.value = String(id); }
-        }, authId);
+        // Exercise the REAL type-ahead user flow: type a prefix into the
+        // input, wait for the JSON response, confirm the option renders,
+        // click it, then verify the hidden authority_id got populated by
+        // the JS handler (NOT by test evaluate-injection). Because the
+        // fixture authority name starts with `E2E_FULL_…_Person_Stauning`
+        // the backend LIKE-prefix pass matches it — we're relying on the
+        // typeahead's LIKE-pre-FULLTEXT contract here. A regression in
+        // that contract (e.g. FULLTEXT-only) would fail the prefix match
+        // and this test.
+        const prefix = AUTH_NAME_PERSON.substring(0, 10); // e.g. "E2E_FULL_1"
+        const input = page.locator('[data-typeahead-input]');
+        await expect(input).toBeVisible();
+        await input.fill(prefix);
+        // Debounce is 200ms; wait for the fetch to complete.
+        await page.waitForResponse(r =>
+            r.url().includes('/admin/archives/api/authorities/search') &&
+            r.status() === 200,
+            { timeout: 5000 });
+        const option = page.locator(`[data-typeahead-results] li[data-id="${authId}"]`);
+        await expect(option, 'LIKE-prefix typeahead must surface the fixture authority').toBeVisible({ timeout: 5000 });
+        await option.click();
+        // The JS handler must have populated the hidden field + input label.
+        await expect(page.locator('input[name="authority_id"]')).toHaveValue(String(authId));
         await page.selectOption('select[name="role"]', 'creator');
         await Promise.all([
             page.waitForURL(new RegExp(`/admin/archives/${fondsId}$`), { timeout: 10000 }),

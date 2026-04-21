@@ -148,15 +148,25 @@ test.describe.serial('Archives authorities CRUD + linking (#103 phase 2)', () =>
 
         await page.goto(`${BASE}/admin/archives/${fondsId}`);
         await page.waitForLoadState('domcontentloaded');
-        // Phase 7 replaced the plain <select name="authority_id"> with a
-        // type-ahead input + hidden <input name="authority_id"> that gets
-        // filled by JS on option click. We skip the UI interaction and set
-        // the hidden value directly — the server-side attach path is what
-        // this test exercises. Mirrors archives-full.spec.js test 13.
-        await page.evaluate((id) => {
-            const hidden = document.querySelector('input[name="authority_id"]');
-            if (hidden instanceof HTMLInputElement) { hidden.value = String(id); }
-        }, authId);
+        // Drive the real type-ahead UI: type a prefix of the authority name,
+        // wait for the JSON fetch, click the matching option, and assert the
+        // JS handler populated the hidden field. A regression in the LIKE-
+        // prefix contract (short-query support) would fail at the option
+        // lookup, not hide behind evaluate-injection.
+        const prefix = AUTH_NAME.substring(0, 10);
+        const input = page.locator('[data-typeahead-input]');
+        await expect(input).toBeVisible();
+        await input.fill(prefix);
+        await page.waitForResponse(r =>
+            r.url().includes('/admin/archives/api/authorities/search') &&
+            r.status() === 200,
+            { timeout: 5000 });
+        await expect(
+            page.locator(`[data-typeahead-results] li[data-id="${authId}"]`),
+            'LIKE-prefix typeahead must surface the fixture authority'
+        ).toBeVisible({ timeout: 5000 });
+        await page.locator(`[data-typeahead-results] li[data-id="${authId}"]`).click();
+        await expect(page.locator('input[name="authority_id"]')).toHaveValue(String(authId));
         await page.selectOption('select[name="role"]', 'creator');
         await Promise.all([
             page.waitForURL(new RegExp(`/admin/archives/${fondsId}$`), { timeout: 10000 }),
