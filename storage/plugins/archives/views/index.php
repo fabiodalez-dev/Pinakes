@@ -35,16 +35,21 @@ foreach ($rows as $row) {
 /**
  * @param array<int, array<int, array<string, mixed>>> $byParent
  */
+$renderedIds = [];
 $renderRow = null;
-$renderRow = function (array $row, int $depth, array $visited = []) use (&$renderRow, $byParent, $e): string {
+$renderRow = function (array $row, int $depth, array $visited = []) use (&$renderRow, &$renderedIds, $byParent, $e): string {
     // Cycle guard: if a row's id has already been rendered in this branch,
     // stop recursing. Should never happen on sane data but parent_id is a
     // user-controlled column and a stray import could create loops.
+    // $renderedIds is the *global* (cross-tree) map used after the rootRows
+    // walk to pick up nodes that belong to an orphan cycle (A→B, B→A) with
+    // no path from a real root.
     $rowId = (int) $row['id'];
     if (isset($visited[$rowId])) {
         return '';
     }
     $visited[$rowId] = true;
+    $renderedIds[$rowId] = true;
     $indent = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $depth);
     $levelBadge = [
         'fonds'  => 'bg-purple-100 text-purple-800',
@@ -160,6 +165,16 @@ $rootRows = $byParent[0] ?? [];
                     <?php
                     foreach ($rootRows as $row) {
                         echo $renderRow($row, 0);
+                    }
+                    // Second pass: pick up any remaining rows that belong
+                    // to an orphan cycle (A↔B) with no path from a real
+                    // root. These would otherwise disappear from the admin
+                    // view even though they exist in the DB.
+                    foreach ($rows as $row) {
+                        $rowId = (int) $row['id'];
+                        if (!isset($renderedIds[$rowId])) {
+                            echo $renderRow($row, 0);
+                        }
                     }
                     ?>
                 </tbody>

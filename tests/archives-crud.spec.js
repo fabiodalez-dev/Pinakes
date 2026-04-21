@@ -31,15 +31,30 @@ const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
+// Build mysql CLI args safely — passing bare `-p` (when DB_PASS is empty)
+// triggers an interactive password prompt that hangs the test until timeout.
+// Only append `-p${DB_PASS}` when a password is actually set.
+function mysqlArgs(sql, batch = false) {
+    const args = ['-u', DB_USER];
+    if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
+    if (DB_SOCKET) args.push('-S', DB_SOCKET);
+    args.push(DB_NAME);
+    if (batch) args.push('-N', '-B');
+    args.push('-e', sql);
+    return args;
+}
 function dbQuery(sql) {
-    const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
-    if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
-    return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
+    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
 }
 function dbExec(sql) {
-    const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-e', sql];
-    if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
-    execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 });
+    execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000 });
+}
+// FK-safe cleanup — self-referencing parent_id would reject a single DELETE
+// if rows happen to be processed parent-before-child. Delete children first,
+// then roots. Idempotent on empty sets.
+function cleanupArchiveRows(tag) {
+    dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${tag}%' AND parent_id IS NOT NULL`);
+    dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${tag}%'`);
 }
 
 // Unique prefix so parallel runs + leftover data don't collide.
@@ -62,7 +77,7 @@ test.describe.serial('Archives plugin CRUD (#103 phase 1d)', () => {
         // Preclean leftover test rows — UNIQUE on (institution_code, reference_code)
         // would otherwise kill the create test.
         try {
-            dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%'`);
+            cleanupArchiveRows(TAG);
         } catch { /* table may not exist yet — plugin will create it */ }
 
         context = await browser.newContext();
@@ -80,7 +95,7 @@ test.describe.serial('Archives plugin CRUD (#103 phase 1d)', () => {
         try {
             // Hard-delete test rows — soft-delete would leave them orphaned
             // across runs since the UNIQUE index ignores deleted_at.
-            dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%'`);
+            cleanupArchiveRows(TAG);
         } catch { /* best-effort */ }
         await context?.close();
     });

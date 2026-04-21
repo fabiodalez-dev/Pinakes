@@ -333,13 +333,22 @@ $id = (int) $row['id'];
                 }
 
                 function search(q) {
-                    if (q.length < 2) { hideResults(); return; }
+                    if (q.length < 2) { lastQuery = ''; hideResults(); return; }
                     if (q === lastQuery) return;
                     lastQuery = q;
+                    // Snapshot the query the fetch is tied to. If the user
+                    // keeps typing, out-of-order responses to older queries
+                    // get discarded instead of overwriting fresher results.
+                    var snapshot = q;
                     fetch(searchUrl + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
                         .then(function (r) { return r.ok ? r.json() : { results: [] }; })
-                        .then(function (data) { renderResults(data.results || []); })
-                        .catch(function () { hideResults(); });
+                        .then(function (data) {
+                            if (input.value.trim() !== snapshot) return;
+                            renderResults(data.results || []);
+                        })
+                        .catch(function () {
+                            if (input.value.trim() === snapshot) hideResults();
+                        });
                 }
 
                 input.addEventListener('input', function () {

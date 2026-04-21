@@ -89,7 +89,7 @@ feature index:
 | Feature | Shipped in | URLs / entry points |
 |---|---|---|
 | archival_units CRUD (+ soft-delete, hierarchy) | 1b/1c | `/admin/archives`, `/admin/archives/{id}` |
-| Sidebar entry + i18n IT/EN/DE | 1d | `app.menu.render` hook |
+| Sidebar entry + i18n IT/EN/DE | 1d | `admin.menu.render` hook |
 | Authority records CRUD + M:N attach/detach | 2 | `/admin/archives/authorities` |
 | Extended ISAAR fields (places, functions, …) | 2b | Authority form collapsible |
 | `autori_authority_link` reconciliation | 2b | Authority show page |
@@ -97,7 +97,7 @@ feature index:
 | MARCXML export + bulk + authority | 4 | `{id}/export.xml`, `export.xml?ids=...` |
 | MARCXML import (UPSERT + authority import + XSD) | 4b / 4c / 4d | `/admin/archives/import` |
 | Photographic items (ABA billedmarc) | 5 | `specific_material` enum + extra columns |
-| SRU endpoint | 6 | `/api/archives/sru?operation=explain|searchRetrieve` |
+| SRU endpoint | 6 | `/api/archives/sru?operation=explain\|searchRetrieve` |
 | JSON type-ahead for authority attach | 7 | `/admin/archives/api/authorities/search` |
 
 ## Registered hooks

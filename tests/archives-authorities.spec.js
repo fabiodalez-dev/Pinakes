@@ -27,15 +27,23 @@ const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
+// Build mysql CLI args safely — passing bare `-p` (when DB_PASS is empty)
+// triggers an interactive password prompt that hangs the test until timeout.
+// Only append `-p${DB_PASS}` when a password is actually set.
+function mysqlArgs(sql, batch = false) {
+    const args = ['-u', DB_USER];
+    if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
+    if (DB_SOCKET) args.push('-S', DB_SOCKET);
+    args.push(DB_NAME);
+    if (batch) args.push('-N', '-B');
+    args.push('-e', sql);
+    return args;
+}
 function dbQuery(sql) {
-    const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
-    if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
-    return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
+    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
 }
 function dbExec(sql) {
-    const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-e', sql];
-    if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
-    execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 });
+    execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000 });
 }
 
 const TAG = 'E2E_ARCHAUTH_' + Date.now();

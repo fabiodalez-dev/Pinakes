@@ -31,15 +31,23 @@ const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
+// Build mysql CLI args safely — passing bare `-p` (when DB_PASS is empty)
+// triggers an interactive password prompt that hangs the test until timeout.
+// Only append `-p${DB_PASS}` when a password is actually set.
+function mysqlArgs(sql, batch = false) {
+    const args = ['-u', DB_USER];
+    if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
+    if (DB_SOCKET) args.push('-S', DB_SOCKET);
+    args.push(DB_NAME);
+    if (batch) args.push('-N', '-B');
+    args.push('-e', sql);
+    return args;
+}
 function dbQuery(sql) {
-    const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-N', '-B', '-e', sql];
-    if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
-    return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
+    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
 }
 function dbExec(sql) {
-    const args = ['-u', DB_USER, `-p${DB_PASS}`, DB_NAME, '-e', sql];
-    if (DB_SOCKET) args.splice(3, 0, '-S', DB_SOCKET);
-    execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 });
+    execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000 });
 }
 
 const TAG = 'E2E_FULL_' + Date.now();
@@ -369,12 +377,16 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
     // ─── Phase 3: unified search ───────────────────────────────────────
 
     test('16. Unified search finds archival units + authorities', async () => {
-        await page.goto(`${BASE}/admin/archives/search?q=${encodeURIComponent(TAG)}`);
+        // Search by a real FT-indexable word that lives in the fixtures:
+        // "Danish" is in the fonds' scope_content (test 04) and in the
+        // authority's history (test 10). Tag prefixes like `E2E_FULL_…` are
+        // split on `_` and most tokens fall below innodb_ft_min_token_size.
+        // Strict assert (no fallback text match) catches search regressions.
+        await page.goto(`${BASE}/admin/archives/search?q=Danish`);
         await page.waitForLoadState('domcontentloaded');
         const body = await page.locator('body').textContent() || '';
-        // Either the fonds or the authority tagged with our prefix should show.
-        const hasHit = body.includes(FONDS_REF) || body.includes(AUTH_NAME_PERSON) || body.includes(AUTH_NAME_CORP) || body.includes('risultati');
-        expect(hasHit, 'unified search should return at least one hit for the tag prefix').toBe(true);
+        const hasHit = body.includes(FONDS_REF) || body.includes(AUTH_NAME_PERSON) || body.includes(AUTH_NAME_CORP);
+        expect(hasHit, 'unified search should return at least one hit for the Danish fixtures').toBe(true);
     });
 
     // ─── Phase 4: MARCXML export ───────────────────────────────────────
