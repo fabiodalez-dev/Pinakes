@@ -302,8 +302,15 @@ test.describe('Issue #63: Genre Pre-population on Edit', () => {
     const radiceValue = await page.locator('#radice_select').inputValue();
     expect(parseInt(radiceValue, 10)).toBe(0);
 
-    // Cleanup: soft-delete the created book via admin API
-    const cleanupResp = await page.request.post(`${BASE}/admin/libri/elimina/${bookId}`);
+    // Cleanup: soft-delete the created book via admin API. The route
+    // (app/Routes/web.php:1397) sits behind CsrfMiddleware, so we must
+    // extract the CSRF token from the edit page we just rendered and
+    // include it as form data on the POST.
+    const csrfToken = await page.locator('meta[name="csrf-token"]').getAttribute('content')
+      ?? await page.locator('input[name="csrf_token"]').first().getAttribute('value');
+    const cleanupResp = await page.request.post(`${BASE}/admin/libri/delete/${bookId}`, {
+      form: { csrf_token: csrfToken ?? '' },
+    });
     expect([200, 204, 302]).toContain(cleanupResp.status());
   });
 });
