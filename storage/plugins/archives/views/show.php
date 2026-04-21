@@ -62,8 +62,18 @@ $id = (int) $row['id'];
                class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
                 Modifica
             </a>
+            <?php
+            // SECURITY: json_encode produces a safe JS literal. Hand-written
+            // backslash escapes inside an HTML attribute fail because the
+            // browser decodes &#039;/\' before JS parsing — the confirm
+            // prompt would disappear and the form would submit silently.
+            $confirmDeleteUnit = json_encode(
+                __("Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste."),
+                JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
+            );
+            ?>
             <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/delete')) ?>"
-                  onsubmit="return confirm('Eliminare questo record? L\'operazione è reversibile (soft-delete) ma rimuoverà l\'unità dalle viste.');"
+                  onsubmit="return confirm(<?= $confirmDeleteUnit ?>);"
                   class="inline">
                 <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                 <button type="submit"
@@ -206,7 +216,7 @@ $id = (int) $row['id'];
                         </div>
                         <form method="POST"
                               action="<?= $e(url('/admin/archives/' . $id . '/authorities/' . $authId . '/detach')) ?>"
-                              onsubmit="return confirm('<?= $e(__("Rimuovere questo collegamento?")) ?>');"
+                              onsubmit="return confirm(<?= json_encode(__('Rimuovere questo collegamento?'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>);"
                               class="inline">
                             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                             <button type="submit" class="text-xs text-red-600 hover:underline"><?= __("scollega") ?></button>

@@ -13,9 +13,22 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 // Build a parent_id → children index so we can render a lightweight tree by
 // visiting top-level rows first and recursing. A real CTE-backed tree is
 // roadmapped for Phase 2.
+//
+// Edge case: if a row's parent is missing from $rows (parent soft-deleted,
+// out of the current page, or a stale parent_id), indexing it under the
+// missing parent key would hide it from the tree walk that only visits
+// $byParent[0]. Promote such orphans to root so nothing silently disappears
+// from the admin view.
+$presentIds = [];
+foreach ($rows as $row) {
+    $presentIds[(int) $row['id']] = true;
+}
 $byParent = [];
 foreach ($rows as $row) {
     $pid = $row['parent_id'] !== null ? (int) $row['parent_id'] : 0;
+    if ($pid !== 0 && !isset($presentIds[$pid])) {
+        $pid = 0;
+    }
     $byParent[$pid][] = $row;
 }
 
@@ -23,7 +36,15 @@ foreach ($rows as $row) {
  * @param array<int, array<int, array<string, mixed>>> $byParent
  */
 $renderRow = null;
-$renderRow = function (array $row, int $depth) use (&$renderRow, $byParent, $e): string {
+$renderRow = function (array $row, int $depth, array $visited = []) use (&$renderRow, $byParent, $e): string {
+    // Cycle guard: if a row's id has already been rendered in this branch,
+    // stop recursing. Should never happen on sane data but parent_id is a
+    // user-controlled column and a stray import could create loops.
+    $rowId = (int) $row['id'];
+    if (isset($visited[$rowId])) {
+        return '';
+    }
+    $visited[$rowId] = true;
     $indent = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $depth);
     $levelBadge = [
         'fonds'  => 'bg-purple-100 text-purple-800',
@@ -39,7 +60,6 @@ $renderRow = function (array $row, int $depth) use (&$renderRow, $byParent, $e):
             $dateRange .= '–' . (string) $row['date_end'];
         }
     }
-    $rowId = (int) $row['id'];
     $viewUrl = $e(url('/admin/archives/' . $rowId));
     $editUrl = $e(url('/admin/archives/' . $rowId . '/edit'));
     $html  = '<tr class="hover:bg-gray-50 border-b">';
@@ -60,9 +80,9 @@ $renderRow = function (array $row, int $depth) use (&$renderRow, $byParent, $e):
     $html .= '</tr>';
 
     // Recurse into children, if any.
-    $children = $byParent[(int) $row['id']] ?? [];
+    $children = $byParent[$rowId] ?? [];
     foreach ($children as $child) {
-        $html .= $renderRow($child, $depth + 1);
+        $html .= $renderRow($child, $depth + 1, $visited);
     }
     return $html;
 };
@@ -146,7 +166,7 @@ $rootRows = $byParent[0] ?? [];
             </table>
         </div>
         <p class="text-xs text-gray-500 mt-3">
-            Mostrati <?= count($rows) ?> record. Limite pagina: 500 (paginazione in Phase 1c).
+            <?= sprintf(__("Mostrati %d record su un massimo di %d per pagina."), count($rows), 500) ?>
         </p>
     <?php endif; ?>
 </div>

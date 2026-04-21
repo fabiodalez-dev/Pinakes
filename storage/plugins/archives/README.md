@@ -81,25 +81,33 @@ Separate from the existing `autori` table because ISAAR covers **persons + corpo
 
 M:N relation with a `role` enum — `creator` / `subject` / `recipient` / `custodian` / `associated`. Mirrors MARC 100/600/700/710 semantics in the ABA format.
 
-## Roadmap
+## Implemented (v1.0.0)
 
-| Phase | Scope | Est. effort |
+All phases shipped. Per-phase detail lives in the commit history; a condensed
+feature index:
+
+| Feature | Shipped in | URLs / entry points |
 |---|---|---|
-| **1 — MVP archives CRUD** | Execute the DDL, basic CRUD for `archival_units`, tree-view frontend, 10 core ISAD(G) fields | 2-3 weeks |
-| **2 — Authority records** | `authority_records` CRUD, linkage to both archival_units and libri.autori, biographical UI | 1-2 weeks |
-| **3 — Unified search** | Cross-entity index (libri + archival_units + authority_records), unified results page | 1 week |
-| **4 — MARCXML I/O** | Import (ABA format + generic MARC21-archive), export, optional Z39.50 server | 2 weeks |
-| **5 — Photographic items** | Extend archival_units with image-specific fields (from ABA billedmarc); thumbnails, EXIF | 1-2 weeks |
+| archival_units CRUD (+ soft-delete, hierarchy) | 1b/1c | `/admin/archives`, `/admin/archives/{id}` |
+| Sidebar entry + i18n IT/EN/DE | 1d | `app.menu.render` hook |
+| Authority records CRUD + M:N attach/detach | 2 | `/admin/archives/authorities` |
+| Extended ISAAR fields (places, functions, …) | 2b | Authority form collapsible |
+| `autori_authority_link` reconciliation | 2b | Authority show page |
+| Unified cross-entity search | 3 | `/admin/archives/search` |
+| MARCXML export + bulk + authority | 4 | `{id}/export.xml`, `export.xml?ids=...` |
+| MARCXML import (UPSERT + authority import + XSD) | 4b / 4c / 4d | `/admin/archives/import` |
+| Photographic items (ABA billedmarc) | 5 | `specific_material` enum + extra columns |
+| SRU endpoint | 6 | `/api/archives/sru?operation=explain|searchRetrieve` |
+| JSON type-ahead for authority attach | 7 | `/admin/archives/api/authorities/search` |
 
-## Planned hooks
+## Registered hooks
 
-Currently data-only (see `ArchivesPlugin::plannedHooks()`):
+These hooks are written to `plugin_hooks` at activation:
 
-| Hook | Purpose |
-|---|---|
-| `search.unified.sources` | Contribute archival_units + authority_records to unified search results |
-| `admin.menu.render` | Add "Archivi" entry to the admin sidebar |
-| `libri.authority.resolve` | Share authority_records with the existing `libri.autori` column |
+| Hook | Method | Purpose |
+|---|---|---|
+| `app.routes.register` | `registerRoutes` | Attach every `/admin/archives/*` + `/api/archives/*` route |
+| `admin.menu.render` | `renderAdminMenuEntry` | Emit the "Archivi" sidebar entry |
 
 ## References
 

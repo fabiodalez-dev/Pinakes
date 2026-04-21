@@ -74,7 +74,7 @@ $levelLabels = [
                     Codice istituzione
                 </label>
                 <input type="text" name="institution_code" id="institution_code"
-                       value="<?= $val('institution_code') !== '' ? $val('institution_code') : 'PINAKES' ?>"
+                       value="<?= $val('institution_code') !== '' ? $val('institution_code') : ($mode === 'create' ? 'PINAKES' : '') ?>"
                        maxlength="16"
                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
             </div>
@@ -183,7 +183,7 @@ $levelLabels = [
                     <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.4.3 — ISO 639-2, es. "ita", "eng", "dan")</span>
                 </label>
                 <input type="text" name="language_codes" id="language_codes"
-                       value="<?= $val('language_codes') !== '' ? $val('language_codes') : 'ita' ?>"
+                       value="<?= $val('language_codes') !== '' ? $val('language_codes') : ($mode === 'create' ? 'ita' : '') ?>"
                        maxlength="64"
                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
             </div>

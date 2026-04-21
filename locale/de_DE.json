@@ -4477,5 +4477,8 @@
   "Digita almeno 2 caratteri per cercare tra i authority record.": "Mindestens 2 Zeichen eingeben, um Normdatensätze zu suchen.",
   "Validazione XSD strict (rifiuta file non conformi a MARC21 Slim)": "Strikte XSD-Validierung (Dateien ablehnen, die nicht MARC21 Slim entsprechen)",
   "La validazione XSD usa lo schema MARC21 Slim v1.1 (Library of Congress). Molti export di sistemi archivistici non sono strict-compliant: usa questa opzione solo con file che sai essere conformi.": "Die XSD-Validierung verwendet das MARC21-Slim-Schema v1.1 (Library of Congress). Viele Exporte aus Archivsystemen sind nicht strikt-konform: nur bei garantiert konformen Dateien aktivieren.",
-  "Errori XSD (%d)": "XSD-Fehler (%d)"
+  "Errori XSD (%d)": "XSD-Fehler (%d)",
+  "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche e authority record presenti nel file.": "Laden Sie eine MARCXML-Datei (ABA / MARC21-Slim-Format) hoch, um Archiveinheiten und enthaltene Normdatensätze zu importieren.",
+  "Mostrati %d record su un massimo di %d per pagina.": "Angezeigt: %d von max. %d Datensätzen pro Seite.",
+  "Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste.": "Diesen Datensatz löschen? Die Aktion ist umkehrbar (Soft-Delete), entfernt aber die Einheit aus den Ansichten."
 }

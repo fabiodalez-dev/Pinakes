@@ -28,7 +28,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
     </nav>
     <h1 class="text-2xl font-bold text-gray-900 mb-4"><?= __("Importa MARCXML") ?></h1>
     <p class="text-sm text-gray-600 mb-6">
-        <?= __("Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche. Gli authority record nel file vengono ignorati in questa fase.") ?>
+        <?= __("Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche e authority record presenti nel file.") ?>
     </p>
 
     <?php if ($result !== null): ?>

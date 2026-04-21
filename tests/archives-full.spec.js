@@ -272,8 +272,20 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
     test('12. Edit authority + extended ISAAR fields persist', async () => {
         const id = dbQuery(`SELECT id FROM authority_records WHERE authorised_form = '${AUTH_NAME_PERSON}' AND deleted_at IS NULL`);
         await page.goto(`${BASE}/admin/archives/authorities/${id}/edit`);
-        // places/identifiers live inside a <details> collapsible; open it first.
-        await page.click('summary:has-text("Campi ISAAR aggiuntivi")');
+        // places/identifiers live inside a <details> collapsible. Force
+        // open=true instead of click() because a click on <summary> toggles:
+        // if the element happens to already be open (e.g. because the
+        // server re-rendered it with [open] after a validation error) the
+        // click would CLOSE it and the subsequent page.fill calls would
+        // time out waiting for hidden fields.
+        await page.evaluate(() => {
+            document.querySelectorAll('details').forEach(d => {
+                const sum = d.querySelector('summary');
+                if (sum && /Campi ISAAR aggiuntivi/.test(sum.textContent || '')) {
+                    d.open = true;
+                }
+            });
+        });
         await page.fill('textarea[name="places"]', 'Copenhagen');
         await page.fill('textarea[name="functions"]', 'Politics, trade-unionism');
         await page.fill('input[name="identifiers"]', 'VIAF:12345');
@@ -336,6 +348,13 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         await expect(page.locator('body')).toContainText('E2E Full Test Fonds');
     });
 
+    // NOTE on confirm()/SweetAlert2: the rest of Pinakes uses SweetAlert2 v11
+    // for confirmation modals, but the archives plugin deliberately relies on
+    // native window.confirm() inside onsubmit for its destructive forms. This
+    // keeps the plugin free of any JS-framework dependency — activation/
+    // deactivation stays self-contained. If the UI is later ported to Swal2,
+    // these tests must switch to page.click('.swal2-confirm') instead of
+    // the page.once('dialog', ...) handler below.
     test('15. Detach authority from fonds', async () => {
         const fondsId = dbQuery(`SELECT id FROM archival_units WHERE reference_code = '${FONDS_REF}' AND deleted_at IS NULL`);
         const authId = dbQuery(`SELECT id FROM authority_records WHERE authorised_form = '${AUTH_NAME_PERSON}' AND deleted_at IS NULL`);
@@ -399,67 +418,74 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         const xml = buildFixtureMarcXml(IMPORT_REF, 'E2E Import Test', 'fonds');
         await page.goto(`${BASE}/admin/archives/import`);
         // Dry-run is checked by default.
-        const tmpPath = require('path').join(require('os').tmpdir(), `archives-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}.xml`);
-        require('fs').writeFileSync(tmpPath, xml, 'utf-8');
-        await page.setInputFiles('input[name="marcxml"]', tmpPath);
-        await Promise.all([
-            page.waitForResponse(r =>
-                r.url().endsWith('/admin/archives/import') && r.request().method() === 'POST',
-                { timeout: 15000 }),
-            page.click('form[enctype="multipart/form-data"] button[type="submit"]'),
-        ]);
-        await page.waitForLoadState('domcontentloaded');
-        // Dry-run result: parsed but not inserted.
-        await expect(page.locator('body')).toContainText(IMPORT_REF);
-        const existsInDb = dbQuery(
-            `SELECT COUNT(*) FROM archival_units WHERE reference_code = '${IMPORT_REF}'`
-        );
-        expect(existsInDb, 'dry-run must not insert').toBe('0');
+        const tmpPath = writeTmpXml(xml);
+        try {
+            await page.setInputFiles('input[name="marcxml"]', tmpPath);
+            await Promise.all([
+                page.waitForResponse(r =>
+                    r.url().endsWith('/admin/archives/import') && r.request().method() === 'POST',
+                    { timeout: 15000 }),
+                page.click('form[enctype="multipart/form-data"] button[type="submit"]'),
+            ]);
+            await page.waitForLoadState('domcontentloaded');
+            await expect(page.locator('body')).toContainText(IMPORT_REF);
+            const existsInDb = dbQuery(
+                `SELECT COUNT(*) FROM archival_units WHERE reference_code = '${IMPORT_REF}'`
+            );
+            expect(existsInDb, 'dry-run must not insert').toBe('0');
+        } finally {
+            rmIfExists(tmpPath);
+        }
     });
 
     test('21. Import MARCXML — actual insert', async () => {
         const xml = buildFixtureMarcXml(IMPORT_REF, 'E2E Import Test', 'fonds');
         await page.goto(`${BASE}/admin/archives/import`);
-        const tmpPath = require('path').join(require('os').tmpdir(), `archives-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}.xml`);
-        require('fs').writeFileSync(tmpPath, xml, 'utf-8');
-        await page.setInputFiles('input[name="marcxml"]', tmpPath);
-        await page.uncheck('input[name="dry_run"]');
-        await Promise.all([
-            page.waitForResponse(r =>
-                r.url().endsWith('/admin/archives/import') && r.request().method() === 'POST',
-                { timeout: 15000 }),
-            page.click('form[enctype="multipart/form-data"] button[type="submit"]'),
-        ]);
-        await page.waitForLoadState('domcontentloaded');
-        const row = dbQuery(
-            `SELECT constructed_title FROM archival_units WHERE reference_code = '${IMPORT_REF}' AND deleted_at IS NULL`
-        );
-        expect(row).toBe('E2E Import Test');
+        const tmpPath = writeTmpXml(xml);
+        try {
+            await page.setInputFiles('input[name="marcxml"]', tmpPath);
+            await page.uncheck('input[name="dry_run"]');
+            await Promise.all([
+                page.waitForResponse(r =>
+                    r.url().endsWith('/admin/archives/import') && r.request().method() === 'POST',
+                    { timeout: 15000 }),
+                page.click('form[enctype="multipart/form-data"] button[type="submit"]'),
+            ]);
+            await page.waitForLoadState('domcontentloaded');
+            const row = dbQuery(
+                `SELECT constructed_title FROM archival_units WHERE reference_code = '${IMPORT_REF}' AND deleted_at IS NULL`
+            );
+            expect(row).toBe('E2E Import Test');
+        } finally {
+            rmIfExists(tmpPath);
+        }
     });
 
     test('22. Re-import same file is idempotent (UPSERT, not duplicate error)', async () => {
         const xml = buildFixtureMarcXml(IMPORT_REF, 'E2E Import Test (v2)', 'fonds');
         await page.goto(`${BASE}/admin/archives/import`);
-        const tmpPath = require('path').join(require('os').tmpdir(), `archives-e2e-${Date.now()}-${Math.random().toString(36).slice(2)}.xml`);
-        require('fs').writeFileSync(tmpPath, xml, 'utf-8');
-        await page.setInputFiles('input[name="marcxml"]', tmpPath);
-        await page.uncheck('input[name="dry_run"]');
-        await Promise.all([
-            page.waitForResponse(r =>
-                r.url().endsWith('/admin/archives/import') && r.request().method() === 'POST',
-                { timeout: 15000 }),
-            page.click('form[enctype="multipart/form-data"] button[type="submit"]'),
-        ]);
-        await page.waitForLoadState('domcontentloaded');
-        const row = dbQuery(
-            `SELECT constructed_title FROM archival_units WHERE reference_code = '${IMPORT_REF}' AND deleted_at IS NULL`
-        );
-        expect(row).toBe('E2E Import Test (v2)');
-        // Still only one row (UPSERT, not INSERT twice).
-        const count = dbQuery(
-            `SELECT COUNT(*) FROM archival_units WHERE reference_code = '${IMPORT_REF}'`
-        );
-        expect(count).toBe('1');
+        const tmpPath = writeTmpXml(xml);
+        try {
+            await page.setInputFiles('input[name="marcxml"]', tmpPath);
+            await page.uncheck('input[name="dry_run"]');
+            await Promise.all([
+                page.waitForResponse(r =>
+                    r.url().endsWith('/admin/archives/import') && r.request().method() === 'POST',
+                    { timeout: 15000 }),
+                page.click('form[enctype="multipart/form-data"] button[type="submit"]'),
+            ]);
+            await page.waitForLoadState('domcontentloaded');
+            const row = dbQuery(
+                `SELECT constructed_title FROM archival_units WHERE reference_code = '${IMPORT_REF}' AND deleted_at IS NULL`
+            );
+            expect(row).toBe('E2E Import Test (v2)');
+            const count = dbQuery(
+                `SELECT COUNT(*) FROM archival_units WHERE reference_code = '${IMPORT_REF}'`
+            );
+            expect(count).toBe('1');
+        } finally {
+            rmIfExists(tmpPath);
+        }
     });
 
     // ─── Phase 4d: XSD strict validation ───────────────────────────────
@@ -467,8 +493,7 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
     test('23. XSD strict validation rejects malformed MARCXML', async () => {
         const malformed = '<?xml version="1.0"?><bogus><notmarc/></bogus>';
         await page.goto(`${BASE}/admin/archives/import`);
-        const badPath = require('path').join(require('os').tmpdir(), `archives-bad-${Date.now()}.xml`);
-        require('fs').writeFileSync(badPath, malformed, 'utf-8');
+        const badPath = writeTmpXml(malformed, 'archives-bad');
         await page.setInputFiles('input[name="marcxml"]', badPath);
         await page.check('input[name="strict_xsd"]');
         await Promise.all([
@@ -479,6 +504,7 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         ]);
         await page.waitForLoadState('domcontentloaded');
         await expect(page.locator('body')).toContainText(/XSD/i);
+        rmIfExists(badPath);
     });
 
     // ─── Phase 5: photographic items ───────────────────────────────────
@@ -490,8 +516,16 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         await page.selectOption('select[name="level"]', 'item');
         await page.fill('input[name="constructed_title"]', 'Demonstration photo, 1917');
         await page.fill('input[name="parent_id"]', fondsId);
-        // Expand the "Materiale specifico" details element
-        await page.click('summary:has-text("Materiale specifico")');
+        // Force open=true on the "Materiale specifico" details (avoid the
+        // toggle-on-click pitfall — see note at test 12).
+        await page.evaluate(() => {
+            document.querySelectorAll('details').forEach(d => {
+                const sum = d.querySelector('summary');
+                if (sum && /Materiale specifico/.test(sum.textContent || '')) {
+                    d.open = true;
+                }
+            });
+        });
         await page.selectOption('select[name="specific_material"]', 'photograph');
         await page.selectOption('select[name="color_mode"]', 'bw');
         await page.fill('input[name="dimensions"]', '15×10 cm');
@@ -545,6 +579,27 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
  * @param {string} title
  * @param {string} level 'fonds' | 'series' | 'file' | 'item'
  */
+/**
+ * Write an XML payload to a uniquely-named file in os.tmpdir() and return
+ * the full path. Caller is responsible for rmIfExists() in a finally{}.
+ * @param {string} content
+ * @param {string} [prefix='archives-e2e']
+ */
+function writeTmpXml(content, prefix = 'archives-e2e') {
+    const path = require('path');
+    const os = require('os');
+    const fs = require('fs');
+    const name = `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}.xml`;
+    const p = path.join(os.tmpdir(), name);
+    fs.writeFileSync(p, content, 'utf-8');
+    return p;
+}
+
+/** Best-effort unlink; silent if the file is already gone. */
+function rmIfExists(p) {
+    try { require('fs').unlinkSync(p); } catch { /* already gone */ }
+}
+
 function buildFixtureMarcXml(ref, title, level) {
     const levelCode = { fonds: 'a', series: 'b', file: 'c', item: 'd' }[level] || 'a';
     const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

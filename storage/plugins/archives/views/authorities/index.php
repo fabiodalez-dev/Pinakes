@@ -13,6 +13,14 @@ $typeBadge = [
     'corporate' => 'bg-amber-100 text-amber-800',
     'family'    => 'bg-pink-100 text-pink-800',
 ];
+// Localised badge labels — reuses the keys already shipped by the
+// authority form so admins see Italian/English/German labels instead
+// of raw DB enum values.
+$typeLabel = [
+    'person'    => __('Persona (biografica)'),
+    'corporate' => __('Ente (organizzazione, sindacato, partito)'),
+    'family'    => __('Famiglia (genealogica)'),
+];
 ?>
 <div class="p-6 max-w-7xl mx-auto">
     <div class="flex items-center justify-between mb-6">
@@ -58,6 +66,7 @@ $typeBadge = [
                         <?php
                         $type = (string) $row['type'];
                         $badge = $typeBadge[$type] ?? 'bg-gray-100 text-gray-800';
+                        $label = $typeLabel[$type] ?? $type;
                         $rowId = (int) $row['id'];
                         $viewUrl = $e(url('/admin/archives/authorities/' . $rowId));
                         $editUrl = $e(url('/admin/archives/authorities/' . $rowId . '/edit'));
@@ -65,7 +74,7 @@ $typeBadge = [
                         <tr class="hover:bg-gray-50 border-b">
                             <td class="px-4 py-2">
                                 <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $badge ?>">
-                                    <?= $e($type) ?>
+                                    <?= $e($label) ?>
                                 </span>
                             </td>
                             <td class="px-4 py-2">

@@ -281,5 +281,8 @@
   "Nessun risultato": "Nessun risultato",
   "Validazione XSD strict (rifiuta file non conformi a MARC21 Slim)": "Validazione XSD strict (rifiuta file non conformi a MARC21 Slim)",
   "La validazione XSD usa lo schema MARC21 Slim v1.1 (Library of Congress). Molti export di sistemi archivistici non sono strict-compliant: usa questa opzione solo con file che sai essere conformi.": "La validazione XSD usa lo schema MARC21 Slim v1.1 (Library of Congress). Molti export di sistemi archivistici non sono strict-compliant: usa questa opzione solo con file che sai essere conformi.",
-  "Errori XSD (%d)": "Errori XSD (%d)"
+  "Errori XSD (%d)": "Errori XSD (%d)",
+  "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche e authority record presenti nel file.": "Carica un file MARCXML (formato ABA / MARC21 Slim) per importare unità archivistiche e authority record presenti nel file.",
+  "Mostrati %d record su un massimo di %d per pagina.": "Mostrati %d record su un massimo di %d per pagina.",
+  "Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste.": "Eliminare questo record? L'operazione è reversibile (soft-delete) ma rimuoverà l'unità dalle viste."
 }
