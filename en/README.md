@@ -31,5 +31,5 @@ Documentation for developers: installation, API, plugin development.
 
 ## Support
 
-- **Repository**: [GitHub](https://github.com/fabiodalez/pinakes)
-- **License**: MIT
+- **Repository**: [GitHub](https://github.com/fabiodalez-dev/Pinakes)
+- **License**: [GNU General Public License v3.0](https://github.com/fabiodalez-dev/Pinakes/blob/main/LICENSE)

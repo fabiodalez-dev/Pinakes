@@ -78,7 +78,7 @@ Use the sidebar menu to access sections:
 
 Yes, Pinakes is **completely free and open source**:
 
-- License: MIT (freedom to use, modify, distribute)
+- License: GNU General Public License v3.0 (freedom to use, modify, distribute — copyleft)
 - No license fees
 - No paid features
 - Source code available on GitHub
