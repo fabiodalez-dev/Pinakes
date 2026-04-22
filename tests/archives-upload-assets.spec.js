@@ -167,23 +167,17 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
     });
 
     test('6. Public frontend: PDF row renders download button', async () => {
-        const slug = dbQuery(
-            `SELECT id FROM archival_units WHERE id = ${ids.pdf}`
-        );
-        // Visit the canonical URL — the plugin 301-redirects from /id
-        // to /slug-id, so a straight GET of /archivio/<id> still lands
-        // us on the right page.
-        const resp = await page.request.get(`${BASE}/archivio/${slug}`);
+        // Use the short /archivio/{id} form — the plugin 301-redirects
+        // to the canonical /archivio/{slug}-{id} URL, which
+        // page.request.get follows by default.
+        const resp = await page.request.get(`${BASE}/archivio/${ids.pdf}`);
         const body = await resp.text();
         expect(body).toContain('Scarica documento');
         expect(body).toContain('archive-test.pdf');
     });
 
     test('7. Public frontend: audio row renders <audio> + green-audio-player', async () => {
-        const slug = dbQuery(
-            `SELECT id FROM archival_units WHERE id = ${ids.audio}`
-        );
-        const resp = await page.request.get(`${BASE}/archivio/${slug}`);
+        const resp = await page.request.get(`${BASE}/archivio/${ids.audio}`);
         const body = await resp.text();
         expect(body).toContain('green-audio-player');
         expect(body).toMatch(/<audio[^>]+\.mp3/);
@@ -199,11 +193,65 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
         expect(resp.headers()['content-type']).toContain('image/jpeg');
     });
 
-    test('9. Final summary', async () => {
-        // eslint-disable-next-line no-console
-        console.log('\n  ✓ Uploaded assets (not cleaned up):');
-        console.log(`    PDF+cover → /archivio/${ids.pdf}`);
-        console.log(`    Audio+cover → /archivio/${ids.audio}`);
-        console.log(`    Cover only → /archivio/${ids.coverOnly}\n`);
+    // ─── Negative: mime whitelist rejection ──────────────────────────────
+    test('9. NEGATIVE: uploading a PHP file with .jpg extension is rejected', async () => {
+        // Build a file that fails the finfo allow-list: the extension
+        // claims image/jpeg but the real MIME (sniffed via libmagic) is
+        // text/x-php or text/html. Server must reject + not touch the
+        // DB / filesystem for this row.
+        const fakeJpgPath = '/tmp/archive-test-evil.jpg';
+        fs.writeFileSync(fakeJpgPath, '<?php phpinfo(); ?>\n');
+        try {
+            const before = dbQuery(
+                `SELECT IFNULL(cover_image_path,'') FROM archival_units WHERE id = ${ids.coverOnly}`
+            );
+            await page.goto(`${BASE}/admin/archives/${ids.coverOnly}`);
+            await page.waitForLoadState('domcontentloaded');
+            await page.setInputFiles(
+                'form[action*="/upload-cover"] input[name="cover"]',
+                fakeJpgPath
+            );
+            await Promise.all([
+                page.waitForURL(new RegExp(`/admin/archives/${ids.coverOnly}`), { timeout: 15000 }),
+                page.click('form[action*="/upload-cover"] button[type="submit"]'),
+            ]);
+            const after = dbQuery(
+                `SELECT IFNULL(cover_image_path,'') FROM archival_units WHERE id = ${ids.coverOnly}`
+            );
+            expect(
+                after,
+                'server accepted a PHP payload with a .jpg extension — MIME whitelist is not enforced'
+            ).toBe(before);
+        } finally {
+            fs.unlinkSync(fakeJpgPath);
+        }
+    });
+
+    test('10. NEGATIVE: uploading an .exe as document is rejected', async () => {
+        const fakeExePath = '/tmp/archive-test-fake.exe';
+        // Fake PE header — finfo detects it as application/x-dosexec,
+        // which is NOT in the document mime whitelist.
+        fs.writeFileSync(fakeExePath, 'MZ\x90\x00\x03\x00\x00\x00\x04\x00');
+        try {
+            const before = dbQuery(
+                `SELECT IFNULL(document_path,'') FROM archival_units WHERE id = ${ids.coverOnly}`
+            );
+            await page.goto(`${BASE}/admin/archives/${ids.coverOnly}`);
+            await page.waitForLoadState('domcontentloaded');
+            await page.setInputFiles(
+                'form[action*="/upload-document"] input[name="document"]',
+                fakeExePath
+            );
+            await Promise.all([
+                page.waitForURL(new RegExp(`/admin/archives/${ids.coverOnly}`), { timeout: 15000 }),
+                page.click('form[action*="/upload-document"] button[type="submit"]'),
+            ]);
+            const after = dbQuery(
+                `SELECT IFNULL(document_path,'') FROM archival_units WHERE id = ${ids.coverOnly}`
+            );
+            expect(after, 'server accepted an .exe as document').toBe(before);
+        } finally {
+            fs.unlinkSync(fakeExePath);
+        }
     });
 });

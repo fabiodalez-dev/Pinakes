@@ -1210,9 +1210,23 @@ class ArchivesPlugin
         }
 
         if ($currentPath !== '') {
-            $fsPath = __DIR__ . '/../../../public' . $currentPath;
-            if (is_file($fsPath)) {
-                @unlink($fsPath);
+            // Harden against traversal on a tampered row: the upload
+            // pipeline only writes under /uploads/archives/{covers,
+            // documents}/ — refuse to unlink anything else, no matter
+            // what the DB says. Cheap prefix check, belt + suspenders.
+            $allowedPrefix = $type === 'cover'
+                ? '/uploads/archives/covers/'
+                : '/uploads/archives/documents/';
+            if (str_starts_with($currentPath, $allowedPrefix)) {
+                $fsPath = __DIR__ . '/../../../public' . $currentPath;
+                if (is_file($fsPath)) {
+                    @unlink($fsPath);
+                }
+            } else {
+                SecureLogger::warning('[Archives] skip unlink — disallowed path prefix', [
+                    'type' => $type,
+                    'path' => $currentPath,
+                ]);
             }
         }
         $stmt = $this->db->prepare($sql);
@@ -1256,17 +1270,33 @@ class ArchivesPlugin
             return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
         }
 
-        // Detect mime via finfo on the temp stream — the browser-provided
-        // type is user-controlled and unreliable.
+        // Detect mime via finfo — the browser-provided Content-Type is
+        // user-controlled and unreliable. Two-step detection:
+        //   1. finfo_file on the temp path (normal PSR-7 uploaded files
+        //      land in $_FILES / moveTo sources on disk).
+        //   2. finfo_buffer fallback for PSR-7 implementations that
+        //      keep the upload body in php://temp — finfo_file cannot
+        //      open those and would return false, giving a false reject.
         $stream = $upload->getStream();
-        $tmpPath = $stream->getMetadata('uri');
         $mime = '';
-        if (is_string($tmpPath) && function_exists('finfo_open')) {
+        if (function_exists('finfo_open')) {
             $finfo = finfo_open(FILEINFO_MIME_TYPE);
             if ($finfo !== false) {
-                $detected = finfo_file($finfo, $tmpPath);
-                if (is_string($detected)) {
-                    $mime = $detected;
+                $tmpPath = $stream->getMetadata('uri');
+                if (is_string($tmpPath) && is_file($tmpPath)) {
+                    $detected = @finfo_file($finfo, $tmpPath);
+                    if (is_string($detected)) {
+                        $mime = $detected;
+                    }
+                }
+                if ($mime === '') {
+                    $contents = (string) $stream;
+                    if ($contents !== '') {
+                        $detected = @finfo_buffer($finfo, $contents);
+                        if (is_string($detected)) {
+                            $mime = $detected;
+                        }
+                    }
                 }
                 finfo_close($finfo);
             }
@@ -1293,11 +1323,26 @@ class ArchivesPlugin
             ? '/uploads/archives/covers'
             : '/uploads/archives/documents';
         $targetDirFs = __DIR__ . '/../../../public' . $targetDirRel;
-        if (!is_dir($targetDirFs)) {
-            @mkdir($targetDirFs, 0755, true);
+        if (!is_dir($targetDirFs) && !@mkdir($targetDirFs, 0755, true) && !is_dir($targetDirFs)) {
+            // Surface the FS error — otherwise the next moveTo() would
+            // throw with a less informative "unable to move" message.
+            SecureLogger::error('[Archives] failed to create upload dir', [
+                'kind' => $kind,
+                'dir'  => $targetDirFs,
+            ]);
+            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
         }
         $basename = $id . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
-        $upload->moveTo($targetDirFs . '/' . $basename);
+        try {
+            $upload->moveTo($targetDirFs . '/' . $basename);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Archives] moveTo failed — aborting without DB update', [
+                'kind' => $kind,
+                'dest' => $targetDirFs . '/' . $basename,
+                'err'  => $e->getMessage(),
+            ]);
+            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        }
         $relPath = $targetDirRel . '/' . $basename;
 
         if ($kind === 'cover') {
