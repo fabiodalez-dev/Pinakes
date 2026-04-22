@@ -308,6 +308,56 @@ echo -e "${GREEN}✓ Release has $ASSETS assets${NC}"
 echo ""
 
 # ============================================================================
+# STEP 9.5: VERIFY THE ACTUAL REMOTE ZIP MATCHES THE LOCAL ZIP
+# ============================================================================
+# HARD RULE (see updater.md §ABSOLUTE RULE): "upload succeeded" is NOT enough.
+# On 2026-04-22 gh release upload produced a truncated remote artifact for
+# v0.5.9.2 (24.7 MB remote, 26.7 MB local, 5 plugins vs 10). Nobody noticed
+# because the script only verified the local ZIP. Download the remote
+# artifact and SHA-compare it, every single time.
+echo -e "${YELLOW}[9.5/9] Verifying REMOTE ZIP matches local ZIP...${NC}"
+
+REMOTE_VERIFY_DIR=$(mktemp -d)
+REMOTE_ZIP="$REMOTE_VERIFY_DIR/remote.zip"
+
+if ! curl -sSL -o "$REMOTE_ZIP" \
+    "https://github.com/fabiodalez-dev/Pinakes/releases/download/v${VERSION}/pinakes-v${VERSION}.zip"; then
+    echo -e "${RED}❌ ERROR: Failed to download remote ZIP for verification${NC}"
+    rm -rf "$REMOTE_VERIFY_DIR"
+    exit 1
+fi
+
+LOCAL_SHA=$(shasum -a 256 "$ZIPFILE" | awk '{print $1}')
+REMOTE_SHA=$(shasum -a 256 "$REMOTE_ZIP" | awk '{print $1}')
+
+if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
+    echo -e "${RED}❌ CRITICAL: REMOTE ZIP DOES NOT MATCH LOCAL ZIP${NC}"
+    echo -e "${RED}   local:  $LOCAL_SHA${NC}"
+    echo -e "${RED}   remote: $REMOTE_SHA${NC}"
+    echo -e "${RED}   local size:  $(wc -c < "$ZIPFILE") bytes${NC}"
+    echo -e "${RED}   remote size: $(wc -c < "$REMOTE_ZIP") bytes${NC}"
+    echo -e "${RED}This means the upload silently corrupted/truncated the ZIP.${NC}"
+    echo -e "${RED}DO NOT ANNOUNCE THIS RELEASE. Delete it and retry:${NC}"
+    echo -e "${RED}  gh release delete v${VERSION} --yes${NC}"
+    echo -e "${RED}  ./scripts/create-release.sh ${VERSION}${NC}"
+    rm -rf "$REMOTE_VERIFY_DIR"
+    exit 1
+fi
+
+# Also re-run the plugin-count check against the remote ZIP (defence in depth)
+REMOTE_PLUGIN_COUNT=$(unzip -l "$REMOTE_ZIP" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
+LOCAL_PLUGIN_COUNT=$(unzip -l "$ZIPFILE" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
+if [ "$REMOTE_PLUGIN_COUNT" != "$LOCAL_PLUGIN_COUNT" ] || [ "$REMOTE_PLUGIN_COUNT" -lt 10 ]; then
+    echo -e "${RED}❌ CRITICAL: Remote ZIP has $REMOTE_PLUGIN_COUNT plugin.json files, local has $LOCAL_PLUGIN_COUNT, expected ≥ 10${NC}"
+    rm -rf "$REMOTE_VERIFY_DIR"
+    exit 1
+fi
+
+rm -rf "$REMOTE_VERIFY_DIR"
+echo -e "${GREEN}✓ Remote ZIP matches local (SHA256 $LOCAL_SHA, $REMOTE_PLUGIN_COUNT plugins)${NC}"
+echo ""
+
+# ============================================================================
 # STEP 10: Done (no dev restore needed — PHPStan is global, not in vendor)
 # ============================================================================
 echo ""

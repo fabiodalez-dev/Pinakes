@@ -4,6 +4,61 @@ This document explains how the Pinakes auto-updater works, its requirements, and
 
 ---
 
+## 🚨 ABSOLUTE RULE — ALWAYS VERIFY THE UPLOADED ZIP
+
+**SEMPRE SEMPRE SEMPRE** verify that the ZIP that is actually on GitHub
+matches the ZIP that was produced locally. "The upload succeeded" is
+**not** enough — `gh release upload` has been observed producing a
+remote asset whose SHA256 differs from the local file, silently. This
+bit us on v0.5.9.2 (2026-04-22):
+
+- Local `pinakes-v0.5.9.2.zip` = 26,724,173 bytes, SHA256 `1356b354…`, 10 plugin folders.
+- Remote `pinakes-v0.5.9.2.zip` = 24,760,516 bytes, SHA256 `2d49dcfb…`, 5 plugin folders.
+- Three separate hotfix releases (0.5.9, 0.5.9.1, 0.5.9.2) shipped with
+  the same bug reported by HansUwe52 because nobody verified the remote
+  artifact — we trusted the local verification step 5.5 and assumed the
+  upload preserved the file.
+
+**The rule:**
+
+After every `gh release upload`, before announcing the release or
+telling a user to upgrade:
+
+```bash
+curl -sL -o /tmp/verify.zip \
+  "https://github.com/fabiodalez-dev/Pinakes/releases/download/v${VERSION}/pinakes-v${VERSION}.zip"
+
+LOCAL_SHA=$(shasum -a 256 "pinakes-v${VERSION}.zip" | awk '{print $1}')
+REMOTE_SHA=$(shasum -a 256 /tmp/verify.zip | awk '{print $1}')
+
+[ "$LOCAL_SHA" = "$REMOTE_SHA" ] || {
+  echo "❌ REMOTE ZIP DOES NOT MATCH LOCAL ZIP — ABORT"
+  echo "   local:  $LOCAL_SHA"
+  echo "   remote: $REMOTE_SHA"
+  exit 1
+}
+
+# Also re-run the plugin.json sanity check on the remote artifact
+unzip -l /tmp/verify.zip | grep -cE "storage/plugins/[^/]+/plugin\.json$"
+# Must equal the expected bundled-plugin count (currently 10)
+```
+
+`scripts/create-release.sh` now performs this check automatically (step
+9.5). Do not delete or short-circuit that step. If the check fails,
+delete the release (`gh release delete v${VERSION} --yes`), investigate
+why the upload diverged, and re-run — never ship a "probably fine"
+release.
+
+**Testimonial (HansUwe52, 2026-04-22)**:
+> "porco dio mi stai facendo fare una figura di merda, hai verificato lo
+> zip prima di caricarlo?"
+
+The answer has to be "yes, the one on GitHub" — not "yes, the one I
+created locally" — and the only way to answer correctly is to download
+the remote artifact and hash it.
+
+---
+
 ## ⚠️ CRITICAL: Creating a Release (READ THIS FIRST!)
 
 **NEVER CREATE RELEASES MANUALLY! ALWAYS USE THE AUTOMATED SCRIPT!**
