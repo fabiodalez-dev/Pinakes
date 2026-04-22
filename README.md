@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.9-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.9.1-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -21,6 +21,44 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
+
+---
+
+## What's New in v0.5.9.1
+
+### 🐛 Fix — Remember-me auto-login restores user locale
+
+Users whose `utenti.locale` differed from the install default (e.g. a
+`de_DE` user on an `it_IT` install) saw the default-locale UI on the
+first pageview after a remember-me auto-login. Root cause: the
+`languages` table was seeded only with the installer-chosen locale and
+its fallback, and `I18n::setLocale()` rejects any locale not present in
+that table.
+
+- **`installer/database/data_it_IT.sql`** and **`data_en_US.sql`** now
+  seed all three shipped locales (`it_IT`, `en_US`, `de_DE`). Only the
+  installer-chosen locale has `is_default=1`.
+- **`installer/database/migrations/migrate_0.5.9.1.sql`** (new) —
+  `INSERT IGNORE` backfill for existing IT/EN installs missing `de_DE`.
+  Idempotent thanks to `UNIQUE KEY unique_code` on `languages.code`.
+- **No application code changes**: `RememberMeMiddleware` was already
+  doing the right thing — it was just blocked by the missing table row.
+
+Closes [#108](https://github.com/fabiodalez-dev/Pinakes/issues/108).
+
+### 🎵 Fix — Discogs Cat# misclassification of ISBN-10 (post-v0.5.9 CodeRabbit)
+
+`DiscogsPlugin::isCatalogNumber()` classified valid ISBN-10 codes ending
+in `X` (e.g. `080442957X`, `020161622X`) as Discogs Catalog Numbers.
+After the hook chain in `ScrapeController::byIsbn` validated them as
+ISBNs the plugin would still route them through `fetchFromDiscogs` as
+`catno=XXX`, potentially merging music metadata into book records.
+
+- Added `DiscogsPlugin::isIsbn10()` helper (MOD-11 checksum, `'X'`-aware,
+  tolerates internal hyphens/spaces) that vetoes the Cat# heuristic for
+  any valid ISBN-10.
+- Regression test: 7 new asserts in `tests/discogs-catno.unit.php`
+  (44/44 pass, PHPStan level 5 clean).
 
 ---
 

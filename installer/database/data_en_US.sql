@@ -307,9 +307,13 @@ INSERT INTO `email_templates` VALUES (17,'loan_pickup_expired','en_US','⏰ Pick
 INSERT INTO `email_templates` VALUES (18,'loan_pickup_cancelled','en_US','❌ Pickup Cancelled','<h2>Pickup Cancelled</h2>\n<p>Hello {{user_name}},</p>\n<p>We inform you that the pickup for the following book has been cancelled:</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Book:</strong> {{book_title}}</p>\n    <p><strong>Reason:</strong> {{reason}}</p>\n</div>\n<p>The book is now available for other users. If you still want this book, please submit a new loan request.</p>\n<p>Best regards,<br>The Library Team</p>','Sent when a pickup is cancelled by the administrator.',1,NULL,NULL);
 
 -- Languages (English as default)
-INSERT INTO `languages` (`id`, `code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
-(1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 0, 1, NULL, 2015, 2015, 100.00),
-(2, 'en_US', 'English', 'English', '🇬🇧', 1, 1, 'locale/en_US.json', 2015, 1988, 98.66);
+-- Issue #108: seed ALL shipped locales so users whose `utenti.locale`
+-- differs from the install default have their locale restored on
+-- remember-me auto-login (I18n::setLocale gates on languages membership).
+INSERT INTO `languages` (`code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
+('it_IT', 'Italian', 'Italiano', '🇮🇹', 0, 1, NULL, 2015, 2015, 100.00),
+('en_US', 'English', 'English', '🇬🇧', 1, 1, 'locale/en_US.json', 2015, 1988, 98.66),
+('de_DE', 'German', 'Deutsch', '🇩🇪', 0, 1, 'locale/de_DE.json', 4009, 4009, 100.00);
 
 -- Home Content (English)
 INSERT INTO `home_content` (section_key, title, subtitle, content, button_text, button_link, is_active, display_order, created_at, updated_at) VALUES
