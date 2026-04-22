@@ -58,13 +58,21 @@ server {
     # ========================================
     # Note: Security headers must be repeated here because Nginx doesn't inherit
     # add_header directives from parent context when add_header is used in a location
+    #
+    # IMPORTANT: the fallback MUST be `/index.php?$query_string`, not `=404`.
+    # Bundled plugins (digital-library, archives, etc.) serve their own CSS/JS
+    # through Slim routes such as `/plugins/<name>/assets/<type>/<file>` —
+    # those files don't exist on disk, they're streamed by PHP. If nginx
+    # short-circuits to 404, those stylesheets/scripts never reach the
+    # browser and the plugin UI breaks silently (reported against
+    # /plugins/digital-library/assets/css/digital-library.css in 2026-04).
     location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp3|mp4|webm|pdf|epub)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-        try_files $uri =404;
+        try_files $uri /index.php?$query_string;
     }
 
     # ========================================
