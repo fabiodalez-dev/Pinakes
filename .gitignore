@@ -478,7 +478,7 @@ docs/reference/agents.md
 
 # Internal development folder (completely untracked)
 internal/
-updater.md
+# updater.md — operational release doc, now tracked (see §MANDATORY in-file)
 updater_new.md
 scraping-pro-*.zip
 scraping-pro-*.zip.sha256

@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.8-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.9-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -21,6 +21,50 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
+
+---
+
+## What's New in v0.5.9
+
+### 📚 New — Archives plugin (ISAD(G) / ISAAR(CPF))
+
+A new bundled plugin adds full support for **archival material** alongside the
+existing bibliographic catalog — hierarchical descriptions (Fondo → Series →
+File → Item) following ICA's [ISAD(G)](https://www.ica.org/en/isadg-general-international-standard-archival-description-second-edition)
+standard, and authority records for persons/corporate bodies/families per
+[ISAAR(CPF)](https://www.ica.org/en/isaar-cpf-international-standard-archival-authority-record-corporate-bodies-persons-and-families-2nd).
+
+- **Data model**: three tables (`archival_units`, `authority_records`,
+  `archival_unit_authority`) with self-referencing tree and FK guards.
+  Field crosswalk to MARC-like serialisation inspired by the ABA format
+  (Arbejderbevægelsens Bibliotek og Arkiv).
+- **Admin CRUD** at `/admin/archives` — create/edit records with all
+  ISAD(G) 3.1 identity-area fields; hierarchical list view with 4-level
+  badges (fonds/series/file/item).
+- **Public frontend** at `/archivio` — card grid + detail pages styled to
+  match `book-detail` (hero layout, responsive breakpoints, theme-aware
+  CSS), SEO slug URLs, JSON-LD `ArchiveComponent` schema, breadcrumb chain.
+- **Per-unit uploads**: cover image (JPEG/PNG/WebP) and optional document
+  (PDF/ePub/MP3/video) with finfo MIME detection, path-prefix unlink guard,
+  green-audio-player for audio.
+- Plugin starts **inactive** (`metadata.optional: true` in `plugin.json`)
+  — activate via Admin → Plugins to create schema.
+- i18n: all plugin strings localised to IT/EN/DE (~40 new keys).
+- Tracks [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
+
+### 🎵 Fix — Discogs Cat# identifier support
+
+`DiscogsPlugin::validateBarcode` now accepts Catalog Numbers (e.g.
+`CDP 7912682`, `SRX-6272`, `DGC-24425-2`) in addition to EAN-13/UPC-A
+barcodes. The scrape flow in `ScrapeController::byIsbn` preserves the raw
+user input through the `scrape.isbn.validate` hook chain so plugins can
+match non-numeric identifiers. Closes
+[#101](https://github.com/fabiodalez-dev/Pinakes/issues/101).
+
+### 🗃 Migration — `migrate_0.5.9.sql`
+
+Creates archival plugin tables + indexes. Safe on existing installs: all
+DDL blocks use `INFORMATION_SCHEMA` idempotency guards (v0.4.7+ pattern).
 
 ---
 
