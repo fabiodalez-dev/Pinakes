@@ -86,15 +86,12 @@ class DiscogsPlugin
             return false;
         }
         // Allowed shape: optional leading/trailing whitespace, one or more
-        // digit-groups separated by single hyphens (e.g. "5099902-988023").
-        // This excludes inputs with letters ("CDP 7912682" → would route to
-        // catno), inputs with internal whitespace ("0777 7836 4627"), and
-        // pathological inputs made only of separators. Pure-numeric Cat#
-        // strings with hyphens (e.g. "5099902-988023") stay valid as barcode
-        // since their canonicalized digit-count matches EAN-13/UPC-A; any
-        // genuinely hyphenated catno that happens to hit 12/13 digits would
-        // be a rare Discogs edge case and is a documented tradeoff.
-        return preg_match('/^\s*\d+(?:-\d+)*\s*$/', $input) === 1;
+        // digit-groups separated by a single hyphen OR whitespace run
+        // (e.g. "5099902-988023", "0777 7836 4627"). This excludes inputs
+        // with letters ("CDP 7912682" → would route to catno) and pathological
+        // inputs made only of separators. Pure-numeric Cat# strings with
+        // 12/13 digits remain a documented tradeoff.
+        return preg_match('/^\s*\d+(?:(?:-|\s+)\d+)*\s*$/', $input) === 1;
     }
 
     /**
@@ -188,7 +185,11 @@ class DiscogsPlugin
             return '';
         }
         if ($kind === 'catno') {
-            return 'catno:"' . addcslashes($input, '"\\') . '"';
+            // canonicalSearchIdentifier trims leading/trailing whitespace
+            // (isCatalogNumber validates trimmed input, so "  SRX-6272  " must
+            // not leak raw padding into the Lucene phrase).
+            $value = self::canonicalSearchIdentifier($input, $kind);
+            return 'catno:"' . addcslashes($value, '"\\') . '"';
         }
         // $kind === 'barcode' — canonicalize to digits-only for stable URLs.
         $digits = preg_replace('/\D+/', '', $input);

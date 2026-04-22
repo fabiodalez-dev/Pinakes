@@ -44,6 +44,7 @@ $check($plugin->validateBarcode(true, '9780141036144'),   'true ISBN short-circu
 $check($plugin->validateBarcode(false, '5099902988023'),  'EAN-13 13 digits');
 $check($plugin->validateBarcode(false, '077778364627'),   'UPC-A 12 digits');
 $check($plugin->validateBarcode(false, '5099902-988023'), 'EAN-13 with hyphen');
+$check($plugin->validateBarcode(false, '0777 7836 4627'), 'UPC-A with grouping spaces');
 $check($plugin->validateBarcode(false, 'CDP 7912682'),    'Capitol CDP 7912682 (Hans)');
 $check($plugin->validateBarcode(false, 'SRX-6272'),       'SRX-6272');
 $check($plugin->validateBarcode(false, 'DGC-24425-2'),    'DGC-24425-2');
@@ -77,6 +78,13 @@ $check(DiscogsPlugin::buildMusicBrainzQuery('5099902988023') === 'barcode:509990
 $check(DiscogsPlugin::buildMusicBrainzQuery('5099902-988023') === 'barcode:5099902988023', 'EAN-13 with hyphen → digits stripped');
 $check(DiscogsPlugin::buildMusicBrainzQuery('077778364627') === 'barcode:077778364627',  'UPC-A → barcode, zero-prefix preserved');
 $check(DiscogsPlugin::buildMusicBrainzQuery('74321 66847 2') === 'catno:"74321 66847 2"', 'BMG pure-numeric Cat# quoted');
+// CodeRabbit round 5: catno padded with leading/trailing whitespace must be
+// trimmed via canonicalSearchIdentifier before being embedded in the Lucene
+// phrase (matches the canonicalization already applied on the barcode branch).
+$check(DiscogsPlugin::buildMusicBrainzQuery('  SRX-6272  ') === 'catno:"SRX-6272"',       'catno padded whitespace is trimmed');
+// UPC-A with grouping spaces ("0777 7836 4627") routes to barcode and gets
+// canonicalized to digits-only.
+$check(DiscogsPlugin::buildMusicBrainzQuery('0777 7836 4627') === 'barcode:077778364627', 'UPC-A spaced → barcode digits-only');
 // CodeRabbit round 4: unknown identifiers must not produce malformed
 // `barcode:abc` queries. buildMusicBrainzQuery returns '' and searchMusicBrainz
 // short-circuits before issuing the HTTP request.
