@@ -1,0 +1,162 @@
+[
+  {
+    "name": "Hans Bonnie Raitt Capitol Cat#",
+    "input": "CDP 7912682",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "CDP 7912682",
+    "musicBrainzQuery": "catno:\"CDP 7912682\""
+  },
+  {
+    "name": "SRX hyphenated catalog number",
+    "input": "SRX-6272",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "SRX-6272",
+    "musicBrainzQuery": "catno:\"SRX-6272\""
+  },
+  {
+    "name": "DGC compact disc catalog number",
+    "input": "DGC-24425-2",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "DGC-24425-2",
+    "musicBrainzQuery": "catno:\"DGC-24425-2\""
+  },
+  {
+    "name": "BMG spaced numeric Cat#",
+    "input": "74321 66847 2",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "74321 66847 2",
+    "musicBrainzQuery": "catno:\"74321 66847 2\""
+  },
+  {
+    "name": "Label code with space",
+    "input": "LC 03098",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "LC 03098",
+    "musicBrainzQuery": "catno:\"LC 03098\""
+  },
+  {
+    "name": "Ryko style catalog number",
+    "input": "RCD 10248",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "RCD 10248",
+    "musicBrainzQuery": "catno:\"RCD 10248\""
+  },
+  {
+    "name": "MCA dashed catalog number",
+    "input": "MCA-37217",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "MCA-37217",
+    "musicBrainzQuery": "catno:\"MCA-37217\""
+  },
+  {
+    "name": "Warner numeric dashed Cat# below barcode length",
+    "input": "7599-25829-2",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "7599-25829-2",
+    "musicBrainzQuery": "catno:\"7599-25829-2\""
+  },
+  {
+    "name": "Sony spaced numeric Cat#",
+    "input": "88697 31750 2",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "88697 31750 2",
+    "musicBrainzQuery": "catno:\"88697 31750 2\""
+  },
+  {
+    "name": "EMI spaced numeric Cat# with 13 digits",
+    "input": "00946 3 21438 2 9",
+    "valid": true,
+    "kind": "catno",
+    "canonical": "00946 3 21438 2 9",
+    "musicBrainzQuery": "catno:\"00946 3 21438 2 9\""
+  },
+  {
+    "name": "Plain EAN-13 barcode",
+    "input": "5099902988023",
+    "valid": true,
+    "kind": "barcode",
+    "canonical": "5099902988023",
+    "musicBrainzQuery": "barcode:5099902988023"
+  },
+  {
+    "name": "Plain UPC-A barcode",
+    "input": "077778364627",
+    "valid": true,
+    "kind": "barcode",
+    "canonical": "077778364627",
+    "musicBrainzQuery": "barcode:077778364627"
+  },
+  {
+    "name": "Hyphenated EAN-13 canonicalized",
+    "input": "5099902-988023",
+    "valid": true,
+    "kind": "barcode",
+    "canonical": "5099902988023",
+    "musicBrainzQuery": "barcode:5099902988023"
+  },
+  {
+    "name": "Whitespace padded UPC-A",
+    "input": " 602527379495 ",
+    "valid": true,
+    "kind": "barcode",
+    "canonical": "602527379495",
+    "musicBrainzQuery": "barcode:602527379495"
+  },
+  {
+    "name": "Hyphenated UPC-A with leading zero",
+    "input": "0-7777-83646-27",
+    "valid": true,
+    "kind": "barcode",
+    "canonical": "077778364627",
+    "musicBrainzQuery": "barcode:077778364627"
+  },
+  {
+    "name": "Empty input rejected",
+    "input": "",
+    "valid": false,
+    "kind": "unknown",
+    "canonical": "",
+    "musicBrainzQuery": ""
+  },
+  {
+    "name": "Too short letters rejected",
+    "input": "LP",
+    "valid": false,
+    "kind": "unknown",
+    "canonical": "LP",
+    "musicBrainzQuery": ""
+  },
+  {
+    "name": "Letters without digits rejected",
+    "input": "only-letters",
+    "valid": false,
+    "kind": "unknown",
+    "canonical": "only-letters",
+    "musicBrainzQuery": ""
+  },
+  {
+    "name": "Special characters rejected",
+    "input": "nonsense!!!",
+    "valid": false,
+    "kind": "unknown",
+    "canonical": "nonsense!!!",
+    "musicBrainzQuery": ""
+  },
+  {
+    "name": "Five digit numeric value rejected",
+    "input": "12345",
+    "valid": false,
+    "kind": "unknown",
+    "canonical": "12345",
+    "musicBrainzQuery": ""
+  }
+]
