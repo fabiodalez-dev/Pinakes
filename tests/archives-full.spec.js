@@ -212,6 +212,11 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         await page.fill('input[name="reference_code"]', FONDS_REF);
         await page.selectOption('select[name="level"]', 'fonds');
         await page.fill('input[name="constructed_title"]', 'E2E Full Test Fonds');
+        // NOTE: date_start/date_end are <input type="number"> (year-only,
+        // smallint range) by design — see views/form.php L128-150. They are
+        // NOT Flatpickr-backed, so page.fill() is the correct interaction.
+        // If the UI ever migrates to Flatpickr, replace with
+        // page.evaluate((val) => fp.setDate(val)) per project convention.
         await page.fill('input[name="date_start"]', '1888');
         await page.fill('input[name="date_end"]', '2003');
         await page.fill('input[name="extent"]', '1357 boxes, 613 volumes');
