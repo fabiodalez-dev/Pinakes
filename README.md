@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.9.1-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.9.2-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -21,6 +21,48 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
+
+---
+
+## What's New in v0.5.9.2
+
+### 🚑 Hotfix — "Archives plugin folder missing after upgrade to v0.5.9"
+
+Reported by a user upgrading from v0.5.8 to v0.5.9:
+> *"After the update to v0.5.9 I can see the new plugin in the plugin list.
+> But I cannot activate the plugin Archives (ISAD(G) / ISAAR(CPF)) v1.0.0"*
+
+**Root cause (architectural)**: during an upgrade, the *old* `Updater.php`
+running the copy step iterates over **its own** hardcoded
+`BundledPlugins::LIST`. The v0.5.8 list had 5 plugins; v0.5.9 added 5
+more (`discogs`, `deezer`, `musicbrainz`, `goodlib`, `archives`). The
+v0.5.8 Updater therefore copied only 5 of the 10 plugin folders from
+the v0.5.9 ZIP. The post-install patch then inserted DB rows for the
+missing plugins, leaving them "registered but disk-missing" — hence
+the activation failure. The same class of bug hit v0.5.4 (discogs
+plugin, commit fc399cb) and is documented in `updater.md`.
+
+**Self-heal path (this release)**: no code change needed. v0.5.9's
+Updater is now in place on the affected installations, and its
+`BundledPlugins::LIST` already contains all 10 entries. Upgrading
+0.5.9 → 0.5.9.2 runs `updateBundledPlugins()` which simply copies any
+plugin folder that doesn't exist at the target — so `storage/plugins/archives/`
+(and the other four) will be materialised from the v0.5.9.2 ZIP.
+
+**Direct 0.5.8 → 0.5.9.2 upgrades** still hit the same cliff (v0.5.8's
+Updater is still in charge and knows nothing about archives). The
+hotfix for that path is documented in the release notes: run the
+upgrade a second time, which will then replay the now-updated Updater.
+
+Also updated:
+- `post-install-patch.php` bumped to v1.1.0: `target_versions` now
+  includes `0.5.8`, `0.5.9`, `0.5.9.1` so the DB rows are kept in
+  sync on any upgrade path that lands on 0.5.9.2. Added `archives`
+  to the SQL `INSERT IGNORE` block (it was missing from the v0.5.7
+  patch).
+- Plugin `max_app_version` → 0.5.9.2 on all bundled plugins.
+
+Tracks the user report; no explicit issue number yet.
 
 ---
 

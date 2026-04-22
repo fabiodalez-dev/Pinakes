@@ -2246,8 +2246,23 @@ class Updater
     /**
      * Update bundled plugins from the release package.
      * copyDirectory() skips storage/plugins (preservePaths), so bundled plugins
-     * must be updated separately. Only plugins listed in BundledPlugins::LIST are
-     * updated — user-installed and premium plugins (scraping-pro) are untouched.
+     * must be updated separately. Only plugins listed in the PACKAGE-SIDE
+     * BundledPlugins::LIST are updated — user-installed and premium plugins
+     * (scraping-pro) are untouched.
+     *
+     * IMPORTANT ARCHITECTURAL NOTE: this method deliberately reads the plugin
+     * list from the release package (source) rather than from the installed
+     * BundledPlugins::LIST (self). Context — historically this code iterated
+     * `BundledPlugins::LIST` as it existed *at the old Updater's release*. That
+     * meant any new bundled plugin added in v(N+1) was silently skipped when a
+     * user upgraded from v(N), because the v(N) Updater running the copy had
+     * a shorter list. This first bit us in v0.5.4 (discogs, fc399cb) and again
+     * in v0.5.9 (archives — user report from HansUwe52). Reading the list from
+     * the new package makes every release self-describing — whatever's in the
+     * ZIP gets installed, regardless of which Updater is doing the copy.
+     * The old Updater still uses its own code path and would still skip plugins
+     * added after it shipped, BUT a single additional upgrade to v(N+2)+ self-heals
+     * because by then this smarter code path is already in place.
      */
     private function updateBundledPlugins(string $sourcePath): void
     {
@@ -2274,7 +2289,14 @@ class Updater
             throw new Exception(__('Impossibile risolvere il percorso della directory plugins.'));
         }
 
-        foreach (BundledPlugins::LIST as $pluginName) {
+        $pluginList = $this->resolvePackageBundledPluginList($sourcePath);
+        $this->debugLog('INFO', 'Lista plugin bundled risolta dal pacchetto', [
+            'count'  => count($pluginList),
+            'source' => $pluginList === BundledPlugins::LIST ? 'fallback:self' : 'package',
+            'names'  => array_values($pluginList),
+        ]);
+
+        foreach ($pluginList as $pluginName) {
             $pluginSlug = $this->normalizeBundledPluginSlug($pluginName);
             $sourcePluginPath = $sourcePluginsDir . '/' . $pluginSlug;
             if (!is_dir($sourcePluginPath)) {
@@ -2404,6 +2426,53 @@ class Updater
         }
 
         return $pluginSlug;
+    }
+
+    /**
+     * Resolve the bundled-plugin list from the release package itself so that
+     * each release is self-describing. Falls back to the currently-installed
+     * BundledPlugins::LIST if the package version can't be read — that matches
+     * the pre-v0.5.9.2 behaviour and guarantees we never regress to "zero
+     * plugins copied".
+     *
+     * We intentionally do NOT `include` the package's PHP file — executing
+     * arbitrary code from an un-installed upgrade is a code-execution vector
+     * (and the file's namespace would clash with the self-loaded class). We
+     * parse the `public const LIST = [...]` literal with a narrow regex: each
+     * entry must be a lowercase slug so any surprise content inside the file
+     * can't inject slugs that pass normalizeBundledPluginSlug() elsewhere.
+     *
+     * @return array<int, string>
+     */
+    private function resolvePackageBundledPluginList(string $sourcePath): array
+    {
+        $candidate = $sourcePath . '/app/Support/BundledPlugins.php';
+        if (!is_file($candidate) || !is_readable($candidate)) {
+            return BundledPlugins::LIST;
+        }
+
+        $content = @file_get_contents($candidate);
+        if ($content === false || $content === '') {
+            return BundledPlugins::LIST;
+        }
+
+        if (preg_match('/public\s+const\s+LIST\s*=\s*\[(.*?)\]\s*;/s', $content, $blockMatch) !== 1) {
+            $this->debugLog('WARNING', 'BundledPlugins.php nel pacchetto non matcha il pattern atteso — uso fallback', [
+                'path' => $candidate,
+            ]);
+            return BundledPlugins::LIST;
+        }
+
+        if (preg_match_all("/'([a-z0-9][a-z0-9-]*)'/", $blockMatch[1], $entryMatches) === false
+            || empty($entryMatches[1])
+        ) {
+            $this->debugLog('WARNING', 'BundledPlugins.php nel pacchetto senza voci riconosciute — uso fallback', [
+                'path' => $candidate,
+            ]);
+            return BundledPlugins::LIST;
+        }
+
+        return array_values(array_unique($entryMatches[1]));
     }
 
     private function removeDirectoryTree(string $path): void
