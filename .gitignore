@@ -301,6 +301,12 @@ phpunit.xml
 tests/*
 !tests/*.spec.js
 !tests/*.config.js
+!tests/*.unit.php
+!tests/seeds/
+tests/seeds/*
+!tests/seeds/*.json
+!tests/seeds/*.sql
+!tests/seeds/*.md
 !tests/helpers/
 tests/helpers/*
 !tests/helpers/*.php
