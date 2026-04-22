@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.9.2-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.9.3-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -21,6 +21,38 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
+
+---
+
+## What's New in v0.5.9.3
+
+### 🚑 Re-release — force updater to re-run on truncated-0.5.9.2 installs
+
+v0.5.9.2 shipped with a truncated upload on GitHub (24.7 MB / 5 plugin
+folders instead of 26.7 MB / 10). The broken asset was replaced with
+the correct ZIP, but installs that had already pulled the broken one
+are now stuck: their `version.json` reports `0.5.9.2`, the Updater's
+GitHub-latest check also reports `0.5.9.2`, so `update_available=false`
+and those users are never offered the fix.
+
+v0.5.9.3 is a version bump **only** — same payload as the (now correct)
+v0.5.9.2, plus:
+- `post-install-patch.php` target_versions now includes `0.5.9.2` so
+  the INSERT IGNORE seed block runs for users coming from the broken
+  asset (their DB may still reference plugins whose folders never
+  materialised).
+- `pre-update-patch.php` target_versions now includes `0.5.9.2` so the
+  old Updater running 0.5.9.2 → 0.5.9.3 uses filesystem-based iteration
+  and picks up the missing plugin folders from the ZIP.
+- `create-release.sh` now enforces a mandatory SHA+plugin-count check
+  against the ACTUAL remote asset (step 9.5) — the upload-truncation
+  bug that caused 0.5.9.2's figura di merda cannot slip through again.
+- `updater.md` prefaced with an absolute rule: "ALWAYS verify the
+  uploaded ZIP" (with HansUwe52's testimonial preserved for posterity).
+
+Users already on the correct 0.5.9.2 can still take 0.5.9.3 — it's a
+no-op code-wise. Users stuck on broken-0.5.9.2 MUST take 0.5.9.3 to
+actually receive the missing plugin folders.
 
 ---
 
