@@ -110,6 +110,15 @@ class DiscogsPlugin
         if ($len < 4 || $len > 30) {
             return false;
         }
+        // Guard: a valid ISBN-10 (including the "…X" form like "080442957X")
+        // would otherwise match the generic alphanum+separator heuristic below
+        // and get routed to Discogs as catno=080442957X. Short-circuit it
+        // here so the book-scraping pipeline keeps ISBN-10 semantics intact.
+        // The normalisation inside isIsbn10() also catches hyphenated forms
+        // like "0-8044-2957-X" in case a non-byIsbn caller passes raw input.
+        if (self::isIsbn10($trimmed)) {
+            return false;
+        }
         if (preg_match('/^[A-Za-z0-9][A-Za-z0-9 .\-_\/]*[A-Za-z0-9]$/', $trimmed) !== 1) {
             return false;
         }
@@ -117,6 +126,35 @@ class DiscogsPlugin
         $hasDigit     = preg_match('/[0-9]/', $trimmed) === 1;
         $hasSeparator = preg_match('/[ .\-_\/]/', $trimmed) === 1;
         return $hasDigit && ($hasLetter || $hasSeparator);
+    }
+
+    /**
+     * Strict ISBN-10 validator with MOD-11 checksum (supports the 'X' check digit).
+     *
+     * Accepts input with internal hyphens/spaces (e.g. "0-8044-2957-X") — they
+     * are stripped before validation. Used by isCatalogNumber() to veto
+     * ISBN-10 inputs before the Cat# heuristic kicks in.
+     *
+     * Kept local to this plugin rather than reusing App\Support\IsbnFormatter
+     * so the plugin stays self-contained and testable without app bootstrap.
+     */
+    private static function isIsbn10(string $input): bool
+    {
+        $value = strtoupper(trim($input));
+        // Strip common internal separators ISBN-10 is routinely written with.
+        $value = (string) preg_replace('/[\s\-]+/', '', $value);
+        if (preg_match('/^\d{9}[\dX]$/', $value) !== 1) {
+            return false;
+        }
+
+        $sum = 0;
+        for ($i = 0; $i < 9; $i++) {
+            $sum += (int) $value[$i] * (10 - $i);
+        }
+        // ISBN-10 MOD-11: the check digit makes the weighted sum ≡ 0 (mod 11).
+        $lastChar = $value[9];
+        $lastValue = $lastChar === 'X' ? 10 : (int) $lastChar;
+        return (($sum + $lastValue) % 11) === 0;
     }
 
     /**

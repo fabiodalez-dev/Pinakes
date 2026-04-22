@@ -5,7 +5,10 @@
  * Seeds 20 reusable music records that mirror Discogs Cat#/barcode imports,
  * leaves them in the database, and verifies the admin API/detail surface via
  * Playwright. Run with:
- *   npx playwright test tests/discogs-catno-documents.spec.js --config=tests/playwright.config.js
+ *   /tmp/run-e2e.sh tests/discogs-catno-documents.spec.js --config=tests/playwright.config.js --workers=1
+ *
+ * /tmp/run-e2e.sh supplies DB/admin credentials as env vars; --workers=1 is
+ * mandatory because the spec mutates the books DB and persists rows.
  */
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');

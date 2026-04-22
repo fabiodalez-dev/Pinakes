@@ -68,6 +68,22 @@ $check(DiscogsPlugin::identifierKind('DGC-24425-2')   === 'catno',   'DGC-24425-
 $check(DiscogsPlugin::identifierKind('nonsense!!!')   === 'unknown', 'special chars → unknown');
 $check(DiscogsPlugin::identifierKind('')              === 'unknown', 'empty → unknown');
 
+echo "\nidentifierKind — ISBN-10 must NEVER be classified as catno (CodeRabbit):\n";
+// Regression: before the isIsbn10() guard in isCatalogNumber(), valid
+// ISBN-10s ending in 'X' (e.g. "080442957X") matched the generic
+// alphanum+letter heuristic and were routed to Discogs as catno=XXX,
+// causing music metadata to bleed into book records.
+$check(DiscogsPlugin::identifierKind('080442957X')    !== 'catno',   'ISBN-10 080442957X NOT catno');
+$check(DiscogsPlugin::identifierKind('080442957X')    === 'unknown', 'ISBN-10 080442957X → unknown (plugin sees "not my key")');
+$check(DiscogsPlugin::identifierKind('020161622X')    !== 'catno',   'ISBN-10 020161622X (Knuth TAoCP) NOT catno');
+$check(DiscogsPlugin::identifierKind('0-8044-2957-X') !== 'catno',   'hyphenated ISBN-10 NOT catno');
+// Pure-digit ISBN-10 like "0804429570" would anyway be caught earlier
+// (10 digits isn't a valid barcode length either) but assert the veto.
+$check(DiscogsPlugin::identifierKind('0471958697')    !== 'catno',   'all-digit ISBN-10 NOT catno');
+// Negative control: a genuine Cat# with terminal 'X' that is NOT a valid
+// ISBN-10 checksum must still be accepted as catno.
+$check(DiscogsPlugin::identifierKind('DGC24425X')     === 'catno',   'non-ISBN-10 alnum+X still catno');
+
 echo "\nbuildMusicBrainzQuery — Lucene field:value:\n";
 // CodeRabbit regression: `catno:CDP 7912682` without quotes is parsed by
 // Lucene as `catno:CDP AND 7912682`, returning false-positives. Must be
