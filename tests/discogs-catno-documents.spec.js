@@ -49,9 +49,18 @@ function tracklistHtml(doc) {
 function seedDocument(doc) {
   const note = `Cat#: ${doc.identifier}\nLabel: ${doc.publisher}\nE2E seed key: ${doc.key}`;
   const ean = doc.kind === 'barcode' ? doc.canonical : '';
+  // Match rows by the deterministic "E2E seed key: <doc.key>" marker embedded
+  // in note_varie, NOT by titolo. Filtering on titolo would clobber arbitrary
+  // production rows that happen to share the same title (including
+  // soft-deleted duplicates). The seed key is unique per fixture entry so the
+  // UPDATE/SELECT/INSERT cycle only ever touches seed-owned rows.
+  const seedMarker = `E2E seed key: ${doc.key}`;
+  const seedFilter = `note_varie LIKE ${sqlString('%' + seedMarker + '%')}`;
+
   const updateSql = `
     UPDATE libri
-       SET formato = ${sqlString(doc.format)},
+       SET titolo = ${sqlString(doc.title)},
+           formato = ${sqlString(doc.format)},
            tipo_media = 'disco',
            ean = ${sqlString(ean)},
            isbn10 = NULL,
@@ -63,11 +72,11 @@ function seedDocument(doc) {
            anno_pubblicazione = ${sqlString(doc.year)},
            deleted_at = NULL,
            updated_at = NOW()
-     WHERE titolo = ${sqlString(doc.title)}
+     WHERE ${seedFilter}
   `;
   dbExec(updateSql);
 
-  let id = dbQuery(`SELECT id FROM libri WHERE titolo = ${sqlString(doc.title)} AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
+  let id = dbQuery(`SELECT id FROM libri WHERE ${seedFilter} AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
   if (id !== '') return Number(id);
 
   dbExec(`
@@ -78,7 +87,7 @@ function seedDocument(doc) {
       (${sqlString(doc.title)}, ${sqlString(doc.format)}, 'disco', ${sqlString(ean)}, NULL, NULL, 1, 1,
        ${sqlString(tracklistHtml(doc))}, ${sqlString(note)}, ${sqlString(doc.year)}, NOW(), NOW())
   `);
-  id = dbQuery(`SELECT id FROM libri WHERE titolo = ${sqlString(doc.title)} AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
+  id = dbQuery(`SELECT id FROM libri WHERE ${seedFilter} AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
   return Number(id);
 }
 

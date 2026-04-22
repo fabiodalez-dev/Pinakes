@@ -72,12 +72,12 @@
     "musicBrainzQuery": "catno:\"88697 31750 2\""
   },
   {
-    "name": "EMI spaced numeric Cat# with 13 digits",
+    "name": "EMI spaced numeric barcode with 13 digits",
     "input": "00946 3 21438 2 9",
     "valid": true,
-    "kind": "catno",
-    "canonical": "00946 3 21438 2 9",
-    "musicBrainzQuery": "catno:\"00946 3 21438 2 9\""
+    "kind": "barcode",
+    "canonical": "0094632143829",
+    "musicBrainzQuery": "barcode:0094632143829"
   },
   {
     "name": "Plain EAN-13 barcode",
