@@ -1,5 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+public/uploads/archives/e2e/*.pdf binary
 
 # Exclude from release archives (git archive)
 # NOTE: public/installer/assets/ MUST be in the ZIP — contains installer.js

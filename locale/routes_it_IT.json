@@ -28,5 +28,7 @@
   "api_catalog": "/api/catalogo",
   "api_book": "/api/libro",
   "api_home": "/api/home",
-  "language_switch": "/lingua"
+  "language_switch": "/lingua",
+  "archives": "/archivio",
+  "archive_item": "/archivio"
 }

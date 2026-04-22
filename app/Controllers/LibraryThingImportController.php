@@ -1455,7 +1455,17 @@ class LibraryThingImportController
                 $checkStmt->close();
 
                 if (!$stillExists) {
-                    throw new \RuntimeException("Book ID {$bookId} was soft-deleted during import — update skipped");
+                    // Soft-deleted mid-import — previously this raised a
+                    // RuntimeException, which tore down the whole batch on
+                    // any concurrent admin delete. The UPDATE already
+                    // filtered `deleted_at IS NULL`, so there are no side
+                    // effects on the target row; log and skip so the rest
+                    // of the batch continues.
+                    \App\Support\SecureLogger::debug(
+                        '[LibraryThingImport] Book soft-deleted during import — update skipped',
+                        ['book_id' => $bookId]
+                    );
+                    return;
                 }
             }
             // If row exists but unchanged, that's fine — continue

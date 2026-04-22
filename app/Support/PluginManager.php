@@ -184,26 +184,36 @@ class PluginManager
                 $activeLabel = $isOptional ? 'inactive (optional)' : 'active';
                 SecureLogger::info("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, $activeLabel)");
 
-                // Run onInstall if exists
+                // Build a single instance so setPluginId + onInstall +
+                // onActivate share state — runPluginMethod() would create
+                // a fresh object per call and pluginId would be null
+                // during the hook phase. See activatePlugin() — same bug,
+                // same fix (commit 21cb67d).
+                $pluginForInstance = [
+                    'id'        => (int) $pluginId,
+                    'name'      => $pluginName,
+                    'path'      => $path,
+                    'main_file' => $mainFile,
+                ];
                 try {
-                    $this->runPluginMethod($pluginName, 'setPluginId', [$pluginId]);
-                } catch (\Throwable $e) {
-                    // Optional method
-                }
-
-                try {
-                    $this->runPluginMethod($pluginName, 'onInstall');
-                } catch (\Throwable $e) {
-                    SecureLogger::warning("[PluginManager] Note: onInstall failed for $pluginName: " . $e->getMessage());
-                }
-
-                // Register hooks only for active (non-optional) plugins
-                if (!$isOptional) {
-                    try {
-                        $this->runPluginMethod($pluginName, 'onActivate');
-                    } catch (\Throwable $e) {
-                        SecureLogger::warning("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                    $instance = $this->instantiatePlugin($pluginForInstance);
+                    if (method_exists($instance, 'onInstall')) {
+                        try {
+                            $instance->onInstall();
+                        } catch (\Throwable $e) {
+                            SecureLogger::warning("[PluginManager] Note: onInstall failed for $pluginName: " . $e->getMessage());
+                        }
                     }
+                    // Register hooks only for active (non-optional) plugins
+                    if (!$isOptional && method_exists($instance, 'onActivate')) {
+                        try {
+                            $instance->onActivate();
+                        } catch (\Throwable $e) {
+                            SecureLogger::warning("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    SecureLogger::warning("[PluginManager] Note: could not instantiate $pluginName for lifecycle hooks: " . $e->getMessage());
                 }
             } else {
                 // This is the failure mode that masked the bind_param type-swap
@@ -672,16 +682,21 @@ class PluginManager
             return ['success' => false, 'message' => __('Errore durante il salvataggio nel database.'), 'plugin_id' => null];
         }
 
-            // Set plugin ID before running installation hook
+            // Build a single instance so setPluginId + onInstall share
+            // state — runPluginMethod would create separate objects and
+            // pluginId would be null during onInstall. Same pattern as
+            // activatePlugin() (21cb67d).
+            $pluginForInstance = [
+                'id'        => (int) $pluginId,
+                'name'      => $pluginMeta['name'],
+                'path'      => $path,
+                'main_file' => $mainFile,
+            ];
             try {
-                $this->runPluginMethod($pluginMeta['name'], 'setPluginId', [$pluginId]);
-            } catch (\Throwable $e) {
-                SecureLogger::warning("[PluginManager] Note: Plugin doesn't have setPluginId method (not required): " . $e->getMessage());
-            }
-
-            // Run plugin installation hook if exists — rollback on failure
-            try {
-                $this->runPluginMethod($pluginMeta['name'], 'onInstall');
+                $instance = $this->instantiatePlugin($pluginForInstance);
+                if (method_exists($instance, 'onInstall')) {
+                    $instance->onInstall();
+                }
             } catch (\Throwable $e) {
                 SecureLogger::error("[PluginManager] onInstall failed, rolling back", ['error' => $e->getMessage()]);
                 // Remove the plugins row
@@ -738,9 +753,17 @@ class PluginManager
             return ['success' => false, 'message' => __('File principale del plugin non trovato.')];
         }
 
-        // Run plugin activation hook
+        // Run plugin activation hook on a single instance so the pluginId
+        // set by instantiatePlugin() (via setPluginId) persists through
+        // the onActivate() call. Without this, plugins that write to
+        // plugin_hooks during onActivate() — e.g. archives — would see
+        // pluginId=null and silently no-op, shipping an installed-but-
+        // unrouted plugin. See ArchivesPlugin::registerHookInDb() guard.
         try {
-            $this->runPluginMethod($plugin['name'], 'onActivate');
+            $instance = $this->instantiatePlugin($plugin);
+            if (method_exists($instance, 'onActivate')) {
+                $instance->onActivate();
+            }
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => __('Errore durante l\'attivazione: %s', $e->getMessage())];
         }
@@ -776,9 +799,14 @@ class PluginManager
             return ['success' => false, 'message' => __('Plugin già disattivato.')];
         }
 
-        // Run plugin deactivation hook
+        // Run plugin deactivation hook on a single instance (see
+        // activatePlugin() — same reasoning). Plugins that prune
+        // plugin_hooks rows during onDeactivate() need pluginId set.
         try {
-            $this->runPluginMethod($plugin['name'], 'onDeactivate');
+            $instance = $this->instantiatePlugin($plugin);
+            if (method_exists($instance, 'onDeactivate')) {
+                $instance->onDeactivate();
+            }
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => __('Errore durante la disattivazione: %s', $e->getMessage())];
         }
@@ -818,9 +846,15 @@ class PluginManager
             }
         }
 
-        // Run plugin uninstall hook
+        // Run plugin uninstall hook on a single instance (see
+        // activatePlugin() — same reasoning). onUninstall() can perform
+        // FK-aware cleanup with pluginId set before the plugins row is
+        // deleted.
         try {
-            $this->runPluginMethod($plugin['name'], 'onUninstall');
+            $instance = $this->instantiatePlugin($plugin);
+            if (method_exists($instance, 'onUninstall')) {
+                $instance->onUninstall();
+            }
         } catch (\Throwable $e) {
             // Continue with uninstall even if hook fails
             SecureLogger::warning("Plugin uninstall hook error: " . $e->getMessage());
@@ -846,7 +880,11 @@ class PluginManager
     }
 
     /**
-     * Run a plugin method if it exists
+     * Run a plugin method if it exists. Each call creates a fresh plugin
+     * object — for lifecycle flows where instance state must persist
+     * between multiple calls (e.g. setPluginId followed by onActivate),
+     * build the instance via {@see instantiatePlugin()} (which also
+     * wires up setPluginId) and invoke methods on it directly.
      *
      * @param string $pluginName
      * @param string $method

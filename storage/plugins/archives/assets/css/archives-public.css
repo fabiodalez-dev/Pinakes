@@ -1,0 +1,367 @@
+/**
+ * Archives plugin — public frontend styles.
+ *
+ * Inherits the admin-chosen theme (Settings → Appearance). The
+ * frontend layout exposes --primary-color / --text-color / --light-bg /
+ * --border-color. Some installs (pre-0.5.x themes) also publish
+ * --bg-primary / --color-primary. We bind to plugin-local
+ * --archives-* names with cascading fallbacks so the stylesheet keeps
+ * working on either vocabulary, and falls back to literal colours
+ * when the page is rendered without the theme layer (e.g. in tests).
+ *
+ * Loaded on /archivio and /archivio/{id}. The stylesheet is kept
+ * plugin-local and served by the Slim route
+ * /plugins/archives/assets/css/archives-public.css.
+ */
+
+:root {
+    --archives-color-primary:  var(--color-primary,   var(--primary-color, #0d6efd));
+    --archives-text-primary:   var(--text-primary,    var(--text-color,    #0f172a));
+    --archives-text-secondary: var(--text-secondary,  var(--text-muted,    #64748b));
+    --archives-bg-primary:     var(--bg-primary,      var(--light-bg,      #ffffff));
+    --archives-bg-secondary:   var(--bg-secondary,    var(--light-bg,      #f8f9fa));
+    --archives-border-color:   var(--border-color,                         #e5e7eb);
+    --archives-border-light:   var(--border-light,    var(--border-color,  #f1f5f9));
+}
+
+/* Remove ambient shadows inherited from the global theme / Bootstrap
+   card rules (e.g. `box-shadow: 0 4px 16px rgba(0,0,0,.07)` bundled
+   with the public shell). Archive pages stay flat by design. */
+.archive-hero .card,
+.archive-body .card,
+.archive-card,
+.archive-hero .icon-box,
+.archive-cover-large {
+    box-shadow: none !important;
+    -webkit-box-shadow: none !important;
+}
+
+/* ── Index grid ────────────────────────────────────────────────────── */
+.archive-hero-index {
+    padding: 3rem 0 2rem;
+}
+.archive-hero-index h1 {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--archives-text-primary);
+    margin: 0 0 0.5rem;
+}
+.archive-hero-index p {
+    color: var(--archives-text-secondary);
+    font-size: 1.05rem;
+    max-width: 780px;
+    margin: 0;
+}
+.archive-card {
+    transition: transform .2s ease, border-color .2s ease;
+    border: 1px solid var(--archives-border-color);
+    background: var(--archives-bg-primary);
+    height: 100%;
+    box-shadow: none;
+}
+.archive-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--archives-color-primary);
+}
+.archive-card .card-title a {
+    color: var(--archives-text-primary);
+    text-decoration: none;
+}
+.archive-card .card-title a:hover {
+    color: var(--archives-color-primary);
+}
+.archive-ref {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .78rem;
+    color: var(--archives-text-secondary);
+}
+
+/* ── Detail hero ───────────────────────────────────────────────────── */
+.archive-hero {
+    position: relative;
+    padding: 3.5rem 0 5rem;
+    background: var(--archives-bg-primary);
+    color: var(--archives-text-primary);
+    border-bottom: 1px solid var(--archives-border-color);
+    overflow: hidden;
+}
+.archive-hero .hero-content {
+    position: relative;
+    z-index: 2;
+}
+.archive-hero .hero-text {
+    text-align: left;
+}
+.archive-hero .icon-box {
+    width: 180px;
+    height: 180px;
+    border-radius: 24px;
+    background: var(--archives-bg-secondary);
+    border: 1px solid var(--archives-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Centre inside the col-lg-4 slot on every breakpoint. The responsive
+       overrides below adjust the size but keep margin: 0 auto. */
+    margin: 0 auto;
+}
+.archive-hero .icon-box i {
+    font-size: 4.5rem;
+    color: var(--archives-color-primary);
+    opacity: .9;
+}
+.archive-hero h1 {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+    margin-bottom: 1rem;
+    color: var(--archives-text-primary);
+}
+.archive-hero .ref-pill {
+    display: inline-block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: var(--archives-bg-secondary);
+    color: var(--archives-text-primary);
+    padding: .25rem .6rem;
+    border-radius: .4rem;
+    font-size: .85rem;
+    border: 1px solid var(--archives-border-color);
+}
+.archive-hero .meta-line {
+    color: var(--archives-text-secondary);
+    margin-bottom: .5rem;
+}
+.archive-hero .meta-line i {
+    color: var(--archives-color-primary);
+    opacity: .75;
+}
+.archive-hero .breadcrumb {
+    background: transparent;
+    padding: 0;
+    margin: 0;
+}
+.archive-hero .breadcrumb a {
+    color: var(--archives-text-secondary);
+    text-decoration: none;
+}
+.archive-hero .breadcrumb a:hover {
+    color: var(--archives-color-primary);
+}
+.archive-hero .breadcrumb .active {
+    color: var(--archives-text-primary);
+}
+
+/* ── Body (two-column) ─────────────────────────────────────────────── */
+.archive-body {
+    padding: 3rem 0 4rem;
+    background: var(--archives-bg-secondary);
+    min-height: 60vh;
+}
+.archive-body .card {
+    border: 1px solid var(--archives-border-color);
+    background: var(--archives-bg-primary);
+    box-shadow: none !important;
+}
+.archive-body .card-header {
+    background: var(--archives-bg-secondary);
+    border-bottom: 1px solid var(--archives-border-color);
+}
+.archive-body dl.isad dt {
+    color: var(--archives-text-secondary);
+    font-size: .8rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    margin-bottom: .25rem;
+}
+.archive-body dl.isad dd {
+    color: var(--archives-text-primary);
+    margin-bottom: 1.25rem;
+    line-height: 1.6;
+}
+.archive-body dl.isad dd.pre-wrap {
+    white-space: pre-line;
+}
+.archive-body .ref-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    color: var(--archives-text-secondary);
+}
+.archive-body .child-item {
+    transition: background .15s ease;
+}
+.archive-body .child-item:hover {
+    background: var(--archives-bg-secondary);
+}
+.archive-body .child-item a {
+    color: var(--archives-text-primary);
+    text-decoration: none;
+}
+.archive-body .child-item a:hover {
+    color: var(--archives-color-primary);
+}
+.archive-body .authority-item {
+    padding: .75rem 1rem;
+}
+.archive-body .authority-item + .authority-item {
+    border-top: 1px solid var(--archives-border-light);
+}
+
+/* ── Cover + document actions ──────────────────────────────────────── */
+.archive-cover-large {
+    display: block;
+    width: 100%;
+    max-width: 280px;
+    height: auto;
+    margin: 0 auto;
+    border-radius: 12px;
+    background: var(--archives-bg-secondary);
+    border: 1px solid var(--archives-border-color);
+}
+.archive-cover-placeholder {
+    width: 100%;
+    max-width: 280px;
+    aspect-ratio: 3 / 4;
+    margin: 0 auto;
+    border-radius: 12px;
+    background: var(--archives-bg-secondary);
+    border: 1px dashed var(--archives-border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--archives-text-secondary);
+    font-size: 4rem;
+}
+.archive-actions {
+    margin-top: 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    justify-content: center;
+}
+.archive-player-wrap {
+    margin-top: 1rem;
+}
+
+/* ── Responsive (mirrors book-detail.php breakpoints) ─────────────── */
+@media (max-width: 1200px) {
+    .archive-hero {
+        padding: 3rem 0 4rem;
+    }
+}
+
+@media (max-width: 992px) {
+    .archive-hero {
+        padding: 2.5rem 0 3.5rem;
+        text-align: center;
+    }
+    .archive-hero .hero-text {
+        text-align: center;
+    }
+    .archive-hero .icon-box {
+        margin: 0 auto 1.5rem;
+        width: 150px;
+        height: 150px;
+    }
+    .archive-hero .icon-box i {
+        font-size: 3.75rem;
+    }
+    .archive-cover-large {
+        max-width: clamp(180px, 35vw, 280px);
+        margin-bottom: 1.5rem;
+    }
+    .archive-hero h1 {
+        font-size: clamp(1.8rem, 5vw, 2.25rem);
+        margin-bottom: 1rem;
+    }
+    .archive-hero .actions,
+    .archive-hero .archive-actions {
+        justify-content: center !important;
+    }
+    .archive-hero .breadcrumb {
+        justify-content: center;
+    }
+    .archive-body {
+        padding: 2rem 0 3rem;
+        margin-top: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .archive-hero {
+        padding: 2rem 0 3rem;
+        text-align: center;
+    }
+    .archive-hero h1 {
+        font-size: clamp(1.5rem, 6vw, 2rem);
+        word-break: break-word;
+    }
+    .archive-hero .icon-box {
+        width: 120px;
+        height: 120px;
+        border-radius: 18px;
+    }
+    .archive-hero .icon-box i {
+        font-size: 3rem;
+    }
+    .archive-cover-large {
+        max-width: min(220px, 60vw);
+    }
+    .archive-hero .ref-pill {
+        font-size: .75rem;
+    }
+    .archive-hero-index {
+        padding: 2rem 0 1.25rem;
+    }
+    .archive-hero-index h1 {
+        font-size: clamp(1.75rem, 6vw, 2.25rem);
+    }
+    .archive-body .card-body {
+        padding: 1.25rem !important;
+    }
+    .archive-body dl.isad dd {
+        margin-bottom: 1rem;
+    }
+    /* Mobile breadcrumb (same as book-detail): wrap + left-align */
+    .archive-hero .breadcrumb {
+        flex-wrap: wrap;
+        justify-content: center;
+        text-align: center;
+    }
+    .archive-hero .breadcrumb-item {
+        display: inline;
+        word-break: break-word;
+    }
+    .archive-hero .breadcrumb-item + .breadcrumb-item::before {
+        display: inline;
+        padding: 0 .25rem;
+    }
+    .archive-body .child-item {
+        flex-wrap: wrap;
+    }
+    .archive-body .child-item a {
+        flex-basis: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .archive-hero {
+        padding: 1.75rem 0 2.5rem;
+    }
+    .archive-hero h1 {
+        font-size: clamp(1.35rem, 7vw, 1.75rem);
+    }
+    .archive-hero .icon-box {
+        width: 100px;
+        height: 100px;
+    }
+    .archive-hero .icon-box i {
+        font-size: 2.5rem;
+    }
+    .archive-actions {
+        flex-direction: column;
+    }
+    .archive-actions .btn {
+        width: 100%;
+    }
+}

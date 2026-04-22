@@ -191,9 +191,15 @@ test.describe('H-3: Error responses do not leak internal details', () => {
     await page.fill('input[name="nome"]', '');
     await page.click('button[type="submit"]');
 
-    // Error message should be generic, not contain stack trace or SQL
+    // Error message should be generic, not contain stack trace or SQL.
+    // The previous regex `/mysqli|SQL|stack trace|vendor\//i` was too loose
+    // — it matched the literal word "MySQL" inside i18n translation strings
+    // embedded in the layout (e.g. the archives plugin's "full-text MySQL"
+    // hint) and the legitimate `/assets/vendor/` asset paths. Tighten to
+    // the actual leak indicators: driver function names, SQLSTATE codes,
+    // stack-trace markers, composer vendor paths.
     const body = await page.locator('body').textContent();
-    expect(body).not.toMatch(/mysqli|SQL|stack trace|vendor\//i);
+    expect(body).not.toMatch(/mysqli_[a-z_]+\(|SQLSTATE|SQL (syntax|error)|stack trace|\/vendor\/composer\//i);
   });
 
   test('invalid bulk-status returns error without internals', async ({ page }) => {

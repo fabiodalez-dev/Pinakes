@@ -64,6 +64,37 @@ if (isset($container)) {
 // Get events page status using ConfigStore (has its own DB connection)
 $eventsEnabled = ConfigStore::get('cms.events_page_enabled', '1') === '1';
 
+// Archive menu entry — shown only when the archives plugin is active AND
+// at least one archival_unit is published. Plugin views can pre-populate
+// $archivesAvailable / $archivesRoute (e.g. the /archivio page already
+// knows the plugin is active and doesn't need a second round-trip); the
+// fallback path below covers other pages (home, catalog, book-detail)
+// using the $container DB connection.
+$archivesAvailable = $archivesAvailable ?? false;
+$archivesRoute = $archivesRoute ?? '/archive';
+try {
+    if (!$archivesAvailable && isset($container)) {
+        $dbConn = $container->get('db');
+        if ($dbConn instanceof mysqli) {
+            $pluginCheck = $dbConn->query("SELECT 1 FROM plugins WHERE name = 'archives' AND is_active = 1 LIMIT 1");
+            if ($pluginCheck instanceof mysqli_result && $pluginCheck->num_rows === 1) {
+                $unitCheck = $dbConn->query("SELECT 1 FROM archival_units WHERE deleted_at IS NULL LIMIT 1");
+                if ($unitCheck instanceof mysqli_result && $unitCheck->num_rows === 1) {
+                    $archivesAvailable = true;
+                }
+                if ($unitCheck instanceof mysqli_result) { $unitCheck->free(); }
+            }
+            if ($pluginCheck instanceof mysqli_result) { $pluginCheck->free(); }
+        }
+    }
+    if ($archivesAvailable) {
+        $archivesRoute = \App\Support\RouteTranslator::route('archives') ?: '/archive';
+    }
+} catch (\Throwable $e) {
+    // Table missing or plugin not fully activated yet — hide the menu entry.
+    $archivesAvailable = false;
+}
+
 $currentLocale = I18n::getLocale();
 $htmlLang = substr($currentLocale, 0, 2);
 ?>
@@ -1333,6 +1364,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                             <li><a href="<?= htmlspecialchars(absoluteUrl($catalogRoute), ENT_QUOTES, 'UTF-8') ?>"
                                     class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>"><?= __('Catalogo') ?></a>
                             </li>
+                            <?php if ($archivesAvailable): ?>
+                                <li><a href="<?= htmlspecialchars(absoluteUrl($archivesRoute), ENT_QUOTES, 'UTF-8') ?>"
+                                        class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', $archivesRoute) !== false ? 'active' : '' ?>"><?= __('Archivio') ?></a>
+                                </li>
+                            <?php endif; ?>
                             <?php if ($eventsEnabled): ?>
                                 <li><a href="<?= htmlspecialchars(absoluteUrl('/events'), ENT_QUOTES, 'UTF-8') ?>"
                                         class="<?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>"><?= __('Eventi') ?></a>
@@ -1446,6 +1482,12 @@ $htmlLang = substr($currentLocale, 0, 2);
                         class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $catalogRoute) !== false ? 'active' : '' ?>">
                         <i class="fas fa-book me-2"></i><?= __('Catalogo') ?>
                     </a>
+                    <?php if ($archivesAvailable): ?>
+                        <a href="<?= htmlspecialchars(absoluteUrl($archivesRoute), ENT_QUOTES, 'UTF-8') ?>"
+                            class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', $archivesRoute) !== false ? 'active' : '' ?>">
+                            <i class="fas fa-archive me-2"></i><?= __('Archivio') ?>
+                        </a>
+                    <?php endif; ?>
                     <?php if ($eventsEnabled): ?>
                         <a href="<?= htmlspecialchars(absoluteUrl('/events'), ENT_QUOTES, 'UTF-8') ?>"
                             class="mobile-nav-link <?= strpos($_SERVER['REQUEST_URI'] ?? '', '/events') !== false ? 'active' : '' ?>">

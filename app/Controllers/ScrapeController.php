@@ -88,8 +88,24 @@ class ScrapeController
         // Validate ISBN format (ISBN-10 or ISBN-13)
         $isValid = $this->isValidIsbn($cleanIsbn);
 
-        // Hook: scrape.isbn.validate - Allow custom ISBN validation
-        $isValid = \App\Support\Hooks::apply('scrape.isbn.validate', $isValid, [$rawIdentifier, 'user_input']);
+        // Hook: scrape.isbn.validate — Allow custom ISBN validation.
+        //
+        // Positional args passed to plugin callbacks:
+        //   [0] $rawIdentifier  — original user input, preserves letters/spaces
+        //                         (plugins matching Cat# like "CDP 7912682"
+        //                         need this form — the discogs plugin relies
+        //                         on pos 1 being raw, see DiscogsPlugin::validateBarcode).
+        //   [1] 'user_input'    — source tag, lets plugins scope behaviour.
+        //   [2] $cleanIsbn      — digits-only normalised form, for plugins
+        //                         that want both representations.
+        //
+        // Existing 2-arg signatures keep working — PHP silently ignores
+        // extra positional args beyond the declared parameter list.
+        $isValid = \App\Support\Hooks::apply(
+            'scrape.isbn.validate',
+            $isValid,
+            [$rawIdentifier, 'user_input', $cleanIsbn]
+        );
 
         if (!$isValid) {
             $response->getBody()->write(json_encode([

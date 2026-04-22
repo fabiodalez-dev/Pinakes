@@ -24,6 +24,23 @@ class RateLimitMiddleware implements MiddlewareInterface
 
     public function process(Request $request, RequestHandler $handler): Response
     {
+        // Test-env escape hatch — opt-in via PINAKES_E2E_BYPASS_RATE_LIMIT=1
+        // in the env (NOT shipped to production .env). When set, the flag
+        // bypasses *every* instance of this middleware, not only the login
+        // throttle — also register/forgot-password and any future route
+        // that wires this middleware in. That is exactly what an E2E
+        // suite with ~30 serial describe blocks (each with a beforeAll
+        // login) needs: without this flag the 5/300s throttle saturates
+        // after ~6 hooks and the remaining tests cascade to "did not run".
+        // Production is unaffected — the flag is ignored when absent or
+        // empty, and only `1`/`true` enables it.
+        $bypassFlag = $_ENV['PINAKES_E2E_BYPASS_RATE_LIMIT']
+            ?? getenv('PINAKES_E2E_BYPASS_RATE_LIMIT')
+            ?: '';
+        if ($bypassFlag === '1' || strtolower((string) $bypassFlag) === 'true') {
+            return $handler->handle($request);
+        }
+
         $ip = $this->getClientIP($request);
         // Use action-based key if provided (prevents bypass via localized URLs)
         $endpoint = $this->actionKey ?? $request->getUri()->getPath();
