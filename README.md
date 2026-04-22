@@ -34,6 +34,8 @@ catalog — hierarchical descriptions (Fondo → Series → File → Item) per
 authority records per
 [ISAAR(CPF)](https://www.ica.org/en/isaar-cpf-international-standard-archival-authority-record-corporate-bodies-persons-and-families-2nd).
 
+**Archival descriptions**
+
 - Three tables (`archival_units`, `authority_records`, `archival_unit_authority`)
   with self-referencing tree, FK guards, MARC-like field crosswalk inspired
   by the ABA format (Arbejderbevægelsens Bibliotek og Arkiv).
@@ -42,8 +44,39 @@ authority records per
   `ArchiveComponent` schema, breadcrumb chain).
 - Per-unit cover image + document uploads (PDF/ePub/MP3/video) with finfo
   MIME detection and path-prefix unlink guard.
-- Plugin ships **inactive** (`metadata.optional: true`). Activate in Admin
-  → Plugins to create the schema.
+
+**Authority records (ISAAR(CPF))**
+
+- Full CRUD for persons / corporate bodies / families with M:N linkage
+  to both `archival_units` and `libri.autori` (unified authority file
+  for the whole catalog, not per-module).
+- JS type-ahead picker for attaching an existing authority to an
+  archival unit (admin form) — no manual ID entry.
+- Unified cross-entity search: a single query returns hits across
+  `libri` + `archival_units` + `authority_records` with the correct
+  provenance label in the results.
+
+**Photographic items**
+
+- Dedicated `specific_material` ENUM on `archival_units` covering the
+  full ABA billedmarc / MARC21 008-pos-33 catalogue (`hb`/`hp`/`hm`/`hd`/`hk`/
+  `bf`/`hf`/`lm`/`lf`/`vm`/`bm`/`le`/`zz`…) so a photograph, postcard,
+  drawing, map, or audio-visual item gets classified correctly rather
+  than flattened to "item".
+
+**MARCXML I/O + SRU**
+
+- MARCXML import + export, round-trip-stable (identity test: export →
+  import → re-export yields byte-identical output), validated against
+  the MARC21 Slim XSD on both sides.
+- SRU 1.2 endpoint for archival records so external discovery systems
+  (OPACs, union catalogues, Z39.50/SRU gateways) can query the archive
+  alongside the book catalogue.
+
+**Packaging**
+
+- Plugin ships **inactive** (`metadata.optional: true`). Activate in
+  Admin → Plugins to create the schema.
 - i18n: IT/EN/DE (~40 new keys). Tracks
   [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 
