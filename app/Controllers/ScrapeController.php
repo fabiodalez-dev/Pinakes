@@ -75,29 +75,36 @@ class ScrapeController
 
     public function byIsbn(Request $request, Response $response): Response
     {
-        $isbn = trim((string)($request->getQueryParams()['isbn'] ?? ''));
-        if ($isbn === '') {
+        $rawIdentifier = trim((string)($request->getQueryParams()['isbn'] ?? ''));
+        if ($rawIdentifier === '') {
             $response->getBody()->write(json_encode([
                 'error' => __('Parametro ISBN mancante.'),
             ], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
         // SSRF Protection: Validate ISBN format before constructing URL
-        $cleanIsbn = preg_replace('/[^0-9X]/', '', strtoupper($isbn));
+        $cleanIsbn = preg_replace('/[^0-9X]/', '', strtoupper($rawIdentifier));
 
         // Validate ISBN format (ISBN-10 or ISBN-13)
         $isValid = $this->isValidIsbn($cleanIsbn);
 
-        // Hook: scrape.isbn.validate — Allow custom ISBN validation. The raw
-        // input ($isbn) is passed as the 3rd arg so plugins that accept
-        // non-ISBN identifiers (e.g. Discogs Cat# "CDP 7912682") can match
-        // on the original string instead of the aggressively-cleaned form.
+        // Hook: scrape.isbn.validate — Allow custom ISBN validation.
+        //
+        // Positional args passed to plugin callbacks:
+        //   [0] $rawIdentifier  — original user input, preserves letters/spaces
+        //                         (plugins matching Cat# like "CDP 7912682"
+        //                         need this form — the discogs plugin relies
+        //                         on pos 1 being raw, see DiscogsPlugin::validateBarcode).
+        //   [1] 'user_input'    — source tag, lets plugins scope behaviour.
+        //   [2] $cleanIsbn      — digits-only normalised form, for plugins
+        //                         that want both representations.
+        //
         // Existing 2-arg signatures keep working — PHP silently ignores
         // extra positional args beyond the declared parameter list.
         $isValid = \App\Support\Hooks::apply(
             'scrape.isbn.validate',
             $isValid,
-            [$cleanIsbn, 'user_input', $isbn]
+            [$rawIdentifier, 'user_input', $cleanIsbn]
         );
 
         if (!$isValid) {
@@ -107,11 +114,17 @@ class ScrapeController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
+        // Built-in ISBN requests should keep their canonical numeric form.
+        // Plugin-accepted identifiers (Discogs Cat#, UPC/EAN barcodes, etc.)
+        // must preserve the original user input so plugins can route/search
+        // by the correct external parameter.
+        $searchIdentifier = $this->isValidIsbn($cleanIsbn) ? $cleanIsbn : $rawIdentifier;
+
         // Get available scraping sources
         $sources = $this->getDefaultSources();
 
         // Hook: scrape.sources - Allow plugins to add custom scraping sources
-        $sources = \App\Support\Hooks::apply('scrape.sources', $sources, [$cleanIsbn]);
+        $sources = \App\Support\Hooks::apply('scrape.sources', $sources, [$searchIdentifier]);
 
         // Check if any sources are available
         if (empty($sources)) {
@@ -125,24 +138,24 @@ class ScrapeController
         SecureLogger::debug('[ScrapeController] Available sources', ['sources' => array_keys($sources)]);
 
         // Hook: scrape.fetch.custom - Allow plugins to completely replace scraping logic
-        $customResult = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $cleanIsbn]);
+        $customResult = \App\Support\Hooks::apply('scrape.fetch.custom', null, [$sources, $searchIdentifier]);
 
         // Check if plugin result has a title (complete data) or only partial data (e.g., cover only)
         $hasCompleteData = is_array($customResult) && !empty($customResult['title']);
 
         if ($hasCompleteData) {
-            SecureLogger::debug('[ScrapeController] ISBN found via plugins', ['isbn' => $cleanIsbn]);
+            SecureLogger::debug('[ScrapeController] ISBN found via plugins', ['isbn' => $searchIdentifier]);
 
             // Plugin handled scraping completely, use its result
             $payload = $customResult;
 
             // Plugin returned metadata but no cover image — try built-in sources for cover
             if (empty($payload['image'])) {
-                SecureLogger::debug('[ScrapeController] Plugin data has no cover, trying built-in sources', ['isbn' => $cleanIsbn]);
-                $coverUrl = $this->findCoverFromBuiltinSources($cleanIsbn);
+                SecureLogger::debug('[ScrapeController] Plugin data has no cover, trying built-in sources', ['isbn' => $searchIdentifier]);
+                $coverUrl = $this->findCoverFromBuiltinSources($searchIdentifier);
                 if ($coverUrl !== null) {
                     $payload['image'] = $coverUrl;
-                    SecureLogger::debug('[ScrapeController] Cover found from built-in source', ['isbn' => $cleanIsbn]);
+                    SecureLogger::debug('[ScrapeController] Cover found from built-in source', ['isbn' => $searchIdentifier]);
                 }
             }
 
@@ -151,16 +164,16 @@ class ScrapeController
 
             // Try to enrich with SBN data if Dewey is missing
             if (empty($payload['classificazione_dewey'])) {
-                $payload = $this->enrichWithSbnData($payload, $cleanIsbn);
+                $payload = $this->enrichWithSbnData($payload, $searchIdentifier);
             }
 
             $payload = $this->ensureTipoMedia($payload);
 
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
-            $payload = $this->normalizeIsbnFields($payload, $cleanIsbn);
+            $payload = $this->normalizeIsbnFields($payload, $searchIdentifier);
 
             // Hook: scrape.response - Modify final JSON response
-            $payload = \App\Support\Hooks::apply('scrape.response', $payload, [$cleanIsbn, $sources, ['timestamp' => time()]]);
+            $payload = \App\Support\Hooks::apply('scrape.response', $payload, [$searchIdentifier, $sources, ['timestamp' => time()]]);
 
             // Auto-populate Dewey JSON if classification found (language-aware)
             DeweyAutoPopulator::processBookData($payload);
@@ -168,7 +181,7 @@ class ScrapeController
             $json = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
             if ($json === false) {
                 SecureLogger::error('[ScrapeController] JSON encode failed', [
-                    'isbn' => $cleanIsbn,
+                    'isbn' => $searchIdentifier,
                     'json_error' => json_last_error_msg()
                 ]);
                 $response->getBody()->write(json_encode([
@@ -182,17 +195,17 @@ class ScrapeController
         }
 
         // Plugins returned no data or only partial data (e.g., cover only) - try built-in fallbacks
-        SecureLogger::debug('[ScrapeController] Trying built-in fallbacks', ['isbn' => $cleanIsbn]);
+        SecureLogger::debug('[ScrapeController] Trying built-in fallbacks', ['isbn' => $searchIdentifier]);
 
         // Built-in fallback: try Google Books (no key or env GOOGLE_BOOKS_API_KEY) then Open Library
-        $fallbackData = $this->fallbackFromGoogleBooks($cleanIsbn);
+        $fallbackData = $this->fallbackFromGoogleBooks($searchIdentifier);
         if ($fallbackData === null) {
-            $fallbackData = $this->fallbackFromOpenLibrary($cleanIsbn);
+            $fallbackData = $this->fallbackFromOpenLibrary($searchIdentifier);
         }
 
         // If fallback found data but no cover, try Goodreads cover API
         if ($fallbackData !== null && empty($fallbackData['image'])) {
-            $goodreadsCover = $this->fallbackCoverFromGoodreads($cleanIsbn);
+            $goodreadsCover = $this->fallbackCoverFromGoodreads($searchIdentifier);
             if ($goodreadsCover !== null) {
                 $fallbackData['image'] = $goodreadsCover;
             }
@@ -213,7 +226,7 @@ class ScrapeController
                         $fallbackData[$key] = $value;
                     }
                 }
-                SecureLogger::debug('[ScrapeController] Merged plugin partial data', ['isbn' => $cleanIsbn]);
+                SecureLogger::debug('[ScrapeController] Merged plugin partial data', ['isbn' => $searchIdentifier]);
             }
 
             // Normalize text fields (remove MARC-8 control characters, collapse whitespace)
@@ -221,16 +234,16 @@ class ScrapeController
 
             // Try to enrich with SBN data if Dewey is missing
             if (empty($fallbackData['classificazione_dewey'])) {
-                $fallbackData = $this->enrichWithSbnData($fallbackData, $cleanIsbn);
+                $fallbackData = $this->enrichWithSbnData($fallbackData, $searchIdentifier);
             }
 
             $fallbackData = $this->ensureTipoMedia($fallbackData);
 
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
-            $fallbackData = $this->normalizeIsbnFields($fallbackData, $cleanIsbn);
+            $fallbackData = $this->normalizeIsbnFields($fallbackData, $searchIdentifier);
 
             // Ensure plugins can still modify/log the final payload just like regular results
-            $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$cleanIsbn, $sources, ['timestamp' => time()]]);
+            $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$searchIdentifier, $sources, ['timestamp' => time()]]);
 
             // Auto-populate Dewey JSON if classification found (language-aware)
             DeweyAutoPopulator::processBookData($fallbackData);
@@ -238,7 +251,7 @@ class ScrapeController
             $json = json_encode($fallbackData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
             if ($json === false) {
                 SecureLogger::error('[ScrapeController] JSON encode failed (fallback)', [
-                    'isbn' => $cleanIsbn,
+                    'isbn' => $searchIdentifier,
                     'json_error' => json_last_error_msg()
                 ]);
                 $response->getBody()->write(json_encode([
@@ -257,7 +270,7 @@ class ScrapeController
                 __('ISBN non trovato. Fonti consultate: %s'),
                 implode(', ', array_map(fn($s) => $s['name'] ?? 'Unknown', $sources))
             ),
-            'isbn' => $cleanIsbn,
+            'isbn' => $searchIdentifier,
             'sources_checked' => array_keys($sources),
         ];
 
