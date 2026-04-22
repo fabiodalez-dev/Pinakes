@@ -311,32 +311,83 @@ echo ""
 # STEP 9.5: VERIFY THE ACTUAL REMOTE ZIP MATCHES THE LOCAL ZIP
 # ============================================================================
 # HARD RULE (see updater.md §ABSOLUTE RULE): "upload succeeded" is NOT enough.
-# On 2026-04-22 gh release upload produced a truncated remote artifact for
-# v0.5.9.2 (24.7 MB remote, 26.7 MB local, 5 plugins vs 10). Nobody noticed
-# because the script only verified the local ZIP. Download the remote
-# artifact and SHA-compare it, every single time.
-echo -e "${YELLOW}[9.5/9] Verifying REMOTE ZIP matches local ZIP...${NC}"
+# On 2026-04-22 two separate failure modes corrupted the shipped ZIP:
+#   1) gh release upload produced a truncated remote artifact (v0.5.9.2).
+#   2) A hidden GitHub Actions workflow (release.yml) rebuilt the ZIP via
+#      bin/build-release.sh and overwrote the asset AFTER the upload —
+#      verification hitting the CDN saw the cached correct file briefly,
+#      then the CDN invalidated and users downloaded the workflow's broken
+#      ZIP (v0.5.9.3, reported by HansUwe52).
+# Mitigations:
+#   - release.yml is now renamed .disabled so it does not race our upload.
+#   - This step fetches via the GitHub API (asset ID + octet-stream Accept),
+#     bypassing the CDN entirely.
+#   - It also polls for up to 90 seconds to catch any asynchronous overwrite
+#     from a rogue workflow that might slip in.
+#   - Sanity-check: uploader MUST be the current gh user, NOT github-actions[bot].
+echo -e "${YELLOW}[9.5/9] Verifying REMOTE ZIP matches local ZIP (via API, not CDN)...${NC}"
 
 REMOTE_VERIFY_DIR=$(mktemp -d)
 REMOTE_ZIP="$REMOTE_VERIFY_DIR/remote.zip"
 
-if ! curl -sSL -o "$REMOTE_ZIP" \
-    "https://github.com/fabiodalez-dev/Pinakes/releases/download/v${VERSION}/pinakes-v${VERSION}.zip"; then
-    echo -e "${RED}❌ ERROR: Failed to download remote ZIP for verification${NC}"
-    rm -rf "$REMOTE_VERIFY_DIR"
-    exit 1
-fi
-
 LOCAL_SHA=$(shasum -a 256 "$ZIPFILE" | awk '{print $1}')
-REMOTE_SHA=$(shasum -a 256 "$REMOTE_ZIP" | awk '{print $1}')
+LOCAL_PLUGIN_COUNT=$(unzip -l "$ZIPFILE" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
+GH_USER=$(gh api user --jq .login 2>/dev/null || echo "unknown")
 
-if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
-    echo -e "${RED}❌ CRITICAL: REMOTE ZIP DOES NOT MATCH LOCAL ZIP${NC}"
-    echo -e "${RED}   local:  $LOCAL_SHA${NC}"
-    echo -e "${RED}   remote: $REMOTE_SHA${NC}"
-    echo -e "${RED}   local size:  $(wc -c < "$ZIPFILE") bytes${NC}"
-    echo -e "${RED}   remote size: $(wc -c < "$REMOTE_ZIP") bytes${NC}"
-    echo -e "${RED}This means the upload silently corrupted/truncated the ZIP.${NC}"
+# Poll for up to 90s so a slow/async workflow override would also be caught.
+ATTEMPTS=0
+MAX_ATTEMPTS=9
+MATCH=0
+while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+    ATTEMPTS=$((ATTEMPTS + 1))
+
+    # 1. Look up the asset's numeric ID + metadata via the API
+    ASSET_META=$(gh api "repos/fabiodalez-dev/Pinakes/releases/tags/v${VERSION}" \
+        --jq ".assets[] | select(.name == \"pinakes-v${VERSION}.zip\") | {id, size, uploader: .uploader.login}" 2>/dev/null || echo "")
+    if [ -z "$ASSET_META" ]; then
+        echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: asset not listed yet, retrying in 10s${NC}"
+        sleep 10
+        continue
+    fi
+
+    ASSET_ID=$(echo "$ASSET_META" | jq -r '.id')
+    REMOTE_SIZE=$(echo "$ASSET_META" | jq -r '.size')
+    REMOTE_UPLOADER=$(echo "$ASSET_META" | jq -r '.uploader')
+
+    # 2. Fail loudly if the uploader is a bot — means a workflow hijacked the release
+    if [ "$REMOTE_UPLOADER" = "github-actions[bot]" ]; then
+        echo -e "${RED}❌ CRITICAL: release asset uploader is github-actions[bot]${NC}"
+        echo -e "${RED}   A GitHub Actions workflow overwrote our upload.${NC}"
+        echo -e "${RED}   Expected uploader: $GH_USER${NC}"
+        echo -e "${RED}   Check for rogue workflows in .github/workflows/${NC}"
+        rm -rf "$REMOTE_VERIFY_DIR"
+        exit 1
+    fi
+
+    # 3. Download via the API (bypasses CDN, always returns current content)
+    if ! gh api "repos/fabiodalez-dev/Pinakes/releases/assets/${ASSET_ID}" \
+        -H "Accept: application/octet-stream" > "$REMOTE_ZIP" 2>/dev/null; then
+        echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: API download failed, retrying${NC}"
+        sleep 10
+        continue
+    fi
+
+    REMOTE_SHA=$(shasum -a 256 "$REMOTE_ZIP" | awk '{print $1}')
+    REMOTE_PLUGIN_COUNT=$(unzip -l "$REMOTE_ZIP" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
+
+    if [ "$LOCAL_SHA" = "$REMOTE_SHA" ] && [ "$REMOTE_PLUGIN_COUNT" = "$LOCAL_PLUGIN_COUNT" ] && [ "$REMOTE_PLUGIN_COUNT" -ge 10 ]; then
+        MATCH=1
+        break
+    fi
+
+    echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: mismatch (sha local=$LOCAL_SHA remote=$REMOTE_SHA, plugins local=$LOCAL_PLUGIN_COUNT remote=$REMOTE_PLUGIN_COUNT), retrying${NC}"
+    sleep 10
+done
+
+if [ "$MATCH" != "1" ]; then
+    echo -e "${RED}❌ CRITICAL: REMOTE ZIP DOES NOT MATCH LOCAL ZIP after ${MAX_ATTEMPTS} attempts${NC}"
+    echo -e "${RED}   local:  $LOCAL_SHA ($LOCAL_PLUGIN_COUNT plugins, $(wc -c < "$ZIPFILE") bytes)${NC}"
+    echo -e "${RED}   remote: $REMOTE_SHA ($REMOTE_PLUGIN_COUNT plugins, $(wc -c < "$REMOTE_ZIP") bytes, uploader=$REMOTE_UPLOADER)${NC}"
     echo -e "${RED}DO NOT ANNOUNCE THIS RELEASE. Delete it and retry:${NC}"
     echo -e "${RED}  gh release delete v${VERSION} --yes${NC}"
     echo -e "${RED}  ./scripts/create-release.sh ${VERSION}${NC}"
@@ -344,17 +395,8 @@ if [ "$LOCAL_SHA" != "$REMOTE_SHA" ]; then
     exit 1
 fi
 
-# Also re-run the plugin-count check against the remote ZIP (defence in depth)
-REMOTE_PLUGIN_COUNT=$(unzip -l "$REMOTE_ZIP" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
-LOCAL_PLUGIN_COUNT=$(unzip -l "$ZIPFILE" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
-if [ "$REMOTE_PLUGIN_COUNT" != "$LOCAL_PLUGIN_COUNT" ] || [ "$REMOTE_PLUGIN_COUNT" -lt 10 ]; then
-    echo -e "${RED}❌ CRITICAL: Remote ZIP has $REMOTE_PLUGIN_COUNT plugin.json files, local has $LOCAL_PLUGIN_COUNT, expected ≥ 10${NC}"
-    rm -rf "$REMOTE_VERIFY_DIR"
-    exit 1
-fi
-
 rm -rf "$REMOTE_VERIFY_DIR"
-echo -e "${GREEN}✓ Remote ZIP matches local (SHA256 $LOCAL_SHA, $REMOTE_PLUGIN_COUNT plugins)${NC}"
+echo -e "${GREEN}✓ Remote ZIP matches local via API (SHA256 $LOCAL_SHA, $REMOTE_PLUGIN_COUNT plugins, uploader=$REMOTE_UPLOADER)${NC}"
 echo ""
 
 # ============================================================================

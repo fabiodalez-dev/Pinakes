@@ -9,7 +9,7 @@
   "main_file": "wrapper.php",
   "requires_php": "8.0",
   "requires_app": "0.4.0",
-  "max_app_version": "0.5.9.3",
+  "max_app_version": "0.5.9.4",
   "metadata": {
     "category": "discovery",
     "priority": 10,

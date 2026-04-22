@@ -19,6 +19,39 @@ bit us on v0.5.9.2 (2026-04-22):
   artifact — we trusted the local verification step 5.5 and assumed the
   upload preserved the file.
 
+**The ACTUAL root cause (discovered 2026-04-22 late)**: a forgotten
+GitHub Actions workflow `.github/workflows/release.yml` was listening
+on `push: tags: v*.*.*`. Every time `scripts/create-release.sh`
+created a tag, the workflow fired in parallel, ran its own
+`bin/build-release.sh` — which had its bundled-plugin list hardcoded
+to **5 plugins** and never got updated as new plugins were added —
+then used `softprops/action-gh-release@v2` to **overwrite the ZIP
+we just uploaded**. Verification hitting the CDN briefly saw the
+correct file (cached), then CDN invalidated and users downloaded
+the workflow's broken ZIP. Three hotfix releases (0.5.9.1, 0.5.9.2,
+0.5.9.3) all shipped broken for this reason; HansUwe52 had to
+manually FTP the archives plugin folder because our "fix" re-shipped
+the same bad ZIP.
+
+**Lessons**:
+1. Never have **two release pipelines**. `scripts/create-release.sh`
+   is the single source of truth. The workflow is now disabled
+   (renamed `.disabled`). If you ever add another release path, it
+   MUST fail loudly when both run.
+2. **Never hardcode plugin lists**. `bin/build-release.sh` and the
+   old `create-release(-local).sh` had drifting hardcoded lists.
+   All such enumerations now iterate `storage/plugins/*/plugin.json`
+   from the filesystem.
+3. **Verify via API, not CDN**. CDN can serve stale cached content
+   seconds after an overwrite. Step 9.5 now calls
+   `gh api /repos/.../releases/assets/{id}` with
+   `Accept: application/octet-stream` (bypasses CDN, always current).
+4. **Verify the uploader identity**. If the asset's uploader is
+   `github-actions[bot]` but your script runs locally, a workflow
+   has hijacked the release. Step 9.5 aborts if that happens.
+5. **Poll**. A rogue overwrite might land seconds after your first
+   check. Step 9.5 retries for 90s.
+
 **The rule:**
 
 After every `gh release upload`, before announcing the release or

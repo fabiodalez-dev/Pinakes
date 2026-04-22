@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.9.3-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.9.4-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -21,6 +21,57 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
+
+---
+
+## What's New in v0.5.9.4
+
+### 🚑 Root-cause fix — GitHub Actions workflow was overwriting every release ZIP
+
+The real reason releases 0.5.9 / 0.5.9.1 / 0.5.9.2 / 0.5.9.3 all shipped
+with only 5 of 10 bundled plugins: a forgotten GitHub Actions workflow
+`.github/workflows/release.yml` was listening on `push: tags: v*.*.*`
+and — every time `scripts/create-release.sh` pushed a tag — it would
+fire in parallel, rebuild the ZIP via `bin/build-release.sh` (whose
+bundled-plugin list was hardcoded to 5 entries and had drifted
+out of sync years ago), then use `softprops/action-gh-release@v2` to
+**overwrite the ZIP the local script had just uploaded and verified**.
+
+v0.5.9.3's step-9.5 SHA verification passed at the exact moment the
+local ZIP was on GitHub, then the workflow asynchronously overwrote
+the asset and CDN invalidated. Every subsequent user download pulled
+the workflow's broken 5-plugin ZIP. Three "fix" releases later,
+HansUwe52 was still having to FTP the archives plugin folder by
+hand — because every "fix" reshipped the same corruption.
+
+Changes in v0.5.9.4:
+- **`.github/workflows/release.yml` → `release.yml.disabled`**: the
+  auto-release workflow is neutralised. `scripts/create-release.sh`
+  is the single release pipeline.
+- **`bin/build-release.sh`**: plugin list is no longer hardcoded. It
+  iterates `find storage/plugins/*/plugin.json` from the filesystem
+  and skips only `scraping-pro` (distributed separately as a premium
+  plugin). If the workflow is ever re-enabled, it will ship the
+  correct 10 plugins automatically.
+- **`scripts/create-release.sh` step 9.5**: verification now uses the
+  GitHub API directly (`gh api /repos/.../releases/assets/{id}` with
+  `Accept: application/octet-stream`), bypassing the CDN entirely.
+  It also checks the asset's `uploader.login` — if that's
+  `github-actions[bot]` when the script runs locally, it aborts with
+  a clear error because a workflow has hijacked the release. Polls
+  for up to 90 seconds so a late overwrite is also caught.
+- **`post-install-patch.php` / `pre-update-patch.php`**: `target_versions`
+  extended to include 0.5.9.3 so users stuck on the broken 0.5.9.3
+  ZIP receive the filesystem-iteration patch + the INSERT IGNORE seed
+  on their way to 0.5.9.4.
+- **`updater.md`**: the ABSOLUTE RULE section is updated with the
+  real root cause (CDN + rogue workflow + stale hardcoded list) and
+  five explicit lessons.
+
+Users on v0.5.9.3 (broken or otherwise) should take 0.5.9.4 — the
+pre-update patch rewrites the in-place Updater to iterate the ZIP's
+filesystem, and the 0.5.9.4 ZIP is guaranteed to contain all 10 plugin
+folders (now re-verified via API and polled for 90s).
 
 ---
 
