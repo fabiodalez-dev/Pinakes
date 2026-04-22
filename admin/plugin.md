@@ -2,16 +2,33 @@
 
 Pinakes supporta plugin per estendere le funzionalità.
 
-## Plugin Ufficiali
+## Plugin Bundled
 
-| Plugin | Versione | Descrizione |
-|--------|----------|-------------|
-| Z39.50/SRU Integration | 1.1.0 | Server SRU e client per interoperabilità |
-| API Book Scraper | 1.1.0 | Scraping metadati da API esterne |
-| Scraping Pro | 1.4.0 | Scraping avanzato da siti web |
-| Dewey Editor | 1.0.0 | Editor classificazioni Dewey |
-| Digital Library | 1.0.0 | Gestione ebook e audiolibri |
-| Open Library | 1.0.0 | Integrazione Open Library API |
+I plugin bundled vengono distribuiti insieme a Pinakes e aggiornati automaticamente
+dal meccanismo di auto-update. Elenco completo al rilascio v0.5.9.4:
+
+| Plugin | Versione | Default | Descrizione |
+|--------|----------|---------|-------------|
+| Open Library | 1.0.1 | Attivo | Scraping metadati libro (ISBN/EAN) via Open Library + fallback Google Books |
+| Z39.50/SRU Integration | 1.2.3 | Attivo | Server SRU + client federato verso cataloghi Nordic (BIBSYS, LIBRIS) |
+| API Book Scraper | 1.1.1 | Attivo | Scraping via API key authentication (Alma, ExLibris, servizi custom) |
+| Dewey Editor | 1.0.1 | Attivo | Editor classificazioni Dewey — aggiunta, modifica, import/export JSON |
+| Digital Library | 1.3.0 | Attivo | Gestione eBook (PDF/ePub) e audiobook con Green Audio Player + visualizzatore PDF inline |
+| GoodLib — Fonti Esterne | 1.0.0 | Attivo | Badge cliccabili per cercare su Anna's Archive, Z-Library, Project Gutenberg |
+| Archives (ISAD(G) / ISAAR(CPF)) | 1.0.0 | **Inattivo** | Gestione materiale archivistico e fotografico — vedi [Archivi](/guida/archivi.md) |
+| Discogs Music Scraper | 1.1.0 | **Inattivo** | Metadati musicali Discogs + MusicBrainz + Deezer (CD, vinili, cassette, Cat# "CDP 7912682") |
+| Deezer Music Search | 1.0.0 | **Inattivo** | Arricchimento cover HD + tracklist da Deezer |
+| MusicBrainz | 1.0.0 | **Inattivo** | Metadati MusicBrainz + Cover Art Archive (fallback barcode) |
+
+I plugin marcati **Inattivo** partono disattivati perché dipendono da servizi di
+rete esterni o da uno schema DB aggiuntivo (come `archives`). Attivali da
+**Amministrazione → Plugin** quando li vuoi usare.
+
+## Plugin Premium
+
+| Plugin | Versione | Distribuzione |
+|--------|----------|---------------|
+| Scraping Pro | 1.4.2 | Pacchetto separato `scraping-pro-vX.Y.Z.zip` (non incluso nel ZIP free) |
 
 ## Installazione Plugin
 

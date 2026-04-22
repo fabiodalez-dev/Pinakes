@@ -9,10 +9,14 @@
   * [Reservation System](/en/guide/reservations.md)
   * [User Management](/en/guide/users.md)
   * [Dewey Classification](/en/guide/dewey.md)
+  * [ISBN Bulk Enrichment](/en/guide/bulk-enrichment.md)
   * [Reviews](/en/guide/reviews.md)
   * [Wishlist](/en/guide/wishlist.md)
   * [Events](/en/guide/events.md)
   * [Operations FAQ](/en/guide/faq-operations.md)
+
+* **Archives (ISAD(G) / ISAAR(CPF))**
+  * [Overview and operations](/en/guide/archives.md)
 
 * **Administration**
   * [Plugin System](/en/admin/plugins.md)

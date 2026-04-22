@@ -2,13 +2,14 @@
 
 > Sistema di Gestione Bibliotecaria Open Source
 
-**Versione 0.4.7.1**
+**Versione 0.5.9.4**
 
-- Gestione catalogo e prestiti
+- Catalogo bibliografico e gestione prestiti
+- Archivi ISAD(G) / ISAAR(CPF) con MARCXML round-trip
 - Classificazione Dewey integrata
-- Sistema plugin estensibile
-- Protocollo SRU per interoperabilità
+- Sistema plugin estensibile (10 plugin bundled)
+- Protocollo SRU per interoperabilità con biblioteche
+- Scraping metadati (Open Library, Discogs, MusicBrainz, Deezer, Z39.50/SRU Nordic)
 
 [Inizia](README.md)
-[GitHub](https://github.com/fabiodalez/pinakes)
-[Torna al sito](../template/)
+[GitHub](https://github.com/fabiodalez-dev/Pinakes)

@@ -2,6 +2,222 @@
 
 Cronologia delle versioni di Pinakes con le principali novità, fix e PR associate.
 
+Per l'ultimo aggiornamento consulta sempre la [pagina releases su GitHub](https://github.com/fabiodalez-dev/Pinakes/releases).
+
+---
+
+## v0.5.9.4 — 2026-04-22
+**Commit:** `db2331a` — hotfix infrastruttura release
+
+Root-cause fix per la catena 0.5.9 → 0.5.9.3 che aveva rilasciato
+quattro pacchetti con solo 5 plugin su 10. Un workflow GitHub Actions
+dimenticato (`release.yml`) gareggiava con `scripts/create-release.sh`
+e sovrascriveva il ZIP uploadato usando uno script stale
+(`bin/build-release.sh` con lista plugin hardcoded a 5 voci).
+
+- **`.github/workflows/release.yml`** rinominato `.disabled` → la pipeline
+  di release è ora un'unica strada: `scripts/create-release.sh`.
+- **`bin/build-release.sh`** → enumera i plugin dal filesystem
+  (`find storage/plugins/*/plugin.json`), skip di `scraping-pro`. Mai
+  più drift tra lista hardcoded e plugin effettivi.
+- **`scripts/create-release.sh` step 9.5** → verifica post-upload via
+  GitHub API (non CDN): SHA + uploader identity + plugin count, polling
+  90s. Se l'uploader risulta `github-actions[bot]` quando lo script
+  gira in locale, abort immediato (segno di hijack da workflow).
+- **`updater.md`** sezione «ABSOLUTE RULE — always verify the uploaded
+  ZIP» con 5 lezioni esplicite.
+
+## v0.5.9.3 — 2026-04-22
+**Commit:** `204b5c1` — force updater re-run per installazioni bloccate
+
+Bump di versione only — stesso payload di v0.5.9.2. Il ZIP remoto di
+v0.5.9.2 era stato troncato (24.7 MB / 5 plugin invece di 26.7 MB / 10).
+Ricaricato subito con quello corretto, ma gli utenti che l'avevano già
+scaricato rotto avevano `version.json=0.5.9.2` che coincideva con il
+`latest` su GitHub → updater non offriva più alcun aggiornamento.
+
+- `post-install-patch.php` target_versions include `0.5.9.2`.
+- `pre-update-patch.php` target_versions include `0.5.9.2` (riusa
+  l'iterazione filesystem-based sull'Updater vecchio).
+
+## v0.5.9.2 — 2026-04-22
+**Commit:** `ab72faf` — self-heal per installazioni 0.5.9 bloccate su archives
+
+Utenti in upgrade da v0.5.8 a v0.5.9 (primo caso: HansUwe52) vedevano
+il plugin **Archives** nella lista `/admin/plugins` ma non riuscivano
+ad attivarlo: la cartella `storage/plugins/archives/` non era stata
+copiata sul disco. Causa: `Updater.php` della v0.5.8 iterava la SUA
+`BundledPlugins::LIST` (5 voci, senza archives) anziché quella del ZIP.
+
+- **`Updater::updateBundledPlugins()`** ora legge la lista dal file
+  `BundledPlugins.php` del **pacchetto sorgente** (via `resolvePackageBundledPluginList`
+  che fa regex-parse sicuro, niente `include`/eval). Fallback a
+  `BundledPlugins::LIST` locale se il file del pacchetto è illeggibile.
+- **`pre-update-patch.php`** (target: 0.5.4–0.5.9.1) riscrive la stessa
+  iterazione nel vecchio Updater già installato, così l'upgrade in
+  corso fa la cosa giusta anche prima che arrivi il nuovo Updater.
+- **`post-install-patch.php` v1.1.0** → `target_versions` estesa a
+  0.5.8/0.5.9/0.5.9.1, aggiunto `INSERT IGNORE` per `archives` nel
+  seed DB.
+
+## v0.5.9.1 — 2026-04-22
+**Issue:** [#108](https://github.com/fabiodalez-dev/Pinakes/issues/108) — locale non ripristinato dal remember-me
+
+Utenti con `utenti.locale` diverso dal default dell'installazione (es.
+un utente `de_DE` su un'installazione `it_IT`) vedevano la UI nel
+locale di default dopo l'auto-login. `I18n::setLocale()` filtra per
+appartenenza alla tabella `languages`, seedata solo con il locale
+scelto in installazione + fallback. Fix nell'installer: seed di tutti
+e 3 i locale bundled.
+
+- `installer/database/data_it_IT.sql` e `data_en_US.sql` seedano ora
+  `it_IT` + `en_US` + `de_DE` (solo quello scelto ha `is_default=1`).
+- `migrate_0.5.9.1.sql` → backfill idempotente per installazioni
+  esistenti tramite `INSERT IGNORE` su `languages.code` (UNIQUE KEY).
+- **Bonus fix post-v0.5.9 CodeRabbit:** `DiscogsPlugin::isCatalogNumber()`
+  classificava ISBN-10 validi terminanti in `X` (`080442957X`) come
+  Cat# Discogs, rischiando merge di metadati musicali in schede libro.
+  Aggiunto guard `DiscogsPlugin::isIsbn10()` con MOD-11 checksum, +7
+  regression asserts in `tests/discogs-catno.unit.php` (44/44 pass).
+
+## v0.5.9 — 2026-04-22
+**PR:** [#105](https://github.com/fabiodalez-dev/Pinakes/pull/105) + [#102](https://github.com/fabiodalez-dev/Pinakes/pull/102)
+**Issues chiuse:** [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103) (archives), [#101](https://github.com/fabiodalez-dev/Pinakes/issues/101) (Discogs Cat#)
+
+Due feature major: nuovo plugin **Archives** (ISAD(G)/ISAAR(CPF)) + supporto
+**Catalog Number** Discogs.
+
+### Plugin Archives (ISAD(G) / ISAAR(CPF))
+
+Gestione di materiale archivistico e fotografico secondo gli standard
+internazionali [ISAD(G)](https://www.ica.org/en/isadg-general-international-standard-archival-description-second-edition)
+(descrizioni gerarchiche) e [ISAAR(CPF)](https://www.ica.org/en/isaar-cpf-international-standard-archival-authority-record-corporate-bodies-persons-and-families-2nd)
+(record di autorità). Phase 1-7:
+
+- **Phase 1** — Schema DB (3 tabelle: `archival_units`, `authority_records`,
+  `archival_unit_authority`), CRUD admin `/admin/archives`, sidebar, i18n
+  IT/EN/DE, frontend pubblico `/archivio` con SEO slug + JSON-LD
+  `ArchiveComponent`, upload cover + documento (PDF/ePub/MP3/video) con
+  finfo MIME detection e path-prefix unlink guard.
+- **Phase 2-3** — CRUD authority records con linkage M:N a
+  `archival_units` e `libri.autori` + unified cross-entity search
+  (libri+archives+authority in un unico risultato).
+- **Phase 4** — Import/export MARCXML round-trip stable (identity
+  test) + validazione contro XSD MARC21 Slim.
+- **Phase 5** — Photographic items con ENUM `specific_material` che
+  copre i codici ABA billedmarc / MARC21 008-33
+  (`hb`/`hp`/`hm`/`hd`/`hk`/`bf`/`hf`/`lm`/`lf`/`vm`/`bm`/`le`/`zz`…).
+- **Phase 6** — Endpoint SRU 1.2 per i record archivistici (interop
+  bibliotecaria).
+- **Phase 7** — Type-ahead JS per attach authority da admin form.
+- Plugin **inattivo** per default (`metadata.optional: true`); attivalo
+  da Admin → Plugin per creare lo schema.
+
+### Discogs Catalog Number (Cat#)
+
+`DiscogsPlugin::validateBarcode` accetta ora i Catalog Number stampati
+su dischi/spine/label (`CDP 7912682`, `SRX-6272`, `DGC-24425-2`)
+accanto a EAN-13 e UPC-A. `ScrapeController::byIsbn` preserva l'input
+raw attraverso la catena hook `scrape.isbn.validate` → gli identificatori
+non-numerici raggiungono il plugin. Chiude il caso "Bonnie Raitt — Nick
+Of Time, Capitol CDP 7912682" riportato da HansUwe52.
+
+### Migration
+
+`migrate_0.5.9.sql` → 3 tabelle archives + indici. Idempotente via guard
+`INFORMATION_SCHEMA` (pattern v0.4.7+).
+
+## v0.5.8 — 2026-04-17
+**Commit:** `8375477` — protect bundled plugins + surface silent failures
+
+Hardening dell'updater: prevenzione orphan-plugin deletion per plugin
+bundled mancanti temporaneamente (wait-for-files invece di DELETE),
+severity error per fallimenti INSERT auto-register (prima warning
+silenzioso, vedi lezione v0.5.4 bind_param swap).
+
+## v0.5.7 — 2026-04-17
+**Commit:** `bdaf5f3` + `0ff6129`
+
+- Upload automatico di `pre-update-patch.php` e `post-install-patch.php`
+  come asset di release in `create-release.sh` (prima erano manuali).
+- Fix updater: `autoRegisterBundledPlugins()` chiamato al termine
+  di `installUpdate()` → i plugin nuovi appaiono in `/admin/plugins`
+  subito, senza attendere la request successiva.
+- `deezer` e `musicbrainz` marcati `optional: true` nel plugin.json
+  (prima erano auto-attivati ed emettevano warning di rete senza
+  configurazione).
+
+## v0.5.6 — 2026-04-17
+**Commit:** `c150e6d` + `8b4e…`
+
+Fix cascade Dewey 404s: aprendo il form admin di un libro con
+`classificazione_dewey` più specifico del catalogo JSON (es. `305.42097`
+quando il JSON si ferma a `305.4`) venivano scatenati 404 in cascata su
+`/api/dewey/children`. Nessuna rottura funzionale, solo rumore nella
+console. `DeweyApiController::getChildren` ritorna ora `200 []` per
+codici non trovati (leaf semantics); `book_form.php navigateToCode()`
+interrompe il loop quando `loadLevel()` ritorna null. Regression test
+`tests/dewey-cascade-404.spec.js`.
+
+## v0.5.5 — 2026-04-15
+**PR:** [#100](https://github.com/fabiodalez-dev/Pinakes/pull/100)
+
+Aggiunge il workflow di arricchimento massivo ISBN e 4 nuovi plugin
+di scraping bundled.
+
+### Bulk ISBN Enrichment
+
+- **Nuova pagina admin** `/admin/libri/bulk-enrich` — arricchimento
+  automatico di libri con copertine/descrizioni mancanti via ISBN/EAN.
+- **Batch manuale** — 20 libri per click attraverso tutti i plugin di
+  scraping attivi (Open Library, Google Books, Discogs, MusicBrainz,
+  Deezer, Scraping Pro se installato). Rate limit: 1 request ogni 2
+  minuti per rispetto delle API upstream.
+- **Cron-driven** — `scripts/bulk-enrich-cron.php` con locking atomico
+  `flock(LOCK_EX|LOCK_NB)`, exit non-zero su fatal.
+- **No-overwrite** — solo campi NULL/vuoti; mai sovrascrive dati.
+- **Empty-string safe** — `NULLIF(TRIM(col), '')` su `isbn13/isbn10/ean`.
+
+### Nuovi plugin bundled
+
+- **Discogs** — metadati musicali (CD, vinili, cassette) via UPC/EAN o
+  ricerca testuale. 4 hook (`scrape.isbn.validate`, `scrape.sources`,
+  `scrape.fetch.custom`, `scrape.data.modify`).
+- **MusicBrainz** — metadati musicali fallback (barcode).
+- **Deezer** — cover HD + tracklist per media audio.
+- **GoodLib** — scraper a dominio custom (Anna's Archive, Z-Library,
+  Project Gutenberg).
+
+### Robustezza upgrade/install
+
+- Fix `public/installer/assets` symlink → directory reale. Il vecchio
+  symlink crashava l'upgrade manuale (`copy(): second argument cannot
+  be a directory`) su installazioni dove la dir era stata materializzata.
+- Release ZIP guard — `create-release.sh` rifiuta simlinks nel ZIP.
+- Reinstall regression test — `scripts/reinstall-test.sh` +
+  `tests/manual-upgrade-real.spec.js`: UI flow admin reale (upload ZIP
+  → "Avvia" → `Updater::performUpdateFromFile`) invece di rsync.
+
+### CodeRabbit hardening (16 fix Major)
+
+`BulkEnrichController::start` logga via `SecureLogger` + 500 generico
+(no leak raw exception); `toggle` usa `FILTER_VALIDATE_BOOL`;
+`BulkEnrichmentService::setEnabled` ritorna bool; `enrichBook` verifica
+`UPDATE execute()`; `ScrapeController::normalizeIsbnFields` distingue
+validated-ISBN (via `IsbnFormatter::isValid`) da barcode-only per
+evitare skip del backfill nei libri; toggle switch accessibile
+(`aria-label` + `aria-labelledby`).
+
+### i18n
+
+168 nuove traduzioni in `en_US.json` + `de_DE.json` — tutte le stringhe
+nuove nel branch sono localizzate. `it_IT.json` rimane minimale
+(fallback-to-key).
+
+### Migration
+
+Nessuna nuova migration. Le modifiche DB sono già in `migrate_0.5.4.sql`.
+
 ---
 
 ## v0.5.4 — 2026-03-31 (in corso)

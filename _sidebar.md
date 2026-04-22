@@ -9,10 +9,14 @@
   * [Sistema Prenotazioni](guida/prenotazioni.md)
   * [Gestione Utenti](guida/utenti.md)
   * [Classificazione Dewey](guida/dewey.md)
+  * [Arricchimento ISBN](guida/arricchimento.md)
   * [Recensioni](guida/recensioni.md)
   * [Wishlist](guida/wishlist.md)
   * [Eventi](guida/eventi.md)
   * [FAQ Operazioni](guida/faq-operazioni.md)
+
+* **Archivi (ISAD(G) / ISAAR(CPF))**
+  * [Panoramica e operazioni](guida/archivi.md)
 
 * **Amministrazione**
   * [Sistema Plugin](admin/plugin.md)
