@@ -4,6 +4,176 @@ This document explains how the Pinakes auto-updater works, its requirements, and
 
 ---
 
+## ☠️☠️☠️ SEMPRE VERIFICA IL ZIP — ZERO ECCEZIONI ☠️☠️☠️
+
+**PRIMA di annunciare una release, PRIMA di dire a un utente di aggiornare,
+PRIMA di chiudere un ticket o un commento: verifica che il file ZIP su
+GitHub sia ESATTAMENTE quello che volevi pubblicare.**
+
+Questo capitolo esiste perché la regola è stata violata quattro volte di
+fila (0.5.9, 0.5.9.1, 0.5.9.2, 0.5.9.3) e HansUwe52 ha dovuto fare fix
+manuali via FTP perché ogni "hotfix" rispediva lo stesso ZIP corrotto.
+
+### La procedura obbligatoria (3 livelli indipendenti)
+
+Ogni volta che pubblichi una release:
+
+```bash
+VERSION=0.5.9.4  # <-- la versione che stai pubblicando
+
+# -- LIVELLO 1: metadati GitHub via API (risposta autoritativa, no CDN) --
+gh api repos/fabiodalez-dev/Pinakes/releases/tags/v${VERSION} \
+  --jq ".assets[] | select(.name == \"pinakes-v${VERSION}.zip\") | \"size=\(.size) uploader=\(.uploader.login) sha=\(.digest)\""
+# Devi vedere:
+#   uploader=<il tuo username>  (MAI 'github-actions[bot]')
+#   size >= 26_000_000           (26+ MB; se 24 MB il ZIP è troncato)
+#   sha=sha256:<valore>          (annota, serve per confronto)
+
+# -- LIVELLO 2: download binario via API (bypassa CDN) --
+ASSET_ID=$(gh api repos/fabiodalez-dev/Pinakes/releases/tags/v${VERSION} \
+  --jq ".assets[] | select(.name == \"pinakes-v${VERSION}.zip\") | .id")
+gh api repos/fabiodalez-dev/Pinakes/releases/assets/${ASSET_ID} \
+  -H "Accept: application/octet-stream" > /tmp/check-api.zip
+shasum -a 256 /tmp/check-api.zip
+# Deve matchare sha del livello 1.
+
+# -- LIVELLO 3: download CDN (quello che gli utenti vedono) --
+curl -sSL -o /tmp/check-cdn.zip \
+  https://github.com/fabiodalez-dev/Pinakes/releases/download/v${VERSION}/pinakes-v${VERSION}.zip
+shasum -a 256 /tmp/check-cdn.zip
+# Deve matchare sha del livello 1 e 2.
+
+# -- LIVELLO 3b: conteggio plugin (sanity check semantico) --
+unzip -l /tmp/check-cdn.zip | grep -cE "storage/plugins/[^/]+/plugin\.json$"
+# Deve essere == numero atteso di plugin bundled (oggi: 10).
+
+# -- LIVELLO 3c: nomi plugin (sanity check ultimo) --
+unzip -l /tmp/check-cdn.zip | awk '/storage\/plugins\/[^\/]+\/plugin\.json$/ {print $NF}' | sort
+# Elenco atteso (10 voci, una per riga):
+#   pinakes-v<VERSION>/storage/plugins/api-book-scraper/plugin.json
+#   pinakes-v<VERSION>/storage/plugins/archives/plugin.json
+#   pinakes-v<VERSION>/storage/plugins/deezer/plugin.json
+#   pinakes-v<VERSION>/storage/plugins/dewey-editor/plugin.json
+#   pinakes-v<VERSION>/storage/plugins/digital-library/plugin.json
+#   pinakes-v<VERSION>/storage/plugins/discogs/plugin.json
+#   pinakes-v<VERSION>/storage/plugins/goodlib/plugin.json
+#   pinakes-v<VERSION>/storage/plugins/musicbrainz/plugin.json
+#   pinakes-v<VERSION>/storage/plugins/open-library/plugin.json
+#   pinakes-v<VERSION>/storage/plugins/z39-server/plugin.json
+```
+
+### Se UNO di questi check fallisce
+
+1. **NON annunciare la release.** Non commentare su issue. Non dire all'utente di aggiornare.
+2. `gh release delete v${VERSION} --yes` (rimuove asset + tag remoto).
+3. Capisci **perché** il check ha fallito prima di riprovare:
+   - Size troncato (24 MB invece di 26+ MB) → upload parziale → `gh release upload` ha fallito silenziosamente, retry
+   - uploader = `github-actions[bot]` → un workflow ha sovrascritto il tuo upload, cerca in `.github/workflows/` chi sta caricando
+   - SHA diverso tra API e CDN → CDN sta servendo una versione cached obsoleta, aspetta 60-120s e ricontrolla
+   - Plugin count < atteso → il ZIP è stato buildato con uno script stale, controlla `bin/build-release.sh` e `scripts/create-release.sh` siano allineati
+4. Ripeti la release. Non skippare questi check.
+
+### Il motto (scolpito perché non lo dimentichiamo)
+
+> "Upload riuscito" NON basta. "SHA del mio file locale" NON basta.
+> L'unica cosa che conta è cosa servono gli URL pubblici al momento in
+> cui annuncio la release. Verifica quello, o non annunciare niente.
+
+**Scritto dopo che HansUwe52 ha aperto quattro ticket consecutivi con
+"the zip file only contains the old five plugins".**
+
+### Cosa abbiamo imparato dal workflow GitHub Actions che abbiamo disabilitato
+
+Il workflow `.github/workflows/release.yml` è stato disabilitato (è la
+causa root del disastro 0.5.9–0.5.9.3) ma **alcune cose che faceva
+erano buone idee** e vanno ricordate — se un giorno si torna a un
+sistema CI-based, non ricominciare da zero:
+
+1. **Build in ambiente pulito** (Ubuntu runner con PHP/Node freschi).
+   `scripts/create-release.sh` gira sul Mac del dev, che accumula
+   stato negli anni: vendor/ con packages sbagliati, file non
+   committati, cache di composer diverse. Il CI garantisce
+   riproducibilità. **Lezione**: prima di ogni release, almeno
+   eseguire `composer install --no-dev --optimize-autoloader` in
+   un container/VM pulita e confrontare il `vendor/` col ZIP
+   generato. Oppure accettare il rischio — ma consapevoli.
+
+2. **`npm run build` dei frontend assets prima del ZIP**. Il workflow
+   faceva `cd frontend && npm ci && npm run build`. Lo script locale
+   NON lo fa — si affida ai file compilati in `public/assets/` come
+   committati. Se qualcuno modifica `frontend/src/...` e dimentica
+   di ricommettere i bundle, il ZIP include asset stale. **Lezione**:
+   aggiungere un check in `create-release.sh` che fallisca se
+   `frontend/` ha cambi più recenti di `public/assets/`.
+
+3. **Version-vs-tag verification in un posto solo**. Il workflow
+   estraeva la versione dal tag git (`${GITHUB_REF#refs/tags/v}`) e
+   la confrontava con `version.json`. Fail-fast se non coincidono.
+   Lo script locale richiede invece che l'operatore passi la
+   versione come argomento e la confronta col `version.json`. Stesso
+   controllo, ma quello del workflow era più resistente a errori
+   umani (il tag esiste già, nessun `X.Y.Z` inventato). **Lezione**:
+   quando si tagga, usare `git describe --tags --exact-match HEAD` per
+   prendere la versione dal tag, non da `$1`.
+
+4. **`actions/upload-artifact` con retention 90 giorni**. Il workflow
+   salvava una copia del ZIP come artifact GitHub Actions, separata
+   dalla release. Forensic safety net: se la release su GitHub viene
+   sovrascritta o cancellata, l'artifact resta per 90 giorni.
+   **Lezione**: dopo ogni release, copiare il ZIP in un backup
+   locale con data/hash — banale ma salva la pelle.
+
+5. **`softprops/action-gh-release@v2` fa UPSERT di default**. Per
+   qualunque action CI/CD che pubblica release: leggere i doc fino
+   in fondo. Questa action, trovando una release con lo stesso tag,
+   la AGGIORNA e sovrascrive gli asset omonimi. Non è un bug — è il
+   comportamento documentato. Ma se non lo sai, la tua pipeline
+   silentemente distrugge il lavoro di altri strumenti.
+   **Lezione**: quando si adotta un'action nuova per gestione
+   release, testarla su un repo scratch con un asset pre-esistente,
+   per vedere se sovrascrive. **Mai** presumere che "first writer
+   wins".
+
+6. **La vera regola meta**: **mai due pipeline di release nello
+   stesso repo**. Locale + CI, o due workflow CI, o create-release
+   + build-release — qualunque duplicazione è una race condition che
+   aspetta. Se vuoi sia un trigger manuale che automatico, UN
+   ingresso solo, che chiama UNA funzione sola, che produce UN
+   asset solo. Il workflow ORA (disabilitato) aveva lo stesso scopo
+   di `scripts/create-release.sh`: chiamarli entrambi allo stesso
+   tempo ha distrutto 4 release.
+
+Ogni volta che sentiamo il bisogno di "un check in più, una seconda
+verifica, un backup del backup": prima chiedersi se la ridondanza è
+*un monitoraggio* (ok) o *una pipeline parallela* (mai).
+
+### Quello che questi check **non** catturano
+
+Paranoia onesta: i 5 livelli sopra sono un enforcement ragionevole,
+ma **non sono infallibili**. Casi in cui passerebbero e l'utente
+riceverebbe comunque contenuto sbagliato:
+
+- DNS hijack / MITM tra il tuo runner e GitHub (poco probabile, ma
+  il SHA confrontato verrebbe comunque dallo stesso canale
+  compromesso). Mitigazione parziale: confrontare con un secondo
+  download da una rete/VPN diversa.
+- GitHub stesso che corrompe l'asset in storage dopo giorni (mai
+  visto, ma teoricamente possibile). Mitigazione: riconciliazione
+  periodica del sha256 pubblicato contro uno stored locale.
+- Un altro push di tag che re-triggera un futuro workflow abilitato
+  per sbaglio. Mitigazione: hook CI che abortisce quando un workflow
+  di release gira senza dispatch manuale.
+- Un mirror/fork che serve contenuto diverso con lo stesso URL. Mai
+  successo, ma se la community crea un mirror, il rischio esiste.
+
+Non ti sentire infallibile perché lo script dice "✓ Remote ZIP
+matches". Dice solo che in quel momento, da quel canale di rete, il
+SHA corrispondeva. È tantissimo meglio di niente, ma non è la verità
+assoluta — è *un'osservazione*. L'unica cosa che conta davvero è
+che l'utente, quando scarica, riceve il file che ti aspettavi.
+
+---
+
 ## 🚨 ABSOLUTE RULE — ALWAYS VERIFY THE UPLOADED ZIP
 
 **SEMPRE SEMPRE SEMPRE** verify that the ZIP that is actually on GitHub
