@@ -59,6 +59,10 @@ public/assets/logo_*
 public/uploads/settings/
 public/uploads/*
 !public/uploads/.gitkeep
+!public/uploads/archives/
+public/uploads/archives/*
+!public/uploads/archives/e2e/
+!public/uploads/archives/e2e/*
 public/uploads/copertine/*.jpg
 !public/uploads/copertine/placeholder.jpg
 
@@ -320,6 +324,11 @@ tests/*
 !tests/*.spec.js
 !tests/*.config.js
 !tests/*.unit.php
+!tests/seeds/
+tests/seeds/*
+!tests/seeds/*.json
+!tests/seeds/*.sql
+!tests/seeds/*.md
 !tests/helpers/
 tests/helpers/*
 !tests/helpers/*.php
