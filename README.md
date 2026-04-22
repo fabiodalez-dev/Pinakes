@@ -2,7 +2,7 @@
   <img src="./public/assets/brand/social.jpg" alt="Pinakes - Library Management System" width="800">
 </p>
 
-# Pinakes 📚
+# Pinakes
 
 > **Open-Source Integrated Library System**
 > License: GPL-3  |  Languages: Italian, English, German
@@ -24,277 +24,68 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.5.9.4
+## What's New in v0.5.9 (current series, latest patch: v0.5.9.4)
 
-### 🚑 Root-cause fix — GitHub Actions workflow was overwriting every release ZIP
+### Archives plugin (ISAD(G) / ISAAR(CPF))
 
-The real reason releases 0.5.9 / 0.5.9.1 / 0.5.9.2 / 0.5.9.3 all shipped
-with only 5 of 10 bundled plugins: a forgotten GitHub Actions workflow
-`.github/workflows/release.yml` was listening on `push: tags: v*.*.*`
-and — every time `scripts/create-release.sh` pushed a tag — it would
-fire in parallel, rebuild the ZIP via `bin/build-release.sh` (whose
-bundled-plugin list was hardcoded to 5 entries and had drifted
-out of sync years ago), then use `softprops/action-gh-release@v2` to
-**overwrite the ZIP the local script had just uploaded and verified**.
-
-v0.5.9.3's step-9.5 SHA verification passed at the exact moment the
-local ZIP was on GitHub, then the workflow asynchronously overwrote
-the asset and CDN invalidated. Every subsequent user download pulled
-the workflow's broken 5-plugin ZIP. Three "fix" releases later,
-HansUwe52 was still having to FTP the archives plugin folder by
-hand — because every "fix" reshipped the same corruption.
-
-Changes in v0.5.9.4:
-- **`.github/workflows/release.yml` → `release.yml.disabled`**: the
-  auto-release workflow is neutralised. `scripts/create-release.sh`
-  is the single release pipeline.
-- **`bin/build-release.sh`**: plugin list is no longer hardcoded. It
-  iterates `find storage/plugins/*/plugin.json` from the filesystem
-  and skips only `scraping-pro` (distributed separately as a premium
-  plugin). If the workflow is ever re-enabled, it will ship the
-  correct 10 plugins automatically.
-- **`scripts/create-release.sh` step 9.5**: verification now uses the
-  GitHub API directly (`gh api /repos/.../releases/assets/{id}` with
-  `Accept: application/octet-stream`), bypassing the CDN entirely.
-  It also checks the asset's `uploader.login` — if that's
-  `github-actions[bot]` when the script runs locally, it aborts with
-  a clear error because a workflow has hijacked the release. Polls
-  for up to 90 seconds so a late overwrite is also caught.
-- **`post-install-patch.php` / `pre-update-patch.php`**: `target_versions`
-  extended to include 0.5.9.3 so users stuck on the broken 0.5.9.3
-  ZIP receive the filesystem-iteration patch + the INSERT IGNORE seed
-  on their way to 0.5.9.4.
-- **`updater.md`**: the ABSOLUTE RULE section is updated with the
-  real root cause (CDN + rogue workflow + stale hardcoded list) and
-  five explicit lessons.
-
-Users on v0.5.9.3 (broken or otherwise) should take 0.5.9.4 — the
-pre-update patch rewrites the in-place Updater to iterate the ZIP's
-filesystem, and the 0.5.9.4 ZIP is guaranteed to contain all 10 plugin
-folders (now re-verified via API and polled for 90s).
-
----
-
-## What's New in v0.5.9.3
-
-### 🚑 Re-release — force updater to re-run on truncated-0.5.9.2 installs
-
-v0.5.9.2 shipped with a truncated upload on GitHub (24.7 MB / 5 plugin
-folders instead of 26.7 MB / 10). The broken asset was replaced with
-the correct ZIP, but installs that had already pulled the broken one
-are now stuck: their `version.json` reports `0.5.9.2`, the Updater's
-GitHub-latest check also reports `0.5.9.2`, so `update_available=false`
-and those users are never offered the fix.
-
-v0.5.9.3 is a version bump **only** — same payload as the (now correct)
-v0.5.9.2, plus:
-- `post-install-patch.php` target_versions now includes `0.5.9.2` so
-  the INSERT IGNORE seed block runs for users coming from the broken
-  asset (their DB may still reference plugins whose folders never
-  materialised).
-- `pre-update-patch.php` target_versions now includes `0.5.9.2` so the
-  old Updater running 0.5.9.2 → 0.5.9.3 uses filesystem-based iteration
-  and picks up the missing plugin folders from the ZIP.
-- `create-release.sh` now enforces a mandatory SHA+plugin-count check
-  against the ACTUAL remote asset (step 9.5) — the upload-truncation
-  bug that caused 0.5.9.2's figura di merda cannot slip through again.
-- `updater.md` prefaced with an absolute rule: "ALWAYS verify the
-  uploaded ZIP" (with HansUwe52's testimonial preserved for posterity).
-
-Users already on the correct 0.5.9.2 can still take 0.5.9.3 — it's a
-no-op code-wise. Users stuck on broken-0.5.9.2 MUST take 0.5.9.3 to
-actually receive the missing plugin folders.
-
----
-
-## What's New in v0.5.9.2
-
-### 🚑 Hotfix — "Archives plugin folder missing after upgrade to v0.5.9"
-
-Reported by a user upgrading from v0.5.8 to v0.5.9:
-> *"After the update to v0.5.9 I can see the new plugin in the plugin list.
-> But I cannot activate the plugin Archives (ISAD(G) / ISAAR(CPF)) v1.0.0"*
-
-**Root cause (architectural)**: during an upgrade, the *old* `Updater.php`
-running the copy step iterates over **its own** hardcoded
-`BundledPlugins::LIST`. The v0.5.8 list had 5 plugins; v0.5.9 added 5
-more (`discogs`, `deezer`, `musicbrainz`, `goodlib`, `archives`). The
-v0.5.8 Updater therefore copied only 5 of the 10 plugin folders from
-the v0.5.9 ZIP. The post-install patch then inserted DB rows for the
-missing plugins, leaving them "registered but disk-missing" — hence
-the activation failure. The same class of bug hit v0.5.4 (discogs
-plugin, commit fc399cb) and is documented in `updater.md`.
-
-**Self-heal path (this release)**: no code change needed. v0.5.9's
-Updater is now in place on the affected installations, and its
-`BundledPlugins::LIST` already contains all 10 entries. Upgrading
-0.5.9 → 0.5.9.2 runs `updateBundledPlugins()` which simply copies any
-plugin folder that doesn't exist at the target — so `storage/plugins/archives/`
-(and the other four) will be materialised from the v0.5.9.2 ZIP.
-
-**Direct 0.5.8 → 0.5.9.2 upgrades** still hit the same cliff (v0.5.8's
-Updater is still in charge and knows nothing about archives). The
-hotfix for that path is documented in the release notes: run the
-upgrade a second time, which will then replay the now-updated Updater.
-
-Also updated:
-- `post-install-patch.php` bumped to v1.1.0: `target_versions` now
-  includes `0.5.8`, `0.5.9`, `0.5.9.1` so the DB rows are kept in
-  sync on any upgrade path that lands on 0.5.9.2. Added `archives`
-  to the SQL `INSERT IGNORE` block (it was missing from the v0.5.7
-  patch).
-- Plugin `max_app_version` → 0.5.9.2 on all bundled plugins.
-
-Tracks the user report; no explicit issue number yet.
-
----
-
-## What's New in v0.5.9.1
-
-### 🐛 Fix — Remember-me auto-login restores user locale
-
-Users whose `utenti.locale` differed from the install default (e.g. a
-`de_DE` user on an `it_IT` install) saw the default-locale UI on the
-first pageview after a remember-me auto-login. Root cause: the
-`languages` table was seeded only with the installer-chosen locale and
-its fallback, and `I18n::setLocale()` rejects any locale not present in
-that table.
-
-- **`installer/database/data_it_IT.sql`** and **`data_en_US.sql`** now
-  seed all three shipped locales (`it_IT`, `en_US`, `de_DE`). Only the
-  installer-chosen locale has `is_default=1`.
-- **`installer/database/migrations/migrate_0.5.9.1.sql`** (new) —
-  `INSERT IGNORE` backfill for existing IT/EN installs missing `de_DE`.
-  Idempotent thanks to `UNIQUE KEY unique_code` on `languages.code`.
-- **No application code changes**: `RememberMeMiddleware` was already
-  doing the right thing — it was just blocked by the missing table row.
-
-Closes [#108](https://github.com/fabiodalez-dev/Pinakes/issues/108).
-
-### 🎵 Fix — Discogs Cat# misclassification of ISBN-10 (post-v0.5.9 CodeRabbit)
-
-`DiscogsPlugin::isCatalogNumber()` classified valid ISBN-10 codes ending
-in `X` (e.g. `080442957X`, `020161622X`) as Discogs Catalog Numbers.
-After the hook chain in `ScrapeController::byIsbn` validated them as
-ISBNs the plugin would still route them through `fetchFromDiscogs` as
-`catno=XXX`, potentially merging music metadata into book records.
-
-- Added `DiscogsPlugin::isIsbn10()` helper (MOD-11 checksum, `'X'`-aware,
-  tolerates internal hyphens/spaces) that vetoes the Cat# heuristic for
-  any valid ISBN-10.
-- Regression test: 7 new asserts in `tests/discogs-catno.unit.php`
-  (44/44 pass, PHPStan level 5 clean).
-
----
-
-## What's New in v0.5.9
-
-### 📚 New — Archives plugin (ISAD(G) / ISAAR(CPF))
-
-A new bundled plugin adds full support for **archival material** alongside the
-existing bibliographic catalog — hierarchical descriptions (Fondo → Series →
-File → Item) following ICA's [ISAD(G)](https://www.ica.org/en/isadg-general-international-standard-archival-description-second-edition)
-standard, and authority records for persons/corporate bodies/families per
+New bundled plugin for archival material alongside the bibliographic
+catalog — hierarchical descriptions (Fondo → Series → File → Item) per
+[ISAD(G)](https://www.ica.org/en/isadg-general-international-standard-archival-description-second-edition),
+authority records per
 [ISAAR(CPF)](https://www.ica.org/en/isaar-cpf-international-standard-archival-authority-record-corporate-bodies-persons-and-families-2nd).
 
-- **Data model**: three tables (`archival_units`, `authority_records`,
-  `archival_unit_authority`) with self-referencing tree and FK guards.
-  Field crosswalk to MARC-like serialisation inspired by the ABA format
-  (Arbejderbevægelsens Bibliotek og Arkiv).
-- **Admin CRUD** at `/admin/archives` — create/edit records with all
-  ISAD(G) 3.1 identity-area fields; hierarchical list view with 4-level
-  badges (fonds/series/file/item).
-- **Public frontend** at `/archivio` — card grid + detail pages styled to
-  match `book-detail` (hero layout, responsive breakpoints, theme-aware
-  CSS), SEO slug URLs, JSON-LD `ArchiveComponent` schema, breadcrumb chain.
-- **Per-unit uploads**: cover image (JPEG/PNG/WebP) and optional document
-  (PDF/ePub/MP3/video) with finfo MIME detection, path-prefix unlink guard,
-  green-audio-player for audio.
-- Plugin starts **inactive** (`metadata.optional: true` in `plugin.json`)
-  — activate via Admin → Plugins to create schema.
-- i18n: all plugin strings localised to IT/EN/DE (~40 new keys).
-- Tracks [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
+- Three tables (`archival_units`, `authority_records`, `archival_unit_authority`)
+  with self-referencing tree, FK guards, MARC-like field crosswalk inspired
+  by the ABA format (Arbejderbevægelsens Bibliotek og Arkiv).
+- Admin CRUD at `/admin/archives`, public frontend at `/archivio` (card grid
+  + detail pages styled to match the book detail, SEO slug URLs, JSON-LD
+  `ArchiveComponent` schema, breadcrumb chain).
+- Per-unit cover image + document uploads (PDF/ePub/MP3/video) with finfo
+  MIME detection and path-prefix unlink guard.
+- Plugin ships **inactive** (`metadata.optional: true`). Activate in Admin
+  → Plugins to create the schema.
+- i18n: IT/EN/DE (~40 new keys). Tracks
+  [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 
-### 🎵 Fix — Discogs Cat# identifier support
+### Discogs catalog number (Cat#) support
 
-`DiscogsPlugin::validateBarcode` now accepts Catalog Numbers (e.g.
-`CDP 7912682`, `SRX-6272`, `DGC-24425-2`) in addition to EAN-13/UPC-A
-barcodes. The scrape flow in `ScrapeController::byIsbn` preserves the raw
-user input through the `scrape.isbn.validate` hook chain so plugins can
-match non-numeric identifiers. Closes
+`DiscogsPlugin::validateBarcode` now accepts Catalog Numbers
+(`CDP 7912682`, `SRX-6272`, `DGC-24425-2`) alongside EAN-13/UPC-A.
+`ScrapeController::byIsbn` preserves the raw identifier through the
+`scrape.isbn.validate` hook chain so plugins can match non-numeric
+inputs. Valid ISBN-10 codes ending in `X` (`080442957X`) are explicitly
+vetoed from Cat# classification to avoid music-metadata merges into book
+records (MOD-11 checksum in `DiscogsPlugin::isIsbn10`, 7 regression
+asserts in `tests/discogs-catno.unit.php`). Closes
 [#101](https://github.com/fabiodalez-dev/Pinakes/issues/101).
 
-### 🗃 Migration — `migrate_0.5.9.sql`
+### Remember-me preserves user locale
 
-Creates archival plugin tables + indexes. Safe on existing installs: all
-DDL blocks use `INFORMATION_SCHEMA` idempotency guards (v0.4.7+ pattern).
+Users whose `utenti.locale` differs from the install default
+(a `de_DE` user on an `it_IT` install) now see their locale restored
+after auto-login. Fix is in installer seed + a backfill migration:
+`installer/database/data_{it_IT,en_US}.sql` seed all three shipped
+locales, `migrate_0.5.9.1.sql` adds the missing row on existing
+installs. Closes [#108](https://github.com/fabiodalez-dev/Pinakes/issues/108).
 
----
+### Migration
 
-## What's New in v0.5.6
+`migrate_0.5.9.sql` creates archival plugin tables + indexes.
+`migrate_0.5.9.1.sql` seeds missing locales. Both idempotent via
+`INFORMATION_SCHEMA` guards and `INSERT IGNORE`.
 
-### 🐛 Fix — Dewey cascade 404s on legacy deep codes
+### Release-pipeline hardening (v0.5.9.2 → v0.5.9.4)
 
-Opening the admin book-edit form on any record whose `classificazione_dewey`
-is more specific than the JSON catalog (e.g. `305.42097` when
-`data/dewey/dewey_completo_it.json` ships up to `305.4` for that subtree)
-fired a chain of 404s in the browser console: `/api/dewey/children?parent_code=305.42`,
-`...=305.420`, `...=305.4209`, `...=305.42097`. No functional breakage,
-but visually alarming and a false signal during debugging.
-
-- **`DeweyApiController::getChildren`** now returns `200 []` when the
-  parent code isn't found in the JSON (leaf semantics). Empty-name
-  children are also skipped so they don't surface as blank dropdown
-  options.
-- **`book_form.php` `navigateToCode()`** breaks the cascade loop when
-  `loadLevel()` returns null — the custom-code fallback below already
-  handles rendering the untraceable code in the breadcrumb.
-- New regression test `tests/dewey-cascade-404.spec.js` seeds a book
-  with `305.42097` and asserts zero 404s + zero console errors when
-  opening the edit form in a real Chromium.
-
-v0.5.6 includes everything from v0.5.5 plus this Dewey fix.
-
-## What's New in v0.5.5
-
-### 📥 Bulk ISBN Enrichment (#87 follow-up)
-
-- **New Admin page `/admin/libri/bulk-enrich`** — automatic enrichment of books with missing covers/descriptions using their ISBN/EAN
-- **Manual batch** — process 20 books per click through all active scraping plugins (Open Library, Google Books, Discogs, MusicBrainz, Deezer, scraping-pro if installed). Rate-limited to 1 request per 2 minutes to protect upstream APIs
-- **Cron-driven** — configurable background enrichment via `scripts/bulk-enrich-cron.php` with atomic `flock(LOCK_EX|LOCK_NB)` locking
-- **No-overwrite guarantee** — only fills NULL or empty fields, never touches populated data
-- **Empty-string safe** — `NULLIF(TRIM(col), '')` on `isbn13/isbn10/ean` so legacy rows with blank identifiers don't shadow populated ones
-
-### 🔌 New bundled scraping plugins
-
-- **Discogs** — music metadata (CD, vinyl, cassette) via UPC/EAN barcode or text search. Registers 4 hooks (`scrape.isbn.validate`, `scrape.sources`, `scrape.fetch.custom`, `scrape.data.modify`)
-- **MusicBrainz** — fallback music metadata source
-- **Deezer** — cover art + track listings for audio media
-- **GoodLib** — custom-domain book metadata scraper
-
-### 🎯 Upgrade/Install robustness
-
-- **Fixed** `public/installer/assets` symlink → real directory (manual upgrade used to crash with `copy(): The second argument cannot be a directory` on installs where the dir had been materialized)
-- **Release ZIP guard** — `create-release.sh` now scans ZIP metadata via `zipinfo` and aborts if any symlink entry would ship (prevents regressions like the one above)
-- **Reinstall regression test** — full end-to-end suite (`scripts/reinstall-test.sh` + `tests/manual-upgrade-real.spec.js`) that exercises the real admin UI upgrade flow (upload ZIP → click "Avvia" → `Updater::performUpdateFromFile`) instead of bypassing via rsync. Runs the full Playwright suite on both a fresh install and an upgraded install
-
-### 🧹 CodeRabbit Major fixes (16 items)
-
-- **`BulkEnrichController::start`** — no longer leaks raw exception messages to clients; logs via `SecureLogger` and returns a generic 500
-- **`BulkEnrichController::toggle`** — `filter_var(FILTER_VALIDATE_BOOL)` so `"false"/"0"/"off"` correctly disable the feature
-- **`BulkEnrichmentService::setEnabled`** — returns bool; controller propagates DB failures instead of swallowing them
-- **`BulkEnrichmentService::enrichBook`** — checks the `UPDATE` execute() result before marking the book as enriched (prevents false-positive success logs on DB failure)
-- **`ScrapeController::normalizeIsbnFields`** — distinguishes validated ISBN requests (via `IsbnFormatter::isValid`) from plugin-accepted barcode requests, so legitimate book lookups no longer skip ISBN backfill when the scraper omits `format`/`tipo_media`
-- **Accessible switch** — `aria-label` + `aria-labelledby` on `#toggle-enrichment`
-- Full list in `updater.md` Version History.
-
-### 🌐 i18n
-
-- **168 new translations** added to `en_US.json` + `de_DE.json` — all strings introduced in this branch are now fully localised. `it_IT.json` stays minimal (fallback-to-key)
-
-### Migrations
-
-No new migrations. All DB changes ship in existing `migrate_0.5.4.sql`. Running v0.5.5 on a v0.5.4 install is a code-only upgrade.
+The 0.5.9.x series took four hotfix iterations because a forgotten
+GitHub Actions workflow (`release.yml`) was racing
+`scripts/create-release.sh` and overwriting the published ZIP with a
+stale build that only contained 5 of 10 bundled plugins. The rogue
+workflow is now disabled, `bin/build-release.sh` enumerates plugins
+from the filesystem instead of a hardcoded list, and
+`scripts/create-release.sh` verifies the shipped ZIP via the GitHub
+API (uploader identity + SHA + plugin count, polled for 90s) so no
+third-party overwrite can slip through unnoticed. Full post-mortem
+in `updater.md`.
 
 ---
 
@@ -303,7 +94,7 @@ No new migrations. All DB changes ship in existing `migrate_0.5.4.sql`. Running 
 <details>
 <summary><strong>v0.5.4</strong> - Discogs Plugin + Media Type + Plugin Manager Hardening</summary>
 
-### 🎵 Discogs music scraper plugin (#87)
+### Discogs music scraper plugin (#87)
 
 - **New `tipo_media` ENUM** (`libro/disco/audiolibro/dvd/altro`) on `libri` with composite index `(deleted_at, tipo_media)`
 - **Heuristic backfill** from `formato` using anchored LIKE patterns (avoids `%cd%` matching CD-ROM, `%lp%` matching "help")
@@ -332,7 +123,7 @@ No new migrations. All DB changes ship in existing `migrate_0.5.4.sql`. Running 
 <details>
 <summary><strong>v0.5.2</strong> - Name Normalization (#93)</summary>
 
-### 🔧 Name Normalization for Translators, Illustrators, Curators (#93)
+### Name Normalization for Translators, Illustrators, Curators (#93)
 
 - **`AuthorNormalizer`** applied to translator, illustrator, and curator on create, update, and scraping
 - **Client-side normalization** — "Surname, Name" → "Name Surname" for translator/illustrator in book form
@@ -343,7 +134,7 @@ No new migrations. All DB changes ship in existing `migrate_0.5.4.sql`. Running 
 <details>
 <summary><strong>v0.5.1</strong> - ISSN, Series Management, Multi-Volume Works (#75)</summary>
 
-### 📚 ISSN, Series Management, Multi-Volume Works (#75)
+### ISSN, Series Management, Multi-Volume Works (#75)
 
 **ISSN Field:**
 - **New ISSN field** on book form with XXXX-XXXX validation (server-side + client-side)
@@ -384,7 +175,7 @@ No new migrations. All DB changes ship in existing `migrate_0.5.4.sql`. Running 
 <details>
 <summary><strong>v0.5.0</strong> - SEO & LLM Readiness, Schema.org Enrichment, Curator Field</summary>
 
-### 🔍 SEO & LLM Readiness, Schema.org Enrichment, Curator Field
+### SEO & LLM Readiness, Schema.org Enrichment, Curator Field
 
 - **Hreflang alternate tags** on all frontend pages
 - **RSS 2.0 feed** at `/feed.xml`
@@ -398,7 +189,7 @@ No new migrations. All DB changes ship in existing `migrate_0.5.4.sql`. Running 
 <details>
 <summary><strong>v0.4.9.9</strong> - Social Sharing, Genre Navigation, Search Improvements</summary>
 
-### 📤 Social Sharing, Genre Navigation, Inline PDF Viewer & Search
+### Social Sharing, Genre Navigation, Inline PDF Viewer & Search
 
 - **7 sharing providers** — Facebook, X, WhatsApp, Telegram, LinkedIn, Reddit, Pinterest + Email, Copy Link, Web Share API
 - **Genre breadcrumb navigation** — Clickable genre hierarchy links that filter by category
@@ -412,7 +203,7 @@ No new migrations. All DB changes ship in existing `migrate_0.5.4.sql`. Running 
 <details>
 <summary><strong>v0.4.9.8</strong> - Security, Database Integrity & Code Quality</summary>
 
-### 🔒 Security & Database Integrity
+### Security & Database Integrity
 
 - **SMTP password encryption** — AES-256-CBC at rest using `APP_KEY`
 - **isbn10/ean UNIQUE indexes** — Blank values normalized to NULL, duplicates resolved
@@ -423,7 +214,7 @@ No new migrations. All DB changes ship in existing `migrate_0.5.4.sql`. Running 
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 1. **Clone or download** this repository and upload all files to the root directory of your server.
 2. **Visit your site's root URL** in the browser — the guided installer starts automatically.
@@ -807,9 +598,9 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ## Support & Contact
 
-📧 **Email**: [pinakes@fabiodalez.it](mailto:pinakes@fabiodalez.it)
-🐛 **Issues**: [GitHub Issues](https://github.com/fabiodalez-dev/pinakes/issues)
-💬 **Discussions**: [GitHub Discussions](https://github.com/fabiodalez-dev/pinakes/discussions)
+- **Email**: [pinakes@fabiodalez.it](mailto:pinakes@fabiodalez.it)
+- **Issues**: [GitHub Issues](https://github.com/fabiodalez-dev/pinakes/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/fabiodalez-dev/pinakes/discussions)
 
 ---
 
@@ -839,7 +630,7 @@ If Pinakes helps your library, please ⭐ the repository!
 
 ## Community Projects
 
-- 🐳 **[jbenamy/pinakes-docker](https://github.com/jbenamy/pinakes-docker)** — Community-maintained Docker image. This is an independent project not managed by the Pinakes team — please refer to its own documentation for setup and support.
+- **[jbenamy/pinakes-docker](https://github.com/jbenamy/pinakes-docker)** — Community-maintained Docker image. This is an independent project not managed by the Pinakes team — please refer to its own documentation for setup and support.
 
 ---
 
