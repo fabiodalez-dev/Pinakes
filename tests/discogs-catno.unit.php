@@ -14,13 +14,13 @@ declare(strict_types=1);
  *   php tests/discogs-catno.unit.php
  * Exits 0 on success, 1 on any failure.
  *
- * Note: we only exercise validateBarcode() and identifierKind(), which do not
- * touch Hooks / HTTP / DB. activate() (which references App\Support\Hooks) is
- * never called, so the real Hooks class does not need to be autoloaded here.
+ * Note: we only exercise validateBarcode(), identifierKind(),
+ * buildMusicBrainzQuery() and canonicalSearchIdentifier(), which do not
+ * touch Hooks / HTTP / DB. activate() (which references App\Support\Hooks
+ * and App\Support\HookManager) is never called from this test, so those
+ * classes are intentionally NOT required here.
  */
 
-require_once __DIR__ . '/../app/Support/Hooks.php';
-require_once __DIR__ . '/../app/Support/HookManager.php';
 require_once __DIR__ . '/../storage/plugins/discogs/DiscogsPlugin.php';
 
 use App\Plugins\Discogs\DiscogsPlugin;
@@ -77,6 +77,11 @@ $check(DiscogsPlugin::buildMusicBrainzQuery('5099902988023') === 'barcode:509990
 $check(DiscogsPlugin::buildMusicBrainzQuery('5099902-988023') === 'barcode:5099902988023', 'EAN-13 with hyphen → digits stripped');
 $check(DiscogsPlugin::buildMusicBrainzQuery('077778364627') === 'barcode:077778364627',  'UPC-A → barcode, zero-prefix preserved');
 $check(DiscogsPlugin::buildMusicBrainzQuery('74321 66847 2') === 'catno:"74321 66847 2"', 'BMG pure-numeric Cat# quoted');
+// CodeRabbit round 4: unknown identifiers must not produce malformed
+// `barcode:abc` queries. buildMusicBrainzQuery returns '' and searchMusicBrainz
+// short-circuits before issuing the HTTP request.
+$check(DiscogsPlugin::buildMusicBrainzQuery('nonsense!!!') === '',                         'unknown → empty string (no malformed query)');
+$check(DiscogsPlugin::buildMusicBrainzQuery('')            === '',                         'empty input → empty string');
 
 echo "\ncanonicalSearchIdentifier — normalization before persisting fallback:\n";
 // CodeRabbit regression: 5099902-988023 was accepted as barcode but the

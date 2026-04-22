@@ -82,13 +82,19 @@ class DiscogsPlugin
     {
         $digits = preg_replace('/[^0-9]/', '', $input);
         $len = strlen((string) $digits);
-        // Also require that the input was basically digits-only (no letters),
-        // otherwise "CDP 7912682" would strip to "7912682" and we'd dispatch
-        // it as a barcode by mistake. preg_match ensures letter-free input.
         if ($len !== 13 && $len !== 12) {
             return false;
         }
-        return preg_match('/^[\s0-9\-]+$/', $input) === 1;
+        // Allowed shape: optional leading/trailing whitespace, one or more
+        // digit-groups separated by single hyphens (e.g. "5099902-988023").
+        // This excludes inputs with letters ("CDP 7912682" → would route to
+        // catno), inputs with internal whitespace ("0777 7836 4627"), and
+        // pathological inputs made only of separators. Pure-numeric Cat#
+        // strings with hyphens (e.g. "5099902-988023") stay valid as barcode
+        // since their canonicalized digit-count matches EAN-13/UPC-A; any
+        // genuinely hyphenated catno that happens to hit 12/13 digits would
+        // be a rare Discogs edge case and is a documented tradeoff.
+        return preg_match('/^\s*\d+(?:-\d+)*\s*$/', $input) === 1;
     }
 
     /**
@@ -168,18 +174,26 @@ class DiscogsPlugin
      *
      * Returns the raw `field:value` string — caller is responsible for
      * rawurlencode() when composing the URL.
+     *
+     * Returns an empty string when {@see self::identifierKind()} reports
+     * `unknown` (gibberish / malformed input). Callers MUST filter the
+     * empty-string case before embedding the result into a search URL,
+     * otherwise MusicBrainz would receive a malformed fragment like
+     * `barcode:` that leaks outside the Lucene grammar.
      */
     public static function buildMusicBrainzQuery(string $input): string
     {
         $kind = self::identifierKind($input);
-        $field = $kind === 'catno' ? 'catno' : 'barcode';
-        if ($kind === 'catno') {
-            $value = '"' . addcslashes($input, '"\\') . '"';
-        } else {
-            $digits = preg_replace('/\D+/', '', $input);
-            $value = ($digits !== null && $digits !== '') ? $digits : $input;
+        if ($kind === 'unknown') {
+            return '';
         }
-        return $field . ':' . $value;
+        if ($kind === 'catno') {
+            return 'catno:"' . addcslashes($input, '"\\') . '"';
+        }
+        // $kind === 'barcode' — canonicalize to digits-only for stable URLs.
+        $digits = preg_replace('/\D+/', '', $input);
+        $value = ($digits !== null && $digits !== '') ? $digits : $input;
+        return 'barcode:' . $value;
     }
 
     /**
@@ -1169,8 +1183,14 @@ class DiscogsPlugin
     {
         // MusicBrainz supports both `barcode:` and `catno:` Lucene-style
         // filters. Pick the right one + quote multi-word Cat# values.
+        // buildMusicBrainzQuery returns '' for unknown identifiers — skip
+        // the HTTP round-trip instead of emitting `query=&...` to the API.
+        $query = self::buildMusicBrainzQuery($barcode);
+        if ($query === '') {
+            return null;
+        }
         $url = 'https://musicbrainz.org/ws/2/release?query='
-            . rawurlencode(self::buildMusicBrainzQuery($barcode))
+            . rawurlencode($query)
             . '&fmt=json&limit=1';
         $result = $this->musicBrainzRequest($url);
 
