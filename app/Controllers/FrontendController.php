@@ -936,9 +936,14 @@ class FrontendController
             case 'title_desc':
                 return 'ORDER BY l.titolo DESC';
             case 'author_asc':
-                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) ASC, l.id ASC';
+                // `IS NULL` returns 0 for present surnames, 1 for absent.
+                // Sorting by that first pushes books without authors to the end
+                // regardless of direction — otherwise MySQL would bubble NULLs
+                // to the top of an ASC list, cluttering page 1 with authorless
+                // books. Same pattern applied to DESC below.
+                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) IS NULL, (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) ASC, l.id ASC';
             case 'author_desc':
-                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) DESC, l.id DESC';
+                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) IS NULL, (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) DESC, l.id DESC';
             case 'newest':
             default:
                 return 'ORDER BY l.created_at DESC';

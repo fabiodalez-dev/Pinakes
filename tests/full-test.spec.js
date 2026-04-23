@@ -892,11 +892,11 @@ test.describe.serial('Phase 6: Edit Book', () => {
           const gen = document.getElementById('genere_select');
           const sub = document.getElementById('sottogenere_select');
           return rad && rad.options.length > 1
-              && gen && gen.options.length > 0
-              && sub && sub.options.length > 0;
+              && gen && gen.options.length > 1
+              && sub && sub.options.length > 1;
         },
         { timeout: 10000 },
-      ).catch(() => {});
+      );
 
       // Change radice to a different root. The cascade handler itself resets
       // genere + sottogenere to their placeholder options, so no manual
@@ -1807,6 +1807,14 @@ test.describe.serial('Phase 14: Admin Loan', () => {
       dbQuery(`UPDATE libri SET copie_disponibili = copie_disponibili + 1 WHERE id = ${testBookId}`);
     }
 
+    // Fetch the book's actual title so the autocomplete query is narrow enough
+    // to reliably return THIS book instead of picking whichever 'E2E*' book
+    // comes first alphabetically. Previously a generic 'E2E' query could match
+    // a different book — one without free copies — and the backend would
+    // redirect to ?error=no_copies_available, breaking the wait below.
+    const bookTitle = String(dbQuery(`SELECT titolo FROM libri WHERE id=${testBookId} AND deleted_at IS NULL`)).trim();
+    test.skip(!bookTitle, `Book ${testBookId} has no title`);
+
     await page.goto(`${BASE}/admin/prestiti/crea`);
     await page.waitForLoadState('domcontentloaded');
 
@@ -1815,10 +1823,11 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     const actualUtenteId = Number(await page.locator('#utente_id').inputValue());
     expect(actualUtenteId).toBeGreaterThan(0);
 
-    // Search for book
-    await fillAutocomplete(page, '#libro_search', '#libro_suggest', 'E2E', '/api/search/libri');
+    // Search for book using its actual title — ensures we pick testBookId,
+    // which we just confirmed has copies available.
+    await fillAutocomplete(page, '#libro_search', '#libro_suggest', bookTitle, '/api/search/libri');
     const actualLibroId = Number(await page.locator('#libro_id').inputValue());
-    expect(actualLibroId).toBeGreaterThan(0);
+    expect(actualLibroId).toBe(testBookId);
 
     // Set loan date via Flatpickr API (altInput creates a visible input that may be empty)
     await page.evaluate(() => {
