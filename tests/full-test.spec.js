@@ -924,10 +924,10 @@ test.describe.serial('Phase 6: Edit Book', () => {
         await page.waitForFunction(
           () => {
             const gen = document.getElementById('genere_select');
-            return gen && !gen.disabled;
+            return gen && !gen.disabled && gen.options.length > 1;
           },
           { timeout: 10000 },
-        ).catch(() => {});
+        );
       }
     }
 

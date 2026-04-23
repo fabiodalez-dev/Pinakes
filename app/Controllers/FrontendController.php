@@ -444,11 +444,16 @@ class FrontendController
         $total_books = $total_row['total'] ?? 0;
         $total_pages = ceil($total_books / $limit);
 
-        // Query per i libri
+        // Query per i libri. Expose the principal author's surname as an
+        // explicit column so buildOrderBy can reference an alias instead of
+        // re-running the correlated subquery twice per row (once for the
+        // NULLs-last predicate, once for the sort value).
         $books_query = "
             SELECT DISTINCT l.*,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                   (SELECT SUBSTRING_INDEX(TRIM(a.nome), ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_cognome,
                    e.nome AS editore,
                    g.nome AS genere
             " . $base_query . "
@@ -528,11 +533,16 @@ class FrontendController
         $total_books = $total_row['total'] ?? 0;
         $total_pages = ceil($total_books / $limit);
 
-        // Query per i libri
+        // Query per i libri. Expose the principal author's surname as an
+        // explicit column so buildOrderBy can reference an alias instead of
+        // re-running the correlated subquery twice per row (once for the
+        // NULLs-last predicate, once for the sort value).
         $books_query = "
             SELECT DISTINCT l.*,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                   (SELECT SUBSTRING_INDEX(TRIM(a.nome), ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_cognome,
                    e.nome AS editore,
                    g.nome AS genere
             " . $base_query . "
@@ -936,14 +946,15 @@ class FrontendController
             case 'title_desc':
                 return 'ORDER BY l.titolo DESC';
             case 'author_asc':
-                // `IS NULL` returns 0 for present surnames, 1 for absent.
-                // Sorting by that first pushes books without authors to the end
-                // regardless of direction — otherwise MySQL would bubble NULLs
-                // to the top of an ASC list, cluttering page 1 with authorless
-                // books. Same pattern applied to DESC below.
-                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) IS NULL, (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) ASC, l.id ASC';
+                // References the `autore_cognome` column alias exposed by the
+                // catalog SELECT. `IS NULL` returns 0 for present surnames and
+                // 1 for absent, so NULL books always sort last regardless of
+                // direction (MySQL's default would bubble them to the top of
+                // ASC). The alias keeps the correlated subquery evaluated
+                // once per row instead of twice.
+                return 'ORDER BY autore_cognome IS NULL, autore_cognome ASC, l.id ASC';
             case 'author_desc':
-                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) IS NULL, (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) DESC, l.id DESC';
+                return 'ORDER BY autore_cognome IS NULL, autore_cognome DESC, l.id DESC';
             case 'newest':
             default:
                 return 'ORDER BY l.created_at DESC';

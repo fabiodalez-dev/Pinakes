@@ -54,21 +54,32 @@ server {
     }
 
     # ========================================
+    # Plugin-served assets (MUST precede the generic static block)
+    # ========================================
+    # Plugins such as digital-library and archives stream their own CSS/JS
+    # through Slim routes (/plugins/<name>/assets/<type>/<file>). These files
+    # don't exist on disk — PHP reads them from the plugin package and sets
+    # its own Cache-Control header (typically `public, max-age=31536000`
+    # because plugin asset paths are versioned by the plugin manifest).
+    #
+    # If the generic static location below catches these requests first, its
+    # `add_header Cache-Control "public, must-revalidate"` would stack on top
+    # of the plugin's header, sending the browser two conflicting values.
+    # Route them straight to PHP so only the plugin's header reaches the wire.
+    location ^~ /plugins/ {
+        try_files $uri /index.php?$query_string;
+    }
+
+    # ========================================
     # Static assets with caching
     # ========================================
     # Note: Security headers must be repeated here because Nginx doesn't inherit
     # add_header directives from parent context when add_header is used in a location
     #
     # IMPORTANT: the fallback MUST be `/index.php?$query_string`, not `=404`.
-    # Bundled plugins (digital-library, archives, etc.) serve their own CSS/JS
-    # through Slim routes such as `/plugins/<name>/assets/<type>/<file>` —
-    # those files don't exist on disk, they're streamed by PHP. If nginx
-    # short-circuits to 404, those stylesheets/scripts never reach the
-    # browser and the plugin UI breaks silently (reported against
-    # /plugins/digital-library/assets/css/digital-library.css in 2026-04).
     # NOTE on caching: `immutable` would tell browsers never to revalidate for
-    # `expires`. Since Pinakes doesn't version-fingerprint plugin assets,
-    # setting `immutable` + `1y` means plugin updates stay invisible for up
+    # `expires`. Since Pinakes doesn't version-fingerprint core assets either,
+    # setting `immutable` + `1y` means asset updates stay invisible for up
     # to a year. We use a conservative 1-month TTL with `must-revalidate`
     # so browsers recheck on next hit after expiry.
     location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp3|mp4|webm|pdf|epub)$ {
