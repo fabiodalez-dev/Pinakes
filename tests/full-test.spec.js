@@ -520,12 +520,25 @@ test.describe.serial('Phase 3: Manual Book Creation', () => {
   });
 
   test('3.3 Fill people and classification', async () => {
-    // Author via Choices.js
-    const authorInput = page.locator('.choices__input--cloned').first();
+    // Author via Choices.js. Anchor on #autori_select and walk up to the
+    // generated Choices wrapper — otherwise `.choices__input--cloned`.first()
+    // picks the PUBLISHER input (editore_search also has that CSS class), so
+    // the typed value never reaches the Choices.js instance, addItem never
+    // fires, and libri_autori stays empty after save (regression against
+    // catalog sort by author in Phase 18.12).
+    const authorWrapper = page.locator('#autori_select')
+      .locator('xpath=ancestor::*[contains(@class,"choices")]').first();
+    const authorInput = authorWrapper.locator('.choices__input--cloned');
     if (await authorInput.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await authorInput.click();
       await authorInput.fill(`Author ${RUN_ID}`);
       await authorInput.press('Enter');
-      await page.waitForTimeout(500);
+      // Wait for the hidden input (autori_new[]) to actually be appended so
+      // the next action doesn't race the Choices.js `addItem` handler.
+      await page.waitForFunction(
+        () => document.querySelectorAll('#autori_hidden input[name="autori_new[]"]').length > 0,
+        { timeout: 5000 },
+      );
     }
 
     // Publisher — enhanced autocomplete field (input may be disabled by JS)
