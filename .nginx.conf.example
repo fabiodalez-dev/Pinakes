@@ -76,7 +76,13 @@ server {
     # Note: Security headers must be repeated here because Nginx doesn't inherit
     # add_header directives from parent context when add_header is used in a location
     #
-    # IMPORTANT: the fallback MUST be `/index.php?$query_string`, not `=404`.
+    # Miss behaviour: hard 404. The plugin-asset location above already
+    # forwards `/plugins/*` to PHP; `/uploads/*` has its own block below;
+    # anything else with these extensions that isn't on disk is a genuine
+    # 404, not something PHP needs to answer. Falling back to index.php
+    # here would waste a PHP-FPM worker per bot/scanner probe and fill
+    # app logs with noise.
+    #
     # NOTE on caching: `immutable` would tell browsers never to revalidate for
     # `expires`. Since Pinakes doesn't version-fingerprint core assets either,
     # setting `immutable` + `1y` means asset updates stay invisible for up
@@ -88,7 +94,7 @@ server {
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-        try_files $uri /index.php?$query_string;
+        try_files $uri =404;
     }
 
     # ========================================

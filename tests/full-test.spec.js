@@ -584,15 +584,21 @@ test.describe.serial('Phase 3: Manual Book Creation', () => {
       if (!await genereSelect.isDisabled()) {
         await genereSelect.selectOption({ index: 1 }).catch(() => {});
 
-        // Wait for L3 to load
-        await page.waitForFunction(() => {
+        // Wait for L3 cascade to either populate or confirm no L3 exists.
+        // This must complete deterministically — Phase 6 later assumes the
+        // book's (genere, sottogenere) pair is coherent. Two valid outcomes:
+        //   a) sottogenere has >1 options → select index 1 (mandatory)
+        //   b) sottogenere stays disabled → genuinely no L3 for this genere
+        const l3Populated = await page.waitForFunction(() => {
           const sel = document.getElementById('sottogenere_select');
           return sel && !sel.disabled && sel.options.length > 1;
-        }, { timeout: 5000 }).catch(() => {});
+        }, { timeout: 5000 }).then(() => true).catch(() => false);
 
-        const sottogenereSelect = page.locator('#sottogenere_select');
-        if (!await sottogenereSelect.isDisabled().catch(() => true)) {
-          await sottogenereSelect.selectOption({ index: 1 }).catch(() => {});
+        if (l3Populated) {
+          // Mandatory selection — no silent swallow. If selection fails here
+          // the book would end up with an inconsistent state and Phase 6.3
+          // would fail downstream with an opaque hierarchy validation error.
+          await page.locator('#sottogenere_select').selectOption({ index: 1 });
         }
       }
     }
@@ -906,9 +912,32 @@ test.describe.serial('Phase 6: Edit Book', () => {
           const rad = document.getElementById('radice_select');
           const gen = document.getElementById('genere_select');
           const sub = document.getElementById('sottogenere_select');
-          return rad && rad.options.length > 1
-              && gen && gen.options.length > 1
-              && sub && sub.options.length > 1;
+          if (!rad || rad.options.length <= 1) return false;
+          if (!gen || !sub) return false;
+          // The initial cascade runs in sequence: radice change dispatches
+          // genere fetch, which on success dispatches genere change, which
+          // dispatches sottogenere fetch, which eventually auto-applies the
+          // saved sub id. Waiting only for `gen.options.length > 1` can
+          // return DURING that chain — e.g. genere just populated but the
+          // dispatched change event for sottogenere is still in flight.
+          // If the test then triggers another radice change, the in-flight
+          // sottogenere fetch lands AFTER our reset, restoring the old
+          // value and breaking the subsequent form submit.
+          //
+          // Instead, gate on "cascade has settled to the book's saved
+          // state". Read the target from the <select>'s data-initial-*
+          // attributes set by the template. If the book has no L2 or no
+          // L3, the target is 0 and we accept the placeholder/disabled
+          // state that the cascade settles into for missing levels.
+          const initGen = parseInt(gen.dataset.initialGenere || '0', 10) || 0;
+          const initSub = parseInt(sub.dataset.initialSottogenere || '0', 10) || 0;
+          const genSettled = initGen > 0
+            ? parseInt(gen.value || '0', 10) === initGen
+            : (gen.disabled || gen.value === '0');
+          const subSettled = initSub > 0
+            ? parseInt(sub.value || '0', 10) === initSub
+            : (sub.disabled || sub.value === '0');
+          return genSettled && subSettled;
         },
         { timeout: 10000 },
       );
@@ -928,6 +957,24 @@ test.describe.serial('Phase 6: Edit Book', () => {
           },
           { timeout: 10000 },
         );
+
+        // Regression guard: after radice change with no manual genere pick,
+        // both selects and both hidden inputs MUST be at "0". If
+        // `sottogenere_id_hidden` still carries its old value, the form's
+        // client-side hierarchy check rejects the save silently and 6.3
+        // ends up stuck on /modifica/ with a cryptic timeout. This was a
+        // real cascade-init race surfaced during the CodeRabbit round 4
+        // review cycle — keep the assertion to catch it earlier next time.
+        const selState = await page.evaluate(() => ({
+          gSelValue: document.getElementById('genere_select')?.value ?? null,
+          sSelValue: document.getElementById('sottogenere_select')?.value ?? null,
+          gHiddenValue: document.getElementById('genere_id_hidden')?.value ?? null,
+          sHiddenValue: document.getElementById('sottogenere_id_hidden')?.value ?? null,
+        }));
+        expect(selState.gSelValue).toBe('0');
+        expect(selState.sSelValue).toBe('0');
+        expect(selState.gHiddenValue).toBe('0');
+        expect(selState.sHiddenValue).toBe('0');
       }
     }
 
@@ -1833,10 +1880,12 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     await page.goto(`${BASE}/admin/prestiti/crea`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Search for user
-    await fillAutocomplete(page, '#utente_search', '#utente_suggest', 'E2E', '/api/search/utenti');
+    // Search for user by their unique surname (`User${RUN_ID}` — set in 14.1).
+    // A generic 'E2E' query could pick up a leftover user from a previous run
+    // whose cleanup failed, silently binding the loan to the wrong borrower.
+    await fillAutocomplete(page, '#utente_search', '#utente_suggest', `User${RUN_ID}`, '/api/search/utenti');
     const actualUtenteId = Number(await page.locator('#utente_id').inputValue());
-    expect(actualUtenteId).toBeGreaterThan(0);
+    expect(actualUtenteId).toBe(state.userId);
 
     // Search for book using its actual title — ensures we pick testBookId,
     // which we just confirmed has copies available.
