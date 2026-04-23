@@ -878,24 +878,41 @@ test.describe.serial('Phase 6: Edit Book', () => {
     }
 
     // Change genre (regression #78, #63)
-    // Clear sub-genre selects first to avoid validation errors from stale values
+    // Wait for the FULL 3-level cascade init to finish before we touch the
+    // dropdowns. The previous version raced the async init: it cleared
+    // sub+gen by direct DOM assignment, then dispatched a radice change.
+    // A still-in-flight AJAX callback from the initial cascade would then
+    // restore sottogenere to the book's saved ID, leaving (gid=0, sid>0)
+    // which trips the hierarchy validation on submit in 6.3.
     const radiceSelect = page.locator('#radice_select');
     if (await radiceSelect.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await page.waitForFunction(() => {
-        const sel = document.querySelector('#radice_select');
-        return sel && sel.options.length > 1;
-      }, { timeout: 10000 }).catch(() => {});
-      // Reset sottogenere and genere before changing radice
-      await page.evaluate(() => {
-        const sub = document.getElementById('sottogenere_select');
-        if (sub) sub.value = '';
-        const gen = document.getElementById('genere_select');
-        if (gen) gen.value = '';
-      });
-      // Select a different genre option if available
+      await page.waitForFunction(
+        () => {
+          const rad = document.getElementById('radice_select');
+          const gen = document.getElementById('genere_select');
+          const sub = document.getElementById('sottogenere_select');
+          return rad && rad.options.length > 1
+              && gen && gen.options.length > 0
+              && sub && sub.options.length > 0;
+        },
+        { timeout: 10000 },
+      ).catch(() => {});
+
+      // Change radice to a different root. The cascade handler itself resets
+      // genere + sottogenere to their placeholder options, so no manual
+      // pre-reset is needed (and the manual reset was what was racing).
       const options = await radiceSelect.locator('option').count();
       if (options > 2) {
         await radiceSelect.selectOption({ index: 2 });
+        // Let the new radice's genere options finish loading before the
+        // next test clicks submit — avoids another race on sub-selects.
+        await page.waitForFunction(
+          () => {
+            const gen = document.getElementById('genere_select');
+            return gen && !gen.disabled;
+          },
+          { timeout: 10000 },
+        ).catch(() => {});
       }
     }
 
@@ -926,8 +943,17 @@ test.describe.serial('Phase 6: Edit Book', () => {
     // Click the confirm button ("Sì, Aggiorna")
     await page.locator('.swal2-confirm:visible').click();
 
-    // Wait for navigation to book list after successful save
-    await page.waitForURL(/admin\/libri(?!.*modifica)/, { timeout: 30000 });
+    // Wait for navigation off the edit form. Using waitForFunction(pathname)
+    // instead of waitForURL(regex) because the latter defaults to
+    // waitUntil:'load' which can race with post-save chart/autoload scripts
+    // on the redirect target. pathname-based check fires as soon as the new
+    // URL is committed, which is what this assertion actually cares about.
+    await page.waitForFunction(
+      () => !window.location.pathname.includes('/modifica/'),
+      null,
+      { timeout: 30000 },
+    );
+    await page.waitForLoadState('domcontentloaded');
 
     // Verify in DB
     const dbTitle = dbQuery(`SELECT titolo FROM libri WHERE id=${bookId} AND deleted_at IS NULL`);
@@ -1809,9 +1835,19 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     });
     await page.waitForTimeout(200);
 
-    // Submit
+    // Submit. Using waitForFunction(pathname) instead of waitForURL(regex)
+    // because waitForURL defaults to waitUntil:'load' which races with
+    // the loan index page's autoreload chart scripts — see Phase 6.3 note.
     await page.locator('button[type="submit"]').click();
-    await page.waitForURL(/admin\/prestiti(?!\/crea)/, { timeout: 30000 });
+    await page.waitForFunction(
+      () => {
+        const p = window.location.pathname;
+        return p.startsWith('/admin/prestiti') && !p.endsWith('/crea');
+      },
+      null,
+      { timeout: 30000 },
+    );
+    await page.waitForLoadState('domcontentloaded');
 
     // Get the loan ID using the actual selected IDs
     testLoanId = Number(dbQuery(`SELECT id FROM prestiti WHERE utente_id=${actualUtenteId} AND libro_id=${actualLibroId} ORDER BY id DESC LIMIT 1`));
