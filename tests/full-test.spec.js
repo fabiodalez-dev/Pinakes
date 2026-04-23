@@ -533,10 +533,12 @@ test.describe.serial('Phase 3: Manual Book Creation', () => {
       await authorInput.click();
       await authorInput.fill(`Author ${RUN_ID}`);
       await authorInput.press('Enter');
-      // Wait for the hidden input (autori_new[]) to actually be appended so
-      // the next action doesn't race the Choices.js `addItem` handler.
+      // Wait for Choices.js to register the selection. Accept either branch:
+      // `autori_new[]` when the typed name is new, `autori_ids[]` when
+      // Choices.js matched an existing author (e.g. leftover from a prior
+      // run that didn't fully clean up). Either way, the form has the link.
       await page.waitForFunction(
-        () => document.querySelectorAll('#autori_hidden input[name="autori_new[]"]').length > 0,
+        () => document.querySelectorAll('#autori_hidden input[name="autori_new[]"], #autori_hidden input[name="autori_ids[]"]').length > 0,
         { timeout: 5000 },
       );
     }
