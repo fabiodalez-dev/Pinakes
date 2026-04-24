@@ -89,8 +89,13 @@ server {
     # to a year. We use a conservative 1-month TTL with `must-revalidate`
     # so browsers recheck on next hit after expiry.
     location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp3|mp4|webm|pdf|epub)$ {
-        expires 1M;
-        add_header Cache-Control "public, must-revalidate";
+        # Disable the `expires` auto-emitted Cache-Control and write a single
+        # explicit header instead. `expires 1M` would synthesise its own
+        # `Cache-Control: max-age=2592000`, which stacked on top of our
+        # `add_header Cache-Control "..."` would send the browser two
+        # concatenated values and make the effective policy ambiguous.
+        expires off;
+        add_header Cache-Control "public, max-age=2592000, must-revalidate" always;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;

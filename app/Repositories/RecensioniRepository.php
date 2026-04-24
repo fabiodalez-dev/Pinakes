@@ -55,7 +55,7 @@ class RecensioniRepository
             return $row['count'] > 0;
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] canUserReview failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] canUserReview failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return false;
         }
     }
@@ -97,6 +97,8 @@ class RecensioniRepository
             // DB message — $e->getMessage() is the PHP-level wrapper.
             SecureLogger::error('[RecensioniRepository] createReview failed', [
                 'exception' => $e->getMessage(),
+                'file'      => $e->getFile(),
+                'line'      => $e->getLine(),
                 'db_error'  => $this->db->error ?: null,
             ]);
             return null;
@@ -134,7 +136,7 @@ class RecensioniRepository
             return $reviews;
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] getPendingReviews failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] getPendingReviews failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return [];
         }
     }
@@ -183,7 +185,7 @@ class RecensioniRepository
             return $reviews;
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] getAllReviews failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] getAllReviews failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return [];
         }
     }
@@ -218,7 +220,7 @@ class RecensioniRepository
             return $reviews;
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] getApprovedReviewsForBook failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] getApprovedReviewsForBook failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return [];
         }
     }
@@ -259,7 +261,7 @@ class RecensioniRepository
             ];
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] getReviewStats failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] getReviewStats failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return [
                 'total_reviews' => 0,
                 'average_rating' => 0,
@@ -293,7 +295,7 @@ class RecensioniRepository
             return $result;
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] approveReview failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] approveReview failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return false;
         }
     }
@@ -319,7 +321,7 @@ class RecensioniRepository
             return $result;
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] rejectReview failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] rejectReview failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return false;
         }
     }
@@ -338,7 +340,7 @@ class RecensioniRepository
             return $result;
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] deleteReview failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] deleteReview failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return false;
         }
     }
@@ -368,7 +370,7 @@ class RecensioniRepository
             return $review ?: null;
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] getReview failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] getReview failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return null;
         }
     }
@@ -388,7 +390,7 @@ class RecensioniRepository
             return (int)($row['count'] ?? 0);
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] countPendingReviews failed', ['exception' => $e->getMessage()]);
+            SecureLogger::error('[RecensioniRepository] countPendingReviews failed', ['exception' => $e->getMessage(), 'file' => $e->getFile(), 'line' => $e->getLine()]);
             return 0;
         }
     }

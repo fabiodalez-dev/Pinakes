@@ -1912,10 +1912,19 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     // because waitForURL defaults to waitUntil:'load' which races with
     // the loan index page's autoreload chart scripts — see Phase 6.3 note.
     await page.locator('button[type="submit"]').click();
+    // Wait for BOTH conditions: we're no longer on /crea AND there's no
+    // error query param. A validation failure (e.g. a book whose copies
+    // became unavailable between the autocomplete pick and submit) would
+    // redirect to /admin/prestiti/crea?error=... — pathname check alone
+    // would still match `startsWith('/admin/prestiti')` and proceed, with
+    // the real failure surfacing only later as `testLoanId === 0`.
     await page.waitForFunction(
       () => {
         const p = window.location.pathname;
-        return p.startsWith('/admin/prestiti') && !p.endsWith('/crea');
+        const s = window.location.search || '';
+        return p.startsWith('/admin/prestiti')
+            && !p.endsWith('/crea')
+            && !s.includes('error=');
       },
       null,
       { timeout: 30000 },
