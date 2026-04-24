@@ -95,7 +95,13 @@ server {
         # `add_header Cache-Control "..."` would send the browser two
         # concatenated values and make the effective policy ambiguous.
         expires off;
-        add_header Cache-Control "public, max-age=2592000, must-revalidate" always;
+        # No `always` flag on Cache-Control: nginx then applies this header
+        # only to 2xx/3xx responses. A transient 404 emitted by `try_files
+        # ... =404` below must NOT be cached for a month — the next deploy
+        # or upload should let users recover. Security headers keep
+        # `always` intentionally (they need to be present on error pages
+        # too, defense-in-depth against MIME sniffing / clickjacking).
+        add_header Cache-Control "public, max-age=2592000, must-revalidate";
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;
