@@ -91,7 +91,14 @@ class RecensioniRepository
             return null;
 
         } catch (\Throwable $e) {
-            SecureLogger::error('[RecensioniRepository] createReview failed', ['exception' => $e->getMessage()]);
+            // Also log the mysqli-level error alongside the exception. If the
+            // exception fired during prepare()/bind_param() before we reached
+            // $stmt->execute(), only $this->db->error carries the underlying
+            // DB message — $e->getMessage() is the PHP-level wrapper.
+            SecureLogger::error('[RecensioniRepository] createReview failed', [
+                'exception' => $e->getMessage(),
+                'db_error'  => $this->db->error ?: null,
+            ]);
             return null;
         }
     }
