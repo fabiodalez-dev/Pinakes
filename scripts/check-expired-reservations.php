@@ -18,14 +18,18 @@ if (php_sapi_name() !== 'cli') {
 $dotenv = Dotenv::createImmutable(__DIR__ . '/..');
 $dotenv->load();
 
-// Connect to DB
+// Connect to DB. DB_SOCKET support: on macOS Homebrew MySQL the TCP
+// listener is disabled by default; passing the socket path via the 6th
+// mysqli arg is the portable way to cover both Linux TCP and macOS
+// unix-socket installs without per-env branches.
 $host = $_ENV['DB_HOST'] ?? '127.0.0.1';
 $user = $_ENV['DB_USER'] ?? 'root';
 $pass = $_ENV['DB_PASS'] ?? '';
 $name = $_ENV['DB_NAME'] ?? 'biblioteca';
 $port = (int) ($_ENV['DB_PORT'] ?? 3306);
+$sock = $_ENV['DB_SOCKET'] ?? null;
 
-$db = new mysqli($host, $user, $pass, $name, $port);
+$db = new mysqli($host, $user, $pass, $name, $port, $sock ?: null);
 if ($db->connect_error) {
     die("Connection failed: " . $db->connect_error);
 }

@@ -43,14 +43,18 @@ function logMessage(string $message, string $logFile): void
 $dotenv = Dotenv::createImmutable($projectRoot);
 $dotenv->load();
 
-// Connect to DB
+// Connect to DB. Respect DB_SOCKET when set — on macOS Homebrew MySQL
+// listens only on the unix socket by default, so building a mysqli with
+// TCP host/port fails with ENOENT. Passing the 6th arg (socket) keeps
+// the script portable across Linux (TCP) and macOS (socket) installs.
 $host = $_ENV['DB_HOST'] ?? '127.0.0.1';
 $user = $_ENV['DB_USER'] ?? 'root';
 $pass = $_ENV['DB_PASS'] ?? '';
 $name = $_ENV['DB_NAME'] ?? 'biblioteca';
 $port = (int) ($_ENV['DB_PORT'] ?? 3306);
+$sock = $_ENV['DB_SOCKET'] ?? null;
 
-$db = new mysqli($host, $user, $pass, $name, $port);
+$db = new mysqli($host, $user, $pass, $name, $port, $sock ?: null);
 if ($db->connect_error) {
     logMessage('ERROR: DB connection failed: ' . $db->connect_error, $logFile);
     exit(1);
