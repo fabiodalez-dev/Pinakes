@@ -777,19 +777,40 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
     await page.goto(`${BASE}/admin/plugins`);
     await page.waitForLoadState('domcontentloaded');
 
-    const scrapingProCard = page.locator('text=scraping-pro, text=Scraping Pro').first();
-    if (!await scrapingProCard.isVisible({ timeout: 3000 }).catch(() => false)) {
+    // Each plugin is rendered as a `[data-plugin-id]` card; find the one
+    // whose heading contains "Scraping Pro". If the plugin isn't bundled
+    // in this install (e.g. fresh install that didn't auto-register it),
+    // skip — the rest of Phase 5 already skips downstream if import btn
+    // isn't visible.
+    const proCard = page.locator('[data-plugin-id]', {
+      has: page.locator('text=/Scraping\\s*Pro/i'),
+    }).first();
+    if (!await proCard.isVisible({ timeout: 3000 }).catch(() => false)) {
       test.skip(true, 'scraping-pro plugin not available');
       return;
     }
 
-    // Look for activate button
-    const activateBtn = page.locator('button:has-text("Attiva"), a:has-text("Attiva")').first();
-    if (await activateBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+    // The activate button uses `onclick="activatePlugin(ID)"`. If it's
+    // missing, the plugin is already active — that's a pass.
+    const activateBtn = proCard.locator('button:has-text("Attiva")');
+    if (await activateBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+      // activatePlugin() does a fetch + SweetAlert confirmation. Handle
+      // both the confirm Swal and the subsequent success Swal.
       await activateBtn.click();
+      // Accept the "Attivare il plugin?" confirm dialog if it appears.
+      const confirmBtn = page.locator('.swal2-confirm:visible');
+      if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await confirmBtn.click();
+      }
+      // Wait for the success toast/modal, then dismiss.
+      await page.waitForFunction(
+        () => document.querySelector('.swal2-popup .swal2-icon.swal2-success') !== null,
+        { timeout: 10000 },
+      ).catch(() => {});
+      await page.keyboard.press('Enter').catch(() => {});
+      // Plugin list auto-reloads; wait for the DOM to settle.
       await page.waitForLoadState('domcontentloaded');
     }
-    // If already active, that's fine
   });
 
   test('5.3 Import book with scraping-pro (if active)', async () => {
@@ -1116,32 +1137,50 @@ test.describe.serial('Phase 7: Author Management', () => {
     test.skip(state.authorIds.length < 3, 'Need at least 3 authors');
 
     const sourceId = state.authorIds[1]; // AuthorB
-    const targetId = state.authorIds[0]; // AuthorA
+    const targetId = state.authorIds[0]; // AuthorA — becomes the merge primary
 
+    // Real merge UI lives on the author list page: `.row-select[data-id]`
+    // checkboxes + `#bulk-merge` button → Swal with `#swal-primary-author`
+    // select → confirm → AJAX POST /api/autori/merge.
     await page.goto(`${BASE}/admin/autori`);
     await page.waitForLoadState('domcontentloaded');
 
-    // Use merge via the author detail page if available
-    await page.goto(`${BASE}/admin/autori/${sourceId}`);
-    await page.waitForLoadState('domcontentloaded');
+    // Wait for DataTable rows to render — the checkboxes are added by
+    // DataTable row callbacks, not by the static view.
+    await page.waitForSelector(`.row-select[data-id="${sourceId}"]`, { timeout: 10000 });
+    await page.waitForSelector(`.row-select[data-id="${targetId}"]`, { timeout: 5000 });
 
-    const mergeSelect = page.locator('#merge_target_id, select[name="target_id"]');
-    if (await mergeSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
-      page.once('dialog', d => d.accept());
-      await mergeSelect.selectOption(String(targetId));
-      await page.locator('form[action*="merge"] button[type="submit"], form[action*="unisci"] button[type="submit"], #merge-author-form button[type="submit"]').first().click();
-      await page.waitForLoadState('domcontentloaded');
+    // Select source + target checkboxes. The select-all listener seeds the
+    // internal `selectedAuthors` Set from click events, so we must click
+    // each checkbox (not just `.check()`).
+    await page.locator(`.row-select[data-id="${sourceId}"]`).click();
+    await page.locator(`.row-select[data-id="${targetId}"]`).click();
 
-      // Source should be deleted
-      const srcExists = dbQuery(`SELECT COUNT(*) FROM autori WHERE id = ${sourceId}`);
-      expect(srcExists).toBe('0');
+    // Kick off the bulk merge flow (opens a Swal with the target picker).
+    await page.locator('#bulk-merge').click();
+    await page.waitForSelector('#swal-primary-author', { timeout: 10000 });
+    await page.locator('#swal-primary-author').selectOption(String(targetId));
 
-      // Remove merged ID from state
-      state.authorIds = state.authorIds.filter(id => id !== sourceId);
-    } else {
-      // Merge UI not available on detail page — skip
-      test.skip(true, 'Author merge UI not found');
-    }
+    // Confirm in the Swal; the AJAX POST /api/autori/merge runs on confirm.
+    await page.locator('.swal2-confirm:visible').click();
+
+    // Wait for the post-merge success Swal to appear, then dismiss it so
+    // subsequent tests aren't blocked by a lingering modal.
+    await page.waitForFunction(
+      () => {
+        const icon = document.querySelector('.swal2-popup .swal2-icon.swal2-success');
+        return icon !== null;
+      },
+      { timeout: 15000 },
+    ).catch(() => {});
+    await page.keyboard.press('Enter').catch(() => {});
+    await page.waitForTimeout(500);
+
+    // Verify: the source author is gone from the `autori` table.
+    const srcExists = dbQuery(`SELECT COUNT(*) FROM autori WHERE id = ${sourceId}`);
+    expect(srcExists).toBe('0');
+
+    state.authorIds = state.authorIds.filter(id => id !== sourceId);
   });
 
   test('7.5 Edit merged author', async () => {
@@ -1255,22 +1294,34 @@ test.describe.serial('Phase 8: Publisher Management', () => {
     const sourceId = state.publisherIds[1];
     const targetId = state.publisherIds[0];
 
-    await page.goto(`${BASE}/admin/editori/${sourceId}`);
+    // Same real-UI pattern as Phase 7.4 for authors, but the publisher
+    // list uses `#swal-primary-publisher` instead of `#swal-primary-author`
+    // and posts to /api/editori/merge.
+    await page.goto(`${BASE}/admin/editori`);
     await page.waitForLoadState('domcontentloaded');
 
-    const mergeSelect = page.locator('#merge_target_id, select[name="target_id"]');
-    if (await mergeSelect.isVisible({ timeout: 3000 }).catch(() => false)) {
-      page.once('dialog', d => d.accept());
-      await mergeSelect.selectOption(String(targetId));
-      await page.locator('form[action*="merge"] button[type="submit"], form[action*="unisci"] button[type="submit"]').first().click();
-      await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector(`.row-select[data-id="${sourceId}"]`, { timeout: 10000 });
+    await page.waitForSelector(`.row-select[data-id="${targetId}"]`, { timeout: 5000 });
 
-      const srcExists = dbQuery(`SELECT COUNT(*) FROM editori WHERE id = ${sourceId}`);
-      expect(srcExists).toBe('0');
-      state.publisherIds = state.publisherIds.filter(id => id !== sourceId);
-    } else {
-      test.skip(true, 'Publisher merge UI not found');
-    }
+    await page.locator(`.row-select[data-id="${sourceId}"]`).click();
+    await page.locator(`.row-select[data-id="${targetId}"]`).click();
+
+    await page.locator('#bulk-merge').click();
+    await page.waitForSelector('#swal-primary-publisher', { timeout: 10000 });
+    await page.locator('#swal-primary-publisher').selectOption(String(targetId));
+
+    await page.locator('.swal2-confirm:visible').click();
+
+    await page.waitForFunction(
+      () => document.querySelector('.swal2-popup .swal2-icon.swal2-success') !== null,
+      { timeout: 15000 },
+    ).catch(() => {});
+    await page.keyboard.press('Enter').catch(() => {});
+    await page.waitForTimeout(500);
+
+    const srcExists = dbQuery(`SELECT COUNT(*) FROM editori WHERE id = ${sourceId}`);
+    expect(srcExists).toBe('0');
+    state.publisherIds = state.publisherIds.filter(id => id !== sourceId);
   });
 
   test('8.4 Edit publisher', async () => {
