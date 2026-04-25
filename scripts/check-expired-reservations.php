@@ -22,6 +22,11 @@ $dotenv->load();
 // listener is disabled by default; passing the socket path via the 6th
 // mysqli arg is the portable way to cover both Linux TCP and macOS
 // unix-socket installs without per-env branches.
+//
+// IMPORTANT: mysqli only honors the socket when host is 'localhost' — any
+// IP literal (127.0.0.1, ::1) forces TCP and silently ignores the socket
+// argument. We therefore force host=localhost when DB_SOCKET is provided,
+// regardless of what DB_HOST says, otherwise the override is a no-op.
 $host = $_ENV['DB_HOST'] ?? '127.0.0.1';
 $user = $_ENV['DB_USER'] ?? 'root';
 $pass = $_ENV['DB_PASS'] ?? '';
@@ -29,6 +34,9 @@ $name = $_ENV['DB_NAME'] ?? 'biblioteca';
 $port = (int) ($_ENV['DB_PORT'] ?? 3306);
 $sock = $_ENV['DB_SOCKET'] ?? null;
 
+if ($sock) {
+    $host = 'localhost';
+}
 $db = new mysqli($host, $user, $pass, $name, $port, $sock ?: null);
 if ($db->connect_error) {
     die("Connection failed: " . $db->connect_error);
