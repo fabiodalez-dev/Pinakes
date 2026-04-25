@@ -43,26 +43,10 @@ function logMessage(string $message, string $logFile): void
 $dotenv = Dotenv::createImmutable($projectRoot);
 $dotenv->load();
 
-// Connect to DB. Respect DB_SOCKET when set — on macOS Homebrew MySQL
-// listens only on the unix socket by default, so building a mysqli with
-// TCP host/port fails with ENOENT. Passing the 6th arg (socket) keeps
-// the script portable across Linux (TCP) and macOS (socket) installs.
-//
-// IMPORTANT: mysqli only honors the socket when host is 'localhost' — any
-// IP literal (127.0.0.1, ::1) forces TCP and silently ignores the socket
-// argument. We therefore force host=localhost when DB_SOCKET is provided,
-// regardless of what DB_HOST says, otherwise the override is a no-op.
-$host = $_ENV['DB_HOST'] ?? '127.0.0.1';
-$user = $_ENV['DB_USER'] ?? 'root';
-$pass = $_ENV['DB_PASS'] ?? '';
-$name = $_ENV['DB_NAME'] ?? 'biblioteca';
-$port = (int) ($_ENV['DB_PORT'] ?? 3306);
-$sock = $_ENV['DB_SOCKET'] ?? null;
-
-if ($sock) {
-    $host = 'localhost';
-}
-$db = new mysqli($host, $user, $pass, $name, $port, $sock ?: null);
+// Connect to DB via the shared cron bootstrap helper (handles DB_SOCKET
+// host normalisation so the socket is actually used on macOS installs).
+require __DIR__ . '/_db_bootstrap.php';
+$db = pinakes_db_from_env();
 if ($db->connect_error) {
     logMessage('ERROR: DB connection failed: ' . $db->connect_error, $logFile);
     exit(1);
