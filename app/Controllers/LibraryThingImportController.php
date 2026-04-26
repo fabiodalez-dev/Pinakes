@@ -81,7 +81,7 @@ class LibraryThingImportController
      */
     private function log(string $message): void
     {
-        $logFile = __DIR__ . '/../../writable/logs/import.log';
+        $logFile = dirname(__DIR__, 2) . '/storage/logs/import.log';
         $timestamp = date('Y-m-d H:i:s');
         // Sanitize message to prevent log injection (strip newlines/control chars)
         $message = str_replace(["\r", "\n", "\t"], ' ', $message);

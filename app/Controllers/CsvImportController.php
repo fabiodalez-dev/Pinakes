@@ -44,7 +44,7 @@ class CsvImportController
      */
     private function log(string $message): void
     {
-        $logFile = __DIR__ . '/../../writable/logs/import.log';
+        $logFile = dirname(__DIR__, 2) . '/storage/logs/import.log';
         $timestamp = date('Y-m-d H:i:s');
         // Sanitize message to prevent log injection (strip newlines/control chars)
         $message = str_replace(["\r", "\n", "\t"], ' ', $message);
@@ -383,7 +383,7 @@ class CsvImportController
                         ];
 
                         // Also log to file for debugging
-                        $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                        $logFile = dirname(__DIR__, 2) . '/storage/logs/csv_errors.log';
                         $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
                         $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $scrapeError->getMessage());
                         $logMsg = sprintf(
@@ -413,7 +413,7 @@ class CsvImportController
                 $this->log("[processChunk] ERROR Trace: " . $e->getTraceAsString());
 
                 // Log to csv_errors.log (legacy)
-                $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                $logFile = dirname(__DIR__, 2) . '/storage/logs/csv_errors.log';
                 $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
                 $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $e->getMessage());
                 $logMsg = sprintf(
