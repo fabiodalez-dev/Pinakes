@@ -1327,7 +1327,8 @@ return function (App $app): void {
     $app->get('/admin/libri/import/librarything/progress', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->getProgress($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    })->add(new AdminAuthMiddleware());
+    // No RateLimitMiddleware: see CSV /import/progress for rationale (#113).
 
     // Import History routes (Sprint 3)
     $app->get('/admin/imports-history', function ($request, $response) use ($app) {
