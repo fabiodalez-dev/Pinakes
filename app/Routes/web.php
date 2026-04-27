@@ -1255,7 +1255,12 @@ return function (App $app): void {
     $app->get('/admin/libri/import/progress', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();
         return $controller->getProgress($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
+    })->add(new AdminAuthMiddleware());
+    // No RateLimitMiddleware here: this is a read-only progress poll behind
+    // admin auth, called every 1-2s by the import UI to refresh the bar.
+    // A 30/60s throttle saturated on imports of ~500+ rows (#113) and the
+    // user got hard-stuck behind a 429. The POST endpoints (/upload, /chunk)
+    // keep their rate limits — those are the abuse vector.
 
     // CSV Import Chunk Processing (AJAX)
     $app->post('/admin/libri/import/chunk', function ($request, $response) use ($app) {
