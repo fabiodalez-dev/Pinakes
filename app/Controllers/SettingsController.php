@@ -421,7 +421,7 @@ class SettingsController
             // Parse the URL
             $parsedUrl = parse_url($mapUrl);
             if ($parsedUrl === false || $parsedUrl['scheme'] !== 'https') {
-                $_SESSION['error_message'] = 'URL non valido. Deve essere un URL HTTPS valido.';
+                $_SESSION['error_message'] = __('URL non valido. Deve essere un URL HTTPS valido.');
                 return $this->redirect($response, '/admin/settings?tab=contacts');
             }
 
@@ -449,7 +449,7 @@ class SettingsController
             }
 
             if (!$isValidMap) {
-                $_SESSION['error_message'] = 'URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed.html?...).';
+                $_SESSION['error_message'] = __('URL non valido. Deve essere un URL di Google Maps (https://www.google.com/maps/embed?...) o OpenStreetMap (https://www.openstreetmap.org/export/embed.html?...).');
                 return $this->redirect($response, '/admin/settings?tab=contacts');
             }
 
@@ -726,12 +726,12 @@ class SettingsController
                 ConfigStore::set('label.height', $height);
                 ConfigStore::set('label.format_name', $formatName);
 
-                $_SESSION['success_message'] = 'Formato etichette aggiornato correttamente.';
+                $_SESSION['success_message'] = __('Formato etichette aggiornato correttamente.');
             } else {
-                $_SESSION['error_message'] = 'Dimensioni etichetta non valide. Devono essere comprese tra 10mm e 100mm.';
+                $_SESSION['error_message'] = __('Dimensioni etichetta non valide. Devono essere comprese tra 10mm e 100mm.');
             }
         } else {
-            $_SESSION['error_message'] = 'Formato etichetta non valido.';
+            $_SESSION['error_message'] = __('Formato etichetta non valido.');
         }
 
         return $this->redirect($response, '/admin/settings?tab=labels');

@@ -1741,7 +1741,7 @@ function updatePagination(pagination) {
     const current = pagination.current_page;
     const total = pagination.total_pages;
 
-    let html = '<nav aria-label="Page navigation"><ul class="pagination justify-content-center">';
+    let html = '<nav aria-label="' + window.__('Page navigation') + '"><ul class="pagination justify-content-center">';
 
     if (current > 1) {
         html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current - 1) + ')" title="' + i18n.pagina_precedente + '"><i class="fas fa-chevron-left"></i></a></li>';

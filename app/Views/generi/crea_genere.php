@@ -6,7 +6,7 @@
       <ol class="flex items-center space-x-2 text-sm">
         <li>
           <a href="<?= htmlspecialchars(url('/admin/dashboard'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-home mr-1"></i>Home
+            <i class="fas fa-home mr-1"></i><?= __('Home') ?>
           </a>
         </li>
         <li>
@@ -14,13 +14,13 @@
         </li>
         <li>
           <a href="<?= htmlspecialchars(url('/admin/generi'), ENT_QUOTES, 'UTF-8') ?>" class="text-gray-500 hover:text-gray-700 transition-colors">
-            <i class="fas fa-tags mr-1"></i>Generi
+            <i class="fas fa-tags mr-1"></i><?= __('Generi') ?>
           </a>
         </li>
         <li>
           <i class="fas fa-chevron-right text-gray-400 text-xs"></i>
         </li>
-        <li class="text-gray-900 font-medium">Nuovo</li>
+        <li class="text-gray-900 font-medium"><?= __('Nuovo') ?></li>
       </ol>
     </nav>
     <div class="mb-8 fade-in">
@@ -29,7 +29,7 @@
           <i class="fas fa-tags text-blue-600"></i>
           <?= __("Crea Nuovo Genere") ?>
         </h1>
-        <p class="text-gray-600 dark:text-gray-300">Aggiungi un genere o un sottogenere alla struttura.</p>
+        <p class="text-gray-600 dark:text-gray-300"><?= __('Aggiungi un genere o un sottogenere alla struttura.') ?></p>
       </div>
     </div>
 
@@ -39,13 +39,13 @@
       <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/60 dark:border-gray-700/60 p-6">
         <div class="grid grid-cols-1 gap-6">
           <div>
-            <label for="nome" class="form-label">Nome genere <span class="text-red-500">*</span></label>
+            <label for="nome" class="form-label"><?= __('Nome genere') ?> <span class="text-red-500">*</span></label>
             <input id="nome" name="nome" required aria-required="true" class="form-input" placeholder="<?= __('es. Fantasy contemporaneo') ?>" />
           </div>
           <div>
-            <label for="parent_id" class="form-label">Genere padre (opzionale)</label>
+            <label for="parent_id" class="form-label"><?= __('Genere padre (opzionale)') ?></label>
             <select id="parent_id" name="parent_id" class="form-input">
-              <option value="">Nessun padre (genere principale)</option>
+              <option value=""><?= __('Nessun padre (genere principale)') ?></option>
               <?php foreach (($generiParentOptions ?? []) as $g): if (($g['parent_id'] ?? null) === null): ?>
                 <option value="<?php echo (int)$g['id']; ?>">
                   <?php echo htmlspecialchars($g['nome'], ENT_QUOTES, 'UTF-8'); ?>

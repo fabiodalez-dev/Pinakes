@@ -1075,7 +1075,7 @@ $pluginSettings = $pluginSettings ?? [];
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Nome Server") ?></label>
-                <input type="text" name="server_name[]" value="${safeName}" placeholder="es. SBN Nazionale" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <input type="text" name="server_name[]" value="${safeName}" placeholder="<?= htmlspecialchars(__('es. SBN Nazionale'), ENT_QUOTES, 'UTF-8') ?>" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("URL Endpoint SRU") ?></label>
@@ -1087,7 +1087,7 @@ $pluginSettings = $pluginSettings ?? [];
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Indice ISBN") ?></label>
-                <input type="text" name="server_isbn_index[]" value="${safeIsbnIndex}" placeholder="es. bath.isbn" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
+                <input type="text" name="server_isbn_index[]" value="${safeIsbnIndex}" placeholder="<?= htmlspecialchars(__('es. bath.isbn'), ENT_QUOTES, 'UTF-8') ?>" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Sintassi") ?></label>

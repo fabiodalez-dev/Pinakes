@@ -552,7 +552,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               <div class="relative">
                 <button id="notifications-button"
                   class="relative p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-                  title="Notifiche">
+                  title="<?= __('Notifiche') ?>">
                   <i class="fas fa-bell text-lg text-gray-600"></i>
                   <span id="notifications-badge"
                     class="hidden absolute -top-1 -right-1 w-6 h-6 rounded-full bg-red-500 text-white text-sm font-bold flex items-center justify-center shadow-lg ring-2 ring-white"></span>

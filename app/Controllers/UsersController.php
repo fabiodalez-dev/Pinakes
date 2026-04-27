@@ -526,7 +526,7 @@ class UsersController
         $stmt->close();
 
         if (!$success) {
-            $_SESSION['error_message'] = 'Errore durante l\'eliminazione: ' . $error;
+            $_SESSION['error_message'] = __('Errore durante l\'eliminazione') . ': ' . $error;
             return $response->withHeader('Location', '/admin/utenti?error=db_error')->withStatus(302);
         }
 
@@ -825,25 +825,25 @@ class UsersController
 
         // Generate CSV with ALL available fields
         $headers = [
-            'ID',
-            'Codice Tessera',
-            'Nome',
-            'Cognome',
-            'Email',
-            'Telefono',
-            'Indirizzo',
-            'Data Nascita',
-            'Sesso',
-            'Data Registrazione',
-            'Data Scadenza Tessera',
-            'Stato',
-            'Tipo Utente',
-            'Codice Fiscale',
-            'Note Utente',
-            'Email Verificata',
-            'Data Ultimo Accesso',
-            'Created At',
-            'Updated At'
+            __('ID'),
+            __('Codice Tessera'),
+            __('Nome'),
+            __('Cognome'),
+            __('Email'),
+            __('Telefono'),
+            __('Indirizzo'),
+            __('Data Nascita'),
+            __('Sesso'),
+            __('Data Registrazione'),
+            __('Data Scadenza Tessera'),
+            __('Stato'),
+            __('Tipo Utente'),
+            __('Codice Fiscale'),
+            __('Note Utente'),
+            __('Email Verificata'),
+            __('Data Ultimo Accesso'),
+            __('Created At'),
+            __('Updated At'),
         ];
 
         $output = "\xEF\xBB\xBF"; // UTF-8 BOM

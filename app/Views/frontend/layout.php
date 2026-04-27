@@ -108,7 +108,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
     <!-- SEO Meta Tags -->
     <meta name="description"
-        content="<?= HtmlHelper::e($seoDescription ?? ($appName . ' digitale con catalogo completo di libri disponibili per il prestito')) ?>">
+        content="<?= HtmlHelper::e($seoDescription ?? __('Biblioteca digitale con catalogo completo di libri disponibili per il prestito')) ?>">
     <?php if (isset($seoKeywords) && !empty($seoKeywords)): ?>
         <meta name="keywords" content="<?= htmlspecialchars($seoKeywords) ?>">
     <?php endif; ?>
@@ -1334,7 +1334,29 @@ $htmlLang = substr($currentLocale, 0, 2);
     <!-- Silktide Consent Manager CSS -->
     <link rel="stylesheet" href="<?= htmlspecialchars(assetUrl('/css/silktide-consent-manager.css'), ENT_QUOTES, 'UTF-8') ?>">
     <script>
-        window.__ = window.__ || function (key) { return key; };
+        // Real translation table + helper for the public frontend (was an
+        // identity-function no-op before, leaving JS strings in Italian for
+        // non-IT visitors). Mirrors the admin and user-area layouts.
+        <?php
+        $frontendLocale = \App\Support\I18n::getLocale();
+        $frontendTranslationFile = __DIR__ . '/../../../locale/' . $frontendLocale . '.json';
+        $frontendTranslations = [];
+        if (file_exists($frontendTranslationFile)) {
+            $frontendTranslations = json_decode((string) file_get_contents($frontendTranslationFile), true) ?? [];
+        }
+        ?>
+        window.i18nTranslations = <?= json_encode($frontendTranslations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
+        window.__ = function (key, ...args) {
+            let translated = window.i18nTranslations[key] || key;
+            if (args.length > 0) {
+                let argIndex = 0;
+                translated = translated.replace(/%(\d+\$)?[sd]/g, function () {
+                    const value = args[argIndex++];
+                    return value !== undefined ? String(value) : '';
+                });
+            }
+            return translated;
+        };
     </script>
 </head>
 

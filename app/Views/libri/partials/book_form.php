@@ -1161,7 +1161,7 @@ function displayImagePreview(file) {
         container.innerHTML = `
             <div class="inline-flex flex-col items-start space-y-2">
                 <div class="relative">
-                    <img src="${e.target.result}" alt="Anteprima copertina" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm">
+                    <img src="${e.target.result}" alt="${window.__ ? window.__('Anteprima copertina') : 'Anteprima copertina'}" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm">
                 </div>
                 <div class="flex items-center gap-4">
                     <div class="flex items-center gap-2 text-sm text-gray-600">
