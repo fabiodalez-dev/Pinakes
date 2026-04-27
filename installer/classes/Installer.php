@@ -785,15 +785,31 @@ class Installer {
         // Hash password
         $passwordHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 
+        // Resolve the locale chosen during the installer wizard. Without
+        // this the new admin row falls through to the schema default for
+        // utenti.locale ('it_IT'), and AuthController on first login then
+        // calls I18n::setLocale('it_IT') from $row['locale'], reverting
+        // the language no matter what the user picked at step 0 (#112).
+        $sessionLocale = $_SESSION['app_locale'] ?? '';
+        $envLocale     = $this->config['APP_LOCALE'] ?? '';
+        $rawLocale     = (string) ($sessionLocale !== '' ? $sessionLocale : $envLocale);
+        $localeMap = [
+            'it' => 'it_IT', 'it_it' => 'it_IT',
+            'en' => 'en_US', 'en_us' => 'en_US',
+            'de' => 'de_DE', 'de_de' => 'de_DE',
+        ];
+        $normalized = strtolower(str_replace('-', '_', $rawLocale));
+        $adminLocale = $localeMap[$normalized] ?? ($rawLocale !== '' ? $rawLocale : 'it_IT');
+
         // Insert admin user
         $query = "
             INSERT INTO utenti (
                 nome, cognome, email, password, codice_tessera,
-                tipo_utente, stato, email_verificata,
+                tipo_utente, stato, email_verificata, locale,
                 data_scadenza_tessera, created_at, updated_at
             ) VALUES (
                 :nome, :cognome, :email, :password, :codice_tessera,
-                'admin', 'attivo', 1,
+                'admin', 'attivo', 1, :locale,
                 DATE_ADD(NOW(), INTERVAL 10 YEAR), NOW(), NOW()
             )
         ";
@@ -806,7 +822,8 @@ class Installer {
                 'cognome' => $cognome,
                 'email' => $email,
                 'password' => $passwordHash,
-                'codice_tessera' => $codiceTessera
+                'codice_tessera' => $codiceTessera,
+                'locale' => $adminLocale,
             ]);
 
             $userId = $pdo->lastInsertId();
