@@ -68,7 +68,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?php echo HtmlHelper::e($title ?? ($appName . ' - Area Utente')); ?></title>
+    <title><?= HtmlHelper::e($title ?? ($appName . ' - ' . __("Area Utente"))) ?></title>
     <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>">
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
