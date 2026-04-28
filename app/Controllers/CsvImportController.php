@@ -45,10 +45,14 @@ class CsvImportController
     private function log(string $message): void
     {
         $logFile = dirname(__DIR__, 2) . '/storage/logs/import.log';
+        $logDir = dirname($logFile);
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0775, true);
+        }
         $timestamp = date('Y-m-d H:i:s');
         // Sanitize message to prevent log injection (strip newlines/control chars)
         $message = str_replace(["\r", "\n", "\t"], ' ', $message);
-        file_put_contents($logFile, "[$timestamp] [CSV] $message\n", FILE_APPEND);
+        @file_put_contents($logFile, "[$timestamp] [CSV] $message\n", FILE_APPEND | LOCK_EX);
     }
 
     /**
@@ -384,6 +388,10 @@ class CsvImportController
 
                         // Also log to file for debugging
                         $logFile = dirname(__DIR__, 2) . '/storage/logs/csv_errors.log';
+                        $logDir = dirname($logFile);
+                        if (!is_dir($logDir)) {
+                            @mkdir($logDir, 0775, true);
+                        }
                         $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
                         $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $scrapeError->getMessage());
                         $logMsg = sprintf(
@@ -393,7 +401,7 @@ class CsvImportController
                             $safeTitle,
                             $safeMsg
                         );
-                        file_put_contents($logFile, $logMsg, FILE_APPEND);
+                        @file_put_contents($logFile, $logMsg, FILE_APPEND | LOCK_EX);
                     }
                 }
 
@@ -414,6 +422,10 @@ class CsvImportController
 
                 // Log to csv_errors.log (legacy)
                 $logFile = dirname(__DIR__, 2) . '/storage/logs/csv_errors.log';
+                $logDir = dirname($logFile);
+                if (!is_dir($logDir)) {
+                    @mkdir($logDir, 0775, true);
+                }
                 $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
                 $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $e->getMessage());
                 $logMsg = sprintf(
@@ -423,7 +435,7 @@ class CsvImportController
                     $safeTitle,
                     $safeMsg
                 );
-                file_put_contents($logFile, $logMsg, FILE_APPEND);
+                @file_put_contents($logFile, $logMsg, FILE_APPEND | LOCK_EX);
             }
 
             $processed++;

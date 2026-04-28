@@ -826,7 +826,11 @@ class LibriController
         // DEBUG: Log field processing for store method
         // SECURITY: Logging disabilitato in produzione per prevenire information disclosure
         if (getenv('APP_ENV') === 'development') {
-            $debugFile = $this->getStoragePath() . '/field_debug.log';
+            $debugDir = $this->getStoragePath();
+            if (!is_dir($debugDir)) {
+                @mkdir($debugDir, 0775, true);
+            }
+            $debugFile = $debugDir . '/field_debug.log';
             $debugEntry = "FIELD PROCESSING (STORE):\n";
             foreach ($fields as $key => $value) {
                 $type = gettype($value);
@@ -835,7 +839,7 @@ class LibriController
                     $displayValue = substr($displayValue, 0, 100) . '...';
                 $debugEntry .= "  {$key} ({$type}): '{$displayValue}'\n";
             }
-            @file_put_contents($debugFile, $debugEntry, FILE_APPEND);
+            @file_put_contents($debugFile, $debugEntry, FILE_APPEND | LOCK_EX);
         }
 
         // Duplicate check on identifiers (EAN/ISBN) with advisory lock to prevent race conditions

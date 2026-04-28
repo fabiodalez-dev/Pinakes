@@ -888,23 +888,60 @@ class Installer {
     }
 
     /**
-     * Upload and save logo
+     * Upload and save logo (hardened — CR R7 / Bug-hunt #4-1).
+     *
+     * Defense-in-depth against arbitrary-file-write to public/assets/, which
+     * sits under DocumentRoot. The installer is the most-privileged surface
+     * (only reachable when the app isn't installed), so a logo upload that
+     * trusts the client extension would let an attacker drop `logo_X.php`
+     * straight into a web-served path.
+     *
+     * - Whitelist MIME via finfo (raster only — SVG dropped: it's XML and
+     *   carries XSS risk via embedded <script>/onload)
+     * - Derive the extension from the verified MIME, not from the client
+     * - 2 MB hard cap matches SettingsController::handleLogoUpload
+     * - Random filename via cryptographic RNG so an attacker can't predict
+     *   the URL prior to upload
+     * - chmod 0644 to prevent execution if the host ever maps the dir to PHP
      */
     public function uploadLogo($file) {
         $uploadDir = $this->baseDir . '/public/assets';
 
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+            throw new \RuntimeException('Impossibile creare la directory di upload');
         }
 
-        // Generate unique filename
-        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $filename = 'logo_' . uniqid() . '.' . $extension;
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('Upload logo non valido');
+        }
+        if (($file['size'] ?? 0) > 2 * 1024 * 1024) {
+            throw new \RuntimeException('Il logo supera il limite massimo di 2MB');
+        }
+
+        $allowedMimes = [
+            'image/png'  => 'png',
+            'image/jpeg' => 'jpg',
+            'image/webp' => 'webp',
+        ];
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime  = $finfo ? finfo_file($finfo, $file['tmp_name']) : '';
+        if ($finfo) {
+            finfo_close($finfo);
+        }
+
+        if (!isset($allowedMimes[$mime])) {
+            throw new \RuntimeException('Formato logo non supportato. Usa PNG, JPG o WEBP');
+        }
+        $extension = $allowedMimes[$mime];
+
+        $filename    = 'logo_' . bin2hex(random_bytes(8)) . '.' . $extension;
         $destination = $uploadDir . '/' . $filename;
 
         if (!move_uploaded_file($file['tmp_name'], $destination)) {
-            throw new Exception("Impossibile salvare il logo");
+            throw new \RuntimeException('Impossibile salvare il logo');
         }
+        @chmod($destination, 0644);
 
         return '/assets/' . $filename;
     }

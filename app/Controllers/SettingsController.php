@@ -335,15 +335,17 @@ class SettingsController
 
         $finfo = new \finfo(FILEINFO_MIME_TYPE);
         $mime = $finfo->file($tmpPath) ?: '';
+        // Bug-hunt #4-2: SVG dropped — it's XML, browsers render embedded
+        // <script>/onload as same-origin code. Until we ship a server-side
+        // SVG sanitizer (e.g. enshrined/svg-sanitize), only raster formats.
         $allowed = [
             'image/png' => 'png',
             'image/jpeg' => 'jpg',
             'image/webp' => 'webp',
-            'image/svg+xml' => 'svg',
         ];
 
         if (!isset($allowed[$mime])) {
-            return ['success' => false, 'message' => 'Formato logo non supportato. Usa PNG, JPG, WEBP o SVG.'];
+            return ['success' => false, 'message' => __('Formato logo non supportato. Usa PNG, JPG o WEBP.')];
         }
 
         $extension = $allowed[$mime];

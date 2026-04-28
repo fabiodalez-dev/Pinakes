@@ -82,10 +82,14 @@ class LibraryThingImportController
     private function log(string $message): void
     {
         $logFile = dirname(__DIR__, 2) . '/storage/logs/import.log';
+        $logDir = dirname($logFile);
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0775, true);
+        }
         $timestamp = date('Y-m-d H:i:s');
         // Sanitize message to prevent log injection (strip newlines/control chars)
         $message = str_replace(["\r", "\n", "\t"], ' ', $message);
-        file_put_contents($logFile, "[$timestamp] [LT] $message\n", FILE_APPEND);
+        @file_put_contents($logFile, "[$timestamp] [LT] $message\n", FILE_APPEND | LOCK_EX);
     }
 
     /**

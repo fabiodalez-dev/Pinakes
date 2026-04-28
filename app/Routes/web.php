@@ -1368,7 +1368,10 @@ return function (App $app): void {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->syncCovers($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(1, 120))->add(new AdminAuthMiddleware()); // 1 request per 2 minutes (long-running operation)
+    })
+        ->add(new CsrfMiddleware()) // Bug-hunt #3-2: state-changing POST needs CSRF
+        ->add(new \App\Middleware\RateLimitMiddleware(1, 120))
+        ->add(new AdminAuthMiddleware()); // 1 request per 2 minutes (long-running operation)
 
     // Bulk enrichment routes
     $app->get('/admin/libri/bulk-enrich', function ($request, $response) use ($app) {
@@ -1937,10 +1940,17 @@ return function (App $app): void {
     $app->get('/api/dewey/path', [DeweyApiController::class, 'getPath'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
     $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    // Bug-hunt #3-3: previously open to any visitor with a session CSRF;
+    // restricted to admin/staff (the legitimate caller is the admin book
+    // form's "download cover" button) plus rate limit to prevent disk-fill
+    // / SSRF amplification.
     $app->post('/api/cover/download', function ($request, $response) {
         $controller = new \App\Controllers\CoverController();
         return $controller->download($request, $response);
-    })->add(new CsrfMiddleware());
+    })
+        ->add(new CsrfMiddleware())
+        ->add(new \App\Middleware\RateLimitMiddleware(10, 60))
+        ->add(new AdminAuthMiddleware());
     $app->get('/api/libri', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\LibriApiController();
         $db = $app->getContainer()->get('db');
@@ -2004,11 +2014,14 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->publishers($request, $response, $db);
     });
+    // PII endpoint: only admin/staff may enumerate users (Bug-hunt #3-1).
+    // Pre-fix this route was unauthenticated and leaked first/last name +
+    // tessera codes via search.
     $app->get('/api/search/utenti', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
         return $controller->users($request, $response, $db);
-    });
+    })->add(new AdminAuthMiddleware());
     $app->get('/api/search/libri', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
