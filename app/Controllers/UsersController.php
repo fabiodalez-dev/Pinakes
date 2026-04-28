@@ -526,7 +526,11 @@ class UsersController
         $stmt->close();
 
         if (!$success) {
-            $_SESSION['error_message'] = __('Errore durante l\'eliminazione') . ': ' . $error;
+            \App\Support\SecureLogger::error('User deletion failed', [
+                'user_id' => $id,
+                'mysqli_error' => $error,
+            ]);
+            $_SESSION['error_message'] = __('Errore durante l\'eliminazione');
             return $response->withHeader('Location', '/admin/utenti?error=db_error')->withStatus(302);
         }
 

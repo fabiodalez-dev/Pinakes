@@ -31,10 +31,22 @@ if (!function_exists('pinakes_db_from_env')) {
      */
     function pinakes_db_from_env(): mysqli
     {
-        $host = $_ENV['DB_HOST'] ?? '127.0.0.1';
-        $user = $_ENV['DB_USER'] ?? 'root';
-        $pass = $_ENV['DB_PASS'] ?? '';
-        $name = $_ENV['DB_NAME'] ?? 'biblioteca';
+        // Fail loudly if required env vars are missing — silent defaults
+        // (root / biblioteca) can connect a cron to the wrong DB if .env is
+        // truncated or absent, which is unacceptable for scripts that mutate
+        // state (CR R6).
+        foreach (['DB_HOST', 'DB_USER', 'DB_NAME'] as $requiredKey) {
+            if (!isset($_ENV[$requiredKey]) || $_ENV[$requiredKey] === '') {
+                throw new \RuntimeException(
+                    "Missing required environment variable: {$requiredKey} (load .env before calling pinakes_db_from_env())"
+                );
+            }
+        }
+
+        $host = (string) $_ENV['DB_HOST'];
+        $user = (string) $_ENV['DB_USER'];
+        $pass = (string) ($_ENV['DB_PASS'] ?? '');
+        $name = (string) $_ENV['DB_NAME'];
         $port = (int) ($_ENV['DB_PORT'] ?? 3306);
         $sock = $_ENV['DB_SOCKET'] ?? null;
 

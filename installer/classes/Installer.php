@@ -792,14 +792,21 @@ class Installer {
         // the language no matter what the user picked at step 0 (#112).
         $sessionLocale = $_SESSION['app_locale'] ?? '';
         $envLocale     = $this->config['APP_LOCALE'] ?? '';
-        $rawLocale     = (string) ($sessionLocale !== '' ? $sessionLocale : $envLocale);
+        $rawLocale     = trim((string) ($sessionLocale !== '' ? $sessionLocale : $envLocale));
         $localeMap = [
             'it' => 'it_IT', 'it_it' => 'it_IT',
             'en' => 'en_US', 'en_us' => 'en_US',
             'de' => 'de_DE', 'de_de' => 'de_DE',
         ];
+        $supportedLocales = array_values(array_unique(array_values($localeMap)));
         $normalized = strtolower(str_replace('-', '_', $rawLocale));
-        $adminLocale = $localeMap[$normalized] ?? ($rawLocale !== '' ? $rawLocale : 'it_IT');
+        if (isset($localeMap[$normalized])) {
+            $adminLocale = $localeMap[$normalized];
+        } elseif (in_array($rawLocale, $supportedLocales, true)) {
+            $adminLocale = $rawLocale;
+        } else {
+            $adminLocale = 'it_IT';
+        }
 
         // Insert admin user
         $query = "

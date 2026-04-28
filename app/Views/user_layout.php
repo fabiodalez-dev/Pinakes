@@ -68,7 +68,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= HtmlHelper::e($title ?? ($appName . ' - ' . __("Area Utente"))) ?></title>
+    <title><?= htmlspecialchars($title ?? ($appName . ' - ' . __("Area Utente")), ENT_QUOTES, 'UTF-8') ?></title>
     <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>">
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
@@ -808,8 +808,9 @@ $htmlLang = substr($currentLocale, 0, 2);
             let translated = window.i18nTranslations[key] || key;
             if (args.length > 0) {
                 let argIndex = 0;
-                translated = translated.replace(/%(\d+\$)?[sd]/g, function () {
-                    const value = args[argIndex++];
+                translated = translated.replace(/%(\d+\$)?[sd]/g, function (match, position) {
+                    const resolvedIndex = position ? parseInt(position, 10) - 1 : argIndex++;
+                    const value = args[resolvedIndex];
                     return value !== undefined ? String(value) : '';
                 });
             }
@@ -845,13 +846,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </ul>
 
                     <!-- Mobile Menu Toggle -->
-                    <button class="mobile-menu-toggle d-md-none" id="mobileMenuToggle" aria-label="<?= __('Toggle menu') ?>">
+                    <button class="mobile-menu-toggle d-md-none" id="mobileMenuToggle" aria-label="<?= htmlspecialchars(__('Toggle menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-bars"></i>
                     </button>
 
                     <form class="search-form d-none d-md-block" action="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q"
-                            placeholder="<?= __('Cerca libri, autori, ISBN...') ?>" aria-label="<?= __('Search') ?>">
+                            placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>">
                     </form>
 
                     <div class="user-menu d-none d-md-flex">
@@ -914,8 +915,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </div>
 
                     <form class="search-form d-md-none w-100" action="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" method="get">
-                        <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri...') ?>"
-                            aria-label="<?= __('Search') ?>">
+                        <input class="search-input" type="search" name="q" placeholder="<?= htmlspecialchars(__('Cerca libri...'), ENT_QUOTES, 'UTF-8') ?>"
+                            aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>">
                     </form>
                 </div>
             </div>
@@ -926,7 +927,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             <div class="mobile-menu-content">
                 <div class="mobile-menu-header">
                     <span class="brand-text"><?= HtmlHelper::e($appName) ?></span>
-                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= __('Close menu') ?>">
+                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= htmlspecialchars(__('Close menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>

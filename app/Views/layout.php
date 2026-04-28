@@ -23,7 +23,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title><?= HtmlHelper::e($appName) ?> - <?= __("Library Management System") ?></title>
+  <title><?= htmlspecialchars($appName, ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars(__("Library Management System"), ENT_QUOTES, 'UTF-8') ?></title>
   <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>" />
   <link rel="icon" type="image/x-icon" href="<?= htmlspecialchars(url('/favicon.ico'), ENT_QUOTES, 'UTF-8') ?>">
   <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;</script>
@@ -552,7 +552,7 @@ $htmlLang = substr($currentLocale, 0, 2);
               <div class="relative">
                 <button id="notifications-button"
                   class="relative p-3 rounded-xl hover:bg-gray-100 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-gray-500/20"
-                  title="<?= __('Notifiche') ?>">
+                  title="<?= htmlspecialchars(__('Notifiche'), ENT_QUOTES, 'UTF-8') ?>">
                   <i class="fas fa-bell text-lg text-gray-600"></i>
                   <span id="notifications-badge"
                     class="hidden absolute -top-1 -right-1 w-6 h-6 rounded-full bg-red-500 text-white text-sm font-bold flex items-center justify-center shadow-lg ring-2 ring-white"></span>

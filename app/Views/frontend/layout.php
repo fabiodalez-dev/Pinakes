@@ -108,7 +108,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
     <!-- SEO Meta Tags -->
     <meta name="description"
-        content="<?= HtmlHelper::e($seoDescription ?? __('Biblioteca digitale con catalogo completo di libri disponibili per il prestito')) ?>">
+        content="<?= htmlspecialchars($seoDescription ?? __('Biblioteca digitale con catalogo completo di libri disponibili per il prestito'), ENT_QUOTES, 'UTF-8') ?>">
     <?php if (isset($seoKeywords) && !empty($seoKeywords)): ?>
         <meta name="keywords" content="<?= htmlspecialchars($seoKeywords) ?>">
     <?php endif; ?>
@@ -1350,8 +1350,9 @@ $htmlLang = substr($currentLocale, 0, 2);
             let translated = window.i18nTranslations[key] || key;
             if (args.length > 0) {
                 let argIndex = 0;
-                translated = translated.replace(/%(\d+\$)?[sd]/g, function () {
-                    const value = args[argIndex++];
+                translated = translated.replace(/%(\d+\$)?[sd]/g, function (match, position) {
+                    const resolvedIndex = position ? parseInt(position, 10) - 1 : argIndex++;
+                    const value = args[resolvedIndex];
                     return value !== undefined ? String(value) : '';
                 });
             }

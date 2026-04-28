@@ -10,14 +10,22 @@ const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8082';
-const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || 'admin@pinakes.test';
-const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || 'Pinakes!Testing2026';
+const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
 const DB_HOST = process.env.E2E_DB_HOST   || 'localhost';
 const DB_USER = process.env.E2E_DB_USER   || '';
 const DB_PASS = process.env.E2E_DB_PASS   || '';
 const DB_NAME = process.env.E2E_DB_NAME   || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 const LOCALE = process.env.E2E_LOCALE || 'it_IT';
+
+// Hard skip when E2E env is incomplete — without these vars the wizard would
+// silently fail at the DB-config step (or worse, write to the wrong DB).
+// Per CR R6 review: refuse to run rather than produce a misleading green/red.
+test.skip(
+  !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME,
+  'multilang-install-i18n requires E2E_ADMIN_EMAIL, E2E_ADMIN_PASS, E2E_DB_USER, E2E_DB_NAME',
+);
 
 // Expected seed values for the `generi` table (top-5 IDs).
 // Source: installer/database/data_<locale>.sql
