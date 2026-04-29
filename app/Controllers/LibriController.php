@@ -8,6 +8,7 @@ use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\SecureLogger;
 use App\Support\LibraryThingInstaller;
+use App\Models\SeriesRepository;
 use Slim\Exception\HttpNotFoundException;
 
 class LibriController
@@ -100,6 +101,19 @@ class LibriController
     private function getCoversUrlPath(): string
     {
         return '/uploads/copertine';
+    }
+
+    private function syncSeriesMetadataFromBookForm(mysqli $db, int $bookId, array $fields, array $data): void
+    {
+        try {
+            (new SeriesRepository($db))->syncBookFromForm($bookId, $fields, $data);
+        } catch (\Throwable $e) {
+            SecureLogger::warning('LibriController::syncSeriesMetadataFromBookForm failed', [
+                'error' => $e->getMessage(),
+                'libro_id' => $bookId,
+                'collana' => $fields['collana'] ?? '',
+            ]);
+        }
     }
 
     /**
@@ -1086,6 +1100,7 @@ class LibriController
             \App\Support\Hooks::do('book.save.before', [$fields, null]);
 
             $id = $repo->createBasic($fields);
+            $this->syncSeriesMetadataFromBookForm($db, $id, $fields, $data);
 
             // Handle LibraryThing fields visibility preferences
             if (LibraryThingInstaller::isInstalled($db)
@@ -1648,6 +1663,7 @@ class LibriController
             \App\Support\Hooks::do('book.save.before', [$fields, $id]);
 
             $repo->updateBasic($id, $fields);
+            $this->syncSeriesMetadataFromBookForm($db, $id, $fields, $data);
 
             // Handle LibraryThing fields visibility preferences
             if (LibraryThingInstaller::isInstalled($db)

@@ -883,12 +883,41 @@ CREATE TABLE `wishlist` (
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `collane` (
   `id` int NOT NULL AUTO_INCREMENT,
+  `parent_id` int DEFAULT NULL COMMENT 'Parent series/cycle for nested series hierarchies',
+  `tipo` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'serie' COMMENT 'Series kind: serie, universo, ciclo, stagione, spin_off, arco, collezione_editoriale, altro',
   `nome` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'Series name (must match libri.collana values)',
   `descrizione` text COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Series description',
+  `gruppo_serie` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Umbrella series/universe grouping for spin-offs',
+  `ciclo` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Cycle or season label inside the series group',
+  `ordine_ciclo` smallint unsigned DEFAULT NULL COMMENT 'Sort order for cycle/season inside the group',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_collana_nome` (`nome`)
+  UNIQUE KEY `uk_collana_nome` (`nome`),
+  KEY `idx_collane_parent` (`parent_id`),
+  KEY `idx_collane_tipo` (`tipo`),
+  KEY `idx_collane_gruppo_serie` (`gruppo_serie`),
+  KEY `idx_collane_gruppo_ordine` (`gruppo_serie`,`ordine_ciclo`,`nome`),
+  CONSTRAINT `fk_collane_parent` FOREIGN KEY (`parent_id`) REFERENCES `collane` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `libri_collane` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `libro_id` int NOT NULL,
+  `collana_id` int NOT NULL,
+  `numero_serie` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `tipo_appartenenza` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'principale',
+  `is_principale` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uk_libro_collana` (`libro_id`,`collana_id`),
+  KEY `idx_lc_collana` (`collana_id`),
+  KEY `idx_lc_principale` (`libro_id`,`is_principale`),
+  CONSTRAINT `fk_lc_collana` FOREIGN KEY (`collana_id`) REFERENCES `collane` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_lc_libro` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

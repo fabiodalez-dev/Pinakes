@@ -4,6 +4,16 @@ use App\Support\ConfigStore;
 // Variables passed from controller
 $libro = $libro ?? [];
 $isCatalogueMode = ConfigStore::isCatalogueMode();
+$seriesTypeLabels = [
+    'serie' => __('Serie'),
+    'universo' => __('Universo / macroserie'),
+    'ciclo' => __('Ciclo'),
+    'stagione' => __('Stagione'),
+    'spin_off' => __('Spin-off'),
+    'arco' => __('Arco narrativo'),
+    'collezione_editoriale' => __('Collana editoriale'),
+    'altro' => __('Altro'),
+];
 
 // Resolve tipo_media once for badge display and dynamic labels
 $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($libro['formato'] ?? null, $libro['tipo_media'] ?? null);
@@ -349,9 +359,27 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(format_date($libro['data_pubblicazione'])); ?></dd>
             </div>
             <?php endif; ?>
+            <?php if (!empty($libro['gruppo_serie'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Gruppo serie") ?></dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['gruppo_serie']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['serie_padre'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Serie padre / universo") ?></dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['serie_padre']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['tipo_collana'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Tipo serie") ?></dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($seriesTypeLabels[$libro['tipo_collana']] ?? $libro['tipo_collana']); ?></dd>
+            </div>
+            <?php endif; ?>
             <?php if (!empty($libro['collana'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= __("Collana") ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Serie principale") ?></dt>
               <dd class="text-gray-900 font-medium">
                 <a href="<?= htmlspecialchars(url('/admin/libri?collana=' . urlencode($libro['collana'])), ENT_QUOTES, 'UTF-8') ?>"
                    class="text-gray-700 hover:text-gray-900 hover:underline transition-colors">
@@ -360,10 +388,36 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               </dd>
             </div>
             <?php endif; ?>
+            <?php if (!empty($libro['ciclo_serie'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Ciclo / stagione") ?></dt>
+              <dd class="text-gray-900 font-medium">
+                <?php echo App\Support\HtmlHelper::e($libro['ciclo_serie']); ?>
+                <?php if (!empty($libro['ordine_ciclo'])): ?>
+                  <span class="text-gray-500">#<?php echo (int)$libro['ordine_ciclo']; ?></span>
+                <?php endif; ?>
+              </dd>
+            </div>
+            <?php endif; ?>
             <?php if (!empty($libro['numero_serie'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Numero serie") ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['numero_serie']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['serie_appartenenze']) && count($libro['serie_appartenenze']) > 1): ?>
+            <div class="md:col-span-2">
+              <dt class="text-xs uppercase text-gray-500"><?= __("Tutte le serie") ?></dt>
+              <dd class="text-gray-900 font-medium">
+                <?php foreach ($libro['serie_appartenenze'] as $membership): ?>
+                  <span class="inline-flex items-center px-2 py-1 mr-1 mb-1 rounded-full bg-gray-100 text-gray-800 text-xs">
+                    <?= App\Support\HtmlHelper::e($membership['nome'] ?? '') ?>
+                    <?php if (!empty($membership['numero_serie'])): ?>
+                      <span class="text-gray-500 ml-1">#<?= App\Support\HtmlHelper::e((string) $membership['numero_serie']) ?></span>
+                    <?php endif; ?>
+                  </span>
+                <?php endforeach; ?>
+              </dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['numero_pagine'])): ?>

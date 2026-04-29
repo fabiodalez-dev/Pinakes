@@ -44,7 +44,13 @@ $initialData = [
     'peso' => $book['peso'] ?? '',
     'numero_pagine' => $book['numero_pagine'] ?? '',
     'numero_inventario' => $book['numero_inventario'] ?? '',
+    'gruppo_serie' => $book['gruppo_serie'] ?? '',
+    'serie_padre' => $book['serie_padre'] ?? '',
+    'tipo_collana' => $book['tipo_collana'] ?? 'serie',
     'collana' => $book['collana'] ?? '',
+    'altre_collane' => $book['altre_collane'] ?? '',
+    'ciclo_serie' => $book['ciclo_serie'] ?? '',
+    'ordine_ciclo' => $book['ordine_ciclo'] ?? '',
     'numero_serie' => $book['numero_serie'] ?? '',
     'note_varie' => $book['note_varie'] ?? '',
     'file_url' => $book['file_url'] ?? '',
@@ -62,6 +68,17 @@ $initialAuthorsJson = htmlspecialchars(json_encode($initialAuthors, JSON_HEX_TAG
 $initialDataJsonRaw = json_encode($initialData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 $modeAttr = htmlspecialchars($mode, ENT_QUOTES, 'UTF-8');
 $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
+$seriesTypeOptions = [
+    'serie' => __('Serie'),
+    'universo' => __('Universo / macroserie'),
+    'ciclo' => __('Ciclo'),
+    'stagione' => __('Stagione'),
+    'spin_off' => __('Spin-off'),
+    'arco' => __('Arco narrativo'),
+    'collezione_editoriale' => __('Collana editoriale'),
+    'altro' => __('Altro'),
+];
+$selectedSeriesType = (string)($book['tipo_collana'] ?? 'serie');
 ?>
 <?php if (!empty($error_message)): ?>
   <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700" role="alert">
@@ -473,19 +490,51 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           </h2>
         </div>
         <div class="card-body form-section">
-          <div class="form-grid-3">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label for="numero_inventario" class="form-label"><?= __("Numero Inventario") ?></label>
               <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="<?= __('es. INV-2024-001') ?>" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
             </div>
             <div>
-              <label for="collana" class="form-label"><?= __("Collana") ?></label>
-              <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= __('es. I Classici') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" />
+              <label for="gruppo_serie" class="form-label"><?= __("Gruppo serie") ?></label>
+              <input id="gruppo_serie" name="gruppo_serie" type="text" class="form-input" placeholder="<?= __('es. Fairy Tail') ?>" value="<?php echo HtmlHelper::e($book['gruppo_serie'] ?? ''); ?>" />
+            </div>
+            <div>
+              <label for="serie_padre" class="form-label"><?= __("Serie padre / universo") ?></label>
+              <input id="serie_padre" name="serie_padre" type="text" class="form-input" placeholder="<?= __('es. I mondi di Aldebaran') ?>" value="<?php echo HtmlHelper::e($book['serie_padre'] ?? ''); ?>" />
+            </div>
+            <div>
+              <label for="tipo_collana" class="form-label"><?= __("Tipo serie") ?></label>
+              <select id="tipo_collana" name="tipo_collana" class="form-input">
+                <?php foreach ($seriesTypeOptions as $typeValue => $typeLabel): ?>
+                  <option value="<?= HtmlHelper::e($typeValue) ?>" <?= $selectedSeriesType === $typeValue ? 'selected' : '' ?>><?= HtmlHelper::e($typeLabel) ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label for="collana" class="form-label"><?= __("Serie principale") ?></label>
+              <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= __('es. Fairy Tail: 100 Years Quest') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" />
             </div>
             <div>
               <label for="numero_serie" class="form-label"><?= __("Numero Serie") ?></label>
               <input id="numero_serie" name="numero_serie" type="text" class="form-input" placeholder="<?= __('es. 15') ?>" value="<?php echo HtmlHelper::e($book['numero_serie'] ?? ''); ?>" />
             </div>
+            <div>
+              <label for="ciclo_serie" class="form-label"><?= __("Ciclo / stagione") ?></label>
+              <input id="ciclo_serie" name="ciclo_serie" type="text" class="form-input" placeholder="<?= __('es. Ciclo 1 - Aldebaran') ?>" value="<?php echo HtmlHelper::e($book['ciclo_serie'] ?? ''); ?>" />
+            </div>
+            <div>
+              <label for="ordine_ciclo" class="form-label"><?= __("Ordine ciclo") ?></label>
+              <input id="ordine_ciclo" name="ordine_ciclo" type="number" min="1" class="form-input" placeholder="1" value="<?php echo HtmlHelper::e((string)($book['ordine_ciclo'] ?? '')); ?>" />
+            </div>
+          </div>
+
+          <div>
+            <label for="altre_collane" class="form-label"><?= __("Altre serie") ?></label>
+            <textarea id="altre_collane" name="altre_collane" rows="2" class="form-input" placeholder="<?= HtmlHelper::e(__('Una serie per riga o separate da virgola')) ?>"><?php echo HtmlHelper::e($book['altre_collane'] ?? ''); ?></textarea>
           </div>
 
           <div class="form-grid-2">

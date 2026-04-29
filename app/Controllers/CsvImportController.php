@@ -1319,6 +1319,26 @@ class CsvImportController
 
         $stmt->execute();
         $stmt->close();
+
+        $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
+    }
+
+    private function syncImportedSeries(\mysqli $db, int $bookId, ?string $collana, ?string $numeroSerie): void
+    {
+        $collana = trim((string) $collana);
+        if ($bookId <= 0 || $collana === '') {
+            return;
+        }
+
+        try {
+            (new \App\Models\SeriesRepository($db))->syncBookMemberships($bookId, $collana, $numeroSerie);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('CsvImportController::syncImportedSeries failed', [
+                'error' => $e->getMessage(),
+                'libro_id' => $bookId,
+                'collana' => $collana,
+            ]);
+        }
     }
 
     /**
@@ -1422,6 +1442,7 @@ class CsvImportController
         $stmt->execute();
         $bookId = $db->insert_id;
         $stmt->close();
+        $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
 
         // Genera copie fisiche nella tabella copie
         $copyRepo = new \App\Models\CopyRepository($db);

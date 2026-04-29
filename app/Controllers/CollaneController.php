@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\SeriesRepository;
 use App\Support\HtmlHelper;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -23,45 +24,29 @@ class CollaneController
         }
     }
 
+    private function nullableString(mixed $value): ?string
+    {
+        $value = trim((string) $value);
+        return $value === '' ? null : $value;
+    }
+
+    private function nullableCycleOrder(mixed $value): ?int
+    {
+        if ($value === null || trim((string) $value) === '') {
+            return null;
+        }
+        $order = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 65535]]);
+        return $order === false ? null : (int) $order;
+    }
+
     /**
      * List all distinct collane with book counts.
      */
     public function index(Request $request, Response $response, mysqli $db): Response
     {
-        $collane = [];
-
-        if ($this->hasCollaneTable($db)) {
-            $result = $db->query("
-                SELECT combined.collana,
-                       COUNT(l.id) AS book_count,
-                       MIN(CAST(l.numero_serie AS UNSIGNED)) AS min_num,
-                       MAX(CAST(l.numero_serie AS UNSIGNED)) AS max_num
-                FROM (
-                    SELECT collana FROM libri WHERE collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
-                    UNION
-                    SELECT nome AS collana FROM collane WHERE nome IS NOT NULL AND nome != ''
-                ) AS combined
-                LEFT JOIN libri l ON l.collana = combined.collana AND l.deleted_at IS NULL
-                GROUP BY combined.collana
-                ORDER BY combined.collana ASC
-            ");
-        } else {
-            $result = $db->query("
-                SELECT collana, COUNT(*) AS book_count,
-                       MIN(CAST(numero_serie AS UNSIGNED)) AS min_num,
-                       MAX(CAST(numero_serie AS UNSIGNED)) AS max_num
-                FROM libri
-                WHERE collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
-                GROUP BY collana
-                ORDER BY collana ASC
-            ");
-        }
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
-                $collane[] = $row;
-            }
-            $result->free();
-        }
+        $seriesRepo = new SeriesRepository($db);
+        $supportsHierarchy = $seriesRepo->supportsHierarchy();
+        $collane = $seriesRepo->listSeries();
 
         ob_start();
         require __DIR__ . '/../Views/collane/index.php';
@@ -83,53 +68,50 @@ class CollaneController
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
-        // Get collana metadata (description) from collane table
+        $seriesRepo = new SeriesRepository($db);
+        $supportsHierarchy = $seriesRepo->supportsHierarchy();
+
+        // Get collana metadata from collane table
         $collanaDesc = '';
-        if ($this->hasCollaneTable($db)) {
-            $stmtMeta = $db->prepare("SELECT descrizione FROM collane WHERE nome = ?");
-            if ($stmtMeta) {
-                $stmtMeta->bind_param('s', $collana);
-                $stmtMeta->execute();
-                $metaRes = $stmtMeta->get_result();
-                $metaRow = $metaRes->fetch_assoc();
-                $collanaDesc = $metaRow['descrizione'] ?? '';
-                $stmtMeta->close();
-            }
+        $seriesGroup = '';
+        $seriesCycle = '';
+        $cycleOrder = null;
+        $seriesParent = '';
+        $seriesType = 'serie';
+        $seriesRepo->ensureCollana($collana, [], false);
+        $metaRow = $seriesRepo->getSeriesByName($collana);
+        if ($metaRow) {
+            $collanaDesc = $metaRow['descrizione'] ?? '';
+            $seriesGroup = $metaRow['gruppo_serie'] ?? '';
+            $seriesCycle = $metaRow['ciclo'] ?? '';
+            $cycleOrder = $metaRow['ordine_ciclo'] ?? null;
+            $seriesParent = $metaRow['parent_nome'] ?? '';
+            $seriesType = $metaRow['tipo'] ?? 'serie';
         }
 
-        $books = [];
-        $stmt = $db->prepare("
-            SELECT l.id, l.titolo, l.numero_serie, l.isbn13, l.isbn10, l.copertina_url,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
-            FROM libri l
-            WHERE l.collana = ? AND l.deleted_at IS NULL
-            ORDER BY CAST(l.numero_serie AS UNSIGNED), l.titolo
-        ");
-        if ($stmt) {
-            $stmt->bind_param('s', $collana);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            while ($row = $result->fetch_assoc()) {
-                $books[] = $row;
-            }
-            $stmt->close();
-        }
+        $relatedCollane = $seriesRepo->getRelatedSeries($collana);
+        $books = $seriesRepo->getBooksForSeries($collana);
 
         // Check if a multi-volume parent exists for this collana
         $hasParentWork = false;
-        $stmtParent = $db->prepare("
-            SELECT COUNT(*) AS cnt FROM volumi v
-            JOIN libri l ON v.opera_id = l.id AND l.deleted_at IS NULL
-            JOIN libri l2 ON v.volume_id = l2.id AND l2.collana = ? AND l2.deleted_at IS NULL
-            LIMIT 1
-        ");
-        if ($stmtParent) {
-            $stmtParent->bind_param('s', $collana);
-            $stmtParent->execute();
-            $res = $stmtParent->get_result();
-            $hasParentWork = ($res->fetch_assoc()['cnt'] ?? 0) > 0;
-            $stmtParent->close();
+        $bookIds = array_values(array_filter(array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $books)));
+        if ($bookIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($bookIds), '?'));
+            $stmtParent = $db->prepare("
+                SELECT COUNT(*) AS cnt
+                  FROM volumi v
+                  JOIN libri l ON v.opera_id = l.id AND l.deleted_at IS NULL
+                 WHERE v.volume_id IN ($placeholders)
+                 LIMIT 1
+            ");
+            if ($stmtParent) {
+                $types = str_repeat('i', count($bookIds));
+                $stmtParent->bind_param($types, ...$bookIds);
+                $stmtParent->execute();
+                $res = $stmtParent->get_result();
+                $hasParentWork = ($res->fetch_assoc()['cnt'] ?? 0) > 0;
+                $stmtParent->close();
+            }
         }
 
         ob_start();
@@ -149,20 +131,24 @@ class CollaneController
     {
         $data = $request->getParsedBody() ?? [];
         $nome = trim((string) ($data['nome'] ?? ''));
+        $seriesGroup = $this->nullableString($data['gruppo_serie'] ?? null);
+        $seriesCycle = $this->nullableString($data['ciclo'] ?? null);
+        $cycleOrder = $this->nullableCycleOrder($data['ordine_ciclo'] ?? null);
+        $seriesParent = $this->nullableString($data['serie_padre'] ?? null);
+        $seriesType = (new SeriesRepository($db))->normalizeType((string) ($data['tipo_collana'] ?? 'serie'));
 
         if ($nome === '') {
             $_SESSION['error_message'] = __('Nome collana non valido');
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
-        if ($this->hasCollaneTable($db)) {
-            $stmt = $db->prepare("INSERT IGNORE INTO collane (nome) VALUES (?)");
-            if ($stmt) {
-                $stmt->bind_param('s', $nome);
-                $stmt->execute();
-                $stmt->close();
-            }
-        }
+        (new SeriesRepository($db))->ensureCollana($nome, [
+            'gruppo_serie' => $seriesGroup,
+            'ciclo' => $seriesCycle,
+            'ordine_ciclo' => $cycleOrder,
+            'parent_nome' => $seriesParent,
+            'tipo' => $seriesType,
+        ]);
 
         $_SESSION['success_message'] = sprintf(__('Collana "%s" creata'), $nome);
         return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($nome)))->withStatus(302);
@@ -183,25 +169,7 @@ class CollaneController
 
         $db->begin_transaction();
         try {
-            // Remove collana from all books
-            $stmt = $db->prepare("UPDATE libri SET collana = NULL, numero_serie = NULL, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
-            if (!$stmt) {
-                throw new \RuntimeException($db->error);
-            }
-            $stmt->bind_param('s', $nome);
-            $stmt->execute();
-            $affected = $stmt->affected_rows;
-            $stmt->close();
-
-            // Delete from collane table (if it exists)
-            if ($this->hasCollaneTable($db)) {
-                $stmt2 = $db->prepare("DELETE FROM collane WHERE nome = ?");
-                if ($stmt2) {
-                    $stmt2->bind_param('s', $nome);
-                    $stmt2->execute();
-                    $stmt2->close();
-                }
-            }
+            $affected = (new SeriesRepository($db))->deleteSeries($nome);
 
             $db->commit();
             $_SESSION['success_message'] = sprintf(__('Collana "%s" eliminata (%d libri aggiornati)'), $nome, $affected);
@@ -221,26 +189,30 @@ class CollaneController
         $data = $request->getParsedBody() ?? [];
         $nome = trim((string) ($data['nome'] ?? ''));
         $descrizione = trim((string) ($data['descrizione'] ?? ''));
+        $seriesGroup = $this->nullableString($data['gruppo_serie'] ?? null);
+        $seriesCycle = $this->nullableString($data['ciclo'] ?? null);
+        $cycleOrder = $this->nullableCycleOrder($data['ordine_ciclo'] ?? null);
+        $seriesParent = $this->nullableString($data['serie_padre'] ?? null);
+        $seriesRepo = new SeriesRepository($db);
+        $seriesType = $seriesRepo->normalizeType((string) ($data['tipo_collana'] ?? 'serie'));
 
         if ($nome === '') {
             $_SESSION['error_message'] = __('Nome collana non valido');
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
-        if (!$this->hasCollaneTable($db)) {
+        if (!$seriesRepo->hasCollaneTable()) {
             $_SESSION['error_message'] = __('Errore database');
             return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($nome)))->withStatus(302);
         }
-        $stmt = $db->prepare("INSERT INTO collane (nome, descrizione) VALUES (?, ?) ON DUPLICATE KEY UPDATE descrizione = VALUES(descrizione)");
-        if ($stmt) {
-            $stmt->bind_param('ss', $nome, $descrizione);
-            $ok = $stmt->execute();
-            $stmt->close();
-            if (!$ok) {
-                $_SESSION['error_message'] = __('Errore database');
-                return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($nome)))->withStatus(302);
-            }
-        }
+        $seriesRepo->ensureCollana($nome, [
+            'descrizione' => $descrizione,
+            'gruppo_serie' => $seriesGroup,
+            'ciclo' => $seriesCycle,
+            'ordine_ciclo' => $cycleOrder,
+            'parent_nome' => $seriesParent,
+            'tipo' => $seriesType,
+        ]);
 
         $_SESSION['success_message'] = __('Descrizione salvata');
         return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($nome)))->withStatus(302);
@@ -262,29 +234,7 @@ class CollaneController
 
         $db->begin_transaction();
         try {
-            $stmt = $db->prepare("UPDATE libri SET collana = ?, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
-            if (!$stmt) {
-                throw new \RuntimeException($db->error);
-            }
-            $stmt->bind_param('ss', $newName, $oldName);
-            $stmt->execute();
-            $affected = $stmt->affected_rows;
-            $stmt->close();
-
-            // Sync collane table (if it exists)
-            if ($this->hasCollaneTable($db)) {
-                $stmtSync = $db->prepare("UPDATE collane SET nome = ? WHERE nome = ?");
-                if (!$stmtSync) {
-                    throw new \RuntimeException('Collane sync prepare failed: ' . $db->error);
-                }
-                $stmtSync->bind_param('ss', $newName, $oldName);
-                $ok = $stmtSync->execute();
-                $syncError = $ok ? '' : $db->error;
-                $stmtSync->close();
-                if (!$ok) {
-                    throw new \RuntimeException('Collane sync failed: ' . $syncError);
-                }
-            }
+            $affected = (new SeriesRepository($db))->renameSeries($oldName, $newName);
 
             $db->commit();
             $_SESSION['success_message'] = sprintf(__('Collana rinominata: %d libri aggiornati'), $affected);
@@ -313,24 +263,7 @@ class CollaneController
 
         $db->begin_transaction();
         try {
-            $stmt = $db->prepare("UPDATE libri SET collana = ?, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL");
-            if (!$stmt) {
-                throw new \RuntimeException($db->error);
-            }
-            $stmt->bind_param('ss', $target, $source);
-            $stmt->execute();
-            $affected = $stmt->affected_rows;
-            $stmt->close();
-
-            // Delete source collane entry, keep target (if table exists)
-            if ($this->hasCollaneTable($db)) {
-                $stmtDel = $db->prepare("DELETE FROM collane WHERE nome = ?");
-                if ($stmtDel) {
-                    $stmtDel->bind_param('s', $source);
-                    $stmtDel->execute();
-                    $stmtDel->close();
-                }
-            }
+            $affected = (new SeriesRepository($db))->mergeSeries($source, $target);
 
             $db->commit();
             $_SESSION['success_message'] = sprintf(__('Collane unite: %d libri spostati in "%s"'), $affected, $target);
@@ -357,14 +290,7 @@ class CollaneController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
-        $stmt = $db->prepare("UPDATE libri SET numero_serie = ?, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
-        if (!$stmt) {
-            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
-            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
-        }
-        $stmt->bind_param('si', $numero, $bookId);
-        $ok = $stmt->execute();
-        $stmt->close();
+        $ok = (new SeriesRepository($db))->updatePrimaryOrder($bookId, $numero === '' ? null : $numero);
 
         if (!$ok) {
             $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
@@ -389,30 +315,34 @@ class CollaneController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
-        $placeholders = implode(',', array_fill(0, count($bookIds), '?'));
-        $stmt = $db->prepare("UPDATE libri SET collana = ?, updated_at = NOW() WHERE id IN ($placeholders) AND deleted_at IS NULL");
-        if ($stmt) {
-            $types = 's' . str_repeat('i', count($bookIds));
-            $params = array_merge([$collana], $bookIds);
-            $stmt->bind_param($types, ...$params);
-            $ok = $stmt->execute();
-            $affected = $stmt->affected_rows;
-            $stmt->close();
-
-            if (!$ok) {
-                $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
-                return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
-            }
-
-            $response->getBody()->write(json_encode([
-                'success' => true,
-                'message' => sprintf(__('%d libri assegnati alla collana "%s"'), $affected, $collana)
-            ], JSON_UNESCAPED_UNICODE));
-            return $response->withHeader('Content-Type', 'application/json');
+        $seriesRepo = new SeriesRepository($db);
+        $affected = 0;
+        foreach ($bookIds as $bookId) {
+            $seriesRepo->assignPrimarySeries((int) $bookId, $collana);
+            $affected++;
         }
 
-        $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
-        return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+        $response->getBody()->write(json_encode([
+            'success' => true,
+            'message' => sprintf(__('%d libri assegnati alla collana "%s"'), $affected, $collana)
+        ], JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function removeBook(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = $request->getParsedBody() ?? [];
+        $bookId = (int) ($data['book_id'] ?? 0);
+        $collana = trim((string) ($data['collana'] ?? ''));
+
+        if ($bookId <= 0 || $collana === '') {
+            $_SESSION['error_message'] = __('Parametri non validi');
+            return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
+        }
+
+        (new SeriesRepository($db))->removeBookFromSeries($bookId, $collana);
+        $_SESSION['success_message'] = __('Libro rimosso dalla serie');
+        return $response->withHeader('Location', url('/admin/collane/dettaglio?nome=' . urlencode($collana)))->withStatus(302);
     }
 
     /**
@@ -488,6 +418,8 @@ class CollaneController
         $stmt->execute();
         $parentId = (int) $db->insert_id;
         $stmt->close();
+        $seriesRepo = new SeriesRepository($db);
+        $seriesRepo->assignPrimarySeries($parentId, $collana);
 
         if ($parentId <= 0) {
             $_SESSION['error_message'] = __('Errore nella creazione dell\'opera');
@@ -496,19 +428,11 @@ class CollaneController
 
         // Link all books in the collana as volumes
         $linkedCount = 0;
-        $stmtBooks = $db->prepare("SELECT id, numero_serie FROM libri WHERE collana = ? AND id != ? AND deleted_at IS NULL ORDER BY CAST(numero_serie AS UNSIGNED), titolo");
-        if ($stmtBooks) {
-            $stmtBooks->bind_param('si', $collana, $parentId);
-            $stmtBooks->execute();
-            $result = $stmtBooks->get_result();
-
-            // Fetch all rows first to collect used volume numbers
-            $rows = [];
-            while ($row = $result->fetch_assoc()) {
-                $rows[] = $row;
-            }
-            $stmtBooks->close();
-
+        $rows = array_values(array_filter(
+            $seriesRepo->getBooksForSeries($collana),
+            static fn(array $row): bool => (int) ($row['id'] ?? 0) !== $parentId
+        ));
+        if ($rows !== []) {
             // Build set of used numero_serie values
             $usedNumbers = [];
             foreach ($rows as $row) {
