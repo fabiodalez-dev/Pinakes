@@ -40,19 +40,15 @@ class CsvImportController
     }
 
     /**
-     * Write log message to import log file
+     * Route CSV import diagnostics through SecureLogger so PII redaction +
+     * retention apply (CR R7). Pre-fix this wrote raw user data into a flat
+     * import.log with no rotation — bypassing the project's central pipeline.
      */
     private function log(string $message): void
     {
-        $logFile = dirname(__DIR__, 2) . '/storage/logs/import.log';
-        $logDir = dirname($logFile);
-        if (!is_dir($logDir)) {
-            @mkdir($logDir, 0775, true);
-        }
-        $timestamp = date('Y-m-d H:i:s');
         // Sanitize message to prevent log injection (strip newlines/control chars)
         $message = str_replace(["\r", "\n", "\t"], ' ', $message);
-        @file_put_contents($logFile, "[$timestamp] [CSV] $message\n", FILE_APPEND | LOCK_EX);
+        \App\Support\SecureLogger::info('[CSV] ' . $message);
     }
 
     /**
@@ -386,22 +382,15 @@ class CsvImportController
                             'type' => 'scraping',
                         ];
 
-                        // Also log to file for debugging
-                        $logFile = dirname(__DIR__, 2) . '/storage/logs/csv_errors.log';
-                        $logDir = dirname($logFile);
-                        if (!is_dir($logDir)) {
-                            @mkdir($logDir, 0775, true);
-                        }
+                        // Route through SecureLogger so PII (titles, errors)
+                        // honour redaction + retention (CR R7).
                         $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
                         $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $scrapeError->getMessage());
-                        $logMsg = sprintf(
-                            "[%s] SCRAPING ERROR Riga %d (%s): %s\n",
-                            date('Y-m-d H:i:s'),
-                            $lineNumber,
-                            $safeTitle,
-                            $safeMsg
-                        );
-                        @file_put_contents($logFile, $logMsg, FILE_APPEND | LOCK_EX);
+                        \App\Support\SecureLogger::warning('[CSV] scraping error', [
+                            'line' => $lineNumber,
+                            'title' => $safeTitle,
+                            'message' => $safeMsg,
+                        ]);
                     }
                 }
 
@@ -420,22 +409,14 @@ class CsvImportController
                 $this->log("[processChunk] ERROR Class: " . get_class($e));
                 $this->log("[processChunk] ERROR Trace: " . $e->getTraceAsString());
 
-                // Log to csv_errors.log (legacy)
-                $logFile = dirname(__DIR__, 2) . '/storage/logs/csv_errors.log';
-                $logDir = dirname($logFile);
-                if (!is_dir($logDir)) {
-                    @mkdir($logDir, 0775, true);
-                }
+                // Route via SecureLogger (CR R7).
                 $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
                 $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $e->getMessage());
-                $logMsg = sprintf(
-                    "[%s] ERROR Riga %d (%s): %s\n\n",
-                    date('Y-m-d H:i:s'),
-                    $lineNumber,
-                    $safeTitle,
-                    $safeMsg
-                );
-                @file_put_contents($logFile, $logMsg, FILE_APPEND | LOCK_EX);
+                \App\Support\SecureLogger::error('[CSV] processChunk error', [
+                    'line' => $lineNumber,
+                    'title' => $safeTitle,
+                    'message' => $safeMsg,
+                ]);
             }
 
             $processed++;

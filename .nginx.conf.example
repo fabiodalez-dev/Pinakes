@@ -63,8 +63,9 @@ server {
     # because plugin asset paths are versioned by the plugin manifest).
     #
     # If the generic static location below catches these requests first, its
-    # `add_header Cache-Control "public, must-revalidate"` would stack on top
-    # of the plugin's header, sending the browser two conflicting values.
+    # `add_header Cache-Control "public, max-age=2592000, must-revalidate"`
+    # would stack on top of the plugin's header, sending the browser two
+    # conflicting values.
     # Route them straight to PHP so only the plugin's header reaches the wire.
     location ^~ /plugins/ {
         try_files $uri /index.php?$query_string;

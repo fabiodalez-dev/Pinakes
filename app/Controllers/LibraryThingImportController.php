@@ -77,19 +77,15 @@ class LibraryThingImportController
     }
 
     /**
-     * Write log message to import log file
+     * Route LibraryThing import diagnostics through SecureLogger so PII
+     * redaction + retention apply (CR R7). The previous flat-file sink
+     * logged raw ISBNs, titles, and stack traces with no rotation.
      */
     private function log(string $message): void
     {
-        $logFile = dirname(__DIR__, 2) . '/storage/logs/import.log';
-        $logDir = dirname($logFile);
-        if (!is_dir($logDir)) {
-            @mkdir($logDir, 0775, true);
-        }
-        $timestamp = date('Y-m-d H:i:s');
         // Sanitize message to prevent log injection (strip newlines/control chars)
         $message = str_replace(["\r", "\n", "\t"], ' ', $message);
-        @file_put_contents($logFile, "[$timestamp] [LT] $message\n", FILE_APPEND | LOCK_EX);
+        \App\Support\SecureLogger::info('[LT] ' . $message);
     }
 
     /**

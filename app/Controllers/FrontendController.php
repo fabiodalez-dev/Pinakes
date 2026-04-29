@@ -166,7 +166,7 @@ class FrontendController
                 ";
                 $stmt_genre_books = $db->prepare($query_genre_books);
                 if ($stmt_genre_books === false) {
-                    error_log('Failed to prepare genre books query: ' . $db->error);
+                    \App\Support\SecureLogger::error('Failed to prepare genre books query', ['db_error' => $db->error]);
                     continue;
                 }
                 $types = str_repeat('i', count($uniqueGenreIds));
@@ -1023,7 +1023,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $generi_flat = \App\Support\QueryCache::remember($cacheKeyGeneri, function() use ($db, $queryGeneri, $typesGen, $paramsGen) {
         $stmt = $db->prepare($queryGeneri);
         if ($stmt === false) {
-            error_log('FrontendController::getFilterOptions prepare failed: ' . $db->error);
+            \App\Support\SecureLogger::error('FrontendController::getFilterOptions prepare failed', ['db_error' => $db->error]);
             return [];
         }
         if (!empty($paramsGen)) {
@@ -1426,7 +1426,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             $placeholders = implode(',', array_fill(0, count($queue), '?'));
             $descStmt = $db->prepare("SELECT id FROM generi WHERE parent_id IN ($placeholders)");
             if ($descStmt === false) {
-                error_log('Failed to prepare descendant genre query: ' . $db->error);
+                \App\Support\SecureLogger::error('Failed to prepare descendant genre query', ['db_error' => $db->error]);
                 return $response->withStatus(500);
             }
             $types = str_repeat('i', count($queue));
@@ -1456,7 +1456,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         ";
         $stmt = $db->prepare($countQuery);
         if ($stmt === false) {
-            error_log('Failed to prepare genre count query: ' . $db->error);
+            \App\Support\SecureLogger::error('Failed to prepare genre count query', ['db_error' => $db->error]);
             return $response->withStatus(500);
         }
         $stmt->bind_param($idTypes, ...$genreIds);
@@ -1482,7 +1482,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
         $stmt = $db->prepare($booksQuery);
         if ($stmt === false) {
-            error_log('Failed to prepare genre books query: ' . $db->error);
+            \App\Support\SecureLogger::error('Failed to prepare genre books query', ['db_error' => $db->error]);
             return $response->withStatus(500);
         }
         $allParams = array_merge($genreIds, [$limit, $offset]);

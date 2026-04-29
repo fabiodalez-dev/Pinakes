@@ -1364,14 +1364,18 @@ return function (App $app): void {
     })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware()); // 15 requests per minute
 
     // Sync covers route
+    // Slim 4 route middleware is LIFO: the LAST ->add() runs FIRST. To make
+    // sure auth/CSRF rejections don't burn the rate-limit bucket (CR R7),
+    // order added so RateLimit is the OUTERMOST and runs LAST: Auth → CSRF
+    // → RateLimit. A 401 / 403 short-circuits before any quota is consumed.
     $app->post('/admin/libri/sync-covers', function ($request, $response) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->syncCovers($request, $response, $db);
     })
-        ->add(new CsrfMiddleware()) // Bug-hunt #3-2: state-changing POST needs CSRF
-        ->add(new \App\Middleware\RateLimitMiddleware(1, 120))
-        ->add(new AdminAuthMiddleware()); // 1 request per 2 minutes (long-running operation)
+        ->add(new \App\Middleware\RateLimitMiddleware(1, 120)) // 1 req / 120s
+        ->add(new CsrfMiddleware())
+        ->add(new AdminAuthMiddleware());
 
     // Bulk enrichment routes
     $app->get('/admin/libri/bulk-enrich', function ($request, $response) use ($app) {
@@ -1948,8 +1952,10 @@ return function (App $app): void {
         $controller = new \App\Controllers\CoverController();
         return $controller->download($request, $response);
     })
-        ->add(new CsrfMiddleware())
+        // LIFO order (CR R7): RateLimit added first runs last so 401/403
+        // from Auth/CSRF doesn't consume the throttle bucket.
         ->add(new \App\Middleware\RateLimitMiddleware(10, 60))
+        ->add(new CsrfMiddleware())
         ->add(new AdminAuthMiddleware());
     $app->get('/api/libri', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\LibriApiController();
