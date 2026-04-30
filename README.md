@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.9.5-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.9.6-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,7 +24,13 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.5.9 (current series, latest patch: v0.5.9.5)
+## What's New in v0.5.9 (current series, latest patch: v0.5.9.6)
+
+### Membership consistency hardening (v0.5.9.6)
+
+- `libri_collane` now enforces a CHECK constraint (`chk_lc_principale_consistency`) so a row can never have `tipo_appartenenza='principale'` together with `is_principale=0` (or vice versa). Pre-fix the column defaults silently allowed that contradictory state.
+- The column default for `is_principale` was aligned to `1` to match the `'principale'` default of `tipo_appartenenza`, removing the foot-gun for any future plugin/CSV/scraper that omits the flag.
+- Existing rows are realigned in-place by an idempotent migration; no data loss, no manual steps required.
 
 ### Series groups and cycles (v0.5.9.5)
 

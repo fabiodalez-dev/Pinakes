@@ -910,7 +910,7 @@ CREATE TABLE `libri_collane` (
   `collana_id` int NOT NULL,
   `numero_serie` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tipo_appartenenza` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'principale',
-  `is_principale` tinyint(1) NOT NULL DEFAULT '0',
+  `is_principale` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -918,7 +918,11 @@ CREATE TABLE `libri_collane` (
   KEY `idx_lc_collana` (`collana_id`),
   KEY `idx_lc_principale` (`libro_id`,`is_principale`),
   CONSTRAINT `fk_lc_collana` FOREIGN KEY (`collana_id`) REFERENCES `collane` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_lc_libro` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_lc_libro` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_lc_principale_consistency` CHECK (
+    (`tipo_appartenenza` = 'principale' AND `is_principale` = 1)
+    OR (`tipo_appartenenza` <> 'principale' AND `is_principale` = 0)
+  )
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
