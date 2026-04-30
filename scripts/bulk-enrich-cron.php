@@ -43,14 +43,10 @@ function logMessage(string $message, string $logFile): void
 $dotenv = Dotenv::createImmutable($projectRoot);
 $dotenv->load();
 
-// Connect to DB
-$host = $_ENV['DB_HOST'] ?? '127.0.0.1';
-$user = $_ENV['DB_USER'] ?? 'root';
-$pass = $_ENV['DB_PASS'] ?? '';
-$name = $_ENV['DB_NAME'] ?? 'biblioteca';
-$port = (int) ($_ENV['DB_PORT'] ?? 3306);
-
-$db = new mysqli($host, $user, $pass, $name, $port);
+// Connect to DB via the shared cron bootstrap helper (handles DB_SOCKET
+// host normalisation so the socket is actually used on macOS installs).
+require __DIR__ . '/_db_bootstrap.php';
+$db = pinakes_db_from_env();
 if ($db->connect_error) {
     logMessage('ERROR: DB connection failed: ' . $db->connect_error, $logFile);
     exit(1);

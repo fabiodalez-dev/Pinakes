@@ -785,15 +785,38 @@ class Installer {
         // Hash password
         $passwordHash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
 
+        // Resolve the locale chosen during the installer wizard. Without
+        // this the new admin row falls through to the schema default for
+        // utenti.locale ('it_IT'), and AuthController on first login then
+        // calls I18n::setLocale('it_IT') from $row['locale'], reverting
+        // the language no matter what the user picked at step 0 (#112).
+        $sessionLocale = $_SESSION['app_locale'] ?? '';
+        $envLocale     = $this->config['APP_LOCALE'] ?? '';
+        $rawLocale     = trim((string) ($sessionLocale !== '' ? $sessionLocale : $envLocale));
+        $localeMap = [
+            'it' => 'it_IT', 'it_it' => 'it_IT',
+            'en' => 'en_US', 'en_us' => 'en_US',
+            'de' => 'de_DE', 'de_de' => 'de_DE',
+        ];
+        $supportedLocales = array_values(array_unique(array_values($localeMap)));
+        $normalized = strtolower(str_replace('-', '_', $rawLocale));
+        if (isset($localeMap[$normalized])) {
+            $adminLocale = $localeMap[$normalized];
+        } elseif (in_array($rawLocale, $supportedLocales, true)) {
+            $adminLocale = $rawLocale;
+        } else {
+            $adminLocale = 'it_IT';
+        }
+
         // Insert admin user
         $query = "
             INSERT INTO utenti (
                 nome, cognome, email, password, codice_tessera,
-                tipo_utente, stato, email_verificata,
+                tipo_utente, stato, email_verificata, locale,
                 data_scadenza_tessera, created_at, updated_at
             ) VALUES (
                 :nome, :cognome, :email, :password, :codice_tessera,
-                'admin', 'attivo', 1,
+                'admin', 'attivo', 1, :locale,
                 DATE_ADD(NOW(), INTERVAL 10 YEAR), NOW(), NOW()
             )
         ";
@@ -806,7 +829,8 @@ class Installer {
                 'cognome' => $cognome,
                 'email' => $email,
                 'password' => $passwordHash,
-                'codice_tessera' => $codiceTessera
+                'codice_tessera' => $codiceTessera,
+                'locale' => $adminLocale,
             ]);
 
             $userId = $pdo->lastInsertId();
@@ -864,23 +888,60 @@ class Installer {
     }
 
     /**
-     * Upload and save logo
+     * Upload and save logo (hardened — CR R7 / Bug-hunt #4-1).
+     *
+     * Defense-in-depth against arbitrary-file-write to public/assets/, which
+     * sits under DocumentRoot. The installer is the most-privileged surface
+     * (only reachable when the app isn't installed), so a logo upload that
+     * trusts the client extension would let an attacker drop `logo_X.php`
+     * straight into a web-served path.
+     *
+     * - Whitelist MIME via finfo (raster only — SVG dropped: it's XML and
+     *   carries XSS risk via embedded <script>/onload)
+     * - Derive the extension from the verified MIME, not from the client
+     * - 2 MB hard cap matches SettingsController::handleLogoUpload
+     * - Random filename via cryptographic RNG so an attacker can't predict
+     *   the URL prior to upload
+     * - chmod 0644 to prevent execution if the host ever maps the dir to PHP
      */
     public function uploadLogo($file) {
         $uploadDir = $this->baseDir . '/public/assets';
 
-        if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+        if (!is_dir($uploadDir) && !mkdir($uploadDir, 0755, true) && !is_dir($uploadDir)) {
+            throw new \RuntimeException('Impossibile creare la directory di upload');
         }
 
-        // Generate unique filename
-        $extension = pathinfo($file['name'], PATHINFO_EXTENSION);
-        $filename = 'logo_' . uniqid() . '.' . $extension;
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+            throw new \RuntimeException('Upload logo non valido');
+        }
+        if (($file['size'] ?? 0) > 2 * 1024 * 1024) {
+            throw new \RuntimeException('Il logo supera il limite massimo di 2MB');
+        }
+
+        $allowedMimes = [
+            'image/png'  => 'png',
+            'image/jpeg' => 'jpg',
+            'image/webp' => 'webp',
+        ];
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mime  = $finfo ? finfo_file($finfo, $file['tmp_name']) : '';
+        if ($finfo) {
+            finfo_close($finfo);
+        }
+
+        if (!isset($allowedMimes[$mime])) {
+            throw new \RuntimeException('Formato logo non supportato. Usa PNG, JPG o WEBP');
+        }
+        $extension = $allowedMimes[$mime];
+
+        $filename    = 'logo_' . bin2hex(random_bytes(8)) . '.' . $extension;
         $destination = $uploadDir . '/' . $filename;
 
         if (!move_uploaded_file($file['tmp_name'], $destination)) {
-            throw new Exception("Impossibile salvare il logo");
+            throw new \RuntimeException('Impossibile salvare il logo');
         }
+        @chmod($destination, 0644);
 
         return '/assets/' . $filename;
     }

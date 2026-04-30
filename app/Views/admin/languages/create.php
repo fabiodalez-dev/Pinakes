@@ -70,7 +70,7 @@ use App\Support\HtmlHelper;
                                id="name"
                                name="name"
                                class="form-input"
-                               placeholder="Spanish, French, German"
+                               placeholder="<?= htmlspecialchars(__('Spanish, French, German'), ENT_QUOTES, 'UTF-8') ?>"
                                required>
                         <p class="mt-1 text-sm text-gray-500">
                             <?= __("Nome della lingua in inglese (es. Italian, English, Spanish)") ?>

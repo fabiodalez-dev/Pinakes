@@ -1130,6 +1130,23 @@ class Updater
                 @mkdir($extractPath, 0775, true);
             }
 
+            // Bug-hunt #4-3: zip-slip validation parity with the manual-upload
+            // path at line ~1488. If the GitHub release URL is ever spoofed /
+            // signed against an attacker-controlled key, an entry like
+            // `../public/index.php` would silently overwrite production code.
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entry = $zip->getNameIndex($i);
+                if ($entry === false
+                    || str_contains($entry, '..')
+                    || str_starts_with($entry, '/')
+                    || str_starts_with($entry, '\\')
+                    || preg_match('/^[A-Za-z]:[\\\\\\/]/', $entry)
+                ) {
+                    $zip->close();
+                    throw new Exception(__('Percorso non valido nel pacchetto'));
+                }
+            }
+
             $extractionSuccess = $zip->extractTo($extractPath);
 
             // If extraction failed, try fallback to storage/tmp
@@ -3022,10 +3039,14 @@ class Updater
     private function enableMaintenanceMode(): void
     {
         $maintenanceFile = $this->rootPath . '/storage/.maintenance';
+        $maintenanceDir = dirname($maintenanceFile);
+        if (!is_dir($maintenanceDir)) {
+            @mkdir($maintenanceDir, 0775, true);
+        }
         $written = @file_put_contents($maintenanceFile, json_encode([
             'time' => time(),
             'message' => __('Aggiornamento in corso. Riprova tra qualche minuto.')
-        ]));
+        ]), LOCK_EX);
         if ($written === false) {
             // Maintenance mode is a safety switch that blocks normal requests
             // while the update runs. If writing fails, surface a warning —

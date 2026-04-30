@@ -166,7 +166,7 @@ class FrontendController
                 ";
                 $stmt_genre_books = $db->prepare($query_genre_books);
                 if ($stmt_genre_books === false) {
-                    error_log('Failed to prepare genre books query: ' . $db->error);
+                    \App\Support\SecureLogger::error('Failed to prepare genre books query', ['db_error' => $db->error]);
                     continue;
                 }
                 $types = str_repeat('i', count($uniqueGenreIds));
@@ -444,11 +444,16 @@ class FrontendController
         $total_books = $total_row['total'] ?? 0;
         $total_pages = ceil($total_books / $limit);
 
-        // Query per i libri
+        // Query per i libri. Expose the principal author's surname as an
+        // explicit column so buildOrderBy can reference an alias instead of
+        // re-running the correlated subquery twice per row (once for the
+        // NULLs-last predicate, once for the sort value).
         $books_query = "
             SELECT DISTINCT l.*,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                   (SELECT SUBSTRING_INDEX(TRIM(a.nome), ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_cognome,
                    e.nome AS editore,
                    g.nome AS genere
             " . $base_query . "
@@ -528,11 +533,16 @@ class FrontendController
         $total_books = $total_row['total'] ?? 0;
         $total_pages = ceil($total_books / $limit);
 
-        // Query per i libri
+        // Query per i libri. Expose the principal author's surname as an
+        // explicit column so buildOrderBy can reference an alias instead of
+        // re-running the correlated subquery twice per row (once for the
+        // NULLs-last predicate, once for the sort value).
         $books_query = "
             SELECT DISTINCT l.*,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                   (SELECT SUBSTRING_INDEX(TRIM(a.nome), ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_cognome,
                    e.nome AS editore,
                    g.nome AS genere
             " . $base_query . "
@@ -936,9 +946,15 @@ class FrontendController
             case 'title_desc':
                 return 'ORDER BY l.titolo DESC';
             case 'author_asc':
-                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) ASC, l.id ASC';
+                // References the `autore_cognome` column alias exposed by the
+                // catalog SELECT. `IS NULL` returns 0 for present surnames and
+                // 1 for absent, so NULL books always sort last regardless of
+                // direction (MySQL's default would bubble them to the top of
+                // ASC). The alias keeps the correlated subquery evaluated
+                // once per row instead of twice.
+                return 'ORDER BY autore_cognome IS NULL, autore_cognome ASC, l.id ASC';
             case 'author_desc':
-                return 'ORDER BY (SELECT SUBSTRING_INDEX(TRIM(a.nome), \' \', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = l.id AND la.ruolo = \'principale\' LIMIT 1) DESC, l.id DESC';
+                return 'ORDER BY autore_cognome IS NULL, autore_cognome DESC, l.id DESC';
             case 'newest':
             default:
                 return 'ORDER BY l.created_at DESC';
@@ -1007,7 +1023,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $generi_flat = \App\Support\QueryCache::remember($cacheKeyGeneri, function() use ($db, $queryGeneri, $typesGen, $paramsGen) {
         $stmt = $db->prepare($queryGeneri);
         if ($stmt === false) {
-            error_log('FrontendController::getFilterOptions prepare failed: ' . $db->error);
+            \App\Support\SecureLogger::error('FrontendController::getFilterOptions prepare failed', ['db_error' => $db->error]);
             return [];
         }
         if (!empty($paramsGen)) {
@@ -1410,7 +1426,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             $placeholders = implode(',', array_fill(0, count($queue), '?'));
             $descStmt = $db->prepare("SELECT id FROM generi WHERE parent_id IN ($placeholders)");
             if ($descStmt === false) {
-                error_log('Failed to prepare descendant genre query: ' . $db->error);
+                \App\Support\SecureLogger::error('Failed to prepare descendant genre query', ['db_error' => $db->error]);
                 return $response->withStatus(500);
             }
             $types = str_repeat('i', count($queue));
@@ -1440,7 +1456,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         ";
         $stmt = $db->prepare($countQuery);
         if ($stmt === false) {
-            error_log('Failed to prepare genre count query: ' . $db->error);
+            \App\Support\SecureLogger::error('Failed to prepare genre count query', ['db_error' => $db->error]);
             return $response->withStatus(500);
         }
         $stmt->bind_param($idTypes, ...$genreIds);
@@ -1466,7 +1482,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
         $stmt = $db->prepare($booksQuery);
         if ($stmt === false) {
-            error_log('Failed to prepare genre books query: ' . $db->error);
+            \App\Support\SecureLogger::error('Failed to prepare genre books query', ['db_error' => $db->error]);
             return $response->withStatus(500);
         }
         $allParams = array_merge($genreIds, [$limit, $offset]);

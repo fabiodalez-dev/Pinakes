@@ -4,7 +4,7 @@
  */
 
 const __swal = (typeof window !== 'undefined' && typeof window.__ === 'function')
-  ? (key, fallback = key, ...args) => {
+  ? (key, _fallback = key, ...args) => {
       // Usa sempre la chiave come stringa di lookup (__ è responsabile di scegliere la lingua corretta)
       const translated = window.__(key, ...args);
       // Se non trova traduzione, ripiega sulla chiave originale (fallback globale = IT)
@@ -13,7 +13,7 @@ const __swal = (typeof window !== 'undefined' && typeof window.__ === 'function'
       }
       return translated;
     }
-  : (key, fallback = key) => key;
+  : (key, _fallback = key) => key;
 
 // Configurazione default per tutti gli alert
 const SwalConfig = {

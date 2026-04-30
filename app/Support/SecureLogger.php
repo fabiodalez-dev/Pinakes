@@ -30,7 +30,13 @@ class SecureLogger
 
         // Write to log file
         $logLine = json_encode($logEntry, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
-        file_put_contents(__DIR__ . '/../../storage/logs/app.log', $logLine, FILE_APPEND | LOCK_EX);
+        $logFile = __DIR__ . '/../../storage/logs/app.log';
+        $logDir = dirname($logFile);
+        // Ensure log directory exists (defensive — clean deploys may lack storage/logs/)
+        if (!is_dir($logDir)) {
+            @mkdir($logDir, 0775, true);
+        }
+        @file_put_contents($logFile, $logLine, FILE_APPEND | LOCK_EX);
     }
 
     private static function sanitizeContext(array $context): array

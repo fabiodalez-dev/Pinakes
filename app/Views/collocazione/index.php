@@ -618,6 +618,7 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 
   const editLabel = <?= json_encode(__('Modifica'), JSON_HEX_TAG) ?>;
+  const invalidIdLabel = <?= json_encode(__('ID non valido'), JSON_HEX_TAG) ?>;
 
   function renderBooks(books) {
     const tbody = document.getElementById('collocation-tbody');
@@ -632,7 +633,7 @@ document.addEventListener('DOMContentLoaded', function() {
       // Validate book ID to prevent invalid URLs
       const editLink = Number.isFinite(bookId) && bookId > 0
         ? `<a href="${window.BASE_PATH}/admin/libri/modifica/${bookId}" class="text-gray-600 hover:text-gray-900" title="${editLabel}"><i class="fas fa-edit"></i></a>`
-        : '<span class="text-gray-400" title="ID non valido"><i class="fas fa-edit"></i></span>';
+        : `<span class="text-gray-400" title="${invalidIdLabel}"><i class="fas fa-edit"></i></span>`;
 
       return `
         <tr class="hover:bg-gray-50">

@@ -1741,7 +1741,7 @@ function updatePagination(pagination) {
     const current = pagination.current_page;
     const total = pagination.total_pages;
 
-    let html = '<nav aria-label="Page navigation"><ul class="pagination justify-content-center">';
+    let html = '<nav aria-label="' + escapeHtml(window.__('Page navigation')) + '"><ul class="pagination justify-content-center">';
 
     if (current > 1) {
         html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + (current - 1) + ')" title="' + i18n.pagina_precedente + '"><i class="fas fa-chevron-left"></i></a></li>';
@@ -1865,23 +1865,35 @@ function updateFilterOptions(filterOptions, genreDisplay) {
         }
     }
 
-    // Update publishers
+    // Update publishers — build via DOM API instead of innerHTML to avoid
+    // stored XSS (CR R6 / Bug-hunt #2-1). Publisher names can contain quotes
+    // or HTML-meaningful chars and were previously interpolated directly into
+    // an inline onclick attribute. Using createElement + addEventListener
+    // keeps name as text-only and fully bypasses HTML parsing.
     if (filterOptions.editori) {
         const publishersContainer = document.getElementById('publishers-filter');
         if (publishersContainer) {
-            let html = '';
+            publishersContainer.replaceChildren();
             filterOptions.editori.forEach(ed => {
                 if ((ed.cnt ?? 0) > 0) {
-                    const isActive = currentFilters.editore === ed.nome ? 'active' : '';
                     const decodedName = decodeHtmlEntities(ed.nome);
-                    const escapedName = ed.nome.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, "\\\\'");
-                    html += '<a href="#" class="filter-option count ' + isActive + '" onclick="updateFilter(\'editore\', \'' + escapedName + '\'); return false;">';
-                    html += '<span>' + escapeHtml(decodedName) + '</span>';
-                    html += '<span class="count-badge">' + ed.cnt + '</span>';
-                    html += '</a>';
+                    const a = document.createElement('a');
+                    a.href = '#';
+                    a.className = 'filter-option count' + (currentFilters.editore === ed.nome ? ' active' : '');
+                    a.dataset.editore = ed.nome;
+                    a.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        updateFilter('editore', a.dataset.editore);
+                    });
+                    const labelSpan = document.createElement('span');
+                    labelSpan.textContent = decodedName;
+                    const countSpan = document.createElement('span');
+                    countSpan.className = 'count-badge';
+                    countSpan.textContent = String(ed.cnt);
+                    a.append(labelSpan, countSpan);
+                    publishersContainer.append(a);
                 }
             });
-            publishersContainer.innerHTML = html;
         }
     }
 
