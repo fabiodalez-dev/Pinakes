@@ -503,3 +503,4 @@ graphify-out/
 .symdex/
 # graphify ingest folder (/graphify add <url>)
 /raw/
+public/sitemap.xml
