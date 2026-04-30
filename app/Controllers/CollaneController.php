@@ -324,24 +324,47 @@ class CollaneController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
-        // SEC1-2 (review): IDOR-class guard — verify the book is actually in
-        // a series before letting an admin/staff caller rewrite numero_serie
-        // for arbitrary book IDs.
-        $checkStmt = $db->prepare('SELECT id FROM libri WHERE id = ? AND collana IS NOT NULL AND collana != "" AND deleted_at IS NULL LIMIT 1');
-        if ($checkStmt) {
-            $checkStmt->bind_param('i', $bookId);
-            $checkStmt->execute();
-            $exists = (bool) $checkStmt->get_result()->fetch_assoc();
-            $checkStmt->close();
+        // CR R8 #5: run the IDOR membership check + the update inside a single
+        // transaction with FOR UPDATE on the libri row, so a concurrent rename
+        // / removeBook cannot drop the membership between our check and the
+        // write — pre-fix that race could land numero_serie on a book that no
+        // longer belonged to any series.
+        $db->begin_transaction();
+        try {
+            $checkStmt = $db->prepare(
+                'SELECT id FROM libri
+                  WHERE id = ?
+                    AND deleted_at IS NULL
+                    AND (
+                        (collana IS NOT NULL AND collana != "")
+                        OR EXISTS (SELECT 1 FROM libri_collane lc WHERE lc.libro_id = libri.id)
+                    )
+                  LIMIT 1
+                  FOR UPDATE'
+            );
+            $exists = false;
+            if ($checkStmt) {
+                $checkStmt->bind_param('i', $bookId);
+                $checkStmt->execute();
+                $exists = (bool) $checkStmt->get_result()->fetch_assoc();
+                $checkStmt->close();
+            }
             if (!$exists) {
+                $db->rollback();
                 $response->getBody()->write(json_encode(['error' => true, 'message' => __('Libro non in collana')], JSON_UNESCAPED_UNICODE));
                 return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
             }
-        }
 
-        $ok = (new SeriesRepository($db))->updatePrimaryOrder($bookId, $numero === '' ? null : $numero);
-
-        if (!$ok) {
+            $ok = (new SeriesRepository($db))->updatePrimaryOrder($bookId, $numero === '' ? null : $numero);
+            if (!$ok) {
+                $db->rollback();
+                $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+                return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
+            }
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
+            \App\Support\SecureLogger::error('CollaneController::updateOrder failed', ['error' => $e->getMessage()]);
             $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
@@ -476,11 +499,20 @@ class CollaneController
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
-        // SEC1-1 (review): require the collana to actually have linkable
-        // books before minting a ghost parent record in the catalog.
-        $countStmt = $db->prepare('SELECT COUNT(*) AS n FROM libri WHERE collana = ? AND deleted_at IS NULL');
+        // SEC1-1 (review) + CR R8 #4: require the collana to actually have
+        // linkable books before minting a ghost parent record. Count via the
+        // legacy varchar OR the M:N libri_collane membership so a series that
+        // exists only via the new model is not falsely flagged "empty".
+        $countStmt = $db->prepare(
+            'SELECT COUNT(DISTINCT l.id) AS n
+               FROM libri l
+               LEFT JOIN libri_collane lc ON lc.libro_id = l.id
+               LEFT JOIN collane c ON c.id = lc.collana_id
+              WHERE (l.collana = ? OR c.nome = ?)
+                AND l.deleted_at IS NULL'
+        );
         if ($countStmt) {
-            $countStmt->bind_param('s', $collana);
+            $countStmt->bind_param('ss', $collana, $collana);
             $countStmt->execute();
             $countRow = $countStmt->get_result()->fetch_assoc();
             $countStmt->close();

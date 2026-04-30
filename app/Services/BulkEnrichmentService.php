@@ -341,36 +341,39 @@ class BulkEnrichmentService
             $types .= 'i';
             $values[] = $bookId;
 
-            $updateStmt = $this->db->prepare($sql);
-            if ($updateStmt === false) {
-                SecureLogger::error('[BulkEnrichment] Failed to prepare update query', [
-                    'book_id' => $bookId,
-                    'error' => $this->db->error,
-                ]);
-                return $result;
-            }
+            // CR R8 #1: wrap UPDATE + series sync in a single transaction so a
+            // sync failure rolls back the libri.collana write — otherwise we
+            // commit the legacy varchar but leave libri_collane orphaned.
+            $this->db->begin_transaction();
+            try {
+                $updateStmt = $this->db->prepare($sql);
+                if ($updateStmt === false) {
+                    $this->db->rollback();
+                    SecureLogger::error('[BulkEnrichment] Failed to prepare update query', [
+                        'book_id' => $bookId,
+                        'error' => $this->db->error,
+                    ]);
+                    return $result;
+                }
 
-            $updateStmt->bind_param($types, ...$values);
-            if (!$updateStmt->execute()) {
-                // Never mark as enriched when the UPDATE failed — would hide
-                // a real DB write failure behind a success log and the admin
-                // UI would falsely show the book as processed.
-                SecureLogger::error('[BulkEnrichment] UPDATE execute failed', [
-                    'book_id' => $bookId,
-                    'error'   => $updateStmt->error,
-                    'fields'  => $fieldsUpdated,
-                ]);
+                $updateStmt->bind_param($types, ...$values);
+                if (!$updateStmt->execute()) {
+                    SecureLogger::error('[BulkEnrichment] UPDATE execute failed', [
+                        'book_id' => $bookId,
+                        'error'   => $updateStmt->error,
+                        'fields'  => $fieldsUpdated,
+                    ]);
+                    $updateStmt->close();
+                    $this->db->rollback();
+                    return $result; // status stays 'error'
+                }
                 $updateStmt->close();
-                return $result; // status stays 'error'
-            }
-            $updateStmt->close();
 
-            // REG-1 (review): if we just populated a series name, sync the
-            // collane / libri_collane rows so admin views and detail-page
-            // hierarchy queries find the book. Pre-fix, bulk-enrich landed
-            // orphan series invisible to /admin/collane.
-            if (in_array('collana', $fieldsUpdated, true) && !empty($series)) {
-                try {
+                // REG-1 (review): if we just populated a series name, sync the
+                // collane / libri_collane rows so admin views and detail-page
+                // hierarchy queries find the book. Pre-fix, bulk-enrich landed
+                // orphan series invisible to /admin/collane.
+                if (in_array('collana', $fieldsUpdated, true) && !empty($series)) {
                     (new \App\Models\SeriesRepository($this->db))->syncBookMemberships(
                         $bookId,
                         $series,
@@ -378,13 +381,17 @@ class BulkEnrichmentService
                         [],
                         []
                     );
-                } catch (\Throwable $e) {
-                    SecureLogger::warning('[BulkEnrichment] series sync failed', [
-                        'book_id' => $bookId,
-                        'series' => $series,
-                        'error' => $e->getMessage(),
-                    ]);
                 }
+
+                $this->db->commit();
+            } catch (\Throwable $e) {
+                $this->db->rollback();
+                SecureLogger::error('[BulkEnrichment] enrichment transaction failed', [
+                    'book_id' => $bookId,
+                    'series' => $series,
+                    'error' => $e->getMessage(),
+                ]);
+                return $result;
             }
 
             // Handle authors (via libri_autori junction table) — only if book has no authors

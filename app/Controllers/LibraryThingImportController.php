@@ -1313,6 +1313,21 @@ class LibraryThingImportController
         if ($collana === '') {
             return;
         }
+        // CR R8 #3: skip the membership sync when the book has been soft-
+        // deleted concurrently (updateBook can land on a row with a non-NULL
+        // deleted_at without raising). Without this guard we'd write
+        // libri_collane rows for a tombstone, surfacing the book in series
+        // listings even though it's hidden from the catalog.
+        $stmtAlive = $db->prepare('SELECT 1 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+        if ($stmtAlive) {
+            $stmtAlive->bind_param('i', $bookId);
+            $stmtAlive->execute();
+            $alive = (bool) $stmtAlive->get_result()->fetch_assoc();
+            $stmtAlive->close();
+            if (!$alive) {
+                return;
+            }
+        }
         try {
             (new \App\Models\SeriesRepository($db))->syncBookMemberships(
                 $bookId,

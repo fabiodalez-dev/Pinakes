@@ -1239,7 +1239,12 @@ class SeriesRepository
         if ($value === null || trim((string) $value) === '') {
             return null;
         }
-        $validated = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 65535]]);
+        // CR R8 #2 (DATA-5 alignment): SMALLINT UNSIGNED accepts 0..65535 and
+        // the controller-side validator was already widened to 0; mirror it
+        // here so a save through the book form (which routes via
+        // syncBookFromForm → updateCollanaMetadata, NOT via the controller's
+        // nullableCycleOrder) doesn't silently coerce 0 to NULL.
+        $validated = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 65535]]);
         return $validated === false ? null : (int) $validated;
     }
 
