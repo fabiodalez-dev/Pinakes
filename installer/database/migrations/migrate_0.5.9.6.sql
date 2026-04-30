@@ -50,7 +50,7 @@ SET @chk_lc_exists = (
       AND CONSTRAINT_TYPE = 'CHECK'
 );
 SET @sql = IF(@chk_lc_exists = 0,
-    "ALTER TABLE libri_collane ADD CONSTRAINT chk_lc_principale_consistency CHECK ((tipo_appartenenza = 'principale' AND is_principale = 1) OR (tipo_appartenenza <> 'principale' AND is_principale = 0))",
+    'ALTER TABLE libri_collane ADD CONSTRAINT chk_lc_principale_consistency CHECK ((tipo_appartenenza = \'principale\' AND is_principale = 1) OR (tipo_appartenenza <> \'principale\' AND is_principale = 0))',
     'SELECT 1');
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
