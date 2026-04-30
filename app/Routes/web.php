@@ -1475,6 +1475,12 @@ return function (App $app): void {
         return $controller->updateOrder($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/collane/rimuovi-libro', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->removeBook($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/collane/crea-opera', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');

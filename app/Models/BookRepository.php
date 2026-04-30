@@ -49,6 +49,8 @@ class BookRepository
     {
         // Check if sottogenere_id column exists
         $hasSottogenere = $this->hasColumn('sottogenere_id');
+        $seriesRepo = new SeriesRepository($this->db);
+        $hasSeriesHierarchy = $seriesRepo->supportsHierarchy();
 
         $sql = "SELECT l.*, e.nome AS editore_nome,
                        g.nome AS genere_nome,
@@ -64,6 +66,12 @@ class BookRepository
             $sql .= ", sg.nome AS sottogenere_nome";
         } else {
             $sql .= ", NULL AS sottogenere_nome";
+        }
+
+        if ($hasSeriesHierarchy) {
+            $sql .= ", c.gruppo_serie, c.ciclo AS ciclo_serie, c.ordine_ciclo, c.tipo AS tipo_collana, cp.nome AS serie_padre";
+        } else {
+            $sql .= ", NULL AS gruppo_serie, NULL AS ciclo_serie, NULL AS ordine_ciclo, NULL AS tipo_collana, NULL AS serie_padre";
         }
 
         $sql .= ", p.id AS posizione_id_join,
@@ -83,7 +91,14 @@ class BookRepository
 
         $sql .= " LEFT JOIN posizioni p ON l.posizione_id = p.id
                 LEFT JOIN mensole m ON p.mensola_id = m.id
-                LEFT JOIN scaffali s ON p.scaffale_id = s.id
+                LEFT JOIN scaffali s ON p.scaffale_id = s.id";
+
+        if ($hasSeriesHierarchy) {
+            $sql .= " LEFT JOIN collane c ON c.nome = l.collana
+                      LEFT JOIN collane cp ON cp.id = c.parent_id";
+        }
+
+        $sql .= "
                 WHERE l.id=? AND l.deleted_at IS NULL LIMIT 1";
         $stmt = $this->db->prepare($sql);
         $stmt->bind_param('i', $id);
@@ -118,6 +133,34 @@ class BookRepository
         $row['autori'] = [];
         while ($a = $authorsRes->fetch_assoc()) {
             $row['autori'][] = $a;
+        }
+
+        $row['serie_appartenenze'] = $seriesRepo->getBookMemberships($id);
+        // PERF-2 (review): reuse the memberships array we just fetched
+        // instead of letting getOtherSeriesText fire the same query again.
+        $row['altre_collane'] = $seriesRepo->getOtherSeriesText($id, $row['collana'] ?? null, $row['serie_appartenenze']);
+        // CRUD-4 (review): if a principal membership exists it is THE source
+        // of truth for series metadata. The earlier `LEFT JOIN collane c ON
+        // c.nome = l.collana` loaded gruppo/ciclo/tipo/parent from the row
+        // matching the legacy varchar — which can disagree with the
+        // is_principale=1 membership after a partial rename. Override
+        // unconditionally (drop the prior `empty()` guards) so memberships
+        // win and the legacy varchar is treated only as a fallback when
+        // there is no membership at all.
+        foreach ($row['serie_appartenenze'] as $membership) {
+            if ((int) ($membership['is_principale'] ?? 0) !== 1) {
+                continue;
+            }
+            $row['collana'] = $membership['nome'] ?? ($row['collana'] ?? '');
+            if (!empty($membership['numero_serie'])) {
+                $row['numero_serie'] = $membership['numero_serie'];
+            }
+            $row['gruppo_serie'] = $membership['gruppo_serie'] ?? null;
+            $row['ciclo_serie']  = $membership['ciclo'] ?? null;
+            $row['ordine_ciclo'] = $membership['ordine_ciclo'] ?? null;
+            $row['tipo_collana'] = $membership['tipo'] ?? null;
+            $row['serie_padre']  = $membership['parent_nome'] ?? null;
+            break;
         }
 
         // Plugin hook: Allow plugins to extend book data
@@ -1278,7 +1321,8 @@ class BookRepository
             'prenotazioni',
             'posizioni',
             'scaffali',
-            'mensole'
+            'mensole',
+            'collane'
         ];
 
         if (!in_array($table, $validTables, true)) {

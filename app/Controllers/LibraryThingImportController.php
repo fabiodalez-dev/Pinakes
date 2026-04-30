@@ -1277,6 +1277,10 @@ class LibraryThingImportController
             }
 
             $this->updateBook($db, $existingBookId, $data, $editorId, $genreId);
+            // REG-2 (review): keep collane / libri_collane in sync the same
+            // way CsvImportController::syncImportedSeries does, so LT-imported
+            // books appear in /admin/collane and getBookMemberships finds them.
+            $this->syncSeriesAfterImport($db, $existingBookId, $data);
             return ['id' => $existingBookId, 'action' => 'updated'];
         } else {
             // Clear EAN conflicts for new inserts
@@ -1289,7 +1293,55 @@ class LibraryThingImportController
 
             $this->log("[upsertBook] INSERTING new book: {$data['titolo']}");
             $newBookId = $this->insertBook($db, $data, $editorId, $genreId);
+            $this->syncSeriesAfterImport($db, $newBookId, $data);
             return ['id' => $newBookId, 'action' => 'created'];
+        }
+    }
+
+    /**
+     * REG-2 (review): mirror CsvImportController::syncImportedSeries — when
+     * an import sets `libri.collana`, also create the matching collane row +
+     * libri_collane membership. Keeps the legacy varchar and the M:N table
+     * consistent so admin views surface the import.
+     */
+    private function syncSeriesAfterImport(\mysqli $db, int $bookId, array $data): void
+    {
+        if ($bookId <= 0) {
+            return;
+        }
+        $collana = trim((string) ($data['collana'] ?? ''));
+        if ($collana === '') {
+            return;
+        }
+        // CR R8 #3: skip the membership sync when the book has been soft-
+        // deleted concurrently (updateBook can land on a row with a non-NULL
+        // deleted_at without raising). Without this guard we'd write
+        // libri_collane rows for a tombstone, surfacing the book in series
+        // listings even though it's hidden from the catalog.
+        $stmtAlive = $db->prepare('SELECT 1 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+        if ($stmtAlive) {
+            $stmtAlive->bind_param('i', $bookId);
+            $stmtAlive->execute();
+            $alive = (bool) $stmtAlive->get_result()->fetch_assoc();
+            $stmtAlive->close();
+            if (!$alive) {
+                return;
+            }
+        }
+        try {
+            (new \App\Models\SeriesRepository($db))->syncBookMemberships(
+                $bookId,
+                $collana,
+                trim((string) ($data['numero_serie'] ?? '')) ?: null,
+                [],
+                []
+            );
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[LT] series sync after import failed', [
+                'book_id' => $bookId,
+                'collana' => $collana,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
