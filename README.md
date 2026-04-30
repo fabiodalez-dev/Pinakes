@@ -24,13 +24,16 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.5.9 (current series, latest patch: v0.5.9.6)
+## What's New in v0.5.9.6
 
-### Membership consistency hardening (v0.5.9.6)
+> This is the latest patch in the v0.5.9 series. All v0.5.9.x changes are listed below newest-first.
+
+### Membership consistency hardening + performance indexes (v0.5.9.6)
 
 - `libri_collane` now enforces a CHECK constraint (`chk_lc_principale_consistency`) so a row can never have `tipo_appartenenza='principale'` together with `is_principale=0` (or vice versa). Pre-fix the column defaults silently allowed that contradictory state.
 - The column default for `is_principale` was aligned to `1` to match the `'principale'` default of `tipo_appartenenza`, removing the foot-gun for any future plugin/CSV/scraper that omits the flag.
 - Existing rows are realigned in-place by an idempotent migration; no data loss, no manual steps required.
+- Six performance indexes backfilled for existing installations via `migrate_0.5.9.6.sql`: `idx_origine` and `idx_libro_utente` on `prestiti`; `idx_tipo_utente` on `utenti`; `idx_stato_libro`, `idx_queue_position` on `prenotazioni`. Fresh installs already had these via `schema.sql`; upgrades from any prior version now receive them automatically.
 
 ### Series groups and cycles (v0.5.9.5)
 
