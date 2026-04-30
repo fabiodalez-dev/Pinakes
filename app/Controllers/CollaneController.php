@@ -171,12 +171,36 @@ class CollaneController
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
 
+        // CRUD-8 (review): count children before delete so the success
+        // message can warn the admin that N descendant series have been
+        // re-parented up one level (DATA-1 fix).
+        $childCount = 0;
+        $repoForCount = new SeriesRepository($db);
+        $collanaIdForCount = $repoForCount->findCollanaId($nome);
+        if ($collanaIdForCount !== null) {
+            $stmtChildren = $db->prepare('SELECT COUNT(*) AS n FROM collane WHERE parent_id = ?');
+            if ($stmtChildren) {
+                $stmtChildren->bind_param('i', $collanaIdForCount);
+                $stmtChildren->execute();
+                $row = $stmtChildren->get_result()->fetch_assoc();
+                $childCount = (int) ($row['n'] ?? 0);
+                $stmtChildren->close();
+            }
+        }
+
         $db->begin_transaction();
         try {
             $affected = (new SeriesRepository($db))->deleteSeries($nome);
 
             $db->commit();
-            $_SESSION['success_message'] = sprintf(__('Collana "%s" eliminata (%d libri aggiornati)'), $nome, $affected);
+            if ($childCount > 0) {
+                $_SESSION['success_message'] = sprintf(
+                    __('Collana "%s" eliminata (%d libri aggiornati, %d sotto-serie ricollegate al livello superiore)'),
+                    $nome, $affected, $childCount
+                );
+            } else {
+                $_SESSION['success_message'] = sprintf(__('Collana "%s" eliminata (%d libri aggiornati)'), $nome, $affected);
+            }
         } catch (\Throwable $e) {
             $db->rollback();
             \App\Support\SecureLogger::error('CollaneController::delete failed', ['error' => $e->getMessage()]);
@@ -192,7 +216,10 @@ class CollaneController
     {
         $data = $request->getParsedBody() ?? [];
         $nome = trim((string) ($data['nome'] ?? ''));
-        $descrizione = trim((string) ($data['descrizione'] ?? ''));
+        // CRUD-7 (review): coerce empty descrizione to NULL so DB queries
+        // `WHERE descrizione IS NOT NULL` behave consistently with the
+        // other nullableString-treated fields.
+        $descrizione = $this->nullableString($data['descrizione'] ?? null);
         $seriesGroup = $this->nullableString($data['gruppo_serie'] ?? null);
         $seriesCycle = $this->nullableString($data['ciclo'] ?? null);
         $cycleOrder = $this->nullableCycleOrder($data['ordine_ciclo'] ?? null);
@@ -337,11 +364,23 @@ class CollaneController
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
         }
 
+        // RACE-6 (review): wrap the bulk loop in a transaction so concurrent
+        // mergeSeries / deleteSeries holding FOR UPDATE locks queue this
+        // writer instead of racing past it.
         $seriesRepo = new SeriesRepository($db);
         $affected = 0;
-        foreach ($bookIds as $bookId) {
-            $seriesRepo->assignPrimarySeries((int) $bookId, $collana);
-            $affected++;
+        $db->begin_transaction();
+        try {
+            foreach ($bookIds as $bookId) {
+                $seriesRepo->assignPrimarySeries((int) $bookId, $collana);
+                $affected++;
+            }
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
+            \App\Support\SecureLogger::error('CollaneController::bulkAssign failed', ['error' => $e->getMessage()]);
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Errore database')], JSON_UNESCAPED_UNICODE));
+            return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
         $response->getBody()->write(json_encode([

@@ -136,7 +136,9 @@ class BookRepository
         }
 
         $row['serie_appartenenze'] = $seriesRepo->getBookMemberships($id);
-        $row['altre_collane'] = $seriesRepo->getOtherSeriesText($id, $row['collana'] ?? null);
+        // PERF-2 (review): reuse the memberships array we just fetched
+        // instead of letting getOtherSeriesText fire the same query again.
+        $row['altre_collane'] = $seriesRepo->getOtherSeriesText($id, $row['collana'] ?? null, $row['serie_appartenenze']);
         // CRUD-4 (review): if a principal membership exists it is THE source
         // of truth for series metadata. The earlier `LEFT JOIN collane c ON
         // c.nome = l.collana` loaded gruppo/ciclo/tipo/parent from the row

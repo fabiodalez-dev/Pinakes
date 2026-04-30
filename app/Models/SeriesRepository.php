@@ -28,6 +28,20 @@ class SeriesRepository
     {
     }
 
+    /**
+     * REG-6 (review): clear schema introspection caches. Useful for installer
+     * / migration paths that run DDL inside the same PHP process and then
+     * re-instantiate this repo — without this, the cache returns the stale
+     * pre-DDL column set.
+     */
+    public static function resetSchemaCache(): void
+    {
+        self::$tableCache = [];
+        self::$columnCache = [];
+        self::$supportsCache = [];
+        self::$cachedDbName = null;
+    }
+
     public function hasCollaneTable(): bool
     {
         return $this->tableExists('collane');
@@ -457,13 +471,13 @@ class SeriesRepository
         }
 
         $sql = "
-            SELECT c.nome, c.tipo, c.gruppo_serie, c.ciclo, c.ordine_ciclo, p.nome AS parent_nome,
+            SELECT c.id, c.parent_id, c.nome, c.tipo, c.gruppo_serie, c.ciclo, c.ordine_ciclo, p.nome AS parent_nome,
                    {$bookCountExpr} AS book_count
               FROM collane c
               LEFT JOIN collane p ON p.id = c.parent_id
               {$bookJoin}
              WHERE {$where}
-             GROUP BY c.id, c.nome, c.tipo, c.gruppo_serie, c.ciclo, c.ordine_ciclo, p.nome
+             GROUP BY c.id, c.parent_id, c.nome, c.tipo, c.gruppo_serie, c.ciclo, c.ordine_ciclo, p.nome
              ORDER BY " . $this->seriesOrderClause('c');
         $stmt = $this->db->prepare($sql);
         if (!$stmt) {
@@ -473,7 +487,17 @@ class SeriesRepository
         $stmt->execute();
         $rows = [];
         $res = $stmt->get_result();
+        // UX-4 (review): tag each row with its relation to the current series
+        // so the view can render parents / siblings / children separately
+        // instead of mixing them all under "Altre serie nello stesso gruppo".
+        $currentParentId = $current['parent_id'] !== null ? (int) $current['parent_id'] : null;
         while ($row = $res->fetch_assoc()) {
+            $rowId = (int) ($row['nome'] !== '' ? ($row['id'] ?? 0) : 0); // id may be missing in this SELECT
+            $isParent = ($currentParentId !== null && (int) ($row['id'] ?? -1) === $currentParentId)
+                || ($currentParentId !== null && trim((string) ($row['nome'] ?? '')) !== ''
+                    && trim((string) $row['nome']) === trim((string) ($current['parent_nome'] ?? '')));
+            $isChild = ($currentId > 0 && isset($row['parent_id']) && (int) $row['parent_id'] === $currentId);
+            $row['relation'] = $isParent ? 'parent' : ($isChild ? 'child' : 'sibling');
             $rows[] = $row;
         }
         $stmt->close();
@@ -588,11 +612,19 @@ class SeriesRepository
         return $rows;
     }
 
-    public function getOtherSeriesText(int $bookId, ?string $primaryName = null): string
+    /**
+     * PERF-2 (review): accept a pre-fetched memberships list so callers
+     * (e.g. BookRepository::find) don't fire the same getBookMemberships
+     * query twice on the same request.
+     *
+     * @param array<int, array<string, mixed>>|null $memberships
+     */
+    public function getOtherSeriesText(int $bookId, ?string $primaryName = null, ?array $memberships = null): string
     {
         $primaryName = $this->cleanName((string) $primaryName);
+        $rows = $memberships !== null ? $memberships : $this->getBookMemberships($bookId);
         $names = [];
-        foreach ($this->getBookMemberships($bookId) as $membership) {
+        foreach ($rows as $membership) {
             $name = $this->cleanName((string) ($membership['nome'] ?? ''));
             if ($name === '' || (int) ($membership['is_principale'] ?? 0) === 1 || $name === $primaryName) {
                 continue;
@@ -982,6 +1014,16 @@ class SeriesRepository
             if ($parentName !== '' && $parentName !== $nome) {
                 $existingParentId = $this->findCollanaId($parentName);
                 $parentId = $this->ensureCollana($parentName, ['tipo' => 'universo'], $existingParentId === null);
+                // SEC1-4 (review): audit-log silent auto-creation of
+                // umbrella `universo` rows so a careless admin doesn't
+                // pollute the hierarchy without leaving a trace.
+                if ($existingParentId === null && $parentId !== null) {
+                    \App\Support\SecureLogger::info('series.parent.autocreated', [
+                        'parent_name' => $parentName,
+                        'child_id' => $id,
+                        'by_user' => $_SESSION['user']['id'] ?? null,
+                    ]);
+                }
                 if ($parentId !== null && $this->wouldCreateParentCycle($id, $parentId)) {
                     $parentId = null;
                 }

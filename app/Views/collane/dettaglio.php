@@ -103,13 +103,48 @@ if ($seriesType === '') { $seriesType = 'serie'; }
     </form>
   </div>
 
-  <?php if (!empty($supportsHierarchy) && !empty($relatedCollane)): ?>
+  <?php
+  // UX-4 (review): split the related list so parent / siblings / children
+  // render in distinct sections instead of dumping everything under
+  // "Altre serie nello stesso gruppo".
+  $relatedParents  = [];
+  $relatedSiblings = [];
+  $relatedChildren = [];
+  foreach ($relatedCollane as $related) {
+    $kind = $related['relation'] ?? 'sibling'; // controller can populate this; default to sibling
+    if ($kind === 'parent') {
+      $relatedParents[] = $related;
+    } elseif ($kind === 'child') {
+      $relatedChildren[] = $related;
+    } else {
+      $relatedSiblings[] = $related;
+    }
+  }
+  ?>
+
+  <?php if (!empty($supportsHierarchy) && !empty($relatedParents)): ?>
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
+      <h3 class="text-sm font-medium text-gray-700"><i class="fas fa-arrow-up text-gray-400 mr-1"></i> <?= __("Serie padre") ?></h3>
+    </div>
+    <div class="divide-y divide-gray-200">
+      <?php foreach ($relatedParents as $related): ?>
+      <a class="flex items-center justify-between px-4 py-3 hover:bg-gray-50" href="<?= htmlspecialchars(url('/admin/collane/dettaglio?nome=' . urlencode($related['nome'])), ENT_QUOTES, 'UTF-8') ?>">
+        <span class="font-medium text-gray-900"><?= HtmlHelper::e($related['nome']) ?></span>
+        <span class="text-sm text-gray-500">(<?= (int) $related['book_count'] ?> <?= __("libri") ?>)</span>
+      </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!empty($supportsHierarchy) && !empty($relatedSiblings)): ?>
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
     <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
       <h3 class="text-sm font-medium text-gray-700"><i class="fas fa-project-diagram text-gray-400 mr-1"></i> <?= __("Altre serie nello stesso gruppo") ?></h3>
     </div>
     <div class="divide-y divide-gray-200">
-      <?php foreach ($relatedCollane as $related): ?>
+      <?php foreach ($relatedSiblings as $related): ?>
       <a class="flex items-center justify-between px-4 py-3 hover:bg-gray-50" href="<?= htmlspecialchars(url('/admin/collane/dettaglio?nome=' . urlencode($related['nome'])), ENT_QUOTES, 'UTF-8') ?>">
         <span class="font-medium text-gray-900"><?= HtmlHelper::e($related['nome']) ?></span>
         <span class="text-sm text-gray-500">
@@ -117,10 +152,26 @@ if ($seriesType === '') { $seriesType = 'serie'; }
             <?= HtmlHelper::e($related['ciclo']) ?>
           <?php endif; ?>
           <?php if (!empty($related['ordine_ciclo'])): ?>
-            <span class="ml-1">#<?= (int) $related['ordine_ciclo'] ?></span>
+            <span class="ml-1" aria-label="<?= htmlspecialchars(sprintf(__('Ordine ciclo %d'), (int) $related['ordine_ciclo']), ENT_QUOTES, 'UTF-8') ?>">#<?= (int) $related['ordine_ciclo'] ?></span>
           <?php endif; ?>
           <span class="ml-2">(<?= (int) $related['book_count'] ?> <?= __("libri") ?>)</span>
         </span>
+      </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <?php if (!empty($supportsHierarchy) && !empty($relatedChildren)): ?>
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-4 py-3 bg-gray-50 border-b border-gray-200">
+      <h3 class="text-sm font-medium text-gray-700"><i class="fas fa-arrow-down text-gray-400 mr-1"></i> <?= __("Spin-off / sottoserie") ?></h3>
+    </div>
+    <div class="divide-y divide-gray-200">
+      <?php foreach ($relatedChildren as $related): ?>
+      <a class="flex items-center justify-between px-4 py-3 hover:bg-gray-50" href="<?= htmlspecialchars(url('/admin/collane/dettaglio?nome=' . urlencode($related['nome'])), ENT_QUOTES, 'UTF-8') ?>">
+        <span class="font-medium text-gray-900"><?= HtmlHelper::e($related['nome']) ?></span>
+        <span class="text-sm text-gray-500">(<?= (int) $related['book_count'] ?> <?= __("libri") ?>)</span>
       </a>
       <?php endforeach; ?>
     </div>

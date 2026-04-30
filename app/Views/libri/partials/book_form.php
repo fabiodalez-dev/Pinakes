@@ -495,46 +495,66 @@ $selectedSeriesType = (string)($book['tipo_collana'] ?? 'serie');
               <label for="numero_inventario" class="form-label"><?= __("Numero Inventario") ?></label>
               <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="<?= __('es. INV-2024-001') ?>" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
             </div>
-            <div>
-              <label for="gruppo_serie" class="form-label"><?= __("Gruppo serie") ?></label>
-              <input id="gruppo_serie" name="gruppo_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Fairy Tail'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['gruppo_serie'] ?? ''); ?>" />
-            </div>
-            <div>
-              <label for="serie_padre" class="form-label"><?= __("Serie padre / universo") ?></label>
-              <input id="serie_padre" name="serie_padre" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. I mondi di Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['serie_padre'] ?? ''); ?>" />
-            </div>
-            <div>
-              <label for="tipo_collana" class="form-label"><?= __("Tipo serie") ?></label>
-              <select id="tipo_collana" name="tipo_collana" class="form-input">
-                <?php foreach ($seriesTypeOptions as $typeValue => $typeLabel): ?>
-                  <option value="<?= HtmlHelper::e($typeValue) ?>" <?= $selectedSeriesType === $typeValue ? 'selected' : '' ?>><?= HtmlHelper::e($typeLabel) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
           </div>
 
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label for="collana" class="form-label"><?= __("Serie principale") ?></label>
-              <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Fairy Tail: 100 Years Quest'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" />
+          <!-- UX-1 + UX-7 (review): regroup the 8 series fields under a
+               dedicated <fieldset> with inline help text; each input ties
+               to its description via aria-describedby so screen-reader users
+               aren't left guessing the difference between gruppo / serie
+               padre / serie principale. Sub-card heading is in Italian
+               source ("Serie e collana"). -->
+          <fieldset class="border border-gray-200 rounded-xl p-4 mt-4">
+            <legend class="px-2 text-sm font-semibold text-gray-700"><i class="fas fa-layer-group text-primary mr-1"></i><?= __("Serie e collana") ?></legend>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label for="gruppo_serie" class="form-label"><?= __("Gruppo serie") ?></label>
+                <input id="gruppo_serie" name="gruppo_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Fairy Tail'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['gruppo_serie'] ?? ''); ?>" aria-describedby="gruppo_serie_help" />
+                <p id="gruppo_serie_help" class="text-xs text-gray-500 mt-1"><?= __('Etichetta "ombrello" per spin-off (es. tutto il franchise di Fairy Tail).') ?></p>
+              </div>
+              <div>
+                <label for="serie_padre" class="form-label"><?= __("Serie padre / universo") ?></label>
+                <input id="serie_padre" name="serie_padre" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. I mondi di Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['serie_padre'] ?? ''); ?>" aria-describedby="serie_padre_help" />
+                <p id="serie_padre_help" class="text-xs text-gray-500 mt-1"><?= __("Serie superiore nella gerarchia (es. l'universo che contiene cicli e stagioni).") ?></p>
+              </div>
+              <div>
+                <label for="tipo_collana" class="form-label"><?= __("Tipo serie") ?></label>
+                <select id="tipo_collana" name="tipo_collana" class="form-input" aria-describedby="tipo_collana_help">
+                  <?php foreach ($seriesTypeOptions as $typeValue => $typeLabel): ?>
+                    <option value="<?= HtmlHelper::e($typeValue) ?>" <?= $selectedSeriesType === $typeValue ? 'selected' : '' ?>><?= HtmlHelper::e($typeLabel) ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <p id="tipo_collana_help" class="text-xs text-gray-500 mt-1"><?= __('Tassonomia: serie / universo / ciclo / stagione / spin-off / arco / collana editoriale.') ?></p>
+              </div>
+              <div>
+                <label for="collana" class="form-label"><?= __("Serie principale") ?></label>
+                <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Fairy Tail: 100 Years Quest'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" aria-describedby="collana_help" />
+                <p id="collana_help" class="text-xs text-gray-500 mt-1"><?= __("Nome specifico della serie a cui appartiene il libro.") ?></p>
+              </div>
             </div>
-            <div>
-              <label for="numero_serie" class="form-label"><?= __("Numero Serie") ?></label>
-              <input id="numero_serie" name="numero_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 15'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['numero_serie'] ?? ''); ?>" />
-            </div>
-            <div>
-              <label for="ciclo_serie" class="form-label"><?= __("Ciclo / stagione") ?></label>
-              <input id="ciclo_serie" name="ciclo_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Ciclo 1 - Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['ciclo_serie'] ?? ''); ?>" />
-            </div>
-            <div>
-              <label for="ordine_ciclo" class="form-label"><?= __("Ordine ciclo") ?></label>
-              <input id="ordine_ciclo" name="ordine_ciclo" type="number" min="1" class="form-input" placeholder="1" value="<?php echo HtmlHelper::e((string)($book['ordine_ciclo'] ?? '')); ?>" />
-            </div>
-          </div>
 
-          <div>
-            <label for="altre_collane" class="form-label"><?= __("Altre serie") ?></label>
-            <textarea id="altre_collane" name="altre_collane" rows="2" class="form-input" placeholder="<?= HtmlHelper::e(__('Una serie per riga o separate da virgola')) ?>"><?php echo HtmlHelper::e($book['altre_collane'] ?? ''); ?></textarea>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3">
+              <div>
+                <label for="numero_serie" class="form-label"><?= __("Numero Serie") ?></label>
+                <input id="numero_serie" name="numero_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 15'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['numero_serie'] ?? ''); ?>" />
+              </div>
+              <div>
+                <label for="ciclo_serie" class="form-label"><?= __("Ciclo / stagione") ?></label>
+                <input id="ciclo_serie" name="ciclo_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Ciclo 1 - Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['ciclo_serie'] ?? ''); ?>" />
+              </div>
+              <div>
+                <label for="ordine_ciclo" class="form-label"><?= __("Ordine ciclo") ?></label>
+                <input id="ordine_ciclo" name="ordine_ciclo" type="number" min="0" class="form-input" placeholder="1" value="<?php echo HtmlHelper::e((string)($book['ordine_ciclo'] ?? '')); ?>" />
+              </div>
+              <div>
+                <label for="altre_collane" class="form-label"><?= __("Altre serie") ?></label>
+                <textarea id="altre_collane" name="altre_collane" rows="2" class="form-input" placeholder="<?= htmlspecialchars(__('Una serie per riga'), ENT_QUOTES, 'UTF-8') ?>" aria-describedby="altre_collane_help"><?php echo HtmlHelper::e($book['altre_collane'] ?? ''); ?></textarea>
+                <p id="altre_collane_help" class="text-xs text-gray-500 mt-1"><?= __("Una serie per riga (le virgole sono trattate come parte del nome).") ?></p>
+              </div>
+            </div>
+          </fieldset>
+          <!-- /UX-1 fieldset -->
+          <div class="hidden">
+            <!-- placeholder retained for old DOM selectors -->
           </div>
 
           <div class="form-grid-2">
