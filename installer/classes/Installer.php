@@ -26,6 +26,7 @@ class Installer {
         'languages',
         'libri',
         'libri_autori',
+        'libri_collane',
         'libri_donati',
         'libri_tag',
         'log_modifiche',
