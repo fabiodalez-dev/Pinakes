@@ -322,8 +322,9 @@ class BulkEnrichmentService
             }
 
             // Series / collection
+            $series = '';
             if (empty($book['collana']) && !empty($scraped['series'] ?? $scraped['collana'] ?? '')) {
-                $series = $scraped['series'] ?? $scraped['collana'] ?? '';
+                $series = (string) ($scraped['series'] ?? $scraped['collana'] ?? '');
                 $sets[] = 'collana = ?';
                 $types .= 's';
                 $values[] = $series;
@@ -363,6 +364,28 @@ class BulkEnrichmentService
                 return $result; // status stays 'error'
             }
             $updateStmt->close();
+
+            // REG-1 (review): if we just populated a series name, sync the
+            // collane / libri_collane rows so admin views and detail-page
+            // hierarchy queries find the book. Pre-fix, bulk-enrich landed
+            // orphan series invisible to /admin/collane.
+            if (in_array('collana', $fieldsUpdated, true) && !empty($series)) {
+                try {
+                    (new \App\Models\SeriesRepository($this->db))->syncBookMemberships(
+                        $bookId,
+                        $series,
+                        null,
+                        [],
+                        []
+                    );
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('[BulkEnrichment] series sync failed', [
+                        'book_id' => $bookId,
+                        'series' => $series,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
 
             // Handle authors (via libri_autori junction table) — only if book has no authors
             if (!empty($scraped['authors']) && is_array($scraped['authors'])) {

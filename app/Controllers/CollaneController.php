@@ -35,7 +35,11 @@ class CollaneController
         if ($value === null || trim((string) $value) === '') {
             return null;
         }
-        $order = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 65535]]);
+        // DATA-5 (review): accept 0..65535 to match SMALLINT UNSIGNED schema;
+        // negative input (which the validator silently coerced to NULL pre-fix)
+        // still returns NULL, so the user-typed 0 lands as 0 instead of being
+        // dropped silently.
+        $order = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 65535]]);
         return $order === false ? null : (int) $order;
     }
 
@@ -283,11 +287,29 @@ class CollaneController
     {
         $data = json_decode((string) $request->getBody(), true) ?: [];
         $bookId = (int) ($data['book_id'] ?? 0);
-        $numero = trim((string) ($data['numero_serie'] ?? ''));
+        // SEC1-3 (review): cap to varchar(50) so the column doesn't silently
+        // truncate user input; reject control-character-only strings.
+        $numero = mb_substr(trim((string) ($data['numero_serie'] ?? '')), 0, 50);
+        $numero = preg_replace('/[\x00-\x1F\x7F]+/u', '', $numero) ?? '';
 
         if ($bookId <= 0) {
             $response->getBody()->write(json_encode(['error' => true, 'message' => __('ID libro non valido')], JSON_UNESCAPED_UNICODE));
             return $response->withStatus(400)->withHeader('Content-Type', 'application/json');
+        }
+
+        // SEC1-2 (review): IDOR-class guard — verify the book is actually in
+        // a series before letting an admin/staff caller rewrite numero_serie
+        // for arbitrary book IDs.
+        $checkStmt = $db->prepare('SELECT id FROM libri WHERE id = ? AND collana IS NOT NULL AND collana != "" AND deleted_at IS NULL LIMIT 1');
+        if ($checkStmt) {
+            $checkStmt->bind_param('i', $bookId);
+            $checkStmt->execute();
+            $exists = (bool) $checkStmt->get_result()->fetch_assoc();
+            $checkStmt->close();
+            if (!$exists) {
+                $response->getBody()->write(json_encode(['error' => true, 'message' => __('Libro non in collana')], JSON_UNESCAPED_UNICODE));
+                return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
+            }
         }
 
         $ok = (new SeriesRepository($db))->updatePrimaryOrder($bookId, $numero === '' ? null : $numero);
@@ -353,8 +375,12 @@ class CollaneController
         $q = trim((string) ($request->getQueryParams()['q'] ?? ''));
         $results = [];
 
-        if (strlen($q) >= 1) {
-            $search = '%' . $q . '%';
+        // SEC2-1 + SEC1-5 (review): require min 2 chars and escape LIKE
+        // wildcards so callers can't broaden the match with `%`/`_` or
+        // probe single-char prefixes for enumeration.
+        if (mb_strlen($q) >= 2) {
+            $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
+            $search = '%' . $escaped . '%';
             if ($this->hasCollaneTable($db)) {
                 $stmt = $db->prepare("
                     SELECT DISTINCT nome FROM (
@@ -401,11 +427,28 @@ class CollaneController
     {
         $data = $request->getParsedBody() ?? [];
         $collana = trim((string) ($data['collana'] ?? ''));
-        $parentTitle = trim((string) ($data['parent_title'] ?? ''));
+        // SEC1-1 (review): cap parent title length to the libri.titolo column
+        // and reject empty input (varchar(255) maximum); pre-fix the field
+        // had no length cap and any length string was accepted then truncated.
+        $parentTitle = mb_substr(trim((string) ($data['parent_title'] ?? '')), 0, 255);
 
         if ($collana === '' || $parentTitle === '') {
             $_SESSION['error_message'] = __('Parametri non validi');
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
+        }
+
+        // SEC1-1 (review): require the collana to actually have linkable
+        // books before minting a ghost parent record in the catalog.
+        $countStmt = $db->prepare('SELECT COUNT(*) AS n FROM libri WHERE collana = ? AND deleted_at IS NULL');
+        if ($countStmt) {
+            $countStmt->bind_param('s', $collana);
+            $countStmt->execute();
+            $countRow = $countStmt->get_result()->fetch_assoc();
+            $countStmt->close();
+            if ((int) ($countRow['n'] ?? 0) < 1) {
+                $_SESSION['error_message'] = __('Nessun libro nella collana');
+                return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
+            }
         }
 
         // Create the parent book
@@ -418,13 +461,17 @@ class CollaneController
         $stmt->execute();
         $parentId = (int) $db->insert_id;
         $stmt->close();
-        $seriesRepo = new SeriesRepository($db);
-        $seriesRepo->assignPrimarySeries($parentId, $collana);
 
+        // SEC1-1 (review): bail BEFORE calling assignPrimarySeries on a
+        // failed insert (parentId == 0). Pre-fix the check was after the
+        // mutation and the early-return was dead code.
         if ($parentId <= 0) {
             $_SESSION['error_message'] = __('Errore nella creazione dell\'opera');
             return $response->withHeader('Location', url('/admin/collane'))->withStatus(302);
         }
+
+        $seriesRepo = new SeriesRepository($db);
+        $seriesRepo->assignPrimarySeries($parentId, $collana);
 
         // Link all books in the collana as volumes
         $linkedCount = 0;

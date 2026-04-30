@@ -137,31 +137,27 @@ class BookRepository
 
         $row['serie_appartenenze'] = $seriesRepo->getBookMemberships($id);
         $row['altre_collane'] = $seriesRepo->getOtherSeriesText($id, $row['collana'] ?? null);
+        // CRUD-4 (review): if a principal membership exists it is THE source
+        // of truth for series metadata. The earlier `LEFT JOIN collane c ON
+        // c.nome = l.collana` loaded gruppo/ciclo/tipo/parent from the row
+        // matching the legacy varchar — which can disagree with the
+        // is_principale=1 membership after a partial rename. Override
+        // unconditionally (drop the prior `empty()` guards) so memberships
+        // win and the legacy varchar is treated only as a fallback when
+        // there is no membership at all.
         foreach ($row['serie_appartenenze'] as $membership) {
             if ((int) ($membership['is_principale'] ?? 0) !== 1) {
                 continue;
             }
-            if (empty($row['collana'])) {
-                $row['collana'] = $membership['nome'] ?? '';
-            }
-            if (empty($row['numero_serie']) && !empty($membership['numero_serie'])) {
+            $row['collana'] = $membership['nome'] ?? ($row['collana'] ?? '');
+            if (!empty($membership['numero_serie'])) {
                 $row['numero_serie'] = $membership['numero_serie'];
             }
-            if (empty($row['gruppo_serie']) && !empty($membership['gruppo_serie'])) {
-                $row['gruppo_serie'] = $membership['gruppo_serie'];
-            }
-            if (empty($row['ciclo_serie']) && !empty($membership['ciclo'])) {
-                $row['ciclo_serie'] = $membership['ciclo'];
-            }
-            if (empty($row['ordine_ciclo']) && !empty($membership['ordine_ciclo'])) {
-                $row['ordine_ciclo'] = $membership['ordine_ciclo'];
-            }
-            if (empty($row['tipo_collana']) && !empty($membership['tipo'])) {
-                $row['tipo_collana'] = $membership['tipo'];
-            }
-            if (empty($row['serie_padre']) && !empty($membership['parent_nome'])) {
-                $row['serie_padre'] = $membership['parent_nome'];
-            }
+            $row['gruppo_serie'] = $membership['gruppo_serie'] ?? null;
+            $row['ciclo_serie']  = $membership['ciclo'] ?? null;
+            $row['ordine_ciclo'] = $membership['ordine_ciclo'] ?? null;
+            $row['tipo_collana'] = $membership['tipo'] ?? null;
+            $row['serie_padre']  = $membership['parent_nome'] ?? null;
             break;
         }
 

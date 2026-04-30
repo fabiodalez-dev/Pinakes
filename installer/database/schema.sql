@@ -898,7 +898,8 @@ CREATE TABLE `collane` (
   KEY `idx_collane_tipo` (`tipo`),
   KEY `idx_collane_gruppo_serie` (`gruppo_serie`),
   KEY `idx_collane_gruppo_ordine` (`gruppo_serie`,`ordine_ciclo`,`nome`),
-  CONSTRAINT `fk_collane_parent` FOREIGN KEY (`parent_id`) REFERENCES `collane` (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_collane_parent` FOREIGN KEY (`parent_id`) REFERENCES `collane` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `chk_collane_tipo` CHECK (`tipo` IN ('serie','universo','ciclo','stagione','spin_off','arco','collezione_editoriale','altro'))
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

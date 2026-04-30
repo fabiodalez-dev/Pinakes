@@ -13,6 +13,17 @@ class SeriesRepository
     /** @var array<string, array<string, bool>> */
     private static array $columnCache = [];
 
+    /** PERF-1 (review): cache the DB name once per request. The previous
+     *  implementation issued `SELECT DATABASE()` on every cache lookup, so
+     *  supportsHierarchy() (5 hasColumn calls) fired 5 round trips per
+     *  invocation — multiplied across the book detail page (BookRepository::find,
+     *  CollaneController::show, getBookMemberships) the cost was ~15 query
+     *  round trips for cache hits alone. */
+    private static ?string $cachedDbName = null;
+
+    /** @var array<string, bool> Memoised supportsHierarchy()/supportsMemberships() */
+    private static array $supportsCache = [];
+
     public function __construct(private mysqli $db)
     {
     }
@@ -24,11 +35,15 @@ class SeriesRepository
 
     public function supportsHierarchy(): bool
     {
-        return $this->hasColumn('collane', 'gruppo_serie')
-            && $this->hasColumn('collane', 'ciclo')
-            && $this->hasColumn('collane', 'ordine_ciclo')
-            && $this->hasColumn('collane', 'parent_id')
-            && $this->hasColumn('collane', 'tipo');
+        $key = $this->currentDatabaseName() . ':hierarchy';
+        if (!isset(self::$supportsCache[$key])) {
+            self::$supportsCache[$key] = $this->hasColumn('collane', 'gruppo_serie')
+                && $this->hasColumn('collane', 'ciclo')
+                && $this->hasColumn('collane', 'ordine_ciclo')
+                && $this->hasColumn('collane', 'parent_id')
+                && $this->hasColumn('collane', 'tipo');
+        }
+        return self::$supportsCache[$key];
     }
 
     public function supportsMemberships(): bool
@@ -93,23 +108,75 @@ class SeriesRepository
 
         $metadata = [];
         if ($metadataPosted) {
-            $metadata = [
-                'gruppo_serie' => $this->nullableString($formData['gruppo_serie'] ?? null),
-                'ciclo' => $this->nullableString($formData['ciclo_serie'] ?? null),
-                'ordine_ciclo' => $this->nullableCycleOrder($formData['ordine_ciclo'] ?? null),
-                'parent_nome' => $this->nullableString($formData['serie_padre'] ?? null),
-                'tipo' => $this->normalizeType((string) ($formData['tipo_collana'] ?? 'serie')),
-            ];
+            // CRUD-1/2 (review): only set fields that the form actually posted.
+            // Pre-fix every book save unconditionally rewrote tipo/gruppo/etc,
+            // so two books in the same series with different gruppo values
+            // fought each other (last-write-wins) and a missing tipo_collana
+            // key in older forms silently downgraded `universo` to `serie`.
+            if (array_key_exists('gruppo_serie', $formData)) {
+                $metadata['gruppo_serie'] = $this->nullableString($formData['gruppo_serie']);
+            }
+            if (array_key_exists('ciclo_serie', $formData)) {
+                $metadata['ciclo'] = $this->nullableString($formData['ciclo_serie']);
+            }
+            if (array_key_exists('ordine_ciclo', $formData)) {
+                $metadata['ordine_ciclo'] = $this->nullableCycleOrder($formData['ordine_ciclo']);
+            }
+            if (array_key_exists('serie_padre', $formData)) {
+                $metadata['parent_nome'] = $this->nullableString($formData['serie_padre']);
+            }
+            if (array_key_exists('tipo_collana', $formData)
+                && trim((string) $formData['tipo_collana']) !== ''
+            ) {
+                $metadata['tipo'] = $this->normalizeType((string) $formData['tipo_collana']);
+            }
         }
 
         $otherNames = $this->splitNames((string) ($formData['altre_collane'] ?? ''));
-        $this->syncBookMemberships(
-            $bookId,
-            $primaryName,
-            $this->nullableString($fields['numero_serie'] ?? null),
-            $otherNames,
-            $metadata
-        );
+
+        // RACE-1 (review): the sync is delete-then-upsert; wrap in a tx so
+        // mid-flight readers don't see the book attached to zero series.
+        // Detect nested transaction via @@autocommit (project pattern from
+        // recalculateBookAvailability) and only manage tx state when the
+        // caller hasn't already opened one.
+        $wasInTransaction = $this->isInTransaction();
+        if (!$wasInTransaction) {
+            $this->db->begin_transaction();
+        }
+        try {
+            $this->syncBookMemberships(
+                $bookId,
+                $primaryName,
+                $this->nullableString($fields['numero_serie'] ?? null),
+                $otherNames,
+                $metadata
+            );
+            if (!$wasInTransaction) {
+                $this->db->commit();
+            }
+        } catch (\Throwable $e) {
+            if (!$wasInTransaction) {
+                $this->db->rollback();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * Detect whether the caller already opened a transaction. The project
+     * convention (CLAUDE.md / recalculateBookAvailability) is to inspect
+     * @@autocommit: 0 means InnoDB started an implicit/explicit tx and any
+     * begin_transaction() here would force a silent commit.
+     */
+    private function isInTransaction(): bool
+    {
+        $result = $this->db->query('SELECT @@autocommit AS ac');
+        if ($result === false) {
+            return false;
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        return isset($row['ac']) && (int) $row['ac'] === 0;
     }
 
     /**
@@ -605,6 +672,19 @@ class SeriesRepository
 
         $bookIds = [];
         $collanaId = $this->findCollanaId($seriesName);
+        if ($collanaId !== null) {
+            // RACE-3 (review): lock the row so concurrent INSERTs to libri_collane
+            // can't race the DELETE. Caller (CollaneController::delete) wraps this
+            // in a transaction; the FOR UPDATE serialises against any concurrent
+            // writer touching the same collana row.
+            $stmtLock = $this->db->prepare('SELECT id FROM collane WHERE id = ? FOR UPDATE');
+            if ($stmtLock) {
+                $stmtLock->bind_param('i', $collanaId);
+                $stmtLock->execute();
+                $stmtLock->get_result()->fetch_assoc();
+                $stmtLock->close();
+            }
+        }
         if ($collanaId !== null && $this->supportsMemberships()) {
             $stmtIds = $this->db->prepare('SELECT DISTINCT libro_id FROM libri_collane WHERE collana_id = ?');
             if ($stmtIds) {
@@ -637,6 +717,37 @@ class SeriesRepository
 
         foreach (array_keys($bookIds) as $bookId) {
             $this->promoteLegacySeries((int) $bookId);
+        }
+
+        // DATA-2 (review): clear the legacy varchar so books matched only via
+        // libri.collana don't keep pointing to a deleted series name.
+        $stmtClearLegacy = $this->db->prepare('UPDATE libri SET collana = NULL, numero_serie = NULL WHERE collana = ? AND deleted_at IS NULL');
+        if ($stmtClearLegacy) {
+            $stmtClearLegacy->bind_param('s', $seriesName);
+            $stmtClearLegacy->execute();
+            $stmtClearLegacy->close();
+        }
+
+        // DATA-1 (review): re-parent grandchildren up one level so they don't
+        // become orphans when a mid-tier series is deleted. The FK on
+        // collane.parent_id is ON DELETE SET NULL, but it only nulls direct
+        // children — grandchildren keep dangling references.
+        if ($collanaId !== null && $this->hasColumn('collane', 'parent_id')) {
+            $parentOfDeleted = null;
+            $stmtParent = $this->db->prepare('SELECT parent_id FROM collane WHERE id = ?');
+            if ($stmtParent) {
+                $stmtParent->bind_param('i', $collanaId);
+                $stmtParent->execute();
+                $parentRow = $stmtParent->get_result()->fetch_assoc();
+                $parentOfDeleted = $parentRow['parent_id'] ?? null;
+                $stmtParent->close();
+            }
+            $stmtReparent = $this->db->prepare('UPDATE collane SET parent_id = ? WHERE parent_id = ?');
+            if ($stmtReparent) {
+                $stmtReparent->bind_param('ii', $parentOfDeleted, $collanaId);
+                $stmtReparent->execute();
+                $stmtReparent->close();
+            }
         }
 
         if ($this->hasCollaneTable()) {
@@ -681,6 +792,40 @@ class SeriesRepository
             }
         }
 
+        // CRUD-5 (review): backfill libri_collane for books that matched only
+        // via the legacy `libri.collana` varchar before the migration. Without
+        // this, getBookMemberships returns nothing for those books and the
+        // edit form's "altre_collane" chips silently lose them.
+        // (We inline the lookup so PHPStan doesn't infer null from the early
+        // return above — the UPDATE collane SET nome = newName moved a row
+        // that did not exist under newName before, so the id IS findable now.)
+        $newCollanaId = null;
+        $stmtFind = $this->db->prepare('SELECT id FROM collane WHERE nome = ? LIMIT 1');
+        if ($stmtFind) {
+            $stmtFind->bind_param('s', $newName);
+            $stmtFind->execute();
+            $row = $stmtFind->get_result()->fetch_assoc();
+            $newCollanaId = $row ? (int) $row['id'] : null;
+            $stmtFind->close();
+        }
+        if ($newCollanaId !== null && $this->supportsMemberships()) {
+            $stmtBackfill = $this->db->prepare(
+                'INSERT IGNORE INTO libri_collane (libro_id, collana_id, numero_serie, tipo_appartenenza, is_principale)
+                 SELECT l.id, ?, l.numero_serie, "principale", 1
+                   FROM libri l
+                  WHERE l.collana = ?
+                    AND l.deleted_at IS NULL
+                    AND NOT EXISTS (
+                        SELECT 1 FROM libri_collane lc WHERE lc.libro_id = l.id AND lc.collana_id = ?
+                    )'
+            );
+            if ($stmtBackfill) {
+                $stmtBackfill->bind_param('isi', $newCollanaId, $newName, $newCollanaId);
+                $stmtBackfill->execute();
+                $stmtBackfill->close();
+            }
+        }
+
         return $affected;
     }
 
@@ -694,6 +839,20 @@ class SeriesRepository
 
         $targetId = $this->ensureCollana($targetName, [], false);
         $sourceId = $this->findCollanaId($sourceName);
+
+        // RACE-2 (review): lock source + target rows so concurrent
+        // assignPrimarySeries / syncBookMemberships can't write to source
+        // between our snapshot and the final DELETE. Caller (CollaneController::merge)
+        // wraps this in a transaction so the FOR UPDATE is meaningful.
+        if ($sourceId !== null && $targetId !== null) {
+            $stmtLock = $this->db->prepare('SELECT id FROM collane WHERE id IN (?, ?) FOR UPDATE');
+            if ($stmtLock) {
+                $stmtLock->bind_param('ii', $sourceId, $targetId);
+                $stmtLock->execute();
+                $stmtLock->get_result();
+                $stmtLock->close();
+            }
+        }
 
         $stmtBooks = $this->db->prepare('UPDATE libri SET collana = ?, updated_at = NOW() WHERE collana = ? AND deleted_at IS NULL');
         $affected = 0;
@@ -902,6 +1061,29 @@ class SeriesRepository
             return;
         }
 
+        // CRUD-6 (review): only promote when the book has NO other principal
+        // membership. The previous unconditional CASE statement demoted the
+        // principal of a third unrelated series whenever a merge ran.
+        $stmtCheck = $this->db->prepare('SELECT 1 FROM libri_collane WHERE libro_id = ? AND collana_id <> ? AND is_principale = 1 LIMIT 1');
+        $hasOtherPrincipal = false;
+        if ($stmtCheck) {
+            $stmtCheck->bind_param('ii', $bookId, $collanaId);
+            $stmtCheck->execute();
+            $hasOtherPrincipal = (bool) $stmtCheck->get_result()->fetch_assoc();
+            $stmtCheck->close();
+        }
+        if ($hasOtherPrincipal) {
+            // Just ensure the target row is recorded as 'secondaria' — do not
+            // touch the existing principal.
+            $stmt = $this->db->prepare('UPDATE libri_collane SET tipo_appartenenza = IF(tipo_appartenenza = "principale", "secondaria", tipo_appartenenza), is_principale = 0 WHERE libro_id = ? AND collana_id = ?');
+            if ($stmt) {
+                $stmt->bind_param('ii', $bookId, $collanaId);
+                $stmt->execute();
+                $stmt->close();
+            }
+            return;
+        }
+
         $stmt = $this->db->prepare('UPDATE libri_collane SET is_principale = CASE WHEN collana_id = ? THEN 1 ELSE 0 END, tipo_appartenenza = CASE WHEN collana_id = ? THEN "principale" ELSE "secondaria" END WHERE libro_id = ?');
         if ($stmt) {
             $stmt->bind_param('iii', $collanaId, $collanaId, $bookId);
@@ -962,8 +1144,16 @@ class SeriesRepository
 
     private function currentDatabaseName(): string
     {
+        if (self::$cachedDbName !== null) {
+            return self::$cachedDbName;
+        }
         $res = $this->db->query('SELECT DATABASE()');
-        return $res ? (string) ($res->fetch_row()[0] ?? 'default') : 'default';
+        $name = $res ? (string) ($res->fetch_row()[0] ?? 'default') : 'default';
+        if ($res) {
+            $res->free();
+        }
+        self::$cachedDbName = $name;
+        return $name;
     }
 
     private function wouldCreateParentCycle(int $childId, int $parentId): bool

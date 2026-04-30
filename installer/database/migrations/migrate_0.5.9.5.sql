@@ -174,3 +174,25 @@ SET @sql = IF(@idx_exists = 0,
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- =============================================================================
+-- DATA-4 (review): CHECK constraint on `tipo` so direct INSERTs from plugins,
+-- CSV imports, scrapers cannot land arbitrary values that bypass the
+-- application-side normalizeType() whitelist.
+-- Requires MySQL 8.0.16+ (CHECK enforcement). Pre-8.0.16 silently parses
+-- but doesn't enforce — acceptable degradation since the application path
+-- already validates.
+-- =============================================================================
+SET @chk_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE CONSTRAINT_SCHEMA = DATABASE()
+      AND TABLE_NAME = 'collane'
+      AND CONSTRAINT_NAME = 'chk_collane_tipo'
+      AND CONSTRAINT_TYPE = 'CHECK'
+);
+SET @sql = IF(@chk_exists = 0,
+    "ALTER TABLE collane ADD CONSTRAINT chk_collane_tipo CHECK (tipo IN ('serie','universo','ciclo','stagione','spin_off','arco','collezione_editoriale','altro'))",
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
