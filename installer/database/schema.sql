@@ -662,6 +662,8 @@ CREATE TABLE `prenotazioni` (
   KEY `libro_id` (`libro_id`),
   KEY `utente_id` (`utente_id`),
   KEY `idx_prenotazioni_data_scadenza_prenotazione` (`data_scadenza_prenotazione`),
+  KEY `idx_stato_libro` (`stato`,`libro_id`),
+  KEY `idx_queue_position` (`queue_position`),
   CONSTRAINT `prenotazioni_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
   CONSTRAINT `prenotazioni_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -699,6 +701,8 @@ CREATE TABLE `prestiti` (
   KEY `idx_prestiti_stato_origine` (`stato`,`origine`),
   KEY `idx_copia_id` (`copia_id`),
   KEY `idx_prestiti_pickup_deadline` (`pickup_deadline`),
+  KEY `idx_origine` (`origine`),
+  KEY `idx_libro_utente` (`libro_id`,`utente_id`),
   CONSTRAINT `fk_prestiti_copia` FOREIGN KEY (`copia_id`) REFERENCES `copie` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `prestiti_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
   CONSTRAINT `prestiti_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`),
@@ -910,7 +914,7 @@ CREATE TABLE `libri_collane` (
   `collana_id` int NOT NULL,
   `numero_serie` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `tipo_appartenenza` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'principale',
-  `is_principale` tinyint(1) NOT NULL DEFAULT '0',
+  `is_principale` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -918,7 +922,11 @@ CREATE TABLE `libri_collane` (
   KEY `idx_lc_collana` (`collana_id`),
   KEY `idx_lc_principale` (`libro_id`,`is_principale`),
   CONSTRAINT `fk_lc_collana` FOREIGN KEY (`collana_id`) REFERENCES `collane` (`id`) ON DELETE CASCADE,
-  CONSTRAINT `fk_lc_libro` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE
+  CONSTRAINT `fk_lc_libro` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `chk_lc_principale_consistency` CHECK (
+    (`tipo_appartenenza` = 'principale' AND `is_principale` = 1)
+    OR (`tipo_appartenenza` <> 'principale' AND `is_principale` = 0)
+  )
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
