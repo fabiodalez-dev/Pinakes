@@ -1255,7 +1255,12 @@ return function (App $app): void {
     $app->get('/admin/libri/import/progress', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();
         return $controller->getProgress($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
+    })->add(new AdminAuthMiddleware());
+    // No RateLimitMiddleware here: this is a read-only progress poll behind
+    // admin auth, called every 1-2s by the import UI to refresh the bar.
+    // A 30/60s throttle saturated on imports of ~500+ rows (#113) and the
+    // user got hard-stuck behind a 429. The POST endpoints (/upload, /chunk)
+    // keep their rate limits — those are the abuse vector.
 
     // CSV Import Chunk Processing (AJAX)
     $app->post('/admin/libri/import/chunk', function ($request, $response) use ($app) {
@@ -1322,7 +1327,8 @@ return function (App $app): void {
     $app->get('/admin/libri/import/librarything/progress', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->getProgress($request, $response);
-    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
+    })->add(new AdminAuthMiddleware());
+    // No RateLimitMiddleware: see CSV /import/progress for rationale (#113).
 
     // Import History routes (Sprint 3)
     $app->get('/admin/imports-history', function ($request, $response) use ($app) {
@@ -1358,11 +1364,43 @@ return function (App $app): void {
     })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware()); // 15 requests per minute
 
     // Sync covers route
+    // Slim 4 route middleware is LIFO: the LAST ->add() runs FIRST. To make
+    // sure auth/CSRF rejections don't burn the rate-limit bucket (CR R7),
+    // order added so RateLimit is the OUTERMOST and runs LAST: Auth → CSRF
+    // → RateLimit. A 401 / 403 short-circuits before any quota is consumed.
     $app->post('/admin/libri/sync-covers', function ($request, $response) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->syncCovers($request, $response, $db);
-    })->add(new \App\Middleware\RateLimitMiddleware(1, 120))->add(new AdminAuthMiddleware()); // 1 request per 2 minutes (long-running operation)
+    })
+        ->add(new \App\Middleware\RateLimitMiddleware(1, 120)) // 1 req / 120s
+        ->add(new CsrfMiddleware())
+        ->add(new AdminAuthMiddleware());
+
+    // Bulk enrichment routes
+    $app->get('/admin/libri/bulk-enrich', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\BulkEnrichController();
+        return $controller->index($request, $response, $db);
+    })->add(new AdminAuthMiddleware());
+
+    // Bulk enrich start: up to 20 external scrapes per request. Rate-limit
+    // prevents double-clicks + retries from overlapping batches and burning
+    // upstream quota (Discogs / Google Books / Open Library have per-minute
+    // limits). Same shape as sync-covers above.
+    $app->post('/admin/libri/bulk-enrich/start', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\BulkEnrichController();
+        return $controller->start($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(1, 120)) // 1 req / 2 min
+      ->add(new CsrfMiddleware())
+      ->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/libri/bulk-enrich/toggle', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\BulkEnrichController();
+        return $controller->toggle($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Fallback GET to avoid 405 if user navigates directly
     $app->get('/admin/libri/update/{id:\d+}', function ($request, $response, $args) {
@@ -1435,6 +1473,12 @@ return function (App $app): void {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->updateOrder($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->post('/admin/collane/rimuovi-libro', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CollaneController();
+        $db = $app->getContainer()->get('db');
+        return $controller->removeBook($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/collane/crea-opera', function ($request, $response) use ($app) {
@@ -1906,10 +1950,19 @@ return function (App $app): void {
     $app->get('/api/dewey/path', [DeweyApiController::class, 'getPath'])->add(new AdminAuthMiddleware());
     // Reseed endpoint (per compatibilità - ora non fa nulla) - PROTETTO: Solo admin
     $app->post('/api/dewey/reseed', [DeweyApiController::class, 'reseed'])->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    // Bug-hunt #3-3: previously open to any visitor with a session CSRF;
+    // restricted to admin/staff (the legitimate caller is the admin book
+    // form's "download cover" button) plus rate limit to prevent disk-fill
+    // / SSRF amplification.
     $app->post('/api/cover/download', function ($request, $response) {
         $controller = new \App\Controllers\CoverController();
         return $controller->download($request, $response);
-    })->add(new CsrfMiddleware());
+    })
+        // LIFO order (CR R7): RateLimit added first runs last so 401/403
+        // from Auth/CSRF doesn't consume the throttle bucket.
+        ->add(new \App\Middleware\RateLimitMiddleware(10, 60))
+        ->add(new CsrfMiddleware())
+        ->add(new AdminAuthMiddleware());
     $app->get('/api/libri', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\LibriApiController();
         $db = $app->getContainer()->get('db');
@@ -1973,11 +2026,14 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->publishers($request, $response, $db);
     });
+    // PII endpoint: only admin/staff may enumerate users (Bug-hunt #3-1).
+    // Pre-fix this route was unauthenticated and leaked first/last name +
+    // tessera codes via search.
     $app->get('/api/search/utenti', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
         return $controller->users($request, $response, $db);
-    });
+    })->add(new AdminAuthMiddleware());
     $app->get('/api/search/libri', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\SearchController();
         $db = $app->getContainer()->get('db');
@@ -2866,6 +2922,12 @@ return function (App $app): void {
         $controller = new \App\Controllers\PluginController($pluginManager);
         return $controller->uninstall($request, $response, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    $app->get('/admin/plugins/{id}/settings', function ($request, $response, $args) use ($app) {
+        $pluginManager = $app->getContainer()->get('pluginManager');
+        $controller = new \App\Controllers\PluginController($pluginManager);
+        return $controller->settingsPage($request, $response, $args);
+    })->add(new AdminAuthMiddleware());
 
     // Plugin settings update
     $app->post('/admin/plugins/{id}/settings', function ($request, $response, $args) use ($app) {

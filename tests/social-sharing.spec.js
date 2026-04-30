@@ -1,7 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 
-const BASE = process.env.BASE_URL || 'http://localhost:8081';
+const BASE = process.env.E2E_BASE_URL || process.env.BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
 

@@ -241,7 +241,7 @@ $pluginSettings = $pluginSettings ?? [];
                                         data-plugin-id="<?= (int)$plugin['id'] ?>"
                                         data-plugin-name="<?= HtmlHelper::e(__($plugin['display_name'])) ?>"
                                         data-plugin-type="api-book-scraper" data-has-config="<?= $hasApiConfig ? '1' : '0' ?>"
-                                        data-settings-url="<?= htmlspecialchars(url('/admin/plugins/' . (int) $plugin['id'] . '/settings'), ENT_QUOTES, 'UTF-8') ?>"
+                                        data-settings-url="<?= htmlspecialchars(route_path('plugins') . '/' . (int) $plugin['id'] . '/settings', ENT_QUOTES, 'UTF-8') ?>"
                                         data-api-endpoint="<?= HtmlHelper::e($apiBookScraperSettings['api_endpoint'] ?? '') ?>"
                                         data-timeout="<?= HtmlHelper::e($apiBookScraperSettings['timeout'] ?? '10') ?>"
                                         data-enabled="<?= $isApiEnabled ? '1' : '0' ?>" onclick="openApiBookScraperModal(this)">
@@ -295,6 +295,13 @@ $pluginSettings = $pluginSettings ?? [];
                                         <i class="fas fa-cog mr-1"></i>
                                         <?= __("Configura Fonti") ?>
                                     </button>
+                                <?php endif; ?>
+                                <?php if ($plugin['name'] === 'discogs'): ?>
+                                    <a href="<?= htmlspecialchars(route_path('plugins') . '/' . (int) $plugin['id'] . '/settings', ENT_QUOTES, 'UTF-8') ?>"
+                                        class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
+                                        <i class="fas fa-cog mr-1"></i>
+                                        <?= __("Impostazioni") ?>
+                                    </a>
                                 <?php endif; ?>
                                 <?php if ($plugin['is_active']): ?>
                                     <button onclick="deactivatePlugin(<?= (int)$plugin['id'] ?>)"
@@ -1071,7 +1078,7 @@ $pluginSettings = $pluginSettings ?? [];
         <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Nome Server") ?></label>
-                <input type="text" name="server_name[]" value="${safeName}" placeholder="es. SBN Nazionale" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                <input type="text" name="server_name[]" value="${safeName}" placeholder="<?= htmlspecialchars(__('es. SBN Nazionale'), ENT_QUOTES, 'UTF-8') ?>" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="md:col-span-3">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("URL Endpoint SRU") ?></label>
@@ -1087,7 +1094,7 @@ $pluginSettings = $pluginSettings ?? [];
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Indice ISBN") ?></label>
-                <input type="text" name="server_isbn_index[]" value="${safeIsbnIndex}" placeholder="es. bath.isbn" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
+                <input type="text" name="server_isbn_index[]" value="${safeIsbnIndex}" placeholder="<?= htmlspecialchars(__('es. bath.isbn'), ENT_QUOTES, 'UTF-8') ?>" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Sintassi") ?></label>

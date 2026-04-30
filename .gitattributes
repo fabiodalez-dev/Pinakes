@@ -1,8 +1,10 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+public/uploads/archives/e2e/*.pdf binary
 
 # Exclude from release archives (git archive)
-public/installer/assets export-ignore
+# NOTE: public/installer/assets/ MUST be in the ZIP — contains installer.js
+# and style.css. Excluding it causes step 2 (test connection) to silently fail.
 tests/ export-ignore
 test/ export-ignore
 .github/ export-ignore

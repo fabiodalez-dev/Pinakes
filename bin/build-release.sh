@@ -264,14 +264,23 @@ verify_package_contents() {
         has_errors=true
     fi
 
-    # Bundled plugins that MUST be included
-    local bundled_plugins=(
-        "storage/plugins/open-library"
-        "storage/plugins/z39-server"
-        "storage/plugins/api-book-scraper"
-        "storage/plugins/digital-library"
-        "storage/plugins/dewey-editor"
-    )
+    # Bundled plugins that MUST be included.
+    # SOURCE OF TRUTH: this list was previously hardcoded with only 5 entries
+    # and drifted out of sync with reality (archives, deezer, discogs, goodlib,
+    # musicbrainz were missing — this caused the v0.5.9.3 shipping-ZIP disaster
+    # reported by HansUwe52). Do NOT re-hardcode it; enumerate from the actual
+    # filesystem instead so every bundled plugin that ships in the repo lands
+    # in the ZIP automatically.
+    local bundled_plugins=()
+    while IFS= read -r -d '' plugin_json; do
+        local plugin_dir
+        plugin_dir=$(dirname "$plugin_json")
+        # skip the premium plugin (distributed separately as scraping-pro-*.zip)
+        if [[ "$(basename "$plugin_dir")" == "scraping-pro" ]]; then
+            continue
+        fi
+        bundled_plugins+=("${plugin_dir#${package_dir}/}")
+    done < <(find "${package_dir}/storage/plugins" -mindepth 2 -maxdepth 2 -name plugin.json -print0 2>/dev/null)
 
     for plugin in "${bundled_plugins[@]}"; do
         if [ ! -d "${package_dir}/${plugin}" ]; then

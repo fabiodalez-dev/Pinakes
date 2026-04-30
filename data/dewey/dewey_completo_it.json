@@ -6823,6 +6823,12 @@
                         "level": 3,
                         "children": [
                             {
+                                "code": "823.7",
+                                "name": "Narrativa Inglese, 1800-1837",
+                                "level": 4,
+                                "children": []
+                            },
+                            {
                                 "code": "823.9",
                                 "name": "Narrativa Inglese",
                                 "level": 4,

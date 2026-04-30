@@ -44,7 +44,13 @@ $initialData = [
     'peso' => $book['peso'] ?? '',
     'numero_pagine' => $book['numero_pagine'] ?? '',
     'numero_inventario' => $book['numero_inventario'] ?? '',
+    'gruppo_serie' => $book['gruppo_serie'] ?? '',
+    'serie_padre' => $book['serie_padre'] ?? '',
+    'tipo_collana' => $book['tipo_collana'] ?? 'serie',
     'collana' => $book['collana'] ?? '',
+    'altre_collane' => $book['altre_collane'] ?? '',
+    'ciclo_serie' => $book['ciclo_serie'] ?? '',
+    'ordine_ciclo' => $book['ordine_ciclo'] ?? '',
     'numero_serie' => $book['numero_serie'] ?? '',
     'note_varie' => $book['note_varie'] ?? '',
     'file_url' => $book['file_url'] ?? '',
@@ -62,6 +68,11 @@ $initialAuthorsJson = htmlspecialchars(json_encode($initialAuthors, JSON_HEX_TAG
 $initialDataJsonRaw = json_encode($initialData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 $modeAttr = htmlspecialchars($mode, ENT_QUOTES, 'UTF-8');
 $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
+// i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
+$seriesTypeOptions = \App\Support\SeriesLabels::types();
+// i18n-5: normalize legacy/alias tipo (series, cycle, spinoff, ...) so the
+// dropdown preselects the canonical key.
+$selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana'] ?? 'serie');
 ?>
 <?php if (!empty($error_message)): ?>
   <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700" role="alert">
@@ -424,6 +435,16 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
         <div class="card-body form-section">
           <div class="form-grid-3">
             <div>
+              <label for="tipo_media" class="form-label"><?= __("Tipo Media") ?></label>
+              <select id="tipo_media" name="tipo_media" class="form-input">
+                <?php foreach (\App\Support\MediaLabels::allTypes() as $value => $meta): ?>
+                  <option value="<?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?>" <?= ($book['tipo_media'] ?? 'libro') === $value ? 'selected' : '' ?>>
+                    <?= __($meta['label']) ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div>
               <label for="formato" class="form-label"><?= __("Formato") ?></label>
               <input id="formato" name="formato" type="text" class="form-input" placeholder="<?= __('es. Copertina rigida, Brossura') ?>" value="<?php echo HtmlHelper::e($book['formato'] ?? ''); ?>" />
             </div>
@@ -465,19 +486,71 @@ $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
           </h2>
         </div>
         <div class="card-body form-section">
-          <div class="form-grid-3">
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label for="numero_inventario" class="form-label"><?= __("Numero Inventario") ?></label>
               <input id="numero_inventario" name="numero_inventario" type="text" class="form-input" placeholder="<?= __('es. INV-2024-001') ?>" value="<?php echo HtmlHelper::e($book['numero_inventario'] ?? ''); ?>" />
             </div>
-            <div>
-              <label for="collana" class="form-label"><?= __("Collana") ?></label>
-              <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= __('es. I Classici') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" />
+          </div>
+
+          <!-- UX-1 + UX-7 (review): regroup the 8 series fields under a
+               dedicated <fieldset> with inline help text; each input ties
+               to its description via aria-describedby so screen-reader users
+               aren't left guessing the difference between gruppo / serie
+               padre / serie principale. Sub-card heading is in Italian
+               source ("Serie e collana"). -->
+          <fieldset class="border border-gray-200 rounded-xl p-4 mt-4">
+            <legend class="px-2 text-sm font-semibold text-gray-700"><i class="fas fa-layer-group text-primary mr-1"></i><?= __("Serie e collana") ?></legend>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <label for="gruppo_serie" class="form-label"><?= __("Gruppo serie") ?></label>
+                <input id="gruppo_serie" name="gruppo_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Fairy Tail'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['gruppo_serie'] ?? ''); ?>" aria-describedby="gruppo_serie_help" />
+                <p id="gruppo_serie_help" class="text-xs text-gray-500 mt-1"><?= __('Etichetta "ombrello" per spin-off (es. tutto il franchise di Fairy Tail).') ?></p>
+              </div>
+              <div>
+                <label for="serie_padre" class="form-label"><?= __("Serie padre / universo") ?></label>
+                <input id="serie_padre" name="serie_padre" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. I mondi di Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['serie_padre'] ?? ''); ?>" aria-describedby="serie_padre_help" />
+                <p id="serie_padre_help" class="text-xs text-gray-500 mt-1"><?= __("Serie superiore nella gerarchia (es. l'universo che contiene cicli e stagioni).") ?></p>
+              </div>
+              <div>
+                <label for="tipo_collana" class="form-label"><?= __("Tipo serie") ?></label>
+                <select id="tipo_collana" name="tipo_collana" class="form-input" aria-describedby="tipo_collana_help">
+                  <?php foreach ($seriesTypeOptions as $typeValue => $typeLabel): ?>
+                    <option value="<?= HtmlHelper::e($typeValue) ?>" <?= $selectedSeriesType === $typeValue ? 'selected' : '' ?>><?= HtmlHelper::e($typeLabel) ?></option>
+                  <?php endforeach; ?>
+                </select>
+                <p id="tipo_collana_help" class="text-xs text-gray-500 mt-1"><?= __('Tassonomia: serie / universo / ciclo / stagione / spin-off / arco / collana editoriale.') ?></p>
+              </div>
+              <div>
+                <label for="collana" class="form-label"><?= __("Serie principale") ?></label>
+                <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Fairy Tail: 100 Years Quest'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" aria-describedby="collana_help" />
+                <p id="collana_help" class="text-xs text-gray-500 mt-1"><?= __("Nome specifico della serie a cui appartiene il libro.") ?></p>
+              </div>
             </div>
-            <div>
-              <label for="numero_serie" class="form-label"><?= __("Numero Serie") ?></label>
-              <input id="numero_serie" name="numero_serie" type="text" class="form-input" placeholder="<?= __('es. 15') ?>" value="<?php echo HtmlHelper::e($book['numero_serie'] ?? ''); ?>" />
+
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mt-3">
+              <div>
+                <label for="numero_serie" class="form-label"><?= __("Numero Serie") ?></label>
+                <input id="numero_serie" name="numero_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 15'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['numero_serie'] ?? ''); ?>" />
+              </div>
+              <div>
+                <label for="ciclo_serie" class="form-label"><?= __("Ciclo / stagione") ?></label>
+                <input id="ciclo_serie" name="ciclo_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Ciclo 1 - Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['ciclo_serie'] ?? ''); ?>" />
+              </div>
+              <div>
+                <label for="ordine_ciclo" class="form-label"><?= __("Ordine ciclo") ?></label>
+                <input id="ordine_ciclo" name="ordine_ciclo" type="number" min="0" class="form-input" placeholder="1" value="<?php echo HtmlHelper::e((string)($book['ordine_ciclo'] ?? '')); ?>" />
+              </div>
+              <div>
+                <label for="altre_collane" class="form-label"><?= __("Altre serie") ?></label>
+                <textarea id="altre_collane" name="altre_collane" rows="2" class="form-input" placeholder="<?= htmlspecialchars(__('Una serie per riga'), ENT_QUOTES, 'UTF-8') ?>" aria-describedby="altre_collane_help"><?php echo HtmlHelper::e($book['altre_collane'] ?? ''); ?></textarea>
+                <p id="altre_collane_help" class="text-xs text-gray-500 mt-1"><?= __("Una serie per riga (le virgole sono trattate come parte del nome).") ?></p>
+              </div>
             </div>
+          </fieldset>
+          <!-- /UX-1 fieldset -->
+          <div class="hidden">
+            <!-- placeholder retained for old DOM selectors -->
           </div>
 
           <div class="form-grid-2">
@@ -1153,7 +1226,7 @@ function displayImagePreview(file) {
         container.innerHTML = `
             <div class="inline-flex flex-col items-start space-y-2">
                 <div class="relative">
-                    <img src="${e.target.result}" alt="Anteprima copertina" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm">
+                    <img src="${e.target.result}" alt="${escapeHtml(window.__ ? window.__('Anteprima copertina') : 'Anteprima copertina')}" class="max-h-48 object-contain border border-gray-200 rounded-lg shadow-sm">
                 </div>
                 <div class="flex items-center gap-4">
                     <div class="flex items-center gap-2 text-sm text-gray-600">
@@ -1760,9 +1833,16 @@ async function initializeDewey() {
       const code = path[i];
       const parentCode = i === 0 ? null : path[i - 1];
 
-      // Assicurati che il dropdown per questo livello esista
+      // Assicurati che il dropdown per questo livello esista. Se loadLevel
+      // ritorna null (parent non trovato nel JSON o API vuota) interrompi
+      // la navigazione: codici Dewey più specifici del JSON (es. '305.42097'
+      // legacy) sono trattati come custom — il fallback sotto mostrerà il
+      // codice nel breadcrumb senza tentare altri livelli.
       if (container.children.length <= i) {
-        await loadLevel(parentCode, i);
+        const loadedSelect = await loadLevel(parentCode, i);
+        if (!loadedSelect) {
+          break;
+        }
       }
 
       // Trova e seleziona l'opzione nel dropdown
@@ -3604,6 +3684,17 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
+            // Auto-set tipo_media from scraped data
+            try {
+                if (data.tipo_media) {
+                    const tipoMediaSelect = document.getElementById('tipo_media');
+                    if (tipoMediaSelect) {
+                        tipoMediaSelect.value = data.tipo_media;
+                    }
+                }
+            } catch (err) {
+            }
+
             // Handle series (collana)
             try {
                 if (data.series) {
@@ -3763,12 +3854,13 @@ function initializeIsbnImport() {
             } catch (err) {
             }
 
-            // Handle keywords (parole_chiave) - categories from Google Books
+            // Handle keywords (parole_chiave) - from Google Books, Discogs, MusicBrainz
             try {
-                if (data.keywords) {
+                const kw = data.keywords || data.parole_chiave;
+                if (kw) {
                     const keywordsInput = document.querySelector('input[name="parole_chiave"]');
                     if (keywordsInput) {
-                        keywordsInput.value = data.keywords;
+                        keywordsInput.value = kw;
                     }
                 }
             } catch (err) {

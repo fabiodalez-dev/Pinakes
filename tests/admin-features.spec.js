@@ -655,13 +655,17 @@ test.describe.serial('Book Creation & ISBN Scraping', () => {
     await page.goto(`${BASE}/admin/libri`);
     await page.waitForLoadState('networkidle');
 
-    // Search for the book via API
+    // Search for the book via API. The /api/libri search is fuzzy and
+    // any leftover seed-book (e.g. "CascBook_…") whose title happens to
+    // share a token with "E2E Book …" can come back first. Don't rely on
+    // data[0]; find the row whose titolo actually contains RUN_ID.
     const resp = await page.request.get(
-      `${BASE}/api/libri?start=0&length=5&search[value]=${encodeURIComponent(`E2E Book ${RUN_ID}`)}`
+      `${BASE}/api/libri?start=0&length=50&search[value]=${encodeURIComponent(`E2E Book ${RUN_ID}`)}`
     );
     const data = await resp.json();
     expect(data.data.length).toBeGreaterThan(0);
-    expect(data.data[0].titolo).toContain(RUN_ID);
+    const match = (data.data || []).find(row => (row.titolo || '').includes(RUN_ID));
+    expect(match, `no row with titolo containing RUN_ID=${RUN_ID} among ${data.data.length} hits`).toBeDefined();
   });
 });
 

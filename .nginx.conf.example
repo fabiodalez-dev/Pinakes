@@ -54,13 +54,55 @@ server {
     }
 
     # ========================================
+    # Plugin-served assets (MUST precede the generic static block)
+    # ========================================
+    # Plugins such as digital-library and archives stream their own CSS/JS
+    # through Slim routes (/plugins/<name>/assets/<type>/<file>). These files
+    # don't exist on disk — PHP reads them from the plugin package and sets
+    # its own Cache-Control header (typically `public, max-age=31536000`
+    # because plugin asset paths are versioned by the plugin manifest).
+    #
+    # If the generic static location below catches these requests first, its
+    # `add_header Cache-Control "public, max-age=2592000, must-revalidate"`
+    # would stack on top of the plugin's header, sending the browser two
+    # conflicting values.
+    # Route them straight to PHP so only the plugin's header reaches the wire.
+    location ^~ /plugins/ {
+        try_files $uri /index.php?$query_string;
+    }
+
+    # ========================================
     # Static assets with caching
     # ========================================
     # Note: Security headers must be repeated here because Nginx doesn't inherit
     # add_header directives from parent context when add_header is used in a location
+    #
+    # Miss behaviour: hard 404. The plugin-asset location above already
+    # forwards `/plugins/*` to PHP; `/uploads/*` has its own block below;
+    # anything else with these extensions that isn't on disk is a genuine
+    # 404, not something PHP needs to answer. Falling back to index.php
+    # here would waste a PHP-FPM worker per bot/scanner probe and fill
+    # app logs with noise.
+    #
+    # NOTE on caching: `immutable` would tell browsers never to revalidate for
+    # `expires`. Since Pinakes doesn't version-fingerprint core assets either,
+    # setting `immutable` + `1y` means asset updates stay invisible for up
+    # to a year. We use a conservative 1-month TTL with `must-revalidate`
+    # so browsers recheck on next hit after expiry.
     location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp3|mp4|webm|pdf|epub)$ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
+        # Disable the `expires` auto-emitted Cache-Control and write a single
+        # explicit header instead. `expires 1M` would synthesise its own
+        # `Cache-Control: max-age=2592000`, which stacked on top of our
+        # `add_header Cache-Control "..."` would send the browser two
+        # concatenated values and make the effective policy ambiguous.
+        expires off;
+        # No `always` flag on Cache-Control: nginx then applies this header
+        # only to 2xx/3xx responses. A transient 404 emitted by `try_files
+        # ... =404` below must NOT be cached for a month — the next deploy
+        # or upload should let users recover. Security headers keep
+        # `always` intentionally (they need to be present on error pages
+        # too, defense-in-depth against MIME sniffing / clickjacking).
+        add_header Cache-Control "public, max-age=2592000, must-revalidate";
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;

@@ -93,23 +93,23 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
             <a href="<?= htmlspecialchars(url('/admin/libri/crea'), ENT_QUOTES, 'UTF-8') ?>"
                class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium transition-colors">
               <i class="fas fa-plus"></i>
-              Nuovo Libro
+              <?= __('Nuovo Libro') ?>
             </a>
             <?php if ($hasBooks): ?>
               <button type="button" disabled
                       class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-300 text-gray-400 cursor-not-allowed"
                       title="<?= __("Rimuovere i libri associati prima di eliminare l'autore") ?>">
                 <i class="fas fa-lock"></i>
-                Non eliminabile
+                <?= __('Non eliminabile') ?>
               </button>
             <?php else: ?>
               <form method="post" action="<?= htmlspecialchars(url('/admin/autori/delete/' . (int)($autore['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                 <button type="submit"
                         class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
-                        onclick="return confirm('Confermi l\'eliminazione dell\'autore?');">
+                        onclick="return confirm(<?= htmlspecialchars(json_encode(__("Confermi l'eliminazione dell'autore?"), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>);">
                   <i class="fas fa-trash"></i>
-                  Elimina
+                  <?= __('Elimina') ?>
                 </button>
               </form>
             <?php endif; ?>

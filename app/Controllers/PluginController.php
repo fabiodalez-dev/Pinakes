@@ -53,6 +53,12 @@ class PluginController
                 $settings['api_key'] = $settings['api_key_exists'] ? '••••••••' : '';
             }
 
+            // Redact Discogs token — never expose to template
+            if ($plugin['name'] === 'discogs' && array_key_exists('api_token', $settings)) {
+                $settings['api_token_exists'] = $settings['api_token'] !== '';
+                $settings['api_token'] = '';
+            }
+
             $pluginSettings[$plugin['id']] = $settings;
         }
 
@@ -212,6 +218,49 @@ class PluginController
 
         $response->getBody()->write(json_encode($result));
         return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    public function settingsPage(Request $request, Response $response, array $args): Response
+    {
+        if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
+            return $response->withStatus(403);
+        }
+
+        $pluginId = (int) $args['id'];
+        $plugin = $this->pluginManager->getPlugin($pluginId);
+        if (!$plugin) {
+            return $response->withStatus(404);
+        }
+
+        $pluginInstance = $this->pluginManager->getPluginInstance($pluginId);
+        if ($pluginInstance === null || !is_callable([$pluginInstance, 'hasSettingsPage']) || !$pluginInstance->hasSettingsPage()) {
+            return $response->withStatus(404);
+        }
+
+        if (!is_callable([$pluginInstance, 'getSettingsViewPath'])) {
+            return $response->withStatus(404);
+        }
+
+        $settingsViewPath = $pluginInstance->getSettingsViewPath();
+        if (!is_string($settingsViewPath) || !is_file($settingsViewPath)) {
+            return $response->withStatus(404);
+        }
+
+        if (!isset($GLOBALS['plugins'])) {
+            $GLOBALS['plugins'] = [];
+        }
+        $GLOBALS['plugins'][$plugin['name']] = $pluginInstance;
+
+        ob_start();
+        require $settingsViewPath;
+        $content = ob_get_clean();
+
+        ob_start();
+        require __DIR__ . '/../Views/layout.php';
+        $html = ob_get_clean();
+
+        $response->getBody()->write($html);
+        return $response;
     }
 
     /**
@@ -390,6 +439,23 @@ class PluginController
                 'success' => true,
                 'message' => __('Impostazioni GoodLib salvate correttamente.'),
                 'data' => $normalizedDomains,
+            ]));
+        } elseif ($plugin['name'] === 'discogs') {
+            // Discogs: personal access token
+            $apiToken = trim((string) ($settings['api_token'] ?? ''));
+
+            $saved = $this->pluginManager->setSetting($pluginId, 'api_token', $apiToken, true);
+            if (!$saved) {
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Errore durante il salvataggio.')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
+
+            $response->getBody()->write(json_encode([
+                'success' => true,
+                'message' => __('Impostazioni Discogs salvate correttamente.'),
+                'data' => [
+                    'has_token' => $apiToken !== ''
+                ]
             ]));
         } else {
             // Plugin not supported

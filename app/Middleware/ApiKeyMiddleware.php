@@ -5,6 +5,7 @@ namespace App\Middleware;
 
 use App\Models\ApiKeyRepository;
 use App\Models\SettingsRepository;
+use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Psr\Http\Server\MiddlewareInterface;
@@ -52,7 +53,7 @@ class ApiKeyMiddleware implements MiddlewareInterface
             $apiKeyRepo->updateLastUsed($apiKey);
         } catch (\Throwable $e) {
             // Log error but don't block the request
-            error_log('Failed to update API key last used timestamp: ' . $e->getMessage());
+            SecureLogger::warning('[ApiKeyMiddleware] Failed to update API key last used timestamp', ['exception' => $e->getMessage()]);
         }
 
         // Add API key data to request attributes for use in controller

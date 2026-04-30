@@ -1,6 +1,10 @@
 <?php
 /** @var array $collane */
+/** @var bool $supportsHierarchy */
 use App\Support\HtmlHelper;
+use App\Support\SeriesLabels;
+// i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
+$seriesTypeLabels = SeriesLabels::types();
 ?>
 
 <section class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
@@ -20,7 +24,7 @@ use App\Support\HtmlHelper;
       <h1 class="text-2xl font-bold text-gray-900">
         <i class="fas fa-layer-group text-gray-600 mr-2"></i><?= __("Gestione Collane") ?>
       </h1>
-      <p class="text-sm text-gray-600 mt-1"><?= __("Gestisci le collane e le serie di libri") ?></p>
+      <p class="text-sm text-gray-600 mt-1"><?= __("Gestisci collane, spin-off e cicli di serie") ?></p>
     </div>
     <button type="button" onclick="createCollana()" class="px-4 py-2 bg-gray-800 text-white hover:bg-gray-900 rounded-lg transition-colors text-sm font-medium">
       <i class="fas fa-plus mr-2"></i><?= __("Nuova Collana") ?>
@@ -85,6 +89,12 @@ use App\Support\HtmlHelper;
       <thead class="bg-gray-50">
         <tr>
           <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Collana") ?></th>
+          <?php if (!empty($supportsHierarchy)): ?>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Tipo serie") ?></th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Serie padre / universo") ?></th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Gruppo serie") ?></th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase"><?= __("Ciclo / stagione") ?></th>
+          <?php endif; ?>
           <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase"><?= __("Libri") ?></th>
           <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase"><?= __("Volumi") ?></th>
           <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase"></th>
@@ -98,6 +108,27 @@ use App\Support\HtmlHelper;
               <?= HtmlHelper::e($c['collana']) ?>
             </a>
           </td>
+          <?php if (!empty($supportsHierarchy)): ?>
+          <td class="px-6 py-4 text-sm text-gray-600">
+            <?= HtmlHelper::e(SeriesLabels::label($c['tipo'] ?? 'serie')) ?>
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-600">
+            <?= !empty($c['parent_nome']) ? HtmlHelper::e($c['parent_nome']) : '<span class="text-gray-400">—</span>' ?>
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-600">
+            <?= HtmlHelper::e($c['gruppo_serie'] ?? '') ?>
+          </td>
+          <td class="px-6 py-4 text-sm text-gray-600">
+            <?php if (!empty($c['ciclo']) || !empty($c['ordine_ciclo'])): ?>
+              <?= HtmlHelper::e($c['ciclo'] ?? '') ?>
+              <?php if (!empty($c['ordine_ciclo'])): ?>
+                <span class="text-xs text-gray-400 ml-1">#<?= (int) $c['ordine_ciclo'] ?></span>
+              <?php endif; ?>
+            <?php else: ?>
+              <span class="text-gray-400">—</span>
+            <?php endif; ?>
+          </td>
+          <?php endif; ?>
           <td class="px-6 py-4 text-center">
             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
               <?= (int) $c['book_count'] ?>

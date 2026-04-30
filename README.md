@@ -2,14 +2,14 @@
   <img src="./public/assets/brand/social.jpg" alt="Pinakes - Library Management System" width="800">
 </p>
 
-# Pinakes 📚
+# Pinakes
 
 > **Open-Source Integrated Library System**
 > License: GPL-3  |  Languages: Italian, English, German
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.3-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/version-0.5.9.6-0ea5e9?style=for-the-badge)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,9 +24,141 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.5.3
+## What's New in v0.5.9.6
 
-### 🔍 Cross-Version Consistency Fixes (v0.4.9.9–v0.5.2)
+> This is the latest patch in the v0.5.9 series. All v0.5.9.x changes are listed below newest-first.
+
+### Membership consistency hardening + performance indexes (v0.5.9.6)
+
+- `libri_collane` now enforces a CHECK constraint (`chk_lc_principale_consistency`) so a row can never have `tipo_appartenenza='principale'` together with `is_principale=0` (or vice versa). Pre-fix the column defaults silently allowed that contradictory state.
+- The column default for `is_principale` was aligned to `1` to match the `'principale'` default of `tipo_appartenenza`, removing the foot-gun for any future plugin/CSV/scraper that omits the flag.
+- Existing rows are realigned in-place by an idempotent migration; no data loss, no manual steps required.
+- Six performance indexes backfilled for existing installations via `migrate_0.5.9.6.sql`: `idx_origine` and `idx_libro_utente` on `prestiti`; `idx_tipo_utente` on `utenti`; `idx_stato_libro`, `idx_queue_position` on `prenotazioni`. Fresh installs already had these via `schema.sql`; upgrades from any prior version now receive them automatically.
+
+### Series groups and cycles (v0.5.9.5)
+
+- Collane now support an optional umbrella group for related spin-offs, universes, or franchises, so separate series like `Fairy Tail`, `Fairy Tail: 100 Year Quest`, and `Fairy Tail: Happy` can remain distinct while sharing one parent group.
+- Collane also support an optional cycle/season label plus numeric ordering, matching LibraryThing-style series such as `The Worlds of Aldebaran` with `Cycle 1`, `Cycle 2`, and later arcs.
+- Book create/edit forms can set group, cycle/season, cycle order, series name, and series number in one flow; the Collane admin page exposes the same metadata and shows related series in the same group.
+
+### Archives plugin (ISAD(G) / ISAAR(CPF))
+
+New bundled plugin for archival material alongside the bibliographic
+catalog — hierarchical descriptions (Fondo → Series → File → Item) per
+[ISAD(G)](https://www.ica.org/en/isadg-general-international-standard-archival-description-second-edition),
+authority records per
+[ISAAR(CPF)](https://www.ica.org/en/isaar-cpf-international-standard-archival-authority-record-corporate-bodies-persons-and-families-2nd).
+
+**Archival descriptions**
+
+- Three tables (`archival_units`, `authority_records`, `archival_unit_authority`)
+  with self-referencing tree, FK guards, MARC-like field crosswalk inspired
+  by the ABA format (Arbejderbevægelsens Bibliotek og Arkiv).
+- Admin CRUD at `/admin/archives`, public frontend at `/archivio` (card grid
+  + detail pages styled to match the book detail, SEO slug URLs, JSON-LD
+  `ArchiveComponent` schema, breadcrumb chain).
+- Per-unit cover image + document uploads (PDF/ePub/MP3/video) with finfo
+  MIME detection and path-prefix unlink guard.
+
+**Authority records (ISAAR(CPF))**
+
+- Full CRUD for persons / corporate bodies / families with M:N linkage
+  to both `archival_units` and `libri.autori` (unified authority file
+  for the whole catalog, not per-module).
+- JS type-ahead picker for attaching an existing authority to an
+  archival unit (admin form) — no manual ID entry.
+- Unified cross-entity search: a single query returns hits across
+  `libri` + `archival_units` + `authority_records` with the correct
+  provenance label in the results.
+
+**Photographic items**
+
+- Dedicated `specific_material` ENUM on `archival_units` covering the
+  full ABA billedmarc / MARC21 008-pos-33 catalogue (`hb`/`hp`/`hm`/`hd`/`hk`/
+  `bf`/`hf`/`lm`/`lf`/`vm`/`bm`/`le`/`zz`…) so a photograph, postcard,
+  drawing, map, or audio-visual item gets classified correctly rather
+  than flattened to "item".
+
+**MARCXML I/O + SRU**
+
+- MARCXML import + export, round-trip-stable (identity test: export →
+  import → re-export yields byte-identical output), validated against
+  the MARC21 Slim XSD on both sides.
+- SRU 1.2 endpoint for archival records so external discovery systems
+  (OPACs, union catalogues, Z39.50/SRU gateways) can query the archive
+  alongside the book catalogue.
+
+**Packaging**
+
+- Plugin ships **inactive** (`metadata.optional: true`). Activate in
+  Admin → Plugins to create the schema.
+- i18n: IT/EN/DE (~40 new keys). Tracks
+  [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
+
+### Discogs catalog number (Cat#) support
+
+`DiscogsPlugin::validateBarcode` now accepts Catalog Numbers
+(`CDP 7912682`, `SRX-6272`, `DGC-24425-2`) alongside EAN-13/UPC-A.
+`ScrapeController::byIsbn` preserves the raw identifier through the
+`scrape.isbn.validate` hook chain so plugins can match non-numeric
+inputs. Valid ISBN-10 codes ending in `X` (`080442957X`) are explicitly
+vetoed from Cat# classification to avoid music-metadata merges into book
+records (MOD-11 checksum in `DiscogsPlugin::isIsbn10`, 7 regression
+asserts in `tests/discogs-catno.unit.php`). Closes
+[#101](https://github.com/fabiodalez-dev/Pinakes/issues/101).
+
+### Remember-me preserves user locale
+
+Users whose `utenti.locale` differs from the install default
+(a `de_DE` user on an `it_IT` install) now see their locale restored
+after auto-login. Fix is in installer seed + a backfill migration:
+`installer/database/data_{it_IT,en_US}.sql` seed all three shipped
+locales, `migrate_0.5.9.1.sql` adds the missing row on existing
+installs. Closes [#108](https://github.com/fabiodalez-dev/Pinakes/issues/108).
+
+### Migration
+
+`migrate_0.5.9.sql` creates archival plugin tables + indexes.
+`migrate_0.5.9.1.sql` seeds missing locales. Both idempotent via
+`INFORMATION_SCHEMA` guards and `INSERT IGNORE`.
+
+### Release-pipeline hardening (v0.5.9.2 → v0.5.9.4)
+
+The 0.5.9.x series took four hotfix iterations because a forgotten
+GitHub Actions workflow (`release.yml`) was racing
+`scripts/create-release.sh` and overwriting the published ZIP with a
+stale build that only contained 5 of 10 bundled plugins. The rogue
+workflow is now disabled, `bin/build-release.sh` enumerates plugins
+from the filesystem instead of a hardcoded list, and
+`scripts/create-release.sh` verifies the shipped ZIP via the GitHub
+API (uploader identity + SHA + plugin count, polled for 90s) so no
+third-party overwrite can slip through unnoticed. Full post-mortem
+in `updater.md`.
+
+---
+
+## Previous Releases
+
+<details>
+<summary><strong>v0.5.4</strong> - Discogs Plugin + Media Type + Plugin Manager Hardening</summary>
+
+### Discogs music scraper plugin (#87)
+
+- **New `tipo_media` ENUM** (`libro/disco/audiolibro/dvd/altro`) on `libri` with composite index `(deleted_at, tipo_media)`
+- **Heuristic backfill** from `formato` using anchored LIKE patterns (avoids `%cd%` matching CD-ROM, `%lp%` matching "help")
+- **Discogs + MusicBrainz + CoverArtArchive + Deezer** chain with 4 hooks (incl. `scrape.isbn.validate` for UPC-12/13)
+- **Barcode → ISBN guard** in `ScrapeController::normalizeIsbnFields` — skips normalization when no format/tipo_media signal to avoid the EAN-in-`isbn13` regression
+- **PluginManager** migrated from `error_log` → `SecureLogger` (31 call sites)
+
+### Post-release hotfixes (rolled into v0.5.4)
+
+- `autoRegisterBundledPlugins` INSERT had 14 columns / 13 values after CodeRabbit round 11 — fresh installs crashed with "Column count doesn't match value count" (fixed in `c9bd82c`)
+- Same method's `bind_param('ssssssssissss')` had positions 8+9 swapped — `path='discogs'` was cast to int `0`, orphan-detection then deleted the rows (fixed in `fb1e881`)
+
+</details>
+
+<details>
+<summary><strong>v0.5.3</strong> - Cross-Version Consistency Fixes (v0.4.9.9–v0.5.2)</summary>
 
 - **`descrizione_plain` propagated** — Catalog FULLTEXT search and admin grid now use `COALESCE(NULLIF(descrizione_plain, ''), descrizione)` for LIKE conditions, completing the HTML-free search feature from v0.4.9.9
 - **ISSN in Schema.org & API** — `issn` property now emitted in Book JSON-LD and returned by the public API (`/api/books`)
@@ -34,14 +166,12 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **LibraryThing import aligned** — `descrizione_plain` (with `html_entity_decode` + spacing), ISSN normalization, `AuthorNormalizer` on traduttore, soft-delete guards on all UPDATE queries, and `descrizione_plain` column conditional (safe on pre-0.4.9.9 databases)
 - **Secondary Author Roles** — LT import now routes translators to `traduttore` field based on `Secondary Author Roles`
 
----
-
-## Previous Releases
+</details>
 
 <details>
 <summary><strong>v0.5.2</strong> - Name Normalization (#93)</summary>
 
-### 🔧 Name Normalization for Translators, Illustrators, Curators (#93)
+### Name Normalization for Translators, Illustrators, Curators (#93)
 
 - **`AuthorNormalizer`** applied to translator, illustrator, and curator on create, update, and scraping
 - **Client-side normalization** — "Surname, Name" → "Name Surname" for translator/illustrator in book form
@@ -52,7 +182,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 <details>
 <summary><strong>v0.5.1</strong> - ISSN, Series Management, Multi-Volume Works (#75)</summary>
 
-### 📚 ISSN, Series Management, Multi-Volume Works (#75)
+### ISSN, Series Management, Multi-Volume Works (#75)
 
 **ISSN Field:**
 - **New ISSN field** on book form with XXXX-XXXX validation (server-side + client-side)
@@ -93,7 +223,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 <details>
 <summary><strong>v0.5.0</strong> - SEO & LLM Readiness, Schema.org Enrichment, Curator Field</summary>
 
-### 🔍 SEO & LLM Readiness, Schema.org Enrichment, Curator Field
+### SEO & LLM Readiness, Schema.org Enrichment, Curator Field
 
 - **Hreflang alternate tags** on all frontend pages
 - **RSS 2.0 feed** at `/feed.xml`
@@ -107,7 +237,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 <details>
 <summary><strong>v0.4.9.9</strong> - Social Sharing, Genre Navigation, Search Improvements</summary>
 
-### 📤 Social Sharing, Genre Navigation, Inline PDF Viewer & Search
+### Social Sharing, Genre Navigation, Inline PDF Viewer & Search
 
 - **7 sharing providers** — Facebook, X, WhatsApp, Telegram, LinkedIn, Reddit, Pinterest + Email, Copy Link, Web Share API
 - **Genre breadcrumb navigation** — Clickable genre hierarchy links that filter by category
@@ -121,7 +251,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 <details>
 <summary><strong>v0.4.9.8</strong> - Security, Database Integrity & Code Quality</summary>
 
-### 🔒 Security & Database Integrity
+### Security & Database Integrity
 
 - **SMTP password encryption** — AES-256-CBC at rest using `APP_KEY`
 - **isbn10/ean UNIQUE indexes** — Blank values normalized to NULL, duplicates resolved
@@ -132,7 +262,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
 1. **Clone or download** this repository and upload all files to the root directory of your server.
 2. **Visit your site's root URL** in the browser — the guided installer starts automatically.
@@ -302,6 +432,43 @@ Automatic emails for:
 - **Audiobook streaming** (MP3, M4A, OGG) with integrated player
 - **Drag-and-drop upload** or external URL linking
 
+### Archival Records — ISAD(G) + ISAAR(CPF)
+
+Shipped as the bundled **Archives** plugin (opt-in; activate from Admin → Plugins). Lets the same Pinakes install manage both a book catalogue *and* a hierarchical archive — fonds, series, files, items — according to the international archival standards used by public archives, historical societies, photographic collections, and academic repositories.
+
+**Hierarchical archival description (ISAD(G) 2nd ed.)**
+- Four-level hierarchy: `fonds` → `series` → `file` → `item`. Each row is a standalone ISAD(G) record with `parent_id` chaining up to an arbitrary depth (real archives are usually 2-4 deep).
+- Full identity area (3.1): reference code, institution code, formal + constructed title, date range (start/end + predominant dates + significant gaps), extent, language codes.
+- Context & content (3.2-3.3): archival history, acquisition source, scope & content, appraisal/destruction schedule, accruals policy, system of arrangement.
+- Access & use (3.4): access conditions, reproduction rules, language/script notes, physical characteristics, finding aids.
+- Allied materials (3.5): originals/copies location, related units.
+- Soft-delete aligned with the library-side `libri` convention (deleted rows vanish from views, still queryable for restore).
+- Descendant-cycle guard: an edit that would make a unit its own descendant is rejected with a validation error (walks ancestors up to 100 hops).
+
+**Authority records (ISAAR(CPF))**
+- Dedicated table, separate from `autori`, because ISAAR covers persons **and** corporate bodies **and** families — a richer element set than bibliographic authors.
+- Identity (5.1): type, authorised form, parallel forms, other forms, identifiers (VIAF / ISNI / ORCID).
+- Context (5.2): dates of existence, history, places, legal status, functions/occupations, mandates, internal structure/genealogy, general context, gender.
+- M:N linking to archival units with MARC-aligned roles: `creator` / `subject` / `recipient` / `custodian` / `associated`.
+- Cross-reconciliation with the library-side `autori` table via `autori_authority_link` — unifies books and archives under a single person/entity in the public search.
+
+**Photographic & audio-visual materials (ABA billedmarc)**
+- `specific_material` ENUM with 15 ABA codes: text (bf), photograph (hf), poster (hp), postcard (hm), drawing (hd), map (hk), picture (hb), 3D object/realia (ho), audio recording (lm), motion-picture film (lf), video (vm), microform (bm), electronic/born-digital (le), mixed materials (zz), other.
+- Dedicated columns for colour mode (bw / colour / mixed), dimensions, photographer, publisher, collection name, local classification — matching the MARC 300/337/338 content/media/carrier vocabulary.
+
+**MARCXML import/export + SRU endpoint**
+- **Export**: `GET /admin/archives/{id}/export.xml` and `GET /admin/archives/export.xml?ids=…` emit ABA-crosswalk MARCXML via XMLWriter. Authorities exported as 100/110/600/610/700/710 tags depending on `(type, role)`.
+- **Import**: `POST /admin/archives/import` parses MARCXML (SimpleXML) with optional XSD validation against the Library of Congress MARC21 Slim v1.1 schema. UPSERT on `(institution_code, reference_code)` — re-importing the same file is idempotent. Dry-run preview available.
+- **SRU 1.2 read-only endpoint**: `GET /api/archives/sru` — supports `explain`, `searchRetrieve` (CQL subset: `title`, `reference`, `level`, `anywhere`, joined with `AND`), and `scan` stub. External catalogues (Reindex, Koha, ARKIS) can federate-search the archive using MARCXML records.
+
+**Unified cross-entity search**
+- `/admin/archives/search` hits three sources in a single query: `archival_units` (FULLTEXT on title + scope + archival_history), `authority_records` (FULLTEXT on authorised_form + history + functions), and `autori` rows reconciled to an authority.
+
+**Plugin integration**
+- Self-contained at `storage/plugins/archives/`. Wires up through two `plugin_hooks` rows (`app.routes.register`, `admin.menu.render`) on activation; deactivation removes the route + sidebar entry without touching DB data.
+- Full i18n (IT/EN/DE) with ICA-ISAD(G) terminology (IT) / ICA (EN) / ICA-Deutsch (DE: Bestand / Signatur / Einzelstück).
+- Migration `migrate_0.5.9.sql` is fully idempotent (INFORMATION_SCHEMA guards + conditional ALTERs) — safe to re-run on partial installs, cleanly extends the ENUM on upgrades.
+
 ### Plugin System
 Extend without modifying core files. Plugins can implement:
 - New metadata scrapers (custom APIs, proprietary databases)
@@ -311,12 +478,13 @@ Extend without modifying core files. Plugins can implement:
 
 Plugins support encrypted secrets and isolated configuration. Install via ZIP upload in admin panel.
 
-**Pre-installed plugins** (5 included):
+**Pre-installed plugins** (6 included):
 - **Open Library** — Metadata scraping from Open Library + Google Books API
 - **Z39 Server** — SRU 1.2 API + SBN client for Italian library metadata with Dewey extraction
 - **API Book Scraper** — External ISBN enrichment via custom APIs
 - **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with streaming player
 - **Dewey Editor** — Visual editor for Dewey classification data with import/export and validation
+- **Archives** — ISAD(G) hierarchical archival records + ISAAR(CPF) authority records with MARCXML import/export, SRU 1.2 endpoint, photographic material support (ABA billedmarc), and unified cross-entity search bridging books + archives. Opt-in (`is_active=0` on install)
 
 ### CMS and Customization
 - **Homepage editor** with drag-and-drop blocks (hero banner, featured shelves, events, testimonials)
@@ -478,9 +646,9 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ## Support & Contact
 
-📧 **Email**: [pinakes@fabiodalez.it](mailto:pinakes@fabiodalez.it)
-🐛 **Issues**: [GitHub Issues](https://github.com/fabiodalez-dev/pinakes/issues)
-💬 **Discussions**: [GitHub Discussions](https://github.com/fabiodalez-dev/pinakes/discussions)
+- **Email**: [pinakes@fabiodalez.it](mailto:pinakes@fabiodalez.it)
+- **Issues**: [GitHub Issues](https://github.com/fabiodalez-dev/pinakes/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/fabiodalez-dev/pinakes/discussions)
 
 ---
 
@@ -510,7 +678,7 @@ If Pinakes helps your library, please ⭐ the repository!
 
 ## Community Projects
 
-- 🐳 **[jbenamy/pinakes-docker](https://github.com/jbenamy/pinakes-docker)** — Community-maintained Docker image. This is an independent project not managed by the Pinakes team — please refer to its own documentation for setup and support.
+- **[jbenamy/pinakes-docker](https://github.com/jbenamy/pinakes-docker)** — Community-maintained Docker image. This is an independent project not managed by the Pinakes team — please refer to its own documentation for setup and support.
 
 ---
 

@@ -4,6 +4,12 @@ use App\Support\ConfigStore;
 // Variables passed from controller
 $libro = $libro ?? [];
 $isCatalogueMode = ConfigStore::isCatalogueMode();
+// i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
+$seriesTypeLabels = \App\Support\SeriesLabels::types();
+
+// Resolve tipo_media once for badge display and dynamic labels
+$resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($libro['formato'] ?? null, $libro['tipo_media'] ?? null);
+$isMusic = $resolvedTipoMedia === 'disco';
 
 $status = strtolower((string)($libro['stato'] ?? ''));
 $statusClasses = [
@@ -66,6 +72,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
         <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
           <i class="fas fa-book text-gray-600"></i>
           <?php echo App\Support\HtmlHelper::e($libro['titolo'] ?? ''); ?>
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+            <i class="fas <?= \App\Support\MediaLabels::icon($resolvedTipoMedia) ?> mr-1"></i>
+            <?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
+          </span>
         </h1>
         <?php if (!empty($libro['sottotitolo'])): ?>
           <div class="text-gray-600 mt-1"><?php echo App\Support\HtmlHelper::e($libro['sottotitolo']); ?></div>
@@ -141,7 +151,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <?php endif; ?>
           <div class="text-base text-gray-600">
             <i class="fas fa-building text-gray-400 mr-2"></i>
-            <span class="font-medium"><?= __("Editore:") ?></span>
+            <span class="font-medium"><?= \App\Support\MediaLabels::label('editore', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?>:</span>
             <?php echo App\Support\HtmlHelper::e($libro['editore_nome'] ?? __('Non specificato')); ?>
           </div>
           <div class="text-base text-gray-600">
@@ -331,7 +341,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
             <?php if (!empty($libro['anno_pubblicazione'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= __("Anno pubblicazione") ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('anno_pubblicazione', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['anno_pubblicazione']; ?></dd>
             </div>
             <?php endif; ?>
@@ -341,14 +351,43 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(format_date($libro['data_pubblicazione'])); ?></dd>
             </div>
             <?php endif; ?>
+            <?php if (!empty($libro['gruppo_serie'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Gruppo serie") ?></dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['gruppo_serie']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['serie_padre'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Serie padre / universo") ?></dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['serie_padre']); ?></dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['tipo_collana'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Tipo serie") ?></dt>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(\App\Support\SeriesLabels::label($libro['tipo_collana'] ?? null)); ?></dd>
+            </div>
+            <?php endif; ?>
             <?php if (!empty($libro['collana'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= __("Collana") ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Serie principale") ?></dt>
               <dd class="text-gray-900 font-medium">
                 <a href="<?= htmlspecialchars(url('/admin/libri?collana=' . urlencode($libro['collana'])), ENT_QUOTES, 'UTF-8') ?>"
                    class="text-gray-700 hover:text-gray-900 hover:underline transition-colors">
                   <?php echo App\Support\HtmlHelper::e($libro['collana']); ?>
                 </a>
+              </dd>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($libro['ciclo_serie'])): ?>
+            <div>
+              <dt class="text-xs uppercase text-gray-500"><?= __("Ciclo / stagione") ?></dt>
+              <dd class="text-gray-900 font-medium">
+                <?php echo App\Support\HtmlHelper::e($libro['ciclo_serie']); ?>
+                <?php if (!empty($libro['ordine_ciclo'])): ?>
+                  <span class="text-gray-500">#<?php echo (int)$libro['ordine_ciclo']; ?></span>
+                <?php endif; ?>
               </dd>
             </div>
             <?php endif; ?>
@@ -358,9 +397,24 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['numero_serie']); ?></dd>
             </div>
             <?php endif; ?>
+            <?php if (!empty($libro['serie_appartenenze']) && count($libro['serie_appartenenze']) > 1): ?>
+            <div class="md:col-span-2">
+              <dt class="text-xs uppercase text-gray-500"><?= __("Tutte le serie") ?></dt>
+              <dd class="text-gray-900 font-medium">
+                <?php foreach ($libro['serie_appartenenze'] as $membership): ?>
+                  <span class="inline-flex items-center px-2 py-1 mr-1 mb-1 rounded-full bg-gray-100 text-gray-800 text-xs">
+                    <?= App\Support\HtmlHelper::e($membership['nome'] ?? '') ?>
+                    <?php if (!empty($membership['numero_serie'])): ?>
+                      <span class="text-gray-500 ml-1">#<?= App\Support\HtmlHelper::e((string) $membership['numero_serie']) ?></span>
+                    <?php endif; ?>
+                  </span>
+                <?php endforeach; ?>
+              </dd>
+            </div>
+            <?php endif; ?>
             <?php if (!empty($libro['numero_pagine'])): ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?= __("Pagine") ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?= \App\Support\MediaLabels::label('numero_pagine', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?></dt>
               <dd class="text-gray-900 font-medium"><?php echo (int)$libro['numero_pagine']; ?></dd>
             </div>
             <?php endif; ?>
@@ -373,7 +427,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php if (!empty($libro['formato'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Formato") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($libro['formato']); ?></dd>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(\App\Support\MediaLabels::formatDisplayName($libro['formato'])); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['lingua'])): ?>
@@ -586,13 +640,22 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       <div class="card">
         <div class="card-header">
           <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <i class="fas fa-align-left text-primary"></i>
-            <?= __("Descrizione") ?>
+            <i class="fas <?= $isMusic ? 'fa-music' : 'fa-align-left' ?> text-primary"></i>
+            <?= \App\Support\MediaLabels::label('descrizione', $libro['formato'] ?? null, $libro['tipo_media'] ?? null) ?>
           </h2>
         </div>
         <div class="card-body">
           <div class="prose prose-sm max-w-none text-gray-700">
-            <?php echo App\Support\HtmlHelper::sanitizeHtml(nl2br($libro['descrizione'], false)); ?>
+            <?php if ($isMusic): ?>
+              <?php
+              $descText = preg_replace('/<br\s*\/?>/i', "\n", $libro['descrizione']);
+              $descText = preg_replace('/<\/(?:p|div|li|h[1-6])>/i', "\n", (string) $descText);
+              $descText = strip_tags((string) $descText);
+              ?>
+              <?= \App\Support\MediaLabels::formatTracklist($descText) ?>
+            <?php else: ?>
+              <?php echo App\Support\HtmlHelper::sanitizeHtml(nl2br($libro['descrizione'], false)); ?>
+            <?php endif; ?>
           </div>
         </div>
       </div>

@@ -39,19 +39,6 @@ class PluginManager
     }
 
     /**
-     * Bundled plugins that ship with Pinakes
-     * These are auto-registered and activated if their folders exist
-     */
-    private const BUNDLED_PLUGINS = [
-        'open-library',
-        'z39-server',
-        'api-book-scraper',
-        'digital-library',
-        'dewey-editor',
-        'goodlib',
-    ];
-
-    /**
      * Auto-register bundled plugins that exist on disk but not in database
      * This ensures bundled plugins survive updates even if DB entries were lost
      *
@@ -61,7 +48,7 @@ class PluginManager
     {
         $registered = 0;
 
-        foreach (self::BUNDLED_PLUGINS as $pluginName) {
+        foreach (BundledPlugins::LIST as $pluginName) {
             $pluginPath = $this->pluginsDir . '/' . $pluginName;
             $jsonPath = $pluginPath . '/plugin.json';
 
@@ -75,25 +62,25 @@ class PluginManager
             $pluginMeta = json_decode($json, true);
 
             if (!$pluginMeta || empty($pluginMeta['name'])) {
-                error_log("[PluginManager] Invalid plugin.json for bundled plugin: $pluginName");
+                SecureLogger::warning("[PluginManager] Invalid plugin.json for bundled plugin: $pluginName");
                 continue;
             }
 
             // Check if already registered
             $stmt = $this->db->prepare("SELECT id, version, is_active FROM plugins WHERE name = ?");
             if ($stmt === false) {
-                error_log("[PluginManager] Failed to prepare bundled plugin lookup for $pluginName: " . $this->db->error);
+                SecureLogger::error("[PluginManager] Failed to prepare bundled plugin lookup for $pluginName", ['db_error' => $this->db->error]);
                 continue;
             }
             $stmt->bind_param('s', $pluginName);
             if (!$stmt->execute()) {
-                error_log("[PluginManager] Failed bundled plugin lookup execute for $pluginName: " . $stmt->error);
+                SecureLogger::error("[PluginManager] Failed bundled plugin lookup execute for $pluginName", ['stmt_error' => $stmt->error]);
                 $stmt->close();
                 continue;
             }
             $result = $stmt->get_result();
             if ($result === false) {
-                error_log("[PluginManager] Failed bundled plugin lookup result for $pluginName: " . $stmt->error);
+                SecureLogger::error("[PluginManager] Failed bundled plugin lookup result for $pluginName", ['stmt_error' => $stmt->error]);
                 $stmt->close();
                 continue;
             }
@@ -109,7 +96,7 @@ class PluginManager
                         "UPDATE plugins SET version = ?, display_name = ?, description = ?, metadata = ? WHERE id = ?"
                     );
                     if ($updStmt === false) {
-                        error_log("[PluginManager] Failed to prepare bundled plugin update for $pluginName: " . $this->db->error);
+                        SecureLogger::error("[PluginManager] Failed to prepare bundled plugin update for $pluginName", ['db_error' => $this->db->error]);
                         continue;
                     }
                     $updDisplayName = $pluginMeta['display_name'] ?? $pluginName;
@@ -120,30 +107,40 @@ class PluginManager
                     $updated = $updStmt->execute();
                     $updStmt->close();
                     if (!$updated) {
-                        error_log("[PluginManager] Failed to update bundled plugin $pluginName: " . $this->db->error);
+                        SecureLogger::error("[PluginManager] Failed to update bundled plugin $pluginName", ['db_error' => $this->db->error]);
                         continue;
                     }
-                    error_log("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
+                    SecureLogger::info("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
 
                     // Re-register hooks only if plugin is active
                     if ((int) ($row['is_active'] ?? 0) === 1) {
                         try {
                             $this->runPluginMethod($pluginName, 'onActivate');
                         } catch (\Throwable $e) {
-                            error_log("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
+                            SecureLogger::warning("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
                         }
                     }
                 }
                 continue;
             }
 
+            // Optional plugins (e.g. network-backed scrapers) start inactive
+            $isOptional = !empty($pluginMeta['metadata']['optional']);
+            $isActiveValue = $isOptional ? 0 : 1;
+
             // Insert into database
             $stmt = $this->db->prepare("
                 INSERT INTO plugins (
                     name, display_name, description, version, author, author_url, plugin_url,
                     is_active, path, main_file, requires_php, requires_app, metadata, installed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
             ");
+            if ($stmt === false) {
+                SecureLogger::error("[PluginManager] Failed to prepare bundled plugin insert for $pluginName", [
+                    'db_error' => $this->db->error,
+                ]);
+                continue;
+            }
 
             $metadata = json_encode($pluginMeta['metadata'] ?? []);
             $name = $pluginMeta['name'];
@@ -158,8 +155,14 @@ class PluginManager
             $requiresPhp = $pluginMeta['requires_php'] ?? '';
             $requiresApp = $pluginMeta['requires_app'] ?? '';
 
+            // Types must line up with the INSERT column order:
+            // s×7 (name, display_name, description, version, author, author_url, plugin_url),
+            // i (is_active), s (path), s×4 (main_file, requires_php, requires_app, metadata).
+            // Prior typo 'ssssssssissss' put `i` at position 9 (path) and `s` at position 8
+            // (is_active), causing path='discogs'/'goodlib' to be cast to int 0 — the orphan
+            // plugin cleanup then deleted the rows on the very next request.
             $stmt->bind_param(
-                'ssssssssssss',
+                'sssssssisssss',
                 $name,
                 $displayName,
                 $description,
@@ -167,6 +170,7 @@ class PluginManager
                 $author,
                 $authorUrl,
                 $pluginUrl,
+                $isActiveValue,
                 $path,
                 $mainFile,
                 $requiresPhp,
@@ -177,36 +181,52 @@ class PluginManager
             if ($stmt->execute()) {
                 $pluginId = $this->db->insert_id;
                 $registered++;
-                error_log("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, active)");
+                $activeLabel = $isOptional ? 'inactive (optional)' : 'active';
+                SecureLogger::info("[PluginManager] Auto-registered bundled plugin: $pluginName (ID: $pluginId, $activeLabel)");
 
-                // Run onInstall if exists
+                // Build a single instance so setPluginId + onInstall +
+                // onActivate share state — runPluginMethod() would create
+                // a fresh object per call and pluginId would be null
+                // during the hook phase. See activatePlugin() — same bug,
+                // same fix (commit 21cb67d).
+                $pluginForInstance = [
+                    'id'        => (int) $pluginId,
+                    'name'      => $pluginName,
+                    'path'      => $path,
+                    'main_file' => $mainFile,
+                ];
                 try {
-                    $this->runPluginMethod($pluginName, 'setPluginId', [$pluginId]);
+                    $instance = $this->instantiatePlugin($pluginForInstance);
+                    if (method_exists($instance, 'onInstall')) {
+                        try {
+                            $instance->onInstall();
+                        } catch (\Throwable $e) {
+                            SecureLogger::warning("[PluginManager] Note: onInstall failed for $pluginName: " . $e->getMessage());
+                        }
+                    }
+                    // Register hooks only for active (non-optional) plugins
+                    if (!$isOptional && method_exists($instance, 'onActivate')) {
+                        try {
+                            $instance->onActivate();
+                        } catch (\Throwable $e) {
+                            SecureLogger::warning("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                        }
+                    }
                 } catch (\Throwable $e) {
-                    // Optional method
-                }
-
-                try {
-                    $this->runPluginMethod($pluginName, 'onInstall');
-                } catch (\Throwable $e) {
-                    error_log("[PluginManager] Note: onInstall failed for $pluginName: " . $e->getMessage());
-                }
-
-                // Register hooks for active plugin
-                try {
-                    $this->runPluginMethod($pluginName, 'onActivate');
-                } catch (\Throwable $e) {
-                    error_log("[PluginManager] Note: onActivate failed for $pluginName: " . $e->getMessage());
+                    SecureLogger::warning("[PluginManager] Note: could not instantiate $pluginName for lifecycle hooks: " . $e->getMessage());
                 }
             } else {
-                error_log("[PluginManager] Failed to auto-register $pluginName: " . $this->db->error);
+                // This is the failure mode that masked the bind_param type-swap
+                // bug (commit fb1e881). MUST be error severity so it surfaces in
+                // monitoring instead of being lost in warning-level noise.
+                SecureLogger::error("[PluginManager] Failed to auto-register $pluginName", ['db_error' => $this->db->error]);
             }
 
             $stmt->close();
         }
 
         if ($registered > 0) {
-            error_log("[PluginManager] Auto-registered $registered bundled plugin(s)");
+            SecureLogger::info("[PluginManager] Auto-registered $registered bundled plugin(s)");
         }
 
         return $registered;
@@ -261,11 +281,37 @@ class PluginManager
         while ($row = $result->fetch_assoc()) {
             $pluginPath = $this->pluginsDir . '/' . $row['path'];
 
-            // Check if plugin folder exists
-            if (!is_dir($pluginPath)) {
-                $orphanIds[] = (int)$row['id'];
-                error_log("[PluginManager] Orphan plugin detected: '{$row['name']}' - folder missing at {$pluginPath}");
+            if (is_dir($pluginPath)) {
+                continue;
             }
+
+            // NEVER delete a bundled plugin, even if the folder is temporarily
+            // missing. Bundled plugins are part of the release ZIP and get
+            // re-materialised on the next upgrade. If we delete the DB row now,
+            // the post-install-patch SQL inserted during the upgrade would be
+            // wiped out too, and the admin panel would show a broken plugin
+            // list until manual intervention. Deactivate if still active,
+            // surface a WARNING, move on.
+            if (in_array($row['name'], BundledPlugins::LIST, true)) {
+                SecureLogger::warning(
+                    "[PluginManager] Bundled plugin '{$row['name']}' folder missing at {$pluginPath} — " .
+                    "NOT removing from DB (bundled plugins stay registered, waiting for files to be re-copied)"
+                );
+                if ((int)($row['is_active'] ?? 0) === 1) {
+                    $deactivate = $this->db->prepare("UPDATE plugins SET is_active = 0 WHERE id = ?");
+                    if ($deactivate !== false) {
+                        $pid = (int)$row['id'];
+                        $deactivate->bind_param('i', $pid);
+                        $deactivate->execute();
+                        $deactivate->close();
+                        SecureLogger::info("[PluginManager] Deactivated bundled plugin '{$row['name']}' until folder is restored");
+                    }
+                }
+                continue;
+            }
+
+            $orphanIds[] = (int)$row['id'];
+            SecureLogger::warning("[PluginManager] Orphan plugin detected: '{$row['name']}' - folder missing at {$pluginPath}");
         }
         $result->free();
 
@@ -277,7 +323,7 @@ class PluginManager
         // Use a loop to avoid mysqli bind_param by-reference issues with spread operator
         $stmt = $this->db->prepare("DELETE FROM plugins WHERE id = ?");
         if ($stmt === false) {
-            error_log('[PluginManager] Failed to prepare orphan plugin cleanup statement: ' . $this->db->error);
+            SecureLogger::error('[PluginManager] Failed to prepare orphan plugin cleanup statement', ['db_error' => $this->db->error]);
             return 0;
         }
 
@@ -294,7 +340,7 @@ class PluginManager
         $stmt->close();
 
         if ($deleted > 0) {
-            error_log("[PluginManager] Cleaned up {$deleted} orphan plugin(s) from database");
+            SecureLogger::info("[PluginManager] Cleaned up {$deleted} orphan plugin(s) from database");
         }
 
         return $deleted;
@@ -366,6 +412,24 @@ class PluginManager
         return $plugin ?: null;
     }
 
+    public function getPluginInstance(int $pluginId): ?object
+    {
+        $plugin = $this->getPlugin($pluginId);
+        if ($plugin === null) {
+            return null;
+        }
+
+        try {
+            return $this->instantiatePlugin($plugin);
+        } catch (\Throwable $e) {
+            SecureLogger::error("[PluginManager] Failed to instantiate plugin {$plugin['name']}", [
+                'plugin_id' => $pluginId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
     /**
      * Install plugin from uploaded ZIP file
      *
@@ -375,17 +439,17 @@ class PluginManager
     public function installFromZip(string $zipPath): array
     {
         try {
-            error_log("🔌 [PluginManager] Starting plugin installation from: $zipPath");
+            SecureLogger::warning("🔌 [PluginManager] Starting plugin installation from: $zipPath");
 
             // Validate ZIP file
             if (!file_exists($zipPath)) {
-                error_log("❌ [PluginManager] ZIP file not found: $zipPath");
+                SecureLogger::warning("❌ [PluginManager] ZIP file not found: $zipPath");
                 return ['success' => false, 'message' => __('File ZIP non trovato.'), 'plugin_id' => null];
             }
 
             $fileSize = filesize($zipPath);
             if ($fileSize !== false && $fileSize > self::MAX_UPLOAD_BYTES) {
-                error_log("❌ [PluginManager] ZIP too large: {$fileSize} bytes");
+                SecureLogger::warning("❌ [PluginManager] ZIP too large: {$fileSize} bytes");
                 return ['success' => false, 'message' => __('File ZIP troppo grande. Dimensione massima: 100 MB.'), 'plugin_id' => null];
             }
 
@@ -561,6 +625,22 @@ class PluginManager
                 is_active, path, main_file, requires_php, requires_app, metadata, installed_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, NOW())
         ");
+        if ($stmt === false) {
+            // prepare() can fail on schema issues; the extracted plugin dir
+            // would otherwise sit on disk and make the next install retry
+            // trip "Directory plugin già esistente" even though no plugin
+            // row exists. Clean up before returning.
+            $this->deleteDirectory($pluginPath);
+            SecureLogger::error('[PluginManager] Failed to prepare plugin INSERT', [
+                'plugin'   => $pluginMeta['name'] ?? 'unknown',
+                'db_error' => $this->db->error,
+            ]);
+            return [
+                'success'   => false,
+                'message'   => __('Errore nel salvataggio delle impostazioni.'),
+                'plugin_id' => null,
+            ];
+        }
 
         $metadata = json_encode($pluginMeta['metadata'] ?? []);
 
@@ -602,17 +682,34 @@ class PluginManager
             return ['success' => false, 'message' => __('Errore durante il salvataggio nel database.'), 'plugin_id' => null];
         }
 
-            // Set plugin ID before running installation hook
+            // Build a single instance so setPluginId + onInstall share
+            // state — runPluginMethod would create separate objects and
+            // pluginId would be null during onInstall. Same pattern as
+            // activatePlugin() (21cb67d).
+            $pluginForInstance = [
+                'id'        => (int) $pluginId,
+                'name'      => $pluginMeta['name'],
+                'path'      => $path,
+                'main_file' => $mainFile,
+            ];
             try {
-                $this->runPluginMethod($pluginMeta['name'], 'setPluginId', [$pluginId]);
+                $instance = $this->instantiatePlugin($pluginForInstance);
+                if (method_exists($instance, 'onInstall')) {
+                    $instance->onInstall();
+                }
             } catch (\Throwable $e) {
-                error_log("[PluginManager] Note: Plugin doesn't have setPluginId method (not required): " . $e->getMessage());
+                SecureLogger::error("[PluginManager] onInstall failed, rolling back", ['error' => $e->getMessage()]);
+                // Remove the plugins row
+                $delStmt = $this->db->prepare("DELETE FROM plugins WHERE id = ?");
+                $delStmt->bind_param('i', $pluginId);
+                $delStmt->execute();
+                $delStmt->close();
+                // Remove extracted files
+                $this->deleteDirectory($pluginPath);
+                throw $e;
             }
 
-            // Run plugin installation hook if exists
-            $this->runPluginMethod($pluginMeta['name'], 'onInstall');
-
-            error_log("✅ [PluginManager] Plugin installed successfully: {$pluginMeta['name']} (ID: $pluginId)");
+            SecureLogger::info("[PluginManager] Plugin installed successfully: {$pluginMeta['name']} (ID: $pluginId)");
 
             return [
                 'success' => true,
@@ -620,8 +717,8 @@ class PluginManager
                 'plugin_id' => $pluginId
             ];
         } catch (\Throwable $e) {
-            error_log("❌ [PluginManager] Installation error: " . $e->getMessage());
-            error_log("❌ [PluginManager] Stack trace: " . $e->getTraceAsString());
+            SecureLogger::error("[PluginManager] Installation error", ['error' => $e->getMessage()]);
+            SecureLogger::error("[PluginManager] Stack trace: " . $e->getTraceAsString());
             return [
                 'success' => false,
                 'message' => 'Errore durante l\'installazione: ' . $e->getMessage(),
@@ -656,9 +753,17 @@ class PluginManager
             return ['success' => false, 'message' => __('File principale del plugin non trovato.')];
         }
 
-        // Run plugin activation hook
+        // Run plugin activation hook on a single instance so the pluginId
+        // set by instantiatePlugin() (via setPluginId) persists through
+        // the onActivate() call. Without this, plugins that write to
+        // plugin_hooks during onActivate() — e.g. archives — would see
+        // pluginId=null and silently no-op, shipping an installed-but-
+        // unrouted plugin. See ArchivesPlugin::registerHookInDb() guard.
         try {
-            $this->runPluginMethod($plugin['name'], 'onActivate');
+            $instance = $this->instantiatePlugin($plugin);
+            if (method_exists($instance, 'onActivate')) {
+                $instance->onActivate();
+            }
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => __('Errore durante l\'attivazione: %s', $e->getMessage())];
         }
@@ -694,9 +799,14 @@ class PluginManager
             return ['success' => false, 'message' => __('Plugin già disattivato.')];
         }
 
-        // Run plugin deactivation hook
+        // Run plugin deactivation hook on a single instance (see
+        // activatePlugin() — same reasoning). Plugins that prune
+        // plugin_hooks rows during onDeactivate() need pluginId set.
         try {
-            $this->runPluginMethod($plugin['name'], 'onDeactivate');
+            $instance = $this->instantiatePlugin($plugin);
+            if (method_exists($instance, 'onDeactivate')) {
+                $instance->onDeactivate();
+            }
         } catch (\Throwable $e) {
             return ['success' => false, 'message' => __('Errore durante la disattivazione: %s', $e->getMessage())];
         }
@@ -736,12 +846,18 @@ class PluginManager
             }
         }
 
-        // Run plugin uninstall hook
+        // Run plugin uninstall hook on a single instance (see
+        // activatePlugin() — same reasoning). onUninstall() can perform
+        // FK-aware cleanup with pluginId set before the plugins row is
+        // deleted.
         try {
-            $this->runPluginMethod($plugin['name'], 'onUninstall');
+            $instance = $this->instantiatePlugin($plugin);
+            if (method_exists($instance, 'onUninstall')) {
+                $instance->onUninstall();
+            }
         } catch (\Throwable $e) {
             // Continue with uninstall even if hook fails
-            error_log("Plugin uninstall hook error: " . $e->getMessage());
+            SecureLogger::warning("Plugin uninstall hook error: " . $e->getMessage());
         }
 
         // Delete from database (cascade will delete hooks, settings, data, logs)
@@ -764,7 +880,11 @@ class PluginManager
     }
 
     /**
-     * Run a plugin method if it exists
+     * Run a plugin method if it exists. Each call creates a fresh plugin
+     * object — for lifecycle flows where instance state must persist
+     * between multiple calls (e.g. setPluginId followed by onActivate),
+     * build the instance via {@see instantiatePlugin()} (which also
+     * wires up setPluginId) and invoke methods on it directly.
      *
      * @param string $pluginName
      * @param string $method
@@ -956,12 +1076,31 @@ class PluginManager
             VALUES (?, ?, ?, ?, NOW())
             ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), autoload = VALUES(autoload), updated_at = NOW()
         ");
+        if ($stmt === false) {
+            SecureLogger::error('[PluginManager] setSetting prepare failed', [
+                'plugin_id' => $pluginId,
+                'key' => $key,
+                'db_error' => $this->db->error,
+            ]);
+            return false;
+        }
 
         $valueStr = is_array($value) || is_object($value) ? json_encode($value) : (string)$value;
-        $valueStr = $this->encryptPluginSettingValue($valueStr);
-        $stmt->bind_param('issi', $pluginId, $key, $valueStr, $autoloadInt);
-        $result = $stmt->execute();
-        $stmt->close();
+
+        try {
+            $valueStr = $this->encryptPluginSettingValue($valueStr);
+            $stmt->bind_param('issi', $pluginId, $key, $valueStr, $autoloadInt);
+            $result = $stmt->execute();
+        } catch (\Throwable $e) {
+            SecureLogger::error('[PluginManager] setSetting failed', [
+                'plugin_id' => $pluginId,
+                'key'       => $key,
+                'error'     => $e->getMessage(),
+            ]);
+            return false;
+        } finally {
+            $stmt->close();
+        }
 
         return $result;
     }
@@ -973,8 +1112,16 @@ class PluginManager
     {
         $key = $this->getEncryptionKey();
 
-        if ($key === null || $value === '') {
+        // Empty strings bypass encryption (idempotent no-op).
+        if ($value === '') {
             return $value;
+        }
+
+        // If no encryption key is configured, refuse to persist the secret.
+        // Returning plaintext would silently store API tokens unencrypted.
+        if ($key === null) {
+            SecureLogger::error('[PluginManager] Encryption key unavailable — refusing to persist plaintext plugin setting. Configure PLUGIN_ENCRYPTION_KEY or APP_KEY in .env.');
+            throw new \RuntimeException('Plugin encryption key not configured — cannot persist secret setting.');
         }
 
         try {
@@ -983,14 +1130,22 @@ class PluginManager
             $ciphertext = openssl_encrypt($value, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
 
             if ($ciphertext === false) {
-                return $value;
+                SecureLogger::error('[PluginManager] openssl_encrypt failed — refusing plaintext fallback', [
+                    'openssl_error' => openssl_error_string() ?: 'unknown',
+                ]);
+                throw new \RuntimeException('Plugin setting encryption failed.');
             }
 
             $payload = base64_encode($iv . $tag . $ciphertext);
             return 'ENC:' . $payload;
+        } catch (\RuntimeException $e) {
+            // Re-raise our own guards (set above) without wrapping.
+            throw $e;
         } catch (\Throwable $e) {
-            error_log('[PluginManager] Errore durante la cifratura del setting: ' . $e->getMessage());
-            return $value;
+            SecureLogger::error('[PluginManager] Errore durante la cifratura del setting — refusing plaintext fallback', [
+                'error' => $e->getMessage(),
+            ]);
+            throw new \RuntimeException('Plugin setting encryption failed: ' . $e->getMessage(), 0, $e);
         }
     }
 
@@ -1005,13 +1160,13 @@ class PluginManager
 
         $key = $this->getEncryptionKey();
         if ($key === null) {
-            error_log('[PluginManager] Chiave di cifratura mancante: impossibile decrittare il valore.');
+            SecureLogger::warning('[PluginManager] Chiave di cifratura mancante: impossibile decrittare il valore.');
             return null;
         }
 
         $payload = base64_decode(substr($value, 4), true);
         if ($payload === false || strlen($payload) <= 28) {
-            error_log('[PluginManager] Payload cifrato non valido.');
+            SecureLogger::warning('[PluginManager] Payload cifrato non valido.');
             return null;
         }
 
@@ -1022,12 +1177,12 @@ class PluginManager
         try {
             $plaintext = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
             if ($plaintext === false) {
-                error_log('[PluginManager] Impossibile decrittare il valore del plugin setting.');
+                SecureLogger::warning('[PluginManager] Impossibile decrittare il valore del plugin setting.');
                 return null;
             }
             return $plaintext;
         } catch (\Throwable $e) {
-            error_log('[PluginManager] Eccezione durante la decrittazione: ' . $e->getMessage());
+            SecureLogger::warning('[PluginManager] Eccezione durante la decrittazione: ' . $e->getMessage());
             return null;
         }
     }
@@ -1168,7 +1323,7 @@ class PluginManager
             try {
                 $this->loadPlugin($plugin);
             } catch (\Throwable $e) {
-                error_log("[PluginManager] Failed to load plugin '{$plugin['name']}': " . $e->getMessage());
+                SecureLogger::error("[PluginManager] Failed to load plugin '{$plugin['name']}'", ['error' => $e->getMessage()]);
                 // Continue loading other plugins even if one fails
             }
         }
@@ -1185,9 +1340,17 @@ class PluginManager
      */
     private function loadPlugin(array $plugin): void
     {
+        $instance = $this->instantiatePlugin($plugin);
+
+        // Load and register hooks for this plugin
+        $this->registerPluginHooks((int) $plugin['id'], $instance);
+    }
+
+    private function instantiatePlugin(array $plugin): object
+    {
         // Save plugin data to prefixed variables before require_once
         // This prevents plugin files from overwriting $plugin variable (which some do)
-        $_pluginId = (int)$plugin['id'];
+        $_pluginId = (int) $plugin['id'];
         $_pluginName = $plugin['name'];
         $_pluginPath = $this->pluginsDir . '/' . $plugin['path'];
         $_mainFile = $_pluginPath . '/' . $plugin['main_file'];
@@ -1196,21 +1359,15 @@ class PluginManager
             throw new \Exception("Main file not found: {$_mainFile}");
         }
 
-        // Load plugin main file
-        // NOTE: Plugin files may define variables that collide with local scope
         require_once $_mainFile;
 
-        // Get plugin class name
         $className = $this->getPluginClassName($_pluginName);
-
         if (!class_exists($className)) {
             throw new \Exception("Plugin class not found: {$className}");
         }
 
-        // Instantiate plugin
         $instance = new $className($this->db, $this->hookManager);
 
-        // Pass plugin ID to the instance when supported (needed for plugin settings)
         if (is_callable([$instance, 'setPluginId'])) {
             try {
                 $instance->setPluginId($_pluginId);
@@ -1221,8 +1378,7 @@ class PluginManager
             }
         }
 
-        // Load and register hooks for this plugin
-        $this->registerPluginHooks($_pluginId, $instance);
+        return $instance;
     }
 
     /**
@@ -1255,7 +1411,7 @@ class PluginManager
             if (method_exists($pluginInstance, $callbackMethod) || $this->hasMagicMethod($pluginInstance, $callbackMethod)) {
                 $this->hookManager->addHook($hookName, [$pluginInstance, $callbackMethod], $priority);
             } else {
-                error_log("[PluginManager] Method not found: {$callbackMethod} for hook {$hookName}");
+                SecureLogger::warning("[PluginManager] Method not found: {$callbackMethod} for hook {$hookName}");
             }
         }
 

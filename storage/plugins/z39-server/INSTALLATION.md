@@ -4,7 +4,7 @@
 
 Prima di installare il plugin, assicurati di avere:
 
-- ✅ Pinakes versione 1.0.0 o superiore
+- ✅ Pinakes versione 0.4.0 o superiore
 - ✅ PHP 7.4 o superiore
 - ✅ MySQL 5.7 o superiore / MariaDB 10.2 o superiore
 - ✅ Accesso come amministratore al pannello di Pinakes
@@ -107,12 +107,12 @@ INSERT INTO plugins (
     'z39-server',
     'Z39.50/SRU Server',
     'Server SRU per esporre il catalogo bibliografico tramite protocollo standard',
-    '1.0.0',
+    '1.2.3',
     'Biblioteca',
     'z39-server',
     'Z39ServerPlugin.php',
     '7.4',
-    '1.0.0',
+    '0.4.0',
     0,
     '{"category":"protocol","tags":["z39.50","sru","marc"]}',
     NOW()

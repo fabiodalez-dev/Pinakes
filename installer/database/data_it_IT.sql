@@ -332,9 +332,15 @@ ON DUPLICATE KEY UPDATE
     updated_at = NOW();
 
 -- Seed data for languages table
-INSERT INTO `languages` (`id`, `code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
-(1, 'it_IT', 'Italian', 'Italiano', '🇮🇹', 1, 1, NULL, 2015, 2015, 100.00),
-(2, 'en_US', 'English', 'English', '🇬🇧', 0, 1, 'locale/en_US.json', 2015, 1988, 98.66);
-(3, 'fr_FR', 'French', 'Français', '🇫🇷', 0, 1, 'locale/fr_FR.json', 4081, 4081, 100);
+-- Issue #108: seed ALL shipped locales, not just the installer-chosen one,
+-- so users whose `utenti.locale` differs from the install default
+-- (e.g. a de_DE user on an it_IT install) can still have their locale
+-- restored by RememberMeMiddleware → I18n::setLocale(), which gates on
+-- `languages` table membership.
+INSERT INTO `languages` (`code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`) VALUES
+('it_IT', 'Italian', 'Italiano', '🇮🇹', 1, 1, NULL, 2015, 2015, 100.00),
+('en_US', 'English', 'English', '🇬🇧', 0, 1, 'locale/en_US.json', 2015, 1988, 98.66),
+('de_DE', 'German', 'Deutsch', '🇩🇪', 0, 1, 'locale/de_DE.json', 4009, 4009, 100.00);
+
 
 SET FOREIGN_KEY_CHECKS=1;

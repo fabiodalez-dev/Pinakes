@@ -1160,7 +1160,6 @@ class DataIntegrity {
                 'idx_stato' => ['columns' => ['stato']],
                 'idx_stato_libro' => ['columns' => ['stato', 'libro_id']],
                 'idx_queue_position' => ['columns' => ['queue_position']],
-                'idx_data_scadenza' => ['columns' => ['data_scadenza_prenotazione']],
             ],
         ];
     }

@@ -1,0 +1,57 @@
+{
+  "name": "musicbrainz",
+  "display_name": "MusicBrainz + Cover Art Archive",
+  "description": "Integrazione con MusicBrainz e Cover Art Archive per metadati musicali. Cerca per barcode, fornisce artista, album, tracklist, etichetta, copertine HD. Open data, nessun token richiesto.",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "https://musicbrainz.org",
+  "main_file": "wrapper.php",
+  "requires_php": "8.0",
+  "requires_app": "0.5.0",
+  "max_app_version": "0.5.9.6",
+  "metadata": {
+    "category": "scraping",
+    "tags": [
+      "api",
+      "musicbrainz",
+      "coverart",
+      "scraping",
+      "music"
+    ],
+    "priority": 7,
+    "api_endpoints": [
+      "https://musicbrainz.org/ws/2/release",
+      "https://coverartarchive.org/release/{mbid}"
+    ],
+    "hooks": [
+      {
+        "name": "scrape.sources",
+        "callback_method": "addMusicBrainzSource",
+        "description": "Adds MusicBrainz as a scraping source for music media",
+        "priority": 7
+      },
+      {
+        "name": "scrape.fetch.custom",
+        "callback_method": "fetchFromMusicBrainz",
+        "description": "Fetches metadata from MusicBrainz API by barcode",
+        "priority": 7
+      },
+      {
+        "name": "scrape.data.modify",
+        "callback_method": "enrichWithCoverArt",
+        "description": "Enriches data with Cover Art Archive covers",
+        "priority": 12
+      }
+    ],
+    "features": [
+      "Ricerca per barcode (EAN/UPC)",
+      "Tracklist completa nella descrizione",
+      "Copertine HD da Cover Art Archive",
+      "Mappatura etichetta su editore",
+      "Supporto CD, vinile, cassette",
+      "Nessun token richiesto (open data)"
+    ],
+    "optional": true
+  }
+}

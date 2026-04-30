@@ -17,16 +17,38 @@ class CsvImportController
      */
     private const CHUNK_SIZE = 10;
 
+    /** @var bool|null Cached result of tipo_media column existence check */
+    private ?bool $cachedHasTipoMedia = null;
+
     /**
-     * Write log message to import log file
+     * Check if tipo_media column exists (cached per controller instance).
+     */
+    private function hasTipoMediaColumn(\mysqli $db): bool
+    {
+        if ($this->cachedHasTipoMedia === null) {
+            try {
+                $checkCol = $db->query("SHOW COLUMNS FROM libri LIKE 'tipo_media'");
+                $this->cachedHasTipoMedia = $checkCol !== false && $checkCol->num_rows > 0;
+                if ($checkCol instanceof \mysqli_result) {
+                    $checkCol->free();
+                }
+            } catch (\Throwable $e) {
+                $this->cachedHasTipoMedia = false;
+            }
+        }
+        return $this->cachedHasTipoMedia;
+    }
+
+    /**
+     * Route CSV import diagnostics through SecureLogger so PII redaction +
+     * retention apply (CR R7). Pre-fix this wrote raw user data into a flat
+     * import.log with no rotation — bypassing the project's central pipeline.
      */
     private function log(string $message): void
     {
-        $logFile = __DIR__ . '/../../writable/logs/import.log';
-        $timestamp = date('Y-m-d H:i:s');
         // Sanitize message to prevent log injection (strip newlines/control chars)
         $message = str_replace(["\r", "\n", "\t"], ' ', $message);
-        file_put_contents($logFile, "[$timestamp] [CSV] $message\n", FILE_APPEND);
+        \App\Support\SecureLogger::info('[CSV] ' . $message);
     }
 
     /**
@@ -360,18 +382,15 @@ class CsvImportController
                             'type' => 'scraping',
                         ];
 
-                        // Also log to file for debugging
-                        $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                        // Route through SecureLogger so PII (titles, errors)
+                        // honour redaction + retention (CR R7).
                         $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
                         $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $scrapeError->getMessage());
-                        $logMsg = sprintf(
-                            "[%s] SCRAPING ERROR Riga %d (%s): %s\n",
-                            date('Y-m-d H:i:s'),
-                            $lineNumber,
-                            $safeTitle,
-                            $safeMsg
-                        );
-                        file_put_contents($logFile, $logMsg, FILE_APPEND);
+                        \App\Support\SecureLogger::warning('[CSV] scraping error', [
+                            'line' => $lineNumber,
+                            'title' => $safeTitle,
+                            'message' => $safeMsg,
+                        ]);
                     }
                 }
 
@@ -390,18 +409,14 @@ class CsvImportController
                 $this->log("[processChunk] ERROR Class: " . get_class($e));
                 $this->log("[processChunk] ERROR Trace: " . $e->getTraceAsString());
 
-                // Log to csv_errors.log (legacy)
-                $logFile = __DIR__ . '/../../writable/logs/csv_errors.log';
+                // Route via SecureLogger (CR R7).
                 $safeTitle = str_replace(["\r", "\n", "\t"], ' ', $title);
                 $safeMsg = str_replace(["\r", "\n", "\t"], ' ', $e->getMessage());
-                $logMsg = sprintf(
-                    "[%s] ERROR Riga %d (%s): %s\n\n",
-                    date('Y-m-d H:i:s'),
-                    $lineNumber,
-                    $safeTitle,
-                    $safeMsg
-                );
-                file_put_contents($logFile, $logMsg, FILE_APPEND);
+                \App\Support\SecureLogger::error('[CSV] processChunk error', [
+                    'line' => $lineNumber,
+                    'title' => $safeTitle,
+                    'message' => $safeMsg,
+                ]);
             }
 
             $processed++;
@@ -769,7 +784,10 @@ class CsvImportController
             'numero_pagine' => !empty($row['numero_pagine']) ? (int)$row['numero_pagine'] : null,
             'genere' => !empty($row['genere']) ? trim($row['genere']) : null,
             'descrizione' => !empty($row['descrizione']) ? trim($row['descrizione']) : null,
-            'formato' => !empty($row['formato']) ? trim($row['formato']) : 'cartaceo',
+            'formato' => !empty($row['formato']) ? trim($row['formato']) : null,
+            'tipo_media' => array_key_exists('tipo_media', $row) && trim((string) ($row['tipo_media'] ?? '')) !== ''
+                ? \App\Support\MediaLabels::normalizeTipoMedia(trim((string) $row['tipo_media']))
+                : null,
             'prezzo' => $this->validatePrice($row['prezzo'] ?? ''),
             'copie_totali' => !empty($row['copie_totali']) ? (int)$row['copie_totali'] : 1,
             'collana' => !empty($row['collana']) ? trim($row['collana']) : null,
@@ -1022,6 +1040,7 @@ class CsvImportController
             'genere' => ['genere', 'genre', 'género', 'category', 'categoria'],
             'descrizione' => ['descrizione', 'description', 'descripción', 'summary', 'riassunto', 'abstract'],
             'formato' => ['formato', 'format', 'media', 'binding', 'physical description'],
+            'tipo_media' => ['tipo_media', 'media_type', 'type', 'medientyp'],
             'prezzo' => ['prezzo', 'price', 'precio', 'prix', 'preis', 'list price', 'purchase price'],
             'copie_totali' => ['copie_totali', 'copie', 'copies', 'quantity', 'quantità', 'cantidad'],
             'collana' => ['collana', 'series', 'collection', 'collections', 'colección', 'reihe'],
@@ -1224,6 +1243,9 @@ class CsvImportController
      */
     private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId): void
     {
+        $hasTipoMedia = $this->hasTipoMediaColumn($db);
+        $tipoMediaSet = $hasTipoMedia ? ', tipo_media = COALESCE(?, tipo_media)' : '';
+
         $stmt = $db->prepare("
             UPDATE libri SET
                 isbn10 = ?,
@@ -1237,7 +1259,7 @@ class CsvImportController
                 numero_pagine = ?,
                 genere_id = ?,
                 descrizione = ?,
-                formato = ?,
+                formato = ?{$tipoMediaSet},
                 prezzo = ?,
                 editore_id = ?,
                 collana = ?,
@@ -1247,7 +1269,7 @@ class CsvImportController
                 parole_chiave = ?,
                 classificazione_dewey = ?,
                 updated_at = NOW()
-            WHERE id = ?
+            WHERE id = ? AND deleted_at IS NULL
         ");
 
         $isbn10 = !empty($data['isbn10']) ? $data['isbn10'] : null;
@@ -1260,7 +1282,8 @@ class CsvImportController
         $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
-        $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+        $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null) : null;
+        $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
         $prezzo = $data['prezzo'] ?? null;
         $collana = !empty($data['collana']) ? $data['collana'] : null;
         $numeroSerie = !empty($data['numero_serie']) ? $data['numero_serie'] : null;
@@ -1269,33 +1292,53 @@ class CsvImportController
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
-        $stmt->bind_param(
-            'sssssissiissdissssssi',
-            $isbn10,
-            $isbn13,
-            $ean,
-            $titolo,
-            $sottotitolo,
-            $anno,
-            $lingua,
-            $edizione,
-            $pagine,
-            $genreId,
-            $descrizione,
-            $formato,
-            $prezzo,
-            $editorId,
-            $collana,
-            $numeroSerie,
-            $traduttore,
-            $illustratore,
-            $paroleChiave,
-            $dewey,
-            $bookId
-        );
+        $params = [
+            $isbn10, $isbn13, $ean, $titolo, $sottotitolo,
+            $anno, $lingua, $edizione, $pagine, $genreId,
+            $descrizione, $formato,
+        ];
+        if ($hasTipoMedia) {
+            $params[] = $tipoMedia;
+        }
+        $params = array_merge($params, [
+            $prezzo, $editorId, $collana, $numeroSerie,
+            $traduttore, $illustratore, $paroleChiave, $dewey, $bookId,
+        ]);
+
+        $types = '';
+        foreach ($params as $p) {
+            if (is_int($p)) {
+                $types .= 'i';
+            } elseif (is_float($p)) {
+                $types .= 'd';
+            } else {
+                $types .= 's';
+            }
+        }
+        $stmt->bind_param($types, ...$params);
 
         $stmt->execute();
         $stmt->close();
+
+        $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
+    }
+
+    private function syncImportedSeries(\mysqli $db, int $bookId, ?string $collana, ?string $numeroSerie): void
+    {
+        $collana = trim((string) $collana);
+        if ($bookId <= 0 || $collana === '') {
+            return;
+        }
+
+        try {
+            (new \App\Models\SeriesRepository($db))->syncBookMemberships($bookId, $collana, $numeroSerie);
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('CsvImportController::syncImportedSeries failed', [
+                'error' => $e->getMessage(),
+                'libro_id' => $bookId,
+                'collana' => $collana,
+            ]);
+        }
     }
 
     /**
@@ -1323,17 +1366,21 @@ class CsvImportController
      */
     private function insertBook(\mysqli $db, array $data, ?int $editorId, ?int $genreId): int
     {
+        $hasTipoMedia = $this->hasTipoMediaColumn($db);
+        $tipoMediaCol = $hasTipoMedia ? ', tipo_media' : '';
+        $tipoMediaVal = $hasTipoMedia ? ', ?' : '';
+
         $stmt = $db->prepare("
             INSERT INTO libri (
                 isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
                 lingua, edizione, numero_pagine, genere_id,
-                descrizione, formato, prezzo, copie_totali, copie_disponibili,
+                descrizione, formato{$tipoMediaCol}, prezzo, copie_totali, copie_disponibili,
                 editore_id, collana, numero_serie, traduttore, illustratore, parole_chiave,
                 classificazione_dewey, stato, created_at
             ) VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?,
-                ?, ?, ?, ?, ?,
+                ?, ?{$tipoMediaVal}, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?,
                 ?, 'disponibile', NOW()
             )
@@ -1349,7 +1396,8 @@ class CsvImportController
         $edizione = !empty($data['edizione']) ? $data['edizione'] : null;
         $pagine = !empty($data['numero_pagine']) ? (int) $data['numero_pagine'] : null;
         $descrizione = !empty($data['descrizione']) ? $data['descrizione'] : null;
-        $formato = !empty($data['formato']) ? $data['formato'] : 'cartaceo';
+        $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null) : null;
+        $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
         $prezzo = $data['prezzo'] ?? null;
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         // Add bounds checking to prevent DoS attacks
@@ -1365,35 +1413,36 @@ class CsvImportController
         $paroleChiave = !empty($data['parole_chiave'] ?? null) ? $data['parole_chiave'] : null;
         $dewey = !empty($data['classificazione_dewey'] ?? null) ? $data['classificazione_dewey'] : null;
 
-        $stmt->bind_param(
-            'sssssissiissdiiissssss',
-            $isbn10,
-            $isbn13,
-            $ean,
-            $titolo,
-            $sottotitolo,
-            $anno,
-            $lingua,
-            $edizione,
-            $pagine,
-            $genreId,
-            $descrizione,
-            $formato,
-            $prezzo,
-            $copie,
-            $copie,
-            $editorId,
-            $collana,
-            $numeroSerie,
-            $traduttore,
-            $illustratore,
-            $paroleChiave,
-            $dewey
-        );
+        $params = [
+            $isbn10, $isbn13, $ean, $titolo, $sottotitolo, $anno,
+            $lingua, $edizione, $pagine, $genreId,
+            $descrizione, $formato,
+        ];
+        if ($hasTipoMedia) {
+            $params[] = $tipoMedia;
+        }
+        $params = array_merge($params, [
+            $prezzo, $copie, $copie,
+            $editorId, $collana, $numeroSerie, $traduttore, $illustratore, $paroleChiave,
+            $dewey,
+        ]);
+
+        $types = '';
+        foreach ($params as $p) {
+            if (is_int($p)) {
+                $types .= 'i';
+            } elseif (is_float($p)) {
+                $types .= 'd';
+            } else {
+                $types .= 's';
+            }
+        }
+        $stmt->bind_param($types, ...$params);
 
         $stmt->execute();
         $bookId = $db->insert_id;
         $stmt->close();
+        $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
 
         // Genera copie fisiche nella tabella copie
         $copyRepo = new \App\Models\CopyRepository($db);
@@ -1553,7 +1602,7 @@ class CsvImportController
 
         // Update libro if we have data
         if (!empty($updates)) {
-            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ?";
+            $sql = "UPDATE libri SET " . implode(', ', $updates) . " WHERE id = ? AND deleted_at IS NULL";
             $params[] = $bookId;
             $types .= 'i';
 
@@ -1594,7 +1643,7 @@ class CsvImportController
             $publisherResult = $this->getOrCreatePublisher($db, $scrapedData['publisher']);
             $editorId = $publisherResult['id'];
 
-            $stmt = $db->prepare("UPDATE libri SET editore_id = ? WHERE id = ?");
+            $stmt = $db->prepare("UPDATE libri SET editore_id = ? WHERE id = ? AND deleted_at IS NULL");
             $stmt->bind_param('ii', $editorId, $bookId);
             $stmt->execute();
             $stmt->close();

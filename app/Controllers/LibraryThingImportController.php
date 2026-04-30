@@ -35,6 +35,28 @@ class LibraryThingImportController
     /** @var bool|null Cached result of descrizione_plain column existence check */
     private ?bool $cachedHasDescPlain = null;
 
+    /** @var bool|null Cached result of tipo_media column existence check */
+    private ?bool $cachedHasTipoMedia = null;
+
+    /**
+     * Check if tipo_media column exists (cached per controller instance).
+     */
+    private function hasTipoMediaColumn(\mysqli $db): bool
+    {
+        if ($this->cachedHasTipoMedia === null) {
+            try {
+                $checkCol = $db->query("SHOW COLUMNS FROM libri LIKE 'tipo_media'");
+                $this->cachedHasTipoMedia = $checkCol !== false && $checkCol->num_rows > 0;
+                if ($checkCol instanceof \mysqli_result) {
+                    $checkCol->free();
+                }
+            } catch (\Throwable $e) {
+                $this->cachedHasTipoMedia = false;
+            }
+        }
+        return $this->cachedHasTipoMedia;
+    }
+
     /**
      * Check if descrizione_plain column exists (cached per controller instance).
      */
@@ -55,15 +77,15 @@ class LibraryThingImportController
     }
 
     /**
-     * Write log message to import log file
+     * Route LibraryThing import diagnostics through SecureLogger so PII
+     * redaction + retention apply (CR R7). The previous flat-file sink
+     * logged raw ISBNs, titles, and stack traces with no rotation.
      */
     private function log(string $message): void
     {
-        $logFile = __DIR__ . '/../../writable/logs/import.log';
-        $timestamp = date('Y-m-d H:i:s');
         // Sanitize message to prevent log injection (strip newlines/control chars)
         $message = str_replace(["\r", "\n", "\t"], ' ', $message);
-        file_put_contents($logFile, "[$timestamp] [LT] $message\n", FILE_APPEND);
+        \App\Support\SecureLogger::info('[LT] ' . $message);
     }
 
     /**
@@ -911,6 +933,10 @@ class LibraryThingImportController
             }
         }
 
+        // Infer tipo_media from Media field (null when empty to avoid overwriting)
+        $mediaRaw = trim((string) ($data['Media'] ?? ''));
+        $result['tipo_media'] = $mediaRaw !== '' ? \App\Support\MediaLabels::inferTipoMedia($mediaRaw) : null;
+
         // Genre/Subjects
         $result['genere'] = !empty($data['Subjects']) ? trim(explode(',', $data['Subjects'])[0]) : '';
 
@@ -1251,6 +1277,10 @@ class LibraryThingImportController
             }
 
             $this->updateBook($db, $existingBookId, $data, $editorId, $genreId);
+            // REG-2 (review): keep collane / libri_collane in sync the same
+            // way CsvImportController::syncImportedSeries does, so LT-imported
+            // books appear in /admin/collane and getBookMemberships finds them.
+            $this->syncSeriesAfterImport($db, $existingBookId, $data);
             return ['id' => $existingBookId, 'action' => 'updated'];
         } else {
             // Clear EAN conflicts for new inserts
@@ -1263,7 +1293,55 @@ class LibraryThingImportController
 
             $this->log("[upsertBook] INSERTING new book: {$data['titolo']}");
             $newBookId = $this->insertBook($db, $data, $editorId, $genreId);
+            $this->syncSeriesAfterImport($db, $newBookId, $data);
             return ['id' => $newBookId, 'action' => 'created'];
+        }
+    }
+
+    /**
+     * REG-2 (review): mirror CsvImportController::syncImportedSeries — when
+     * an import sets `libri.collana`, also create the matching collane row +
+     * libri_collane membership. Keeps the legacy varchar and the M:N table
+     * consistent so admin views surface the import.
+     */
+    private function syncSeriesAfterImport(\mysqli $db, int $bookId, array $data): void
+    {
+        if ($bookId <= 0) {
+            return;
+        }
+        $collana = trim((string) ($data['collana'] ?? ''));
+        if ($collana === '') {
+            return;
+        }
+        // CR R8 #3: skip the membership sync when the book has been soft-
+        // deleted concurrently (updateBook can land on a row with a non-NULL
+        // deleted_at without raising). Without this guard we'd write
+        // libri_collane rows for a tombstone, surfacing the book in series
+        // listings even though it's hidden from the catalog.
+        $stmtAlive = $db->prepare('SELECT 1 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+        if ($stmtAlive) {
+            $stmtAlive->bind_param('i', $bookId);
+            $stmtAlive->execute();
+            $alive = (bool) $stmtAlive->get_result()->fetch_assoc();
+            $stmtAlive->close();
+            if (!$alive) {
+                return;
+            }
+        }
+        try {
+            (new \App\Models\SeriesRepository($db))->syncBookMemberships(
+                $bookId,
+                $collana,
+                trim((string) ($data['numero_serie'] ?? '')) ?: null,
+                [],
+                []
+            );
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::warning('[LT] series sync after import failed', [
+                'book_id' => $bookId,
+                'collana' => $collana,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
 
@@ -1276,13 +1354,17 @@ class LibraryThingImportController
         $hasDescPlain = $this->hasDescrizionePlainColumn($db);
         $descPlainSet = $hasDescPlain ? ', descrizione_plain = ?' : '';
 
+        // Check if tipo_media column exists (cached per controller instance)
+        $hasTipoMedia = $this->hasTipoMediaColumn($db);
+        $tipoMediaSet = $hasTipoMedia ? ', tipo_media = COALESCE(?, tipo_media)' : '';
+
         if ($hasLTFields) {
             // Full update with all LibraryThing fields
             $stmt = $db->prepare("
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?{$tipoMediaSet}, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, peso = ?, dimensioni = ?, data_acquisizione = ?,
                     review = ?, rating = ?, comment = ?, private_comment = ?,
@@ -1315,8 +1397,12 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
+            $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null) : null;
+            $params[] = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
+            if ($hasTipoMedia) {
+                $params[] = $tipoMedia;
+            }
             $params = array_merge($params, [
-                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
@@ -1363,7 +1449,7 @@ class LibraryThingImportController
                 UPDATE libri SET
                     isbn10 = ?, isbn13 = ?, ean = ?, titolo = ?, sottotitolo = ?,
                     anno_pubblicazione = ?, lingua = ?, edizione = ?, numero_pagine = ?,
-                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?, prezzo = ?, editore_id = ?,
+                    genere_id = ?, descrizione = ?{$descPlainSet}, formato = ?{$tipoMediaSet}, prezzo = ?, editore_id = ?,
                     collana = ?, numero_serie = ?, traduttore = ?, parole_chiave = ?,
                     classificazione_dewey = ?, updated_at = NOW()
                 WHERE id = ? AND deleted_at IS NULL
@@ -1387,8 +1473,12 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
+            $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::normalizeTipoMedia($data['tipo_media'] ?? null) : null;
+            $params[] = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
+            if ($hasTipoMedia) {
+                $params[] = $tipoMedia;
+            }
             $params = array_merge($params, [
-                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $editorId,
                 !empty($data['collana']) ? $data['collana'] : null,
@@ -1417,7 +1507,17 @@ class LibraryThingImportController
                 $checkStmt->close();
 
                 if (!$stillExists) {
-                    throw new \RuntimeException("Book ID {$bookId} was soft-deleted during import — update skipped");
+                    // Soft-deleted mid-import — previously this raised a
+                    // RuntimeException, which tore down the whole batch on
+                    // any concurrent admin delete. The UPDATE already
+                    // filtered `deleted_at IS NULL`, so there are no side
+                    // effects on the target row; log and skip so the rest
+                    // of the batch continues.
+                    \App\Support\SecureLogger::debug(
+                        '[LibraryThingImport] Book soft-deleted during import — update skipped',
+                        ['book_id' => $bookId]
+                    );
+                    return;
                 }
             }
             // If row exists but unchanged, that's fine — continue
@@ -1434,6 +1534,11 @@ class LibraryThingImportController
         $descPlainCol = $hasDescPlain ? ', descrizione_plain' : '';
         $descPlainVal = $hasDescPlain ? ', ?' : '';
 
+        // Check if tipo_media column exists (cached per controller instance)
+        $hasTipoMedia = $this->hasTipoMediaColumn($db);
+        $tipoMediaCol = $hasTipoMedia ? ', tipo_media' : '';
+        $tipoMediaVal = $hasTipoMedia ? ', ?' : '';
+
         $copie = !empty($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         if ($copie < 1) {
             $copie = 1;
@@ -1446,7 +1551,7 @@ class LibraryThingImportController
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato,
+                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato{$tipoMediaCol},
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     peso, dimensioni, data_acquisizione,
@@ -1460,7 +1565,7 @@ class LibraryThingImportController
                     value, condition_lt, entry_date,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, ?, ?,
                     ?,
@@ -1492,8 +1597,13 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
+            $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null) : null;
+            $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
+            $params[] = $formato;
+            if ($hasTipoMedia) {
+                $params[] = $tipoMedia;
+            }
             $params = array_merge($params, [
-                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
                 $copie,
@@ -1540,12 +1650,12 @@ class LibraryThingImportController
             $stmt = $db->prepare("
                 INSERT INTO libri (
                     isbn10, isbn13, ean, titolo, sottotitolo, anno_pubblicazione,
-                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato,
+                    lingua, edizione, numero_pagine, genere_id, descrizione{$descPlainCol}, formato{$tipoMediaCol},
                     prezzo, copie_totali, copie_disponibili, editore_id, collana,
                     numero_serie, traduttore, parole_chiave, classificazione_dewey,
                     stato, created_at
                 ) VALUES (
-                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$descPlainVal}, ?{$tipoMediaVal}, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'disponibile', NOW()
                 )
             ");
 
@@ -1567,8 +1677,13 @@ class LibraryThingImportController
             if ($hasDescPlain) {
                 $params[] = !empty($data['descrizione_plain']) ? $data['descrizione_plain'] : null;
             }
+            $tipoMedia = $hasTipoMedia ? \App\Support\MediaLabels::resolveTipoMedia($data['formato'] ?? null, $data['tipo_media'] ?? null) : null;
+            $formato = !empty($data['formato']) ? $data['formato'] : (empty($tipoMedia) || $tipoMedia === 'libro' ? 'cartaceo' : null);
+            $params[] = $formato;
+            if ($hasTipoMedia) {
+                $params[] = $tipoMedia;
+            }
             $params = array_merge($params, [
-                !empty($data['formato']) ? $data['formato'] : 'cartaceo',
                 !empty($data['prezzo']) ? (float) str_replace(',', '.', $data['prezzo']) : null,
                 $copie,
                 $copie,

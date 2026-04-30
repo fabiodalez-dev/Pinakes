@@ -138,8 +138,12 @@ CRITICAL_FILES=(
 # Bundled plugins that MUST be in the ZIP (scraping-pro is premium, NOT bundled)
 BUNDLED_PLUGINS=(
     "api-book-scraper"
+    "deezer"
     "dewey-editor"
     "digital-library"
+    "discogs"
+    "goodlib"
+    "musicbrainz"
     "open-library"
     "z39-server"
 )
@@ -180,6 +184,22 @@ done
 PHPSTAN_COUNT=$(grep -c "phpstan" "$VERIFY_DIR/pinakes-v${VERSION}/vendor/composer/autoload_real.php" || true)
 if [ "$PHPSTAN_COUNT" -gt 0 ]; then
     echo -e "${RED}  ✗ PHPStan found in autoload_real.php ($PHPSTAN_COUNT references)${NC}"
+    MISSING=$((MISSING + 1))
+fi
+
+# Detect symlinks in the ZIP via zipinfo metadata (macOS `unzip` would recreate
+# them, but PHP ZipArchive on Linux extracts as 22-byte regular files → Updater
+# then fails copy(file, existing_dir). Broke v0.5.4 manual upgrade in prod.)
+# zipinfo long-format symlink lines look like:
+#   lrwxrwxrwx  2.0 unx   22 b- stor ... <path> -> <target>
+# We want <path> (the offending repo path the maintainer must fix), which is
+# the field immediately before "->" — NOT $NF, which would be the target.
+SYMLINKS_IN_ZIP=$(zipinfo "$ZIPFILE" 2>/dev/null \
+    | awk '/^l/ { for (i=1; i<=NF; i++) if ($i == "->") { print $(i-1); break } }')
+if [ -n "$SYMLINKS_IN_ZIP" ]; then
+    echo -e "${RED}  ✗ Symlinks in ZIP — will break Updater.copyDirectory() in production:${NC}"
+    echo "$SYMLINKS_IN_ZIP" | sed 's/^/    /'
+    echo -e "${RED}    Fix: replace the symlink in the repo with a real directory containing the files.${NC}"
     MISSING=$((MISSING + 1))
 fi
 
@@ -246,7 +266,23 @@ echo ""
 # ============================================================================
 echo -e "${YELLOW}[8/9] Uploading files to GitHub release...${NC}"
 
-gh release upload "v${VERSION}" "$ZIPFILE" "${ZIPFILE}.sha256" --clobber
+# Build the asset list — always ZIP + its checksum, plus optional patch files
+# (post-install-patch.php / pre-update-patch.php) when present in repo root.
+# Those patch files are release-specific hotfixes dropped next to the script
+# by the maintainer; they're gitignored so they don't bleed into main.
+UPLOAD_ASSETS=("$ZIPFILE" "${ZIPFILE}.sha256")
+for PATCH in post-install-patch.php pre-update-patch.php; do
+    if [ -f "$PATCH" ]; then
+        # Ensure checksum is fresh — the Updater verifies SHA-256 of the patch
+        # before executing it, so a stale .sha256 would cause the patch to be
+        # silently ignored on user installs.
+        shasum -a 256 "$PATCH" > "${PATCH}.sha256"
+        UPLOAD_ASSETS+=("$PATCH" "${PATCH}.sha256")
+        echo -e "${YELLOW}  + Attaching $PATCH (+ checksum)${NC}"
+    fi
+done
+
+gh release upload "v${VERSION}" "${UPLOAD_ASSETS[@]}" --clobber
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ ERROR: File upload failed${NC}"
@@ -269,6 +305,98 @@ if [ "$ASSETS" -lt 2 ]; then
 fi
 
 echo -e "${GREEN}✓ Release has $ASSETS assets${NC}"
+echo ""
+
+# ============================================================================
+# STEP 9.5: VERIFY THE ACTUAL REMOTE ZIP MATCHES THE LOCAL ZIP
+# ============================================================================
+# HARD RULE (see updater.md §ABSOLUTE RULE): "upload succeeded" is NOT enough.
+# On 2026-04-22 two separate failure modes corrupted the shipped ZIP:
+#   1) gh release upload produced a truncated remote artifact (v0.5.9.2).
+#   2) A hidden GitHub Actions workflow (release.yml) rebuilt the ZIP via
+#      bin/build-release.sh and overwrote the asset AFTER the upload —
+#      verification hitting the CDN saw the cached correct file briefly,
+#      then the CDN invalidated and users downloaded the workflow's broken
+#      ZIP (v0.5.9.3, reported by HansUwe52).
+# Mitigations:
+#   - release.yml is now renamed .disabled so it does not race our upload.
+#   - This step fetches via the GitHub API (asset ID + octet-stream Accept),
+#     bypassing the CDN entirely.
+#   - It also polls for up to 90 seconds to catch any asynchronous overwrite
+#     from a rogue workflow that might slip in.
+#   - Sanity-check: uploader MUST be the current gh user, NOT github-actions[bot].
+echo -e "${YELLOW}[9.5/9] Verifying REMOTE ZIP matches local ZIP (via API, not CDN)...${NC}"
+
+REMOTE_VERIFY_DIR=$(mktemp -d)
+REMOTE_ZIP="$REMOTE_VERIFY_DIR/remote.zip"
+
+LOCAL_SHA=$(shasum -a 256 "$ZIPFILE" | awk '{print $1}')
+LOCAL_PLUGIN_COUNT=$(unzip -l "$ZIPFILE" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
+GH_USER=$(gh api user --jq .login 2>/dev/null || echo "unknown")
+
+# Poll for up to 90s so a slow/async workflow override would also be caught.
+ATTEMPTS=0
+MAX_ATTEMPTS=9
+MATCH=0
+while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+    ATTEMPTS=$((ATTEMPTS + 1))
+
+    # 1. Look up the asset's numeric ID + metadata via the API
+    ASSET_META=$(gh api "repos/fabiodalez-dev/Pinakes/releases/tags/v${VERSION}" \
+        --jq ".assets[] | select(.name == \"pinakes-v${VERSION}.zip\") | {id, size, uploader: .uploader.login}" 2>/dev/null || echo "")
+    if [ -z "$ASSET_META" ]; then
+        echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: asset not listed yet, retrying in 10s${NC}"
+        sleep 10
+        continue
+    fi
+
+    ASSET_ID=$(echo "$ASSET_META" | jq -r '.id')
+    REMOTE_SIZE=$(echo "$ASSET_META" | jq -r '.size')
+    REMOTE_UPLOADER=$(echo "$ASSET_META" | jq -r '.uploader')
+
+    # 2. Fail loudly if the uploader is a bot — means a workflow hijacked the release
+    if [ "$REMOTE_UPLOADER" = "github-actions[bot]" ]; then
+        echo -e "${RED}❌ CRITICAL: release asset uploader is github-actions[bot]${NC}"
+        echo -e "${RED}   A GitHub Actions workflow overwrote our upload.${NC}"
+        echo -e "${RED}   Expected uploader: $GH_USER${NC}"
+        echo -e "${RED}   Check for rogue workflows in .github/workflows/${NC}"
+        rm -rf "$REMOTE_VERIFY_DIR"
+        exit 1
+    fi
+
+    # 3. Download via the API (bypasses CDN, always returns current content)
+    if ! gh api "repos/fabiodalez-dev/Pinakes/releases/assets/${ASSET_ID}" \
+        -H "Accept: application/octet-stream" > "$REMOTE_ZIP" 2>/dev/null; then
+        echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: API download failed, retrying${NC}"
+        sleep 10
+        continue
+    fi
+
+    REMOTE_SHA=$(shasum -a 256 "$REMOTE_ZIP" | awk '{print $1}')
+    REMOTE_PLUGIN_COUNT=$(unzip -l "$REMOTE_ZIP" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
+
+    if [ "$LOCAL_SHA" = "$REMOTE_SHA" ] && [ "$REMOTE_PLUGIN_COUNT" = "$LOCAL_PLUGIN_COUNT" ] && [ "$REMOTE_PLUGIN_COUNT" -ge 10 ]; then
+        MATCH=1
+        break
+    fi
+
+    echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: mismatch (sha local=$LOCAL_SHA remote=$REMOTE_SHA, plugins local=$LOCAL_PLUGIN_COUNT remote=$REMOTE_PLUGIN_COUNT), retrying${NC}"
+    sleep 10
+done
+
+if [ "$MATCH" != "1" ]; then
+    echo -e "${RED}❌ CRITICAL: REMOTE ZIP DOES NOT MATCH LOCAL ZIP after ${MAX_ATTEMPTS} attempts${NC}"
+    echo -e "${RED}   local:  $LOCAL_SHA ($LOCAL_PLUGIN_COUNT plugins, $(wc -c < "$ZIPFILE") bytes)${NC}"
+    echo -e "${RED}   remote: $REMOTE_SHA ($REMOTE_PLUGIN_COUNT plugins, $(wc -c < "$REMOTE_ZIP") bytes, uploader=$REMOTE_UPLOADER)${NC}"
+    echo -e "${RED}DO NOT ANNOUNCE THIS RELEASE. Delete it and retry:${NC}"
+    echo -e "${RED}  gh release delete v${VERSION} --yes${NC}"
+    echo -e "${RED}  ./scripts/create-release.sh ${VERSION}${NC}"
+    rm -rf "$REMOTE_VERIFY_DIR"
+    exit 1
+fi
+
+rm -rf "$REMOTE_VERIFY_DIR"
+echo -e "${GREEN}✓ Remote ZIP matches local via API (SHA256 $LOCAL_SHA, $REMOTE_PLUGIN_COUNT plugins, uploader=$REMOTE_UPLOADER)${NC}"
 echo ""
 
 # ============================================================================

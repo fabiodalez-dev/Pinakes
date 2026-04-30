@@ -31,20 +31,6 @@ class Updater
     private string $tempPath;
     private string $githubToken = '';
 
-    /**
-     * Bundled plugins that are updated during app updates.
-     * scraping-pro is NOT bundled — it's a premium add-on managed separately.
-     * @var array<string>
-     */
-    private const BUNDLED_PLUGINS = [
-        'api-book-scraper',
-        'dewey-editor',
-        'digital-library',
-        'goodlib',
-        'open-library',
-        'z39-server',
-    ];
-
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
         '.env',
@@ -1144,6 +1130,23 @@ class Updater
                 @mkdir($extractPath, 0775, true);
             }
 
+            // Bug-hunt #4-3: zip-slip validation parity with the manual-upload
+            // path at line ~1488. If the GitHub release URL is ever spoofed /
+            // signed against an attacker-controlled key, an entry like
+            // `../public/index.php` would silently overwrite production code.
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entry = $zip->getNameIndex($i);
+                if ($entry === false
+                    || str_contains($entry, '..')
+                    || str_starts_with($entry, '/')
+                    || str_starts_with($entry, '\\')
+                    || preg_match('/^[A-Za-z]:[\\\\\\/]/', $entry)
+                ) {
+                    $zip->close();
+                    throw new Exception(__('Percorso non valido nel pacchetto'));
+                }
+            }
+
             $extractionSuccess = $zip->extractTo($extractPath);
 
             // If extraction failed, try fallback to storage/tmp
@@ -1178,10 +1181,18 @@ class Updater
                     'new_extract_path' => $extractPath
                 ]);
 
-                // Move ZIP to new location
+                // Move ZIP to new location. On Docker / shared hosting with
+                // different mount points, rename() across filesystems fails —
+                // fall back to copy+unlink, and verify the copy actually landed.
                 $newZipPath = $fallbackTempPath . '/update.zip';
-                if (!rename($zipPath, $newZipPath)) {
-                    copy($zipPath, $newZipPath);
+                if (!@rename($zipPath, $newZipPath)) {
+                    if (!@copy($zipPath, $newZipPath)) {
+                        $err = error_get_last();
+                        throw new Exception(sprintf(
+                            __('Impossibile spostare il file ZIP nel fallback: %s'),
+                            $err['message'] ?? 'unknown'
+                        ));
+                    }
                     @unlink($zipPath);
                 }
                 $zipPath = $newZipPath;
@@ -2010,6 +2021,25 @@ class Updater
             $this->debugLog('INFO', 'Aggiornamento plugin bundled');
             $this->updateBundledPlugins($sourcePath);
 
+            // Sync DB rows for bundled plugins that are NEW in this release
+            // (no previous row in `plugins`). Without this, the new rows are
+            // inserted only on the next HTTP request
+            // (public/index.php → loadActivePlugins → autoRegisterBundledPlugins).
+            // That meant an admin viewing /admin/plugins right after upgrade
+            // saw the old plugin list until a second page load. Run it here
+            // so the admin list is correct on first view post-upgrade.
+            try {
+                // Same constructor shape as config/container.php:163-168. Reusing
+                // the inline build keeps the Updater free of the DI container.
+                $pluginManager = new PluginManager($this->db, new HookManager($this->db));
+                $registered    = $pluginManager->autoRegisterBundledPlugins();
+                $this->debugLog('INFO', 'Sync plugin bundled post-install', ['registered' => $registered]);
+            } catch (\Throwable $e) {
+                $this->debugLog('WARNING', 'Auto-register plugin bundled non riuscito (non bloccante)', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
             // Clean up orphan files
             $this->debugLog('INFO', 'Pulizia file orfani');
             $this->cleanupOrphanFiles($sourcePath);
@@ -2122,7 +2152,15 @@ class Updater
 
         $versionFile = $this->rootPath . '/version.json';
         if (file_exists($versionFile)) {
-            copy($versionFile, $backupPath . '/version.json');
+            if (!@copy($versionFile, $backupPath . '/version.json')) {
+                // Backup must be complete — without version.json the rollback
+                // path can't restore the original version correctly. Fail loud.
+                $err = error_get_last();
+                throw new Exception(sprintf(
+                    __('Impossibile backup version.json: %s'),
+                    $err['message'] ?? 'unknown'
+                ));
+            }
         }
 
         return $backupPath;
@@ -2149,7 +2187,15 @@ class Updater
 
         $backupVersion = $backupPath . '/version.json';
         if (file_exists($backupVersion)) {
-            copy($backupVersion, $this->rootPath . '/version.json');
+            if (!@copy($backupVersion, $this->rootPath . '/version.json')) {
+                // Rollback failing here means the app is left with the new
+                // version.json but old code — surface the error instead of
+                // silently leaving an inconsistent state.
+                $err = error_get_last();
+                $this->debugLog('ERROR', 'Rollback: impossibile ripristinare version.json', [
+                    'error' => $err['message'] ?? 'unknown',
+                ]);
+            }
         }
     }
 
@@ -2217,8 +2263,23 @@ class Updater
     /**
      * Update bundled plugins from the release package.
      * copyDirectory() skips storage/plugins (preservePaths), so bundled plugins
-     * must be updated separately. Only plugins listed in BUNDLED_PLUGINS are
-     * updated — user-installed and premium plugins (scraping-pro) are untouched.
+     * must be updated separately. Only plugins listed in the PACKAGE-SIDE
+     * BundledPlugins::LIST are updated — user-installed and premium plugins
+     * (scraping-pro) are untouched.
+     *
+     * IMPORTANT ARCHITECTURAL NOTE: this method deliberately reads the plugin
+     * list from the release package (source) rather than from the installed
+     * BundledPlugins::LIST (self). Context — historically this code iterated
+     * `BundledPlugins::LIST` as it existed *at the old Updater's release*. That
+     * meant any new bundled plugin added in v(N+1) was silently skipped when a
+     * user upgraded from v(N), because the v(N) Updater running the copy had
+     * a shorter list. This first bit us in v0.5.4 (discogs, fc399cb) and again
+     * in v0.5.9 (archives — user report from HansUwe52). Reading the list from
+     * the new package makes every release self-describing — whatever's in the
+     * ZIP gets installed, regardless of which Updater is doing the copy.
+     * The old Updater still uses its own code path and would still skip plugins
+     * added after it shipped, BUT a single additional upgrade to v(N+2)+ self-heals
+     * because by then this smarter code path is already in place.
      */
     private function updateBundledPlugins(string $sourcePath): void
     {
@@ -2238,20 +2299,228 @@ class Updater
         }
 
         $updated = 0;
-        foreach (self::BUNDLED_PLUGINS as $pluginName) {
-            $sourcePluginPath = $sourcePluginsDir . '/' . $pluginName;
+        /** @var array<int,string> */
+        $failed = [];
+        $targetPluginsDirReal = realpath($targetPluginsDir);
+        if ($targetPluginsDirReal === false) {
+            throw new Exception(__('Impossibile risolvere il percorso della directory plugins.'));
+        }
+
+        $pluginList = $this->resolvePackageBundledPluginList($sourcePath);
+        $this->debugLog('INFO', 'Lista plugin bundled risolta dal pacchetto', [
+            'count'  => count($pluginList),
+            'source' => $pluginList === BundledPlugins::LIST ? 'fallback:self' : 'package',
+            'names'  => array_values($pluginList),
+        ]);
+
+        foreach ($pluginList as $pluginName) {
+            $pluginSlug = $this->normalizeBundledPluginSlug($pluginName);
+            $sourcePluginPath = $sourcePluginsDir . '/' . $pluginSlug;
             if (!is_dir($sourcePluginPath)) {
-                $this->debugLog('DEBUG', 'Plugin bundled non presente nel pacchetto', ['plugin' => $pluginName]);
+                $this->debugLog('DEBUG', 'Plugin bundled non presente nel pacchetto', ['plugin' => $pluginSlug]);
                 continue;
             }
 
-            $targetPluginPath = $targetPluginsDir . '/' . $pluginName;
-            $this->debugLog('INFO', 'Aggiornamento plugin bundled', ['plugin' => $pluginName]);
-            $this->copyDirectoryRecursive($sourcePluginPath, $targetPluginPath);
+            $targetPluginPath = $targetPluginsDirReal . '/' . $pluginSlug;
+            $stagingPath = $targetPluginsDirReal . '/.' . $pluginSlug . '.tmp-' . bin2hex(random_bytes(4));
+            $backupPath = $targetPluginsDirReal . '/.' . $pluginSlug . '.bak-' . bin2hex(random_bytes(4));
+
+            $this->debugLog('INFO', 'Aggiornamento plugin bundled', ['plugin' => $pluginSlug]);
+
+            try {
+                $this->copyDirectoryRecursive($sourcePluginPath, $stagingPath);
+
+                if (is_dir($targetPluginPath) && !@rename($targetPluginPath, $backupPath)) {
+                    // rename can fail silently on Docker volumes / shared hosting
+                    // when source and destination are on different filesystems or
+                    // when the webserver user cannot rename a dir it doesn't own.
+                    // Raise this to WARNING so ops actually notices in app.log.
+                    $renameErr = error_get_last();
+                    $this->debugLog('WARNING', 'rename(target → backup) fallito', [
+                        'plugin' => $pluginSlug,
+                        'target' => $targetPluginPath,
+                        'backup' => $backupPath,
+                        'php_error' => $renameErr['message'] ?? 'unknown',
+                    ]);
+                    $this->removeDirectoryTree($stagingPath);
+                    throw new Exception(sprintf(__('Impossibile creare il backup del plugin: %s'), $pluginSlug));
+                }
+
+                if (!@rename($stagingPath, $targetPluginPath)) {
+                    // Rename failed (cross-device link, permission, etc.).
+                    // Fallback: copy staging → target directly so the plugin
+                    // files land even if atomic rename is unavailable. Docker
+                    // volume mounts often have this issue when staging and
+                    // target end up on different mount points.
+                    $renameErr = error_get_last();
+                    $this->debugLog('WARNING', 'rename(staging → target) fallito, fallback a copyDirectoryRecursive', [
+                        'plugin' => $pluginSlug,
+                        'staging' => $stagingPath,
+                        'target' => $targetPluginPath,
+                        'php_error' => $renameErr['message'] ?? 'unknown',
+                    ]);
+                    try {
+                        $this->copyDirectoryRecursive($stagingPath, $targetPluginPath);
+                        $this->removeDirectoryTree($stagingPath);
+                    } catch (\Throwable $copyErr) {
+                        $this->debugLog('ERROR', 'Fallback copy fallito dopo rename failure', [
+                            'plugin' => $pluginSlug,
+                            'error'  => $copyErr->getMessage(),
+                        ]);
+                        if (is_dir($backupPath) && !rename($backupPath, $targetPluginPath)) {
+                            throw new Exception(sprintf(__('Impossibile ripristinare il plugin precedente: %s'), $pluginSlug));
+                        }
+                        throw new Exception(sprintf(__('Impossibile attivare la nuova versione del plugin: %s'), $pluginSlug));
+                    }
+                }
+
+                if (is_dir($backupPath)) {
+                    try {
+                        $this->removeDirectoryTree($backupPath);
+                    } catch (\Throwable $cleanupError) {
+                        $this->debugLog('WARNING', 'Impossibile rimuovere backup plugin', [
+                            'plugin' => $pluginSlug,
+                            'backup' => $backupPath,
+                            'error' => $cleanupError->getMessage(),
+                        ]);
+                    }
+                }
+
+                // Post-copy sanity check: if the target dir still doesn't
+                // exist OR is empty, something went wrong silently.
+                if (!is_dir($targetPluginPath) || count(scandir($targetPluginPath) ?: []) <= 2) {
+                    $this->debugLog('ERROR', 'Plugin dir mancante o vuota dopo copy', [
+                        'plugin' => $pluginSlug,
+                        'target' => $targetPluginPath,
+                    ]);
+                    throw new Exception(sprintf(__('Impossibile attivare la nuova versione del plugin: %s'), $pluginSlug));
+                }
+            } catch (\Throwable $e) {
+                // Clean up partial state + try to restore backup
+                if (is_dir($stagingPath)) {
+                    try {
+                        $this->removeDirectoryTree($stagingPath);
+                    } catch (\Throwable $_) { /* best-effort */ }
+                }
+                if (is_dir($backupPath) && !is_dir($targetPluginPath)) {
+                    if (!@rename($backupPath, $targetPluginPath)) {
+                        $this->debugLog('ERROR', 'Impossibile ripristinare il plugin dal backup', [
+                            'plugin' => $pluginSlug,
+                            'backup' => $backupPath,
+                            'target' => $targetPluginPath,
+                        ]);
+                    }
+                }
+                // IMPORTANT: DO NOT re-throw. A single failing plugin used to
+                // abort the whole update process, meaning a permission glitch
+                // on one plugin folder would prevent all others from being
+                // updated. Log the error at ERROR level and continue with the
+                // next plugin so at least the healthy ones land on disk.
+                $this->debugLog('ERROR', 'Aggiornamento plugin bundled fallito (continuo con i prossimi)', [
+                    'plugin' => $pluginSlug,
+                    'exception' => get_class($e),
+                    'message' => $e->getMessage(),
+                ]);
+                $failed[] = $pluginSlug;
+                continue;
+            }
+
             $updated++;
         }
 
-        $this->debugLog('INFO', 'Plugin bundled aggiornati', ['count' => $updated]);
+        $this->debugLog(
+            empty($failed) ? 'INFO' : 'WARNING',
+            'Plugin bundled aggiornati',
+            ['count' => $updated, 'failed' => $failed]
+        );
+    }
+
+    private function normalizeBundledPluginSlug(string $pluginName): string
+    {
+        $pluginSlug = trim($pluginName);
+        if ($pluginSlug === '' || preg_match('/^[a-z0-9][a-z0-9-]*$/', $pluginSlug) !== 1) {
+            throw new Exception(sprintf(__('Slug plugin bundled non valido: %s'), $pluginName));
+        }
+
+        return $pluginSlug;
+    }
+
+    /**
+     * Resolve the bundled-plugin list from the release package itself so that
+     * each release is self-describing. Falls back to the currently-installed
+     * BundledPlugins::LIST if the package version can't be read — that matches
+     * the pre-v0.5.9.2 behaviour and guarantees we never regress to "zero
+     * plugins copied".
+     *
+     * We intentionally do NOT `include` the package's PHP file — executing
+     * arbitrary code from an un-installed upgrade is a code-execution vector
+     * (and the file's namespace would clash with the self-loaded class). We
+     * parse the `public const LIST = [...]` literal with a narrow regex: each
+     * entry must be a lowercase slug so any surprise content inside the file
+     * can't inject slugs that pass normalizeBundledPluginSlug() elsewhere.
+     *
+     * @return array<int, string>
+     */
+    private function resolvePackageBundledPluginList(string $sourcePath): array
+    {
+        $candidate = $sourcePath . '/app/Support/BundledPlugins.php';
+        if (!is_file($candidate) || !is_readable($candidate)) {
+            return BundledPlugins::LIST;
+        }
+
+        $content = @file_get_contents($candidate);
+        if ($content === false || $content === '') {
+            return BundledPlugins::LIST;
+        }
+
+        if (preg_match('/public\s+const\s+LIST\s*=\s*\[(.*?)\]\s*;/s', $content, $blockMatch) !== 1) {
+            $this->debugLog('WARNING', 'BundledPlugins.php nel pacchetto non matcha il pattern atteso — uso fallback', [
+                'path' => $candidate,
+            ]);
+            return BundledPlugins::LIST;
+        }
+
+        if (preg_match_all("/'([a-z0-9][a-z0-9-]*)'/", $blockMatch[1], $entryMatches) === false
+            || empty($entryMatches[1])
+        ) {
+            $this->debugLog('WARNING', 'BundledPlugins.php nel pacchetto senza voci riconosciute — uso fallback', [
+                'path' => $candidate,
+            ]);
+            return BundledPlugins::LIST;
+        }
+
+        return array_values(array_unique($entryMatches[1]));
+    }
+
+    private function removeDirectoryTree(string $path): void
+    {
+        if (!file_exists($path)) {
+            return;
+        }
+        if (!is_dir($path)) {
+            throw new Exception(sprintf(__('Percorso plugin non valido: %s'), $path));
+        }
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            if ($item->isDir()) {
+                if (!rmdir($item->getPathname())) {
+                    throw new Exception(sprintf(__('Impossibile rimuovere directory: %s'), $item->getPathname()));
+                }
+            } else {
+                if (!unlink($item->getPathname())) {
+                    throw new Exception(sprintf(__('Impossibile rimuovere file: %s'), $item->getPathname()));
+                }
+            }
+        }
+
+        if (!rmdir($path)) {
+            throw new Exception(sprintf(__('Impossibile rimuovere directory: %s'), $path));
+        }
     }
 
     /**
@@ -2770,10 +3039,26 @@ class Updater
     private function enableMaintenanceMode(): void
     {
         $maintenanceFile = $this->rootPath . '/storage/.maintenance';
-        file_put_contents($maintenanceFile, json_encode([
+        $maintenanceDir = dirname($maintenanceFile);
+        if (!is_dir($maintenanceDir)) {
+            @mkdir($maintenanceDir, 0775, true);
+        }
+        $written = @file_put_contents($maintenanceFile, json_encode([
             'time' => time(),
             'message' => __('Aggiornamento in corso. Riprova tra qualche minuto.')
-        ]));
+        ]), LOCK_EX);
+        if ($written === false) {
+            // Maintenance mode is a safety switch that blocks normal requests
+            // while the update runs. If writing fails, surface a warning —
+            // often means storage/ is not writable by the webserver user
+            // (common on shared hosting after cPanel permission resets).
+            $err = error_get_last();
+            $this->debugLog('WARNING', 'Impossibile attivare modalità manutenzione', [
+                'file' => $maintenanceFile,
+                'error' => $err['message'] ?? 'unknown',
+                'hint' => 'Check storage/ permissions (must be writable by webserver user)',
+            ]);
+        }
     }
 
     /**

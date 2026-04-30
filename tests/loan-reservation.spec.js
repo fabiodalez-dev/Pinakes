@@ -127,11 +127,25 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     );
     testUserId = parseInt(dbQuery(`SELECT id FROM utenti WHERE email='${TEST_EMAIL}'`), 10);
 
-    // 4. Find the test book
-    testBookId = parseInt(
-      dbQuery(`SELECT id FROM libri WHERE titolo LIKE '%Nome della Rosa%' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`),
-      10,
+    // 4. Find the test book — previously this assumed smoke-install had
+    // seeded "Il Nome della Rosa". On fresh installs (nginx test env) or
+    // after DB wipes that seed is absent, so testBookId came out as NaN
+    // and every subsequent query died with "Unknown column 'NaN' in
+    // where clause". Create the book if it doesn't already exist.
+    const bookIdRaw = dbQuery(
+      `SELECT id FROM libri WHERE titolo LIKE '%Nome della Rosa%' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`
     );
+    testBookId = parseInt(bookIdRaw, 10);
+    if (!bookIdRaw || isNaN(testBookId)) {
+      dbQuery(
+        `INSERT INTO libri (titolo, anno_pubblicazione, copie_totali, copie_disponibili, created_at, updated_at)
+         VALUES ('Il Nome della Rosa (loan-reservation fixture)', 1980, 1, 1, NOW(), NOW())`
+      );
+      testBookId = parseInt(
+        dbQuery(`SELECT LAST_INSERT_ID()`),
+        10
+      );
+    }
 
     // 5. Neutralise any active loans from the smoke-test so our book starts clean
     dbQuery(`UPDATE prestiti SET stato='restituito', attivo=0, data_restituzione=CURDATE() WHERE libro_id=${testBookId} AND attivo=1`);
@@ -142,8 +156,11 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
       dbQuery(`SELECT COUNT(*) FROM copie WHERE libro_id=${testBookId} AND stato='disponibile'`) || '0', 10,
     );
     if (availCopies === 0) {
+      // numero_inventario is UNIQUE; add a timestamp suffix so repeated
+      // runs (with leftover stale copies) don't collide.
+      const invSuffix = Date.now().toString().slice(-6);
       dbQuery(
-        `INSERT INTO copie (libro_id, stato, numero_inventario, created_at) VALUES (${testBookId}, 'disponibile', 'TEST-LOAN-001', NOW())`,
+        `INSERT INTO copie (libro_id, stato, numero_inventario, created_at) VALUES (${testBookId}, 'disponibile', 'TEST-LOAN-${invSuffix}', NOW())`,
       );
     }
 

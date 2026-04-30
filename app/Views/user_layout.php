@@ -68,7 +68,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?php echo HtmlHelper::e($title ?? ($appName . ' - Area Utente')); ?></title>
+    <title><?= htmlspecialchars($title ?? ($appName . ' - ' . __("Area Utente")), ENT_QUOTES, 'UTF-8') ?></title>
     <meta name="csrf-token" content="<?php echo App\Support\Csrf::ensureToken(); ?>">
     <script>window.BASE_PATH = <?= json_encode(\App\Support\HtmlHelper::getBasePath(), JSON_HEX_TAG | JSON_HEX_AMP) ?>;</script>
 
@@ -791,7 +791,31 @@ $htmlLang = substr($currentLocale, 0, 2);
         <?= $additional_css ?? '' ?>
     </style>
     <script>
-        window.__ = window.__ || function (key) { return key; };
+        // Translation table + helper. Without this, JS-rendered strings on
+        // user-area pages stayed in Italian for non-IT locales — the
+        // previous shim was an identity function. Mirrors the admin layout
+        // pattern so every layout has a real working window.__().
+        <?php
+        $userLocale = \App\Support\I18n::getLocale();
+        $userTranslationFile = __DIR__ . '/../../locale/' . $userLocale . '.json';
+        $userTranslations = [];
+        if (file_exists($userTranslationFile)) {
+            $userTranslations = json_decode((string) file_get_contents($userTranslationFile), true) ?? [];
+        }
+        ?>
+        window.i18nTranslations = <?= json_encode($userTranslations, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_HEX_APOS) ?>;
+        window.__ = function (key, ...args) {
+            let translated = window.i18nTranslations[key] || key;
+            if (args.length > 0) {
+                let argIndex = 0;
+                translated = translated.replace(/%(\d+\$)?[sd]/g, function (match, position) {
+                    const resolvedIndex = position ? parseInt(position, 10) - 1 : argIndex++;
+                    const value = args[resolvedIndex];
+                    return value !== undefined ? String(value) : '';
+                });
+            }
+            return translated;
+        };
     </script>
 </head>
 
@@ -822,13 +846,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </ul>
 
                     <!-- Mobile Menu Toggle -->
-                    <button class="mobile-menu-toggle d-md-none" id="mobileMenuToggle" aria-label="Toggle menu">
+                    <button class="mobile-menu-toggle d-md-none" id="mobileMenuToggle" aria-label="<?= htmlspecialchars(__('Toggle menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-bars"></i>
                     </button>
 
                     <form class="search-form d-none d-md-block" action="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" method="get">
                         <input class="search-input" type="search" name="q"
-                            placeholder="<?= __('Cerca libri, autori, ISBN...') ?>" aria-label="Search">
+                            placeholder="<?= htmlspecialchars(__('Cerca libri, autori, ISBN...'), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>">
                     </form>
 
                     <div class="user-menu d-none d-md-flex">
@@ -891,8 +915,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </div>
 
                     <form class="search-form d-md-none w-100" action="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>" method="get">
-                        <input class="search-input" type="search" name="q" placeholder="<?= __('Cerca libri...') ?>"
-                            aria-label="Search">
+                        <input class="search-input" type="search" name="q" placeholder="<?= htmlspecialchars(__('Cerca libri...'), ENT_QUOTES, 'UTF-8') ?>"
+                            aria-label="<?= htmlspecialchars(__('Search'), ENT_QUOTES, 'UTF-8') ?>">
                     </form>
                 </div>
             </div>
@@ -903,7 +927,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             <div class="mobile-menu-content">
                 <div class="mobile-menu-header">
                     <span class="brand-text"><?= HtmlHelper::e($appName) ?></span>
-                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="Close menu">
+                    <button class="mobile-menu-close" id="mobileMenuClose" aria-label="<?= htmlspecialchars(__('Close menu'), ENT_QUOTES, 'UTF-8') ?>">
                         <i class="fas fa-times"></i>
                     </button>
                 </div>
@@ -994,7 +1018,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <p><?= HtmlHelper::e($footerDescription) ?></p>
                 </div>
                 <div class="col-lg-3">
-                    <h5>Menu</h5>
+                    <h5><?= __('Menu') ?></h5>
                     <ul class="list-unstyled">
                         <li><a href="<?= htmlspecialchars($catalogRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Catalogo") ?></a></li>
                         <li><a href="<?= htmlspecialchars(route_path('about'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Chi Siamo") ?></a></li>
@@ -1003,7 +1027,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </ul>
                 </div>
                 <div class="col-lg-3">
-                    <h5>Account</h5>
+                    <h5><?= __('Account') ?></h5>
                     <ul class="list-unstyled">
                         <li><a href="<?= htmlspecialchars(route_path('user_dashboard'), ENT_QUOTES, 'UTF-8') ?>"><?= __("Dashboard") ?></a></li>
                         <li><a href="<?= htmlspecialchars($profileRoute, ENT_QUOTES, 'UTF-8') ?>"><?= __("Profilo") ?></a></li>
@@ -1120,7 +1144,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 const publishers = results.filter(r => r.type === 'publisher');
 
                 if (books.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">Libri</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + window.__('Libri') + '</h6>';
                     books.forEach(book => {
                         const bookUrl = sanitizeUrl(book.url ?? '#');
                         const coverUrl = sanitizeUrl(book.cover ?? '');
@@ -1141,11 +1165,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                 }
 
                 if (authors.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">Autori</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + window.__('Autori') + '</h6>';
                     authors.forEach(author => {
                         const authorUrl = sanitizeUrl(author.url ?? '#');
                         const authorName = escapeHtml(author.name ?? '');
-                        const authorBooks = escapeHtml(author.book_count ?? '0') + ' libri';
+                        const authorBooks = escapeHtml(author.book_count ?? '0') + ' ' + window.__('libri');
                         const authorBio = escapeHtml(author.biography ?? '');
 
                         html += '<a href="' + authorUrl + '" class="search-result-item author-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
@@ -1161,11 +1185,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                 }
 
                 if (publishers.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">Editori</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + window.__('Editori') + '</h6>';
                     publishers.forEach(publisher => {
                         const publisherUrl = sanitizeUrl(publisher.url ?? '#');
                         const publisherName = escapeHtml(publisher.name ?? '');
-                        const publisherBooks = escapeHtml(publisher.book_count ?? '0') + ' libri';
+                        const publisherBooks = escapeHtml(publisher.book_count ?? '0') + ' ' + window.__('libri');
                         const publisherDesc = escapeHtml(publisher.description ?? '');
 
                         html += '<a href="' + publisherUrl + '" class="search-result-item publisher-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +

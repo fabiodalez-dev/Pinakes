@@ -38,6 +38,11 @@ $getBookStatusBadge = static function ($book) {
                          onerror="this.onerror=null;this.src=<?= htmlspecialchars(json_encode($defaultCoverUrl), ENT_QUOTES, 'UTF-8') ?>">
                 </a>
                 <?= $getBookStatusBadge($book) ?>
+                <?php if (($book['tipo_media'] ?? 'libro') !== 'libro'): ?>
+                  <span class="book-media-badge" title="<?= htmlspecialchars(\App\Support\MediaLabels::tipoMediaDisplayName($book['tipo_media']), ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars(\App\Support\MediaLabels::tipoMediaDisplayName($book['tipo_media']), ENT_QUOTES, 'UTF-8') ?>">
+                    <i class="fas <?= htmlspecialchars(\App\Support\MediaLabels::icon($book['tipo_media']), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true"></i>
+                  </span>
+                <?php endif; ?>
             </div>
             <div class="book-content">
                 <h3 class="book-title">
@@ -255,5 +260,24 @@ $getBookStatusBadge = static function ($book) {
 
 .empty-state .btn-cta {
     justify-content: center;
+}
+
+.book-media-badge {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    background: rgba(255, 255, 255, 0.85);
+    border-radius: 9999px;
+    padding: 0.375rem;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.book-media-badge i {
+    color: var(--text-secondary, #6b7280);
+    font-size: 0.75rem;
 }
 </style>

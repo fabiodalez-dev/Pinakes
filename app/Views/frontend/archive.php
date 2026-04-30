@@ -547,7 +547,7 @@ $createBookUrl = static function ($book) {
             <!-- Pagination -->
             <?php if ($totalPages > 1): ?>
                 <div class="pagination-wrapper">
-                    <nav aria-label="Navigazione pagine">
+                    <nav aria-label="<?= htmlspecialchars(__('Navigazione pagine'), ENT_QUOTES, 'UTF-8') ?>">
                         <ul class="pagination">
                             <?php if ($page > 1): ?>
                                 <li class="page-item">
