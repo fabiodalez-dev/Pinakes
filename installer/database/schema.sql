@@ -664,7 +664,6 @@ CREATE TABLE `prenotazioni` (
   KEY `idx_prenotazioni_data_scadenza_prenotazione` (`data_scadenza_prenotazione`),
   KEY `idx_stato_libro` (`stato`,`libro_id`),
   KEY `idx_queue_position` (`queue_position`),
-  KEY `idx_data_scadenza` (`data_scadenza_prenotazione`),
   CONSTRAINT `prenotazioni_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
   CONSTRAINT `prenotazioni_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

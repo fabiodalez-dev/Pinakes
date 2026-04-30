@@ -90,7 +90,10 @@ SET @sql = IF(@idx = 0, 'CREATE INDEX idx_queue_position ON prenotazioni (queue_
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 -- Step 9: prenotazioni.data_scadenza_prenotazione
+-- Guard by column name (not index name) to avoid duplicating
+-- idx_prenotazioni_data_scadenza_prenotazione already present in schema.sql.
 SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
-    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prenotazioni' AND INDEX_NAME = 'idx_data_scadenza');
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prenotazioni'
+      AND COLUMN_NAME = 'data_scadenza_prenotazione' AND INDEX_NAME <> 'PRIMARY');
 SET @sql = IF(@idx = 0, 'CREATE INDEX idx_data_scadenza ON prenotazioni (data_scadenza_prenotazione)', 'SELECT 1');
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
