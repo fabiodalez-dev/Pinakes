@@ -11,17 +11,10 @@
 /** @var array $relatedCollane */
 use App\Support\HtmlHelper;
 use App\Support\Csrf;
+use App\Support\SeriesLabels;
 $csrfToken = Csrf::ensureToken();
-$seriesTypeOptions = [
-    'serie' => __('Serie'),
-    'universo' => __('Universo / macroserie'),
-    'ciclo' => __('Ciclo'),
-    'stagione' => __('Stagione'),
-    'spin_off' => __('Spin-off'),
-    'arco' => __('Arco narrativo'),
-    'collezione_editoriale' => __('Collana editoriale'),
-    'altro' => __('Altro'),
-];
+// i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
+$seriesTypeOptions = SeriesLabels::types();
 if ($seriesType === '') { $seriesType = 'serie'; }
 ?>
 

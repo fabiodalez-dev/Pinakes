@@ -38,14 +38,46 @@ final class SeriesLabels
 
     /**
      * Resolve a translated label for a given canonical (or legacy) tipo.
-     * Falls back to the raw value when no map entry exists.
+     * Normalises legacy aliases (cycle/series/etc) before lookup so the view
+     * can pass raw DB values directly.
      */
     public static function label(?string $tipo): string
     {
-        $tipo = trim((string) $tipo);
-        if ($tipo === '') {
-            return self::types()['serie'];
+        $canonical = self::canonical($tipo);
+        return self::types()[$canonical] ?? $canonical;
+    }
+
+    /**
+     * i18n-5 (refactor): map any legacy/alias tipo (series, cycle, season,
+     * spinoff, arc, …) onto its canonical Italian key. Mirrors
+     * SeriesRepository::normalizeType but without a DB dependency.
+     */
+    public static function canonical(?string $tipo): string
+    {
+        $value = strtolower(trim((string) $tipo));
+        if ($value === '') {
+            return 'serie';
         }
-        return self::types()[$tipo] ?? $tipo;
+        $value = str_replace([' ', '-', '/'], '_', $value);
+        $map = [
+            'series' => 'serie',
+            'serie' => 'serie',
+            'universe' => 'universo',
+            'universo' => 'universo',
+            'macroserie' => 'universo',
+            'cycle' => 'ciclo',
+            'ciclo' => 'ciclo',
+            'season' => 'stagione',
+            'stagione' => 'stagione',
+            'spin_off' => 'spin_off',
+            'spinoff' => 'spin_off',
+            'arc' => 'arco',
+            'arco' => 'arco',
+            'publisher_collection' => 'collezione_editoriale',
+            'collezione_editoriale' => 'collezione_editoriale',
+            'altro' => 'altro',
+            'other' => 'altro',
+        ];
+        return $map[$value] ?? 'altro';
     }
 }

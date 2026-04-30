@@ -4,16 +4,8 @@ use App\Support\ConfigStore;
 // Variables passed from controller
 $libro = $libro ?? [];
 $isCatalogueMode = ConfigStore::isCatalogueMode();
-$seriesTypeLabels = [
-    'serie' => __('Serie'),
-    'universo' => __('Universo / macroserie'),
-    'ciclo' => __('Ciclo'),
-    'stagione' => __('Stagione'),
-    'spin_off' => __('Spin-off'),
-    'arco' => __('Arco narrativo'),
-    'collezione_editoriale' => __('Collana editoriale'),
-    'altro' => __('Altro'),
-];
+// i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
+$seriesTypeLabels = \App\Support\SeriesLabels::types();
 
 // Resolve tipo_media once for badge display and dynamic labels
 $resolvedTipoMedia = \App\Support\MediaLabels::resolveTipoMedia($libro['formato'] ?? null, $libro['tipo_media'] ?? null);
@@ -374,7 +366,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php if (!empty($libro['tipo_collana'])): ?>
             <div>
               <dt class="text-xs uppercase text-gray-500"><?= __("Tipo serie") ?></dt>
-              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e($seriesTypeLabels[$libro['tipo_collana']] ?? $libro['tipo_collana']); ?></dd>
+              <dd class="text-gray-900 font-medium"><?php echo App\Support\HtmlHelper::e(\App\Support\SeriesLabels::label($libro['tipo_collana'] ?? null)); ?></dd>
             </div>
             <?php endif; ?>
             <?php if (!empty($libro['collana'])): ?>

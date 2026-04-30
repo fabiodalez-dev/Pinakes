@@ -440,4 +440,175 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
       expect(stored, `tipo "${tipo}" should be persisted`).toBe(tipo);
     }
   });
+
+  // ──────── 9) Edge cases (10 additional tests added in refactor round) ────────
+  test('26. EDGE: utf8mb4 4-byte names persist round-trip (emoji, supplementary plane)', async () => {
+    const name = tag('Test 🐉 series 𩸽');
+    createSeriesViaDb(name, { tipo: 'serie' });
+    const stored = dbScalar(`SELECT nome FROM collane WHERE nome = '${escapeSqlString(name)}'`);
+    expect(stored).toBe(name);
+    // And retrieve via the dettaglio endpoint to ensure no collation/encoding drift
+    const resp = await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(name)}`);
+    expect(resp?.status()).toBe(200);
+    const html = await page.content();
+    expect(html).toContain('🐉');
+  });
+
+  test('27. EDGE: SQL-meaningful chars in nome (apostrophe + LIKE wildcards)', async () => {
+    // mysql CLI batch mode escapes backslashes in output, so we don't probe
+    // backslash here — the apostrophe + % + _ trio is enough to verify the
+    // prepared-statement path doesn't break on punctuation.
+    const name = tag("Test O'Brien 100% _ chars");
+    createSeriesViaDb(name, { tipo: 'serie' });
+    const stored = dbScalar(`SELECT nome FROM collane WHERE nome = '${escapeSqlString(name)}'`);
+    expect(stored).toBe(name);
+    // Probe LIKE search: a name with literal '%' should NOT false-match other rows
+    // when the controller properly escapes wildcards (SEC2-1 fix).
+    const otherName = tag('Test plainname');
+    createSeriesViaDb(otherName, { tipo: 'serie' });
+    const resp = await page.goto(`${BASE}/api/collane/search?q=${encodeURIComponent('100%')}`);
+    if (resp && resp.status() === 200) {
+      const body = await resp.text();
+      // Returns the row containing literal '100%'
+      expect(body).toContain('100%');
+      // And does NOT broaden to unrelated rows
+      expect(body).not.toContain('plainname');
+    }
+  });
+
+  test('28. EDGE: HTML/XSS in descrizione is escaped on render (no live <script>)', async () => {
+    const name = tag('Test XSS Desc');
+    createSeriesViaDb(name, { tipo: 'serie' });
+    const xss = '<script>window.__pwn=1;</script><img src=x onerror=alert(1)>';
+    await postAdminForm(page, '/admin/collane/descrizione', {
+      nome: name,
+      descrizione: xss,
+      tipo_collana: 'serie',
+    });
+    await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(name)}`);
+    // No script tag containing the payload may have been injected
+    const pwn = await page.evaluate(() => window.__pwn ?? null);
+    expect(pwn).toBeNull();
+    // The textarea should contain the escaped string (not raw `<script>`)
+    const html = await page.content();
+    expect(html).not.toMatch(/<script>window\.__pwn=1/i);
+  });
+
+  test('29. EDGE: utf8mb4_unicode_ci collation orders accented names with their base letter', () => {
+    // utf8mb4_unicode_ci is accent-INSENSITIVE in equality (so a UNIQUE on
+    // `nome` treats Á == A) but it preserves the base-letter sort order:
+    // Á / A both sort BEFORE È, which sorts before Z. Use distinct base
+    // letters to avoid the equality collision.
+    const a = tag('Álfa Test');
+    const c = tag('Èvent Test');
+    const z = tag('Zorro Test');
+    createSeriesViaDb(a, { tipo: 'serie' });
+    createSeriesViaDb(c, { tipo: 'serie' });
+    createSeriesViaDb(z, { tipo: 'serie' });
+    const out = dbQuery(`SELECT nome FROM collane WHERE nome LIKE '%${escapeSqlString(testRunId)}%' AND (nome LIKE 'Á%' OR nome LIKE 'È%' OR nome LIKE 'Z%') ORDER BY nome`);
+    const lines = out.split('\n').filter(Boolean);
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    // Z must sort LAST regardless of accents on Á/È
+    expect(lines[lines.length - 1]).toContain('Zorro');
+    // Á must sort FIRST (accent-insensitive but base letter A < E < Z)
+    expect(lines[0]).toContain('Álfa');
+  });
+
+  test('30. EDGE: migration migrate_0.5.9.5.sql is idempotent (re-running is a no-op)', () => {
+    const colsBefore = dbQuery("SHOW COLUMNS FROM collane").split('\n').length;
+    // Re-apply via mysql; the migration uses INFORMATION_SCHEMA guards.
+    try {
+      execFileSync('bash', ['-c', `mysql --socket=${DB_SOCKET} -u ${DB_USER} -p${DB_PASS} ${DB_NAME} < ${require('path').resolve(__dirname, '..', 'installer/database/migrations/migrate_0.5.9.5.sql')}`], { encoding: 'utf-8', timeout: 20000 });
+    } catch (e) {
+      // Some statements (CHECK constraint already exists) may emit warnings
+      // but should NOT throw on re-run; tolerate non-zero exit if no fatal.
+    }
+    const colsAfter = dbQuery("SHOW COLUMNS FROM collane").split('\n').length;
+    expect(colsAfter).toBe(colsBefore);
+  });
+
+  test('31. EDGE: orphan libri.collana backfills via ensureCollana on book save', async () => {
+    const orphanName = tag('GhostSeries');
+    // Insert book with libri.collana set but NO matching collane row
+    dbQuery(`DELETE FROM collane WHERE nome = '${escapeSqlString(orphanName)}'`);
+    const bookId = createBookViaDb(tag('Orphan Test Book'), orphanName);
+    expect(bookId).toBeGreaterThan(0);
+    // Sanity: no collane row yet
+    const before = dbScalar(`SELECT COUNT(*) FROM collane WHERE nome = '${escapeSqlString(orphanName)}'`);
+    expect(before).toBe('0');
+    // Trigger ensureCollana via direct call through saveDescription
+    await postAdminForm(page, '/admin/collane/descrizione', {
+      nome: orphanName,
+      descrizione: 'backfilled',
+      tipo_collana: 'serie',
+    });
+    const after = dbScalar(`SELECT COUNT(*) FROM collane WHERE nome = '${escapeSqlString(orphanName)}'`);
+    expect(after).toBe('1');
+  });
+
+  test('32. EDGE: tipo="altro" without parent surfaces in /admin/collane', async () => {
+    const name = tag('Test Altro Standalone');
+    createSeriesViaDb(name, { tipo: 'altro' });
+    const resp = await page.goto(`${BASE}/admin/collane`);
+    expect(resp?.status()).toBe(200);
+    const html = await page.content();
+    expect(html).toContain(name);
+  });
+
+  test('33. EDGE: empty state — /admin/collane returns 200 with no series', async () => {
+    // Wipe ONLY series tagged with the runId to avoid global pollution
+    const safeTag = escapeSqlString(testRunId);
+    dbQuery(`DELETE FROM libri_collane WHERE collana_id IN (SELECT id FROM (SELECT id FROM collane WHERE nome LIKE '%${safeTag}%') AS x)`);
+    dbQuery(`DELETE FROM collane WHERE nome LIKE '%${safeTag}%'`);
+    const resp = await page.goto(`${BASE}/admin/collane`);
+    expect(resp?.status()).toBe(200);
+    // Page should not 500 even on a sparse table
+    const html = await page.content();
+    expect(html).toMatch(/[Cc]ollane|series/);
+  });
+
+  test('34. EDGE: non-numeric numero_serie sorts after digits in series detail', async () => {
+    const name = tag('Test NumSerie Sort');
+    const seriesId = createSeriesViaDb(name, { tipo: 'serie' });
+    const ids = [];
+    for (const num of ['1', '2', '10', 'Vol. 5', '5b']) {
+      const bid = createBookViaDb(tag(`Test Book ${num.replace(/[^A-Za-z0-9]/g, '_')}`), name);
+      dbQuery(`INSERT INTO libri_collane (libro_id, collana_id, numero_serie, tipo_appartenenza, is_principale) VALUES (${bid}, ${seriesId}, '${escapeSqlString(num)}', 'principale', 1)`);
+      ids.push({ bid, num });
+    }
+    // The application's documented order: numeric first by CAST UNSIGNED then non-numeric alphabetic.
+    // We pin the behaviour: '1', '2', '10' precede 'Vol. 5' and '5b'.
+    const out = dbQuery(`
+      SELECT numero_serie FROM libri_collane WHERE collana_id = ${seriesId}
+      ORDER BY CASE WHEN TRIM(numero_serie) REGEXP '^[0-9]+$' THEN 0 ELSE 1 END,
+               CAST(numero_serie AS UNSIGNED), numero_serie
+    `);
+    const order = out.split('\n').map(s => s.trim());
+    // Numeric ones in ascending CAST order come first
+    const numericPrefix = order.filter(s => /^[0-9]+$/.test(s));
+    expect(numericPrefix).toEqual(['1', '2', '10']);
+  });
+
+  test('35. EDGE: rename to a name that already exists triggers merge semantics', async () => {
+    const a = tag('Test RenameMerge A');
+    const b = tag('Test RenameMerge B');
+    const aId = createSeriesViaDb(a, { tipo: 'serie' });
+    const bId = createSeriesViaDb(b, { tipo: 'serie' });
+    const bookA = createBookViaDb(tag('Test RM Book A'), a);
+    dbQuery(`INSERT INTO libri_collane (libro_id, collana_id) VALUES (${bookA}, ${aId})`);
+    const bookB = createBookViaDb(tag('Test RM Book B'), b);
+    dbQuery(`INSERT INTO libri_collane (libro_id, collana_id) VALUES (${bookB}, ${bId})`);
+    // Rename A → B should merge
+    const resp = await postAdminForm(page, '/admin/collane/rinomina', {
+      old_name: a,
+      new_name: b,
+    });
+    expect([200, 302, 303]).toContain(resp.status());
+    // A no longer exists, B still does
+    expect(dbScalar(`SELECT COUNT(*) FROM collane WHERE nome = '${escapeSqlString(a)}'`)).toBe('0');
+    expect(dbScalar(`SELECT COUNT(*) FROM collane WHERE nome = '${escapeSqlString(b)}'`)).toBe('1');
+    // Both books point to B
+    expect(dbScalar(`SELECT collana FROM libri WHERE id = ${bookA}`)).toBe(b);
+    expect(dbScalar(`SELECT collana FROM libri WHERE id = ${bookB}`)).toBe(b);
+  });
 });

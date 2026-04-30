@@ -2,16 +2,9 @@
 /** @var array $collane */
 /** @var bool $supportsHierarchy */
 use App\Support\HtmlHelper;
-$seriesTypeLabels = [
-  'serie' => __('Serie'),
-  'universo' => __('Universo / macroserie'),
-  'ciclo' => __('Ciclo'),
-  'stagione' => __('Stagione'),
-  'spin_off' => __('Spin-off'),
-  'arco' => __('Arco narrativo'),
-  'collezione_editoriale' => __('Collana editoriale'),
-  'altro' => __('Altro'),
-];
+use App\Support\SeriesLabels;
+// i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
+$seriesTypeLabels = SeriesLabels::types();
 ?>
 
 <section class="py-8 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-4">
@@ -117,7 +110,7 @@ $seriesTypeLabels = [
           </td>
           <?php if (!empty($supportsHierarchy)): ?>
           <td class="px-6 py-4 text-sm text-gray-600">
-            <?= HtmlHelper::e($seriesTypeLabels[$c['tipo'] ?? 'serie'] ?? ($c['tipo'] ?? '')) ?>
+            <?= HtmlHelper::e(SeriesLabels::label($c['tipo'] ?? 'serie')) ?>
           </td>
           <td class="px-6 py-4 text-sm text-gray-600">
             <?= !empty($c['parent_nome']) ? HtmlHelper::e($c['parent_nome']) : '<span class="text-gray-400">—</span>' ?>

@@ -68,17 +68,11 @@ $initialAuthorsJson = htmlspecialchars(json_encode($initialAuthors, JSON_HEX_TAG
 $initialDataJsonRaw = json_encode($initialData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 $modeAttr = htmlspecialchars($mode, ENT_QUOTES, 'UTF-8');
 $actionAttr = htmlspecialchars($action, ENT_QUOTES, 'UTF-8');
-$seriesTypeOptions = [
-    'serie' => __('Serie'),
-    'universo' => __('Universo / macroserie'),
-    'ciclo' => __('Ciclo'),
-    'stagione' => __('Stagione'),
-    'spin_off' => __('Spin-off'),
-    'arco' => __('Arco narrativo'),
-    'collezione_editoriale' => __('Collana editoriale'),
-    'altro' => __('Altro'),
-];
-$selectedSeriesType = (string)($book['tipo_collana'] ?? 'serie');
+// i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
+$seriesTypeOptions = \App\Support\SeriesLabels::types();
+// i18n-5: normalize legacy/alias tipo (series, cycle, spinoff, ...) so the
+// dropdown preselects the canonical key.
+$selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana'] ?? 'serie');
 ?>
 <?php if (!empty($error_message)): ?>
   <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700" role="alert">
