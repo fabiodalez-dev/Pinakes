@@ -55,3 +55,42 @@ SET @sql = IF(@chk_lc_exists = 0,
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+-- Steps 4-9: performance indexes present in schema.sql for fresh installs,
+-- backfilled here for upgrade paths that may have missed them.
+
+-- Step 4: prestiti.origine
+SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prestiti' AND INDEX_NAME = 'idx_origine');
+SET @sql = IF(@idx = 0, 'CREATE INDEX idx_origine ON prestiti (origine)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Step 5: prestiti (libro_id, utente_id)
+SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prestiti' AND INDEX_NAME = 'idx_libro_utente');
+SET @sql = IF(@idx = 0, 'CREATE INDEX idx_libro_utente ON prestiti (libro_id, utente_id)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Step 6: utenti.tipo_utente
+SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'utenti' AND INDEX_NAME = 'idx_tipo_utente');
+SET @sql = IF(@idx = 0, 'CREATE INDEX idx_tipo_utente ON utenti (tipo_utente)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Step 7: prenotazioni (stato, libro_id)
+SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prenotazioni' AND INDEX_NAME = 'idx_stato_libro');
+SET @sql = IF(@idx = 0, 'CREATE INDEX idx_stato_libro ON prenotazioni (stato, libro_id)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Step 8: prenotazioni.queue_position
+SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prenotazioni' AND INDEX_NAME = 'idx_queue_position');
+SET @sql = IF(@idx = 0, 'CREATE INDEX idx_queue_position ON prenotazioni (queue_position)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+-- Step 9: prenotazioni.data_scadenza_prenotazione
+SET @idx = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prenotazioni' AND INDEX_NAME = 'idx_data_scadenza');
+SET @sql = IF(@idx = 0, 'CREATE INDEX idx_data_scadenza ON prenotazioni (data_scadenza_prenotazione)', 'SELECT 1');
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;

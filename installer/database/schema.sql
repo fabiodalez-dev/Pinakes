@@ -662,6 +662,9 @@ CREATE TABLE `prenotazioni` (
   KEY `libro_id` (`libro_id`),
   KEY `utente_id` (`utente_id`),
   KEY `idx_prenotazioni_data_scadenza_prenotazione` (`data_scadenza_prenotazione`),
+  KEY `idx_stato_libro` (`stato`,`libro_id`),
+  KEY `idx_queue_position` (`queue_position`),
+  KEY `idx_data_scadenza` (`data_scadenza_prenotazione`),
   CONSTRAINT `prenotazioni_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
   CONSTRAINT `prenotazioni_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -699,6 +702,8 @@ CREATE TABLE `prestiti` (
   KEY `idx_prestiti_stato_origine` (`stato`,`origine`),
   KEY `idx_copia_id` (`copia_id`),
   KEY `idx_prestiti_pickup_deadline` (`pickup_deadline`),
+  KEY `idx_origine` (`origine`),
+  KEY `idx_libro_utente` (`libro_id`,`utente_id`),
   CONSTRAINT `fk_prestiti_copia` FOREIGN KEY (`copia_id`) REFERENCES `copie` (`id`) ON DELETE RESTRICT,
   CONSTRAINT `prestiti_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`),
   CONSTRAINT `prestiti_ibfk_2` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`),
