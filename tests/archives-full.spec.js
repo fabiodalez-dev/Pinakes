@@ -543,17 +543,20 @@ test.describe.serial('Archives plugin — full regression (#103 phases 1–6)', 
         const malformed = '<?xml version="1.0"?><bogus><notmarc/></bogus>';
         await page.goto(`${BASE}/admin/archives/import`);
         const badPath = writeTmpXml(malformed, 'archives-bad');
-        await page.setInputFiles('input[name="marcxml"]', badPath);
-        await page.check('input[name="strict_xsd"]');
-        await Promise.all([
-            page.waitForResponse(r =>
-                r.url().endsWith('/admin/archives/import') && r.request().method() === 'POST',
-                { timeout: 15000 }),
-            page.click('form[enctype="multipart/form-data"] button[type="submit"]'),
-        ]);
-        await page.waitForLoadState('domcontentloaded');
-        await expect(page.locator('body')).toContainText(/XSD/i);
-        rmIfExists(badPath);
+        try {
+            await page.setInputFiles('input[name="marcxml"]', badPath);
+            await page.check('input[name="strict_xsd"]');
+            await Promise.all([
+                page.waitForResponse(r =>
+                    r.url().endsWith('/admin/archives/import') && r.request().method() === 'POST',
+                    { timeout: 15000 }),
+                page.click('form[enctype="multipart/form-data"] button[type="submit"]'),
+            ]);
+            await page.waitForLoadState('domcontentloaded');
+            await expect(page.locator('body')).toContainText(/XSD/i);
+        } finally {
+            rmIfExists(badPath);
+        }
     });
 
     // ─── Phase 5: photographic items ───────────────────────────────────

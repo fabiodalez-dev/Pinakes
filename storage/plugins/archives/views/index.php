@@ -80,7 +80,7 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
     $html .= '<td class="px-4 py-2 text-sm text-gray-600">' . $e($dateRange) . '</td>';
     $html .= '<td class="px-4 py-2 text-sm text-gray-600">' . $e((string) ($row['extent'] ?? '')) . '</td>';
     $html .= '<td class="px-4 py-2 text-right text-sm whitespace-nowrap">';
-    $html .= '<a href="' . $editUrl . '" class="text-blue-600 hover:underline">modifica</a>';
+    $html .= '<a href="' . $editUrl . '" class="text-blue-600 hover:underline">' . __('modifica') . '</a>';
     $html .= '</td>';
     $html .= '</tr>';
 

@@ -112,10 +112,22 @@ class PluginManager
                     }
                     SecureLogger::info("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
 
-                    // Re-register hooks only if plugin is active
+                    // Re-register hooks only if plugin is active.
+                    // Use a single instance (instantiatePlugin sets pluginId
+                    // before calling onActivate) — runPluginMethod() would
+                    // create a fresh object and leave pluginId null, causing
+                    // hook registration to silently skip DB writes.
                     if ((int) ($row['is_active'] ?? 0) === 1) {
                         try {
-                            $this->runPluginMethod($pluginName, 'onActivate');
+                            $upgradeInstance = $this->instantiatePlugin([
+                                'id'        => (int) $row['id'],
+                                'name'      => $pluginName,
+                                'path'      => $pluginName,
+                                'main_file' => $pluginMeta['main_file'] ?? 'wrapper.php',
+                            ]);
+                            if (method_exists($upgradeInstance, 'onActivate')) {
+                                $upgradeInstance->onActivate();
+                            }
                         } catch (\Throwable $e) {
                             SecureLogger::warning("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
                         }

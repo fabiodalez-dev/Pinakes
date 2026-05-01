@@ -240,11 +240,14 @@ $id = (int) $row['id'];
                     <img src="<?= $e(url((string) $row['cover_image_path'])) ?>"
                          alt="<?= $e((string) $row['constructed_title']) ?>"
                          class="max-w-xs rounded-md border border-gray-200 mb-3">
-                    <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/remove-asset')) ?>"
-                          class="inline" onsubmit="return confirm('<?= $e(__("Rimuovere la copertina?")) ?>');">
+                    <?php $removeCoverId = 'archivesRemoveCover_' . $id; ?>
+                    <form id="<?= $e($removeCoverId) ?>"
+                          method="POST" action="<?= $e(url('/admin/archives/' . $id . '/remove-asset')) ?>"
+                          class="inline">
                         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                         <input type="hidden" name="type" value="cover">
-                        <button type="submit" class="text-xs text-red-600 hover:underline">
+                        <button type="button" class="text-xs text-red-600 hover:underline"
+                                onclick="archivesSwalConfirm(<?= $jsAttr($removeCoverId) ?>, <?= $jsAttr(__("Rimuovere la copertina?")) ?>, <?= $jsAttr(__("Rimuovi")) ?>)">
                             <?= __("Rimuovi copertina") ?>
                         </button>
                     </form>
@@ -280,11 +283,14 @@ $id = (int) $row['id'];
                             <p class="text-xs text-gray-500 font-mono"><?= $e((string) $row['document_mime']) ?></p>
                         <?php endif; ?>
                     </div>
-                    <form method="POST" action="<?= $e(url('/admin/archives/' . $id . '/remove-asset')) ?>"
-                          class="inline" onsubmit="return confirm('<?= $e(__("Rimuovere il documento?")) ?>');">
+                    <?php $removeDocId = 'archivesRemoveDoc_' . $id; ?>
+                    <form id="<?= $e($removeDocId) ?>"
+                          method="POST" action="<?= $e(url('/admin/archives/' . $id . '/remove-asset')) ?>"
+                          class="inline">
                         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                         <input type="hidden" name="type" value="document">
-                        <button type="submit" class="text-xs text-red-600 hover:underline">
+                        <button type="button" class="text-xs text-red-600 hover:underline"
+                                onclick="archivesSwalConfirm(<?= $jsAttr($removeDocId) ?>, <?= $jsAttr(__("Rimuovere il documento?")) ?>, <?= $jsAttr(__("Rimuovi")) ?>)">
                             <?= __("Rimuovi documento") ?>
                         </button>
                     </form>

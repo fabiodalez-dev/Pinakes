@@ -23,6 +23,11 @@ $typeBadge = [
     'corporate' => 'bg-amber-100 text-amber-800',
     'family'    => 'bg-pink-100 text-pink-800',
 ];
+$typeLabel = [
+    'person'    => __('Persona (biografica)'),
+    'corporate' => __('Ente (organizzazione, sindacato, partito)'),
+    'family'    => __('Famiglia (genealogica)'),
+];
 $levelBadge = [
     'fonds'  => 'bg-purple-100 text-purple-800',
     'series' => 'bg-blue-100 text-blue-800',
@@ -45,7 +50,7 @@ $id = (int) $row['id'];
         <div>
             <div class="flex items-center gap-3 mb-1">
                 <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $badgeClass ?>">
-                    <?= $v('type') ?>
+                    <?= $e($typeLabel[(string) $row['type']] ?? (string) $row['type']) ?>
                 </span>
             </div>
             <h1 class="text-2xl font-bold text-gray-900"><?= $v('authorised_form') ?></h1>
