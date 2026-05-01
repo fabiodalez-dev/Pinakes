@@ -234,6 +234,8 @@
   "Seleziona un autore di libreria": "Seleziona un autore di libreria",
   "Importa MARCXML": "Importa MARCXML",
   "Esporta MARCXML": "Esporta MARCXML",
+  "Esporta EAD3": "Esporta EAD3",
+  "OAI-PMH": "OAI-PMH",
   "Errori durante l'importazione": "Errori durante l'importazione",
   "Dry-run:": "Dry-run:",
   "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.": "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.",

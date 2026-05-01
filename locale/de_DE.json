@@ -4434,6 +4434,8 @@
   "Seleziona un autore di libreria": "Bibliotheksautor auswählen",
   "Importa MARCXML": "MARCXML importieren",
   "Esporta MARCXML": "MARCXML exportieren",
+  "Esporta EAD3": "EAD3 exportieren",
+  "OAI-PMH": "OAI-PMH",
   "Errori durante l'importazione": "Fehler beim Import",
   "Dry-run:": "Testlauf:",
   "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.": "%d Datensätze gefunden. Es wurde nichts eingefügt. Entfernen Sie den Haken bei 'Testlauf' und wiederholen Sie den Vorgang, um zu importieren.",

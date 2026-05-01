@@ -4434,6 +4434,8 @@
   "Seleziona un autore di libreria": "Select a library author",
   "Importa MARCXML": "Import MARCXML",
   "Esporta MARCXML": "Export MARCXML",
+  "Esporta EAD3": "Export EAD3",
+  "OAI-PMH": "OAI-PMH",
   "Errori durante l'importazione": "Errors during import",
   "Dry-run:": "Dry-run:",
   "trovati %d record. Nessuna riga è stata inserita. Deseleziona 'Dry-run' e ripeti per procedere con l'insert.": "%d records found. Nothing was inserted. Uncheck 'Dry-run' and retry to perform the insert.",
