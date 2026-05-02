@@ -4191,7 +4191,10 @@ class ArchivesPlugin
         $xw->setIndent(true);
         $xw->startDocument('1.0', 'UTF-8');
 
-        // Wrap multiple units in a <eadlist> container (EAD3 extension pattern).
+        // <eadlist> is a Pinakes-specific container element (not in the EAD3
+        // schema) used to group multiple <ead> documents in a single XML file.
+        // EAD3 has no standard bulk-export wrapper; tools that consume this file
+        // can strip the outer element and process each <ead> child independently.
         $xw->startElement('eadlist');
         $xw->writeAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
         foreach ($rows as $row) {
@@ -4435,7 +4438,7 @@ class ArchivesPlugin
      *
      * Supported verbs:
      *   Identify              — repository description
-     *   ListMetadataFormats   — oai_dc (required) + marcxml
+     *   ListMetadataFormats   — oai_dc (required) + marcxml + ead3
      *   ListRecords           — all records (metadataPrefix=oai_dc or marcxml)
      *   GetRecord             — one record by OAI identifier
      *   ListIdentifiers       — identifiers without metadata
@@ -4517,11 +4520,15 @@ class ArchivesPlugin
             $result->free();
         }
 
+        $cfg = \App\Support\ConfigStore::all();
+        $repoName  = trim((string) ($cfg['app']['name'] ?? '')) ?: 'Pinakes';
+        $adminMail = trim((string) ($cfg['mail']['from_email'] ?? '')) ?: 'admin@localhost';
+
         $xw->startElement('Identify');
-        $xw->writeElement('repositoryName', 'Pinakes — Archival Repository');
+        $xw->writeElement('repositoryName', $repoName . ' — Archival Repository');
         $xw->writeElement('baseURL', $baseUrl);
         $xw->writeElement('protocolVersion', '2.0');
-        $xw->writeElement('adminEmail', 'admin@pinakes.local');
+        $xw->writeElement('adminEmail', $adminMail);
         $xw->writeElement('earliestDatestamp', $earliest);
         $xw->startElement('deletedRecord');
         $xw->text('no');
@@ -4544,8 +4551,14 @@ class ArchivesPlugin
 
         $xw->startElement('metadataFormat');
         $xw->writeElement('metadataPrefix', 'marcxml');
-        $xw->writeElement('schema', 'http://www.loc.gov/MARC21/slim http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd');
+        $xw->writeElement('schema', 'http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd');
         $xw->writeElement('metadataNamespace', 'http://www.loc.gov/MARC21/slim');
+        $xw->endElement();
+
+        $xw->startElement('metadataFormat');
+        $xw->writeElement('metadataPrefix', 'ead3');
+        $xw->writeElement('schema', 'https://www.loc.gov/ead/ead3.xsd');
+        $xw->writeElement('metadataNamespace', 'http://ead3.archivists.org/schema/');
         $xw->endElement();
 
         $xw->endElement(); // ListMetadataFormats
@@ -4560,7 +4573,7 @@ class ArchivesPlugin
     private function oaiListRecords(\XMLWriter $xw, array $params, bool $identifiersOnly): void
     {
         $metadataPrefix = (string) ($params['metadataPrefix'] ?? '');
-        if ($metadataPrefix === '' || !in_array($metadataPrefix, ['oai_dc', 'marcxml'], true)) {
+        if ($metadataPrefix === '' || !in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The metadata format identified by the value given for the metadataPrefix '
                 . 'argument is not supported by the item or by the repository.');
@@ -4585,12 +4598,12 @@ class ArchivesPlugin
         $bindVals  = [];
 
         if ($from !== '') {
-            $where[]     = 'created_at >= ?';
+            $where[]     = 'updated_at >= ?';
             $bindTypes  .= 's';
             $bindVals[]  = str_replace('T', ' ', str_replace('Z', '', $from));
         }
         if ($until !== '') {
-            $where[]    = 'created_at <= ?';
+            $where[]    = 'updated_at <= ?';
             $bindTypes .= 's';
             $bindVals[] = str_replace('T', ' ', str_replace('Z', '', $until));
         }
@@ -4677,6 +4690,8 @@ class ArchivesPlugin
                 $authorities = $this->fetchAuthoritiesForArchivalUnit($rowId);
                 if ($metadataPrefix === 'oai_dc') {
                     $this->writeDublinCoreRecord($xw, $row, $authorities);
+                } elseif ($metadataPrefix === 'ead3') {
+                    $this->writeEad3Document($xw, $row, $authorities);
                 } else {
                     $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
                 }
@@ -4717,7 +4732,7 @@ class ArchivesPlugin
                 . 'includes a repeated argument, or values for arguments have an illegal syntax.');
             return;
         }
-        if (!in_array($metadataPrefix, ['oai_dc', 'marcxml'], true)) {
+        if (!in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The metadata format identified by the value given for the metadataPrefix '
                 . 'argument is not supported by the item or by the repository.');
@@ -4754,6 +4769,8 @@ class ArchivesPlugin
         $authorities = $this->fetchAuthoritiesForArchivalUnit($rowId);
         if ($metadataPrefix === 'oai_dc') {
             $this->writeDublinCoreRecord($xw, $row, $authorities);
+        } elseif ($metadataPrefix === 'ead3') {
+            $this->writeEad3Document($xw, $row, $authorities);
         } else {
             $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
         }
