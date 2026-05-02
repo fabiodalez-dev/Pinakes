@@ -6,7 +6,7 @@ altro supporto fisico o digitale. L'interfaccia si adatta in modo
 intelligente al tipo di contenuto, mostrando etichette e campi
 appropriati.
 
-> Introdotto in v0.5.4 — [PR #100](https://github.com/fabiodalez-dev/Pinakes/pull/100).
+> Introdotto in v0.5.5 — [PR #100](https://github.com/fabiodalez-dev/Pinakes/pull/100).
 
 ## Il campo "Tipo Media"
 

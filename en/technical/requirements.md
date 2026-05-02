@@ -6,7 +6,7 @@ Detailed specifications for installing Pinakes.
 
 | Component | Minimum | Recommended |
 |-----------|---------|-------------|
-| PHP | 8.0 | 8.1+ |
+| PHP | 8.1 | 8.2+ |
 | MySQL | 5.7 | 8.0+ |
 | MariaDB | 10.3 | 10.6+ |
 | RAM | 512 MB | 1 GB+ |
@@ -16,18 +16,21 @@ Detailed specifications for installing Pinakes.
 
 ### Version
 
-- **Minimum**: PHP 8.0
-- **Recommended**: PHP 8.1 or 8.2
+- **Minimum**: PHP 8.1
+- **Recommended**: PHP 8.2+
 - **Tested up to**: PHP 8.3
 
 ### Required Extensions
 
 | Extension | Purpose |
 |-----------|---------|
+| `pdo` | Database abstraction |
+| `pdo_mysql` | PDO driver for MySQL/MariaDB |
 | `mysqli` | MySQL/MariaDB database connection |
 | `json` | JSON encoding/decoding |
 | `mbstring` | UTF-8 string support |
-| `curl` | HTTP requests (scraping, API) |
+| `gd` | Cover image resizing |
+| `fileinfo` | Upload MIME type detection |
 | `zip` | Archive extraction (updates, plugins) |
 
 > **Note** — The installer actively checks for the `zip` extension before
@@ -39,8 +42,8 @@ Detailed specifications for installing Pinakes.
 
 | Extension | Purpose |
 |-----------|---------|
-| `gd` | Image resizing |
-| `imagick` | Advanced image processing |
+| `curl` | HTTP requests for scraping and external APIs |
+| `imagick` | Advanced image processing (alternative to gd) |
 | `intl` | Locale date/number formatting |
 | `opcache` | Bytecode cache (performance) |
 | `apcu` | In-memory cache |
@@ -130,7 +133,7 @@ systemctl restart apache2
 - Ubuntu 20.04+
 - Debian 11+
 - CentOS 8+ / Rocky Linux 8+
-- Any distribution with PHP 8.0+
+- Any distribution with PHP 8.1+
 
 ### Windows
 
@@ -176,7 +179,7 @@ Pinakes includes an automatic checker:
 php -v
 
 # Loaded extensions
-php -m | grep -E "mysqli|json|mbstring|curl|zip"
+php -m | grep -E "pdo|mysqli|json|mbstring|gd|fileinfo|zip"
 
 # MySQL version
 mysql --version
@@ -191,7 +194,7 @@ df -h
 
 ### 1. Does Pinakes work with PHP 7.4?
 
-**No**, Pinakes requires **PHP 8.0 or higher**.
+**No**, Pinakes requires **PHP 8.1 or higher**.
 
 **Reasons:**
 - Use of typed properties (`public string $name`)
@@ -231,15 +234,18 @@ apt install php8.1 php8.1-mysqli php8.1-mbstring php8.1-curl php8.1-zip
 
 | Extension | Purpose | Verify |
 |-----------|---------|--------|
+| `pdo` | Database abstraction | `php -m | grep pdo` |
+| `pdo_mysql` | MySQL driver | `php -m | grep pdo_mysql` |
 | `mysqli` | Database | `php -m | grep mysqli` |
 | `json` | JSON API | Included by default in PHP 8+ |
 | `mbstring` | UTF-8 | `php -m | grep mbstring` |
-| `curl` | HTTP/Scraping | `php -m | grep curl` |
+| `gd` | Cover images | `php -m | grep gd` |
+| `fileinfo` | Upload MIME | `php -m | grep fileinfo` |
 | `zip` | Updates | `php -m | grep zip` |
 
 **Ubuntu installation:**
 ```bash
-apt install php8.1-mysqli php8.1-mbstring php8.1-curl php8.1-zip
+apt install php8.1-pdo php8.1-mysql php8.1-mysqli php8.1-mbstring php8.1-gd php8.1-zip
 ```
 
 ---
@@ -265,7 +271,7 @@ apt install php8.1-mysqli php8.1-mbstring php8.1-curl php8.1-zip
 **Yes**, with some conditions:
 
 **Hosting requirements:**
-- PHP 8.0+
+- PHP 8.1+
 - MySQL 5.7+
 - `mod_rewrite` enabled
 - Access to `.htaccess`
@@ -295,7 +301,7 @@ Access `/installer` before installation. The first page shows the status of all 
 php -v
 
 # Extensions
-php -m | grep -E "mysqli|json|mbstring|curl|zip"
+php -m | grep -E "pdo|mysqli|json|mbstring|gd|fileinfo|zip"
 
 # MySQL version
 mysql --version

@@ -6,7 +6,7 @@ Specifiche dettagliate per l'installazione di Pinakes.
 
 | Componente | Minimo | Consigliato |
 |------------|--------|-------------|
-| PHP | 8.0 | 8.1+ |
+| PHP | 8.1 | 8.2+ |
 | MySQL | 5.7 | 8.0+ |
 | MariaDB | 10.3 | 10.6+ |
 | RAM | 512 MB | 1 GB+ |
@@ -16,18 +16,21 @@ Specifiche dettagliate per l'installazione di Pinakes.
 
 ### Versione
 
-- **Minima**: PHP 8.0
-- **Consigliata**: PHP 8.1 o 8.2
+- **Minima**: PHP 8.1
+- **Consigliata**: PHP 8.2+
 - **Testata fino a**: PHP 8.3
 
 ### Estensioni Richieste
 
 | Estensione | Scopo |
 |------------|-------|
+| `pdo` | Astrazione database |
+| `pdo_mysql` | Driver PDO per MySQL/MariaDB |
 | `mysqli` | Connessione database MySQL/MariaDB |
 | `json` | Encoding/decoding JSON |
 | `mbstring` | Supporto stringhe UTF-8 |
-| `curl` | Richieste HTTP (scraping, API) |
+| `gd` | Ridimensionamento copertine |
+| `fileinfo` | Rilevamento tipo MIME upload |
 | `zip` | Estrazione archivi (aggiornamenti, plugin) |
 
 > **Nota** — L'installer verifica attivamente la presenza dell'estensione
@@ -39,8 +42,8 @@ Specifiche dettagliate per l'installazione di Pinakes.
 
 | Estensione | Scopo |
 |------------|-------|
-| `gd` | Ridimensionamento immagini |
-| `imagick` | Elaborazione immagini avanzata |
+| `curl` | Richieste HTTP per scraping e API esterne |
+| `imagick` | Elaborazione immagini avanzata (alternativa a gd) |
 | `intl` | Formattazione date/numeri locale |
 | `opcache` | Cache bytecode (performance) |
 | `apcu` | Cache in memoria |
@@ -130,7 +133,7 @@ systemctl restart apache2
 - Ubuntu 20.04+
 - Debian 11+
 - CentOS 8+ / Rocky Linux 8+
-- Qualsiasi distribuzione con PHP 8.0+
+- Qualsiasi distribuzione con PHP 8.1+
 
 ### Windows
 
@@ -176,7 +179,7 @@ Pinakes include un checker automatico:
 php -v
 
 # Estensioni caricate
-php -m | grep -E "mysqli|json|mbstring|curl|zip"
+php -m | grep -E "pdo|mysqli|json|mbstring|gd|fileinfo|zip"
 
 # Versione MySQL
 mysql --version
@@ -191,7 +194,7 @@ df -h
 
 ### 1. Pinakes funziona con PHP 7.4?
 
-**No**, Pinakes richiede **PHP 8.0 o superiore**.
+**No**, Pinakes richiede **PHP 8.1 o superiore**.
 
 **Motivi:**
 - Uso di typed properties (`public string $name`)
@@ -231,15 +234,18 @@ apt install php8.1 php8.1-mysqli php8.1-mbstring php8.1-curl php8.1-zip
 
 | Estensione | Scopo | Verifica |
 |------------|-------|----------|
+| `pdo` | Astrazione database | `php -m | grep pdo` |
+| `pdo_mysql` | Driver MySQL | `php -m | grep pdo_mysql` |
 | `mysqli` | Database | `php -m | grep mysqli` |
 | `json` | API JSON | Inclusa di default in PHP 8+ |
 | `mbstring` | UTF-8 | `php -m | grep mbstring` |
-| `curl` | HTTP/Scraping | `php -m | grep curl` |
+| `gd` | Copertine | `php -m | grep gd` |
+| `fileinfo` | MIME upload | `php -m | grep fileinfo` |
 | `zip` | Aggiornamenti | `php -m | grep zip` |
 
 **Installazione Ubuntu:**
 ```bash
-apt install php8.1-mysqli php8.1-mbstring php8.1-curl php8.1-zip
+apt install php8.1-pdo php8.1-mysql php8.1-mysqli php8.1-mbstring php8.1-gd php8.1-zip
 ```
 
 ---
@@ -265,7 +271,7 @@ apt install php8.1-mysqli php8.1-mbstring php8.1-curl php8.1-zip
 **Sì**, con alcune condizioni:
 
 **Requisiti hosting:**
-- PHP 8.0+
+- PHP 8.1+
 - MySQL 5.7+
 - `mod_rewrite` abilitato
 - Accesso a `.htaccess`
@@ -295,7 +301,7 @@ Accedi a `/installer` prima dell'installazione. La prima pagina mostra lo stato 
 php -v
 
 # Estensioni
-php -m | grep -E "mysqli|json|mbstring|curl|zip"
+php -m | grep -E "pdo|mysqli|json|mbstring|gd|fileinfo|zip"
 
 # Versione MySQL
 mysql --version

@@ -5,7 +5,7 @@ material**: CDs, vinyl, LPs, cassettes, DVDs, audiobooks, and any other
 physical or digital medium. The interface adapts intelligently to the
 content type, showing the appropriate labels and fields.
 
-> Introduced in v0.5.4 — [PR #100](https://github.com/fabiodalez-dev/Pinakes/pull/100).
+> Introduced in v0.5.5 — [PR #100](https://github.com/fabiodalez-dev/Pinakes/pull/100).
 
 ## The "Media Type" field
 
