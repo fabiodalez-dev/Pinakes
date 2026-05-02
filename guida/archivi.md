@@ -8,8 +8,9 @@ dell'International Council on Archives:
 - **[ISAAR(CPF)](https://www.ica.org/en/isaar-cpf-international-standard-archival-authority-record-corporate-bodies-persons-and-families-2nd)** — *International Standard Archival Authority Record for Corporate bodies, Persons and Families*, per i record di autorità.
 
 Il plugin è **inattivo per default** (richiede opt-in). Attivalo da
-**Amministrazione → Plugin** — la prima attivazione crea le tre tabelle
-(`archival_units`, `authority_records`, `archival_unit_authority`).
+**Amministrazione → Plugin** — la prima attivazione crea le quattro tabelle
+(`archival_units`, `authority_records`, `archival_unit_authority`,
+`autori_authority_link`).
 
 > Introdotto in v0.5.9 — traccia issue [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 
@@ -42,7 +43,11 @@ authority_records (ISAAR(CPF))
 archival_unit_authority (link M:N)
   ├── archival_unit_id → archival_units.id
   ├── authority_id     → authority_records.id
-  └── role: creator | subject | custodian | recipient
+  └── role: creator | subject | custodian | recipient | associated
+
+autori_authority_link (riconciliazione con il catalogo bibliografico)
+  ├── autori_id    → autori.id
+  └── authority_id → authority_records.id
 ```
 
 ## Flusso operativo base
@@ -94,6 +99,58 @@ interroga contemporaneamente `libri`, `archival_units` e
 ("Libro", "Archivio · Serie", "Autorità · Persona"). Utile per trovare
 rapidamente un nome che compare sia come autore di un libro sia come
 creator di un fondo.
+
+## Riconciliazione autori bibliografici
+
+La pagina di dettaglio di un **record di autorità** espone una sezione
+**Autori bibliografici collegati**. Qui puoi collegare (o scollegare)
+un `autori` del catalogo bibliografico allo stesso soggetto ISAAR:
+
+```
+POST /admin/archives/authorities/{id}/autori/link
+POST /admin/archives/authorities/{id}/autori/{autori_id}/unlink
+```
+
+Il collegamento viene salvato nella tabella `autori_authority_link`. Ciò
+crea un bridge di identità: dichiari esplicitamente che "l'autore
+bibliografico *Mario Rossi* è la stessa persona dell'autorità ISAAR
+*Rossi, Mario, 1943–2021*". Questa riconciliazione — analoga alla
+funzione VIAF nelle biblioteche nazionali — consente ricerche
+cross-entità e sarà usata da esportatori futuri (linked data, RDF) per
+produrre identificatori univoci stabili.
+
+> **Nota**: il collegamento è molti-a-molti: un autore bibliografico
+> può essere riconciliato con più authority records (p. es. autore sia
+> come persona sia come corporazione), e un'authority può avere più
+> autori collegati (p. es. pseudonimi differenti).
+
+## Catalogo pubblico
+
+Quando il plugin è attivo, espone automaticamente un **frontend
+pubblico** accessibile senza autenticazione, all'URL locale-aware:
+
+| Locale | URL |
+|--------|-----|
+| Italiano | `/archivio/` |
+| Inglese | `/archive/` |
+| Tedesco | `/archiv/` (se configurato) |
+
+La pagina indice elenca i **fondi di primo livello** in ordine per
+reference code. Ogni fondo ha una pagina di dettaglio raggiungibile
+tramite URL SEO-friendly:
+
+```
+/archivio/{slug}-{id}     ← forma canonica (indicizzata dai motori)
+/archivio/{id}            ← legacy, 301 redirect → forma canonica
+```
+
+Il redirect 301 garantisce che cambios al titolo (che aggiornano lo
+slug) non frammentino il page rank.
+
+Dalla pagina di dettaglio pubblica è possibile:
+- Navigare la gerarchia fondo/serie/fascicolo/unità.
+- Scaricare il documento digitale allegato (PDF, audio, video).
+- Vedere il Dublin Core dell'unità tramite `<link rel="alternate">` nell'`<head>`.
 
 ## Photographic items (Phase 5)
 
@@ -288,7 +345,7 @@ GET /archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:ar
 Amministrazione → Plugin → Archives (ISAD(G) / ISAAR(CPF)) → Attiva
 ```
 
-La prima attivazione esegue `ensureSchema()`: crea le 3 tabelle via
+La prima attivazione esegue `ensureSchema()`: crea le 4 tabelle via
 migration idempotente. Disattivare il plugin NON elimina i dati — basta
 riattivarlo per riavere tutto.
 

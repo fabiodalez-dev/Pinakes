@@ -8,8 +8,9 @@ standards published by the International Council on Archives:
 - **[ISAAR(CPF)](https://www.ica.org/en/isaar-cpf-international-standard-archival-authority-record-corporate-bodies-persons-and-families-2nd)** — *International Standard Archival Authority Record for Corporate bodies, Persons and Families*, for authority records.
 
 The plugin ships **inactive** (opt-in). Enable it from **Administration →
-Plugins** — the first activation creates the three tables
-(`archival_units`, `authority_records`, `archival_unit_authority`).
+Plugins** — the first activation creates the four tables
+(`archival_units`, `authority_records`, `archival_unit_authority`,
+`autori_authority_link`).
 
 > Introduced in v0.5.9 — tracks issue [#103](https://github.com/fabiodalez-dev/Pinakes/issues/103).
 
@@ -42,7 +43,11 @@ authority_records (ISAAR(CPF))
 archival_unit_authority (M:N link)
   ├── archival_unit_id → archival_units.id
   ├── authority_id     → authority_records.id
-  └── role: creator | subject | custodian | recipient
+  └── role: creator | subject | custodian | recipient | associated
+
+autori_authority_link (reconciliation with the bibliographic catalog)
+  ├── autori_id    → autori.id
+  └── authority_id → authority_records.id
 ```
 
 ## Basic workflow
@@ -91,6 +96,57 @@ The unified search bar (admin header + `/api/search` endpoint) queries
 renders each hit with its provenance label ("Book", "Archive · Series",
 "Authority · Person"). Useful for finding a name that shows up both as
 book author and as fonds creator.
+
+## Bibliographic author reconciliation
+
+The **authority record** detail page has a **Linked bibliographic
+authors** section. Here you can link (or unlink) an `autori` catalog
+author to the same ISAAR subject:
+
+```
+POST /admin/archives/authorities/{id}/autori/link
+POST /admin/archives/authorities/{id}/autori/{autori_id}/unlink
+```
+
+The link is stored in `autori_authority_link`. This creates an identity
+bridge: you explicitly declare that "bibliographic author *Mario Rossi*
+is the same person as ISAAR authority *Rossi, Mario, 1943–2021*". This
+reconciliation — analogous to VIAF in national library systems — enables
+cross-entity searches and will be used by future exporters (linked data,
+RDF) to produce stable unique identifiers.
+
+> **Note**: the link is many-to-many: one bibliographic author can be
+> reconciled with multiple authority records (e.g. a person and a
+> corporate body), and one authority can have multiple linked authors
+> (e.g. different pseudonyms).
+
+## Public catalog
+
+When the plugin is active it automatically exposes a **public
+frontend** accessible without authentication, at a locale-aware URL:
+
+| Locale | URL |
+|--------|-----|
+| Italian | `/archivio/` |
+| English | `/archive/` |
+| German | `/archiv/` (if configured) |
+
+The index page lists **top-level fonds** in reference-code order. Each
+fonds has a detail page reachable via an SEO-friendly URL:
+
+```
+/archive/{slug}-{id}     ← canonical form (indexed by search engines)
+/archive/{id}            ← legacy, 301 redirect → canonical form
+```
+
+The 301 redirect ensures that title changes (which update the slug) do
+not fragment page rank.
+
+From the public detail page visitors can:
+- Browse the fonds/series/file/item hierarchy.
+- Download attached digital material (PDF, audio, video).
+- Discover the Dublin Core of the unit via `<link rel="alternate">` in
+  the `<head>`.
 
 ## Photographic items (Phase 5)
 
@@ -284,7 +340,7 @@ GET /archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:ar
 Administration → Plugins → Archives (ISAD(G) / ISAAR(CPF)) → Enable
 ```
 
-First activation runs `ensureSchema()`: creates the 3 tables via
+First activation runs `ensureSchema()`: creates the 4 tables via
 idempotent migration. Disabling the plugin does NOT drop the data — just
 re-enable to pick up where you left off.
 
