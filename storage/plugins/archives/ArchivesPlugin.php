@@ -188,14 +188,18 @@ class ArchivesPlugin
              VALUES (?, ?, ?, ?, ?, 1, NOW())'
         );
         if ($stmt === false) {
-            SecureLogger::error('[Archives] prepare() failed: ' . $this->db->error);
-            return;
+            $err = $this->db->error;
+            SecureLogger::error('[Archives] prepare() failed: ' . $err);
+            throw new \RuntimeException('[Archives] prepare() failed for hook ' . $hookName . ': ' . $err);
         }
         // PluginManager instantiates the global proxy class (no namespace).
         $callbackClass = 'ArchivesPlugin';
         $stmt->bind_param('isssi', $this->pluginId, $hookName, $callbackClass, $method, $priority);
         if (!$stmt->execute()) {
-            SecureLogger::error('[Archives] hook insert failed: ' . $stmt->error);
+            $err = $stmt->error;
+            $stmt->close();
+            SecureLogger::error('[Archives] hook insert failed: ' . $err);
+            throw new \RuntimeException('[Archives] hook insert failed for ' . $hookName . ': ' . $err);
         }
         $stmt->close();
     }
