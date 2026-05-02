@@ -199,7 +199,8 @@ class SearchController
             $publisherResults = $this->searchPublishers($db, $q);
             $results = array_merge($results, $publisherResults);
 
-            // Allow active plugins (e.g. Archives) to append extra result sets.
+            // Cap core results to leave headroom for plugin sources.
+            $results = array_slice($results, 0, 15);
             $results = \App\Support\Hooks::apply('search.unified.sources', $results, [$q]);
 
             // Note: User search is excluded from frontend unified search to keep admin data separate.

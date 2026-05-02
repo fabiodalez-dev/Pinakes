@@ -141,9 +141,16 @@ class ArchivesPlugin
                 . '. See app.log for the mysqli error emitted during each CREATE TABLE.'
             );
         }
-        $this->registerHookInDb('app.routes.register',    'registerRoutes',       10);
-        $this->registerHookInDb('admin.menu.render',      'renderAdminMenuEntry', 10);
-        $this->registerHookInDb('search.unified.sources', 'addArchivalSources',   10);
+        $this->db->begin_transaction();
+        try {
+            $this->registerHookInDb('app.routes.register',    'registerRoutes',       10);
+            $this->registerHookInDb('admin.menu.render',      'renderAdminMenuEntry', 10);
+            $this->registerHookInDb('search.unified.sources', 'addArchivalSources',   10);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
+        }
     }
 
     /**
