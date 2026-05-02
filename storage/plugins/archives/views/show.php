@@ -499,10 +499,6 @@ $id = (int) $row['id'];
     </div>
 </div>
 
-<?php /* Dublin Core discovery link — discoverable by aggregators and web crawlers. */ ?>
-<link rel="alternate" type="application/rdf+xml" title="Dublin Core"
-      href="<?= $e(url('/admin/archives/' . $id . '/dc.xml')) ?>">
-
 <?php /* SweetAlert2 confirm helper — matches the pattern used elsewhere
           in Pinakes. Defined with an idempotency guard so multiple views
           can load it without redefining. */ ?>

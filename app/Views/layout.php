@@ -60,6 +60,10 @@ $htmlLang = substr($currentLocale, 0, 2);
   <?php
   // Hook: Allow plugins to enqueue assets in the head (e.g., CSS, fonts, meta tags)
   do_action('assets.head');
+
+  if (isset($headExtra) && is_string($headExtra) && $headExtra !== '') {
+    echo "\n" . $headExtra . "\n";
+  }
   ?>
 
   <style>

@@ -69,6 +69,16 @@ $check($source !== false && str_contains($source, "'search.unified.sources'"),  
 $check($source !== false && str_contains($source, "'admin.menu.render'"),        'plannedHooks lists admin.menu.render');
 $check($source !== false && str_contains($source, "'libri.authority.resolve'"),  'plannedHooks lists libri.authority.resolve');
 
+echo "\nOAI-PMH interoperability regressions:\n";
+$check($source !== false && str_contains($source, "\$app->get('/archives/{id:[0-9]+}/dc.xml'"), 'public Dublin Core route exists');
+$check($source !== false && str_contains($source, 'decodeOaiResumptionToken($token)'), 'resumptionToken is decoded before metadata validation');
+$check($source !== false && str_contains($source, 'if (!$identifiersOnly) {' . "\n" . "                \$xw->startElement('record');"), 'ListIdentifiers does not force record wrappers');
+
+$layoutSource = file_get_contents(__DIR__ . '/../app/Views/layout.php');
+$check($layoutSource !== false && str_contains($layoutSource, '$headExtra'), 'admin layout exposes optional head slot');
+$frontendLayoutSource = file_get_contents(__DIR__ . '/../app/Views/frontend/layout.php');
+$check($frontendLayoutSource !== false && str_contains($frontendLayoutSource, '$headExtra'), 'public layout exposes optional head slot');
+
 echo "\nClass reflection — DI contract:\n";
 $reflection = new ReflectionClass(ArchivesPlugin::class);
 $ctor = $reflection->getConstructor();
@@ -82,6 +92,22 @@ if ($ctor !== null) {
 $check($reflection->hasMethod('ensureSchema'), 'ensureSchema method exists');
 $check($reflection->hasMethod('plannedHooks'), 'plannedHooks method exists');
 $check($reflection->hasMethod('getHookManager'), 'getHookManager method exists');
+
+echo "\nOAI-PMH resumptionToken round-trip:\n";
+$instance = $reflection->newInstanceWithoutConstructor();
+$encode = $reflection->getMethod('encodeOaiResumptionToken');
+$encode->setAccessible(true);
+$decode = $reflection->getMethod('decodeOaiResumptionToken');
+$decode->setAccessible(true);
+$token = (string) $encode->invoke($instance, 100, 'ead3', '2026-05-01T00:00:00Z', '2026-05-02T12:34:56Z', 'series');
+$decoded = $decode->invoke($instance, $token);
+$check(is_array($decoded), 'encoded token decodes');
+$check(is_array($decoded) && $decoded['cursor'] === 100, 'token preserves cursor');
+$check(is_array($decoded) && $decoded['metadataPrefix'] === 'ead3', 'token preserves metadataPrefix');
+$check(is_array($decoded) && $decoded['from'] === '2026-05-01T00:00:00Z', 'token preserves from date with colons');
+$check(is_array($decoded) && $decoded['until'] === '2026-05-02T12:34:56Z', 'token preserves until date with colons');
+$check(is_array($decoded) && $decoded['set'] === 'series', 'token preserves set');
+$check($decode->invoke($instance, 'not-valid-token') === null, 'invalid token is rejected');
 
 echo "\n================================\n";
 echo "Passed: $passed   Failed: $failed\n";

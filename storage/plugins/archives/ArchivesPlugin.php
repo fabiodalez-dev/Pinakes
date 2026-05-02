@@ -597,8 +597,8 @@ class ArchivesPlugin
 
         // ── Interoperability — Dublin Core, EAD3, OAI-PMH ─────────────────────
 
-        // Dublin Core XML for one archival_unit (always behind admin auth — use
-        // the OAI-PMH endpoint for public harvesting).
+        // Dublin Core XML for one archival_unit. The admin route is useful for
+        // staff testing; the public route powers machine discovery links.
         $app->get('/admin/archives/{id:[0-9]+}/dc.xml', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
@@ -606,6 +606,13 @@ class ArchivesPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->exportDublinCoreAction($request, $response, (int) $args['id']);
         })->add($adminMiddleware);
+        $app->get('/archives/{id:[0-9]+}/dc.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportDublinCoreAction($request, $response, (int) $args['id']);
+        });
 
         // EAD3 bulk export (same admin-only access as MARCXML export).
         $app->get('/admin/archives/export.ead3', function (
@@ -1018,6 +1025,9 @@ class ArchivesPlugin
             'linked_authorities'   => $this->fetchAuthoritiesForArchivalUnit($id),
             'available_authorities'=> $this->listAllAuthorities(),
             'authority_roles'      => array_keys(self::AUTHORITY_ROLES),
+            'headExtra'            => '<link rel="alternate" type="application/rdf+xml" title="Dublin Core" href="'
+                . htmlspecialchars(absoluteUrl('/archives/' . $id . '/dc.xml'), ENT_QUOTES, 'UTF-8')
+                . '">',
         ]);
     }
 
@@ -2197,6 +2207,12 @@ class ArchivesPlugin
         }
         // $archiveSchema is populated by show.php (Schema.org JSON-LD).
         $archiveSchema = $archiveSchema ?? null;
+        $headExtra = (isset($headExtra) && is_string($headExtra)) ? $headExtra : '';
+        if (isset($data['row']['id'])) {
+            $headExtra .= "\n" . '<link rel="alternate" type="application/rdf+xml" title="Dublin Core" href="'
+                . htmlspecialchars(absoluteUrl('/archives/' . (int) $data['row']['id'] . '/dc.xml'), ENT_QUOTES, 'UTF-8')
+                . '">';
+        }
 
         $layoutPath = __DIR__ . '/../../../app/Views/frontend/layout.php';
         if (!is_file($layoutPath)) {
@@ -4024,9 +4040,9 @@ class ArchivesPlugin
     // ── Dublin Core XML ──────────────────────────────────────────────────────
 
     /**
-     * GET /admin/archives/{id}/dc.xml — Dublin Core XML (oai_dc namespace) for
-     * one archival_unit. Useful for manual discovery and testing; the OAI-PMH
-     * endpoint at /archives/oai serves the same format to aggregators.
+     * GET /admin/archives/{id}/dc.xml and /archives/{id}/dc.xml — Dublin Core
+     * XML (oai_dc namespace) for one archival_unit. The public route supports
+     * machine discovery; /archives/oai serves the same format to harvesters.
      */
     public function exportDublinCoreAction(
         ServerRequestInterface $request,
@@ -4573,23 +4589,31 @@ class ArchivesPlugin
     private function oaiListRecords(\XMLWriter $xw, array $params, bool $identifiersOnly): void
     {
         $metadataPrefix = (string) ($params['metadataPrefix'] ?? '');
-        if ($metadataPrefix === '' || !in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
-            $this->oaiError($xw, 'cannotDisseminateFormat',
-                'The metadata format identified by the value given for the metadataPrefix '
-                . 'argument is not supported by the item or by the repository.');
-            return;
-        }
-
         $from  = (string) ($params['from']  ?? '');
         $until = (string) ($params['until'] ?? '');
         $set   = (string) ($params['set']   ?? '');
         $token = (string) ($params['resumptionToken'] ?? '');
 
-        // Decode simple resumption token: "cursor:metadataPrefix[:from][:until][:set]"
         $cursor = 0;
         if ($token !== '') {
-            $parts  = explode(':', $token, 2);
-            $cursor = max(0, (int) ($parts[0] ?? 0));
+            $decoded = $this->decodeOaiResumptionToken($token);
+            if ($decoded === null) {
+                $this->oaiError($xw, 'badResumptionToken',
+                    'The value of the resumptionToken argument is invalid or expired.');
+                return;
+            }
+            $cursor         = $decoded['cursor'];
+            $metadataPrefix = $decoded['metadataPrefix'];
+            $from           = $decoded['from'];
+            $until          = $decoded['until'];
+            $set            = $decoded['set'];
+        }
+
+        if ($metadataPrefix === '' || !in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'The metadata format identified by the value given for the metadataPrefix '
+                . 'argument is not supported by the item or by the repository.');
+            return;
         }
 
         $pageSize = 100;
@@ -4671,12 +4695,15 @@ class ArchivesPlugin
         $xw->startElement($verbElement);
 
         foreach ($rows as $row) {
-            $xw->startElement('record');
-            // <header>
             $rowId   = (int) $row['id'];
             $oaiId   = 'oai:pinakes:archival_unit:' . $rowId;
             $dtStamp = gmdate('Y-m-d\TH:i:s\Z',
                 strtotime((string) ($row['updated_at'] ?? $row['created_at'] ?? 'now')) ?: time());
+
+            if (!$identifiersOnly) {
+                $xw->startElement('record');
+            }
+
             $xw->startElement('header');
             $xw->writeElement('identifier', $oaiId);
             $xw->writeElement('datestamp',  $dtStamp);
@@ -4698,7 +4725,9 @@ class ArchivesPlugin
                 $xw->endElement(); // metadata
             }
 
-            $xw->endElement(); // record
+            if (!$identifiersOnly) {
+                $xw->endElement(); // record
+            }
         }
 
         // Resumption token if there are more results.
@@ -4707,15 +4736,64 @@ class ArchivesPlugin
         $xw->writeAttribute('completeListSize', (string) $totalCount);
         $xw->writeAttribute('cursor', (string) $cursor);
         if ($nextCursor < $totalCount) {
-            $newToken = $nextCursor . ':' . $metadataPrefix;
-            if ($from  !== '') { $newToken .= ':from=' . $from; }
-            if ($until !== '') { $newToken .= ':until=' . $until; }
-            if ($set   !== '') { $newToken .= ':set=' . $set; }
-            $xw->text($newToken);
+            $xw->text($this->encodeOaiResumptionToken($nextCursor, $metadataPrefix, $from, $until, $set));
         }
         $xw->endElement(); // resumptionToken
 
         $xw->endElement(); // ListRecords / ListIdentifiers
+    }
+
+    private function encodeOaiResumptionToken(
+        int $cursor,
+        string $metadataPrefix,
+        string $from,
+        string $until,
+        string $set
+    ): string {
+        $json = json_encode([
+            'cursor'         => $cursor,
+            'metadataPrefix' => $metadataPrefix,
+            'from'           => $from,
+            'until'          => $until,
+            'set'            => $set,
+        ], JSON_UNESCAPED_SLASHES);
+
+        return rtrim(strtr(base64_encode((string) $json), '+/', '-_'), '=');
+    }
+
+    /**
+     * @return array{cursor:int, metadataPrefix:string, from:string, until:string, set:string}|null
+     */
+    private function decodeOaiResumptionToken(string $token): ?array
+    {
+        $padded = strtr($token, '-_', '+/');
+        $padding = strlen($padded) % 4;
+        if ($padding !== 0) {
+            $padded .= str_repeat('=', 4 - $padding);
+        }
+
+        $json = base64_decode($padded, true);
+        if ($json === false) {
+            return null;
+        }
+
+        $payload = json_decode($json, true);
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        $metadataPrefix = (string) ($payload['metadataPrefix'] ?? '');
+        if (!in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
+            return null;
+        }
+
+        return [
+            'cursor'         => max(0, (int) ($payload['cursor'] ?? 0)),
+            'metadataPrefix' => $metadataPrefix,
+            'from'           => (string) ($payload['from'] ?? ''),
+            'until'          => (string) ($payload['until'] ?? ''),
+            'set'            => (string) ($payload['set'] ?? ''),
+        ];
     }
 
     /**
