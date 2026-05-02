@@ -1259,8 +1259,8 @@ return function (App $app): void {
     // No RateLimitMiddleware here: this is a read-only progress poll behind
     // admin auth, called every 1-2s by the import UI to refresh the bar.
     // A 30/60s throttle saturated on imports of ~500+ rows (#113) and the
-    // user got hard-stuck behind a 429. The POST endpoints (/upload, /chunk)
-    // keep their rate limits — those are the abuse vector.
+    // user got hard-stuck behind a 429. All import endpoints rely on
+    // AdminAuthMiddleware + CsrfMiddleware as the primary defense.
 
     // CSV Import Chunk Processing (AJAX)
     $app->post('/admin/libri/import/chunk', function ($request, $response) use ($app) {
@@ -1271,9 +1271,10 @@ return function (App $app): void {
     // No RateLimitMiddleware: chunk processing is sequential (one at a time
     // per JS loop) and each chunk is scoped to a session-bound import_id.
     // A 100/60 cap causes 429 on fast imports (e.g. 1620 rows, no scraping,
-    // chunks complete in <370 ms → >100/min). Abuse vector is the /prepare
-    // POST endpoint that reads the file; the chunk loop itself is bounded by
-    // session + CSRF. See issue #113 for the original rate-limit regression.
+    // chunks complete in <370 ms → >100/min). All import endpoints (/upload,
+    // /prepare, /chunk) rely on AdminAuthMiddleware + CsrfMiddleware; the
+    // chunk loop is further bounded by the session-scoped import_id.
+    // See issue #113 for the original rate-limit regression.
 
     // LibraryThing Plugin Routes
 
