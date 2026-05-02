@@ -6,6 +6,87 @@ Per l'ultimo aggiornamento consulta sempre la [pagina releases su GitHub](https:
 
 ---
 
+## In arrivo (branch attivi)
+
+Le seguenti funzionalità sono in fase di revisione e saranno disponibili
+nella prossima release.
+
+### PR #118 — Verifica estensione `zip`
+
+L'installer ora controlla che l'estensione PHP `zip` sia installata e
+caricata prima di procedere. Se mancante, l'installazione si blocca con
+un messaggio chiaro e le istruzioni per l'installazione
+(`apt install php-zip` / `yum install php-zip`).
+
+Aggiorna `tecnico/requisiti.md`: l'estensione `zip` è **obbligatoria**
+(non opzionale come nelle versioni precedenti alla verifica).
+
+### PR #119 — Rimozione rate limit import
+
+Il rate limit interno degli endpoint `/import/chunk` e `/import/progress`
+è stato rimosso. L'import CSV/TSV di file di grandi dimensioni (migliaia
+di righe) ora non subisce interruzioni artificiali lato server.
+
+> **Nota per chi esegue import grandi:** il rate limiting upstream delle
+> API di scraping (Discogs, MusicBrainz, ecc.) resta invariato — si applica
+> solo durante la fase di arricchimento automatico, non durante l'import
+> dati puro.
+
+### PR #120 — Ricerca unificata per archivi
+
+I risultati della ricerca admin includono ora le unità archivistiche
+(plugin Archives) insieme a libri, autori e editori. Ogni risultato
+mostra il tipo di provenienza per una navigazione più rapida.
+
+### PR #127 — Interoperabilità archivi (Dublin Core, EAD3, OAI-PMH 2.0)
+
+Aggiunge tre protocolli standard di interoperabilità al plugin Archives:
+
+- **Dublin Core XML** — `GET /archives/{id}/dc.xml` — export singola
+  unità; discovery link `<link rel="alternate">` automatico nelle pagine
+  pubbliche.
+- **EAD3 Bulk Export** — `GET /admin/archives/export.ead3?ids=1,2,3` —
+  export multiplo selezionato.
+- **OAI-PMH 2.0** — `GET/POST /archives/oai` — protocollo standard per
+  harvesting da aggregatori e portali culturali. Verbs completi:
+  `Identify`, `ListMetadataFormats`, `ListRecords`, `GetRecord`,
+  `ListIdentifiers`, `ListSets`. Formati: `oai_dc`, `ead3`. Sets =
+  livelli ISAD(G). ResumptionToken base64url per paginazione.
+
+---
+
+## v0.5.9.6 — 2026-05-02
+**PR:** [#114](https://github.com/fabiodalez-dev/Pinakes/pull/114) / [#115](https://github.com/fabiodalez-dev/Pinakes/pull/115)
+
+### Gerarchia Collane: Cicli, Stagioni, Spin-off
+
+Le collane ora supportano un **albero self-referencing** per rappresentare
+qualsiasi struttura multi-livello editoriale e audiovisiva.
+
+**Struttura:**
+- Ogni collana può avere una **collana padre** e collane figlie illimitate.
+- Il campo `tipo` (ENUM: `serie`, `ciclo`, `stagione`, `spin_off`) descrive
+  il tipo di relazione.
+- Colonna `libri.collana_id` come FK diretta verso la collana foglia più
+  specifica.
+- Prevenzione cicli via ancestor-chain walk prima di ogni salvataggio.
+- `CHECK` constraint sul campo tipo.
+
+**Interfaccia:**
+- Dropdown autocomplete per selezione collana padre nel form collana.
+- Pagina pubblica collana con albero delle figlie e lista libri ordinata.
+- Breadcrumb gerarchica automatica nelle schede libro.
+
+**Operazioni:**
+- Unione collane con trasferimento libri.
+- Ridenominazione transazionale.
+- Eliminazione solo se la collana è vuota e senza figlie.
+
+**Migration:** `migrate_0.5.9.6.sql` — colonne `parent_id` e `tipo` su
+`collane`, FK su `libri.collana_id`, CHECK constraint.
+
+---
+
 ## v0.5.9.4 — 2026-04-22
 **Commit:** `db2331a` — hotfix infrastruttura release
 

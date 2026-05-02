@@ -10,6 +10,8 @@
   * [User Management](/en/guide/users.md)
   * [Dewey Classification](/en/guide/dewey.md)
   * [ISBN Bulk Enrichment](/en/guide/bulk-enrichment.md)
+  * [Discs and Music](/en/guide/discs.md)
+  * [Series and Hierarchies](/en/guide/series.md)
   * [Reviews](/en/guide/reviews.md)
   * [Wishlist](/en/guide/wishlist.md)
   * [Events](/en/guide/events.md)

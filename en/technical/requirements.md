@@ -30,6 +30,11 @@ Detailed specifications for installing Pinakes.
 | `curl` | HTTP requests (scraping, API) |
 | `zip` | Archive extraction (updates, plugins) |
 
+> **Note** — The installer actively checks for the `zip` extension before
+> proceeding. If missing, it shows a blocking error with installation
+> instructions. On Ubuntu/Debian: `apt install php-zip`.
+> On RHEL/Rocky: `dnf install php-zip`.
+
 ### Optional Extensions
 
 | Extension | Purpose |

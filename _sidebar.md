@@ -10,6 +10,8 @@
   * [Gestione Utenti](guida/utenti.md)
   * [Classificazione Dewey](guida/dewey.md)
   * [Arricchimento ISBN](guida/arricchimento.md)
+  * [Dischi e Musica](guida/dischi.md)
+  * [Collane e Gerarchie](guida/collane.md)
   * [Recensioni](guida/recensioni.md)
   * [Wishlist](guida/wishlist.md)
   * [Eventi](guida/eventi.md)

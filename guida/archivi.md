@@ -153,6 +153,135 @@ Interoperabile con OPAC esterni, gateway Z39.50 e federated search.
 Record restituiti in MARCXML, Dublin Core o MODS a scelta
 (`recordSchema=marcxml|dc|mods`).
 
+## Ricerca unificata
+
+> Disponibile in versione futura (PR #120 in revisione).
+
+La barra di ricerca admin (header + endpoint `/api/search/unified`)
+include le **unità archivistiche** tra i risultati, insieme a libri,
+autori e editori. Ogni hit mostra il tipo di origine ("Archivio · Fondo",
+"Archivio · Serie", ecc.) per distinguere il contesto a colpo d'occhio.
+
+Usa la barra di ricerca per trovare rapidamente:
+- Un fondo per codice di riferimento o titolo.
+- Un'unità archivistica per data, creator o luogo.
+- Un record di autorità per nome.
+
+## Interoperabilità: Dublin Core, EAD3, OAI-PMH
+
+> Disponibile in versione futura (PR #127 in revisione).
+
+Il plugin Archives implementa tre protocolli standard di interoperabilità
+archivistica, che permettono ad altri sistemi (OPAC, portali culturali,
+aggregatori) di raccogliere e scambiare dati con Pinakes.
+
+### Dublin Core XML
+
+Ogni unità archivistica può essere esportata in formato Dublin Core:
+
+```
+GET /archives/{id}/dc.xml
+```
+
+L'output è un documento XML conforme al namespace Dublin Core (`dc:`).
+Un link `<link rel="alternate" type="application/xml">` è inserito
+nell'`<head>` di ogni pagina di dettaglio unità per supportare la
+scoperta automatica.
+
+**Esempio risposta:**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/"
+           xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <dc:title>Fondo Famiglia Mocenigo</dc:title>
+  <dc:creator>Famiglia Mocenigo</dc:creator>
+  <dc:date>1450/1720</dc:date>
+  <dc:type>Collection</dc:type>
+  <dc:identifier>IT-FMC-01</dc:identifier>
+</oai_dc:dc>
+```
+
+### EAD3 Bulk Export
+
+Esporta più unità archivistiche in un unico documento EAD3:
+
+```
+GET /admin/archives/export.ead3?ids=1,2,3
+```
+
+Il parametro `ids` è una lista separata da virgole degli ID delle unità
+da esportare. Il documento EAD3 risultante include la struttura
+gerarchica completa di ciascuna unità e può essere importato in sistemi
+archivistici compatibili (ArchivesSpace, AtoM, Archivematica).
+
+**Dall'interfaccia:** seleziona le unità nella lista archivi e usa il
+pulsante **Esporta → EAD3** nella toolbar.
+
+### OAI-PMH 2.0
+
+Pinakes espone un endpoint OAI-PMH 2.0 completo per il harvesting
+automatico dei record archivistici:
+
+```
+GET /archives/oai
+POST /archives/oai
+```
+
+#### Verbs supportati
+
+| Verb | Descrizione |
+|------|-------------|
+| `Identify` | Informazioni sul repository |
+| `ListMetadataFormats` | Formati disponibili: `oai_dc`, `ead3` |
+| `ListRecords` | Tutti i record (con paginazione) |
+| `GetRecord` | Singolo record per identificatore |
+| `ListIdentifiers` | Solo header (più leggero di ListRecords) |
+| `ListSets` | Set disponibili (livelli ISAD(G)) |
+
+#### Set ISAD(G)
+
+I set corrispondono ai livelli gerarchici:
+
+| Set | Livello ISAD(G) |
+|-----|-----------------|
+| `fonds` | Fondo |
+| `series` | Serie |
+| `file` | Fascicolo |
+| `item` | Unità documentaria |
+
+#### Formati metadati
+
+| Prefisso | Schema |
+|----------|--------|
+| `oai_dc` | Dublin Core semplice |
+| `ead3` | EAD3 (Encoded Archival Description 3) |
+
+#### Paginazione (ResumptionToken)
+
+Per dataset grandi, OAI-PMH usa un `resumptionToken` per restituire
+i record in pagine. Il token è codificato in base64url JSON e contiene
+la posizione del cursore e i parametri della query originale.
+
+**Esempio di interrogazione completa:**
+
+```
+# Identificazione repository
+GET /archives/oai?verb=Identify
+
+# Lista tutti i record in Dublin Core
+GET /archives/oai?verb=ListRecords&metadataPrefix=oai_dc
+
+# Lista solo i fondi
+GET /archives/oai?verb=ListRecords&metadataPrefix=oai_dc&set=fonds
+
+# Recupera record successivo (con token)
+GET /archives/oai?verb=ListRecords&resumptionToken=<token>
+
+# Record singolo
+GET /archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:archives:42
+```
+
 ## Attivazione e schema
 
 ```

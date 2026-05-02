@@ -149,6 +149,135 @@ Interoperable with external OPACs, Z39.50 gateways, and federated
 search. Records are returned in MARCXML, Dublin Core, or MODS
 (`recordSchema=marcxml|dc|mods`).
 
+## Unified search
+
+> Available in a future version (PR #120 under review).
+
+The admin search bar (header + `/api/search/unified` endpoint) includes
+**archival units** in results alongside books, authors, and publishers.
+Each hit shows its origin type ("Archive · Fonds", "Archive · Series",
+etc.) for quick contextual identification.
+
+Use the search bar to quickly find:
+- A fonds by reference code or title.
+- An archival unit by date, creator, or place.
+- An authority record by name.
+
+## Interoperability: Dublin Core, EAD3, OAI-PMH
+
+> Available in a future version (PR #127 under review).
+
+The Archives plugin implements three standard archival interoperability
+protocols, allowing other systems (OPACs, cultural portals, aggregators)
+to harvest and exchange data with Pinakes.
+
+### Dublin Core XML
+
+Each archival unit can be exported as Dublin Core XML:
+
+```
+GET /archives/{id}/dc.xml
+```
+
+The output is an XML document conforming to the Dublin Core namespace
+(`dc:`). A `<link rel="alternate" type="application/xml">` tag is
+inserted in the `<head>` of each unit detail page to support automatic
+discovery.
+
+**Example response:**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<oai_dc:dc xmlns:oai_dc="http://www.openarchives.org/OAI/2.0/oai_dc/"
+           xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <dc:title>Mocenigo Family Fonds</dc:title>
+  <dc:creator>Mocenigo Family</dc:creator>
+  <dc:date>1450/1720</dc:date>
+  <dc:type>Collection</dc:type>
+  <dc:identifier>IT-FMC-01</dc:identifier>
+</oai_dc:dc>
+```
+
+### EAD3 Bulk Export
+
+Export multiple archival units as a single EAD3 document:
+
+```
+GET /admin/archives/export.ead3?ids=1,2,3
+```
+
+The `ids` parameter is a comma-separated list of unit IDs to export. The
+resulting EAD3 document includes the full hierarchical structure of each
+unit and can be imported into compatible archival systems (ArchivesSpace,
+AtoM, Archivematica).
+
+**From the interface:** select units in the archives list and use the
+**Export → EAD3** button in the toolbar.
+
+### OAI-PMH 2.0
+
+Pinakes exposes a full OAI-PMH 2.0 endpoint for automatic harvesting of
+archival records:
+
+```
+GET /archives/oai
+POST /archives/oai
+```
+
+#### Supported verbs
+
+| Verb | Description |
+|------|-------------|
+| `Identify` | Repository information |
+| `ListMetadataFormats` | Available formats: `oai_dc`, `ead3` |
+| `ListRecords` | All records (with pagination) |
+| `GetRecord` | Single record by identifier |
+| `ListIdentifiers` | Headers only (lighter than ListRecords) |
+| `ListSets` | Available sets (ISAD(G) levels) |
+
+#### ISAD(G) sets
+
+Sets correspond to hierarchical levels:
+
+| Set | ISAD(G) level |
+|-----|---------------|
+| `fonds` | Fonds |
+| `series` | Series |
+| `file` | File |
+| `item` | Item |
+
+#### Metadata formats
+
+| Prefix | Schema |
+|--------|--------|
+| `oai_dc` | Simple Dublin Core |
+| `ead3` | EAD3 (Encoded Archival Description 3) |
+
+#### Pagination (ResumptionToken)
+
+For large datasets, OAI-PMH uses a `resumptionToken` to return records
+in pages. The token is base64url-encoded JSON containing the cursor
+position and original query parameters.
+
+**Example queries:**
+
+```
+# Identify repository
+GET /archives/oai?verb=Identify
+
+# List all records in Dublin Core
+GET /archives/oai?verb=ListRecords&metadataPrefix=oai_dc
+
+# List fonds only
+GET /archives/oai?verb=ListRecords&metadataPrefix=oai_dc&set=fonds
+
+# Get next page (with token)
+GET /archives/oai?verb=ListRecords&resumptionToken=<token>
+
+# Single record
+GET /archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:archives:42
+```
+
 ## Activation and schema
 
 ```
