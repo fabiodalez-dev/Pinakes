@@ -75,9 +75,11 @@ $check($source !== false && str_contains($source, 'decodeOaiResumptionToken($tok
 $check($source !== false && str_contains($source, 'if (!$identifiersOnly) {' . "\n" . "                \$xw->startElement('record');"), 'ListIdentifiers does not force record wrappers');
 
 $layoutSource = file_get_contents(__DIR__ . '/../app/Views/layout.php');
-$check($layoutSource !== false && str_contains($layoutSource, '$headExtra'), 'admin layout exposes optional head slot');
+$check($layoutSource !== false && str_contains($layoutSource, '$headLinks'), 'admin layout renders $headLinks (structured, no XSS sink)');
+$check($layoutSource !== false && !str_contains($layoutSource, "echo \"\\n\" . \$headExtra"), 'admin layout does not raw-echo $headExtra');
 $frontendLayoutSource = file_get_contents(__DIR__ . '/../app/Views/frontend/layout.php');
-$check($frontendLayoutSource !== false && str_contains($frontendLayoutSource, '$headExtra'), 'public layout exposes optional head slot');
+$check($frontendLayoutSource !== false && str_contains($frontendLayoutSource, '$headLinks'), 'public layout renders $headLinks (structured, no XSS sink)');
+$check($frontendLayoutSource !== false && !str_contains($frontendLayoutSource, "echo \"\\n\" . \$headExtra"), 'public layout does not raw-echo $headExtra');
 
 echo "\nClass reflection — DI contract:\n";
 $reflection = new ReflectionClass(ArchivesPlugin::class);

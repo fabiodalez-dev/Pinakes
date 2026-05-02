@@ -1025,9 +1025,10 @@ class ArchivesPlugin
             'linked_authorities'   => $this->fetchAuthoritiesForArchivalUnit($id),
             'available_authorities'=> $this->listAllAuthorities(),
             'authority_roles'      => array_keys(self::AUTHORITY_ROLES),
-            'headExtra'            => '<link rel="alternate" type="application/rdf+xml" title="Dublin Core" href="'
-                . htmlspecialchars(absoluteUrl('/archives/' . $id . '/dc.xml'), ENT_QUOTES, 'UTF-8')
-                . '">',
+            'headLinks'            => [
+                ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'Dublin Core',
+                 'href' => absoluteUrl('/archives/' . $id . '/dc.xml')],
+            ],
         ]);
     }
 
@@ -2207,11 +2208,10 @@ class ArchivesPlugin
         }
         // $archiveSchema is populated by show.php (Schema.org JSON-LD).
         $archiveSchema = $archiveSchema ?? null;
-        $headExtra = (isset($headExtra) && is_string($headExtra)) ? $headExtra : '';
+        $headLinks = [];
         if (isset($data['row']['id'])) {
-            $headExtra .= "\n" . '<link rel="alternate" type="application/rdf+xml" title="Dublin Core" href="'
-                . htmlspecialchars(absoluteUrl('/archives/' . (int) $data['row']['id'] . '/dc.xml'), ENT_QUOTES, 'UTF-8')
-                . '">';
+            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'Dublin Core',
+                            'href' => absoluteUrl('/archives/' . (int) $data['row']['id'] . '/dc.xml')];
         }
 
         $layoutPath = __DIR__ . '/../../../app/Views/frontend/layout.php';
@@ -4059,7 +4059,7 @@ class ArchivesPlugin
         $slug = preg_replace('/[^a-z0-9_-]/i', '_', (string) ($row['reference_code'] ?? 'dc'));
         $response->getBody()->write($xml);
         return $response
-            ->withHeader('Content-Type', 'application/rdf+xml; charset=utf-8')
+            ->withHeader('Content-Type', 'application/xml; charset=utf-8')
             ->withHeader('Content-Disposition', 'inline; filename="' . $slug . '.dc.xml"');
     }
 
@@ -4108,7 +4108,7 @@ class ArchivesPlugin
         $xw->writeElementNs('dc', 'title', null, $title);
 
         foreach ($authorities as $auth) {
-            if (in_array((string) ($auth['role'] ?? ''), ['creator', 'photographer', 'associated'], true)) {
+            if ((string) ($auth['role'] ?? '') === 'creator') {
                 $xw->writeElementNs('dc', 'creator', null, (string) ($auth['authorised_form'] ?? ''));
             }
         }

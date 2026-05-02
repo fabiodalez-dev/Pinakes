@@ -207,8 +207,17 @@ $htmlLang = substr($currentLocale, 0, 2);
     // Hook: Allow plugins to enqueue assets in the head (e.g., CSS, fonts, meta tags)
     do_action('assets.head');
 
-    if (isset($headExtra) && is_string($headExtra) && $headExtra !== '') {
-        echo "\n" . $headExtra . "\n";
+    if (!empty($headLinks) && is_array($headLinks)) {
+        foreach ($headLinks as $hl) {
+            if (!is_array($hl)) { continue; }
+            $out = '<link';
+            foreach (['rel', 'type', 'title', 'href'] as $attr) {
+                if (!empty($hl[$attr])) {
+                    $out .= ' ' . $attr . '="' . htmlspecialchars((string) $hl[$attr], ENT_QUOTES, 'UTF-8') . '"';
+                }
+            }
+            echo $out . "\n";
+        }
     }
     ?>
 
