@@ -4224,7 +4224,7 @@ class ArchivesPlugin
         $response->getBody()->write($xml);
         return $response
             ->withHeader('Content-Type', 'application/xml; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="archives_export.ead3.xml"');
+            ->withHeader('Content-Disposition', 'attachment; filename="archives_export.xml"');
     }
 
     /**
@@ -4427,7 +4427,11 @@ class ArchivesPlugin
             $xw->startElement('controlaccess');
             foreach ($authorities as $auth) {
                 $authType = (string) ($auth['type'] ?? 'person');
-                $tag = $authType === 'corporate' ? 'corpname' : 'persname';
+                $tag = match ($authType) {
+                    'corporate' => 'corpname',
+                    'family'    => 'famname',
+                    default     => 'persname',
+                };
                 $xw->startElement($tag);
                 $xw->writeAttribute('encodinganalog', $authType === 'corporate' ? '710' : '700');
                 $role = (string) ($auth['role'] ?? 'associated');
