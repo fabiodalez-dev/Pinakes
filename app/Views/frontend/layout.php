@@ -216,7 +216,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     $out .= ' ' . $attr . '="' . htmlspecialchars((string) $hl[$attr], ENT_QUOTES, 'UTF-8') . '"';
                 }
             }
-            echo $out . "\n";
+            echo $out . ">\n";
         }
     }
     ?>
