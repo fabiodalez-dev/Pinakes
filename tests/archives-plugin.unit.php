@@ -72,7 +72,10 @@ $check($source !== false && str_contains($source, "'libri.authority.resolve'"), 
 echo "\nOAI-PMH interoperability regressions:\n";
 $check($source !== false && str_contains($source, "\$app->get('/archives/{id:[0-9]+}/dc.xml'"), 'public Dublin Core route exists');
 $check($source !== false && str_contains($source, 'decodeOaiResumptionToken($token)'), 'resumptionToken is decoded before metadata validation');
-$check($source !== false && str_contains($source, 'if (!$identifiersOnly) {' . "\n" . "                \$xw->startElement('record');"), 'ListIdentifiers does not force record wrappers');
+$check(
+    $source !== false && (bool) preg_match('/if\s*\(!\$identifiersOnly\)\s*\{[^}]*startElement\s*\(\s*[\'"]record[\'"]/', $source),
+    'ListIdentifiers does not force record wrappers'
+);
 
 $layoutSource = file_get_contents(__DIR__ . '/../app/Views/layout.php');
 $check($layoutSource !== false && str_contains($layoutSource, '$headLinks'), 'admin layout renders $headLinks (structured, no XSS sink)');

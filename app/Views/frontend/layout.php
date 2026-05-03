@@ -213,7 +213,13 @@ $htmlLang = substr($currentLocale, 0, 2);
             $out = '<link';
             foreach (['rel', 'type', 'title', 'href'] as $attr) {
                 if (!empty($hl[$attr])) {
-                    $out .= ' ' . $attr . '="' . htmlspecialchars((string) $hl[$attr], ENT_QUOTES, 'UTF-8') . '"';
+                    $val = (string) $hl[$attr];
+                    if ($attr === 'href') {
+                        $sanitized = filter_var($val, FILTER_SANITIZE_URL);
+                        if ($sanitized === false || !preg_match('#^(https?://|/)#i', $sanitized)) { continue; }
+                        $val = $sanitized;
+                    }
+                    $out .= ' ' . $attr . '="' . htmlspecialchars($val, ENT_QUOTES, 'UTF-8') . '"';
                 }
             }
             echo $out . ">\n";

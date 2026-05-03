@@ -4290,9 +4290,19 @@ class ArchivesPlugin
         $xw->writeAttribute('value', 'created');
         $xw->endElement();
         $xw->startElement('eventdatetime');
-        $createdAt = (string) ($row['created_at'] ?? gmdate('Y-m-d\TH:i:s\Z'));
-        $xw->writeAttribute('standarddatetime', $createdAt);
-        $xw->text($createdAt);
+        $createdAtRaw = (string) ($row['created_at'] ?? '');
+        $createdAtIso = gmdate('Y-m-d\TH:i:s\Z');
+        if ($createdAtRaw !== '') {
+            try {
+                $createdAtIso = (new \DateTimeImmutable($createdAtRaw))
+                    ->setTimezone(new \DateTimeZone('UTC'))
+                    ->format('Y-m-d\TH:i:s\Z');
+            } catch (\Throwable) {
+                // fallback già inizializzato
+            }
+        }
+        $xw->writeAttribute('standarddatetime', $createdAtIso);
+        $xw->text($createdAtIso);
         $xw->endElement();
         $xw->startElement('agenttype');
         $xw->writeAttribute('value', 'machine');
@@ -4494,18 +4504,24 @@ class ArchivesPlugin
 
         $xw->writeElement('responseDate', $now);
 
-        // <request> element with verb and any legal params
+        // OAI-PMH §2.2: <request> must carry attributes only for valid verbs.
+        // For badVerb/badArgument the element must contain only the base URL.
+        static $validVerbs = ['Identify', 'ListMetadataFormats', 'ListRecords',
+                               'GetRecord', 'ListIdentifiers', 'ListSets'];
+        $verbIsValid = in_array($verb, $validVerbs, true);
         $xw->startElement('request');
-        if ($verb !== '') { $xw->writeAttribute('verb', $verb); }
-        foreach (['metadataPrefix', 'identifier', 'from', 'until', 'set', 'resumptionToken'] as $k) {
-            if (!empty($params[$k])) { $xw->writeAttribute($k, (string) $params[$k]); }
+        if ($verbIsValid) {
+            if ($verb !== '') { $xw->writeAttribute('verb', $verb); }
+            foreach (['metadataPrefix', 'identifier', 'from', 'until', 'set', 'resumptionToken'] as $k) {
+                if (!empty($params[$k])) { $xw->writeAttribute($k, (string) $params[$k]); }
+            }
         }
         $xw->text($baseUrl);
         $xw->endElement();
 
         match ($verb) {
             'Identify'            => $this->oaiIdentify($xw, $baseUrl, $now),
-            'ListMetadataFormats' => $this->oaiListMetadataFormats($xw),
+            'ListMetadataFormats' => $this->oaiListMetadataFormats($xw, $params),
             'ListRecords'         => $this->oaiListRecords($xw, $params, false),
             'GetRecord'           => $this->oaiGetRecord($xw, $params),
             'ListIdentifiers'     => $this->oaiListRecords($xw, $params, true),
@@ -4559,8 +4575,23 @@ class ArchivesPlugin
         $xw->endElement(); // Identify
     }
 
-    private function oaiListMetadataFormats(\XMLWriter $xw): void
+    private function oaiListMetadataFormats(\XMLWriter $xw, array $params = []): void
     {
+        $identifier = (string) ($params['identifier'] ?? '');
+        if ($identifier !== '') {
+            // Parse oai:pinakes:archives:{id}
+            if (!preg_match('/oai:pinakes:archives:(\d+)$/i', $identifier, $m)) {
+                $this->oaiError($xw, 'idDoesNotExist',
+                    'The value of the identifier argument is unknown or illegal in this repository.');
+                return;
+            }
+            if ($this->findById((int) $m[1]) === null) {
+                $this->oaiError($xw, 'idDoesNotExist',
+                    'The value of the identifier argument is unknown or illegal in this repository.');
+                return;
+            }
+        }
+
         $xw->startElement('ListMetadataFormats');
 
         $xw->startElement('metadataFormat');
