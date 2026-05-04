@@ -1026,7 +1026,7 @@ class ArchivesPlugin
             'available_authorities'=> $this->listAllAuthorities(),
             'authority_roles'      => array_keys(self::AUTHORITY_ROLES),
             'headLinks'            => [
-                ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'Dublin Core',
+                ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
                  'href' => absoluteUrl('/archives/' . $id . '/dc.xml')],
             ],
         ]);
@@ -2210,7 +2210,7 @@ class ArchivesPlugin
         $archiveSchema = $archiveSchema ?? null;
         $headLinks = [];
         if (isset($data['row']['id'])) {
-            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'Dublin Core',
+            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
                             'href' => absoluteUrl('/archives/' . (int) $data['row']['id'] . '/dc.xml')];
         }
 
@@ -4116,6 +4116,13 @@ class ArchivesPlugin
         if (!empty($row['reference_code'])) {
             $xw->writeElementNs('dc', 'identifier', null, (string) $row['reference_code']);
         }
+        $publisher = trim((string) ($row['repository_name'] ?? ''));
+        if ($publisher === '') {
+            $publisher = trim((string) \App\Support\ConfigStore::get('app.name', 'Pinakes'));
+        }
+        if ($publisher !== '') {
+            $xw->writeElementNs('dc', 'publisher', null, $publisher);
+        }
 
         if (!empty($row['date_start'])) {
             $dateStr = (string) $row['date_start'];
@@ -4224,7 +4231,7 @@ class ArchivesPlugin
         $response->getBody()->write($xml);
         return $response
             ->withHeader('Content-Type', 'application/xml; charset=utf-8')
-            ->withHeader('Content-Disposition', 'attachment; filename="archives_export.xml"');
+            ->withHeader('Content-Disposition', 'attachment; filename="archives.ead3.xml"');
     }
 
     /**
@@ -4472,9 +4479,9 @@ class ArchivesPlugin
      *   ListRecords           — all records (metadataPrefix=oai_dc or marcxml)
      *   GetRecord             — one record by OAI identifier
      *   ListIdentifiers       — identifiers without metadata
-     *   ListSets              — archival levels as OAI sets
+     *   ListSets              — not supported (noSetHierarchy)
      *
-     * OAI identifier scheme: oai:{hostname}:pinakes:{id}
+     * OAI identifier scheme: oai:pinakes:archival_unit:{id}
      *
      * Resumption tokens: simple cursor-based paging (100 records per page).
      */
@@ -4579,8 +4586,9 @@ class ArchivesPlugin
     {
         $identifier = (string) ($params['identifier'] ?? '');
         if ($identifier !== '') {
-            // Parse oai:pinakes:archives:{id}
-            if (!preg_match('/oai:pinakes:archives:(\d+)$/i', $identifier, $m)) {
+            // Canonical identifier: oai:pinakes:archival_unit:{id}.
+            // Accept the old archives alias defensively for pre-release tokens.
+            if (!preg_match('/^oai:pinakes:(?:archival_unit|archives):(\d+)$/i', $identifier, $m)) {
                 $this->oaiError($xw, 'idDoesNotExist',
                     'The value of the identifier argument is unknown or illegal in this repository.');
                 return;
@@ -4650,6 +4658,11 @@ class ArchivesPlugin
                 . 'argument is not supported by the item or by the repository.');
             return;
         }
+        if ($set !== '') {
+            $this->oaiError($xw, 'noSetHierarchy',
+                'This repository does not support sets.');
+            return;
+        }
 
         $pageSize = 100;
         $where    = ['deleted_at IS NULL'];
@@ -4666,12 +4679,6 @@ class ArchivesPlugin
             $bindTypes .= 's';
             $bindVals[] = str_replace('T', ' ', str_replace('Z', '', $until));
         }
-        if ($set !== '' && in_array($set, ['fonds', 'series', 'file', 'item'], true)) {
-            $where[]    = 'level = ?';
-            $bindTypes .= 's';
-            $bindVals[] = $set;
-        }
-
         $whereClause = implode(' AND ', $where);
         $limitSql    = 'LIMIT ' . $pageSize . ' OFFSET ' . $cursor;
         $countSql    = "SELECT COUNT(*) AS cnt FROM archival_units WHERE $whereClause";
@@ -4894,20 +4901,8 @@ class ArchivesPlugin
 
     private function oaiListSets(\XMLWriter $xw): void
     {
-        $xw->startElement('ListSets');
-        $levels = [
-            'fonds'  => 'Fonds — complete archive of a creator (ISAD(G) level 1)',
-            'series' => 'Series — grouping by provenance or function (ISAD(G) level 2)',
-            'file'   => 'File — organic unit (case file, volume) (ISAD(G) level 3)',
-            'item'   => 'Item — smallest indivisible unit (ISAD(G) level 4)',
-        ];
-        foreach ($levels as $spec => $desc) {
-            $xw->startElement('set');
-            $xw->writeElement('setSpec', $spec);
-            $xw->writeElement('setName', $desc);
-            $xw->endElement();
-        }
-        $xw->endElement(); // ListSets
+        $this->oaiError($xw, 'noSetHierarchy',
+            'This repository does not support sets.');
     }
 
     private function oaiError(\XMLWriter $xw, string $code, string $message): void
