@@ -169,6 +169,21 @@ $levelLabels = [
                    value="<?= $val('extent') ?>" maxlength="500"
                    class="form-input">
         </div>
+
+        <!-- ark_identifier -->
+        <div>
+            <label for="ark_identifier" class="form-label">
+                <?= __("Identificatore ARK") ?>
+                <span class="text-xs text-gray-500 font-normal">(es. ark:/12148/btv1b84…)</span>
+            </label>
+            <input type="text" name="ark_identifier" id="ark_identifier"
+                   value="<?= $val('ark_identifier') ?>" maxlength="255"
+                   placeholder="ark:/NAAN/name"
+                   class="form-input font-mono text-sm">
+            <p class="mt-1 text-xs text-gray-500">
+                <?= __("Identificatore persistente ARK assegnato dall'istituzione. Usato come URI canonico in EAD3, Dublin Core e manifest IIIF.") ?>
+            </p>
+        </div>
         </div><!-- end Area 1 -->
 
         <!-- ── ISAD(G) Area 3 — Content and Structure ──────────────────── -->
@@ -368,6 +383,18 @@ $levelLabels = [
                                value="<?= $val('local_classification') ?>" maxlength="64"
                                class="form-input">
                     </div>
+                </div>
+
+                <!-- version_note -->
+                <div class="border-t pt-4 mt-2">
+                    <label for="version_note" class="form-label">
+                        <?= __("Nota di versione") ?>
+                        <span class="text-xs text-gray-500 font-normal">(<?= __("descrive cosa è cambiato in questa revisione del record") ?>)</span>
+                    </label>
+                    <input type="text" name="version_note" id="version_note"
+                           value="<?= $val('version_note') ?>" maxlength="500"
+                           placeholder="<?= $val('version_note') !== '' ? '' : __('es. Aggiornati i dati di estensione dopo inventario 2024') ?>"
+                           class="form-input text-sm">
                 </div>
 
                 <!-- IIIF digital object URL -->

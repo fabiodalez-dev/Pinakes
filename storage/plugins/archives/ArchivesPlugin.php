@@ -294,6 +294,8 @@ class ArchivesPlugin
             'document_filename'    => 'VARCHAR(255) NULL',
             'iiif_manifest_url'    => 'VARCHAR(2000) NULL',
             'rights_statement_url' => 'VARCHAR(500) NULL',
+            'ark_identifier'       => 'VARCHAR(255) NULL',
+            'version_note'         => 'VARCHAR(500) NULL',
         ];
 
         // Fetch existing columns once.
@@ -628,6 +630,38 @@ class ArchivesPlugin
             return $plugin->exportDublinCoreAction($request, $response, (int) $args['id']);
         });
 
+        // EAD3 per-unit export (public + admin).
+        $app->get('/admin/archives/{id:[0-9]+}/ead.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportEad3Action($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+        $app->get('/archives/{id:[0-9]+}/ead.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportEad3Action($request, $response, (int) $args['id']);
+        });
+
+        // METS per-unit export (public + admin).
+        $app->get('/admin/archives/{id:[0-9]+}/mets.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportMetsAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+        $app->get('/archives/{id:[0-9]+}/mets.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportMetsAction($request, $response, (int) $args['id']);
+        });
+
         // EAD3 bulk export (same admin-only access as MARCXML export).
         $app->get('/admin/archives/export.ead3', function (
             ServerRequestInterface $request,
@@ -909,8 +943,9 @@ class ArchivesPlugin
                  extent, scope_content, language_codes,
                  specific_material, dimensions, color_mode,
                  photographer, publisher, collection_name, local_classification,
-                 iiif_manifest_url, rights_statement_url)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 iiif_manifest_url, rights_statement_url,
+                 ark_identifier, version_note)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         if ($stmt === false) {
             SecureLogger::error('[Archives] store prepare failed: ' . $this->db->error);
@@ -919,13 +954,14 @@ class ArchivesPlugin
         }
 
         $p = $this->nullableArchivalParams($values);
-        // 20 params: parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
+        // 22 params: parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
         //            date_start(i) date_end(i) extent(s) scope(s) lang(s)
         //            spec_material(s) dim(s) color(s) photographer(s)
         //            publisher(s) collection(s) local_class(s) iiif_manifest(s) rights(s)
-        //            = 'isssssiissssssssssss' (20 chars)
+        //            ark(s) version_note(s)
+        //            = 'isssssiissssssssssssss' (22 chars)
         $stmt->bind_param(
-            'isssssiissssssssssss',
+            'isssssiissssssssssssss',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -945,7 +981,9 @@ class ArchivesPlugin
             $p['collection_name'],
             $p['local_classification'],
             $p['iiif_manifest_url'],
-            $p['rights_statement_url']
+            $p['rights_statement_url'],
+            $p['ark_identifier'],
+            $p['version_note']
         );
 
         if (!$stmt->execute()) {
@@ -1004,6 +1042,8 @@ class ArchivesPlugin
             'local_classification' => $str('local_classification'),
             'iiif_manifest_url'    => $str('iiif_manifest_url'),
             'rights_statement_url' => $str('rights_statement_url'),
+            'ark_identifier'       => $str('ark_identifier'),
+            'version_note'         => $str('version_note'),
         ];
     }
 
@@ -1021,6 +1061,7 @@ class ArchivesPlugin
             'dimensions', 'color_mode', 'photographer',
             'publisher', 'collection_name', 'local_classification',
             'iiif_manifest_url', 'rights_statement_url',
+            'ark_identifier', 'version_note',
         ];
         $out = [];
         foreach ($nullable as $k) {
@@ -1083,6 +1124,10 @@ class ArchivesPlugin
             'headLinks'            => [
                 ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
                  'href' => absoluteUrl('/archives/' . $id . '/dc.xml')],
+                ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'EAD3 Finding Aid',
+                 'href' => absoluteUrl('/archives/' . $id . '/ead.xml')],
+                ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'METS Package',
+                 'href' => absoluteUrl('/archives/' . $id . '/mets.xml')],
                 ['rel' => 'alternate', 'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
                  'title' => 'IIIF Manifest',
                  'href' => absoluteUrl('/archives/' . $id . '/manifest.json')],
@@ -1145,7 +1190,8 @@ class ArchivesPlugin
                 extent = ?, scope_content = ?, language_codes = ?,
                 specific_material = ?, dimensions = ?, color_mode = ?,
                 photographer = ?, publisher = ?, collection_name = ?, local_classification = ?,
-                iiif_manifest_url = ?, rights_statement_url = ?
+                iiif_manifest_url = ?, rights_statement_url = ?,
+                ark_identifier = ?, version_note = ?
              WHERE id = ? AND deleted_at IS NULL'
         );
         if ($stmt === false) {
@@ -1155,14 +1201,15 @@ class ArchivesPlugin
         }
 
         $p = $this->nullableArchivalParams($values);
-        // 21 params: 20 SET-columns + id(i). Type string:
+        // 23 params: 22 SET-columns + id(i). Type string:
         //   parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
         //   date_start(i) date_end(i) extent(s) scope(s) lang(s)
         //   spec_material(s) dim(s) color(s) photographer(s)
-        //   publisher(s) collection(s) local_class(s) iiif_manifest(s) rights(s) id(i)
-        //   = 'isssssiissssssssssssi' (21 chars)
+        //   publisher(s) collection(s) local_class(s) iiif_manifest(s) rights(s)
+        //   ark(s) version_note(s) id(i)
+        //   = 'isssssiissssssssssssssi' (23 chars)
         $stmt->bind_param(
-            'isssssiissssssssssssi',
+            'isssssiissssssssssssssi',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -1183,6 +1230,8 @@ class ArchivesPlugin
             $p['local_classification'],
             $p['iiif_manifest_url'],
             $p['rights_statement_url'],
+            $p['ark_identifier'],
+            $p['version_note'],
             $id
         );
 
@@ -2270,6 +2319,10 @@ class ArchivesPlugin
             $unitId = (int) $data['row']['id'];
             $headLinks[] = ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
                             'href' => absoluteUrl('/archives/' . $unitId . '/dc.xml')];
+            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'EAD3 Finding Aid',
+                            'href' => absoluteUrl('/archives/' . $unitId . '/ead.xml')];
+            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'METS Package',
+                            'href' => absoluteUrl('/archives/' . $unitId . '/mets.xml')];
             $headLinks[] = ['rel' => 'alternate',
                             'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
                             'title' => 'IIIF Manifest',
@@ -4153,12 +4206,18 @@ class ArchivesPlugin
             ];
         };
         $addMeta('Reference Code', $row['reference_code']);
+        if (!empty($row['ark_identifier'])) {
+            $addMeta('Identifier (ARK)', $row['ark_identifier']);
+        }
         $addMeta('Level',          $row['level']);
         $dateStr = trim(($row['date_start'] ?? '') . ($row['date_end'] ? '–' . $row['date_end'] : ''), '–');
         $addMeta('Date',           $dateStr);
         $addMeta('Extent',         $row['extent']);
         $addMeta('Language',       $row['language_codes']);
         $addMeta('Institution',    $institution);
+        if (!empty($row['version_note'])) {
+            $addMeta('Version Note', $row['version_note']);
+        }
 
         // Authority records — creator/subject names + external authority URIs
         $authorities = $this->iiifFetchAuthoritiesWithRefs($id);
@@ -4246,15 +4305,30 @@ class ArchivesPlugin
             ]];
         }
 
-        // seeAlso: other serialisations (DC, OAI-PMH, external IIIF)
+        // seeAlso: other serialisations (DC, EAD3, METS, OAI-PMH, external IIIF)
         $manifest['seeAlso'] = [
             ['id'     => $base . '/archives/' . $id . '/dc.xml',
              'type'   => 'Dataset', 'format' => 'application/rdf+xml',
              'label'  => ['en' => ['Dublin Core']]],
+            ['id'     => $base . '/archives/' . $id . '/ead.xml',
+             'type'   => 'Dataset', 'format' => 'application/xml',
+             'profile' => 'http://ead3.archivists.org/schema/',
+             'label'  => ['en' => ['EAD3 finding aid']]],
+            ['id'     => $base . '/archives/' . $id . '/mets.xml',
+             'type'   => 'Dataset', 'format' => 'application/xml',
+             'profile' => 'http://www.loc.gov/METS/',
+             'label'  => ['en' => ['METS package']]],
             ['id'     => $base . '/archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:archival_unit:' . $id,
              'type'   => 'Dataset', 'format' => 'text/xml',
              'label'  => ['en' => ['OAI-PMH record']]],
         ];
+        if (!empty($row['ark_identifier'])) {
+            $manifest['seeAlso'][] = [
+                'id'    => 'https://n2t.net/' . $row['ark_identifier'],
+                'type'  => 'Text',
+                'label' => ['en' => ['ARK persistent identifier']],
+            ];
+        }
         if (!empty($row['iiif_manifest_url'])) {
             $manifest['seeAlso'][] = [
                 'id'     => (string) $row['iiif_manifest_url'],
@@ -4624,6 +4698,9 @@ class ArchivesPlugin
         if (!empty($row['reference_code'])) {
             $xw->writeElementNs('dc', 'identifier', null, (string) $row['reference_code']);
         }
+        if (!empty($row['ark_identifier'])) {
+            $xw->writeElementNs('dc', 'identifier', null, (string) $row['ark_identifier']);
+        }
         $publisher = trim((string) ($row['repository_name'] ?? ''));
         if ($publisher === '') {
             $publisher = trim((string) \App\Support\ConfigStore::get('app.name', 'Pinakes'));
@@ -4658,11 +4735,206 @@ class ArchivesPlugin
         if (!empty($row['access_conditions'])) {
             $xw->writeElementNs('dc', 'rights', null, (string) $row['access_conditions']);
         }
+        if (!empty($row['rights_statement_url'])) {
+            $xw->writeElementNs('dc', 'rights', null, (string) $row['rights_statement_url']);
+        }
 
         $xw->endElement(); // oai_dc:dc
     }
 
-    // ── EAD3 export ──────────────────────────────────────────────────────────
+    // ── EAD3 / METS per-unit export ───────────────────────────────────────────
+
+    /**
+     * GET /archives/{id}/ead.xml and /admin/archives/{id}/ead.xml
+     * Single-unit EAD3 finding aid (not wrapped in <eadlist>).
+     */
+    public function exportEad3Action(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            $response->getBody()->write('Not found');
+            return $response->withStatus(404);
+        }
+        $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $this->writeEad3Document($xw, $row, $authorities);
+        $xw->endDocument();
+        $slug = preg_replace('/[^a-z0-9_-]/i', '_', (string) ($row['reference_code'] ?? 'ead'));
+        $response->getBody()->write($xw->outputMemory());
+        return $response
+            ->withHeader('Content-Type', 'application/xml; charset=utf-8')
+            ->withHeader('Content-Disposition', 'inline; filename="' . $slug . '.ead3.xml"');
+    }
+
+    /**
+     * GET /archives/{id}/mets.xml and /admin/archives/{id}/mets.xml
+     * METS package: DC inline + EAD3 by reference + IIIF manifest link.
+     * Suitable for submission to Europeana and national aggregators.
+     */
+    public function exportMetsAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            $response->getBody()->write('Not found');
+            return $response->withStatus(404);
+        }
+        $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+        $xml = $this->buildMetsXml($row, $authorities);
+        $slug = preg_replace('/[^a-z0-9_-]/i', '_', (string) ($row['reference_code'] ?? 'mets'));
+        $response->getBody()->write($xml);
+        return $response
+            ->withHeader('Content-Type', 'application/xml; charset=utf-8')
+            ->withHeader('Content-Disposition', 'inline; filename="' . $slug . '.mets.xml"');
+    }
+
+    /**
+     * Build a METS 1.12 document for one archival_unit.
+     * Structure:
+     *   metsHdr   — software agent (Pinakes)
+     *   dmdSec/1  — Dublin Core (inline)
+     *   dmdSec/2  — EAD3 finding aid (by URL reference)
+     *   fileSec   — IIIF manifest + optional cover image
+     *   structMap — logical div linking DMD sections to files
+     *
+     * @param array<string, mixed>      $row
+     * @param list<array<string,mixed>> $authorities
+     */
+    private function buildMetsXml(array $row, array $authorities): string
+    {
+        $base   = rtrim((string) absoluteUrl(''), '/');
+        $unitId = (int) ($row['id'] ?? 0);
+        $title  = (string) ($row['constructed_title'] ?? $row['formal_title'] ?? 'Untitled');
+        $objId  = 'oai:pinakes:archival_unit:' . $unitId;
+
+        $updatedAt = gmdate('Y-m-d\TH:i:s\Z');
+        try {
+            if (!empty($row['updated_at'])) {
+                $updatedAt = (new \DateTimeImmutable((string) $row['updated_at']))
+                    ->setTimezone(new \DateTimeZone('UTC'))
+                    ->format('Y-m-d\TH:i:s\Z');
+            }
+        } catch (\Throwable) {}
+
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+
+        $xw->startElementNs('mets', 'mets', 'http://www.loc.gov/METS/');
+        $xw->writeAttributeNs('xmlns', 'xlink', null, 'http://www.w3.org/1999/xlink');
+        $xw->writeAttributeNs('xmlns', 'xsi',   null, 'http://www.w3.org/2001/XMLSchema-instance');
+        $xw->writeAttributeNs('xsi', 'schemaLocation', null,
+            'http://www.loc.gov/METS/ http://www.loc.gov/standards/mets/mets.xsd');
+        $xw->writeAttribute('OBJID', $objId);
+        $xw->writeAttribute('LABEL', $title);
+        $xw->writeAttribute('TYPE',  'ArchivalUnit');
+
+        // metsHdr
+        $xw->startElement('mets:metsHdr');
+        $xw->writeAttribute('CREATEDATE', $updatedAt);
+        $xw->startElement('mets:agent');
+        $xw->writeAttribute('ROLE', 'CREATOR');
+        $xw->writeAttribute('TYPE', 'OTHER');
+        $xw->writeAttribute('OTHERTYPE', 'SOFTWARE');
+        $xw->writeElement('mets:name', 'Pinakes Archives Module');
+        $xw->endElement(); // agent
+        $xw->endElement(); // metsHdr
+
+        // dmdSec 1 — Dublin Core inline
+        $xw->startElement('mets:dmdSec');
+        $xw->writeAttribute('ID', 'DMD01');
+        $xw->startElement('mets:mdWrap');
+        $xw->writeAttribute('MDTYPE',   'DC');
+        $xw->writeAttribute('MIMETYPE', 'text/xml');
+        $xw->startElement('mets:xmlData');
+        $this->writeDublinCoreRecord($xw, $row, $authorities);
+        $xw->endElement(); // xmlData
+        $xw->endElement(); // mdWrap
+        $xw->endElement(); // dmdSec
+
+        // dmdSec 2 — EAD3 by reference
+        $xw->startElement('mets:dmdSec');
+        $xw->writeAttribute('ID', 'DMD02');
+        $xw->startElement('mets:mdRef');
+        $xw->writeAttribute('MDTYPE',   'EAD');
+        $xw->writeAttribute('MIMETYPE', 'application/xml');
+        $xw->writeAttribute('LOCTYPE',  'URL');
+        $xw->writeAttributeNs('xlink', 'type', null, 'simple');
+        $xw->writeAttributeNs('xlink', 'href', null, $base . '/archives/' . $unitId . '/ead.xml');
+        $xw->endElement(); // mdRef
+        $xw->endElement(); // dmdSec
+
+        // fileSec
+        $xw->startElement('mets:fileSec');
+
+        $xw->startElement('mets:fileGrp');
+        $xw->writeAttribute('USE', 'reference');
+        $xw->startElement('mets:file');
+        $xw->writeAttribute('ID',       'IIIF_MANIFEST');
+        $xw->writeAttribute('MIMETYPE', 'application/ld+json');
+        $xw->writeAttribute('USE',      'iiif-manifest');
+        $xw->startElement('mets:FLocat');
+        $xw->writeAttribute('LOCTYPE', 'URL');
+        $xw->writeAttributeNs('xlink', 'type', null, 'simple');
+        $xw->writeAttributeNs('xlink', 'href', null, $base . '/archives/' . $unitId . '/manifest.json');
+        $xw->endElement(); // FLocat
+        $xw->endElement(); // file
+        $xw->endElement(); // fileGrp
+
+        if (!empty($row['cover_image_path'])) {
+            $coverPath = (string) $row['cover_image_path'];
+            $fsPath    = __DIR__ . '/../../../public' . $coverPath;
+            $imgSize   = @getimagesize($fsPath);
+            $mime      = ($imgSize !== false) ? $imgSize['mime'] : 'image/jpeg';
+            $xw->startElement('mets:fileGrp');
+            $xw->writeAttribute('USE', 'thumbnail');
+            $xw->startElement('mets:file');
+            $xw->writeAttribute('ID',       'COVER_IMAGE');
+            $xw->writeAttribute('MIMETYPE', $mime);
+            $xw->startElement('mets:FLocat');
+            $xw->writeAttribute('LOCTYPE', 'URL');
+            $xw->writeAttributeNs('xlink', 'type', null, 'simple');
+            $xw->writeAttributeNs('xlink', 'href', null, $base . '/' . ltrim($coverPath, '/'));
+            $xw->endElement(); // FLocat
+            $xw->endElement(); // file
+            $xw->endElement(); // fileGrp
+        }
+
+        $xw->endElement(); // fileSec
+
+        // structMap
+        $xw->startElement('mets:structMap');
+        $xw->writeAttribute('TYPE', 'logical');
+        $xw->startElement('mets:div');
+        $xw->writeAttribute('TYPE',  'ArchivalUnit');
+        $xw->writeAttribute('LABEL', $title);
+        $xw->writeAttribute('DMDID', 'DMD01 DMD02');
+        $xw->startElement('mets:fptr');
+        $xw->writeAttribute('FILEID', 'IIIF_MANIFEST');
+        $xw->endElement(); // fptr
+        if (!empty($row['cover_image_path'])) {
+            $xw->startElement('mets:fptr');
+            $xw->writeAttribute('FILEID', 'COVER_IMAGE');
+            $xw->endElement(); // fptr
+        }
+        $xw->endElement(); // div
+        $xw->endElement(); // structMap
+
+        $xw->endElement(); // mets:mets
+        $xw->endDocument();
+        return $xw->outputMemory();
+    }
+
+    // ── EAD3 bulk export ─────────────────────────────────────────────────────
 
     /**
      * GET /admin/archives/export.ead3?ids=1,2,3 — EAD3 XML bulk export.
@@ -4778,7 +5050,11 @@ class ArchivesPlugin
         $xw->writeAttribute('dateencoding',    'iso8601');
         $xw->writeAttribute('langencoding',    'iso639-2b');
 
-        $xw->writeElement('recordid', (string) ($row['reference_code'] ?? 'pinakes_' . $row['id']));
+        // Prefer the ARK identifier as the canonical record ID; fall back to reference_code
+        $recordId = !empty($row['ark_identifier'])
+            ? (string) $row['ark_identifier']
+            : (string) ($row['reference_code'] ?? 'pinakes_' . $row['id']);
+        $xw->writeElement('recordid', $recordId);
 
         $xw->startElement('filedesc');
         $xw->startElement('titlestmt');
@@ -4965,6 +5241,32 @@ class ArchivesPlugin
                 $xw->endElement();
             }
             $xw->endElement(); // controlaccess
+        }
+
+        // <dao>: link to the IIIF manifest (and cover image if available)
+        $unitId = (int) ($row['id'] ?? 0);
+        if ($unitId > 0) {
+            $xw->startElement('daoset');
+            $xw->writeAttribute('coverage', 'whole');
+            // IIIF manifest
+            $xw->startElement('dao');
+            $xw->writeAttribute('daotype', 'derived');
+            $xw->writeAttribute('href', (string) absoluteUrl('/archives/' . $unitId . '/manifest.json'));
+            $xw->writeAttribute('linktitle', 'IIIF Manifest');
+            $xw->writeAttribute('actuate', 'onrequest');
+            $xw->writeAttribute('show', 'new');
+            $xw->endElement(); // dao
+            // Cover image (if present)
+            if (!empty($row['cover_image_path'])) {
+                $xw->startElement('dao');
+                $xw->writeAttribute('daotype', 'borndigital');
+                $xw->writeAttribute('href', (string) absoluteUrl('/' . ltrim((string) $row['cover_image_path'], '/')));
+                $xw->writeAttribute('linktitle', 'Cover image');
+                $xw->writeAttribute('actuate', 'onrequest');
+                $xw->writeAttribute('show', 'embed');
+                $xw->endElement(); // dao
+            }
+            $xw->endElement(); // daoset
         }
 
         $xw->endElement(); // archdesc
