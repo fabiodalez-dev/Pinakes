@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Support/Hooks.php';
 require_once __DIR__ . '/../app/Support/HookManager.php';
+require_once __DIR__ . '/../app/Support/ConfigStore.php';
 require_once __DIR__ . '/../app/Support/SecureLogger.php';
 require_once __DIR__ . '/../storage/plugins/archives/ArchivesPlugin.php';
 
@@ -92,8 +93,62 @@ $frontendLayoutSource = file_get_contents(__DIR__ . '/../app/Views/frontend/layo
 $check($frontendLayoutSource !== false && str_contains($frontendLayoutSource, '$headLinks'), 'public layout renders $headLinks (structured, no XSS sink)');
 $check($frontendLayoutSource !== false && !str_contains($frontendLayoutSource, "echo \"\\n\" . \$headExtra"), 'public layout does not raw-echo $headExtra');
 
-echo "\nClass reflection — DI contract:\n";
 $reflection = new ReflectionClass(ArchivesPlugin::class);
+$instance = $reflection->newInstanceWithoutConstructor();
+
+$invokeXmlFragment = static function (
+    ReflectionClass $reflection,
+    object $instance,
+    string $methodName,
+    array $args = []
+): string {
+    $xw = new XMLWriter();
+    $xw->openMemory();
+    $xw->setIndent(true);
+    $method = $reflection->getMethod($methodName);
+    $method->setAccessible(true);
+    $method->invokeArgs($instance, array_merge([$xw], $args));
+    return $xw->outputMemory();
+};
+
+echo "\nOAI-PMH interoperability behavior:\n";
+$listSetsXml = $invokeXmlFragment($reflection, $instance, 'oaiListSets');
+$check(str_contains($listSetsXml, 'code="noSetHierarchy"'), 'ListSets returns noSetHierarchy');
+$check(!str_contains($listSetsXml, '<ListSets'), 'ListSets does not publish a set hierarchy');
+
+$listRecordsSetXml = $invokeXmlFragment($reflection, $instance, 'oaiListRecords', [
+    ['metadataPrefix' => 'oai_dc', 'set' => 'series'],
+    false,
+]);
+$check(str_contains($listRecordsSetXml, 'code="noSetHierarchy"'), 'ListRecords rejects set filters with noSetHierarchy');
+
+$buildDc = $reflection->getMethod('buildDublinCoreXml');
+$buildDc->setAccessible(true);
+$dcXml = (string) $buildDc->invoke($instance, [
+    'constructed_title' => 'Test collection',
+    'reference_code' => 'TEST-DC-001',
+    'repository_name' => 'Archivio Storico Test',
+    'level' => 'fonds',
+], [
+    ['role' => 'creator', 'authorised_form' => 'Creator Test'],
+]);
+$check(str_contains($dcXml, '<dc:publisher>Archivio Storico Test</dc:publisher>'), 'Dublin Core maps repository_name to dc:publisher');
+
+$configReflection = new ReflectionClass(\App\Support\ConfigStore::class);
+$runtimeCache = $configReflection->getProperty('runtimeCache');
+$runtimeCache->setAccessible(true);
+$previousRuntimeCache = $runtimeCache->getValue();
+$runtimeCache->setValue(null, ['app' => ['name' => 'Pinakes Test Repository']]);
+$dcFallbackXml = (string) $buildDc->invoke($instance, [
+    'constructed_title' => 'Fallback publisher collection',
+    'reference_code' => 'TEST-DC-002',
+    'repository_name' => '',
+    'level' => 'file',
+], []);
+$runtimeCache->setValue(null, $previousRuntimeCache);
+$check(str_contains($dcFallbackXml, '<dc:publisher>Pinakes Test Repository</dc:publisher>'), 'Dublin Core falls back to configured app name as publisher');
+
+echo "\nClass reflection — DI contract:\n";
 $ctor = $reflection->getConstructor();
 $check($ctor !== null, 'constructor is defined');
 if ($ctor !== null) {
@@ -107,7 +162,6 @@ $check($reflection->hasMethod('plannedHooks'), 'plannedHooks method exists');
 $check($reflection->hasMethod('getHookManager'), 'getHookManager method exists');
 
 echo "\nOAI-PMH resumptionToken round-trip:\n";
-$instance = $reflection->newInstanceWithoutConstructor();
 $encode = $reflection->getMethod('encodeOaiResumptionToken');
 $encode->setAccessible(true);
 $decode = $reflection->getMethod('decodeOaiResumptionToken');
