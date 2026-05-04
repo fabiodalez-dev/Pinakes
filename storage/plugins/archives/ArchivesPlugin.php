@@ -670,6 +670,22 @@ class ArchivesPlugin
             return $plugin->iiifManifestAction($request, $response, (int) $args['id']);
         });
 
+        // IIIF Collection — root (all fondi) + per-unit sub-collections
+        $app->get('/archives/collection.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->iiifCollectionAction($request, $response, null);
+        });
+
+        $app->get('/archives/{id:[0-9]+}/collection.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->iiifCollectionAction($request, $response, (int) $args['id']);
+        });
+
         // Import form (GET) + submit (POST multipart/form-data)
         $app->get('/admin/archives/import', function (
             ServerRequestInterface $request,
@@ -4119,10 +4135,11 @@ class ArchivesPlugin
             return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
         }
 
-        $baseUrl   = absoluteUrl('');
-        $manifestId = rtrim($baseUrl, '/') . '/archives/' . $id . '/manifest.json';
-        $lang      = !empty($row['language_codes']) ? explode(',', (string) $row['language_codes'])[0] : 'it';
-        $title     = (string) ($row['constructed_title'] ?? $row['formal_title'] ?? 'Untitled');
+        $baseUrl    = absoluteUrl('');
+        $base       = rtrim($baseUrl, '/');
+        $manifestId = $base . '/archives/' . $id . '/manifest.json';
+        $lang       = !empty($row['language_codes']) ? explode(',', (string) $row['language_codes'])[0] : 'it';
+        $title      = (string) ($row['constructed_title'] ?? $row['formal_title'] ?? 'Untitled');
 
         $metadata = [];
         $addMeta  = static function (string $label, mixed $value) use (&$metadata): void {
@@ -4134,12 +4151,13 @@ class ArchivesPlugin
                 'value' => ['none' => [(string) $value]],
             ];
         };
-        $addMeta('Reference Code',  $row['reference_code']);
-        $addMeta('Level',           $row['level']);
-        $addMeta('Date',            trim(($row['date_start'] ?? '') . ($row['date_end'] ? '–' . $row['date_end'] : ''), '–'));
-        $addMeta('Extent',          $row['extent']);
-        $addMeta('Language',        $row['language_codes']);
-        $addMeta('Institution',     $row['institution_code']);
+        $addMeta('Reference Code', $row['reference_code']);
+        $addMeta('Level',          $row['level']);
+        $dateStr = trim(($row['date_start'] ?? '') . ($row['date_end'] ? '–' . $row['date_end'] : ''), '–');
+        $addMeta('Date',           $dateStr);
+        $addMeta('Extent',         $row['extent']);
+        $addMeta('Language',       $row['language_codes']);
+        $addMeta('Institution',    $row['institution_code']);
 
         $manifest = [
             '@context' => 'http://iiif.io/api/presentation/3/context.json',
@@ -4153,36 +4171,56 @@ class ArchivesPlugin
             $manifest['summary'] = [$lang => [(string) $row['scope_content']]];
         }
 
-        // seeAlso: link to other serialisations (DC, EAD3, OAI-PMH)
-        $manifest['seeAlso'] = [
-            ['id' => rtrim($baseUrl, '/') . '/archives/' . $id . '/dc.xml',
-             'type' => 'Dataset', 'format' => 'application/rdf+xml',
-             'label' => ['en' => ['Dublin Core']]],
-            ['id' => rtrim($baseUrl, '/') . '/archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:archival_unit:' . $id,
-             'type' => 'Dataset', 'format' => 'text/xml',
-             'label' => ['en' => ['OAI-PMH record']]],
-        ];
+        // partOf: link to parent Collection (if unit has a parent)
+        if (!empty($row['parent_id'])) {
+            $manifest['partOf'] = [[
+                'id'   => $base . '/archives/' . (int) $row['parent_id'] . '/collection.json',
+                'type' => 'Collection',
+            ]];
+        } else {
+            $manifest['partOf'] = [[
+                'id'   => $base . '/archives/collection.json',
+                'type' => 'Collection',
+            ]];
+        }
 
-        // If an external IIIF manifest URL is stored, redirect consumers there
+        // seeAlso: other serialisations (DC, OAI-PMH, external IIIF)
+        $manifest['seeAlso'] = [
+            ['id'     => $base . '/archives/' . $id . '/dc.xml',
+             'type'   => 'Dataset', 'format' => 'application/rdf+xml',
+             'label'  => ['en' => ['Dublin Core']]],
+            ['id'     => $base . '/archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:archival_unit:' . $id,
+             'type'   => 'Dataset', 'format' => 'text/xml',
+             'label'  => ['en' => ['OAI-PMH record']]],
+        ];
         if (!empty($row['iiif_manifest_url'])) {
             $manifest['seeAlso'][] = [
-                'id' => (string) $row['iiif_manifest_url'],
-                'type' => 'Manifest',
+                'id'     => (string) $row['iiif_manifest_url'],
+                'type'   => 'Manifest',
                 'format' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
-                'label' => ['en' => ['Full IIIF manifest (external server)']],
+                'label'  => ['en' => ['Full IIIF manifest (external server)']],
             ];
         }
 
-        // Items (canvases): one canvas per locally stored image
+        // Canvas items: one canvas per locally stored image, with real dimensions
         $items = [];
         if (!empty($row['cover_image_path'])) {
-            $imageUrl = rtrim($baseUrl, '/') . '/' . ltrim((string) $row['cover_image_path'], '/');
+            $coverPath = (string) $row['cover_image_path'];
+            $imageUrl  = $base . '/' . ltrim($coverPath, '/');
+            $fsPath    = __DIR__ . '/../../../public' . $coverPath;
+            $imgSize   = @getimagesize($fsPath);
+            $imgWidth  = ($imgSize !== false && $imgSize[0] > 0) ? $imgSize[0] : 1500;
+            $imgHeight = ($imgSize !== false && $imgSize[1] > 0) ? $imgSize[1] : 2000;
+            $mime      = ($imgSize !== false) ? $imgSize['mime'] : 'image/jpeg';
+
             $canvasId = $manifestId . '/canvas/1';
             $items[]  = [
-                'id'    => $canvasId,
-                'type'  => 'Canvas',
-                'label' => ['none' => ['1']],
-                'items' => [[
+                'id'     => $canvasId,
+                'type'   => 'Canvas',
+                'label'  => ['none' => ['1']],
+                'width'  => $imgWidth,
+                'height' => $imgHeight,
+                'items'  => [[
                     'id'    => $canvasId . '/page',
                     'type'  => 'AnnotationPage',
                     'items' => [[
@@ -4192,7 +4230,9 @@ class ArchivesPlugin
                         'body'       => [
                             'id'     => $imageUrl,
                             'type'   => 'Image',
-                            'format' => 'image/jpeg',
+                            'format' => $mime,
+                            'width'  => $imgWidth,
+                            'height' => $imgHeight,
                         ],
                         'target' => $canvasId,
                     ]],
@@ -4201,7 +4241,165 @@ class ArchivesPlugin
         }
         $manifest['items'] = $items;
 
+        // structures: one Range representing the breadcrumb path to this unit
+        $ancestors = $this->iiifBuildAncestorChain((int) $row['id'], (int) ($row['parent_id'] ?? 0));
+        if (count($ancestors) > 1 || !empty($items)) {
+            $rangeId = $manifestId . '/range/top';
+            $structure = [
+                'id'    => $rangeId,
+                'type'  => 'Range',
+                'label' => [$lang => [implode(' › ', array_column($ancestors, 'title'))]],
+                'items' => array_map(
+                    static fn(array $a) => [
+                        'id'   => $base . '/archives/' . $a['id'] . '/manifest.json',
+                        'type' => 'Manifest',
+                    ],
+                    $ancestors
+                ),
+            ];
+            if (!empty($items)) {
+                $structure['items'][] = ['id' => $manifestId . '/canvas/1', 'type' => 'Canvas'];
+            }
+            $manifest['structures'] = [$structure];
+        }
+
         $json = json_encode($manifest, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $response->getBody()->write($json);
+        return $response
+            ->withHeader('Content-Type', 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"')
+            ->withHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    /**
+     * Walk up the parent_id chain to build an ancestor list (root first).
+     * Returns [{id, title}, ...] ending with the current unit.
+     *
+     * @return list<array{id:int,title:string}>
+     */
+    private function iiifBuildAncestorChain(int $leafId, int $parentId): array
+    {
+        $chain = [];
+        $visited = [];
+        $currentParent = $parentId;
+        while ($currentParent > 0 && !isset($visited[$currentParent])) {
+            $visited[$currentParent] = true;
+            $s = $this->db->prepare(
+                'SELECT id, parent_id, constructed_title, formal_title FROM archival_units WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($s === false) {
+                break;
+            }
+            $s->bind_param('i', $currentParent);
+            $s->execute();
+            $r = $s->get_result()->fetch_assoc();
+            $s->close();
+            if ($r === null) {
+                break;
+            }
+            array_unshift($chain, [
+                'id'    => (int) $r['id'],
+                'title' => (string) ($r['constructed_title'] ?? $r['formal_title'] ?? 'Untitled'),
+            ]);
+            $currentParent = (int) ($r['parent_id'] ?? 0);
+        }
+        // Append the leaf itself
+        $leafTitle = '';
+        $s2 = $this->db->prepare('SELECT constructed_title, formal_title FROM archival_units WHERE id = ?');
+        if ($s2 !== false) {
+            $s2->bind_param('i', $leafId);
+            $s2->execute();
+            $r2 = $s2->get_result()->fetch_assoc();
+            $s2->close();
+            $leafTitle = (string) ($r2['constructed_title'] ?? $r2['formal_title'] ?? 'Untitled');
+        }
+        $chain[] = ['id' => $leafId, 'title' => $leafTitle];
+        return $chain;
+    }
+
+    /**
+     * GET /archives/collection.json         — root IIIF Collection (all top-level fondi)
+     * GET /archives/{id}/collection.json    — sub-Collection (direct children of a unit)
+     *
+     * A IIIF Collection is a list of Manifest references. External viewers
+     * (Mirador, Universal Viewer) can load a Collection and navigate the tree.
+     */
+    public function iiifCollectionAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        ?int $id = null
+    ): ResponseInterface {
+        $base = rtrim(absoluteUrl(''), '/');
+
+        if ($id === null) {
+            // Root collection: all non-deleted, top-level units (parent_id IS NULL)
+            $collectionId = $base . '/archives/collection.json';
+            $label        = ['en' => ['Archives collection'], 'it' => ['Collezione archivistica']];
+            $result = $this->db->query(
+                "SELECT id, constructed_title, formal_title, level
+                   FROM archival_units
+                  WHERE parent_id IS NULL AND deleted_at IS NULL
+                  ORDER BY reference_code"
+            );
+        } else {
+            // Sub-collection: direct children of the given unit
+            $collectionId = $base . '/archives/' . $id . '/collection.json';
+            $parent = $this->findById($id);
+            if ($parent === null) {
+                $response->getBody()->write(json_encode(['error' => 'not_found'], JSON_THROW_ON_ERROR));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+            $label = ['none' => [(string) ($parent['constructed_title'] ?? $parent['formal_title'] ?? 'Untitled')]];
+            $stmt  = $this->db->prepare(
+                'SELECT id, constructed_title, formal_title, level
+                   FROM archival_units
+                  WHERE parent_id = ? AND deleted_at IS NULL
+                  ORDER BY reference_code'
+            );
+            if ($stmt === false) {
+                $response->getBody()->write(json_encode(['error' => 'db_error'], JSON_THROW_ON_ERROR));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+        }
+
+        $items = [];
+        if ($result instanceof \mysqli_result) {
+            while ($child = $result->fetch_assoc()) {
+                $childId    = (int) $child['id'];
+                $childTitle = (string) ($child['constructed_title'] ?? $child['formal_title'] ?? 'Untitled');
+                // Units with children become sub-Collections; leaf units are Manifests
+                $hasChildren = false;
+                $countStmt   = $this->db->prepare(
+                    'SELECT 1 FROM archival_units WHERE parent_id = ? AND deleted_at IS NULL LIMIT 1'
+                );
+                if ($countStmt !== false) {
+                    $countStmt->bind_param('i', $childId);
+                    $countStmt->execute();
+                    $hasChildren = $countStmt->get_result()->num_rows > 0;
+                    $countStmt->close();
+                }
+                $items[] = [
+                    'id'    => $hasChildren
+                        ? $base . '/archives/' . $childId . '/collection.json'
+                        : $base . '/archives/' . $childId . '/manifest.json',
+                    'type'  => $hasChildren ? 'Collection' : 'Manifest',
+                    'label' => ['none' => [$childTitle]],
+                ];
+            }
+            $result->free();
+        }
+
+        $collection = [
+            '@context' => 'http://iiif.io/api/presentation/3/context.json',
+            'id'       => $collectionId,
+            'type'     => 'Collection',
+            'label'    => $label,
+            'items'    => $items,
+        ];
+
+        $json = json_encode($collection, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
         $response->getBody()->write($json);
         return $response
             ->withHeader('Content-Type', 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"')
