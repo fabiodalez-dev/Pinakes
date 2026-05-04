@@ -216,6 +216,29 @@ $id = (int) $row['id'];
                     <dd class="col-span-2 text-sm text-gray-900 font-mono"><?= $v('local_classification') ?></dd>
                 </div>
             <?php endif; ?>
+            <?php if (!empty($row['ark_identifier'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Identificatore ARK") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900 font-mono"><?= $v('ark_identifier') ?></dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['rights_statement_url'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Dichiarazione diritti") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900">
+                        <a href="<?= $e($row['rights_statement_url']) ?>" target="_blank" rel="noopener noreferrer"
+                           class="text-blue-600 hover:underline font-mono text-xs">
+                            <?= $v('rights_statement_url') ?>
+                        </a>
+                    </dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['version_note'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Nota di versione") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('version_note') ?></dd>
+                </div>
+            <?php endif; ?>
             <?php if (!empty($row['updated_at']) && $row['updated_at'] !== $row['created_at']): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
                     <dt class="text-sm font-medium text-gray-500"><?= __("Ultima modifica") ?></dt>

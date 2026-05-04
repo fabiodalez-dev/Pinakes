@@ -229,6 +229,11 @@ test.describe.serial('Archives interoperability standards (25 tests)', () => {
         await page.selectOption('select[name="level"]', 'item');
         await page.fill('input[name="constructed_title"]', 'E2E Photo Item');
         await page.fill('input[name="parent_id"]', String(seriesId));
+        // specific_material is inside a <details> accordion — open it first
+        const details = page.locator('details').filter({ hasText: 'Materiale specifico' });
+        if (!await details.evaluate(el => el.hasAttribute('open'))) {
+            await details.locator('summary').click();
+        }
         await page.selectOption('select[name="specific_material"]', 'photograph');
         await Promise.all([
             page.waitForURL(/\/admin\/archives$/, { timeout: 10000 }),

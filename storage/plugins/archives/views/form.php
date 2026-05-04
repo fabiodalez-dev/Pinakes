@@ -385,34 +385,35 @@ $levelLabels = [
                     </div>
                 </div>
 
-                <!-- version_note -->
-                <div class="border-t pt-4 mt-2">
-                    <label for="version_note" class="form-label">
-                        <?= __("Nota di versione") ?>
-                        <span class="text-xs text-gray-500 font-normal">(<?= __("descrive cosa è cambiato in questa revisione del record") ?>)</span>
-                    </label>
-                    <input type="text" name="version_note" id="version_note"
-                           value="<?= $val('version_note') ?>" maxlength="500"
-                           placeholder="<?= $val('version_note') !== '' ? '' : __('es. Aggiornati i dati di estensione dopo inventario 2024') ?>"
-                           class="form-input text-sm">
-                </div>
-
-                <!-- IIIF digital object URL -->
-                <div class="border-t pt-4 mt-2">
-                    <label for="iiif_manifest_url" class="form-label">
-                        <?= __("URL manifest IIIF (server esterno)") ?>
-                        <span class="text-xs text-gray-500 font-normal">(IIIF Presentation API 3.0 — <?= __("lascia vuoto se non disponibile") ?>)</span>
-                    </label>
-                    <input type="url" name="iiif_manifest_url" id="iiif_manifest_url"
-                           value="<?= $val('iiif_manifest_url') ?>" maxlength="2000"
-                           placeholder="https://iiif.example.org/manifests/archive-1/manifest.json"
-                           class="form-input font-mono text-sm">
-                    <p class="mt-1 text-xs text-gray-500">
-                        <?= __("Se l'istituzione ha un server IIIF (Cantaloupe, IIPImage, Loris), incolla qui l'URL del manifest. Pinakes genera comunque un manifest base da /archives/{id}/manifest.json.") ?>
-                    </p>
-                </div>
             </div>
         </details>
+
+        <!-- version_note — outside accordion, always visible -->
+        <div class="border-t pt-4 mt-2">
+            <label for="version_note" class="form-label">
+                <?= __("Nota di versione") ?>
+                <span class="text-xs text-gray-500 font-normal">(<?= __("descrive cosa è cambiato in questa revisione del record") ?>)</span>
+            </label>
+            <input type="text" name="version_note" id="version_note"
+                   value="<?= $val('version_note') ?>" maxlength="500"
+                   placeholder="<?= $val('version_note') !== '' ? '' : __('es. Aggiornati i dati di estensione dopo inventario 2024') ?>"
+                   class="form-input text-sm">
+        </div>
+
+        <!-- IIIF digital object URL — outside accordion, always visible -->
+        <div class="border-t pt-4 mt-2">
+            <label for="iiif_manifest_url" class="form-label">
+                <?= __("URL manifest IIIF (server esterno)") ?>
+                <span class="text-xs text-gray-500 font-normal">(IIIF Presentation API 3.0 — <?= __("lascia vuoto se non disponibile") ?>)</span>
+            </label>
+            <input type="url" name="iiif_manifest_url" id="iiif_manifest_url"
+                   value="<?= $val('iiif_manifest_url') ?>" maxlength="2000"
+                   placeholder="https://iiif.example.org/manifests/archive-1/manifest.json"
+                   class="form-input font-mono text-sm">
+            <p class="mt-1 text-xs text-gray-500">
+                <?= __("Se l'istituzione ha un server IIIF (Cantaloupe, IIPImage, Loris), incolla qui l'URL del manifest. Pinakes genera comunque un manifest base da /archives/{id}/manifest.json.") ?>
+            </p>
+        </div>
 
         <div class="flex items-center justify-end space-x-3 pt-4 border-t">
             <a href="<?= $e(url('/admin/archives')) ?>"
