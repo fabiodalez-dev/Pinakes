@@ -112,13 +112,63 @@ class PluginManager
                     }
                     SecureLogger::info("[PluginManager] Updated bundled plugin: $pluginName $dbVersion → $diskVersion");
 
-                    // Re-register hooks only if plugin is active
+                    // Re-register hooks only if plugin is active.
+                    // Use a single instance (instantiatePlugin sets pluginId
+                    // before calling onActivate) — runPluginMethod() creates
+                    // a fresh object and would leave pluginId null, causing
+                    // hook registration to skip DB writes.
                     if ((int) ($row['is_active'] ?? 0) === 1) {
                         try {
-                            $this->runPluginMethod($pluginName, 'onActivate');
+                            $upgradeInstance = $this->instantiatePlugin([
+                                'id'        => (int) $row['id'],
+                                'name'      => $pluginName,
+                                'path'      => $pluginName,
+                                'main_file' => $pluginMeta['main_file'] ?? 'wrapper.php',
+                            ]);
+                            if (method_exists($upgradeInstance, 'onActivate')) {
+                                $upgradeInstance->onActivate();
+                            }
                         } catch (\Throwable $e) {
-                            SecureLogger::warning("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
+                            $revertStmt = $this->db->prepare(
+                                "UPDATE plugins SET version = ? WHERE id = ?"
+                            );
+                            if ($revertStmt !== false) {
+                                $revertStmt->bind_param('si', $dbVersion, $updId);
+                                $revertStmt->execute();
+                                $revertStmt->close();
+                            } else {
+                                SecureLogger::error("[PluginManager] Failed to prepare bundled plugin upgrade rollback for $pluginName", [
+                                    'db_error' => $this->db->error,
+                                ]);
+                            }
+                            SecureLogger::warning("[PluginManager] Note: onActivate failed during upgrade for $pluginName; version rolled back to $dbVersion: " . $e->getMessage());
+                            throw new \RuntimeException(
+                                "Bundled plugin upgrade lifecycle failed for $pluginName",
+                                0,
+                                $e
+                            );
                         }
+                    }
+                } elseif ($diskVersion === $dbVersion && (int) ($row['is_active'] ?? 0) === 1) {
+                    // Same version re-deploy: hooks added to the code but not yet in DB
+                    // (e.g. merging branches that extend the same plugin version).
+                    // ensureSchema uses DELETE+INSERT so calling onActivate is idempotent.
+                    // autoRegisterBundledPlugins runs only on admin plugin-page visits,
+                    // so this extra work is acceptable.
+                    try {
+                        $syncInstance = $this->instantiatePlugin([
+                            'id'        => (int) $row['id'],
+                            'name'      => $pluginName,
+                            'path'      => $pluginName,
+                            'main_file' => $pluginMeta['main_file'] ?? 'wrapper.php',
+                        ]);
+                        if (method_exists($syncInstance, 'onActivate')) {
+                            $syncInstance->onActivate();
+                        }
+                    } catch (\Throwable $e) {
+                        // Non-fatal: log and continue. Hooks may be stale but the
+                        // plugin keeps running with whatever is currently in the DB.
+                        SecureLogger::warning("[PluginManager] Hook re-sync skipped for $pluginName (same version): " . $e->getMessage());
                     }
                 }
                 continue;

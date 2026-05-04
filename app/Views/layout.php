@@ -895,6 +895,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                       iconClass = 'fas fa-building';
                       iconColor = 'text-orange-500';
                       break;
+                    case 'archive':
+                      iconClass = 'fas fa-archive';
+                      iconColor = 'text-green-600';
+                      if (item.identifier) {
+                        identifierHtml = `<div class="text-xs text-gray-500 dark:text-gray-400 font-mono mt-0.5">${escapeHtml(String(item.identifier))}</div>`;
+                      }
+                      break;
                     case 'user':
                       iconClass = 'fas fa-user';
                       iconColor = 'text-pink-500';
@@ -1134,6 +1141,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                     case 'publisher':
                       iconClass = 'fas fa-building';
                       iconColor = 'text-orange-500';
+                      break;
+                    case 'archive':
+                      iconClass = 'fas fa-archive';
+                      iconColor = 'text-green-600';
+                      if (item.identifier) {
+                        identifierHtml = `<div class="text-xs text-gray-500 font-mono mt-0.5">${escapeHtml(String(item.identifier))}</div>`;
+                      }
                       break;
                     case 'user':
                       iconClass = 'fas fa-user';

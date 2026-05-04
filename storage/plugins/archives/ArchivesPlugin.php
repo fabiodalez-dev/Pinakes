@@ -141,8 +141,16 @@ class ArchivesPlugin
                 . '. See app.log for the mysqli error emitted during each CREATE TABLE.'
             );
         }
-        $this->registerHookInDb('app.routes.register', 'registerRoutes',       10);
-        $this->registerHookInDb('admin.menu.render',   'renderAdminMenuEntry', 10);
+        $this->db->begin_transaction();
+        try {
+            $this->registerHookInDb('app.routes.register',    'registerRoutes',       10);
+            $this->registerHookInDb('admin.menu.render',      'renderAdminMenuEntry', 10);
+            $this->registerHookInDb('search.unified.sources', 'addArchivalSources',   10);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
+        }
     }
 
     /**
@@ -180,14 +188,18 @@ class ArchivesPlugin
              VALUES (?, ?, ?, ?, ?, 1, NOW())'
         );
         if ($stmt === false) {
-            SecureLogger::error('[Archives] prepare() failed: ' . $this->db->error);
-            return;
+            $err = $this->db->error;
+            SecureLogger::error('[Archives] prepare() failed: ' . $err);
+            throw new \RuntimeException('[Archives] prepare() failed for hook ' . $hookName . ': ' . $err);
         }
         // PluginManager instantiates the global proxy class (no namespace).
         $callbackClass = 'ArchivesPlugin';
         $stmt->bind_param('isssi', $this->pluginId, $hookName, $callbackClass, $method, $priority);
         if (!$stmt->execute()) {
-            SecureLogger::error('[Archives] hook insert failed: ' . $stmt->error);
+            $err = $stmt->error;
+            $stmt->close();
+            SecureLogger::error('[Archives] hook insert failed: ' . $err);
+            throw new \RuntimeException('[Archives] hook insert failed for ' . $hookName . ': ' . $err);
         }
         $stmt->close();
     }
@@ -3981,6 +3993,64 @@ class ArchivesPlugin
                 'description' => 'Share authority_records with the legacy `libri.autori` table',
             ],
         ];
+    }
+
+    /**
+     * Filter hook: search.unified.sources
+     *
+     * Appends archival_units that match $q (via LIKE on reference_code, title
+     * and scope_content) to the unified admin-search results array. Uses LIKE
+     * rather than FULLTEXT
+     * so that short reference codes ("IT-MI-1") and year fragments ("1943") are
+     * found reliably regardless of MySQL's minimum full-text word length.
+     *
+     * Called by SearchController::unifiedSearch() via Hooks::apply().
+     * Signature matches the HookManager::applyFilters() call convention:
+     * the first argument is the accumulated $results array; subsequent
+     * positional arguments come from the $args array passed to Hooks::apply().
+     *
+     * @param list<array<string, mixed>> $results
+     * @return list<array<string, mixed>>
+     */
+    public function addArchivalSources(array $results, string $q): array
+    {
+        if ($q === '') {
+            return $results;
+        }
+        $searchPattern = '%' . $q . '%';
+        $stmt = $this->db->prepare(
+            'SELECT id, reference_code, constructed_title
+               FROM archival_units
+              WHERE deleted_at IS NULL
+                AND (
+                    reference_code LIKE ?
+                    OR constructed_title LIKE ?
+                    OR formal_title LIKE ?
+                    OR scope_content LIKE ?
+                )
+              ORDER BY constructed_title
+              LIMIT 5'
+        );
+        if ($stmt === false) {
+            return $results;
+        }
+        $stmt->bind_param('ssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_assoc()) {
+                $results[] = [
+                    'id'         => (int) $row['id'],
+                    'label'      => (string) ($row['constructed_title'] ?? ''),
+                    'identifier' => (string) ($row['reference_code'] ?? ''),
+                    'type'       => 'archive',
+                    'url'        => url('/admin/archives/' . (int) $row['id']),
+                ];
+            }
+            $res->free();
+        }
+        $stmt->close();
+        return $results;
     }
 
     /**
