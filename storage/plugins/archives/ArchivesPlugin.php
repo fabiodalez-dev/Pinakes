@@ -292,6 +292,7 @@ class ArchivesPlugin
             'document_path'        => 'VARCHAR(500) NULL',
             'document_mime'        => 'VARCHAR(100) NULL',
             'document_filename'    => 'VARCHAR(255) NULL',
+            'iiif_manifest_url'    => 'VARCHAR(2000) NULL',
         ];
 
         // Fetch existing columns once.
@@ -650,6 +651,25 @@ class ArchivesPlugin
             return $plugin->oaiPmhAction($request, $response);
         });
 
+        // ── IIIF Presentation 3.0 manifest ──────────────────────────────────
+        // Admin route (auth via AdminAuthMiddleware applied to /admin/*).
+        // Public route: consumed by Mirador, Universal Viewer, aggregators.
+        $app->get('/admin/archives/{id:[0-9]+}/manifest.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->iiifManifestAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->get('/archives/{id:[0-9]+}/manifest.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->iiifManifestAction($request, $response, (int) $args['id']);
+        });
+
         // Import form (GET) + submit (POST multipart/form-data)
         $app->get('/admin/archives/import', function (
             ServerRequestInterface $request,
@@ -871,8 +891,9 @@ class ArchivesPlugin
                  formal_title, constructed_title, date_start, date_end,
                  extent, scope_content, language_codes,
                  specific_material, dimensions, color_mode,
-                 photographer, publisher, collection_name, local_classification)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 photographer, publisher, collection_name, local_classification,
+                 iiif_manifest_url)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         if ($stmt === false) {
             SecureLogger::error('[Archives] store prepare failed: ' . $this->db->error);
@@ -887,7 +908,7 @@ class ArchivesPlugin
         //         publisher(s) collection(s) local_class(s)  → 'isssssiisssssssssss'
         //                                                      minus one 's' (counted 19) = 'isssssiissssssssss' (18)
         $stmt->bind_param(
-            'isssssiissssssssss',
+            'isssssiisssssssssss',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -905,7 +926,8 @@ class ArchivesPlugin
             $p['photographer'],
             $p['publisher'],
             $p['collection_name'],
-            $p['local_classification']
+            $p['local_classification'],
+            $p['iiif_manifest_url']
         );
 
         if (!$stmt->execute()) {
@@ -962,6 +984,7 @@ class ArchivesPlugin
             'publisher'            => $str('publisher'),
             'collection_name'      => $str('collection_name'),
             'local_classification' => $str('local_classification'),
+            'iiif_manifest_url'    => $str('iiif_manifest_url'),
         ];
     }
 
@@ -978,6 +1001,7 @@ class ArchivesPlugin
             'formal_title', 'extent', 'scope_content',
             'dimensions', 'color_mode', 'photographer',
             'publisher', 'collection_name', 'local_classification',
+            'iiif_manifest_url',
         ];
         $out = [];
         foreach ($nullable as $k) {
@@ -1040,6 +1064,9 @@ class ArchivesPlugin
             'headLinks'            => [
                 ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
                  'href' => absoluteUrl('/archives/' . $id . '/dc.xml')],
+                ['rel' => 'alternate', 'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
+                 'title' => 'IIIF Manifest',
+                 'href' => absoluteUrl('/archives/' . $id . '/manifest.json')],
             ],
         ]);
     }
@@ -1098,7 +1125,8 @@ class ArchivesPlugin
                 formal_title = ?, constructed_title = ?, date_start = ?, date_end = ?,
                 extent = ?, scope_content = ?, language_codes = ?,
                 specific_material = ?, dimensions = ?, color_mode = ?,
-                photographer = ?, publisher = ?, collection_name = ?, local_classification = ?
+                photographer = ?, publisher = ?, collection_name = ?, local_classification = ?,
+                iiif_manifest_url = ?
              WHERE id = ? AND deleted_at IS NULL'
         );
         if ($stmt === false) {
@@ -1119,7 +1147,7 @@ class ArchivesPlugin
         //   Let's enumerate: i s s s s s i i s s s s s s s s s s i = 19 types, 'isssssiisssssssssssi' = 20, off by one.
         //   Correct is 'isssssiissssssssssi' (19 chars).
         $stmt->bind_param(
-            'isssssiissssssssssi',
+            'isssssiisssssssssssi',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -1138,6 +1166,7 @@ class ArchivesPlugin
             $p['publisher'],
             $p['collection_name'],
             $p['local_classification'],
+            $p['iiif_manifest_url'],
             $id
         );
 
@@ -2222,8 +2251,13 @@ class ArchivesPlugin
         $archiveSchema = $archiveSchema ?? null;
         $headLinks = [];
         if (isset($data['row']['id'])) {
+            $unitId = (int) $data['row']['id'];
             $headLinks[] = ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
-                            'href' => absoluteUrl('/archives/' . (int) $data['row']['id'] . '/dc.xml')];
+                            'href' => absoluteUrl('/archives/' . $unitId . '/dc.xml')];
+            $headLinks[] = ['rel' => 'alternate',
+                            'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
+                            'title' => 'IIIF Manifest',
+                            'href' => absoluteUrl('/archives/' . $unitId . '/manifest.json')];
         }
 
         $layoutPath = __DIR__ . '/../../../app/Views/frontend/layout.php';
@@ -4048,6 +4082,131 @@ class ArchivesPlugin
     }
 
     // ── Phase 5 — Interoperability: Dublin Core, EAD3, OAI-PMH ────────────
+
+    // ── IIIF Presentation API 3.0 ────────────────────────────────────────────
+
+    /**
+     * GET /admin/archives/{id}/manifest.json and /archives/{id}/manifest.json
+     *
+     * Returns a IIIF Presentation API 3.0 manifest for one archival_unit.
+     * If the unit has a stored `iiif_manifest_url` pointing to an external
+     * IIIF server, the manifest includes a `seeAlso` link to it. Otherwise
+     * a Pinakes-native manifest is generated from available metadata and any
+     * locally stored cover image (`cover_image_path`).
+     *
+     * Consumed by Mirador, Universal Viewer, Cantaloupe, and aggregators that
+     * understand IIIF Presentation 3.0 (e.g. Europeana, British Library).
+     */
+    public function iiifManifestAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archival_units WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt === false) {
+            $response->getBody()->write(json_encode(['error' => 'db_error'], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($row === null) {
+            $response->getBody()->write(json_encode(['error' => 'not_found'], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
+        $baseUrl   = absoluteUrl('');
+        $manifestId = rtrim($baseUrl, '/') . '/archives/' . $id . '/manifest.json';
+        $lang      = !empty($row['language_codes']) ? explode(',', (string) $row['language_codes'])[0] : 'it';
+        $title     = (string) ($row['constructed_title'] ?? $row['formal_title'] ?? 'Untitled');
+
+        $metadata = [];
+        $addMeta  = static function (string $label, mixed $value) use (&$metadata): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+            $metadata[] = [
+                'label' => ['en' => [$label]],
+                'value' => ['none' => [(string) $value]],
+            ];
+        };
+        $addMeta('Reference Code',  $row['reference_code']);
+        $addMeta('Level',           $row['level']);
+        $addMeta('Date',            trim(($row['date_start'] ?? '') . ($row['date_end'] ? '–' . $row['date_end'] : ''), '–'));
+        $addMeta('Extent',          $row['extent']);
+        $addMeta('Language',        $row['language_codes']);
+        $addMeta('Institution',     $row['institution_code']);
+
+        $manifest = [
+            '@context' => 'http://iiif.io/api/presentation/3/context.json',
+            'id'       => $manifestId,
+            'type'     => 'Manifest',
+            'label'    => [$lang => [$title]],
+            'metadata' => $metadata,
+        ];
+
+        if (!empty($row['scope_content'])) {
+            $manifest['summary'] = [$lang => [(string) $row['scope_content']]];
+        }
+
+        // seeAlso: link to other serialisations (DC, EAD3, OAI-PMH)
+        $manifest['seeAlso'] = [
+            ['id' => rtrim($baseUrl, '/') . '/archives/' . $id . '/dc.xml',
+             'type' => 'Dataset', 'format' => 'application/rdf+xml',
+             'label' => ['en' => ['Dublin Core']]],
+            ['id' => rtrim($baseUrl, '/') . '/archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:archival_unit:' . $id,
+             'type' => 'Dataset', 'format' => 'text/xml',
+             'label' => ['en' => ['OAI-PMH record']]],
+        ];
+
+        // If an external IIIF manifest URL is stored, redirect consumers there
+        if (!empty($row['iiif_manifest_url'])) {
+            $manifest['seeAlso'][] = [
+                'id' => (string) $row['iiif_manifest_url'],
+                'type' => 'Manifest',
+                'format' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
+                'label' => ['en' => ['Full IIIF manifest (external server)']],
+            ];
+        }
+
+        // Items (canvases): one canvas per locally stored image
+        $items = [];
+        if (!empty($row['cover_image_path'])) {
+            $imageUrl = rtrim($baseUrl, '/') . '/' . ltrim((string) $row['cover_image_path'], '/');
+            $canvasId = $manifestId . '/canvas/1';
+            $items[]  = [
+                'id'    => $canvasId,
+                'type'  => 'Canvas',
+                'label' => ['none' => ['1']],
+                'items' => [[
+                    'id'    => $canvasId . '/page',
+                    'type'  => 'AnnotationPage',
+                    'items' => [[
+                        'id'         => $canvasId . '/annotation/1',
+                        'type'       => 'Annotation',
+                        'motivation' => 'painting',
+                        'body'       => [
+                            'id'     => $imageUrl,
+                            'type'   => 'Image',
+                            'format' => 'image/jpeg',
+                        ],
+                        'target' => $canvasId,
+                    ]],
+                ]],
+            ];
+        }
+        $manifest['items'] = $items;
+
+        $json = json_encode($manifest, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $response->getBody()->write($json);
+        return $response
+            ->withHeader('Content-Type', 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"')
+            ->withHeader('Access-Control-Allow-Origin', '*');
+    }
 
     // ── Dublin Core XML ──────────────────────────────────────────────────────
 

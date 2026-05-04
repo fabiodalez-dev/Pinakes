@@ -52,6 +52,12 @@ $levelLabels = [
     <form method="POST" action="<?= $e($formAction) ?>" class="bg-white shadow rounded-lg p-6 space-y-5">
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
+        <!-- ── ISAD(G) Area 1 — Identity Statement ─────────────────────── -->
+        <div class="border-l-4 border-indigo-400 pl-4">
+            <h2 class="text-sm font-semibold text-indigo-700 uppercase tracking-wide mb-3">
+                <?= __("Area di identificazione") ?>
+                <span class="text-xs font-normal text-gray-500 normal-case ml-1">(ISAD(G) 3.1 — Identity Statement)</span>
+            </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- reference_code -->
             <div>
@@ -163,16 +169,32 @@ $levelLabels = [
                    value="<?= $val('extent') ?>" maxlength="500"
                    class="form-input">
         </div>
+        </div><!-- end Area 1 -->
+
+        <!-- ── ISAD(G) Area 3 — Content and Structure ──────────────────── -->
+        <div class="border-l-4 border-green-400 pl-4">
+            <h2 class="text-sm font-semibold text-green-700 uppercase tracking-wide mb-3">
+                <?= __("Contenuto e struttura") ?>
+                <span class="text-xs font-normal text-gray-500 normal-case ml-1">(ISAD(G) 3.3 — Content &amp; Structure)</span>
+            </h2>
 
         <!-- scope_content -->
         <div>
             <label for="scope_content" class="form-label">
                 <?= __("Ambito e contenuto") ?>
-                <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.3.1 — abstract)</span>
+                <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.3.1)</span>
             </label>
             <textarea name="scope_content" id="scope_content" rows="4"
                       class="form-input"><?= $val('scope_content') ?></textarea>
         </div>
+        </div><!-- end Area 3 -->
+
+        <!-- ── ISAD(G) Area 4 — Conditions of Access and Use ───────────── -->
+        <div class="border-l-4 border-yellow-400 pl-4">
+            <h2 class="text-sm font-semibold text-yellow-700 uppercase tracking-wide mb-3">
+                <?= __("Condizioni di accesso e uso") ?>
+                <span class="text-xs font-normal text-gray-500 normal-case ml-1">(ISAD(G) 3.4 — Conditions of Access &amp; Use)</span>
+            </h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- language_codes -->
@@ -203,6 +225,7 @@ $levelLabels = [
                 <?php endif; ?>
             </div>
         </div>
+        </div><!-- end Area 4 -->
 
         <!-- Phase 5 — photographic / material-type fields (all optional) -->
         <?php
@@ -330,6 +353,21 @@ $levelLabels = [
                                value="<?= $val('local_classification') ?>" maxlength="64"
                                class="form-input">
                     </div>
+                </div>
+
+                <!-- IIIF digital object URL -->
+                <div class="border-t pt-4 mt-2">
+                    <label for="iiif_manifest_url" class="form-label">
+                        <?= __("URL manifest IIIF (server esterno)") ?>
+                        <span class="text-xs text-gray-500 font-normal">(IIIF Presentation API 3.0 — <?= __("lascia vuoto se non disponibile") ?>)</span>
+                    </label>
+                    <input type="url" name="iiif_manifest_url" id="iiif_manifest_url"
+                           value="<?= $val('iiif_manifest_url') ?>" maxlength="2000"
+                           placeholder="https://iiif.example.org/manifests/archive-1/manifest.json"
+                           class="form-input font-mono text-sm">
+                    <p class="mt-1 text-xs text-gray-500">
+                        <?= __("Se l'istituzione ha un server IIIF (Cantaloupe, IIPImage, Loris), incolla qui l'URL del manifest. Pinakes genera comunque un manifest base da /archives/{id}/manifest.json.") ?>
+                    </p>
                 </div>
             </div>
         </details>
