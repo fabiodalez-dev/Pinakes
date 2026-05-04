@@ -68,6 +68,8 @@ $source = file_get_contents(__DIR__ . '/../storage/plugins/archives/ArchivesPlug
 $check($source !== false && str_contains($source, "'search.unified.sources'"),   'plannedHooks lists search.unified.sources');
 $check($source !== false && str_contains($source, "'admin.menu.render'"),        'plannedHooks lists admin.menu.render');
 $check($source !== false && str_contains($source, "'libri.authority.resolve'"),  'plannedHooks lists libri.authority.resolve');
+$check($source !== false && str_contains($source, 'reference_code LIKE ?'),      'unified search matches archival reference_code');
+$check($source !== false && str_contains($source, "bind_param('ssss'"),          'unified search binds reference_code LIKE placeholder');
 
 echo "\nClass reflection — DI contract:\n";
 $reflection = new ReflectionClass(ArchivesPlugin::class);

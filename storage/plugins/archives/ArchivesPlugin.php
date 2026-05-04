@@ -3998,8 +3998,9 @@ class ArchivesPlugin
     /**
      * Filter hook: search.unified.sources
      *
-     * Appends archival_units that match $q (via LIKE on title + scope_content)
-     * to the unified admin-search results array. Uses LIKE rather than FULLTEXT
+     * Appends archival_units that match $q (via LIKE on reference_code, title
+     * and scope_content) to the unified admin-search results array. Uses LIKE
+     * rather than FULLTEXT
      * so that short reference codes ("IT-MI-1") and year fragments ("1943") are
      * found reliably regardless of MySQL's minimum full-text word length.
      *
@@ -4016,19 +4017,24 @@ class ArchivesPlugin
         if ($q === '') {
             return $results;
         }
-        $s    = '%' . $q . '%';
+        $searchPattern = '%' . $q . '%';
         $stmt = $this->db->prepare(
             'SELECT id, reference_code, constructed_title
                FROM archival_units
               WHERE deleted_at IS NULL
-                AND (constructed_title LIKE ? OR formal_title LIKE ? OR scope_content LIKE ?)
+                AND (
+                    reference_code LIKE ?
+                    OR constructed_title LIKE ?
+                    OR formal_title LIKE ?
+                    OR scope_content LIKE ?
+                )
               ORDER BY constructed_title
               LIMIT 5'
         );
         if ($stmt === false) {
             return $results;
         }
-        $stmt->bind_param('sss', $s, $s, $s);
+        $stmt->bind_param('ssss', $searchPattern, $searchPattern, $searchPattern, $searchPattern);
         $stmt->execute();
         $res = $stmt->get_result();
         if ($res instanceof \mysqli_result) {
