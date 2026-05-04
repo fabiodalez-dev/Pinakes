@@ -133,7 +133,8 @@ class Validator {
             'mbstring' => extension_loaded('mbstring'),
             'json' => extension_loaded('json'),
             'gd' => extension_loaded('gd'),
-            'fileinfo' => extension_loaded('fileinfo')
+            'fileinfo' => extension_loaded('fileinfo'),
+            'zip' => extension_loaded('zip')
         ];
 
         $allMet = true;

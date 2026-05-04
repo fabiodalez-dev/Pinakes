@@ -13,6 +13,7 @@ $requirements = [
     'JSON Extension' => extension_loaded('json'),
     'GD Extension' => extension_loaded('gd'),
     'Fileinfo Extension' => extension_loaded('fileinfo'),
+    'Zip Extension' => extension_loaded('zip'),
 ];
 
 // Auto-fix permissions if requested
