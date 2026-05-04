@@ -910,7 +910,8 @@ $pluginSettings = $pluginSettings ?? [];
             name: '[FR] BnF - Bibliotheque nationale de France',
             url: 'http://catalogue.bnf.fr/api/SRU',
             db: '',
-            syntax: 'marcxml',
+            version: '1.2',
+            syntax: 'unimarcxchange',
             indexes: { isbn: 'bib.isbn' }
         },
         sudoc: {
@@ -996,6 +997,7 @@ $pluginSettings = $pluginSettings ?? [];
             name: preset.name,
             url: preset.url,
             db: preset.db,
+            version: preset.version,
             syntax: preset.syntax,
             indexes: preset.indexes,
             enabled: true
@@ -1066,6 +1068,7 @@ $pluginSettings = $pluginSettings ?? [];
         const safeName = escapeHtml(server.name);
         const safeUrl = escapeHtml(server.url);
         const safeDb = escapeHtml(server.db);
+        const safeVersion = escapeHtml(server.version);
         const safeIsbnIndex = escapeHtml(server.indexes?.isbn || 'isbn');
         const safeSyntax = escapeHtml(server.syntax || 'marcxml');
 
@@ -1081,9 +1084,13 @@ $pluginSettings = $pluginSettings ?? [];
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("URL Endpoint SRU") ?></label>
                 <input type="url" name="server_url[]" value="${safeUrl}" placeholder="http://opac.sbn.it/sru" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500 font-mono">
             </div>
-            <div class="md:col-span-2">
+            <div class="md:col-span-1">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Database") ?></label>
                 <input type="text" name="server_db[]" value="${safeDb}" placeholder="nopac" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+            </div>
+            <div class="md:col-span-1">
+                <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Version") ?></label>
+                <input type="text" name="server_version[]" value="${safeVersion}" placeholder="nopac" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
             </div>
             <div class="md:col-span-2">
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Indice ISBN") ?></label>
@@ -1093,6 +1100,7 @@ $pluginSettings = $pluginSettings ?? [];
                 <label class="block text-xs font-medium text-gray-500 mb-1"><?= __("Sintassi") ?></label>
                 <select name="server_syntax[]" class="w-full rounded-lg border-gray-300 text-sm focus:ring-indigo-500 focus:border-indigo-500">
                     <option value="marcxml" ${safeSyntax === 'marcxml' ? 'selected' : ''}>MARCXML</option>
+                    <option value="unimarcxchange" ${safeSyntax === 'unimarcxchange' ? 'selected' : ''}>unimarcxchange</option>
                     <option value="unimarc" ${safeSyntax === 'unimarc' ? 'selected' : ''}>UNIMARC</option>
                     <option value="mods" ${safeSyntax === 'mods' ? 'selected' : ''}>MODS</option>
                     <option value="dc" ${safeSyntax === 'dc' ? 'selected' : ''}>Dublin Core</option>
@@ -1138,8 +1146,10 @@ $pluginSettings = $pluginSettings ?? [];
         rows.forEach(row => {
             const nameInput = row.querySelector('[name="server_name[]"]');
             const urlInput = row.querySelector('[name="server_url[]"]');
+            const versionInput = row.querySelector('[name="server_version[]"]');
             const name = nameInput.value.trim();
             const url = urlInput.value.trim();
+            const version = versionInput.value.trim();
 
             // Skip empty rows but validate partially filled ones
             if (!name && !url) {
@@ -1159,6 +1169,7 @@ $pluginSettings = $pluginSettings ?? [];
                 name: name,
                 url: url,
                 db: row.querySelector('[name="server_db[]"]').value.trim(),
+                version: version,
                 syntax: row.querySelector('[name="server_syntax[]"]').value,
                 indexes: {
                     isbn: row.querySelector('[name="server_isbn_index[]"]').value || 'isbn'
