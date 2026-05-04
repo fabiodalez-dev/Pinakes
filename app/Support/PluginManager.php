@@ -129,7 +129,24 @@ class PluginManager
                                 $upgradeInstance->onActivate();
                             }
                         } catch (\Throwable $e) {
-                            SecureLogger::warning("[PluginManager] Note: onActivate failed during upgrade for $pluginName: " . $e->getMessage());
+                            $revertStmt = $this->db->prepare(
+                                "UPDATE plugins SET version = ? WHERE id = ?"
+                            );
+                            if ($revertStmt !== false) {
+                                $revertStmt->bind_param('si', $dbVersion, $updId);
+                                $revertStmt->execute();
+                                $revertStmt->close();
+                            } else {
+                                SecureLogger::error("[PluginManager] Failed to prepare bundled plugin upgrade rollback for $pluginName", [
+                                    'db_error' => $this->db->error,
+                                ]);
+                            }
+                            SecureLogger::warning("[PluginManager] Note: onActivate failed during upgrade for $pluginName; version rolled back to $dbVersion: " . $e->getMessage());
+                            throw new \RuntimeException(
+                                "Bundled plugin upgrade lifecycle failed for $pluginName",
+                                0,
+                                $e
+                            );
                         }
                     }
                 }
