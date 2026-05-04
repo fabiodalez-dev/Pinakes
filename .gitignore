@@ -329,6 +329,8 @@ tests/seeds/*
 !tests/seeds/*.json
 !tests/seeds/*.sql
 !tests/seeds/*.md
+!tests/seeds/*.csv
+!tests/seeds/*.tsv
 !tests/helpers/
 tests/helpers/*
 !tests/helpers/*.php

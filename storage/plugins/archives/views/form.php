@@ -52,6 +52,12 @@ $levelLabels = [
     <form method="POST" action="<?= $e($formAction) ?>" class="bg-white shadow rounded-lg p-6 space-y-5">
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
+        <!-- ── ISAD(G) Area 1 — Identity Statement ─────────────────────── -->
+        <div class="border-l-4 border-indigo-400 pl-4">
+            <h2 class="text-sm font-semibold text-indigo-700 uppercase tracking-wide mb-3">
+                <?= __("Area di identificazione") ?>
+                <span class="text-xs font-normal text-gray-500 normal-case ml-1">(ISAD(G) 3.1 — Identity Statement)</span>
+            </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- reference_code -->
             <div>
@@ -164,15 +170,46 @@ $levelLabels = [
                    class="form-input">
         </div>
 
+        <!-- ark_identifier -->
+        <div>
+            <label for="ark_identifier" class="form-label">
+                <?= __("Identificatore ARK") ?>
+                <span class="text-xs text-gray-500 font-normal">(es. ark:/12148/btv1b84…)</span>
+            </label>
+            <input type="text" name="ark_identifier" id="ark_identifier"
+                   value="<?= $val('ark_identifier') ?>" maxlength="255"
+                   placeholder="ark:/NAAN/name"
+                   class="form-input font-mono text-sm">
+            <p class="mt-1 text-xs text-gray-500">
+                <?= __("Identificatore persistente ARK assegnato dall'istituzione. Usato come URI canonico in EAD3, Dublin Core e manifest IIIF.") ?>
+            </p>
+        </div>
+        </div><!-- end Area 1 -->
+
+        <!-- ── ISAD(G) Area 3 — Content and Structure ──────────────────── -->
+        <div class="border-l-4 border-green-400 pl-4">
+            <h2 class="text-sm font-semibold text-green-700 uppercase tracking-wide mb-3">
+                <?= __("Contenuto e struttura") ?>
+                <span class="text-xs font-normal text-gray-500 normal-case ml-1">(ISAD(G) 3.3 — Content &amp; Structure)</span>
+            </h2>
+
         <!-- scope_content -->
         <div>
             <label for="scope_content" class="form-label">
                 <?= __("Ambito e contenuto") ?>
-                <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.3.1 — abstract)</span>
+                <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.3.1)</span>
             </label>
             <textarea name="scope_content" id="scope_content" rows="4"
                       class="form-input"><?= $val('scope_content') ?></textarea>
         </div>
+        </div><!-- end Area 3 -->
+
+        <!-- ── ISAD(G) Area 4 — Conditions of Access and Use ───────────── -->
+        <div class="border-l-4 border-yellow-400 pl-4">
+            <h2 class="text-sm font-semibold text-yellow-700 uppercase tracking-wide mb-3">
+                <?= __("Condizioni di accesso e uso") ?>
+                <span class="text-xs font-normal text-gray-500 normal-case ml-1">(ISAD(G) 3.4 — Conditions of Access &amp; Use)</span>
+            </h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- language_codes -->
@@ -203,6 +240,22 @@ $levelLabels = [
                 <?php endif; ?>
             </div>
         </div>
+
+        <!-- rights_statement_url -->
+        <div class="mt-4">
+            <label for="rights_statement_url" class="form-label">
+                <?= __("Dichiarazione dei diritti (URL)") ?>
+                <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.4.2 — es. <a href="https://rightsstatements.org" target="_blank" class="underline">rightsstatements.org</a>)</span>
+            </label>
+            <input type="url" name="rights_statement_url" id="rights_statement_url"
+                   value="<?= $val('rights_statement_url') ?>" maxlength="500"
+                   placeholder="https://rightsstatements.org/vocab/InC/1.0/"
+                   class="form-input font-mono text-sm">
+            <p class="mt-1 text-xs text-gray-500">
+                <?= __("URI standard (RightsStatements.org o Creative Commons) incluso nel manifest IIIF come campo 'rights'.") ?>
+            </p>
+        </div>
+        </div><!-- end Area 4 -->
 
         <!-- Phase 5 — photographic / material-type fields (all optional) -->
         <?php
@@ -331,8 +384,36 @@ $levelLabels = [
                                class="form-input">
                     </div>
                 </div>
+
             </div>
         </details>
+
+        <!-- version_note — outside accordion, always visible -->
+        <div class="border-t pt-4 mt-2">
+            <label for="version_note" class="form-label">
+                <?= __("Nota di versione") ?>
+                <span class="text-xs text-gray-500 font-normal">(<?= __("descrive cosa è cambiato in questa revisione del record") ?>)</span>
+            </label>
+            <input type="text" name="version_note" id="version_note"
+                   value="<?= $val('version_note') ?>" maxlength="500"
+                   placeholder="<?= $val('version_note') !== '' ? '' : __('es. Aggiornati i dati di estensione dopo inventario 2024') ?>"
+                   class="form-input text-sm">
+        </div>
+
+        <!-- IIIF digital object URL — outside accordion, always visible -->
+        <div class="border-t pt-4 mt-2">
+            <label for="iiif_manifest_url" class="form-label">
+                <?= __("URL manifest IIIF (server esterno)") ?>
+                <span class="text-xs text-gray-500 font-normal">(IIIF Presentation API 3.0 — <?= __("lascia vuoto se non disponibile") ?>)</span>
+            </label>
+            <input type="url" name="iiif_manifest_url" id="iiif_manifest_url"
+                   value="<?= $val('iiif_manifest_url') ?>" maxlength="2000"
+                   placeholder="https://iiif.example.org/manifests/archive-1/manifest.json"
+                   class="form-input font-mono text-sm">
+            <p class="mt-1 text-xs text-gray-500">
+                <?= __("Se l'istituzione ha un server IIIF (Cantaloupe, IIPImage, Loris), incolla qui l'URL del manifest. Pinakes genera comunque un manifest base da /archives/{id}/manifest.json.") ?>
+            </p>
+        </div>
 
         <div class="flex items-center justify-end space-x-3 pt-4 border-t">
             <a href="<?= $e(url('/admin/archives')) ?>"

@@ -1,7 +1,8 @@
--- Archives focused reusable seed for PR #105.
+-- Archives focused reusable seed for PR #105 / #127 (interop-standards).
 -- Idempotent and persistent: it upserts records and never deletes archival data.
 -- Run against a database where installer/database/migrations/migrate_0.5.9.sql
 -- or ArchivesPlugin::ensureSchema() has already created the archives tables.
+-- v2 (2026-05-04): adds ark_identifier, rights_statement_url, version_note columns.
 
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 SET @archives_seed_institution := _utf8mb4'PINAKES' COLLATE utf8mb4_unicode_ci;
@@ -30,7 +31,10 @@ CREATE TEMPORARY TABLE IF NOT EXISTS _archives_feature_seed (
     cover_image_path     VARCHAR(500) NULL,
     document_path        VARCHAR(500) NULL,
     document_mime        VARCHAR(100) NULL,
-    document_filename    VARCHAR(255) NULL
+    document_filename    VARCHAR(255) NULL,
+    ark_identifier       VARCHAR(255) NULL,
+    rights_statement_url VARCHAR(500) NULL,
+    version_note         TEXT NULL
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 TRUNCATE TABLE _archives_feature_seed;
@@ -60,28 +64,29 @@ INSERT INTO _archives_feature_seed
      date_start, date_end, extent, scope_content, accruals, language_codes,
      material_status, registration_date, specific_material, dimensions,
      color_mode, photographer, publisher, collection_name, local_classification,
-     cover_image_path, document_path, document_mime, document_filename)
+     cover_image_path, document_path, document_mime, document_filename,
+     ark_identifier, rights_statement_url, version_note)
 VALUES
-    ('E2E_ARCHIVE_001', NULL, 'fonds', 'Fondo Pinakes seed', 'Archivio Pinakes - seed ISAD completo', 1898, 1978, '32 boxes, 4 series', 'Fondo di test per gerarchie ISAD(G), ricerca pubblica e SRU.', 'ongoing', 'ita;eng', 'completed', '2026-04-22', 'text', '32 boxes', NULL, NULL, 'Pinakes Test Archive', 'Seed Collection A', 'SEED-FONDO-001', NULL, '/uploads/archives/e2e/fondo-inventory.pdf', 'application/pdf', 'fondo-inventory.pdf'),
-    ('E2E_ARCHIVE_002', 'E2E_ARCHIVE_001', 'series', 'Serie fotografie', 'Serie fotografica del fondo seed', 1901, 1939, '180 photographs', 'Serie per verificare materiali fotografici, dimensioni e bianco/nero.', 'completed', 'ita', 'cataloguing', '2026-04-22', 'photograph', '18x24 cm', 'bw', 'Studio Pinakes', NULL, 'Seed Collection A', 'SEED-SER-002', '/uploads/archives/e2e/photo-cover.jpg', NULL, NULL, NULL),
-    ('E2E_ARCHIVE_003', 'E2E_ARCHIVE_001', 'series', 'Manifesti politici', 'Serie manifesti e affissioni', 1919, 1948, '95 posters', 'Serie per verificare poster, colore e metadata editoriali.', 'irregular', 'ita', 'completed', '2026-04-22', 'poster', '70x100 cm', 'color', NULL, 'Tipografia Sociale', 'Seed Collection A', 'SEED-SER-003', '/uploads/archives/e2e/poster-cover.jpg', '/uploads/archives/e2e/poster-register.pdf', 'application/pdf', 'poster-register.pdf'),
-    ('E2E_ARCHIVE_004', 'E2E_ARCHIVE_001', 'series', 'Cartoline e corrispondenza', 'Serie cartoline illustrate', 1905, 1960, '14 folders', 'Serie per verificare cartoline, colore misto e link authority.', 'none', 'ita;fra', 'unclassified', '2026-04-22', 'postcard', '10x15 cm', 'mixed', NULL, 'Edizioni Test', 'Seed Collection B', 'SEED-SER-004', NULL, NULL, NULL, NULL),
-    ('E2E_ARCHIVE_005', 'E2E_ARCHIVE_002', 'file', 'Disegni preparatori', 'Fascicolo disegni e schizzi', 1924, 1928, '2 folders', 'Fascicolo per il materiale drawing e controllo parent series.', 'completed', 'ita', 'cataloguing', '2026-04-22', 'drawing', '30x42 cm', NULL, 'Archivista Demo', NULL, 'Seed Collection B', 'SEED-FILE-005', '/uploads/archives/e2e/drawing-cover.jpg', NULL, NULL, NULL),
-    ('E2E_ARCHIVE_006', 'E2E_ARCHIVE_002', 'file', 'Registrazioni audio', 'Fascicolo nastri audio', 1958, 1962, '12 reels', 'Fascicolo audio per verificare materiali non testuali.', 'completed', 'ita', 'completed', '2026-04-22', 'audio', '1/4 inch tape', 'bw', NULL, 'Archivio Sonoro Demo', 'Seed Collection C', 'SEED-FILE-006', NULL, '/uploads/archives/e2e/audio-index.pdf', 'application/pdf', 'audio-index.pdf'),
-    ('E2E_ARCHIVE_007', 'E2E_ARCHIVE_002', 'file', 'Riprese video', 'Fascicolo video documentari', 1971, 1978, '6 tapes', 'Fascicolo video per verificare schema e SRU su video.', 'irregular', 'ita', 'unclassified', '2026-04-22', 'video', 'U-matic', 'color', NULL, 'Video Test Lab', 'Seed Collection C', 'SEED-FILE-007', NULL, NULL, NULL, NULL),
-    ('E2E_ARCHIVE_008', 'E2E_ARCHIVE_002', 'file', 'Materiali miscellanei', 'Fascicolo oggetti non classificati', 1930, 1935, '1 box', 'Fascicolo other per coprire il fallback dei materiali.', 'none', 'ita', 'cataloguing', '2026-04-22', 'other', NULL, 'mixed', NULL, NULL, 'Seed Collection C', 'SEED-FILE-008', NULL, NULL, NULL, NULL),
-    ('E2E_ARCHIVE_009', 'E2E_ARCHIVE_003', 'file', 'Mappe cittadine', 'Fascicolo mappe e planimetrie', 1908, 1914, '7 maps', 'Fascicolo cartografico per materiale map e figli item.', 'completed', 'ita', 'completed', '2026-04-22', 'map', '50x70 cm', NULL, NULL, 'Ufficio Tecnico Demo', 'Seed Collection D', 'SEED-FILE-009', NULL, '/uploads/archives/e2e/maps.pdf', 'application/pdf', 'maps.pdf'),
-    ('E2E_ARCHIVE_010', 'E2E_ARCHIVE_003', 'file', 'Stampe illustrate', 'Fascicolo stampe e immagini', 1910, 1922, '34 prints', 'Fascicolo picture per materiale iconografico e figli item.', 'ongoing', 'ita', 'cataloguing', '2026-04-22', 'picture', '24x30 cm', 'bw', 'Fotografo Demo', 'Editore Demo', 'Seed Collection D', 'SEED-FILE-010', '/uploads/archives/e2e/picture-cover.jpg', NULL, NULL, NULL),
-    ('E2E_ARCHIVE_011', 'E2E_ARCHIVE_003', 'file', 'Oggetti tridimensionali', 'Fascicolo realia e oggetti', 1920, 1955, '9 objects', 'Fascicolo object per verificare realia e asset opzionali.', 'irregular', 'ita', 'completed', '2026-04-22', 'object', 'various', 'color', NULL, NULL, 'Seed Collection D', 'SEED-FILE-011', '/uploads/archives/e2e/object-cover.jpg', NULL, NULL, NULL),
-    ('E2E_ARCHIVE_012', 'E2E_ARCHIVE_003', 'file', 'Pellicole cinematografiche', 'Fascicolo film e bobine', 1936, 1942, '4 reels', 'Fascicolo film per verificare estensione ENUM phase 5.', 'none', 'ita', 'unclassified', '2026-04-22', 'film', '16mm', 'mixed', NULL, 'Cine Demo', 'Seed Collection D', 'SEED-FILE-012', NULL, '/uploads/archives/e2e/film-notes.pdf', 'application/pdf', 'film-notes.pdf'),
-    ('E2E_ARCHIVE_013', 'E2E_ARCHIVE_009', 'item', 'Microfilm inventario', 'Item microfilm inventario mappe', 1965, 1965, '1 reel', 'Item microform per controllo foglia della gerarchia.', 'completed', 'ita', 'completed', '2026-04-22', 'microform', '35mm', NULL, NULL, NULL, 'Seed Collection E', 'SEED-ITEM-013', NULL, NULL, NULL, NULL),
-    ('E2E_ARCHIVE_014', 'E2E_ARCHIVE_009', 'item', 'Floppy disk progetto', 'Item elettronico born-digital', 1988, 1988, '1 disk', 'Item electronic per risorse digitali e document_mime.', 'completed', 'ita', 'cataloguing', '2026-04-22', 'electronic', '3.5 inch', 'bw', NULL, NULL, 'Seed Collection E', 'SEED-ITEM-014', NULL, '/uploads/archives/e2e/floppy-dump.zip', 'application/zip', 'floppy-dump.zip'),
-    ('E2E_ARCHIVE_015', 'E2E_ARCHIVE_010', 'item', 'Dossier misto stampa', 'Item mixed materiali compositi', 1946, 1947, '1 folder', 'Item mixed per materiali composti e ricerca testo.', 'irregular', 'ita;eng', 'completed', '2026-04-22', 'mixed', 'folder', 'color', NULL, NULL, 'Seed Collection E', 'SEED-ITEM-015', NULL, NULL, NULL, NULL),
-    ('E2E_ARCHIVE_016', 'E2E_ARCHIVE_010', 'item', 'Lettera trascritta', 'Item testuale con colore misto', 1911, 1911, '4 pages', 'Item text per verificare ripetizione materiale base.', 'none', 'ita', 'unclassified', '2026-04-22', 'text', 'A4', 'mixed', NULL, NULL, 'Seed Collection E', 'SEED-ITEM-016', NULL, '/uploads/archives/e2e/letter.pdf', 'application/pdf', 'letter.pdf'),
-    ('E2E_ARCHIVE_017', 'E2E_ARCHIVE_011', 'item', 'Ritratto singolo', 'Item fotografia con cover', 1929, 1929, '1 print', 'Item photograph per asset cover e parent object.', 'completed', 'ita', 'completed', '2026-04-22', 'photograph', '13x18 cm', NULL, 'Studio Demo', NULL, 'Seed Collection F', 'SEED-ITEM-017', '/uploads/archives/e2e/portrait.jpg', NULL, NULL, NULL),
-    ('E2E_ARCHIVE_018', 'E2E_ARCHIVE_004', 'file', 'Manifesti minori', 'Fascicolo poster bianco e nero', 1932, 1934, '11 posters', 'Fascicolo poster ripetuto per testare colori diversi.', 'completed', 'ita', 'cataloguing', '2026-04-22', 'poster', '50x70 cm', 'bw', NULL, 'Tipografia Demo', 'Seed Collection F', 'SEED-FILE-018', NULL, NULL, NULL, NULL),
-    ('E2E_ARCHIVE_019', 'E2E_ARCHIVE_001', 'series', 'Cartoline a colori', 'Serie cartoline a colori', 1950, 1968, '22 folders', 'Serie postcard ripetuta con status completato.', 'ongoing', 'ita', 'completed', '2026-04-22', 'postcard', '10x15 cm', 'color', NULL, 'Cartoleria Demo', 'Seed Collection F', 'SEED-SER-019', '/uploads/archives/e2e/postcard-cover.jpg', NULL, NULL, NULL),
-    ('E2E_ARCHIVE_020', NULL, 'fonds', 'Fondo disegni separato', 'Archivio disegni seed autonomo', 1870, 1910, '6 boxes', 'Secondo fonds per verificare piu radici pubbliche.', 'irregular', 'ita', 'unclassified', '2026-04-22', 'drawing', 'various', 'mixed', 'Autore Demo', NULL, 'Seed Collection G', 'SEED-FONDO-020', NULL, NULL, NULL, NULL);
+    ('E2E_ARCHIVE_001', NULL, 'fonds', 'Fondo Pinakes seed', 'Archivio Pinakes - seed ISAD completo', 1898, 1978, '32 boxes, 4 series', 'Fondo di test per gerarchie ISAD(G), ricerca pubblica e SRU.', 'ongoing', 'ita;eng', 'completed', '2026-04-22', 'text', '32 boxes', NULL, NULL, 'Pinakes Test Archive', 'Seed Collection A', 'SEED-FONDO-001', NULL, '/uploads/archives/e2e/fondo-inventory.pdf', 'application/pdf', 'fondo-inventory.pdf', 'ark:/99999/seed-archive-fondo-001', 'https://rightsstatements.org/vocab/InC/1.0/', 'Prima versione del seed. Fondo principale con tutti i livelli ISAD(G).'),
+    ('E2E_ARCHIVE_002', 'E2E_ARCHIVE_001', 'series', 'Serie fotografie', 'Serie fotografica del fondo seed', 1901, 1939, '180 photographs', 'Serie per verificare materiali fotografici, dimensioni e bianco/nero.', 'completed', 'ita', 'cataloguing', '2026-04-22', 'photograph', '18x24 cm', 'bw', 'Studio Pinakes', NULL, 'Seed Collection A', 'SEED-SER-002', '/uploads/archives/e2e/photo-cover.jpg', NULL, NULL, NULL, 'ark:/99999/seed-archive-series-002', 'https://creativecommons.org/publicdomain/mark/1.0/', NULL),
+    ('E2E_ARCHIVE_003', 'E2E_ARCHIVE_001', 'series', 'Manifesti politici', 'Serie manifesti e affissioni', 1919, 1948, '95 posters', 'Serie per verificare poster, colore e metadata editoriali.', 'irregular', 'ita', 'completed', '2026-04-22', 'poster', '70x100 cm', 'color', NULL, 'Tipografia Sociale', 'Seed Collection A', 'SEED-SER-003', '/uploads/archives/e2e/poster-cover.jpg', '/uploads/archives/e2e/poster-register.pdf', 'application/pdf', 'poster-register.pdf', NULL, NULL, NULL),
+    ('E2E_ARCHIVE_004', 'E2E_ARCHIVE_001', 'series', 'Cartoline e corrispondenza', 'Serie cartoline illustrate', 1905, 1960, '14 folders', 'Serie per verificare cartoline, colore misto e link authority.', 'none', 'ita;fra', 'unclassified', '2026-04-22', 'postcard', '10x15 cm', 'mixed', NULL, 'Edizioni Test', 'Seed Collection B', 'SEED-SER-004', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_005', 'E2E_ARCHIVE_002', 'file', 'Disegni preparatori', 'Fascicolo disegni e schizzi', 1924, 1928, '2 folders', 'Fascicolo per il materiale drawing e controllo parent series.', 'completed', 'ita', 'cataloguing', '2026-04-22', 'drawing', '30x42 cm', NULL, 'Archivista Demo', NULL, 'Seed Collection B', 'SEED-FILE-005', '/uploads/archives/e2e/drawing-cover.jpg', NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_006', 'E2E_ARCHIVE_002', 'file', 'Registrazioni audio', 'Fascicolo nastri audio', 1958, 1962, '12 reels', 'Fascicolo audio per verificare materiali non testuali.', 'completed', 'ita', 'completed', '2026-04-22', 'audio', '1/4 inch tape', 'bw', NULL, 'Archivio Sonoro Demo', 'Seed Collection C', 'SEED-FILE-006', NULL, '/uploads/archives/e2e/audio-index.pdf', 'application/pdf', 'audio-index.pdf', NULL, NULL, NULL),
+    ('E2E_ARCHIVE_007', 'E2E_ARCHIVE_002', 'file', 'Riprese video', 'Fascicolo video documentari', 1971, 1978, '6 tapes', 'Fascicolo video per verificare schema e SRU su video.', 'irregular', 'ita', 'unclassified', '2026-04-22', 'video', 'U-matic', 'color', NULL, 'Video Test Lab', 'Seed Collection C', 'SEED-FILE-007', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_008', 'E2E_ARCHIVE_002', 'file', 'Materiali miscellanei', 'Fascicolo oggetti non classificati', 1930, 1935, '1 box', 'Fascicolo other per coprire il fallback dei materiali.', 'none', 'ita', 'cataloguing', '2026-04-22', 'other', NULL, 'mixed', NULL, NULL, 'Seed Collection C', 'SEED-FILE-008', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_009', 'E2E_ARCHIVE_003', 'file', 'Mappe cittadine', 'Fascicolo mappe e planimetrie', 1908, 1914, '7 maps', 'Fascicolo cartografico per materiale map e figli item.', 'completed', 'ita', 'completed', '2026-04-22', 'map', '50x70 cm', NULL, NULL, 'Ufficio Tecnico Demo', 'Seed Collection D', 'SEED-FILE-009', NULL, '/uploads/archives/e2e/maps.pdf', 'application/pdf', 'maps.pdf', NULL, NULL, NULL),
+    ('E2E_ARCHIVE_010', 'E2E_ARCHIVE_003', 'file', 'Stampe illustrate', 'Fascicolo stampe e immagini', 1910, 1922, '34 prints', 'Fascicolo picture per materiale iconografico e figli item.', 'ongoing', 'ita', 'cataloguing', '2026-04-22', 'picture', '24x30 cm', 'bw', 'Fotografo Demo', 'Editore Demo', 'Seed Collection D', 'SEED-FILE-010', '/uploads/archives/e2e/picture-cover.jpg', NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_011', 'E2E_ARCHIVE_003', 'file', 'Oggetti tridimensionali', 'Fascicolo realia e oggetti', 1920, 1955, '9 objects', 'Fascicolo object per verificare realia e asset opzionali.', 'irregular', 'ita', 'completed', '2026-04-22', 'object', 'various', 'color', NULL, NULL, 'Seed Collection D', 'SEED-FILE-011', '/uploads/archives/e2e/object-cover.jpg', NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_012', 'E2E_ARCHIVE_003', 'file', 'Pellicole cinematografiche', 'Fascicolo film e bobine', 1936, 1942, '4 reels', 'Fascicolo film per verificare estensione ENUM phase 5.', 'none', 'ita', 'unclassified', '2026-04-22', 'film', '16mm', 'mixed', NULL, 'Cine Demo', 'Seed Collection D', 'SEED-FILE-012', NULL, '/uploads/archives/e2e/film-notes.pdf', 'application/pdf', 'film-notes.pdf', NULL, NULL, NULL),
+    ('E2E_ARCHIVE_013', 'E2E_ARCHIVE_009', 'item', 'Microfilm inventario', 'Item microfilm inventario mappe', 1965, 1965, '1 reel', 'Item microform per controllo foglia della gerarchia.', 'completed', 'ita', 'completed', '2026-04-22', 'microform', '35mm', NULL, NULL, NULL, 'Seed Collection E', 'SEED-ITEM-013', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_014', 'E2E_ARCHIVE_009', 'item', 'Floppy disk progetto', 'Item elettronico born-digital', 1988, 1988, '1 disk', 'Item electronic per risorse digitali e document_mime.', 'completed', 'ita', 'cataloguing', '2026-04-22', 'electronic', '3.5 inch', 'bw', NULL, NULL, 'Seed Collection E', 'SEED-ITEM-014', NULL, '/uploads/archives/e2e/floppy-dump.zip', 'application/zip', 'floppy-dump.zip', NULL, NULL, NULL),
+    ('E2E_ARCHIVE_015', 'E2E_ARCHIVE_010', 'item', 'Dossier misto stampa', 'Item mixed materiali compositi', 1946, 1947, '1 folder', 'Item mixed per materiali composti e ricerca testo.', 'irregular', 'ita;eng', 'completed', '2026-04-22', 'mixed', 'folder', 'color', NULL, NULL, 'Seed Collection E', 'SEED-ITEM-015', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_016', 'E2E_ARCHIVE_010', 'item', 'Lettera trascritta', 'Item testuale con colore misto', 1911, 1911, '4 pages', 'Item text per verificare ripetizione materiale base.', 'none', 'ita', 'unclassified', '2026-04-22', 'text', 'A4', 'mixed', NULL, NULL, 'Seed Collection E', 'SEED-ITEM-016', NULL, '/uploads/archives/e2e/letter.pdf', 'application/pdf', 'letter.pdf', NULL, NULL, NULL),
+    ('E2E_ARCHIVE_017', 'E2E_ARCHIVE_011', 'item', 'Ritratto singolo', 'Item fotografia con cover', 1929, 1929, '1 print', 'Item photograph per asset cover e parent object.', 'completed', 'ita', 'completed', '2026-04-22', 'photograph', '13x18 cm', NULL, 'Studio Demo', NULL, 'Seed Collection F', 'SEED-ITEM-017', '/uploads/archives/e2e/portrait.jpg', NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_018', 'E2E_ARCHIVE_004', 'file', 'Manifesti minori', 'Fascicolo poster bianco e nero', 1932, 1934, '11 posters', 'Fascicolo poster ripetuto per testare colori diversi.', 'completed', 'ita', 'cataloguing', '2026-04-22', 'poster', '50x70 cm', 'bw', NULL, 'Tipografia Demo', 'Seed Collection F', 'SEED-FILE-018', NULL, NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_019', 'E2E_ARCHIVE_001', 'series', 'Cartoline a colori', 'Serie cartoline a colori', 1950, 1968, '22 folders', 'Serie postcard ripetuta con status completato.', 'ongoing', 'ita', 'completed', '2026-04-22', 'postcard', '10x15 cm', 'color', NULL, 'Cartoleria Demo', 'Seed Collection F', 'SEED-SER-019', '/uploads/archives/e2e/postcard-cover.jpg', NULL, NULL, NULL, NULL, NULL, NULL),
+    ('E2E_ARCHIVE_020', NULL, 'fonds', 'Fondo disegni separato', 'Archivio disegni seed autonomo', 1870, 1910, '6 boxes', 'Secondo fonds per verificare piu radici pubbliche.', 'irregular', 'ita', 'unclassified', '2026-04-22', 'drawing', 'various', 'mixed', 'Autore Demo', NULL, 'Seed Collection G', 'SEED-FONDO-020', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 INSERT INTO archival_units
     (parent_id, reference_code, institution_code, level, formal_title,
@@ -89,14 +94,16 @@ INSERT INTO archival_units
      accruals, language_codes, material_status, registration_date,
      specific_material, dimensions, color_mode, photographer, publisher,
      collection_name, local_classification, cover_image_path, document_path,
-     document_mime, document_filename, deleted_at)
+     document_mime, document_filename, ark_identifier, rights_statement_url,
+     version_note, deleted_at)
 SELECT
     NULL, s.reference_code, @archives_seed_institution, s.level, s.formal_title,
     s.constructed_title, s.date_start, s.date_end, s.extent, s.scope_content,
     s.accruals, s.language_codes, s.material_status, s.registration_date,
     s.specific_material, s.dimensions, s.color_mode, s.photographer, s.publisher,
     s.collection_name, s.local_classification, s.cover_image_path, s.document_path,
-    s.document_mime, s.document_filename, NULL
+    s.document_mime, s.document_filename, s.ark_identifier, s.rights_statement_url,
+    s.version_note, NULL
 FROM _archives_feature_seed s
 ON DUPLICATE KEY UPDATE
     level = VALUES(level),
@@ -121,6 +128,9 @@ ON DUPLICATE KEY UPDATE
     document_path = VALUES(document_path),
     document_mime = VALUES(document_mime),
     document_filename = VALUES(document_filename),
+    ark_identifier = VALUES(ark_identifier),
+    rights_statement_url = VALUES(rights_statement_url),
+    version_note = VALUES(version_note),
     deleted_at = NULL,
     updated_at = CURRENT_TIMESTAMP;
 

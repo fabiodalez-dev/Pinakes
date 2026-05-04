@@ -238,13 +238,6 @@ class ArchivesPlugin
             'archival_unit_authority' => self::ddlArchivalAuthorityLinks(),
             'autori_authority_link'   => self::ddlAutoriAuthorityLink(),
         ];
-        // Phase 5 migration: add image columns to archival_units if they're
-        // not already there. Harmless no-op on fresh installs because the
-        // DDL above already declares them; essential on installs created
-        // before phase 5 where the CREATE TABLE IF NOT EXISTS won't touch
-        // an existing table.
-        $this->migrateImageColumns();
-
         $created = [];
         $failed = [];
 
@@ -266,6 +259,10 @@ class ArchivesPlugin
                 );
             }
         }
+
+        // Phase 5+ migration: ALTER TABLE to add columns missing from older
+        // installs. Must run AFTER CREATE TABLE so the table exists.
+        $this->migrateImageColumns();
 
         return ['created' => $created, 'failed' => $failed];
     }
@@ -292,6 +289,10 @@ class ArchivesPlugin
             'document_path'        => 'VARCHAR(500) NULL',
             'document_mime'        => 'VARCHAR(100) NULL',
             'document_filename'    => 'VARCHAR(255) NULL',
+            'iiif_manifest_url'    => 'VARCHAR(2000) NULL',
+            'rights_statement_url' => 'VARCHAR(500) NULL',
+            'ark_identifier'       => 'VARCHAR(255) NULL',
+            'version_note'         => 'VARCHAR(500) NULL',
         ];
 
         // Fetch existing columns once.
@@ -626,6 +627,38 @@ class ArchivesPlugin
             return $plugin->exportDublinCoreAction($request, $response, (int) $args['id']);
         });
 
+        // EAD3 per-unit export (public + admin).
+        $app->get('/admin/archives/{id:[0-9]+}/ead.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportEad3Action($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+        $app->get('/archives/{id:[0-9]+}/ead.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportEad3Action($request, $response, (int) $args['id']);
+        });
+
+        // METS per-unit export (public + admin).
+        $app->get('/admin/archives/{id:[0-9]+}/mets.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportMetsAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+        $app->get('/archives/{id:[0-9]+}/mets.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportMetsAction($request, $response, (int) $args['id']);
+        });
+
         // EAD3 bulk export (same admin-only access as MARCXML export).
         $app->get('/admin/archives/export.ead3', function (
             ServerRequestInterface $request,
@@ -648,6 +681,41 @@ class ArchivesPlugin
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->oaiPmhAction($request, $response);
+        });
+
+        // ── IIIF Presentation 3.0 manifest ──────────────────────────────────
+        // Admin route (auth via AdminAuthMiddleware applied to /admin/*).
+        // Public route: consumed by Mirador, Universal Viewer, aggregators.
+        $app->get('/admin/archives/{id:[0-9]+}/manifest.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->iiifManifestAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->get('/archives/{id:[0-9]+}/manifest.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->iiifManifestAction($request, $response, (int) $args['id']);
+        });
+
+        // IIIF Collection — root (all fondi) + per-unit sub-collections
+        $app->get('/archives/collection.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->iiifCollectionAction($request, $response, null);
+        });
+
+        $app->get('/archives/{id:[0-9]+}/collection.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->iiifCollectionAction($request, $response, (int) $args['id']);
         });
 
         // Import form (GET) + submit (POST multipart/form-data)
@@ -871,8 +939,10 @@ class ArchivesPlugin
                  formal_title, constructed_title, date_start, date_end,
                  extent, scope_content, language_codes,
                  specific_material, dimensions, color_mode,
-                 photographer, publisher, collection_name, local_classification)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 photographer, publisher, collection_name, local_classification,
+                 iiif_manifest_url, rights_statement_url,
+                 ark_identifier, version_note)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         if ($stmt === false) {
             SecureLogger::error('[Archives] store prepare failed: ' . $this->db->error);
@@ -881,13 +951,14 @@ class ArchivesPlugin
         }
 
         $p = $this->nullableArchivalParams($values);
-        // 18 params: 1 int, 3 strings, 2 strings, 2 ints, 3 strings, 1 string (specific_material), 6 strings
-        // Layout: parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s) date_start(i) date_end(i)
-        //         extent(s) scope(s) lang(s) spec_material(s) dimensions(s) color_mode(s) photographer(s)
-        //         publisher(s) collection(s) local_class(s)  → 'isssssiisssssssssss'
-        //                                                      minus one 's' (counted 19) = 'isssssiissssssssss' (18)
+        // 22 params: parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
+        //            date_start(i) date_end(i) extent(s) scope(s) lang(s)
+        //            spec_material(s) dim(s) color(s) photographer(s)
+        //            publisher(s) collection(s) local_class(s) iiif_manifest(s) rights(s)
+        //            ark(s) version_note(s)
+        //            = 'isssssiissssssssssssss' (22 chars)
         $stmt->bind_param(
-            'isssssiissssssssss',
+            'isssssiissssssssssssss',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -905,7 +976,11 @@ class ArchivesPlugin
             $p['photographer'],
             $p['publisher'],
             $p['collection_name'],
-            $p['local_classification']
+            $p['local_classification'],
+            $p['iiif_manifest_url'],
+            $p['rights_statement_url'],
+            $p['ark_identifier'],
+            $p['version_note']
         );
 
         if (!$stmt->execute()) {
@@ -962,6 +1037,10 @@ class ArchivesPlugin
             'publisher'            => $str('publisher'),
             'collection_name'      => $str('collection_name'),
             'local_classification' => $str('local_classification'),
+            'iiif_manifest_url'    => $str('iiif_manifest_url'),
+            'rights_statement_url' => $str('rights_statement_url'),
+            'ark_identifier'       => $str('ark_identifier'),
+            'version_note'         => $str('version_note'),
         ];
     }
 
@@ -978,6 +1057,8 @@ class ArchivesPlugin
             'formal_title', 'extent', 'scope_content',
             'dimensions', 'color_mode', 'photographer',
             'publisher', 'collection_name', 'local_classification',
+            'iiif_manifest_url', 'rights_statement_url',
+            'ark_identifier', 'version_note',
         ];
         $out = [];
         foreach ($nullable as $k) {
@@ -1040,6 +1121,13 @@ class ArchivesPlugin
             'headLinks'            => [
                 ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
                  'href' => absoluteUrl('/archives/' . $id . '/dc.xml')],
+                ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'EAD3 Finding Aid',
+                 'href' => absoluteUrl('/archives/' . $id . '/ead.xml')],
+                ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'METS Package',
+                 'href' => absoluteUrl('/archives/' . $id . '/mets.xml')],
+                ['rel' => 'alternate', 'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
+                 'title' => 'IIIF Manifest',
+                 'href' => absoluteUrl('/archives/' . $id . '/manifest.json')],
             ],
         ]);
     }
@@ -1098,7 +1186,9 @@ class ArchivesPlugin
                 formal_title = ?, constructed_title = ?, date_start = ?, date_end = ?,
                 extent = ?, scope_content = ?, language_codes = ?,
                 specific_material = ?, dimensions = ?, color_mode = ?,
-                photographer = ?, publisher = ?, collection_name = ?, local_classification = ?
+                photographer = ?, publisher = ?, collection_name = ?, local_classification = ?,
+                iiif_manifest_url = ?, rights_statement_url = ?,
+                ark_identifier = ?, version_note = ?
              WHERE id = ? AND deleted_at IS NULL'
         );
         if ($stmt === false) {
@@ -1108,18 +1198,15 @@ class ArchivesPlugin
         }
 
         $p = $this->nullableArchivalParams($values);
-        // 19 params: 18 INSERT-columns + id (int). Type string:
+        // 23 params: 22 SET-columns + id(i). Type string:
         //   parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
         //   date_start(i) date_end(i) extent(s) scope(s) lang(s)
-        //   spec_material(s) dimensions(s) color(s) photographer(s)
-        //   publisher(s) collection(s) local_class(s) id(i)
-        //   = 'isssssiisssssssssssi'   (no — count again)
-        //   Breakdown: i + s*3 + s*2 + i*2 + s*3 + s*7 + i = 'i' + 'sss' + 'ss' + 'ii' + 'sss' + 'sssssss' + 'i'
-        //   = 'isssss' + 'ii' + 'sssssssssss' + 'i' = 'isssssiisssssssssssi' = 20 chars for 19 params
-        //   Let's enumerate: i s s s s s i i s s s s s s s s s s i = 19 types, 'isssssiisssssssssssi' = 20, off by one.
-        //   Correct is 'isssssiissssssssssi' (19 chars).
+        //   spec_material(s) dim(s) color(s) photographer(s)
+        //   publisher(s) collection(s) local_class(s) iiif_manifest(s) rights(s)
+        //   ark(s) version_note(s) id(i)
+        //   = 'isssssiissssssssssssssi' (23 chars)
         $stmt->bind_param(
-            'isssssiissssssssssi',
+            'isssssiissssssssssssssi',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -1138,6 +1225,10 @@ class ArchivesPlugin
             $p['publisher'],
             $p['collection_name'],
             $p['local_classification'],
+            $p['iiif_manifest_url'],
+            $p['rights_statement_url'],
+            $p['ark_identifier'],
+            $p['version_note'],
             $id
         );
 
@@ -2222,8 +2313,17 @@ class ArchivesPlugin
         $archiveSchema = $archiveSchema ?? null;
         $headLinks = [];
         if (isset($data['row']['id'])) {
+            $unitId = (int) $data['row']['id'];
             $headLinks[] = ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
-                            'href' => absoluteUrl('/archives/' . (int) $data['row']['id'] . '/dc.xml')];
+                            'href' => absoluteUrl('/archives/' . $unitId . '/dc.xml')];
+            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'EAD3 Finding Aid',
+                            'href' => absoluteUrl('/archives/' . $unitId . '/ead.xml')];
+            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'METS Package',
+                            'href' => absoluteUrl('/archives/' . $unitId . '/mets.xml')];
+            $headLinks[] = ['rel' => 'alternate',
+                            'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
+                            'title' => 'IIIF Manifest',
+                            'href' => absoluteUrl('/archives/' . $unitId . '/manifest.json')];
         }
 
         $layoutPath = __DIR__ . '/../../../app/Views/frontend/layout.php';
@@ -4049,6 +4149,473 @@ class ArchivesPlugin
 
     // ── Phase 5 — Interoperability: Dublin Core, EAD3, OAI-PMH ────────────
 
+    // ── IIIF Presentation API 3.0 ────────────────────────────────────────────
+
+    /**
+     * GET /admin/archives/{id}/manifest.json and /archives/{id}/manifest.json
+     *
+     * Returns a IIIF Presentation API 3.0 manifest for one archival_unit.
+     * If the unit has a stored `iiif_manifest_url` pointing to an external
+     * IIIF server, the manifest includes a `seeAlso` link to it. Otherwise
+     * a Pinakes-native manifest is generated from available metadata and any
+     * locally stored cover image (`cover_image_path`).
+     *
+     * Consumed by Mirador, Universal Viewer, Cantaloupe, and aggregators that
+     * understand IIIF Presentation 3.0 (e.g. Europeana, British Library).
+     */
+    public function iiifManifestAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archival_units WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt === false) {
+            $response->getBody()->write(json_encode(['error' => 'db_error'], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if ($row === null) {
+            $response->getBody()->write(json_encode(['error' => 'not_found'], JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
+        $baseUrl    = absoluteUrl('');
+        $base       = rtrim($baseUrl, '/');
+        $manifestId = $base . '/archives/' . $id . '/manifest.json';
+        $lang       = !empty($row['language_codes']) ? (preg_split('/[,;\s]+/', (string) $row['language_codes']) ?: ['it'])[0] : 'it';
+        $title      = (string) ($row['constructed_title'] ?? $row['formal_title'] ?? 'Untitled');
+        $institution = (string) ($row['institution_code'] ?? 'PINAKES');
+
+        $metadata = [];
+        $addMeta  = static function (string $label, mixed $value) use (&$metadata): void {
+            if ($value === null || $value === '') {
+                return;
+            }
+            $metadata[] = [
+                'label' => ['en' => [$label]],
+                'value' => ['none' => [(string) $value]],
+            ];
+        };
+        $addMeta('Reference Code', $row['reference_code']);
+        if (!empty($row['ark_identifier'])) {
+            $addMeta('Identifier (ARK)', $row['ark_identifier']);
+        }
+        $addMeta('Level',          $row['level']);
+        $dateStr = trim(($row['date_start'] ?? '') . ($row['date_end'] ? '–' . $row['date_end'] : ''), '–');
+        $addMeta('Date',           $dateStr);
+        $addMeta('Extent',         $row['extent']);
+        $addMeta('Language',       $row['language_codes']);
+        $addMeta('Institution',    $institution);
+        if (!empty($row['version_note'])) {
+            $addMeta('Version Note', $row['version_note']);
+        }
+
+        // Authority records — creator/subject names + external authority URIs
+        $authorities = $this->iiifFetchAuthoritiesWithRefs($id);
+        foreach ($authorities as $auth) {
+            $roleLabel = match ((string) $auth['role']) {
+                'creator'   => 'Creator',
+                'recipient' => 'Recipient',
+                'custodian' => 'Custodian',
+                'subject'   => 'Subject',
+                default     => 'Associated Name',
+            };
+            $addMeta($roleLabel, $auth['authorised_form']);
+
+            if (!empty($auth['external_refs'])) {
+                $refs = array_filter(array_map('trim', explode("\n", (string) $auth['external_refs'])));
+                foreach ($refs as $ref) {
+                    if (str_contains($ref, 'viaf.org')) {
+                        $addMeta('VIAF', $ref);
+                    } elseif (str_contains($ref, 'wikidata.org')) {
+                        $addMeta('Wikidata', $ref);
+                    }
+                }
+            }
+        }
+
+        $manifest = [
+            '@context' => 'http://iiif.io/api/presentation/3/context.json',
+            'id'       => $manifestId,
+            'type'     => 'Manifest',
+            'label'    => [$lang => [$title]],
+            'metadata' => $metadata,
+        ];
+
+        if (!empty($row['scope_content'])) {
+            $manifest['summary'] = [$lang => [(string) $row['scope_content']]];
+        }
+
+        // requiredStatement: human-readable attribution displayed by every viewer
+        $manifest['requiredStatement'] = [
+            'label' => ['en' => ['Attribution']],
+            'value' => ['none' => [$institution]],
+        ];
+
+        // provider: machine-readable Agent (institution homepage)
+        $manifest['provider'] = [[
+            'id'       => $base,
+            'type'     => 'Agent',
+            'label'    => ['none' => [$institution]],
+            'homepage' => [[
+                'id'     => $base,
+                'type'   => 'Text',
+                'label'  => ['none' => [$institution]],
+                'format' => 'text/html',
+            ]],
+        ]];
+
+        // rights: IIIF rights URI (e.g. https://rightsstatements.org/vocab/InC/1.0/)
+        if (!empty($row['rights_statement_url'])) {
+            $manifest['rights'] = (string) $row['rights_statement_url'];
+        }
+
+        // behavior: viewer UX hint derived from specific_material
+        $behavior = match ((string) ($row['specific_material'] ?? 'text')) {
+            'text', 'microform', 'electronic' => 'paged',
+            'photograph', 'poster', 'postcard',
+            'drawing', 'picture', 'object',
+            'map'                              => 'individuals',
+            'mixed'                            => 'unordered',
+            default                            => null,
+        };
+        if ($behavior !== null) {
+            $manifest['behavior'] = [$behavior];
+        }
+
+        // partOf: link to parent Collection (if unit has a parent)
+        if (!empty($row['parent_id'])) {
+            $manifest['partOf'] = [[
+                'id'   => $base . '/archives/' . (int) $row['parent_id'] . '/collection.json',
+                'type' => 'Collection',
+            ]];
+        } else {
+            $manifest['partOf'] = [[
+                'id'   => $base . '/archives/collection.json',
+                'type' => 'Collection',
+            ]];
+        }
+
+        // seeAlso: other serialisations (DC, EAD3, METS, OAI-PMH, external IIIF)
+        $manifest['seeAlso'] = [
+            ['id'     => $base . '/archives/' . $id . '/dc.xml',
+             'type'   => 'Dataset', 'format' => 'application/rdf+xml',
+             'label'  => ['en' => ['Dublin Core']]],
+            ['id'     => $base . '/archives/' . $id . '/ead.xml',
+             'type'   => 'Dataset', 'format' => 'application/xml',
+             'profile' => 'http://ead3.archivists.org/schema/',
+             'label'  => ['en' => ['EAD3 finding aid']]],
+            ['id'     => $base . '/archives/' . $id . '/mets.xml',
+             'type'   => 'Dataset', 'format' => 'application/xml',
+             'profile' => 'http://www.loc.gov/METS/',
+             'label'  => ['en' => ['METS package']]],
+            ['id'     => $base . '/archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:archival_unit:' . $id,
+             'type'   => 'Dataset', 'format' => 'text/xml',
+             'label'  => ['en' => ['OAI-PMH record']]],
+        ];
+        if (!empty($row['ark_identifier'])) {
+            $manifest['seeAlso'][] = [
+                'id'    => 'https://n2t.net/' . $row['ark_identifier'],
+                'type'  => 'Text',
+                'label' => ['en' => ['ARK persistent identifier']],
+            ];
+        }
+        if (!empty($row['iiif_manifest_url'])) {
+            $manifest['seeAlso'][] = [
+                'id'     => (string) $row['iiif_manifest_url'],
+                'type'   => 'Manifest',
+                'format' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
+                'label'  => ['en' => ['Full IIIF manifest (external server)']],
+            ];
+        }
+
+        // Canvas items: one canvas per locally stored image, with real dimensions
+        $items = [];
+        if (!empty($row['cover_image_path'])) {
+            $coverPath = (string) $row['cover_image_path'];
+            $imageUrl  = $base . '/' . ltrim($coverPath, '/');
+            $fsPath    = __DIR__ . '/../../../public' . $coverPath;
+            $imgSize   = @getimagesize($fsPath);
+            $imgWidth  = ($imgSize !== false && $imgSize[0] > 0) ? $imgSize[0] : 1500;
+            $imgHeight = ($imgSize !== false && $imgSize[1] > 0) ? $imgSize[1] : 2000;
+            $mime      = ($imgSize !== false) ? $imgSize['mime'] : 'image/jpeg';
+
+            $canvasId = $manifestId . '/canvas/1';
+            $items[]  = [
+                'id'     => $canvasId,
+                'type'   => 'Canvas',
+                'label'  => ['none' => ['1']],
+                'width'  => $imgWidth,
+                'height' => $imgHeight,
+                'items'  => [[
+                    'id'    => $canvasId . '/page',
+                    'type'  => 'AnnotationPage',
+                    'items' => [[
+                        'id'         => $canvasId . '/annotation/1',
+                        'type'       => 'Annotation',
+                        'motivation' => 'painting',
+                        'body'       => [
+                            'id'     => $imageUrl,
+                            'type'   => 'Image',
+                            'format' => $mime,
+                            'width'  => $imgWidth,
+                            'height' => $imgHeight,
+                        ],
+                        'target' => $canvasId,
+                    ]],
+                ]],
+            ];
+        }
+        $manifest['items'] = $items;
+
+        // structures: nested IIIF Range hierarchy (§1.1)
+        // Each ancestor becomes an outer Range wrapping the next;
+        // the innermost Range holds the canvas items directly.
+        $ancestors = $this->iiifBuildAncestorChain((int) $row['id'], (int) ($row['parent_id'] ?? 0));
+        $structures = $this->iiifBuildNestedStructures($ancestors, $items, $manifestId, $lang);
+        if (!empty($structures)) {
+            $manifest['structures'] = $structures;
+        }
+
+        $json = json_encode($manifest, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $response->getBody()->write($json);
+        return $response
+            ->withHeader('Content-Type', 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"')
+            ->withHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    /**
+     * Walk up the parent_id chain to build an ancestor list (root first).
+     * Returns [{id, title}, ...] ending with the current unit.
+     *
+     * @return list<array{id:int,title:string}>
+     */
+    private function iiifBuildAncestorChain(int $leafId, int $parentId): array
+    {
+        $chain = [];
+        $visited = [];
+        $currentParent = $parentId;
+        while ($currentParent > 0 && !isset($visited[$currentParent])) {
+            $visited[$currentParent] = true;
+            $s = $this->db->prepare(
+                'SELECT id, parent_id, constructed_title, formal_title FROM archival_units WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($s === false) {
+                break;
+            }
+            $s->bind_param('i', $currentParent);
+            $s->execute();
+            $r = $s->get_result()->fetch_assoc();
+            $s->close();
+            if ($r === null) {
+                break;
+            }
+            array_unshift($chain, [
+                'id'    => (int) $r['id'],
+                'title' => (string) ($r['constructed_title'] ?? $r['formal_title'] ?? 'Untitled'),
+            ]);
+            $currentParent = (int) ($r['parent_id'] ?? 0);
+        }
+        // Append the leaf itself
+        $leafTitle = '';
+        $s2 = $this->db->prepare('SELECT constructed_title, formal_title FROM archival_units WHERE id = ?');
+        if ($s2 !== false) {
+            $s2->bind_param('i', $leafId);
+            $s2->execute();
+            $r2 = $s2->get_result()->fetch_assoc();
+            $s2->close();
+            $leafTitle = (string) ($r2['constructed_title'] ?? $r2['formal_title'] ?? 'Untitled');
+        }
+        $chain[] = ['id' => $leafId, 'title' => $leafTitle];
+        return $chain;
+    }
+
+    /**
+     * Build a nested IIIF Range hierarchy from a root-to-leaf ancestor chain (§1.1).
+     *
+     * Each ancestor becomes an outer Range wrapping the next; the innermost
+     * Range holds references to the manifest's Canvas items directly.
+     * Returns a list suitable for manifest['structures'].
+     *
+     * @param list<array{id:int,title:string}> $ancestors root-to-leaf
+     * @param list<array<string,mixed>>        $canvases  canvas items already built
+     * @param string                           $manifestId manifest base URL
+     * @param string                           $lang       IIIF language code for labels
+     * @return list<array<string,mixed>>
+     */
+    private function iiifBuildNestedStructures(
+        array $ancestors,
+        array $canvases,
+        string $manifestId,
+        string $lang
+    ): array {
+        $innerItems = array_map(
+            static fn(array $c) => ['id' => (string) $c['id'], 'type' => 'Canvas'],
+            $canvases
+        );
+
+        if (empty($innerItems)) {
+            return [];
+        }
+
+        if (empty($ancestors)) {
+            return [[
+                'id'    => $manifestId . '#range/r0',
+                'type'  => 'Range',
+                'label' => ['none' => ['Content']],
+                'items' => $innerItems,
+            ]];
+        }
+
+        // Build from inside out: deepest ancestor wraps canvases,
+        // each outer ancestor wraps the next inner Range as its sole item.
+        $depth   = count($ancestors);
+        $current = [
+            'id'    => $manifestId . '#range/r' . ($depth - 1),
+            'type'  => 'Range',
+            'label' => [$lang => [$ancestors[$depth - 1]['title']]],
+            'items' => $innerItems,
+        ];
+        for ($i = $depth - 2; $i >= 0; $i--) {
+            $current = [
+                'id'    => $manifestId . '#range/r' . $i,
+                'type'  => 'Range',
+                'label' => [$lang => [$ancestors[$i]['title']]],
+                'items' => [$current],
+            ];
+        }
+
+        return [$current];
+    }
+
+    /**
+     * Fetch authority records linked to an archival unit, including external_refs
+     * for VIAF/Wikidata URIs. Used only for IIIF manifest metadata enrichment.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function iiifFetchAuthoritiesWithRefs(int $archivalUnitId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT ar.type, ar.authorised_form, ar.external_refs, aua.role
+               FROM archival_unit_authority aua
+               JOIN authority_records ar ON ar.id = aua.authority_id AND ar.deleted_at IS NULL
+              WHERE aua.archival_unit_id = ?
+              ORDER BY ar.authorised_form'
+        );
+        if ($stmt === false) {
+            return $rows;
+        }
+        $stmt->bind_param('i', $archivalUnitId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * GET /archives/collection.json         — root IIIF Collection (all top-level fondi)
+     * GET /archives/{id}/collection.json    — sub-Collection (direct children of a unit)
+     *
+     * A IIIF Collection is a list of Manifest references. External viewers
+     * (Mirador, Universal Viewer) can load a Collection and navigate the tree.
+     */
+    public function iiifCollectionAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        ?int $id = null
+    ): ResponseInterface {
+        $base = rtrim(absoluteUrl(''), '/');
+
+        if ($id === null) {
+            // Root collection: all non-deleted, top-level units (parent_id IS NULL)
+            $collectionId = $base . '/archives/collection.json';
+            $label        = ['en' => ['Archives collection'], 'it' => ['Collezione archivistica']];
+            $result = $this->db->query(
+                "SELECT id, constructed_title, formal_title, level
+                   FROM archival_units
+                  WHERE parent_id IS NULL AND deleted_at IS NULL
+                  ORDER BY reference_code"
+            );
+        } else {
+            // Sub-collection: direct children of the given unit
+            $collectionId = $base . '/archives/' . $id . '/collection.json';
+            $parent = $this->findById($id);
+            if ($parent === null) {
+                $response->getBody()->write(json_encode(['error' => 'not_found'], JSON_THROW_ON_ERROR));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+            }
+            $label = ['none' => [(string) ($parent['constructed_title'] ?? $parent['formal_title'] ?? 'Untitled')]];
+            $stmt  = $this->db->prepare(
+                'SELECT id, constructed_title, formal_title, level
+                   FROM archival_units
+                  WHERE parent_id = ? AND deleted_at IS NULL
+                  ORDER BY reference_code'
+            );
+            if ($stmt === false) {
+                $response->getBody()->write(json_encode(['error' => 'db_error'], JSON_THROW_ON_ERROR));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+            }
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+        }
+
+        $items = [];
+        if ($result instanceof \mysqli_result) {
+            while ($child = $result->fetch_assoc()) {
+                $childId    = (int) $child['id'];
+                $childTitle = (string) ($child['constructed_title'] ?? $child['formal_title'] ?? 'Untitled');
+                // Units with children become sub-Collections; leaf units are Manifests
+                $hasChildren = false;
+                $countStmt   = $this->db->prepare(
+                    'SELECT 1 FROM archival_units WHERE parent_id = ? AND deleted_at IS NULL LIMIT 1'
+                );
+                if ($countStmt !== false) {
+                    $countStmt->bind_param('i', $childId);
+                    $countStmt->execute();
+                    $hasChildren = $countStmt->get_result()->num_rows > 0;
+                    $countStmt->close();
+                }
+                $items[] = [
+                    'id'    => $hasChildren
+                        ? $base . '/archives/' . $childId . '/collection.json'
+                        : $base . '/archives/' . $childId . '/manifest.json',
+                    'type'  => $hasChildren ? 'Collection' : 'Manifest',
+                    'label' => ['none' => [$childTitle]],
+                ];
+            }
+            $result->free();
+        }
+
+        $collection = [
+            '@context' => 'http://iiif.io/api/presentation/3/context.json',
+            'id'       => $collectionId,
+            'type'     => 'Collection',
+            'label'    => $label,
+            'items'    => $items,
+        ];
+
+        $json = json_encode($collection, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $response->getBody()->write($json);
+        return $response
+            ->withHeader('Content-Type', 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"')
+            ->withHeader('Access-Control-Allow-Origin', '*');
+    }
+
     // ── Dublin Core XML ──────────────────────────────────────────────────────
 
     /**
@@ -4128,6 +4695,9 @@ class ArchivesPlugin
         if (!empty($row['reference_code'])) {
             $xw->writeElementNs('dc', 'identifier', null, (string) $row['reference_code']);
         }
+        if (!empty($row['ark_identifier'])) {
+            $xw->writeElementNs('dc', 'identifier', null, (string) $row['ark_identifier']);
+        }
         $publisher = trim((string) ($row['repository_name'] ?? ''));
         if ($publisher === '') {
             $publisher = trim((string) \App\Support\ConfigStore::get('app.name', 'Pinakes'));
@@ -4157,16 +4727,216 @@ class ArchivesPlugin
             $xw->writeElementNs('dc', 'format', null, (string) $row['extent']);
         }
         if (!empty($row['language_codes'])) {
-            $xw->writeElementNs('dc', 'language', null, (string) $row['language_codes']);
+            foreach (preg_split('/[,;\s]+/', (string) $row['language_codes']) ?: [] as $langCode) {
+                $langCode = trim($langCode);
+                if ($langCode !== '') {
+                    $xw->writeElementNs('dc', 'language', null, $langCode);
+                }
+            }
         }
         if (!empty($row['access_conditions'])) {
             $xw->writeElementNs('dc', 'rights', null, (string) $row['access_conditions']);
+        }
+        if (!empty($row['rights_statement_url'])) {
+            $xw->writeElementNs('dc', 'rights', null, (string) $row['rights_statement_url']);
         }
 
         $xw->endElement(); // oai_dc:dc
     }
 
-    // ── EAD3 export ──────────────────────────────────────────────────────────
+    // ── EAD3 / METS per-unit export ───────────────────────────────────────────
+
+    /**
+     * GET /archives/{id}/ead.xml and /admin/archives/{id}/ead.xml
+     * Single-unit EAD3 finding aid (not wrapped in <eadlist>).
+     */
+    public function exportEad3Action(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            $response->getBody()->write('Not found');
+            return $response->withStatus(404);
+        }
+        $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $this->writeEad3Document($xw, $row, $authorities);
+        $xw->endDocument();
+        $slug = preg_replace('/[^a-z0-9_-]/i', '_', (string) ($row['reference_code'] ?? 'ead'));
+        $response->getBody()->write($xw->outputMemory());
+        return $response
+            ->withHeader('Content-Type', 'application/xml; charset=utf-8')
+            ->withHeader('Content-Disposition', 'inline; filename="' . $slug . '.ead3.xml"');
+    }
+
+    /**
+     * GET /archives/{id}/mets.xml and /admin/archives/{id}/mets.xml
+     * METS package: DC inline + EAD3 by reference + IIIF manifest link.
+     * Suitable for submission to Europeana and national aggregators.
+     */
+    public function exportMetsAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            $response->getBody()->write('Not found');
+            return $response->withStatus(404);
+        }
+        $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+        $xml = $this->buildMetsXml($row, $authorities);
+        $slug = preg_replace('/[^a-z0-9_-]/i', '_', (string) ($row['reference_code'] ?? 'mets'));
+        $response->getBody()->write($xml);
+        return $response
+            ->withHeader('Content-Type', 'application/xml; charset=utf-8')
+            ->withHeader('Content-Disposition', 'inline; filename="' . $slug . '.mets.xml"');
+    }
+
+    /**
+     * Build a METS 1.12 document for one archival_unit.
+     * Structure:
+     *   metsHdr   — software agent (Pinakes)
+     *   dmdSec/1  — Dublin Core (inline)
+     *   dmdSec/2  — EAD3 finding aid (by URL reference)
+     *   fileSec   — IIIF manifest + optional cover image
+     *   structMap — logical div linking DMD sections to files
+     *
+     * @param array<string, mixed>      $row
+     * @param list<array<string,mixed>> $authorities
+     */
+    private function buildMetsXml(array $row, array $authorities): string
+    {
+        $base   = rtrim((string) absoluteUrl(''), '/');
+        $unitId = (int) ($row['id'] ?? 0);
+        $title  = (string) ($row['constructed_title'] ?? $row['formal_title'] ?? 'Untitled');
+        $objId  = 'oai:pinakes:archival_unit:' . $unitId;
+
+        $updatedAt = gmdate('Y-m-d\TH:i:s\Z');
+        try {
+            if (!empty($row['updated_at'])) {
+                $updatedAt = (new \DateTimeImmutable((string) $row['updated_at']))
+                    ->setTimezone(new \DateTimeZone('UTC'))
+                    ->format('Y-m-d\TH:i:s\Z');
+            }
+        } catch (\Throwable) {}
+
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+
+        $xw->startElementNs('mets', 'mets', 'http://www.loc.gov/METS/');
+        $xw->writeAttributeNs('xmlns', 'xlink', null, 'http://www.w3.org/1999/xlink');
+        $xw->writeAttributeNs('xmlns', 'xsi',   null, 'http://www.w3.org/2001/XMLSchema-instance');
+        $xw->writeAttributeNs('xsi', 'schemaLocation', null,
+            'http://www.loc.gov/METS/ http://www.loc.gov/standards/mets/mets.xsd');
+        $xw->writeAttribute('OBJID', $objId);
+        $xw->writeAttribute('LABEL', $title);
+        $xw->writeAttribute('TYPE',  'ArchivalUnit');
+
+        // metsHdr
+        $xw->startElement('mets:metsHdr');
+        $xw->writeAttribute('CREATEDATE', $updatedAt);
+        $xw->startElement('mets:agent');
+        $xw->writeAttribute('ROLE', 'CREATOR');
+        $xw->writeAttribute('TYPE', 'OTHER');
+        $xw->writeAttribute('OTHERTYPE', 'SOFTWARE');
+        $xw->writeElement('mets:name', 'Pinakes Archives Module');
+        $xw->endElement(); // agent
+        $xw->endElement(); // metsHdr
+
+        // dmdSec 1 — Dublin Core inline
+        $xw->startElement('mets:dmdSec');
+        $xw->writeAttribute('ID', 'DMD01');
+        $xw->startElement('mets:mdWrap');
+        $xw->writeAttribute('MDTYPE',   'DC');
+        $xw->writeAttribute('MIMETYPE', 'text/xml');
+        $xw->startElement('mets:xmlData');
+        $this->writeDublinCoreRecord($xw, $row, $authorities);
+        $xw->endElement(); // xmlData
+        $xw->endElement(); // mdWrap
+        $xw->endElement(); // dmdSec
+
+        // dmdSec 2 — EAD3 by reference
+        $xw->startElement('mets:dmdSec');
+        $xw->writeAttribute('ID', 'DMD02');
+        $xw->startElement('mets:mdRef');
+        $xw->writeAttribute('MDTYPE',   'EAD');
+        $xw->writeAttribute('MIMETYPE', 'application/xml');
+        $xw->writeAttribute('LOCTYPE',  'URL');
+        $xw->writeAttributeNs('xlink', 'type', null, 'simple');
+        $xw->writeAttributeNs('xlink', 'href', null, $base . '/archives/' . $unitId . '/ead.xml');
+        $xw->endElement(); // mdRef
+        $xw->endElement(); // dmdSec
+
+        // fileSec
+        $xw->startElement('mets:fileSec');
+
+        $xw->startElement('mets:fileGrp');
+        $xw->writeAttribute('USE', 'reference');
+        $xw->startElement('mets:file');
+        $xw->writeAttribute('ID',       'IIIF_MANIFEST');
+        $xw->writeAttribute('MIMETYPE', 'application/ld+json');
+        $xw->writeAttribute('USE',      'iiif-manifest');
+        $xw->startElement('mets:FLocat');
+        $xw->writeAttribute('LOCTYPE', 'URL');
+        $xw->writeAttributeNs('xlink', 'type', null, 'simple');
+        $xw->writeAttributeNs('xlink', 'href', null, $base . '/archives/' . $unitId . '/manifest.json');
+        $xw->endElement(); // FLocat
+        $xw->endElement(); // file
+        $xw->endElement(); // fileGrp
+
+        if (!empty($row['cover_image_path'])) {
+            $coverPath = (string) $row['cover_image_path'];
+            $fsPath    = __DIR__ . '/../../../public' . $coverPath;
+            $imgSize   = @getimagesize($fsPath);
+            $mime      = ($imgSize !== false) ? $imgSize['mime'] : 'image/jpeg';
+            $xw->startElement('mets:fileGrp');
+            $xw->writeAttribute('USE', 'thumbnail');
+            $xw->startElement('mets:file');
+            $xw->writeAttribute('ID',       'COVER_IMAGE');
+            $xw->writeAttribute('MIMETYPE', $mime);
+            $xw->startElement('mets:FLocat');
+            $xw->writeAttribute('LOCTYPE', 'URL');
+            $xw->writeAttributeNs('xlink', 'type', null, 'simple');
+            $xw->writeAttributeNs('xlink', 'href', null, $base . '/' . ltrim($coverPath, '/'));
+            $xw->endElement(); // FLocat
+            $xw->endElement(); // file
+            $xw->endElement(); // fileGrp
+        }
+
+        $xw->endElement(); // fileSec
+
+        // structMap
+        $xw->startElement('mets:structMap');
+        $xw->writeAttribute('TYPE', 'logical');
+        $xw->startElement('mets:div');
+        $xw->writeAttribute('TYPE',  'ArchivalUnit');
+        $xw->writeAttribute('LABEL', $title);
+        $xw->writeAttribute('DMDID', 'DMD01 DMD02');
+        $xw->startElement('mets:fptr');
+        $xw->writeAttribute('FILEID', 'IIIF_MANIFEST');
+        $xw->endElement(); // fptr
+        if (!empty($row['cover_image_path'])) {
+            $xw->startElement('mets:fptr');
+            $xw->writeAttribute('FILEID', 'COVER_IMAGE');
+            $xw->endElement(); // fptr
+        }
+        $xw->endElement(); // div
+        $xw->endElement(); // structMap
+
+        $xw->endElement(); // mets:mets
+        $xw->endDocument();
+        return $xw->outputMemory();
+    }
+
+    // ── EAD3 bulk export ─────────────────────────────────────────────────────
 
     /**
      * GET /admin/archives/export.ead3?ids=1,2,3 — EAD3 XML bulk export.
@@ -4282,7 +5052,11 @@ class ArchivesPlugin
         $xw->writeAttribute('dateencoding',    'iso8601');
         $xw->writeAttribute('langencoding',    'iso639-2b');
 
-        $xw->writeElement('recordid', (string) ($row['reference_code'] ?? 'pinakes_' . $row['id']));
+        // Prefer the ARK identifier as the canonical record ID; fall back to reference_code
+        $recordId = !empty($row['ark_identifier'])
+            ? (string) $row['ark_identifier']
+            : (string) ($row['reference_code'] ?? 'pinakes_' . $row['id']);
+        $xw->writeElement('recordid', $recordId);
 
         $xw->startElement('filedesc');
         $xw->startElement('titlestmt');
@@ -4469,6 +5243,32 @@ class ArchivesPlugin
                 $xw->endElement();
             }
             $xw->endElement(); // controlaccess
+        }
+
+        // <dao>: link to the IIIF manifest (and cover image if available)
+        $unitId = (int) ($row['id'] ?? 0);
+        if ($unitId > 0) {
+            $xw->startElement('daoset');
+            $xw->writeAttribute('coverage', 'whole');
+            // IIIF manifest
+            $xw->startElement('dao');
+            $xw->writeAttribute('daotype', 'derived');
+            $xw->writeAttribute('href', (string) absoluteUrl('/archives/' . $unitId . '/manifest.json'));
+            $xw->writeAttribute('linktitle', 'IIIF Manifest');
+            $xw->writeAttribute('actuate', 'onrequest');
+            $xw->writeAttribute('show', 'new');
+            $xw->endElement(); // dao
+            // Cover image (if present)
+            if (!empty($row['cover_image_path'])) {
+                $xw->startElement('dao');
+                $xw->writeAttribute('daotype', 'borndigital');
+                $xw->writeAttribute('href', (string) absoluteUrl('/' . ltrim((string) $row['cover_image_path'], '/')));
+                $xw->writeAttribute('linktitle', 'Cover image');
+                $xw->writeAttribute('actuate', 'onrequest');
+                $xw->writeAttribute('show', 'embed');
+                $xw->endElement(); // dao
+            }
+            $xw->endElement(); // daoset
         }
 
         $xw->endElement(); // archdesc
@@ -5054,6 +5854,10 @@ class ArchivesPlugin
             document_path       VARCHAR(500) NULL,
             document_mime       VARCHAR(100) NULL,
             document_filename   VARCHAR(255) NULL,
+            iiif_manifest_url   VARCHAR(2000) NULL,
+            rights_statement_url VARCHAR(500) NULL,
+            ark_identifier      VARCHAR(255) NULL,
+            version_note        VARCHAR(500) NULL,
             created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             deleted_at          TIMESTAMP NULL,
