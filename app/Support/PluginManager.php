@@ -149,6 +149,27 @@ class PluginManager
                             );
                         }
                     }
+                } elseif ($diskVersion === $dbVersion && (int) ($row['is_active'] ?? 0) === 1) {
+                    // Same version re-deploy: hooks added to the code but not yet in DB
+                    // (e.g. merging branches that extend the same plugin version).
+                    // ensureSchema uses DELETE+INSERT so calling onActivate is idempotent.
+                    // autoRegisterBundledPlugins runs only on admin plugin-page visits,
+                    // so this extra work is acceptable.
+                    try {
+                        $syncInstance = $this->instantiatePlugin([
+                            'id'        => (int) $row['id'],
+                            'name'      => $pluginName,
+                            'path'      => $pluginName,
+                            'main_file' => $pluginMeta['main_file'] ?? 'wrapper.php',
+                        ]);
+                        if (method_exists($syncInstance, 'onActivate')) {
+                            $syncInstance->onActivate();
+                        }
+                    } catch (\Throwable $e) {
+                        // Non-fatal: log and continue. Hooks may be stale but the
+                        // plugin keeps running with whatever is currently in the DB.
+                        SecureLogger::warning("[PluginManager] Hook re-sync skipped for $pluginName (same version): " . $e->getMessage());
+                    }
                 }
                 continue;
             }

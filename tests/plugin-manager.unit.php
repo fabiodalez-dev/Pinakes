@@ -30,6 +30,12 @@ $check($source !== false && str_contains($source, 'UPDATE plugins SET version = 
 $check($source !== false && str_contains($source, "bind_param('si', \$dbVersion, \$updId)"), 'rollback restores previous DB version for the same plugin id');
 $check($source !== false && str_contains($source, 'Bundled plugin upgrade lifecycle failed'), 'failed lifecycle propagates an explicit error');
 
+echo "\nPluginManager same-version hook re-sync:\n";
+$check($source !== false && str_contains($source, "\$diskVersion === \$dbVersion"), 'same-version branch exists');
+$check($source !== false && str_contains($source, '$syncInstance->onActivate();'), 'same-version branch calls onActivate to re-sync hooks');
+$hasWarn = $source !== false && str_contains($source, 'Hook re-sync skipped');
+$check($hasWarn, 'same-version failure is non-fatal (warning, no rethrow)');
+
 echo "\n================================\n";
 echo "Passed: $passed   Failed: $failed\n";
 exit($failed > 0 ? 1 : 0);
