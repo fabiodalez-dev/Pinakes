@@ -238,13 +238,6 @@ class ArchivesPlugin
             'archival_unit_authority' => self::ddlArchivalAuthorityLinks(),
             'autori_authority_link'   => self::ddlAutoriAuthorityLink(),
         ];
-        // Phase 5 migration: add image columns to archival_units if they're
-        // not already there. Harmless no-op on fresh installs because the
-        // DDL above already declares them; essential on installs created
-        // before phase 5 where the CREATE TABLE IF NOT EXISTS won't touch
-        // an existing table.
-        $this->migrateImageColumns();
-
         $created = [];
         $failed = [];
 
@@ -266,6 +259,10 @@ class ArchivesPlugin
                 );
             }
         }
+
+        // Phase 5+ migration: ALTER TABLE to add columns missing from older
+        // installs. Must run AFTER CREATE TABLE so the table exists.
+        $this->migrateImageColumns();
 
         return ['created' => $created, 'failed' => $failed];
     }
@@ -4191,7 +4188,7 @@ class ArchivesPlugin
         $baseUrl    = absoluteUrl('');
         $base       = rtrim($baseUrl, '/');
         $manifestId = $base . '/archives/' . $id . '/manifest.json';
-        $lang       = !empty($row['language_codes']) ? explode(',', (string) $row['language_codes'])[0] : 'it';
+        $lang       = !empty($row['language_codes']) ? (preg_split('/[,;\s]+/', (string) $row['language_codes']) ?: ['it'])[0] : 'it';
         $title      = (string) ($row['constructed_title'] ?? $row['formal_title'] ?? 'Untitled');
         $institution = (string) ($row['institution_code'] ?? 'PINAKES');
 
@@ -4730,7 +4727,12 @@ class ArchivesPlugin
             $xw->writeElementNs('dc', 'format', null, (string) $row['extent']);
         }
         if (!empty($row['language_codes'])) {
-            $xw->writeElementNs('dc', 'language', null, (string) $row['language_codes']);
+            foreach (preg_split('/[,;\s]+/', (string) $row['language_codes']) ?: [] as $langCode) {
+                $langCode = trim($langCode);
+                if ($langCode !== '') {
+                    $xw->writeElementNs('dc', 'language', null, $langCode);
+                }
+            }
         }
         if (!empty($row['access_conditions'])) {
             $xw->writeElementNs('dc', 'rights', null, (string) $row['access_conditions']);
@@ -5852,6 +5854,10 @@ class ArchivesPlugin
             document_path       VARCHAR(500) NULL,
             document_mime       VARCHAR(100) NULL,
             document_filename   VARCHAR(255) NULL,
+            iiif_manifest_url   VARCHAR(2000) NULL,
+            rights_statement_url VARCHAR(500) NULL,
+            ark_identifier      VARCHAR(255) NULL,
+            version_note        VARCHAR(500) NULL,
             created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             deleted_at          TIMESTAMP NULL,
