@@ -128,6 +128,14 @@ $rootRows = $byParent[0] ?? [];
                class="btn-secondary inline-flex items-center">
                 <?= __("Esporta MARCXML") ?>
             </a>
+            <a href="<?= $e(url('/admin/archives/export.ead3')) ?>"
+               class="btn-secondary inline-flex items-center">
+                <?= __("Esporta EAD3") ?>
+            </a>
+            <a href="<?= $e(url('/archives/oai?verb=Identify')) ?>"
+               class="btn-secondary inline-flex items-center" target="_blank" rel="noopener">
+                <?= __("OAI-PMH") ?>
+            </a>
             <a href="<?= $e(url('/admin/archives/new')) ?>"
                class="btn-primary inline-flex items-center">
                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -60,6 +60,25 @@ $htmlLang = substr($currentLocale, 0, 2);
   <?php
   // Hook: Allow plugins to enqueue assets in the head (e.g., CSS, fonts, meta tags)
   do_action('assets.head');
+
+  if (!empty($headLinks) && is_array($headLinks)) {
+    foreach ($headLinks as $hl) {
+      if (!is_array($hl)) { continue; }
+      $out = '<link';
+      foreach (['rel', 'type', 'title', 'href'] as $attr) {
+        if (!empty($hl[$attr])) {
+          $val = (string) $hl[$attr];
+          if ($attr === 'href') {
+            $sanitized = filter_var($val, FILTER_SANITIZE_URL);
+            if ($sanitized === false || !preg_match('#^(https?://|/)#i', $sanitized)) { continue; }
+            $val = $sanitized;
+          }
+          $out .= ' ' . $attr . '="' . htmlspecialchars($val, ENT_QUOTES, 'UTF-8') . '"';
+        }
+      }
+      echo $out . ">\n";
+    }
+  }
   ?>
 
   <style>

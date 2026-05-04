@@ -607,6 +607,49 @@ class ArchivesPlugin
             return $plugin->exportAuthorityAction($request, $response, (int) $args['id']);
         })->add($adminMiddleware);
 
+        // ── Interoperability — Dublin Core, EAD3, OAI-PMH ─────────────────────
+
+        // Dublin Core XML for one archival_unit. The admin route is useful for
+        // staff testing; the public route powers machine discovery links.
+        $app->get('/admin/archives/{id:[0-9]+}/dc.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportDublinCoreAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+        $app->get('/archives/{id:[0-9]+}/dc.xml', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportDublinCoreAction($request, $response, (int) $args['id']);
+        });
+
+        // EAD3 bulk export (same admin-only access as MARCXML export).
+        $app->get('/admin/archives/export.ead3', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->exportEad3CollectionAction($request, $response);
+        })->add($adminMiddleware);
+
+        // OAI-PMH 2.0 endpoint — intentionally PUBLIC (no admin auth).
+        // Aggregators (Europeana, DPLA, national portals) harvest it without
+        // authentication. Both GET and POST are required by the spec.
+        $app->get('/archives/oai', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->oaiPmhAction($request, $response);
+        });
+        $app->post('/archives/oai', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->oaiPmhAction($request, $response);
+        });
+
         // Import form (GET) + submit (POST multipart/form-data)
         $app->get('/admin/archives/import', function (
             ServerRequestInterface $request,
@@ -994,6 +1037,10 @@ class ArchivesPlugin
             'linked_authorities'   => $this->fetchAuthoritiesForArchivalUnit($id),
             'available_authorities'=> $this->listAllAuthorities(),
             'authority_roles'      => array_keys(self::AUTHORITY_ROLES),
+            'headLinks'            => [
+                ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
+                 'href' => absoluteUrl('/archives/' . $id . '/dc.xml')],
+            ],
         ]);
     }
 
@@ -2173,6 +2220,11 @@ class ArchivesPlugin
         }
         // $archiveSchema is populated by show.php (Schema.org JSON-LD).
         $archiveSchema = $archiveSchema ?? null;
+        $headLinks = [];
+        if (isset($data['row']['id'])) {
+            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
+                            'href' => absoluteUrl('/archives/' . (int) $data['row']['id'] . '/dc.xml')];
+        }
 
         $layoutPath = __DIR__ . '/../../../app/Views/frontend/layout.php';
         if (!is_file($layoutPath)) {
@@ -3993,6 +4045,884 @@ class ArchivesPlugin
                 'description' => 'Share authority_records with the legacy `libri.autori` table',
             ],
         ];
+    }
+
+    // ── Phase 5 — Interoperability: Dublin Core, EAD3, OAI-PMH ────────────
+
+    // ── Dublin Core XML ──────────────────────────────────────────────────────
+
+    /**
+     * GET /admin/archives/{id}/dc.xml and /archives/{id}/dc.xml — Dublin Core
+     * XML (oai_dc namespace) for one archival_unit. The public route supports
+     * machine discovery; /archives/oai serves the same format to harvesters.
+     */
+    public function exportDublinCoreAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            $response->getBody()->write('Not found');
+            return $response->withStatus(404);
+        }
+        $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+        $xml = $this->buildDublinCoreXml($row, $authorities);
+        $slug = preg_replace('/[^a-z0-9_-]/i', '_', (string) ($row['reference_code'] ?? 'dc'));
+        $response->getBody()->write($xml);
+        return $response
+            ->withHeader('Content-Type', 'application/xml; charset=utf-8')
+            ->withHeader('Content-Disposition', 'inline; filename="' . $slug . '.dc.xml"');
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @param list<array<string, mixed>> $authorities
+     */
+    private function buildDublinCoreXml(array $row, array $authorities): string
+    {
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $this->writeDublinCoreRecord($xw, $row, $authorities);
+        $xw->endDocument();
+        return $xw->outputMemory();
+    }
+
+    /**
+     * Emit one <oai_dc:dc> element for the given archival_unit row.
+     * DC element crosswalk (ISAD(G) → Dublin Core):
+     *   3.1.1 reference_code   → dc:identifier
+     *   3.1.2 constructed/formal_title → dc:title
+     *   3.1.3 date_start/end   → dc:date (ISO 8601 range with '/')
+     *   3.1.5 extent           → dc:format
+     *   3.3.1 scope_content    → dc:description
+     *   3.4.1 access_conditions → dc:rights
+     *   3.4.3 language_codes   → dc:language
+     *   authority creators     → dc:creator
+     *
+     * @param array<string, mixed> $row
+     * @param list<array<string, mixed>> $authorities
+     */
+    private function writeDublinCoreRecord(\XMLWriter $xw, array $row, array $authorities): void
+    {
+        $xw->startElementNs('oai_dc', 'dc', 'http://www.openarchives.org/OAI/2.0/oai_dc/');
+        $xw->writeAttributeNs('xmlns', 'dc',  null, 'http://purl.org/dc/elements/1.1/');
+        $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
+        $xw->writeAttributeNs('xsi', 'schemaLocation', null,
+            'http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd');
+
+        $title = (string) ($row['constructed_title'] ?? '');
+        if ($title === '' && !empty($row['formal_title'])) {
+            $title = (string) $row['formal_title'];
+        }
+        $xw->writeElementNs('dc', 'title', null, $title);
+
+        foreach ($authorities as $auth) {
+            if ((string) ($auth['role'] ?? '') === 'creator') {
+                $xw->writeElementNs('dc', 'creator', null, (string) ($auth['authorised_form'] ?? ''));
+            }
+        }
+
+        if (!empty($row['reference_code'])) {
+            $xw->writeElementNs('dc', 'identifier', null, (string) $row['reference_code']);
+        }
+        $publisher = trim((string) ($row['repository_name'] ?? ''));
+        if ($publisher === '') {
+            $publisher = trim((string) \App\Support\ConfigStore::get('app.name', 'Pinakes'));
+        }
+        if ($publisher !== '') {
+            $xw->writeElementNs('dc', 'publisher', null, $publisher);
+        }
+
+        if (!empty($row['date_start'])) {
+            $dateStr = (string) $row['date_start'];
+            if (!empty($row['date_end']) && $row['date_end'] !== $row['date_start']) {
+                $dateStr .= '/' . (string) $row['date_end'];
+            }
+            $xw->writeElementNs('dc', 'date', null, $dateStr);
+        }
+
+        if (!empty($row['scope_content'])) {
+            $xw->writeElementNs('dc', 'description', null, (string) $row['scope_content']);
+        }
+
+        $xw->writeElementNs('dc', 'type', null, 'Collection');
+        if (!empty($row['level'])) {
+            $xw->writeElementNs('dc', 'type', null, ucfirst((string) $row['level']));
+        }
+
+        if (!empty($row['extent'])) {
+            $xw->writeElementNs('dc', 'format', null, (string) $row['extent']);
+        }
+        if (!empty($row['language_codes'])) {
+            $xw->writeElementNs('dc', 'language', null, (string) $row['language_codes']);
+        }
+        if (!empty($row['access_conditions'])) {
+            $xw->writeElementNs('dc', 'rights', null, (string) $row['access_conditions']);
+        }
+
+        $xw->endElement(); // oai_dc:dc
+    }
+
+    // ── EAD3 export ──────────────────────────────────────────────────────────
+
+    /**
+     * GET /admin/archives/export.ead3?ids=1,2,3 — EAD3 XML bulk export.
+     * Without ?ids= exports all non-deleted archival_units (capped at 1000).
+     *
+     * EAD3 is an alternative to MARCXML used by many national archives and
+     * aggregators. This serialisation follows the Library of Congress EAD3
+     * schema (http://ead3.archivists.org/schema/).
+     */
+    public function exportEad3CollectionAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $params  = $request->getQueryParams();
+        $idsParam = (string) ($params['ids'] ?? '');
+        $ids = [];
+        if ($idsParam !== '') {
+            foreach (explode(',', $idsParam) as $raw) {
+                $n = (int) trim($raw);
+                if ($n > 0) { $ids[] = $n; }
+            }
+        }
+
+        $rows = [];
+        if (empty($ids)) {
+            $result = $this->db->query(
+                "SELECT * FROM archival_units WHERE deleted_at IS NULL
+                  ORDER BY FIELD(level,'fonds','series','file','item'), reference_code
+                  LIMIT 1000"
+            );
+            if ($result instanceof \mysqli_result) {
+                while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+                $result->free();
+            }
+        } else {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            $stmt = $this->db->prepare(
+                "SELECT * FROM archival_units
+                  WHERE id IN ($placeholders) AND deleted_at IS NULL
+                  ORDER BY FIELD(level,'fonds','series','file','item'), reference_code"
+            );
+            if ($stmt !== false) {
+                $types = str_repeat('i', count($ids));
+                $stmt->bind_param($types, ...$ids);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                if ($result instanceof \mysqli_result) {
+                    while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+                    $result->free();
+                }
+                $stmt->close();
+            }
+        }
+
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+
+        // <eadlist> is a Pinakes-specific container element (not in the EAD3
+        // schema) used to group multiple <ead> documents in a single XML file.
+        // EAD3 has no standard bulk-export wrapper; tools that consume this file
+        // can strip the outer element and process each <ead> child independently.
+        $xw->startElement('eadlist');
+        $xw->writeAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
+        foreach ($rows as $row) {
+            $auth = $this->fetchAuthoritiesForArchivalUnit((int) $row['id']);
+            $this->writeEad3Document($xw, $row, $auth);
+        }
+        $xw->endElement(); // eadlist
+        $xw->endDocument();
+
+        $xml = $xw->outputMemory();
+        $response->getBody()->write($xml);
+        return $response
+            ->withHeader('Content-Type', 'application/xml; charset=utf-8')
+            ->withHeader('Content-Disposition', 'attachment; filename="archives.ead3.xml"');
+    }
+
+    /**
+     * Emit one complete <ead> document for an archival_unit row.
+     *
+     * EAD3 crosswalk (ISAD(G) → EAD3):
+     *   3.1.1 reference_code    → control/recordid + did/unitid
+     *   3.1.2 constructed_title → control/filedesc/titlestmt/titleproper
+     *                             + archdesc/did/unittitle
+     *   3.1.2 formal_title      → archdesc/did/unittitle[@altrender="formal"]
+     *   3.1.3 date_start/end    → archdesc/did/unitdatestructured
+     *   3.1.4 level             → archdesc[@level]
+     *   3.1.5 extent            → archdesc/did/physdescstructured
+     *   3.2.3 archival_history  → archdesc/custodhist
+     *   3.3.1 scope_content     → archdesc/scopecontent
+     *   3.3.4 arrangement_system → archdesc/arrangement
+     *   3.4.1 access_conditions → archdesc/accessrestrict
+     *   3.4.2 reproduction_rules → archdesc/userestrict
+     *   3.4.3 language_codes    → archdesc/did/langmaterial
+     *   authority records       → archdesc/controlaccess
+     *
+     * @param array<string, mixed> $row
+     * @param list<array<string, mixed>> $authorities
+     */
+    private function writeEad3Document(\XMLWriter $xw, array $row, array $authorities): void
+    {
+        $ns = 'http://ead3.archivists.org/schema/';
+        $xw->startElementNs(null, 'ead', $ns);
+        $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
+        $xw->writeAttributeNs('xsi', 'schemaLocation', null,
+            'http://ead3.archivists.org/schema/ https://www.loc.gov/ead/ead3.xsd');
+
+        // <control>
+        $xw->startElement('control');
+        $xw->writeAttribute('countryencoding', 'iso3166-1');
+        $xw->writeAttribute('dateencoding',    'iso8601');
+        $xw->writeAttribute('langencoding',    'iso639-2b');
+
+        $xw->writeElement('recordid', (string) ($row['reference_code'] ?? 'pinakes_' . $row['id']));
+
+        $xw->startElement('filedesc');
+        $xw->startElement('titlestmt');
+        $constructed = (string) ($row['constructed_title'] ?? '');
+        $xw->startElement('titleproper');
+        $xw->writeAttribute('encodinganalog', '245');
+        $xw->text($constructed !== '' ? $constructed : (string) ($row['formal_title'] ?? ''));
+        $xw->endElement(); // titleproper
+        $xw->endElement(); // titlestmt
+        $xw->endElement(); // filedesc
+
+        $xw->startElement('maintenancestatus');
+        $xw->writeAttribute('value', 'new');
+        $xw->endElement();
+
+        $xw->startElement('maintenanceagency');
+        $xw->writeElement('agencycode', 'PINAKES');
+        $xw->writeElement('agencyname', 'Pinakes Library Management System');
+        $xw->endElement();
+
+        $xw->startElement('maintenancehistory');
+        $xw->startElement('maintenanceevent');
+        $xw->startElement('eventtype');
+        $xw->writeAttribute('value', 'created');
+        $xw->endElement();
+        $xw->startElement('eventdatetime');
+        $createdAtRaw = (string) ($row['created_at'] ?? '');
+        $createdAtIso = gmdate('Y-m-d\TH:i:s\Z');
+        if ($createdAtRaw !== '') {
+            try {
+                $createdAtIso = (new \DateTimeImmutable($createdAtRaw))
+                    ->setTimezone(new \DateTimeZone('UTC'))
+                    ->format('Y-m-d\TH:i:s\Z');
+            } catch (\Throwable) {
+                // fallback già inizializzato
+            }
+        }
+        $xw->writeAttribute('standarddatetime', $createdAtIso);
+        $xw->text($createdAtIso);
+        $xw->endElement();
+        $xw->startElement('agenttype');
+        $xw->writeAttribute('value', 'machine');
+        $xw->endElement();
+        $xw->writeElement('agent', 'Pinakes');
+        $xw->endElement(); // maintenanceevent
+        $xw->endElement(); // maintenancehistory
+
+        $xw->endElement(); // control
+
+        // <archdesc>
+        $levelAttr = (string) ($row['level'] ?? 'fonds');
+        $xw->startElement('archdesc');
+        $xw->writeAttribute('level', $levelAttr);
+
+        $xw->startElement('did');
+        // unittitle
+        if (!empty($row['constructed_title'])) {
+            $xw->startElement('unittitle');
+            $xw->writeAttribute('encodinganalog', '245');
+            $xw->text((string) $row['constructed_title']);
+            $xw->endElement();
+        }
+        if (!empty($row['formal_title'])) {
+            $xw->startElement('unittitle');
+            $xw->writeAttribute('altrender', 'formal');
+            $xw->writeAttribute('encodinganalog', '241');
+            $xw->text((string) $row['formal_title']);
+            $xw->endElement();
+        }
+        // unitid
+        if (!empty($row['reference_code'])) {
+            $xw->startElement('unitid');
+            $xw->writeAttribute('encodinganalog', '001');
+            $xw->text((string) $row['reference_code']);
+            $xw->endElement();
+        }
+        // unitdatestructured
+        if (!empty($row['date_start'])) {
+            $xw->startElement('unitdatestructured');
+            $xw->writeAttribute('calendar', 'gregorian');
+            $xw->writeAttribute('era', 'ce');
+            $dateEnd = !empty($row['date_end']) && $row['date_end'] !== $row['date_start']
+                ? (string) $row['date_end'] : null;
+            if ($dateEnd !== null) {
+                $xw->startElement('daterange');
+                $xw->startElement('fromdate');
+                $xw->writeAttribute('standarddate', (string) $row['date_start']);
+                $xw->text((string) $row['date_start']);
+                $xw->endElement();
+                $xw->startElement('todate');
+                $xw->writeAttribute('standarddate', $dateEnd);
+                $xw->text($dateEnd);
+                $xw->endElement();
+                $xw->endElement(); // daterange
+            } else {
+                $xw->startElement('datesingle');
+                $xw->writeAttribute('standarddate', (string) $row['date_start']);
+                $xw->text((string) $row['date_start']);
+                $xw->endElement();
+            }
+            $xw->endElement(); // unitdatestructured
+        }
+        // physdescstructured
+        if (!empty($row['extent'])) {
+            $xw->startElement('physdescstructured');
+            $xw->writeAttribute('coverage', 'whole');
+            $xw->writeAttribute('physdescstructuredtype', 'spaceoccupied');
+            $xw->writeElement('quantity', (string) $row['extent']);
+            $xw->writeElement('unittype', 'units');
+            $xw->endElement();
+        }
+        // langmaterial
+        if (!empty($row['language_codes'])) {
+            $xw->startElement('langmaterial');
+            foreach (preg_split('/[,;\s]+/', (string) $row['language_codes']) ?: [] as $lang) {
+                $lang = trim($lang);
+                if ($lang !== '') {
+                    $xw->startElement('language');
+                    $xw->writeAttribute('langcode', $lang);
+                    $xw->endElement();
+                }
+            }
+            $xw->endElement(); // langmaterial
+        }
+        $xw->endElement(); // did
+
+        // Narrative elements
+        if (!empty($row['archival_history'])) {
+            $xw->startElement('custodhist');
+            $xw->startElement('head');
+            $xw->text('Archival/administrative history');
+            $xw->endElement();
+            $xw->writeElement('p', (string) $row['archival_history']);
+            $xw->endElement();
+        }
+        if (!empty($row['scope_content'])) {
+            $xw->startElement('scopecontent');
+            $xw->startElement('head');
+            $xw->text('Scope and content');
+            $xw->endElement();
+            $xw->writeElement('p', (string) $row['scope_content']);
+            $xw->endElement();
+        }
+        if (!empty($row['arrangement_system'])) {
+            $xw->startElement('arrangement');
+            $xw->startElement('head');
+            $xw->text('System of arrangement');
+            $xw->endElement();
+            $xw->writeElement('p', (string) $row['arrangement_system']);
+            $xw->endElement();
+        }
+        if (!empty($row['access_conditions'])) {
+            $xw->startElement('accessrestrict');
+            $xw->startElement('head');
+            $xw->text('Conditions governing access');
+            $xw->endElement();
+            $xw->writeElement('p', (string) $row['access_conditions']);
+            $xw->endElement();
+        }
+        if (!empty($row['reproduction_rules'])) {
+            $xw->startElement('userestrict');
+            $xw->startElement('head');
+            $xw->text('Conditions governing reproduction');
+            $xw->endElement();
+            $xw->writeElement('p', (string) $row['reproduction_rules']);
+            $xw->endElement();
+        }
+
+        // <controlaccess> — linked authority records
+        if (!empty($authorities)) {
+            $xw->startElement('controlaccess');
+            foreach ($authorities as $auth) {
+                $authType = (string) ($auth['type'] ?? 'person');
+                $tag = match ($authType) {
+                    'corporate' => 'corpname',
+                    'family'    => 'famname',
+                    default     => 'persname',
+                };
+                $xw->startElement($tag);
+                $xw->writeAttribute('encodinganalog', $authType === 'corporate' ? '710' : '700');
+                $role = (string) ($auth['role'] ?? 'associated');
+                $xw->writeAttribute('relator', $role);
+                $xw->text((string) ($auth['authorised_form'] ?? ''));
+                $xw->endElement();
+            }
+            $xw->endElement(); // controlaccess
+        }
+
+        $xw->endElement(); // archdesc
+        $xw->endElement(); // ead
+    }
+
+    // ── OAI-PMH 2.0 ──────────────────────────────────────────────────────────
+
+    /**
+     * OAI-PMH 2.0 endpoint — handles all standard verbs.
+     *
+     * Public endpoint at GET/POST /archives/oai (no admin auth). Aggregators
+     * (Europeana, DPLA, national portals) poll this endpoint to harvest records
+     * without authentication, as required by the OAI-PMH 2.0 specification
+     * (https://www.openarchives.org/OAI/openarchivesprotocol.html).
+     *
+     * Supported verbs:
+     *   Identify              — repository description
+     *   ListMetadataFormats   — oai_dc (required) + marcxml + ead3
+     *   ListRecords           — all records (metadataPrefix=oai_dc or marcxml)
+     *   GetRecord             — one record by OAI identifier
+     *   ListIdentifiers       — identifiers without metadata
+     *   ListSets              — not supported (noSetHierarchy)
+     *
+     * OAI identifier scheme: oai:pinakes:archival_unit:{id}
+     *
+     * Resumption tokens: simple cursor-based paging (100 records per page).
+     */
+    public function oaiPmhAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        // OAI-PMH allows parameters via GET or POST (application/x-www-form-urlencoded).
+        $params = $request->getQueryParams();
+        if ($request->getMethod() === 'POST') {
+            $body = (array) ($request->getParsedBody() ?? []);
+            $params = array_merge($params, $body);
+        }
+
+        $verb   = (string) ($params['verb'] ?? '');
+        $now    = gmdate('Y-m-d\TH:i:s\Z');
+        $baseUrl = absoluteUrl('/archives/oai');
+
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+        $xw->startElementNs(null, 'OAI-PMH', 'http://www.openarchives.org/OAI/2.0/');
+        $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
+        $xw->writeAttributeNs('xsi', 'schemaLocation', null,
+            'http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd');
+
+        $xw->writeElement('responseDate', $now);
+
+        // OAI-PMH §2.2: <request> must carry attributes only for valid verbs.
+        // For badVerb/badArgument the element must contain only the base URL.
+        static $validVerbs = ['Identify', 'ListMetadataFormats', 'ListRecords',
+                               'GetRecord', 'ListIdentifiers', 'ListSets'];
+        $verbIsValid = in_array($verb, $validVerbs, true);
+        $xw->startElement('request');
+        if ($verbIsValid) {
+            if ($verb !== '') { $xw->writeAttribute('verb', $verb); }
+            foreach (['metadataPrefix', 'identifier', 'from', 'until', 'set', 'resumptionToken'] as $k) {
+                if (!empty($params[$k])) { $xw->writeAttribute($k, (string) $params[$k]); }
+            }
+        }
+        $xw->text($baseUrl);
+        $xw->endElement();
+
+        match ($verb) {
+            'Identify'            => $this->oaiIdentify($xw, $baseUrl, $now),
+            'ListMetadataFormats' => $this->oaiListMetadataFormats($xw, $params),
+            'ListRecords'         => $this->oaiListRecords($xw, $params, false),
+            'GetRecord'           => $this->oaiGetRecord($xw, $params),
+            'ListIdentifiers'     => $this->oaiListRecords($xw, $params, true),
+            'ListSets'            => $this->oaiListSets($xw),
+            default               => $this->oaiError($xw, 'badVerb',
+                'Value of the verb argument is not a legal OAI-PMH verb, '
+                . 'the verb argument is missing, or the verb argument is repeated.'),
+        };
+
+        $xw->endElement(); // OAI-PMH
+        $xw->endDocument();
+
+        $response->getBody()->write($xw->outputMemory());
+        return $response->withHeader('Content-Type', 'text/xml; charset=utf-8');
+    }
+
+    private function oaiIdentify(\XMLWriter $xw, string $baseUrl, string $now): void
+    {
+        // Earliest datestamp from the DB (or fallback to now if no records).
+        $earliest = $now;
+        $result   = $this->db->query(
+            "SELECT MIN(created_at) AS earliest FROM archival_units WHERE deleted_at IS NULL"
+        );
+        if ($result instanceof \mysqli_result) {
+            $r = $result->fetch_assoc();
+            if (!empty($r['earliest'])) {
+                $dt = \DateTime::createFromFormat('Y-m-d H:i:s', (string) $r['earliest']);
+                if ($dt !== false) {
+                    $earliest = $dt->format('Y-m-d\TH:i:s\Z');
+                }
+            }
+            $result->free();
+        }
+
+        $cfg = \App\Support\ConfigStore::all();
+        $repoName  = trim((string) ($cfg['app']['name'] ?? '')) ?: 'Pinakes';
+        $adminMail = trim((string) ($cfg['mail']['from_email'] ?? '')) ?: 'admin@localhost';
+
+        $xw->startElement('Identify');
+        $xw->writeElement('repositoryName', $repoName . ' — Archival Repository');
+        $xw->writeElement('baseURL', $baseUrl);
+        $xw->writeElement('protocolVersion', '2.0');
+        $xw->writeElement('adminEmail', $adminMail);
+        $xw->writeElement('earliestDatestamp', $earliest);
+        $xw->startElement('deletedRecord');
+        $xw->text('no');
+        $xw->endElement();
+        $xw->startElement('granularity');
+        $xw->text('YYYY-MM-DDThh:mm:ssZ');
+        $xw->endElement();
+        $xw->endElement(); // Identify
+    }
+
+    private function oaiListMetadataFormats(\XMLWriter $xw, array $params = []): void
+    {
+        $identifier = (string) ($params['identifier'] ?? '');
+        if ($identifier !== '') {
+            // Canonical identifier: oai:pinakes:archival_unit:{id}.
+            // Accept the old archives alias defensively for pre-release tokens.
+            if (!preg_match('/^oai:pinakes:(?:archival_unit|archives):(\d+)$/i', $identifier, $m)) {
+                $this->oaiError($xw, 'idDoesNotExist',
+                    'The value of the identifier argument is unknown or illegal in this repository.');
+                return;
+            }
+            if ($this->findById((int) $m[1]) === null) {
+                $this->oaiError($xw, 'idDoesNotExist',
+                    'The value of the identifier argument is unknown or illegal in this repository.');
+                return;
+            }
+        }
+
+        $xw->startElement('ListMetadataFormats');
+
+        $xw->startElement('metadataFormat');
+        $xw->writeElement('metadataPrefix', 'oai_dc');
+        $xw->writeElement('schema', 'http://www.openarchives.org/OAI/2.0/oai_dc.xsd');
+        $xw->writeElement('metadataNamespace', 'http://www.openarchives.org/OAI/2.0/oai_dc/');
+        $xw->endElement();
+
+        $xw->startElement('metadataFormat');
+        $xw->writeElement('metadataPrefix', 'marcxml');
+        $xw->writeElement('schema', 'http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd');
+        $xw->writeElement('metadataNamespace', 'http://www.loc.gov/MARC21/slim');
+        $xw->endElement();
+
+        $xw->startElement('metadataFormat');
+        $xw->writeElement('metadataPrefix', 'ead3');
+        $xw->writeElement('schema', 'https://www.loc.gov/ead/ead3.xsd');
+        $xw->writeElement('metadataNamespace', 'http://ead3.archivists.org/schema/');
+        $xw->endElement();
+
+        $xw->endElement(); // ListMetadataFormats
+    }
+
+    /**
+     * Shared implementation for ListRecords (identifiersOnly=false) and
+     * ListIdentifiers (identifiersOnly=true).
+     *
+     * @param array<string, mixed> $params
+     */
+    private function oaiListRecords(\XMLWriter $xw, array $params, bool $identifiersOnly): void
+    {
+        $metadataPrefix = (string) ($params['metadataPrefix'] ?? '');
+        $from  = (string) ($params['from']  ?? '');
+        $until = (string) ($params['until'] ?? '');
+        $set   = (string) ($params['set']   ?? '');
+        $token = (string) ($params['resumptionToken'] ?? '');
+
+        $cursor = 0;
+        if ($token !== '') {
+            $decoded = $this->decodeOaiResumptionToken($token);
+            if ($decoded === null) {
+                $this->oaiError($xw, 'badResumptionToken',
+                    'The value of the resumptionToken argument is invalid or expired.');
+                return;
+            }
+            $cursor         = $decoded['cursor'];
+            $metadataPrefix = $decoded['metadataPrefix'];
+            $from           = $decoded['from'];
+            $until          = $decoded['until'];
+            $set            = $decoded['set'];
+        }
+
+        if ($metadataPrefix === '' || !in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'The metadata format identified by the value given for the metadataPrefix '
+                . 'argument is not supported by the item or by the repository.');
+            return;
+        }
+        if ($set !== '') {
+            $this->oaiError($xw, 'noSetHierarchy',
+                'This repository does not support sets.');
+            return;
+        }
+
+        $pageSize = 100;
+        $where    = ['deleted_at IS NULL'];
+        $bindTypes = '';
+        $bindVals  = [];
+
+        if ($from !== '') {
+            $where[]     = 'updated_at >= ?';
+            $bindTypes  .= 's';
+            $bindVals[]  = str_replace('T', ' ', str_replace('Z', '', $from));
+        }
+        if ($until !== '') {
+            $where[]    = 'updated_at <= ?';
+            $bindTypes .= 's';
+            $bindVals[] = str_replace('T', ' ', str_replace('Z', '', $until));
+        }
+        $whereClause = implode(' AND ', $where);
+        $limitSql    = 'LIMIT ' . $pageSize . ' OFFSET ' . $cursor;
+        $countSql    = "SELECT COUNT(*) AS cnt FROM archival_units WHERE $whereClause";
+        $dataSql     = "SELECT * FROM archival_units WHERE $whereClause ORDER BY id $limitSql";
+
+        $totalCount = 0;
+        if (!empty($bindVals)) {
+            $countStmt = $this->db->prepare($countSql);
+            if ($countStmt !== false) {
+                $countStmt->bind_param($bindTypes, ...$bindVals);
+                $countStmt->execute();
+                $cr = $countStmt->get_result();
+                if ($cr instanceof \mysqli_result) {
+                    $totalCount = (int) ($cr->fetch_assoc()['cnt'] ?? 0);
+                    $cr->free();
+                }
+                $countStmt->close();
+            }
+        } else {
+            $cr = $this->db->query($countSql);
+            if ($cr instanceof \mysqli_result) {
+                $totalCount = (int) ($cr->fetch_assoc()['cnt'] ?? 0);
+                $cr->free();
+            }
+        }
+
+        if ($totalCount === 0) {
+            $this->oaiError($xw, 'noRecordsMatch',
+                'The combination of the values of the from, until, set, and metadataPrefix arguments '
+                . 'results in an empty list.');
+            return;
+        }
+
+        $rows = [];
+        if (!empty($bindVals)) {
+            $dataStmt = $this->db->prepare($dataSql);
+            if ($dataStmt !== false) {
+                $dataStmt->bind_param($bindTypes, ...$bindVals);
+                $dataStmt->execute();
+                $dr = $dataStmt->get_result();
+                if ($dr instanceof \mysqli_result) {
+                    while ($r = $dr->fetch_assoc()) { $rows[] = $r; }
+                    $dr->free();
+                }
+                $dataStmt->close();
+            }
+        } else {
+            $dr = $this->db->query($dataSql);
+            if ($dr instanceof \mysqli_result) {
+                while ($r = $dr->fetch_assoc()) { $rows[] = $r; }
+                $dr->free();
+            }
+        }
+
+        $verbElement = $identifiersOnly ? 'ListIdentifiers' : 'ListRecords';
+        $xw->startElement($verbElement);
+
+        foreach ($rows as $row) {
+            $rowId   = (int) $row['id'];
+            $oaiId   = 'oai:pinakes:archival_unit:' . $rowId;
+            $dtStamp = gmdate('Y-m-d\TH:i:s\Z',
+                strtotime((string) ($row['updated_at'] ?? $row['created_at'] ?? 'now')) ?: time());
+
+            if (!$identifiersOnly) {
+                $xw->startElement('record');
+            }
+
+            $xw->startElement('header');
+            $xw->writeElement('identifier', $oaiId);
+            $xw->writeElement('datestamp',  $dtStamp);
+            if (!empty($row['level'])) {
+                $xw->writeElement('setSpec', (string) $row['level']);
+            }
+            $xw->endElement(); // header
+
+            if (!$identifiersOnly) {
+                $xw->startElement('metadata');
+                $authorities = $this->fetchAuthoritiesForArchivalUnit($rowId);
+                if ($metadataPrefix === 'oai_dc') {
+                    $this->writeDublinCoreRecord($xw, $row, $authorities);
+                } elseif ($metadataPrefix === 'ead3') {
+                    $this->writeEad3Document($xw, $row, $authorities);
+                } else {
+                    $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
+                }
+                $xw->endElement(); // metadata
+            }
+
+            if (!$identifiersOnly) {
+                $xw->endElement(); // record
+            }
+        }
+
+        // Resumption token if there are more results.
+        $nextCursor = $cursor + $pageSize;
+        $xw->startElement('resumptionToken');
+        $xw->writeAttribute('completeListSize', (string) $totalCount);
+        $xw->writeAttribute('cursor', (string) $cursor);
+        if ($nextCursor < $totalCount) {
+            $xw->text($this->encodeOaiResumptionToken($nextCursor, $metadataPrefix, $from, $until, $set));
+        }
+        $xw->endElement(); // resumptionToken
+
+        $xw->endElement(); // ListRecords / ListIdentifiers
+    }
+
+    private function encodeOaiResumptionToken(
+        int $cursor,
+        string $metadataPrefix,
+        string $from,
+        string $until,
+        string $set
+    ): string {
+        $json = json_encode([
+            'cursor'         => $cursor,
+            'metadataPrefix' => $metadataPrefix,
+            'from'           => $from,
+            'until'          => $until,
+            'set'            => $set,
+        ], JSON_UNESCAPED_SLASHES);
+
+        return rtrim(strtr(base64_encode((string) $json), '+/', '-_'), '=');
+    }
+
+    /**
+     * @return array{cursor:int, metadataPrefix:string, from:string, until:string, set:string}|null
+     */
+    private function decodeOaiResumptionToken(string $token): ?array
+    {
+        $padded = strtr($token, '-_', '+/');
+        $padding = strlen($padded) % 4;
+        if ($padding !== 0) {
+            $padded .= str_repeat('=', 4 - $padding);
+        }
+
+        $json = base64_decode($padded, true);
+        if ($json === false) {
+            return null;
+        }
+
+        $payload = json_decode($json, true);
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        $metadataPrefix = (string) ($payload['metadataPrefix'] ?? '');
+        if (!in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
+            return null;
+        }
+
+        return [
+            'cursor'         => max(0, (int) ($payload['cursor'] ?? 0)),
+            'metadataPrefix' => $metadataPrefix,
+            'from'           => (string) ($payload['from'] ?? ''),
+            'until'          => (string) ($payload['until'] ?? ''),
+            'set'            => (string) ($payload['set'] ?? ''),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    private function oaiGetRecord(\XMLWriter $xw, array $params): void
+    {
+        $identifier     = (string) ($params['identifier']     ?? '');
+        $metadataPrefix = (string) ($params['metadataPrefix'] ?? '');
+
+        if ($identifier === '' || $metadataPrefix === '') {
+            $this->oaiError($xw, 'badArgument',
+                'The request includes illegal arguments, is missing required arguments, '
+                . 'includes a repeated argument, or values for arguments have an illegal syntax.');
+            return;
+        }
+        if (!in_array($metadataPrefix, ['oai_dc', 'marcxml', 'ead3'], true)) {
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'The metadata format identified by the value given for the metadataPrefix '
+                . 'argument is not supported by the item or by the repository.');
+            return;
+        }
+
+        // Parse identifier: oai:pinakes:archival_unit:{id}
+        if (!preg_match('/^oai:pinakes:archival_unit:(\d+)$/', $identifier, $m)) {
+            $this->oaiError($xw, 'idDoesNotExist',
+                'The value of the identifier argument is unknown or illegal in this repository.');
+            return;
+        }
+        $row = $this->findById((int) $m[1]);
+        if ($row === null) {
+            $this->oaiError($xw, 'idDoesNotExist',
+                'The value of the identifier argument is unknown or illegal in this repository.');
+            return;
+        }
+
+        $rowId   = (int) $row['id'];
+        $dtStamp = gmdate('Y-m-d\TH:i:s\Z',
+            strtotime((string) ($row['updated_at'] ?? $row['created_at'] ?? 'now')) ?: time());
+        $xw->startElement('GetRecord');
+        $xw->startElement('record');
+        $xw->startElement('header');
+        $xw->writeElement('identifier', $identifier);
+        $xw->writeElement('datestamp',  $dtStamp);
+        if (!empty($row['level'])) {
+            $xw->writeElement('setSpec', (string) $row['level']);
+        }
+        $xw->endElement(); // header
+
+        $xw->startElement('metadata');
+        $authorities = $this->fetchAuthoritiesForArchivalUnit($rowId);
+        if ($metadataPrefix === 'oai_dc') {
+            $this->writeDublinCoreRecord($xw, $row, $authorities);
+        } elseif ($metadataPrefix === 'ead3') {
+            $this->writeEad3Document($xw, $row, $authorities);
+        } else {
+            $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
+        }
+        $xw->endElement(); // metadata
+        $xw->endElement(); // record
+        $xw->endElement(); // GetRecord
+    }
+
+    private function oaiListSets(\XMLWriter $xw): void
+    {
+        $this->oaiError($xw, 'noSetHierarchy',
+            'This repository does not support sets.');
+    }
+
+    private function oaiError(\XMLWriter $xw, string $code, string $message): void
+    {
+        $xw->startElement('error');
+        $xw->writeAttribute('code', $code);
+        $xw->text($message);
+        $xw->endElement();
     }
 
     /**

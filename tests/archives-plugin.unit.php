@@ -18,6 +18,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../app/Support/Hooks.php';
 require_once __DIR__ . '/../app/Support/HookManager.php';
+require_once __DIR__ . '/../app/Support/ConfigStore.php';
 require_once __DIR__ . '/../app/Support/SecureLogger.php';
 require_once __DIR__ . '/../storage/plugins/archives/ArchivesPlugin.php';
 
@@ -71,8 +72,85 @@ $check($source !== false && str_contains($source, "'libri.authority.resolve'"), 
 $check($source !== false && str_contains($source, 'reference_code LIKE ?'),      'unified search matches archival reference_code');
 $check($source !== false && str_contains($source, "bind_param('ssss'"),          'unified search binds reference_code LIKE placeholder');
 
-echo "\nClass reflection — DI contract:\n";
+echo "\nOAI-PMH interoperability regressions:\n";
+$check($source !== false && str_contains($source, "\$app->get('/archives/{id:[0-9]+}/dc.xml'"), 'public Dublin Core route exists');
+$posDecodeTok  = $source !== false ? strpos($source, 'decodeOaiResumptionToken($token)') : false;
+$posMetaValid  = $source !== false ? strpos($source, "'cannotDisseminateFormat'") : false;
+$check($posDecodeTok !== false && $posMetaValid !== false && $posDecodeTok < $posMetaValid,
+    'resumptionToken is decoded before metadata validation');
+$check(
+    $source !== false && (bool) preg_match('/if\s*\(!\$identifiersOnly\)\s*\{[^}]*startElement\s*\(\s*[\'"]record[\'"]/', $source),
+    'ListIdentifiers does not force record wrappers'
+);
+$check($source !== false && str_contains($source, 'archival_unit|archives'), 'ListMetadataFormats accepts canonical archival_unit identifier');
+$check($source !== false && str_contains($source, "'noSetHierarchy'"), 'ListSets reports noSetHierarchy');
+$check($source !== false && str_contains($source, "writeElementNs('dc', 'publisher'"), 'Dublin Core emits dc:publisher');
+$check($source !== false && str_contains($source, 'application/rdf+xml'), 'Dublin Core discovery advertises application/rdf+xml');
+$check($source !== false && str_contains($source, 'filename="archives.ead3.xml"'), 'EAD3 export filename matches issue #125');
+
+$layoutSource = file_get_contents(__DIR__ . '/../app/Views/layout.php');
+$check($layoutSource !== false && str_contains($layoutSource, '$headLinks'), 'admin layout renders $headLinks (structured, no XSS sink)');
+$check($layoutSource !== false && !str_contains($layoutSource, "echo \"\\n\" . \$headExtra"), 'admin layout does not raw-echo $headExtra');
+$frontendLayoutSource = file_get_contents(__DIR__ . '/../app/Views/frontend/layout.php');
+$check($frontendLayoutSource !== false && str_contains($frontendLayoutSource, '$headLinks'), 'public layout renders $headLinks (structured, no XSS sink)');
+$check($frontendLayoutSource !== false && !str_contains($frontendLayoutSource, "echo \"\\n\" . \$headExtra"), 'public layout does not raw-echo $headExtra');
+
 $reflection = new ReflectionClass(ArchivesPlugin::class);
+$instance = $reflection->newInstanceWithoutConstructor();
+
+$invokeXmlFragment = static function (
+    ReflectionClass $reflection,
+    object $instance,
+    string $methodName,
+    array $args = []
+): string {
+    $xw = new XMLWriter();
+    $xw->openMemory();
+    $xw->setIndent(true);
+    $method = $reflection->getMethod($methodName);
+    $method->setAccessible(true);
+    $method->invokeArgs($instance, array_merge([$xw], $args));
+    return $xw->outputMemory();
+};
+
+echo "\nOAI-PMH interoperability behavior:\n";
+$listSetsXml = $invokeXmlFragment($reflection, $instance, 'oaiListSets');
+$check(str_contains($listSetsXml, 'code="noSetHierarchy"'), 'ListSets returns noSetHierarchy');
+$check(!str_contains($listSetsXml, '<ListSets'), 'ListSets does not publish a set hierarchy');
+
+$listRecordsSetXml = $invokeXmlFragment($reflection, $instance, 'oaiListRecords', [
+    ['metadataPrefix' => 'oai_dc', 'set' => 'series'],
+    false,
+]);
+$check(str_contains($listRecordsSetXml, 'code="noSetHierarchy"'), 'ListRecords rejects set filters with noSetHierarchy');
+
+$buildDc = $reflection->getMethod('buildDublinCoreXml');
+$buildDc->setAccessible(true);
+$dcXml = (string) $buildDc->invoke($instance, [
+    'constructed_title' => 'Test collection',
+    'reference_code' => 'TEST-DC-001',
+    'repository_name' => 'Archivio Storico Test',
+    'level' => 'fonds',
+], [
+    ['role' => 'creator', 'authorised_form' => 'Creator Test'],
+]);
+$check(str_contains($dcXml, '<dc:publisher>Archivio Storico Test</dc:publisher>'), 'Dublin Core maps repository_name to dc:publisher');
+
+$configReflection = new ReflectionClass(\App\Support\ConfigStore::class);
+$runtimeCache = $configReflection->getProperty('runtimeCache');
+$runtimeCache->setAccessible(true);
+$previousRuntimeCache = $runtimeCache->getValue();
+$runtimeCache->setValue(null, ['app' => ['name' => 'Pinakes Test Repository']]);
+$dcFallbackXml = (string) $buildDc->invoke($instance, [
+    'constructed_title' => 'Fallback publisher collection',
+    'reference_code' => 'TEST-DC-002',
+    'repository_name' => '',
+    'level' => 'file',
+], []);
+$runtimeCache->setValue(null, $previousRuntimeCache);
+$check(str_contains($dcFallbackXml, '<dc:publisher>Pinakes Test Repository</dc:publisher>'), 'Dublin Core falls back to configured app name as publisher');
+
+echo "\nClass reflection — DI contract:\n";
 $ctor = $reflection->getConstructor();
 $check($ctor !== null, 'constructor is defined');
 if ($ctor !== null) {
@@ -84,6 +162,21 @@ if ($ctor !== null) {
 $check($reflection->hasMethod('ensureSchema'), 'ensureSchema method exists');
 $check($reflection->hasMethod('plannedHooks'), 'plannedHooks method exists');
 $check($reflection->hasMethod('getHookManager'), 'getHookManager method exists');
+
+echo "\nOAI-PMH resumptionToken round-trip:\n";
+$encode = $reflection->getMethod('encodeOaiResumptionToken');
+$encode->setAccessible(true);
+$decode = $reflection->getMethod('decodeOaiResumptionToken');
+$decode->setAccessible(true);
+$token = (string) $encode->invoke($instance, 100, 'ead3', '2026-05-01T00:00:00Z', '2026-05-02T12:34:56Z', 'series');
+$decoded = $decode->invoke($instance, $token);
+$check(is_array($decoded), 'encoded token decodes');
+$check(is_array($decoded) && $decoded['cursor'] === 100, 'token preserves cursor');
+$check(is_array($decoded) && $decoded['metadataPrefix'] === 'ead3', 'token preserves metadataPrefix');
+$check(is_array($decoded) && $decoded['from'] === '2026-05-01T00:00:00Z', 'token preserves from date with colons');
+$check(is_array($decoded) && $decoded['until'] === '2026-05-02T12:34:56Z', 'token preserves until date with colons');
+$check(is_array($decoded) && $decoded['set'] === 'series', 'token preserves set');
+$check($decode->invoke($instance, 'not-valid-token') === null, 'invalid token is rejected');
 
 echo "\n================================\n";
 echo "Passed: $passed   Failed: $failed\n";
