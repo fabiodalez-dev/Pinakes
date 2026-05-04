@@ -225,6 +225,21 @@ $levelLabels = [
                 <?php endif; ?>
             </div>
         </div>
+
+        <!-- rights_statement_url -->
+        <div class="mt-4">
+            <label for="rights_statement_url" class="form-label">
+                <?= __("Dichiarazione dei diritti (URL)") ?>
+                <span class="text-xs text-gray-500 font-normal">(ISAD(G) 3.4.2 — es. <a href="https://rightsstatements.org" target="_blank" class="underline">rightsstatements.org</a>)</span>
+            </label>
+            <input type="url" name="rights_statement_url" id="rights_statement_url"
+                   value="<?= $val('rights_statement_url') ?>" maxlength="500"
+                   placeholder="https://rightsstatements.org/vocab/InC/1.0/"
+                   class="form-input font-mono text-sm">
+            <p class="mt-1 text-xs text-gray-500">
+                <?= __("URI standard (RightsStatements.org o Creative Commons) incluso nel manifest IIIF come campo 'rights'.") ?>
+            </p>
+        </div>
         </div><!-- end Area 4 -->
 
         <!-- Phase 5 — photographic / material-type fields (all optional) -->

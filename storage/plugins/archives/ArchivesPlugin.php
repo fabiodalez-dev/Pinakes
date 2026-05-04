@@ -293,6 +293,7 @@ class ArchivesPlugin
             'document_mime'        => 'VARCHAR(100) NULL',
             'document_filename'    => 'VARCHAR(255) NULL',
             'iiif_manifest_url'    => 'VARCHAR(2000) NULL',
+            'rights_statement_url' => 'VARCHAR(500) NULL',
         ];
 
         // Fetch existing columns once.
@@ -908,8 +909,8 @@ class ArchivesPlugin
                  extent, scope_content, language_codes,
                  specific_material, dimensions, color_mode,
                  photographer, publisher, collection_name, local_classification,
-                 iiif_manifest_url)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                 iiif_manifest_url, rights_statement_url)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         if ($stmt === false) {
             SecureLogger::error('[Archives] store prepare failed: ' . $this->db->error);
@@ -918,13 +919,13 @@ class ArchivesPlugin
         }
 
         $p = $this->nullableArchivalParams($values);
-        // 18 params: 1 int, 3 strings, 2 strings, 2 ints, 3 strings, 1 string (specific_material), 6 strings
-        // Layout: parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s) date_start(i) date_end(i)
-        //         extent(s) scope(s) lang(s) spec_material(s) dimensions(s) color_mode(s) photographer(s)
-        //         publisher(s) collection(s) local_class(s)  → 'isssssiisssssssssss'
-        //                                                      minus one 's' (counted 19) = 'isssssiissssssssss' (18)
+        // 20 params: parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
+        //            date_start(i) date_end(i) extent(s) scope(s) lang(s)
+        //            spec_material(s) dim(s) color(s) photographer(s)
+        //            publisher(s) collection(s) local_class(s) iiif_manifest(s) rights(s)
+        //            = 'isssssiissssssssssss' (20 chars)
         $stmt->bind_param(
-            'isssssiisssssssssss',
+            'isssssiissssssssssss',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -943,7 +944,8 @@ class ArchivesPlugin
             $p['publisher'],
             $p['collection_name'],
             $p['local_classification'],
-            $p['iiif_manifest_url']
+            $p['iiif_manifest_url'],
+            $p['rights_statement_url']
         );
 
         if (!$stmt->execute()) {
@@ -1001,6 +1003,7 @@ class ArchivesPlugin
             'collection_name'      => $str('collection_name'),
             'local_classification' => $str('local_classification'),
             'iiif_manifest_url'    => $str('iiif_manifest_url'),
+            'rights_statement_url' => $str('rights_statement_url'),
         ];
     }
 
@@ -1017,7 +1020,7 @@ class ArchivesPlugin
             'formal_title', 'extent', 'scope_content',
             'dimensions', 'color_mode', 'photographer',
             'publisher', 'collection_name', 'local_classification',
-            'iiif_manifest_url',
+            'iiif_manifest_url', 'rights_statement_url',
         ];
         $out = [];
         foreach ($nullable as $k) {
@@ -1142,7 +1145,7 @@ class ArchivesPlugin
                 extent = ?, scope_content = ?, language_codes = ?,
                 specific_material = ?, dimensions = ?, color_mode = ?,
                 photographer = ?, publisher = ?, collection_name = ?, local_classification = ?,
-                iiif_manifest_url = ?
+                iiif_manifest_url = ?, rights_statement_url = ?
              WHERE id = ? AND deleted_at IS NULL'
         );
         if ($stmt === false) {
@@ -1152,18 +1155,14 @@ class ArchivesPlugin
         }
 
         $p = $this->nullableArchivalParams($values);
-        // 19 params: 18 INSERT-columns + id (int). Type string:
+        // 21 params: 20 SET-columns + id(i). Type string:
         //   parent_id(i) ref(s) inst(s) level(s) formal(s) constructed(s)
         //   date_start(i) date_end(i) extent(s) scope(s) lang(s)
-        //   spec_material(s) dimensions(s) color(s) photographer(s)
-        //   publisher(s) collection(s) local_class(s) id(i)
-        //   = 'isssssiisssssssssssi'   (no — count again)
-        //   Breakdown: i + s*3 + s*2 + i*2 + s*3 + s*7 + i = 'i' + 'sss' + 'ss' + 'ii' + 'sss' + 'sssssss' + 'i'
-        //   = 'isssss' + 'ii' + 'sssssssssss' + 'i' = 'isssssiisssssssssssi' = 20 chars for 19 params
-        //   Let's enumerate: i s s s s s i i s s s s s s s s s s i = 19 types, 'isssssiisssssssssssi' = 20, off by one.
-        //   Correct is 'isssssiissssssssssi' (19 chars).
+        //   spec_material(s) dim(s) color(s) photographer(s)
+        //   publisher(s) collection(s) local_class(s) iiif_manifest(s) rights(s) id(i)
+        //   = 'isssssiissssssssssssi' (21 chars)
         $stmt->bind_param(
-            'isssssiisssssssssssi',
+            'isssssiissssssssssssi',
             $values['parent_id'],
             $values['reference_code'],
             $values['institution_code'],
@@ -1183,6 +1182,7 @@ class ArchivesPlugin
             $p['collection_name'],
             $p['local_classification'],
             $p['iiif_manifest_url'],
+            $p['rights_statement_url'],
             $id
         );
 
@@ -4140,6 +4140,7 @@ class ArchivesPlugin
         $manifestId = $base . '/archives/' . $id . '/manifest.json';
         $lang       = !empty($row['language_codes']) ? explode(',', (string) $row['language_codes'])[0] : 'it';
         $title      = (string) ($row['constructed_title'] ?? $row['formal_title'] ?? 'Untitled');
+        $institution = (string) ($row['institution_code'] ?? 'PINAKES');
 
         $metadata = [];
         $addMeta  = static function (string $label, mixed $value) use (&$metadata): void {
@@ -4157,7 +4158,31 @@ class ArchivesPlugin
         $addMeta('Date',           $dateStr);
         $addMeta('Extent',         $row['extent']);
         $addMeta('Language',       $row['language_codes']);
-        $addMeta('Institution',    $row['institution_code']);
+        $addMeta('Institution',    $institution);
+
+        // Authority records — creator/subject names + external authority URIs
+        $authorities = $this->iiifFetchAuthoritiesWithRefs($id);
+        foreach ($authorities as $auth) {
+            $roleLabel = match ((string) $auth['role']) {
+                'creator'   => 'Creator',
+                'recipient' => 'Recipient',
+                'custodian' => 'Custodian',
+                'subject'   => 'Subject',
+                default     => 'Associated Name',
+            };
+            $addMeta($roleLabel, $auth['authorised_form']);
+
+            if (!empty($auth['external_refs'])) {
+                $refs = array_filter(array_map('trim', explode("\n", (string) $auth['external_refs'])));
+                foreach ($refs as $ref) {
+                    if (str_contains($ref, 'viaf.org')) {
+                        $addMeta('VIAF', $ref);
+                    } elseif (str_contains($ref, 'wikidata.org')) {
+                        $addMeta('Wikidata', $ref);
+                    }
+                }
+            }
+        }
 
         $manifest = [
             '@context' => 'http://iiif.io/api/presentation/3/context.json',
@@ -4169,6 +4194,43 @@ class ArchivesPlugin
 
         if (!empty($row['scope_content'])) {
             $manifest['summary'] = [$lang => [(string) $row['scope_content']]];
+        }
+
+        // requiredStatement: human-readable attribution displayed by every viewer
+        $manifest['requiredStatement'] = [
+            'label' => ['en' => ['Attribution']],
+            'value' => ['none' => [$institution]],
+        ];
+
+        // provider: machine-readable Agent (institution homepage)
+        $manifest['provider'] = [[
+            'id'       => $base,
+            'type'     => 'Agent',
+            'label'    => ['none' => [$institution]],
+            'homepage' => [[
+                'id'     => $base,
+                'type'   => 'Text',
+                'label'  => ['none' => [$institution]],
+                'format' => 'text/html',
+            ]],
+        ]];
+
+        // rights: IIIF rights URI (e.g. https://rightsstatements.org/vocab/InC/1.0/)
+        if (!empty($row['rights_statement_url'])) {
+            $manifest['rights'] = (string) $row['rights_statement_url'];
+        }
+
+        // behavior: viewer UX hint derived from specific_material
+        $behavior = match ((string) ($row['specific_material'] ?? 'text')) {
+            'text', 'microform', 'electronic' => 'paged',
+            'photograph', 'poster', 'postcard',
+            'drawing', 'picture', 'object',
+            'map'                              => 'individuals',
+            'mixed'                            => 'unordered',
+            default                            => null,
+        };
+        if ($behavior !== null) {
+            $manifest['behavior'] = [$behavior];
         }
 
         // partOf: link to parent Collection (if unit has a parent)
@@ -4241,26 +4303,13 @@ class ArchivesPlugin
         }
         $manifest['items'] = $items;
 
-        // structures: one Range representing the breadcrumb path to this unit
+        // structures: nested IIIF Range hierarchy (§1.1)
+        // Each ancestor becomes an outer Range wrapping the next;
+        // the innermost Range holds the canvas items directly.
         $ancestors = $this->iiifBuildAncestorChain((int) $row['id'], (int) ($row['parent_id'] ?? 0));
-        if (count($ancestors) > 1 || !empty($items)) {
-            $rangeId = $manifestId . '/range/top';
-            $structure = [
-                'id'    => $rangeId,
-                'type'  => 'Range',
-                'label' => [$lang => [implode(' › ', array_column($ancestors, 'title'))]],
-                'items' => array_map(
-                    static fn(array $a) => [
-                        'id'   => $base . '/archives/' . $a['id'] . '/manifest.json',
-                        'type' => 'Manifest',
-                    ],
-                    $ancestors
-                ),
-            ];
-            if (!empty($items)) {
-                $structure['items'][] = ['id' => $manifestId . '/canvas/1', 'type' => 'Canvas'];
-            }
-            $manifest['structures'] = [$structure];
+        $structures = $this->iiifBuildNestedStructures($ancestors, $items, $manifestId, $lang);
+        if (!empty($structures)) {
+            $manifest['structures'] = $structures;
         }
 
         $json = json_encode($manifest, JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
@@ -4314,6 +4363,96 @@ class ArchivesPlugin
         }
         $chain[] = ['id' => $leafId, 'title' => $leafTitle];
         return $chain;
+    }
+
+    /**
+     * Build a nested IIIF Range hierarchy from a root-to-leaf ancestor chain (§1.1).
+     *
+     * Each ancestor becomes an outer Range wrapping the next; the innermost
+     * Range holds references to the manifest's Canvas items directly.
+     * Returns a list suitable for manifest['structures'].
+     *
+     * @param list<array{id:int,title:string}> $ancestors root-to-leaf
+     * @param list<array<string,mixed>>        $canvases  canvas items already built
+     * @param string                           $manifestId manifest base URL
+     * @param string                           $lang       IIIF language code for labels
+     * @return list<array<string,mixed>>
+     */
+    private function iiifBuildNestedStructures(
+        array $ancestors,
+        array $canvases,
+        string $manifestId,
+        string $lang
+    ): array {
+        $innerItems = array_map(
+            static fn(array $c) => ['id' => (string) $c['id'], 'type' => 'Canvas'],
+            $canvases
+        );
+
+        if (empty($innerItems)) {
+            return [];
+        }
+
+        if (empty($ancestors)) {
+            return [[
+                'id'    => $manifestId . '#range/r0',
+                'type'  => 'Range',
+                'label' => ['none' => ['Content']],
+                'items' => $innerItems,
+            ]];
+        }
+
+        // Build from inside out: deepest ancestor wraps canvases,
+        // each outer ancestor wraps the next inner Range as its sole item.
+        $depth   = count($ancestors);
+        $current = [
+            'id'    => $manifestId . '#range/r' . ($depth - 1),
+            'type'  => 'Range',
+            'label' => [$lang => [$ancestors[$depth - 1]['title']]],
+            'items' => $innerItems,
+        ];
+        for ($i = $depth - 2; $i >= 0; $i--) {
+            $current = [
+                'id'    => $manifestId . '#range/r' . $i,
+                'type'  => 'Range',
+                'label' => [$lang => [$ancestors[$i]['title']]],
+                'items' => [$current],
+            ];
+        }
+
+        return [$current];
+    }
+
+    /**
+     * Fetch authority records linked to an archival unit, including external_refs
+     * for VIAF/Wikidata URIs. Used only for IIIF manifest metadata enrichment.
+     *
+     * @return list<array<string,mixed>>
+     */
+    private function iiifFetchAuthoritiesWithRefs(int $archivalUnitId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT ar.type, ar.authorised_form, ar.external_refs, aua.role
+               FROM archival_unit_authority aua
+               JOIN authority_records ar ON ar.id = aua.authority_id AND ar.deleted_at IS NULL
+              WHERE aua.archival_unit_id = ?
+              ORDER BY ar.authorised_form'
+        );
+        if ($stmt === false) {
+            return $rows;
+        }
+        $stmt->bind_param('i', $archivalUnitId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
     }
 
     /**
