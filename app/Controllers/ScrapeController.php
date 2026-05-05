@@ -75,6 +75,14 @@ class ScrapeController
 
     public function byIsbn(Request $request, Response $response): Response
     {
+        // Release the PHP session lock before any external API call.
+        // Without this, concurrent requests from the same session (e.g. the next
+        // page navigation in the browser) block until this long-running scrape
+        // finishes — which can be 10–30 s when external APIs are slow.
+        if (session_status() === PHP_SESSION_ACTIVE) {
+            session_write_close();
+        }
+
         $rawIdentifier = trim((string)($request->getQueryParams()['isbn'] ?? ''));
         if ($rawIdentifier === '') {
             $response->getBody()->write(json_encode([
