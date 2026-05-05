@@ -12,6 +12,7 @@ const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
 
 const DB_HOST   = process.env.E2E_DB_HOST   || '';
+const DB_PORT   = process.env.E2E_DB_PORT   || '';
 const DB_USER   = process.env.E2E_DB_USER   || '';
 const DB_PASS   = process.env.E2E_DB_PASS   || '';
 const DB_NAME   = process.env.E2E_DB_NAME   || '';
@@ -52,12 +53,15 @@ let appReady = false;
 /** Execute a MySQL query and return trimmed output (shell-safe via execFileSync). */
 function dbQuery(sql) {
   const args = ['-N', '-B', '-e', sql];
-  if (DB_HOST) args.push('-h', DB_HOST);
-  if (DB_SOCKET) args.push('-S', DB_SOCKET);
+  if (DB_HOST)               args.push('-h', DB_HOST);
+  if (DB_PORT)               args.push('-P', DB_PORT);
+  if (!DB_HOST && DB_SOCKET) args.push('-S', DB_SOCKET);
   args.push('-u', DB_USER);
-  if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
   args.push(DB_NAME);
-  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
+  return execFileSync('mysql', args, {
+    encoding: 'utf-8', timeout: 10000,
+    env: { ...process.env, MYSQL_PWD: DB_PASS },
+  }).trim();
 }
 
 /** Escape a string for use in a SQL LIKE clause. */

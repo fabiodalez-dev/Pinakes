@@ -216,6 +216,38 @@ $id = (int) $row['id'];
                     <dd class="col-span-2 text-sm text-gray-900 font-mono"><?= $v('local_classification') ?></dd>
                 </div>
             <?php endif; ?>
+            <?php if (!empty($row['ark_identifier'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Identificatore ARK") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900 font-mono"><?= $v('ark_identifier') ?></dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['rights_statement_url'])): ?>
+                <?php
+                $rightsUrl      = trim((string) $row['rights_statement_url']);
+                $isSafeRightsUrl = filter_var($rightsUrl, FILTER_VALIDATE_URL) !== false
+                    && (bool) preg_match('/^https?:\/\//i', $rightsUrl);
+                ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Dichiarazione diritti") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900">
+                        <?php if ($isSafeRightsUrl): ?>
+                            <a href="<?= $e($rightsUrl) ?>" target="_blank" rel="noopener noreferrer"
+                               class="text-blue-600 hover:underline font-mono text-xs">
+                                <?= $e($rightsUrl) ?>
+                            </a>
+                        <?php else: ?>
+                            <span class="font-mono text-xs"><?= $e($rightsUrl) ?></span>
+                        <?php endif; ?>
+                    </dd>
+                </div>
+            <?php endif; ?>
+            <?php if (!empty($row['version_note'])): ?>
+                <div class="px-6 py-3 grid grid-cols-3 gap-4">
+                    <dt class="text-sm font-medium text-gray-500"><?= __("Nota di versione") ?></dt>
+                    <dd class="col-span-2 text-sm text-gray-900"><?= $v('version_note') ?></dd>
+                </div>
+            <?php endif; ?>
             <?php if (!empty($row['updated_at']) && $row['updated_at'] !== $row['created_at']): ?>
                 <div class="px-6 py-3 grid grid-cols-3 gap-4">
                     <dt class="text-sm font-medium text-gray-500"><?= __("Ultima modifica") ?></dt>

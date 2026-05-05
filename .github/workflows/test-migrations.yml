@@ -5,14 +5,130 @@ on:
     paths:
       - 'installer/database/migrations/**'
       - 'installer/database/schema.sql'
+      - 'version.json'
       - '.github/workflows/test-migrations.yml'
   pull_request:
     paths:
       - 'installer/database/migrations/**'
       - 'installer/database/schema.sql'
+      - 'version.json'
+      - '.github/workflows/test-migrations.yml'
   workflow_dispatch:
 
 jobs:
+  # ─── Job 1: verify all migrate_*.sql have version ≤ version.json ───────────
+  # Catches the silent-skip bug: a migration named higher than the release
+  # version is silently ignored by the updater (version_compare guard).
+  verify-versions:
+    name: Verify migration versions ≤ release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Check all migrate_*.sql ≤ version.json
+        run: |
+          TARGET=$(php -r "echo json_decode(file_get_contents('version.json'))->version;")
+          echo "Release version: $TARGET"
+          FAILED=0
+          for f in installer/database/migrations/migrate_*.sql; do
+            V=$(basename "$f" | sed 's/migrate_//;s/\.sql//')
+            if php -r "exit(version_compare('$V', '$TARGET', '<=') ? 0 : 1);"; then
+              echo "  ✓ $(basename $f)  ($V)"
+            else
+              echo "  ✗ $(basename $f)  ($V > $TARGET) — would be silently skipped by updater!"
+              FAILED=1
+            fi
+          done
+          exit $FAILED
+
+  # ─── Job 2: full migration chain — schema.sql + every migration in order ───
+  # Tests idempotency: migrations use CREATE TABLE IF NOT EXISTS / SET @s := IF(@c=0,...)
+  # patterns so they should run cleanly on top of the current schema.
+  # Some (e.g. 0.3.0 column rename) will error because the schema already has the
+  # correct name — those are expected and handled with || true; the final schema
+  # assertion is the real pass/fail gate.
+  test-full-chain:
+    name: Full migration chain (schema → all migrations)
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pinakes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli
+          coverage: none
+
+      - name: Wait for MySQL
+        run: until mysqladmin ping -h"127.0.0.1" --silent; do sleep 1; done
+
+      - name: Install base schema
+        run: mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/schema.sql
+
+      - name: Apply all migrations in version order
+        run: |
+          FAILED=0
+          for sql in $(ls installer/database/migrations/migrate_*.sql | sort -V); do
+            echo "→ $(basename $sql)"
+            if ! OUTPUT=$(mysql -h 127.0.0.1 -u root -proot pinakes_test < "$sql" 2>&1); then
+              # Tolerate only known-idempotent errors (column/table already exists, can't drop missing)
+              if echo "$OUTPUT" | grep -qiE 'duplicate (column name|key|index)|table .* already exists|check constraint .* already exists|can.t drop'; then
+                echo "  ↳ idempotent (expected)"
+              else
+                echo "  ✗ ERROR: $OUTPUT"
+                FAILED=1
+              fi
+            fi
+          done
+          [ "$FAILED" -eq 0 ] || exit 1
+
+      - name: Verify tables from 0.5.x migrations
+        run: |
+          COUNT=$(mysql -h 127.0.0.1 -u root -proot pinakes_test -sN -e "
+            SELECT COUNT(*) FROM information_schema.tables
+            WHERE table_schema='pinakes_test'
+              AND table_name IN ('archival_units','authority_records','collane','volumi','libri_collane');
+          ")
+          echo "Tables found: $COUNT / 5"
+          [ "$COUNT" -eq 5 ] && echo "✓ All expected tables present" || { echo "✗ Missing tables"; exit 1; }
+
+      - name: Verify columns from 0.5.9.x migrations
+        run: |
+          COUNT=$(mysql -h 127.0.0.1 -u root -proot pinakes_test -sN -e "
+            SELECT COUNT(*) FROM information_schema.columns
+            WHERE table_schema='pinakes_test'
+              AND (
+                (table_name='archival_units' AND column_name IN ('version_note','ark_identifier','iiif_manifest_url','rights_statement_url'))
+                OR
+                (table_name='collane' AND column_name IN ('parent_id','tipo','gruppo_serie'))
+              );
+          ")
+          echo "Columns found: $COUNT / 7"
+          [ "$COUNT" -eq 7 ] && echo "✓ All expected columns present" || { echo "✗ Missing columns"; exit 1; }
+
+  # ─── Job 3: existing single-migration test (upgrade 0.3.x → 0.4.0) ─────────
   test-migrations:
     runs-on: ubuntu-latest
 
@@ -31,7 +147,7 @@ jobs:
           --health-retries=5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2

@@ -5,10 +5,9 @@
  * SKIPPED by default so regression runs don't mutate DB state.
  * To run explicitly: E2E_RUN_SEED=1 /tmp/run-e2e.sh tests/seed-catalog.spec.js --config=tests/playwright.config.js --workers=1
  */
-const { test, expect } = require('@playwright/test');
+const { test } = require('@playwright/test');
 
 test.skip(process.env.E2E_RUN_SEED !== '1', 'Seeder skipped: set E2E_RUN_SEED=1 to run');
-const { execFileSync } = require('child_process');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
@@ -42,6 +41,25 @@ const MANUAL_ENTRIES = [
   { titolo: 'Zeromila / Orsetti HC — Split', formato: 'vinile', tipo_media: 'disco' },
 ];
 
+/**
+ * Try to save the current form and verify redirect to book detail page.
+ * Returns true if saved, false on failure — does NOT throw (seeder resilience).
+ * @param {import('@playwright/test').Page} page
+ * @param {string} label
+ */
+async function trySave(page, label) {
+  await page.locator('button[type="submit"]').first().click();
+  const swal = page.locator('.swal2-confirm');
+  if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
+  const saved = await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 }).then(() => true).catch(() => false);
+  if (saved) {
+    console.log(`  ✓ ${label}`);
+  } else {
+    console.warn(`  ⚠ ${label} — save failed (URL: ${page.url()}), continuing`);
+  }
+  return saved;
+}
+
 test.describe.serial('Seed Catalog (books + music)', () => {
   /** @type {import('@playwright/test').Page} */
   let page;
@@ -69,7 +87,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
   for (let i = 0; i < MUSIC_BARCODES.length; i++) {
     const rec = MUSIC_BARCODES[i];
     test(`Music ${i + 1}: ${rec.note}`, async () => {
-      test.setTimeout(30000);
+      test.setTimeout(45000);
       await page.goto(`${BASE}/admin/libri/crea`);
       await page.waitForLoadState('domcontentloaded');
 
@@ -77,10 +95,18 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       if (await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await page.fill('#importIsbn', rec.barcode);
         await importBtn.click();
-        await page.waitForTimeout(8000);
+        // Wait for scraping AJAX to complete (network idle).
+        // ScrapeController now calls session_write_close() before external APIs,
+        // so the session lock is released immediately and this navigation won't
+        // block subsequent page.goto calls even if the AJAX is slow.
+        await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
-        const title = await page.locator('input[name="titolo"]').inputValue();
+        const title = await page.locator('input[name="titolo"]').inputValue().catch(() => '');
         if (!title) {
+          // Scraping failed or returned no title — clear any partial data then
+          // fill fallback (isbn13/isbn10 may have been set from the barcode).
+          await page.locator('input[name="isbn13"]').fill('').catch(() => {});
+          await page.locator('input[name="isbn10"]').fill('').catch(() => {});
           await page.locator('input[name="titolo"]').fill(`CD (${rec.barcode})`);
           await page.locator('input[name="ean"]').fill(rec.barcode);
           await page.locator('input[name="formato"]').fill('cd_audio');
@@ -91,14 +117,10 @@ test.describe.serial('Seed Catalog (books + music)', () => {
         await page.locator('input[name="formato"]').fill('cd_audio');
       }
 
-      const copie = await page.locator('input[name="copie_totali"]').inputValue();
+      const copie = await page.locator('input[name="copie_totali"]').inputValue().catch(() => '');
       if (!copie || copie === '0') await page.locator('input[name="copie_totali"]').fill('1');
 
-      await page.locator('button[type="submit"]').first().click();
-      const swal = page.locator('.swal2-confirm');
-      if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-      await expect(page).toHaveURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
-      console.log(`  ✓ ${rec.note}`);
+      await trySave(page, rec.note);
     });
   }
 
@@ -106,7 +128,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
   for (let i = 0; i < BOOK_ISBNS.length; i++) {
     const book = BOOK_ISBNS[i];
     test(`Book ${i + 1}: ${book.note}`, async () => {
-      test.setTimeout(30000);
+      test.setTimeout(45000);
       await page.goto(`${BASE}/admin/libri/crea`);
       await page.waitForLoadState('domcontentloaded');
 
@@ -114,9 +136,9 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       if (await importBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
         await page.fill('#importIsbn', book.isbn);
         await importBtn.click();
-        await page.waitForTimeout(8000);
+        await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => {});
 
-        const title = await page.locator('input[name="titolo"]').inputValue();
+        const title = await page.locator('input[name="titolo"]').inputValue().catch(() => '');
         if (!title) {
           await page.locator('input[name="titolo"]').fill(book.note);
           await page.locator('input[name="isbn13"]').fill(book.isbn);
@@ -126,14 +148,10 @@ test.describe.serial('Seed Catalog (books + music)', () => {
         await page.locator('input[name="isbn13"]').fill(book.isbn);
       }
 
-      const copie = await page.locator('input[name="copie_totali"]').inputValue();
+      const copie = await page.locator('input[name="copie_totali"]').inputValue().catch(() => '');
       if (!copie || copie === '0') await page.locator('input[name="copie_totali"]').fill('1');
 
-      await page.locator('button[type="submit"]').first().click();
-      const swal = page.locator('.swal2-confirm');
-      if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-      await expect(page).toHaveURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
-      console.log(`  ✓ ${book.note}`);
+      await trySave(page, book.note);
     });
   }
 
@@ -155,11 +173,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
       }
       await page.locator('input[name="copie_totali"]').fill('1');
 
-      await page.locator('button[type="submit"]').first().click();
-      const swal = page.locator('.swal2-confirm');
-      if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-      await expect(page).toHaveURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
-      console.log(`  ✓ ${entry.titolo}`);
+      await trySave(page, entry.titolo);
     });
   }
 });

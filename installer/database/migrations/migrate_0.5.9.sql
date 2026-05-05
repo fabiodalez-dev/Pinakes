@@ -200,6 +200,23 @@ SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DA
 SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN document_filename VARCHAR(255) NULL", 'SELECT 1');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 
+-- archival_units — phase 7: interoperability standards (IIIF, ARK, RightsStatements)
+SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='iiif_manifest_url');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN iiif_manifest_url VARCHAR(2000) NULL", 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='rights_statement_url');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN rights_statement_url VARCHAR(500) NULL", 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='ark_identifier');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN ark_identifier VARCHAR(255) NULL", 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='version_note');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN version_note VARCHAR(500) NULL", 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
 -- archival_units — FULLTEXT index (may be missing on older ensureSchema())
 SET @i := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND INDEX_NAME='ft_search');
 SET @s := IF(@i=0, "ALTER TABLE archival_units ADD FULLTEXT KEY ft_search (formal_title, constructed_title, scope_content, archival_history)", 'SELECT 1');

@@ -27,22 +27,29 @@ const { execFileSync } = require('child_process');
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
 const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
-const DB_USER = process.env.E2E_DB_USER || '';
-const DB_PASS = process.env.E2E_DB_PASS || '';
-const DB_NAME = process.env.E2E_DB_NAME || '';
+const DB_HOST   = process.env.E2E_DB_HOST   || '';
+const DB_PORT   = process.env.E2E_DB_PORT   || '';
+const DB_USER   = process.env.E2E_DB_USER   || '';
+const DB_PASS   = process.env.E2E_DB_PASS   || '';
+const DB_NAME   = process.env.E2E_DB_NAME   || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
 function mysqlArgs(sql, batch = false) {
-    const args = ['-u', DB_USER];
-    if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
-    if (DB_SOCKET) args.push('-S', DB_SOCKET);
+    const args = [];
+    if (DB_HOST)              args.push('-h', DB_HOST);
+    if (DB_PORT)              args.push('-P', DB_PORT);
+    if (!DB_HOST && DB_SOCKET) args.push('-S', DB_SOCKET);
+    args.push('-u', DB_USER);
     args.push(DB_NAME);
     if (batch) args.push('-N', '-B');
     if (sql !== '') args.push('-e', sql);
     return args;
 }
 function dbQuery(sql) {
-    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
+    return execFileSync('mysql', mysqlArgs(sql, true), {
+        encoding: 'utf-8', timeout: 10000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+    }).trim();
 }
 
 test.skip(
