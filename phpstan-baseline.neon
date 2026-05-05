@@ -11,3 +11,21 @@ parameters:
 			identifier: booleanNot.alwaysTrue
 			count: 1
 			path: app/Support/QueryCache.php
+
+		-
+			message: '#^Constant CURLOPT_REDIR_PROTOCOLS_STR not found\.$#'
+			identifier: constant.notFound
+			count: 2
+			path: app/Controllers/LibriController.php
+
+		-
+			message: '#^Offset ''traduttore'' on array#'
+			identifier: isset.offset
+			count: 1
+			path: app/Models/BookRepository.php
+
+		-
+			message: '#^Offset ''illustratore'' on array#'
+			identifier: isset.offset
+			count: 1
+			path: app/Models/BookRepository.php
