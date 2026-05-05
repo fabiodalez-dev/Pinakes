@@ -331,6 +331,30 @@ class ArchivesPlugin
                 );
             }
         }
+
+        // Ensure the UNIQUE KEY on ark_identifier exists (ddlArchivalUnits creates it
+        // on fresh installs; in-place upgrades need this idempotent guard).
+        $idxResult = $this->db->query(
+            "SELECT COUNT(*) AS cnt FROM information_schema.STATISTICS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME = 'archival_units'
+                AND INDEX_NAME = 'uq_ark_identifier'"
+        );
+        if ($idxResult instanceof \mysqli_result) {
+            $idxRow = $idxResult->fetch_assoc();
+            $idxResult->free();
+            if ((int) ($idxRow['cnt'] ?? 0) === 0) {
+                try {
+                    $this->db->query(
+                        'ALTER TABLE archival_units ADD UNIQUE KEY uq_ark_identifier (ark_identifier)'
+                    );
+                } catch (\Throwable $e) {
+                    SecureLogger::error(
+                        '[Archives] migrateImageColumns: failed to add uq_ark_identifier: ' . $e->getMessage()
+                    );
+                }
+            }
+        }
     }
 
     /**
@@ -1119,7 +1143,7 @@ class ArchivesPlugin
             'available_authorities'=> $this->listAllAuthorities(),
             'authority_roles'      => array_keys(self::AUTHORITY_ROLES),
             'headLinks'            => [
-                ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
+                ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'Dublin Core (OAI-DC)',
                  'href' => absoluteUrl('/archives/' . $id . '/dc.xml')],
                 ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'EAD3 Finding Aid',
                  'href' => absoluteUrl('/archives/' . $id . '/ead.xml')],
@@ -2314,7 +2338,7 @@ class ArchivesPlugin
         $headLinks = [];
         if (isset($data['row']['id'])) {
             $unitId = (int) $data['row']['id'];
-            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/rdf+xml', 'title' => 'Dublin Core',
+            $headLinks[] = ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'Dublin Core (OAI-DC)',
                             'href' => absoluteUrl('/archives/' . $unitId . '/dc.xml')];
             $headLinks[] = ['rel' => 'alternate', 'type' => 'application/xml', 'title' => 'EAD3 Finding Aid',
                             'href' => absoluteUrl('/archives/' . $unitId . '/ead.xml')];
@@ -4089,8 +4113,14 @@ class ArchivesPlugin
         }
 
         $ark = trim((string) ($values['ark_identifier'] ?? ''));
+        if ($ark !== '' && preg_match('#^https?://[^/]+/(ark:/.+)$#i', $ark, $m) === 1) {
+            $ark = $m[1];
+            $values['ark_identifier'] = $ark;
+        }
         if (strlen($ark) > 255) {
             $errors['ark_identifier'] = 'ARK identifier troppo lungo (max 255 caratteri).';
+        } elseif ($ark !== '' && preg_match('#^ark:/#i', $ark) !== 1) {
+            $errors['ark_identifier'] = "Inserire un identificatore ARK valido nel formato ark:/... (es. ark:/12345/abc123).";
         } elseif ($ark !== '') {
             $sql = 'SELECT id FROM archival_units WHERE ark_identifier = ?';
             if ($excludeId !== null) {
@@ -4341,8 +4371,8 @@ class ArchivesPlugin
         // seeAlso: other serialisations (DC, EAD3, METS, OAI-PMH, external IIIF)
         $manifest['seeAlso'] = [
             ['id'     => $base . '/archives/' . $id . '/dc.xml',
-             'type'   => 'Dataset', 'format' => 'application/rdf+xml',
-             'label'  => ['en' => ['Dublin Core']]],
+             'type'   => 'Dataset', 'format' => 'application/xml',
+             'label'  => ['en' => ['Dublin Core (OAI-DC)']]],
             ['id'     => $base . '/archives/' . $id . '/ead.xml',
              'type'   => 'Dataset', 'format' => 'application/xml',
              'profile' => 'http://ead3.archivists.org/schema/',

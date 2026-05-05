@@ -375,10 +375,7 @@ test.describe.serial('Archives interoperability standards (25 tests)', () => {
 
     test('20. EAD3 bulk export includes the E2E fonds', async () => {
         const res = await page.request.get(
-            `${BASE}/admin/archives/export.ead3?ids=${fondsId}`,
-            { headers: { Cookie: await page.context().cookies().then(
-                cs => cs.map(c => `${c.name}=${c.value}`).join('; ')
-            ) } }
+            `${BASE}/admin/archives/export.ead3?ids=${fondsId}`
         );
         expect(res.status()).toBe(200);
         const text = await res.text();

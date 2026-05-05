@@ -127,7 +127,7 @@ SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN material_status ENUM('
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 
 SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='specific_material');
-SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN specific_material ENUM('text','photograph','poster','postcard','drawing','audio','video','other') NOT NULL DEFAULT 'text'", 'SELECT 1');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN specific_material ENUM('text','photograph','poster','postcard','drawing','audio','video','other','map','picture','object','film','microform','electronic','mixed') NOT NULL DEFAULT 'text'", 'SELECT 1');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 
 SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='dimensions');
@@ -227,7 +227,7 @@ VALUES
     ('archives',
      'Archives (ISAD(G) / ISAAR(CPF))',
      'Gestione di materiale archivistico e fotografico secondo gli standard ISAD(G) e ISAAR(CPF). Modello gerarchico a 4 livelli, MARCXML round-trip, SRU endpoint.',
-     '1.0.0', '', '',
+     '1.1.0', '', '',
      'https://github.com/fabiodalez-dev/Pinakes/issues/103',
      0,
      'archives',
@@ -258,6 +258,14 @@ SET @idx_exists = (
 
 -- Dedup: NULL-out duplicate ARKs (keep the row with the lowest id) before
 -- adding the constraint. No-op if the index already exists.
+SET @dedup_count = IF(@idx_exists = 0,
+    (SELECT COUNT(*) FROM archival_units a1
+       JOIN archival_units a2
+         ON a2.ark_identifier = a1.ark_identifier AND a2.id < a1.id
+      WHERE a1.ark_identifier IS NOT NULL),
+    0);
+SELECT CONCAT('migrate_0.5.9.7: nulling ', @dedup_count, ' duplicate ark_identifier value(s)') AS migration_notice;
+
 SET @dedup_sql = IF(@idx_exists = 0,
     'UPDATE archival_units a1
        JOIN archival_units a2
