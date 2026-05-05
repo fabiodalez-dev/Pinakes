@@ -1,0 +1,64 @@
+name: Code Quality
+
+on:
+  push:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpstan.neon'
+      - 'phpstan-baseline.neon'
+      - '.github/workflows/ci-quality.yml'
+  pull_request:
+    paths:
+      - '**.php'
+      - 'composer.json'
+      - 'composer.lock'
+      - 'phpstan.neon'
+      - 'phpstan-baseline.neon'
+  workflow_dispatch:
+
+jobs:
+  quality:
+    name: PHP Lint · PHPStan · Composer Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.2
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: mysqli, mbstring, json, curl, openssl, zip
+          tools: phpstan, composer
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: PHP syntax check
+        run: |
+          echo "Checking PHP syntax..."
+          ERRORS=$(find app/ config/ public/ installer/ server/ -name '*.php' \
+            ! -path '*/vendor/*' \
+            | xargs -P4 -n1 php -l 2>&1 \
+            | grep -E "Parse error|Fatal error" || true)
+          if [ -n "$ERRORS" ]; then
+            echo "$ERRORS"
+            exit 1
+          fi
+          echo "✓ No syntax errors"
+
+      - name: PHPStan static analysis (level 5)
+        run: phpstan analyse --memory-limit=512M --no-progress
+
+      - name: Composer security audit
+        run: composer audit
