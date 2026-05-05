@@ -40,14 +40,16 @@ function mysqlArgs(sql, batch = false) {
     if (DB_PORT)              args.push('-P', DB_PORT);
     if (!DB_HOST && DB_SOCKET) args.push('-S', DB_SOCKET);
     args.push('-u', DB_USER);
-    if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
     args.push(DB_NAME);
     if (batch) args.push('-N', '-B');
     if (sql !== '') args.push('-e', sql);
     return args;
 }
 function dbQuery(sql) {
-    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
+    return execFileSync('mysql', mysqlArgs(sql, true), {
+        encoding: 'utf-8', timeout: 10000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+    }).trim();
 }
 
 test.skip(

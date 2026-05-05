@@ -4026,10 +4026,6 @@ class ArchivesPlugin
     private function validateArchivalUnit(array $values, ?int $excludeId = null): array
     {
         $errors = [];
-        // $excludeId is reserved for reference_code uniqueness pre-check once
-        // we add it in phase 2 — currently enforced by the DB UNIQUE KEY and
-        // surfaced via errno 1062 in storeAction/updateAction.
-        unset($excludeId);
 
         $ref = (string) ($values['reference_code'] ?? '');
         if ($ref === '') {
@@ -4078,6 +4074,46 @@ class ArchivesPlugin
                 }
                 $check->close();
             }
+        }
+
+        foreach ([
+            'iiif_manifest_url'    => 2000,
+            'rights_statement_url' => 500,
+        ] as $field => $maxLen) {
+            $value = trim((string) ($values[$field] ?? ''));
+            if ($value !== '' && filter_var($value, FILTER_VALIDATE_URL) === false) {
+                $errors[$field] = 'Inserire un URL assoluto valido.';
+            } elseif (strlen($value) > $maxLen) {
+                $errors[$field] = 'Valore troppo lungo (max ' . $maxLen . ' caratteri).';
+            }
+        }
+
+        $ark = trim((string) ($values['ark_identifier'] ?? ''));
+        if (strlen($ark) > 255) {
+            $errors['ark_identifier'] = 'ARK identifier troppo lungo (max 255 caratteri).';
+        } elseif ($ark !== '') {
+            $sql = 'SELECT id FROM archival_units WHERE ark_identifier = ? AND deleted_at IS NULL';
+            if ($excludeId !== null) {
+                $sql .= ' AND id != ?';
+            }
+            $arkCheck = $this->db->prepare($sql);
+            if ($arkCheck !== false) {
+                if ($excludeId !== null) {
+                    $arkCheck->bind_param('si', $ark, $excludeId);
+                } else {
+                    $arkCheck->bind_param('s', $ark);
+                }
+                $arkCheck->execute();
+                $res = $arkCheck->get_result();
+                if ($res !== false && $res->num_rows > 0) {
+                    $errors['ark_identifier'] = 'ARK identifier già utilizzato da un altro record.';
+                }
+                $arkCheck->close();
+            }
+        }
+
+        if (strlen(trim((string) ($values['version_note'] ?? ''))) > 500) {
+            $errors['version_note'] = 'Nota di versione troppo lunga (max 500 caratteri).';
         }
 
         return $errors;
@@ -4558,10 +4594,11 @@ class ArchivesPlugin
             $collectionId = $base . '/archives/collection.json';
             $label        = ['en' => ['Archives collection'], 'it' => ['Collezione archivistica']];
             $result = $this->db->query(
-                "SELECT id, constructed_title, formal_title, level
-                   FROM archival_units
-                  WHERE parent_id IS NULL AND deleted_at IS NULL
-                  ORDER BY reference_code"
+                "SELECT a.id, a.constructed_title, a.formal_title, a.level,
+                        EXISTS(SELECT 1 FROM archival_units c WHERE c.parent_id = a.id AND c.deleted_at IS NULL) AS has_children
+                   FROM archival_units a
+                  WHERE a.parent_id IS NULL AND a.deleted_at IS NULL
+                  ORDER BY a.reference_code"
             );
         } else {
             // Sub-collection: direct children of the given unit
@@ -4573,10 +4610,11 @@ class ArchivesPlugin
             }
             $label = ['none' => [(string) ($parent['constructed_title'] ?? $parent['formal_title'] ?? 'Untitled')]];
             $stmt  = $this->db->prepare(
-                'SELECT id, constructed_title, formal_title, level
-                   FROM archival_units
-                  WHERE parent_id = ? AND deleted_at IS NULL
-                  ORDER BY reference_code'
+                'SELECT a.id, a.constructed_title, a.formal_title, a.level,
+                        EXISTS(SELECT 1 FROM archival_units c WHERE c.parent_id = a.id AND c.deleted_at IS NULL) AS has_children
+                   FROM archival_units a
+                  WHERE a.parent_id = ? AND a.deleted_at IS NULL
+                  ORDER BY a.reference_code'
             );
             if ($stmt === false) {
                 $response->getBody()->write(json_encode(['error' => 'db_error'], JSON_THROW_ON_ERROR));
@@ -4590,19 +4628,10 @@ class ArchivesPlugin
         $items = [];
         if ($result instanceof \mysqli_result) {
             while ($child = $result->fetch_assoc()) {
-                $childId    = (int) $child['id'];
-                $childTitle = (string) ($child['constructed_title'] ?? $child['formal_title'] ?? 'Untitled');
+                $childId     = (int) $child['id'];
+                $childTitle  = (string) ($child['constructed_title'] ?? $child['formal_title'] ?? 'Untitled');
                 // Units with children become sub-Collections; leaf units are Manifests
-                $hasChildren = false;
-                $countStmt   = $this->db->prepare(
-                    'SELECT 1 FROM archival_units WHERE parent_id = ? AND deleted_at IS NULL LIMIT 1'
-                );
-                if ($countStmt !== false) {
-                    $countStmt->bind_param('i', $childId);
-                    $countStmt->execute();
-                    $hasChildren = $countStmt->get_result()->num_rows > 0;
-                    $countStmt->close();
-                }
+                $hasChildren = (bool) ($child['has_children'] ?? false);
                 $items[] = [
                     'id'    => $hasChildren
                         ? $base . '/archives/' . $childId . '/collection.json'
@@ -5873,6 +5902,7 @@ class ArchivesPlugin
             deleted_at          TIMESTAMP NULL,
             PRIMARY KEY (id),
             UNIQUE KEY uq_reference (institution_code, reference_code),
+            UNIQUE KEY uq_ark_identifier (ark_identifier),
             KEY idx_parent (parent_id),
             KEY idx_level (level),
             KEY idx_dates (date_start, date_end),

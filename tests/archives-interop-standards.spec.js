@@ -38,27 +38,31 @@ function mysqlArgs(sql, batch = false) {
     if (DB_PORT)               args.push('-P', DB_PORT);
     if (!DB_HOST && DB_SOCKET) args.push('-S', DB_SOCKET);
     args.push('-u', DB_USER);
-    if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
     args.push(DB_NAME);
     if (batch) args.push('-N', '-B');
     if (sql !== '') args.push('-e', sql);
     return args;
 }
+const MYSQL_ENV = () => ({ ...process.env, MYSQL_PWD: DB_PASS });
 function dbQuery(sql) {
-    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
+    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000, env: MYSQL_ENV() }).trim();
 }
 function dbExec(sql) {
-    execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000 });
+    execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000, env: MYSQL_ENV() });
+}
+function escapeLike(value) {
+    return String(value).replace(/[\\%_]/g, '\\$&');
 }
 function cleanupTag(tag) {
+    const likeTag = escapeLike(tag);
     // FK-safe: delete authority links first (archival_unit_authority.archival_unit_id → ON DELETE CASCADE
     // would handle this automatically, but explicit deletion is more readable and defensive)
     dbExec(`DELETE aua FROM archival_unit_authority aua
             JOIN archival_units au ON au.id = aua.archival_unit_id
-            WHERE au.reference_code LIKE '${tag}%'`);
+            WHERE au.reference_code LIKE '${likeTag}%' ESCAPE '\\\\'`);
     // self-FK (parent_id ON DELETE SET NULL): children first (parent_id IS NOT NULL), then roots
-    dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${tag}%' AND parent_id IS NOT NULL`);
-    dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${tag}%'`);
+    dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${likeTag}%' ESCAPE '\\\\' AND parent_id IS NOT NULL`);
+    dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${likeTag}%' ESCAPE '\\\\'`);
 }
 
 const TAG        = 'E2E_INTEROP_' + Date.now();
@@ -103,7 +107,7 @@ test.describe.serial('Archives interoperability standards (25 tests)', () => {
     test.afterAll(async () => {
         try {
             // Remove authority link before deleting units (FK cascade would also work)
-            if (authorityId > 0) {
+            if (Number.isInteger(authorityId) && authorityId > 0) {
                 dbExec(`DELETE FROM archival_unit_authority WHERE authority_id = ${authorityId}`);
                 dbExec(`DELETE FROM authority_records WHERE id = ${authorityId}`);
             }
@@ -297,7 +301,7 @@ test.describe.serial('Archives interoperability standards (25 tests)', () => {
 
         // ARK in seeAlso as n2t.net link
         const arkSeeAlso = body['seeAlso'].find(
-            (/** @type {any} */ s) => typeof s['id'] === 'string' && s['id'].includes('n2t.net')
+            (/** @type {any} */ s) => typeof s['id'] === 'string' && s['id'].startsWith('https://n2t.net/')
         );
         expect(arkSeeAlso).toBeDefined();
         expect(arkSeeAlso['id']).toContain(ARK_ID);
@@ -432,16 +436,15 @@ test.describe.serial('Archives interoperability standards (25 tests)', () => {
     test('25. admin edit form shows ISAD(G) area labels and ARK field', async () => {
         await page.goto(`${BASE}/admin/archives/${fondsId}/edit`);
         await page.waitForLoadState('domcontentloaded');
-        const content = await page.content();
         // Area 1 — Identity Statement
-        expect(content).toContain('Identity Statement');
+        await expect(page.getByText('Identity Statement', { exact: false })).toBeVisible();
         // Area 3 — Content & Structure
-        expect(content).toContain('Content');
+        await expect(page.getByText('Content', { exact: false }).first()).toBeVisible();
         // Area 4 — Conditions of Access & Use
-        expect(content).toContain('Conditions of Access');
-        // New fields
-        expect(content).toContain('ark_identifier');
-        expect(content).toContain('rights_statement_url');
-        expect(content).toContain('version_note');
+        await expect(page.getByText('Conditions of Access', { exact: false })).toBeVisible();
+        // New fields — verify inputs are present
+        await expect(page.locator('input[name="ark_identifier"]')).toBeVisible();
+        await expect(page.locator('input[name="rights_statement_url"]')).toBeVisible();
+        await expect(page.locator('input[name="version_note"]')).toBeVisible();
     });
 });

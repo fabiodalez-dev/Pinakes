@@ -233,7 +233,7 @@ $levelLabels = [
                        value="<?= $val('parent_id') ?>" min="1"
                        class="form-input <?= $err('parent_id') ? 'border-red-500' : '' ?>">
                 <p class="mt-1 text-xs text-gray-500">
-                    Lasciare vuoto per un record top-level (fondo). Per serie/fascicoli/unità: l'ID dell'unità padre.
+                    <?= $e(__("Lasciare vuoto per un record top-level (fondo). Per serie/fascicoli/unità: l'ID dell'unità padre.")) ?>
                 </p>
                 <?php if ($err('parent_id')): ?>
                     <p class="mt-1 text-xs text-red-600"><?= $e($err('parent_id')) ?></p>
@@ -396,7 +396,7 @@ $levelLabels = [
             </label>
             <input type="text" name="version_note" id="version_note"
                    value="<?= $val('version_note') ?>" maxlength="500"
-                   placeholder="<?= $val('version_note') !== '' ? '' : __('es. Aggiornati i dati di estensione dopo inventario 2024') ?>"
+                   placeholder="<?= $val('version_note') !== '' ? '' : $e(__('es. Aggiornati i dati di estensione dopo inventario 2024')) ?>"
                    class="form-input text-sm">
         </div>
 

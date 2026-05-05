@@ -81,6 +81,9 @@ class ScrapeController
         // finishes — which can be 10–30 s when external APIs are slow.
         if (session_status() === PHP_SESSION_ACTIVE) {
             session_write_close();
+            // NOTE: session is now closed for this request. Callbacks registered via
+            // \App\Support\Hooks::apply() must NOT write to $_SESSION without calling
+            // session_start() first — such writes are silently discarded.
         }
 
         $rawIdentifier = trim((string)($request->getQueryParams()['isbn'] ?? ''));

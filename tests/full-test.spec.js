@@ -57,9 +57,11 @@ function dbQuery(sql) {
   if (DB_PORT)               args.push('-P', DB_PORT);
   if (!DB_HOST && DB_SOCKET) args.push('-S', DB_SOCKET);
   args.push('-u', DB_USER);
-  if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
   args.push(DB_NAME);
-  return execFileSync('mysql', args, { encoding: 'utf-8', timeout: 10000 }).trim();
+  return execFileSync('mysql', args, {
+    encoding: 'utf-8', timeout: 10000,
+    env: { ...process.env, MYSQL_PWD: DB_PASS },
+  }).trim();
 }
 
 /** Escape a string for use in a SQL LIKE clause. */

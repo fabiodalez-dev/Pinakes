@@ -34,7 +34,7 @@ CREATE TEMPORARY TABLE IF NOT EXISTS _archives_feature_seed (
     document_filename    VARCHAR(255) NULL,
     ark_identifier       VARCHAR(255) NULL,
     rights_statement_url VARCHAR(500) NULL,
-    version_note         TEXT NULL
+    version_note         VARCHAR(500) NULL
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 TRUNCATE TABLE _archives_feature_seed;

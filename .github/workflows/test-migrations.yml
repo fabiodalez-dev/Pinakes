@@ -12,6 +12,7 @@ on:
       - 'installer/database/migrations/**'
       - 'installer/database/schema.sql'
       - 'version.json'
+      - '.github/workflows/test-migrations.yml'
   workflow_dispatch:
 
 jobs:
@@ -88,10 +89,20 @@ jobs:
 
       - name: Apply all migrations in version order
         run: |
+          FAILED=0
           for sql in $(ls installer/database/migrations/migrate_*.sql | sort -V); do
             echo "→ $(basename $sql)"
-            mysql -h 127.0.0.1 -u root -proot pinakes_test < "$sql" 2>&1 || true
+            if ! OUTPUT=$(mysql -h 127.0.0.1 -u root -proot pinakes_test < "$sql" 2>&1); then
+              # Tolerate only known-idempotent errors (column/table already exists, can't drop missing)
+              if echo "$OUTPUT" | grep -qiE 'duplicate (column name|key|index)|table .* already exists|check constraint .* already exists|can.t drop'; then
+                echo "  ↳ idempotent (expected)"
+              else
+                echo "  ✗ ERROR: $OUTPUT"
+                FAILED=1
+              fi
+            fi
           done
+          [ "$FAILED" -eq 0 ] || exit 1
 
       - name: Verify tables from 0.5.x migrations
         run: |
@@ -109,13 +120,13 @@ jobs:
             SELECT COUNT(*) FROM information_schema.columns
             WHERE table_schema='pinakes_test'
               AND (
-                (table_name='archival_units' AND column_name IN ('version_note','ark_identifier','iiif_manifest_url'))
+                (table_name='archival_units' AND column_name IN ('version_note','ark_identifier','iiif_manifest_url','rights_statement_url'))
                 OR
                 (table_name='collane' AND column_name IN ('parent_id','tipo','gruppo_serie'))
               );
           ")
-          echo "Columns found: $COUNT / 6"
-          [ "$COUNT" -eq 6 ] && echo "✓ All expected columns present" || { echo "✗ Missing columns"; exit 1; }
+          echo "Columns found: $COUNT / 7"
+          [ "$COUNT" -eq 7 ] && echo "✓ All expected columns present" || { echo "✗ Missing columns"; exit 1; }
 
   # ─── Job 3: existing single-migration test (upgrade 0.3.x → 0.4.0) ─────────
   test-migrations:
