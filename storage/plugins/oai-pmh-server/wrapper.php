@@ -38,11 +38,13 @@ if (!class_exists('OaiPmhServerPlugin', false)) {
 
         public function onInstall(): void
         {
+            $this->instance->onInstall();
             \App\Support\SecureLogger::debug('[OaiPmhServer] Plugin installed');
         }
 
         public function onUninstall(): void
         {
+            $this->instance->onUninstall();
             \App\Support\SecureLogger::debug('[OaiPmhServer] Plugin uninstalled');
         }
 

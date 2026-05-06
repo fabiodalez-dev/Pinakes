@@ -38,11 +38,13 @@ if (!class_exists('OpenUrlResolverPlugin', false)) {
 
         public function onInstall(): void
         {
+            $this->instance->onInstall();
             \App\Support\SecureLogger::debug('[OpenUrlResolver] Plugin installed');
         }
 
         public function onUninstall(): void
         {
+            $this->instance->onUninstall();
             \App\Support\SecureLogger::debug('[OpenUrlResolver] Plugin uninstalled');
         }
 

@@ -744,8 +744,9 @@ class FrontendController
             } elseif (!empty($primaryAuthor['viaf_id']) && is_string($primaryAuthor['viaf_id'])) {
                 $viafUri = 'https://viaf.org/viaf/' . rawurlencode($primaryAuthor['viaf_id']);
             }
-            if ($viafUri !== '') {
-                $signLinks[] = '<' . $viafUri . '>; rel="author"';
+            if ($viafUri !== '' && filter_var($viafUri, FILTER_VALIDATE_URL) !== false
+                && preg_match('/^https?:\/\//', $viafUri)) {
+                $signLinks[] = '<' . preg_replace('/[<>\r\n]/', '', $viafUri) . '>; rel="author"';
             }
         }
 

@@ -146,7 +146,7 @@ class OpenUrlResolverPlugin
     if(!el)return;
     var id=parseInt(el.getAttribute("data-libro-id"),10);
     if(!id)return;
-    fetch("' . htmlspecialchars($basePath, ENT_QUOTES, 'UTF-8') . '/api/coins/book/"+id)
+    fetch(' . json_encode($basePath . '/api/coins/book/', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP) . '+id)
       .then(function(r){return r.ok?r.json():null;})
       .then(function(d){
         if(!d||!d.coins_title)return;
