@@ -1,0 +1,20 @@
+{
+  "name": "resource-sync",
+  "display_name": "ResourceSync",
+  "description": "Protocollo ResourceSync (ANSI/NISO Z39.99-2014) per la sincronizzazione del catalogo con harvester nazionali. Espone /.well-known/resourcesync, capabilitylist, resourcelist e changelist.",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "http://www.openarchives.org/rs/toc/",
+  "requires_php": "8.1",
+  "requires_app": "0.7.1",
+  "max_app_version": "0.7.9",
+  "path": "resource-sync",
+  "main_file": "wrapper.php",
+  "metadata": {
+    "category": "protocol",
+    "tags": ["resourcesync", "harvesting", "synchronization", "interoperability"],
+    "optional": true,
+    "status": "stable"
+  }
+}

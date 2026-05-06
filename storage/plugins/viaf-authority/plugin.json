@@ -1,0 +1,20 @@
+{
+  "name": "viaf-authority",
+  "display_name": "VIAF Authority Control",
+  "description": "Collegamento degli autori al Virtual International Authority File (VIAF/OCLC) e ISNI (ISO 27729). Arricchisce la tabella autori con viaf_id, viaf_uri, isni_id, isni_uri, authority_source e authority_confidence. Espone endpoint per AutoSuggest VIAF, set/get dati di autorità e validazione check digit ISNI (MOD 11-2).",
+  "version": "1.1.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "https://viaf.org/",
+  "requires_php": "8.1",
+  "requires_app": "0.7.0",
+  "max_app_version": "0.7.9",
+  "path": "viaf-authority",
+  "main_file": "wrapper.php",
+  "metadata": {
+    "category": "authority",
+    "tags": ["viaf", "isni", "authority-control", "authors", "interoperability", "linked-data"],
+    "optional": true,
+    "status": "stable"
+  }
+}

@@ -436,5 +436,17 @@
   "Biblioteca digitale con catalogo completo di libri disponibili per il prestito": "Biblioteca digitale con catalogo completo di libri disponibili per il prestito",
   "Area Utente": "Area Utente",
   "Numero Serie": "Numero Serie",
-  "Salva descrizione": "Salva descrizione"
+  "Salva descrizione": "Salva descrizione",
+  "Catalogo della biblioteca": "Catalogo della biblioteca",
+  "Biblioteca — Catalogo libri": "Biblioteca — Catalogo libri",
+  "Archivio — Unità archivistiche": "Archivio — Unità archivistiche",
+  "Parametro q mancante.": "Parametro q mancante.",
+  "La query deve avere almeno 2 caratteri.": "La query deve avere almeno 2 caratteri.",
+  "Servizio VIAF non raggiungibile. Riprova più tardi.": "Servizio VIAF non raggiungibile. Riprova più tardi.",
+  "Risposta VIAF non valida.": "Risposta VIAF non valida.",
+  "Errore interno.": "Errore interno.",
+  "Autore non trovato.": "Autore non trovato.",
+  "VIAF ID non valido. Deve essere un numero.": "VIAF ID non valido. Deve essere un numero.",
+  "VIAF ID salvato.": "VIAF ID salvato.",
+  "VIAF ID rimosso.": "VIAF ID rimosso."
 }

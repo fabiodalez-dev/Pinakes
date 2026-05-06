@@ -1,0 +1,628 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Plugins\BibframeLinkedData;
+
+use App\Support\HookManager;
+use App\Support\SecureLogger;
+use mysqli;
+use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\ServerRequestInterface;
+
+/**
+ * BIBFRAME 2.0 Linked Data plugin for Pinakes v0.7.1.
+ *
+ * Exposes books as BIBFRAME 2.0 Linked Data with content negotiation:
+ *   GET /api/bibframe/book/{id}           — Work + Instance @graph
+ *   GET /api/bibframe/book/{id}/work      — bf:Work only
+ *   GET /api/bibframe/book/{id}/instance  — bf:Instance only
+ *
+ * Content negotiation via Accept header:
+ *   application/ld+json  (default) → JSON-LD
+ *   text/turtle                    → Turtle (RDF)
+ *   application/rdf+xml            → RDF/XML (minimal)
+ *
+ * BIBFRAME 2.0 spec: http://id.loc.gov/ontologies/bibframe/
+ * Library of Congress BIBFRAME guidelines: https://www.loc.gov/bibframe/
+ */
+class BibframeLinkedDataPlugin
+{
+    private mysqli $db;
+    /** @phpstan-ignore-next-line property.onlyWritten */
+    private HookManager $hookManager;
+    private ?int $pluginId = null;
+
+    private const BF_NS   = 'http://id.loc.gov/ontologies/bibframe/';
+    private const RDFS_NS = 'http://www.w3.org/2000/01/rdf-schema#';
+    private const RDF_NS  = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#';
+    private const XSD_NS  = 'http://www.w3.org/2001/XMLSchema#';
+
+    public function setPluginId(int $pluginId): void
+    {
+        $this->pluginId = $pluginId;
+    }
+
+    public function __construct(mysqli $db, HookManager $hookManager)
+    {
+        $this->db          = $db;
+        $this->hookManager = $hookManager;
+    }
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    public function onActivate(): void
+    {
+        $this->db->begin_transaction();
+        try {
+            $this->registerHookInDb('app.routes.register', 'registerRoutes', 30);
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
+        }
+    }
+
+    public function onDeactivate(): void
+    {
+        $this->deleteHooksFromDb();
+    }
+
+    // ── Hook registration ─────────────────────────────────────────────────────
+
+    private function registerHookInDb(string $hookName, string $method, int $priority): void
+    {
+        if ($this->pluginId === null) { return; }
+        $del = $this->db->prepare(
+            'DELETE FROM plugin_hooks WHERE plugin_id = ? AND hook_name = ? AND callback_method = ?'
+        );
+        if ($del !== false) {
+            $del->bind_param('iss', $this->pluginId, $hookName, $method);
+            $del->execute();
+            $del->close();
+        }
+        $stmt = $this->db->prepare(
+            'INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
+             VALUES (?, ?, ?, ?, ?, 1, NOW())'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException('[BibframeLD] prepare() failed: ' . $this->db->error);
+        }
+        $class = self::class;
+        $stmt->bind_param('isssi', $this->pluginId, $hookName, $class, $method, $priority);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[BibframeLD] hook insert failed: ' . $err);
+        }
+        $stmt->close();
+    }
+
+    private function deleteHooksFromDb(): void
+    {
+        if ($this->pluginId === null) { return; }
+        $stmt = $this->db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ?');
+        if ($stmt === false) { return; }
+        $stmt->bind_param('i', $this->pluginId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    // ── Route registration ────────────────────────────────────────────────────
+
+    public function registerRoutes($app): void
+    {
+        $plugin = $this;
+
+        $app->get('/api/bibframe/book/{id}', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->bookGraphAction($request, $response, $args);
+        });
+
+        $app->get('/api/bibframe/book/{id}/work', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->bookWorkAction($request, $response, $args);
+        });
+
+        $app->get('/api/bibframe/book/{id}/instance', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->bookInstanceAction($request, $response, $args);
+        });
+    }
+
+    // ── Handlers ──────────────────────────────────────────────────────────────
+
+    public function bookGraphAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $book = $this->fetchBook((int) ($args['id'] ?? 0));
+        if ($book === null) {
+            return $this->notFound($response);
+        }
+        $baseUri  = absoluteUrl('/api/bibframe/book/' . (int) $book['id']);
+        $graph    = $this->buildGraph($book, $baseUri);
+        return $this->serializeResponse($request, $response, $graph);
+    }
+
+    public function bookWorkAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $book = $this->fetchBook((int) ($args['id'] ?? 0));
+        if ($book === null) {
+            return $this->notFound($response);
+        }
+        $baseUri = absoluteUrl('/api/bibframe/book/' . (int) $book['id']);
+        $graph   = $this->buildGraph($book, $baseUri);
+        $work    = array_values(array_filter($graph['@graph'], fn($n) => $n['@id'] === $baseUri . '/work'))[0] ?? $graph;
+        $doc     = ['@context' => $graph['@context'], '@graph' => [$work]];
+        return $this->serializeResponse($request, $response, $doc);
+    }
+
+    public function bookInstanceAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $book = $this->fetchBook((int) ($args['id'] ?? 0));
+        if ($book === null) {
+            return $this->notFound($response);
+        }
+        $baseUri  = absoluteUrl('/api/bibframe/book/' . (int) $book['id']);
+        $graph    = $this->buildGraph($book, $baseUri);
+        $instance = array_values(array_filter($graph['@graph'], fn($n) => $n['@id'] === $baseUri . '/instance'))[0] ?? $graph;
+        $doc      = ['@context' => $graph['@context'], '@graph' => [$instance]];
+        return $this->serializeResponse($request, $response, $doc);
+    }
+
+    // ── BIBFRAME graph builder ────────────────────────────────────────────────
+
+    /**
+     * Build a BIBFRAME 2.0 @graph with Work + Instance nodes.
+     *
+     * @param array<string, mixed> $book
+     * @return array<string, mixed>
+     */
+    private function buildGraph(array $book, string $baseUri): array
+    {
+        $bookId  = (int) $book['id'];
+        $authors = $this->fetchAuthors($bookId);
+        $pub     = !empty($book['editore_id']) ? $this->fetchPublisher((int) $book['editore_id']) : null;
+        $genre   = !empty($book['genere_id'])  ? $this->fetchGenre((int) $book['genere_id'])     : null;
+
+        $title    = (string) ($book['titolo'] ?? '');
+        $subtitle = (string) ($book['sottotitolo'] ?? '');
+        $year     = (string) ($book['anno_pubblicazione'] ?? '');
+        $langCode = $this->langCode((string) ($book['lingua'] ?? ''));
+        $viafId   = (string) ($book['viaf_id'] ?? '');
+
+        $workUri     = $baseUri . '/work';
+        $instanceUri = $baseUri . '/instance';
+
+        // bf:Work node
+        $work = [
+            '@id'   => $workUri,
+            '@type' => 'bf:Work',
+            'bf:title' => [
+                '@type'         => 'bf:Title',
+                'bf:mainTitle'  => ['@value' => $title, '@language' => $langCode],
+            ],
+        ];
+
+        if ($subtitle !== '') {
+            $work['bf:title']['bf:subtitle'] = ['@value' => $subtitle, '@language' => $langCode];
+        }
+
+        if ($langCode !== '') {
+            $work['bf:language'] = [
+                '@type'   => 'bf:Language',
+                'bf:code' => ['@value' => $langCode, '@type' => 'xsd:string'],
+            ];
+        }
+
+        $work['bf:content'] = ['@id' => 'http://id.loc.gov/vocabulary/contentTypes/txt'];
+
+        // Contributions (authors)
+        $contributions = [];
+        foreach ($authors as $a) {
+            $role    = (string) ($a['ruolo'] ?? 'autore');
+            $relUri  = $this->marcRelatorUri($role);
+            $contrib = [
+                '@type'    => 'bf:Contribution',
+                'bf:agent' => [
+                    '@type'      => 'bf:Person',
+                    'rdfs:label' => (string) $a['nome'],
+                ],
+                'bf:role'  => ['@id' => $relUri],
+            ];
+            // Link VIAF if available (stored on the author row)
+            if (!empty($a['viaf_id'])) {
+                $contrib['bf:agent']['owl:sameAs'] = [
+                    '@id' => 'https://viaf.org/viaf/' . rawurlencode((string) $a['viaf_id']),
+                ];
+            }
+            $contributions[] = $contrib;
+        }
+        if (!empty($contributions)) {
+            $work['bf:contribution'] = count($contributions) === 1 ? $contributions[0] : $contributions;
+        }
+
+        // Subject — genre
+        if ($genre !== null && !empty($genre['nome'])) {
+            $work['bf:subject'] = [
+                '@type'      => 'bf:Topic',
+                'rdfs:label' => (string) $genre['nome'],
+            ];
+        }
+
+        // Subject — keywords
+        if (!empty($book['parole_chiave'])) {
+            $kws = array_filter(array_map('trim', explode(',', (string) $book['parole_chiave'])));
+            if (!empty($kws)) {
+                $kwNodes = array_map(fn($k) => ['@type' => 'bf:Topic', 'rdfs:label' => $k], array_values($kws));
+                $existing = isset($work['bf:subject']) ? [$work['bf:subject']] : [];
+                $work['bf:subject'] = array_merge($existing, $kwNodes);
+            }
+        }
+
+        $work['bf:hasInstance'] = [['@id' => $instanceUri]];
+
+        // bf:Instance node
+        $instance = [
+            '@id'            => $instanceUri,
+            '@type'          => 'bf:Instance',
+            'bf:isInstanceOf' => ['@id' => $workUri],
+            'bf:title'       => [
+                '@type'        => 'bf:Title',
+                'bf:mainTitle' => ['@value' => $title, '@language' => $langCode],
+            ],
+            'bf:carrier' => ['@id' => 'http://id.loc.gov/vocabulary/carriers/nc'],
+            'bf:media'   => ['@id' => 'http://id.loc.gov/vocabulary/mediaTypes/n'],
+        ];
+
+        // Identifiers
+        $identifiers = [];
+        if (!empty($book['isbn13'])) {
+            $identifiers[] = ['@type' => 'bf:Isbn', 'rdf:value' => (string) $book['isbn13']];
+        } elseif (!empty($book['isbn10'])) {
+            $identifiers[] = ['@type' => 'bf:Isbn', 'rdf:value' => (string) $book['isbn10']];
+        }
+        if (!empty($book['ean'])) {
+            $identifiers[] = ['@type' => 'bf:Identifier', 'bf:source' => 'EAN', 'rdf:value' => (string) $book['ean']];
+        }
+        if (!empty($identifiers)) {
+            $instance['bf:identifiedBy'] = count($identifiers) === 1 ? $identifiers[0] : $identifiers;
+        }
+
+        // Provision activity (publication)
+        $pubNode = ['@type' => 'bf:Publication'];
+        if ($year !== '') {
+            $pubNode['bf:date'] = ['@value' => $year, '@type' => 'xsd:gYear'];
+        }
+        if ($pub !== null && !empty($pub['nome'])) {
+            $pubNode['bf:agent'] = ['@type' => 'bf:Agent', 'rdfs:label' => (string) $pub['nome']];
+        }
+        if (count($pubNode) > 1) {
+            $instance['bf:provisionActivity'] = $pubNode;
+        }
+
+        // Extent (pages)
+        if (!empty($book['numero_pagine'])) {
+            $instance['bf:extent'] = [
+                '@type'      => 'bf:Extent',
+                'rdfs:label' => (string) $book['numero_pagine'] . ' pages',
+            ];
+        }
+
+        // Series
+        if (!empty($book['collana'])) {
+            $seriesTitle = (string) $book['collana'];
+            if (!empty($book['numero_serie'])) {
+                $seriesTitle .= ', ' . (string) $book['numero_serie'];
+            }
+            $instance['bf:seriesStatement'] = $seriesTitle;
+        }
+
+        // Summary
+        $desc = !empty($book['descrizione_plain']) ? $book['descrizione_plain'] : ($book['descrizione'] ?? '');
+        if ($desc !== '') {
+            $instance['bf:summary'] = [
+                '@type'      => 'bf:Summary',
+                'rdfs:label' => strip_tags((string) $desc),
+            ];
+        }
+
+        // VIAF link on Work if author has viaf_id
+        if ($viafId !== '') {
+            $work['owl:sameAs'] = ['@id' => 'https://viaf.org/viaf/' . rawurlencode($viafId)];
+        }
+
+        return [
+            '@context' => [
+                'bf'   => self::BF_NS,
+                'rdfs' => self::RDFS_NS,
+                'rdf'  => self::RDF_NS,
+                'xsd'  => self::XSD_NS,
+                'owl'  => 'http://www.w3.org/2002/07/owl#',
+            ],
+            '@graph' => [$work, $instance],
+        ];
+    }
+
+    // ── Content negotiation serializer ────────────────────────────────────────
+
+    /**
+     * @param array<string, mixed> $graph
+     */
+    private function serializeResponse(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $graph
+    ): ResponseInterface {
+        $accept = strtolower($request->getHeaderLine('Accept'));
+
+        if (str_contains($accept, 'text/turtle')) {
+            $body        = $this->toTurtle($graph);
+            $contentType = 'text/turtle; charset=utf-8';
+        } elseif (str_contains($accept, 'application/rdf+xml')) {
+            $body        = $this->toRdfXml($graph);
+            $contentType = 'application/rdf+xml; charset=utf-8';
+        } else {
+            $body        = (string) json_encode($graph, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+            $contentType = 'application/ld+json; charset=utf-8';
+        }
+
+        $response->getBody()->write($body);
+        return $response
+            ->withHeader('Content-Type', $contentType)
+            ->withHeader('Vary', 'Accept');
+    }
+
+    /**
+     * Minimal Turtle serializer for our specific BIBFRAME graph structure.
+     *
+     * @param array<string, mixed> $graph
+     */
+    private function toTurtle(array $graph): string
+    {
+        $ctx = (array) ($graph['@context'] ?? []);
+        $lines = [];
+
+        foreach ($ctx as $prefix => $uri) {
+            if (is_string($uri)) {
+                $lines[] = "@prefix {$prefix}: <{$uri}> .";
+            }
+        }
+        $lines[] = '';
+
+        foreach ((array) ($graph['@graph'] ?? []) as $node) {
+            if (!is_array($node)) { continue; }
+            $id = (string) ($node['@id'] ?? '');
+            if ($id === '') { continue; }
+            $lines[] = '<' . $id . '>';
+            $type = (string) ($node['@type'] ?? '');
+            if ($type !== '') {
+                $lines[] = '    a ' . $type . ' ;';
+            }
+            foreach ($node as $prop => $val) {
+                if (in_array($prop, ['@id', '@type'], true) || !is_array($val)) { continue; }
+                $turtleVal = $this->turtleValue($val, $ctx);
+                if ($turtleVal !== '') {
+                    $lines[] = '    ' . $prop . ' ' . $turtleVal . ' ;';
+                }
+            }
+            // Replace last ';' with '.'
+            for ($i = count($lines) - 1; $i >= 0; $i--) {
+                if (str_ends_with(rtrim($lines[$i]), ';')) {
+                    $lines[$i] = rtrim(substr(rtrim($lines[$i]), 0, -1)) . ' .';
+                    break;
+                }
+            }
+            $lines[] = '';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $val
+     * @param array<string, string> $ctx
+     */
+    private function turtleValue(array $val, array $ctx): string
+    {
+        if (isset($val['@id'])) {
+            return '<' . (string) $val['@id'] . '>';
+        }
+        if (isset($val['@value'])) {
+            $v = addslashes((string) $val['@value']);
+            if (isset($val['@language'])) {
+                return '"' . $v . '"@' . (string) $val['@language'];
+            }
+            if (isset($val['@type'])) {
+                $dt = (string) $val['@type'];
+                // Expand prefix if needed
+                foreach ($ctx as $prefix => $uri) {
+                    if (str_starts_with($dt, $prefix . ':')) {
+                        $dt = '<' . $uri . substr($dt, strlen($prefix) + 1) . '>';
+                        break;
+                    }
+                }
+                if (!str_starts_with($dt, '<')) { $dt = '<' . $dt . '>'; }
+                return '"' . $v . '"^^' . $dt;
+            }
+            return '"' . $v . '"';
+        }
+        if (isset($val['@type'])) {
+            // Blank node
+            $type = (string) $val['@type'];
+            $label = (string) ($val['rdfs:label'] ?? $val['rdf:value'] ?? '');
+            if ($label !== '') {
+                return '[ a ' . $type . ' ; rdfs:label "' . addslashes($label) . '" ]';
+            }
+            return '[ a ' . $type . ' ]';
+        }
+        return '';
+    }
+
+    /**
+     * Minimal RDF/XML serializer for our BIBFRAME graph.
+     *
+     * @param array<string, mixed> $graph
+     */
+    private function toRdfXml(array $graph): string
+    {
+        $xw = new \XMLWriter();
+        $xw->openMemory();
+        $xw->setIndent(true);
+        $xw->startDocument('1.0', 'UTF-8');
+
+        $xw->startElementNs('rdf', 'RDF', self::RDF_NS);
+        $xw->writeAttributeNs('xmlns', 'bf',   null, self::BF_NS);
+        $xw->writeAttributeNs('xmlns', 'rdfs', null, self::RDFS_NS);
+
+        foreach ((array) ($graph['@graph'] ?? []) as $node) {
+            if (!is_array($node)) { continue; }
+            $id   = (string) ($node['@id'] ?? '');
+            $type = (string) ($node['@type'] ?? '');
+            if ($id === '' || !str_contains($type, ':')) { continue; }
+            [$tPfx, $tLocal] = explode(':', $type, 2);
+            $xw->startElementNs($tPfx, $tLocal, null);
+            $xw->writeAttributeNs('rdf', 'about', null, $id);
+            // bf:title mainTitle as simple property
+            $titleNode = $node['bf:title'] ?? null;
+            if (is_array($titleNode) && !empty($titleNode['bf:mainTitle']['@value'])) {
+                $xw->startElementNs('bf', 'title', null);
+                $xw->writeAttribute('xml:lang', (string) ($titleNode['bf:mainTitle']['@language'] ?? 'it'));
+                $xw->text((string) $titleNode['bf:mainTitle']['@value']);
+                $xw->endElement();
+            }
+            // rdfs:label if present at top level
+            if (!empty($node['rdfs:label'])) {
+                $xw->startElementNs('rdfs', 'label', null);
+                $xw->text((string) $node['rdfs:label']);
+                $xw->endElement();
+            }
+            $xw->endElement();
+        }
+
+        $xw->endElement(); // rdf:RDF
+        $xw->endDocument();
+        return $xw->outputMemory();
+    }
+
+    // ── DB helpers ────────────────────────────────────────────────────────────
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetchBook(int $id): ?array
+    {
+        if ($id <= 0) { return null; }
+        $stmt = $this->db->prepare(
+            'SELECT l.*, a.viaf_id AS viaf_id
+               FROM libri l
+               LEFT JOIN autori a ON a.id = (
+                   SELECT la2.autore_id FROM libri_autori la2 WHERE la2.libro_id = l.id
+                   ORDER BY COALESCE(la2.ordine_credito, 0), la2.autore_id LIMIT 1
+               )
+              WHERE l.id = ? AND l.deleted_at IS NULL'
+        );
+        if ($stmt === false) { return null; }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+        $stmt->close();
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function fetchAuthors(int $bookId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT a.nome, a.viaf_id, la.ruolo
+               FROM libri_autori la
+               JOIN autori a ON a.id = la.autore_id
+              WHERE la.libro_id = ?
+              ORDER BY COALESCE(la.ordine_credito, 0), la.autore_id'
+        );
+        if ($stmt === false) { return []; }
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $res  = $stmt->get_result();
+        $rows = [];
+        if ($res instanceof \mysqli_result) {
+            while ($r = $res->fetch_assoc()) { $rows[] = $r; }
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetchPublisher(int $id): ?array
+    {
+        $res = $this->db->query("SELECT * FROM editori WHERE id = {$id}");
+        if (!($res instanceof \mysqli_result)) { return null; }
+        $row = $res->fetch_assoc();
+        $res->free();
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetchGenre(int $id): ?array
+    {
+        $res = $this->db->query("SELECT * FROM generi WHERE id = {$id}");
+        if (!($res instanceof \mysqli_result)) { return null; }
+        $row = $res->fetch_assoc();
+        $res->free();
+        return is_array($row) ? $row : null;
+    }
+
+    private function langCode(string $lingua): string
+    {
+        $map = [
+            'italiano' => 'it', 'italian' => 'it',
+            'inglese'  => 'en', 'english' => 'en',
+            'francese' => 'fr', 'français' => 'fr', 'french' => 'fr',
+            'tedesco'  => 'de', 'deutsch' => 'de', 'german' => 'de',
+            'spagnolo' => 'es', 'español' => 'es', 'spanish' => 'es',
+            'ita' => 'it', 'eng' => 'en', 'fre' => 'fr', 'ger' => 'de', 'spa' => 'es',
+        ];
+        return $map[strtolower(trim($lingua))] ?? 'it';
+    }
+
+    private function marcRelatorUri(string $role): string
+    {
+        return match ($role) {
+            'traduttore'   => 'http://id.loc.gov/vocabulary/relators/trl',
+            'curatore'     => 'http://id.loc.gov/vocabulary/relators/edt',
+            'illustratore' => 'http://id.loc.gov/vocabulary/relators/ill',
+            default        => 'http://id.loc.gov/vocabulary/relators/aut',
+        };
+    }
+
+    private function notFound(ResponseInterface $response): ResponseInterface
+    {
+        $body = (string) json_encode(['error' => true, 'message' => __('Libro non trovato.')]);
+        $response->getBody()->write($body);
+        return $response->withStatus(404)->withHeader('Content-Type', 'application/json; charset=utf-8');
+    }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "ncip-server",
+  "display_name": "NCIP 2.0 Server",
+  "description": "Protocollo NISO Circulation Interchange Protocol (NCIP) 2.0 per lo scambio di informazioni sui prestiti con ILS, self-service kiosk e reti bibliotecarie. Endpoint /ncip con LookupItem, LookupUser, CheckOutItem, CheckInItem, RenewItem.",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "https://www.niso.org/standards-committees/ncip",
+  "requires_php": "8.1",
+  "requires_app": "0.7.3",
+  "max_app_version": "0.7.9",
+  "path": "ncip-server",
+  "main_file": "wrapper.php",
+  "metadata": {
+    "category": "protocol",
+    "tags": ["ncip", "ils", "circulation", "interoperability", "niso"],
+    "optional": true,
+    "status": "stable"
+  }
+}

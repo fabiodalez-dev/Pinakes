@@ -1,0 +1,20 @@
+{
+  "name": "bibframe-linked-data",
+  "display_name": "BIBFRAME 2.0 Linked Data",
+  "description": "Espone il catalogo libri come Linked Data BIBFRAME 2.0 con content negotiation (JSON-LD, Turtle). Conforme alle linee guida Library of Congress per la transizione da MARC a BIBFRAME.",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "http://id.loc.gov/ontologies/bibframe/",
+  "requires_php": "8.1",
+  "requires_app": "0.7.1",
+  "max_app_version": "0.7.9",
+  "path": "bibframe-linked-data",
+  "main_file": "wrapper.php",
+  "metadata": {
+    "category": "linkeddata",
+    "tags": ["bibframe", "linked-data", "rdf", "json-ld", "turtle", "lod"],
+    "optional": true,
+    "status": "stable"
+  }
+}

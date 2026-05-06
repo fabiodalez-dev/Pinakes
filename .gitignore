@@ -182,6 +182,42 @@ storage/plugins/archives/*
 !storage/plugins/archives/assets/js/
 !storage/plugins/archives/assets/js/*.js
 
+!storage/plugins/oai-pmh-server/
+storage/plugins/oai-pmh-server/*
+!storage/plugins/oai-pmh-server/*.php
+!storage/plugins/oai-pmh-server/*.json
+!storage/plugins/oai-pmh-server/*.md
+
+!storage/plugins/viaf-authority/
+storage/plugins/viaf-authority/*
+!storage/plugins/viaf-authority/*.php
+!storage/plugins/viaf-authority/*.json
+!storage/plugins/viaf-authority/*.md
+
+!storage/plugins/bibframe-linked-data/
+storage/plugins/bibframe-linked-data/*
+!storage/plugins/bibframe-linked-data/*.php
+!storage/plugins/bibframe-linked-data/*.json
+!storage/plugins/bibframe-linked-data/*.md
+
+!storage/plugins/resource-sync/
+storage/plugins/resource-sync/*
+!storage/plugins/resource-sync/*.php
+!storage/plugins/resource-sync/*.json
+!storage/plugins/resource-sync/*.md
+
+!storage/plugins/openurl-resolver/
+storage/plugins/openurl-resolver/*
+!storage/plugins/openurl-resolver/*.php
+!storage/plugins/openurl-resolver/*.json
+!storage/plugins/openurl-resolver/*.md
+
+!storage/plugins/ncip-server/
+storage/plugins/ncip-server/*
+!storage/plugins/ncip-server/*.php
+!storage/plugins/ncip-server/*.json
+!storage/plugins/ncip-server/*.md
+
 # Premium plugin - never track (private/commercial)
 storage/plugins/scraping-pro/
 

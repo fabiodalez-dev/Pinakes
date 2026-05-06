@@ -1,0 +1,20 @@
+{
+  "name": "openurl-resolver",
+  "display_name": "OpenURL Z39.88 Resolver",
+  "description": "Protocollo OpenURL Z39.88-2004 con resolver /openurl e metadati COinS embedded nelle pagine libro. Compatibile con Zotero, Mendeley, EndNote e altri reference manager.",
+  "version": "1.0.0",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "https://www.niso.org/standards-committees/openurl",
+  "requires_php": "8.1",
+  "requires_app": "0.7.2",
+  "max_app_version": "0.7.9",
+  "path": "openurl-resolver",
+  "main_file": "wrapper.php",
+  "metadata": {
+    "category": "protocol",
+    "tags": ["openurl", "z3988", "coins", "zotero", "reference-manager", "interoperability"],
+    "optional": true,
+    "status": "stable"
+  }
+}

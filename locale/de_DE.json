@@ -4601,5 +4601,17 @@
   "💡 Non hai accesso SSH?": "💡 Sie haben keinen SSH-Zugang?",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"/cookies\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Wichtig: Sie müssen die von diesen Skripten erfassten Cookies manuell auf der <a href=\"/cookies\" target=\"_blank\" class=\"underline font-semibold\">Cookie-Seite</a> auflisten, um die DSGVO-Konformität zu gewährleisten.",
   "📋 Istruzioni SSH (Click per espandere/chiudere)": "📋 SSH-Anleitung (Klicken zum Ein-/Ausklappen)",
-  "🔒 Sicurezza Importante": "🔒 Wichtige Sicherheit"
+  "🔒 Sicurezza Importante": "🔒 Wichtige Sicherheit",
+  "Catalogo della biblioteca": "Bibliothekskatalog",
+  "Biblioteca — Catalogo libri": "Bibliothek — Buchkatalog",
+  "Archivio — Unità archivistiche": "Archiv — Archiveinheiten",
+  "Parametro q mancante.": "Parameter q fehlt.",
+  "La query deve avere almeno 2 caratteri.": "Die Suchanfrage muss mindestens 2 Zeichen lang sein.",
+  "Servizio VIAF non raggiungibile. Riprova più tardi.": "VIAF-Dienst nicht erreichbar. Bitte später erneut versuchen.",
+  "Risposta VIAF non valida.": "Ungültige VIAF-Antwort.",
+  "Errore interno.": "Interner Fehler.",
+  "Autore non trovato.": "Autor nicht gefunden.",
+  "VIAF ID non valido. Deve essere un numero.": "Ungültige VIAF-ID. Muss eine Zahl sein.",
+  "VIAF ID salvato.": "VIAF-ID gespeichert.",
+  "VIAF ID rimosso.": "VIAF-ID entfernt."
 }

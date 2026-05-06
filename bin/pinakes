@@ -1,0 +1,319 @@
+#!/usr/bin/env php
+<?php
+/**
+ * Pinakes CLI — command dispatcher
+ *
+ * Usage: php bin/pinakes <command> [options]
+ *
+ * Available commands:
+ *   viaf:reconcile-all   Batch-reconcile authors against VIAF AutoSuggest
+ *
+ * Run: php bin/pinakes help
+ */
+
+declare(strict_types=1);
+
+$rootDir = dirname(__DIR__);
+
+require_once $rootDir . '/vendor/autoload.php';
+
+use Dotenv\Dotenv;
+
+// Load .env
+$dotenv = Dotenv::createImmutable($rootDir);
+try {
+    $dotenv->load();
+} catch (\Throwable $e) {
+    fwrite(STDERR, "ERROR: Failed to load .env: " . $e->getMessage() . "\n");
+    exit(1);
+}
+
+$settings = require $rootDir . '/config/settings.php';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function pinakes_db(array $settings): \mysqli
+{
+    $cfg = $settings['db'];
+    $db  = new \mysqli(
+        $cfg['hostname'],
+        $cfg['username'],
+        $cfg['password'],
+        $cfg['database'],
+        $cfg['port'],
+        $cfg['socket'] ?? null
+    );
+    if ($db->connect_error) {
+        fwrite(STDERR, "DB connection failed: " . $db->connect_error . "\n");
+        exit(1);
+    }
+    $db->set_charset($cfg['charset']);
+    $db->query("SET SESSION time_zone = '+00:00'");
+    return $db;
+}
+
+function pinakes_log(string $msg): void
+{
+    echo '[' . date('Y-m-d H:i:s') . '] ' . $msg . "\n";
+}
+
+/**
+ * Parse "--key=value" and "--flag" options from argv.
+ * Returns ['key' => 'value', 'flag' => true, ...].
+ *
+ * @param list<string> $args
+ * @return array<string, string|true>
+ */
+function pinakes_parse_opts(array $args): array
+{
+    $opts = [];
+    foreach ($args as $arg) {
+        if (!str_starts_with($arg, '--')) { continue; }
+        $arg = substr($arg, 2);
+        if (str_contains($arg, '=')) {
+            [$k, $v] = explode('=', $arg, 2);
+            $opts[$k] = $v;
+        } else {
+            $opts[$arg] = true;
+        }
+    }
+    return $opts;
+}
+
+// ── Command dispatch ──────────────────────────────────────────────────────────
+
+$command = $argv[1] ?? 'help';
+$opts    = pinakes_parse_opts(array_slice($argv, 2));
+
+match ($command) {
+    'viaf:reconcile-all' => cmd_viaf_reconcile_all($settings, $opts),
+    'help', '--help', '-h' => cmd_help(),
+    default => (function () use ($command): never {
+        fwrite(STDERR, "Unknown command: {$command}\nRun: php bin/pinakes help\n");
+        exit(1);
+    })(),
+};
+
+// ── Commands ──────────────────────────────────────────────────────────────────
+
+function cmd_help(): void
+{
+    echo <<<HELP
+    Pinakes CLI — v0.7.4
+
+    Usage:
+      php bin/pinakes <command> [options]
+
+    Commands:
+      viaf:reconcile-all    Batch-reconcile authors without viaf_id against VIAF AutoSuggest
+        --confidence-threshold=0.85   Minimum similarity score (0.0–1.0, default 0.85)
+        --limit=100                   Max authors to process (default: all)
+        --dry-run                     Preview matches without writing to DB
+
+    Examples:
+      php bin/pinakes viaf:reconcile-all --confidence-threshold=0.85
+      php bin/pinakes viaf:reconcile-all --dry-run --limit=50
+
+    HELP;
+}
+
+/**
+ * @param array<string, mixed>    $settings
+ * @param array<string, string|true> $opts
+ */
+function cmd_viaf_reconcile_all(array $settings, array $opts): void
+{
+    $threshold = isset($opts['confidence-threshold'])
+        ? (float) $opts['confidence-threshold']
+        : 0.85;
+    $limit     = isset($opts['limit'])
+        ? max(1, (int) $opts['limit'])
+        : PHP_INT_MAX;
+    $dryRun    = isset($opts['dry-run']);
+
+    if ($threshold < 0.0 || $threshold > 1.0) {
+        fwrite(STDERR, "ERROR: --confidence-threshold must be between 0.0 and 1.0\n");
+        exit(1);
+    }
+
+    $db = pinakes_db($settings);
+
+    pinakes_log(sprintf(
+        'Starting viaf:reconcile-all | threshold=%.2f | limit=%s | dry-run=%s',
+        $threshold,
+        $limit === PHP_INT_MAX ? 'all' : (string) $limit,
+        $dryRun ? 'yes' : 'no'
+    ));
+
+    // Fetch authors without viaf_id
+    $sql  = 'SELECT id, nome FROM autori WHERE viaf_id IS NULL ORDER BY id';
+    $res  = $db->query($sql);
+    if (!($res instanceof \mysqli_result)) {
+        fwrite(STDERR, "ERROR: Failed to query autori\n");
+        exit(1);
+    }
+
+    $authors = [];
+    while ($r = $res->fetch_assoc()) {
+        $authors[] = $r;
+    }
+    $res->free();
+
+    $total    = count($authors);
+    $matched  = 0;
+    $skipped  = 0;
+    $errors   = 0;
+    $processed = 0;
+
+    pinakes_log("Authors without viaf_id: {$total}");
+
+    foreach ($authors as $author) {
+        if ($processed >= $limit) { break; }
+        $processed++;
+
+        $name    = trim((string) $author['nome']);
+        $authorId = (int) $author['id'];
+
+        if ($name === '') { $skipped++; continue; }
+
+        // VIAF AutoSuggest
+        $url = 'https://viaf.org/viaf/AutoSuggest?query=' . urlencode($name);
+        $ctx = stream_context_create([
+            'http' => ['timeout' => 10, 'follow_location' => 1, 'header' => 'Accept: application/json'],
+        ]);
+
+        $raw = @file_get_contents($url, false, $ctx);
+        if ($raw === false) {
+            pinakes_log("  SKIP #{$authorId} '{$name}' — VIAF unreachable");
+            $errors++;
+            continue;
+        }
+
+        /** @var array<string, mixed>|null $data */
+        $data = json_decode($raw, true);
+        if (!is_array($data) || empty($data['result'])) {
+            pinakes_log("  SKIP #{$authorId} '{$name}' — no VIAF results");
+            $skipped++;
+            continue;
+        }
+
+        // Take the best match: first result with nametype=Personal
+        $best     = null;
+        $bestScore = 0.0;
+
+        foreach ((array) $data['result'] as $item) {
+            if (!is_array($item)) { continue; }
+            $viafId = (string) ($item['viafid'] ?? '');
+            $term   = (string) ($item['term']   ?? '');
+            if ($viafId === '' || $term === '') { continue; }
+
+            // Strip trailing date ranges like ", 1923-1985" or " (1923-1985)"
+            $termNorm = preg_replace('/[\s,]+\(?\d{4}[-–]\d{4}\)?$/', '', $term) ?? $term;
+            $termNorm = trim($termNorm, " ,\t");
+
+            // Try direct comparison, then also "Surname, Name" → "Name Surname" inversion
+            similar_text(mb_strtolower($name), mb_strtolower($termNorm), $pct1);
+            $pctInv = 0.0;
+            if (str_contains($termNorm, ',')) {
+                $parts   = array_map('trim', explode(',', $termNorm, 2));
+                $inverted = ($parts[1] ?? '') . ' ' . ($parts[0] ?? '');
+                similar_text(mb_strtolower($name), mb_strtolower(trim($inverted)), $pctInv);
+            }
+            $pct   = max($pct1, $pctInv);
+            $score = $pct / 100.0;
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $rawIsni   = preg_replace('/\s+/', '', (string) ($item['isni'] ?? ''));
+                $isniValid = $rawIsni !== '' && viaf_cli_validate_isni($rawIsni);
+                $best = [
+                    'viaf_id'   => $viafId,
+                    'viaf_uri'  => 'https://viaf.org/viaf/' . $viafId,
+                    'isni_id'   => $isniValid ? $rawIsni : null,
+                    'isni_uri'  => $isniValid ? 'https://isni.org/isni/' . $rawIsni : null,
+                    'term'      => $term,
+                    'score'     => $score,
+                ];
+            }
+        }
+
+        if ($best === null || $bestScore < $threshold) {
+            $scoreStr = $best !== null ? sprintf('%.2f', $bestScore) : 'n/a';
+            pinakes_log("  SKIP #{$authorId} '{$name}' — best score {$scoreStr} < threshold");
+            $skipped++;
+            continue;
+        }
+
+        // Match found
+        if ($dryRun) {
+            pinakes_log(sprintf(
+                "  DRY  #%d '%s' → VIAF %s '%s' (score=%.2f)",
+                $authorId, $name, $best['viaf_id'], $best['term'], $bestScore
+            ));
+            $matched++;
+            continue;
+        }
+
+        // Write to DB
+        $stmt = $db->prepare(
+            "UPDATE autori
+                SET viaf_id = ?, viaf_uri = ?, isni_id = ?, isni_uri = ?,
+                    authority_source = 'viaf', authority_confidence = 'probable'
+              WHERE id = ?"
+        );
+        if ($stmt === false) {
+            pinakes_log("  ERROR #{$authorId} — prepare failed");
+            $errors++;
+            continue;
+        }
+        $stmt->bind_param(
+            'ssssi',
+            $best['viaf_id'],
+            $best['viaf_uri'],
+            $best['isni_id'],
+            $best['isni_uri'],
+            $authorId
+        );
+        if (!$stmt->execute()) {
+            pinakes_log("  ERROR #{$authorId} — execute failed: " . $stmt->error);
+            $stmt->close();
+            $errors++;
+            continue;
+        }
+        $stmt->close();
+
+        pinakes_log(sprintf(
+            "  MATCH #%d '%s' → VIAF %s '%s' (score=%.2f)%s",
+            $authorId, $name, $best['viaf_id'], $best['term'], $bestScore,
+            $best['isni_id'] !== null ? ' ISNI=' . $best['isni_id'] : ''
+        ));
+        $matched++;
+    }
+
+    $db->close();
+
+    pinakes_log(sprintf(
+        'Done. Processed: %d | Matched: %d | Skipped: %d | Errors: %d',
+        $processed, $matched, $skipped, $errors
+    ));
+
+    exit($errors > 0 ? 1 : 0);
+}
+
+/**
+ * ISNI MOD 11-2 check digit validator (ISO/IEC 7064).
+ * Standalone duplicate of ViafAuthorityPlugin::isValidIsni() for CLI use.
+ */
+function viaf_cli_validate_isni(string $isni): bool
+{
+    $digits = preg_replace('/\s+/', '', $isni) ?? '';
+    if (strlen($digits) !== 16 || !ctype_digit(substr($digits, 0, 15))) { return false; }
+    $sum = 0;
+    for ($i = 0; $i < 15; $i++) {
+        $sum = ($sum + (int) $digits[$i]) * 2;
+    }
+    $remainder  = $sum % 11;
+    $checkDigit = (12 - $remainder) % 11;
+    $expected   = $checkDigit === 10 ? 'X' : (string) $checkDigit;
+    return strtoupper($digits[15]) === $expected;
+}
