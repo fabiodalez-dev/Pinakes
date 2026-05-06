@@ -26,7 +26,6 @@ use App\Support\HookManager;
 class Z39ServerPlugin
 {
     private mysqli $db;
-    private HookManager $hookManager;
     private ?int $pluginId = null;
     private static bool $routesRegistered = false;
 
@@ -78,12 +77,12 @@ class Z39ServerPlugin
      * Constructor - Initialize when plugin is loaded
      *
      * @param mysqli $db Database connection
-     * @param HookManager $hookManager Hook manager instance
+     * @param HookManager $hookManager Hook manager instance (required by PluginManager API)
+     * @phpstan-ignore constructor.unusedParameter
      */
     public function __construct(mysqli $db, HookManager $hookManager)
     {
         $this->db = $db;
-        $this->hookManager = $hookManager;
 
         // Get plugin ID from database
         $result = $db->query("SELECT id FROM plugins WHERE name = 'z39-server' LIMIT 1");
@@ -758,7 +757,7 @@ class Z39ServerPlugin
         }
 
         foreach ($new as $key => $value) {
-            if (!isset($existing[$key]) || $existing[$key] === '' || $existing[$key] === null) {
+            if (!isset($existing[$key]) || $existing[$key] === '') {
                 $existing[$key] = $value;
             }
         }
@@ -878,6 +877,7 @@ class Z39ServerPlugin
 
         // Remove ENC: prefix
         $payload = substr($encrypted, 4);
+        /** @var string|false $decoded */
         $decoded = base64_decode($payload);
 
         if ($decoded === false || strlen($decoded) < 28) {
@@ -886,12 +886,12 @@ class Z39ServerPlugin
         }
 
         // Get encryption key from environment (same order as PluginManager)
-        $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
-            ?? getenv('PLUGIN_ENCRYPTION_KEY')
-            ?? $_ENV['APP_KEY']
-            ?? getenv('APP_KEY')
-            ?? null;
-        if ($rawKey === null || $rawKey === '') {
+        $envPluginKey = getenv('PLUGIN_ENCRYPTION_KEY');
+        $envAppKey    = getenv('APP_KEY');
+        $rawKey = ($envPluginKey !== false && $envPluginKey !== '')
+            ? $envPluginKey
+            : (($envAppKey !== false && $envAppKey !== '') ? $envAppKey : null);
+        if ($rawKey === null) {
             // No key available, cannot decrypt
             \App\Support\SecureLogger::error('[Z39 Server Plugin] Cannot decrypt setting: PLUGIN_ENCRYPTION_KEY not available');
             return null;
