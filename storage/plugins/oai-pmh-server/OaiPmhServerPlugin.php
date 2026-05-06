@@ -122,6 +122,22 @@ class OaiPmhServerPlugin
                 PRIMARY KEY (id),
                 UNIQUE KEY uq_project_code (project_code)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+            'digital_assets' => "CREATE TABLE IF NOT EXISTS digital_assets (
+                id           INT UNSIGNED      NOT NULL AUTO_INCREMENT,
+                libro_id     INT               NOT NULL,
+                url          VARCHAR(500)      NOT NULL,
+                md5_hash     CHAR(32)          NOT NULL DEFAULT '',
+                filesize     BIGINT UNSIGNED   NOT NULL DEFAULT 0,
+                image_width  INT UNSIGNED      NOT NULL DEFAULT 0,
+                image_height INT UNSIGNED      NOT NULL DEFAULT 0,
+                ppi          SMALLINT UNSIGNED NOT NULL DEFAULT 300,
+                filetype     VARCHAR(32)       NOT NULL DEFAULT 'PDF',
+                created_at   TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at   TIMESTAMP         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                PRIMARY KEY (id),
+                INDEX idx_libro_id (libro_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ];
 
         foreach ($tables as $name => $ddl) {
@@ -1424,14 +1440,40 @@ class OaiPmhServerPlugin
 
         $xw->endElement(); // bib
 
-        // ── <img> — Digital image (only if file_url is set) ──────────────────
-        if (!empty($row['file_url'])) {
+        // ── <doc> — Digital file (from digital_assets table, if present) ───────
+        $asset = $this->fetchDigitalAsset((int) $row['id']);
+        if ($asset !== null) {
+            $baseUrl = !empty($magCfg['base_url']) ? rtrim((string) $magCfg['base_url'], '/') : '';
+            $fileUrl = (string) $asset['url'];
+            if (!preg_match('/^https?:\/\//', $fileUrl) && $baseUrl !== '') {
+                $fileUrl = $baseUrl . '/' . ltrim($fileUrl, '/');
+            }
             $xw->startElement('doc');
+            $xw->startElement('defile');
+            $xw->writeElement('sequence_number', '1');
+            $xw->writeElement('file', $fileUrl);
+            $xw->writeElement('filesize', (string) ((int) ($asset['filesize'] ?? 0)));
+            $xw->writeElement('md5', (string) ($asset['md5_hash'] ?? ''));
+            $xw->writeElement('filetype', (string) ($asset['filetype'] ?? 'PDF'));
+            if ((int) ($asset['image_width'] ?? 0) > 0) {
+                $xw->writeElement('image_width', (string) (int) $asset['image_width']);
+            }
+            if ((int) ($asset['image_height'] ?? 0) > 0) {
+                $xw->writeElement('image_height', (string) (int) $asset['image_height']);
+            }
+            if ((int) ($asset['ppi'] ?? 0) > 0) {
+                $xw->writeElement('ppi', (string) (int) $asset['ppi']);
+            }
+            $xw->endElement(); // defile
+            $xw->endElement(); // doc
+        } elseif (!empty($row['file_url'])) {
+            // Legacy fallback: file_url column (no digital_assets row)
             $baseUrl = !empty($magCfg['base_url']) ? rtrim((string) $magCfg['base_url'], '/') : '';
             $fileUrl = (string) $row['file_url'];
             if (!preg_match('/^https?:\/\//', $fileUrl) && $baseUrl !== '') {
                 $fileUrl = $baseUrl . '/' . ltrim($fileUrl, '/');
             }
+            $xw->startElement('doc');
             $xw->startElement('defile');
             $xw->writeElement('sequence_number', '1');
             $xw->writeElement('file', $fileUrl);
@@ -1905,6 +1947,24 @@ class OaiPmhServerPlugin
             if ($row !== null) { return $row; }
         }
         return [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function fetchDigitalAsset(int $bookId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT url, md5_hash, filesize, image_width, image_height, ppi, filetype
+               FROM digital_assets WHERE libro_id = ? ORDER BY id LIMIT 1'
+        );
+        if ($stmt === false) { return null; }
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = ($res instanceof \mysqli_result) ? $res->fetch_assoc() : null;
+        $stmt->close();
+        return is_array($row) ? $row : null;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

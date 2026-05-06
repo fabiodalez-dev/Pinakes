@@ -40,6 +40,9 @@ abstract class RecordFormatter
             case 'mods':
                 return new MODSFormatter($doc);
 
+            case 'unimarcxml':
+                return new UNIMARCXMLFormatter($doc);
+
             default:
                 throw new \Exception("Unsupported record format: {$format}");
         }

@@ -30,6 +30,7 @@ require_once __DIR__ . '/classes/RecordFormatter.php';
 require_once __DIR__ . '/classes/MARCXMLFormatter.php';
 require_once __DIR__ . '/classes/DublinCoreFormatter.php';
 require_once __DIR__ . '/classes/MODSFormatter.php';
+require_once __DIR__ . '/classes/UNIMARCXMLFormatter.php';
 require_once __DIR__ . '/classes/RateLimiter.php';
 
 use Z39Server\SRUServer;

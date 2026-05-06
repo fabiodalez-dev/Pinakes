@@ -206,6 +206,37 @@ class NcipServerPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->ncipCapabilityAction($request, $response);
         });
+
+        // Admin: partner management UI
+        $app->get('/admin/plugins/ncip-server/partners', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->adminPartnersListAction($request, $response);
+        });
+
+        $app->post('/admin/plugins/ncip-server/partners', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->adminPartnersCreateAction($request, $response);
+        });
+
+        $app->post('/admin/plugins/ncip-server/partners/{id:[0-9]+}/delete', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->adminPartnersDeleteAction($request, $response, (int) $args['id']);
+        });
+
+        // Admin: transaction log
+        $app->get('/admin/plugins/ncip-server/transactions', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->adminTransactionsAction($request, $response);
+        });
     }
 
     // ─── Endpoint handlers ────────────────────────────────────────────────────
@@ -216,6 +247,155 @@ class NcipServerPlugin
     ): ResponseInterface {
         $xml = $this->buildCapabilityXml();
         return $this->xmlResponse($response, $xml);
+    }
+
+    // ─── Admin UI handlers ────────────────────────────────────────────────────
+
+    public function adminPartnersListAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        string $error = '',
+        string $success = ''
+    ): ResponseInterface {
+        if (!$this->requireAdmin()) {
+            return $response->withStatus(403)->withHeader('Location', url('/admin/login'));
+        }
+        $partners   = $this->fetchAllPartners();
+        $csrfToken  = \App\Support\Csrf::ensureToken();
+        ob_start();
+        include __DIR__ . '/views/partners.php';
+        $content = (string) ob_get_clean();
+        ob_start();
+        $pageTitle = __('Gestione Partner NCIP');
+        require __DIR__ . '/../../../app/Views/layout.php';
+        $html = (string) ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
+    }
+
+    public function adminPartnersCreateAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        if (!$this->requireAdmin()) {
+            return $response->withStatus(403);
+        }
+        $body  = (array) ($request->getParsedBody() ?? []);
+        $token = (string) ($body['csrf_token'] ?? '');
+        if (!\App\Support\Csrf::validate($token)) {
+            return $this->adminPartnersListAction($request, $response, __('Token CSRF non valido.'));
+        }
+        $name        = trim((string) ($body['name'] ?? ''));
+        $endpointUrl = trim((string) ($body['endpoint_url'] ?? ''));
+        $isil        = trim((string) ($body['isil'] ?? ''));
+        $notes       = trim((string) ($body['notes'] ?? ''));
+
+        if ($name === '' || $endpointUrl === '') {
+            return $this->adminPartnersListAction($request, $response, __('Nome ed Endpoint URL sono obbligatori.'));
+        }
+        $stmt = $this->db->prepare(
+            'INSERT INTO ncip_partners (name, endpoint_url, isil, notes, created_at, updated_at)
+             VALUES (?, ?, ?, ?, NOW(), NOW())'
+        );
+        if ($stmt === false) {
+            return $this->adminPartnersListAction($request, $response, __('Errore nell\'aggiunta del partner.'));
+        }
+        if (!$stmt->bind_param('ssss', $name, $endpointUrl, $isil, $notes) || !$stmt->execute()) {
+            $stmt->close();
+            return $this->adminPartnersListAction($request, $response, __('Errore nell\'aggiunta del partner.'));
+        }
+        $stmt->close();
+        return $this->adminPartnersListAction($request, $response, '', __('Partner aggiunto con successo.'));
+    }
+
+    public function adminPartnersDeleteAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        if (!$this->requireAdmin()) {
+            return $response->withStatus(403);
+        }
+        $body  = (array) ($request->getParsedBody() ?? []);
+        $token = (string) ($body['csrf_token'] ?? '');
+        if (!\App\Support\Csrf::validate($token)) {
+            return $this->adminPartnersListAction($request, $response, __('Token CSRF non valido.'));
+        }
+        $stmt = $this->db->prepare('DELETE FROM ncip_partners WHERE id = ?');
+        if ($stmt === false) {
+            return $this->adminPartnersListAction($request, $response, __('Errore nell\'eliminazione del partner.'));
+        }
+        if (!$stmt->bind_param('i', $id) || !$stmt->execute()) {
+            $stmt->close();
+            return $this->adminPartnersListAction($request, $response, __('Errore nell\'eliminazione del partner.'));
+        }
+        $stmt->close();
+        return $this->adminPartnersListAction($request, $response, '', __('Partner eliminato con successo.'));
+    }
+
+    public function adminTransactionsAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        if (!$this->requireAdmin()) {
+            return $response->withStatus(403)->withHeader('Location', url('/admin/login'));
+        }
+        $params  = $request->getQueryParams();
+        $perPage = 50;
+        $page    = max(1, (int) ($params['page'] ?? 1));
+        $offset  = ($page - 1) * $perPage;
+
+        $countRes = $this->db->query('SELECT COUNT(*) AS c FROM ncip_transactions');
+        $total    = ($countRes instanceof \mysqli_result) ? (int) ($countRes->fetch_assoc()['c'] ?? 0) : 0;
+
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT id, message_type, partner_id, prestito_id, request_id, status, created_at
+               FROM ncip_transactions
+              ORDER BY id DESC
+              LIMIT ? OFFSET ?'
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('ii', $perPage, $offset);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if ($res instanceof \mysqli_result) {
+                while ($r = $res->fetch_assoc()) { $rows[] = $r; }
+            }
+            $stmt->close();
+        }
+        $transactions = $rows;
+        $partners     = $this->fetchAllPartners();
+
+        $csrfToken = \App\Support\Csrf::ensureToken();
+        ob_start();
+        include __DIR__ . '/views/transactions.php';
+        $content = (string) ob_get_clean();
+        ob_start();
+        $pageTitle = __('Log Transazioni NCIP');
+        require __DIR__ . '/../../../app/Views/layout.php';
+        $html = (string) ob_get_clean();
+        $response->getBody()->write($html);
+        return $response;
+    }
+
+    private function requireAdmin(): bool
+    {
+        return isset($_SESSION['user']) &&
+            in_array($_SESSION['user']['tipo_utente'] ?? '', ['admin', 'staff'], true);
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function fetchAllPartners(): array
+    {
+        $res = $this->db->query('SELECT id, name, endpoint_url, isil, notes, created_at FROM ncip_partners ORDER BY name ASC');
+        if (!($res instanceof \mysqli_result)) { return []; }
+        $rows = [];
+        while ($r = $res->fetch_assoc()) { $rows[] = $r; }
+        $res->free();
+        return $rows;
     }
 
     public function ncipAction(

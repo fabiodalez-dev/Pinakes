@@ -38,7 +38,7 @@ class Z39ServerPlugin
         'server_database' => 'catalog',
         'max_records' => '100',
         'default_records' => '10',
-        'supported_formats' => 'marcxml,dc,mods,oai_dc',
+        'supported_formats' => 'marcxml,dc,mods,oai_dc,unimarcxml',
         'default_format' => 'marcxml',
         'require_authentication' => 'false',
         'rate_limit_enabled' => 'true',
