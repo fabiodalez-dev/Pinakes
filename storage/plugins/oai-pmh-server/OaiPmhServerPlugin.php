@@ -329,23 +329,121 @@ class OaiPmhServerPlugin
         $xw->text($baseUrl);
         $xw->endElement(); // request
 
-        match ($verb) {
-            'Identify'            => $this->oaiIdentify($xw, $baseUrl, $host, $now),
-            'ListMetadataFormats' => $this->oaiListMetadataFormats($xw, $params, $host),
-            'ListRecords'         => $this->oaiListRecords($xw, $params, $host, false),
-            'GetRecord'           => $this->oaiGetRecord($xw, $params, $host),
-            'ListIdentifiers'     => $this->oaiListRecords($xw, $params, $host, true),
-            'ListSets'            => $this->oaiListSets($xw),
-            default               => $this->oaiError($xw, 'badVerb',
-                'Value of the verb argument is not a legal OAI-PMH verb, '
-                . 'the verb argument is missing, or the verb argument is repeated.'),
-        };
+        $argumentError = $verbIsValid ? $this->validateOaiArguments($verb, $params) : null;
+        if ($argumentError !== null) {
+            [$code, $message] = $argumentError;
+            $this->oaiError($xw, $code, $message);
+        } else {
+            match ($verb) {
+                'Identify'            => $this->oaiIdentify($xw, $baseUrl, $host, $now),
+                'ListMetadataFormats' => $this->oaiListMetadataFormats($xw, $params, $host),
+                'ListRecords'         => $this->oaiListRecords($xw, $params, $host, false),
+                'GetRecord'           => $this->oaiGetRecord($xw, $params, $host),
+                'ListIdentifiers'     => $this->oaiListRecords($xw, $params, $host, true),
+                'ListSets'            => $this->oaiListSets($xw),
+                default               => $this->oaiError($xw, 'badVerb',
+                    'Value of the verb argument is not a legal OAI-PMH verb, '
+                    . 'the verb argument is missing, or the verb argument is repeated.'),
+            };
+        }
 
         $xw->endElement(); // OAI-PMH
         $xw->endDocument();
 
         $response->getBody()->write($xw->outputMemory());
         return $response->withHeader('Content-Type', 'text/xml; charset=utf-8');
+    }
+
+    /**
+     * OAI-PMH requires verb-specific argument validation before dispatch.
+     *
+     * @param array<string, mixed> $params
+     * @return array{0:string,1:string}|null
+     */
+    private function validateOaiArguments(string $verb, array $params): ?array
+    {
+        $allowedByVerb = [
+            'Identify'            => ['verb'],
+            'ListMetadataFormats' => ['verb', 'identifier'],
+            'ListSets'            => ['verb', 'resumptionToken'],
+            'ListRecords'         => ['verb', 'metadataPrefix', 'from', 'until', 'set', 'resumptionToken'],
+            'ListIdentifiers'     => ['verb', 'metadataPrefix', 'from', 'until', 'set', 'resumptionToken'],
+            'GetRecord'           => ['verb', 'identifier', 'metadataPrefix'],
+        ];
+
+        $allowed = $allowedByVerb[$verb] ?? ['verb'];
+        foreach (array_keys($params) as $key) {
+            if (!in_array((string) $key, $allowed, true)) {
+                return ['badArgument', 'The request includes illegal arguments for this OAI-PMH verb.'];
+            }
+        }
+
+        if ($verb === 'ListSets' && !empty($params['resumptionToken'])) {
+            return ['badResumptionToken', 'The value of the resumptionToken argument is invalid or expired.'];
+        }
+
+        if ($verb === 'GetRecord') {
+            if (empty($params['identifier']) || empty($params['metadataPrefix'])) {
+                return ['badArgument', 'GetRecord requires identifier and metadataPrefix arguments.'];
+            }
+        }
+
+        if ($verb === 'ListRecords' || $verb === 'ListIdentifiers') {
+            $hasToken = !empty($params['resumptionToken']);
+            if ($hasToken) {
+                foreach (['metadataPrefix', 'from', 'until', 'set'] as $exclusiveArg) {
+                    if (!empty($params[$exclusiveArg])) {
+                        return ['badArgument', 'resumptionToken must not be combined with other selective arguments.'];
+                    }
+                }
+            } elseif (empty($params['metadataPrefix'])) {
+                return ['badArgument', $verb . ' requires metadataPrefix unless resumptionToken is supplied.'];
+            }
+
+            $from = (string) ($params['from'] ?? '');
+            $until = (string) ($params['until'] ?? '');
+            if ($from !== '' && !$this->isValidOaiDate($from)) {
+                return ['badArgument', 'Invalid from date format. Use YYYY-MM-DD or YYYY-MM-DDThh:mm:ssZ.'];
+            }
+            if ($until !== '' && !$this->isValidOaiDate($until)) {
+                return ['badArgument', 'Invalid until date format. Use YYYY-MM-DD or YYYY-MM-DDThh:mm:ssZ.'];
+            }
+            if ($from !== '' && $until !== '') {
+                if ($this->dateGranularity($from) !== $this->dateGranularity($until)) {
+                    return ['badArgument', 'from and until must use the same granularity.'];
+                }
+                if ($this->oaiDateTimestamp($from) > $this->oaiDateTimestamp($until)) {
+                    return ['badArgument', 'from must not be later than until.'];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function isValidOaiDate(string $value): bool
+    {
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1) {
+            [$y, $m, $d] = array_map('intval', explode('-', $value));
+            return checkdate($m, $d, $y);
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $value) !== 1) {
+            return false;
+        }
+        $dt = \DateTimeImmutable::createFromFormat('!Y-m-d\TH:i:s\Z', $value);
+        return $dt instanceof \DateTimeImmutable
+            && $dt->format('Y-m-d\TH:i:s\Z') === $value;
+    }
+
+    private function dateGranularity(string $value): string
+    {
+        return str_contains($value, 'T') ? 'seconds' : 'days';
+    }
+
+    private function oaiDateTimestamp(string $value): int
+    {
+        $mysql = str_replace(['T', 'Z'], [' ', ''], $value);
+        return strtotime($mysql) ?: 0;
     }
 
     // ── Identify ──────────────────────────────────────────────────────────────
@@ -555,13 +653,16 @@ class OaiPmhServerPlugin
             return;
         }
 
-        $dateRegex = '/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}Z)?$/';
-        if ($from !== '' && !preg_match($dateRegex, $from)) {
+        if ($from !== '' && !$this->isValidOaiDate($from)) {
             $this->oaiError($xw, 'badArgument', 'Invalid from date format. Use YYYY-MM-DD or YYYY-MM-DDThh:mm:ssZ.');
             return;
         }
-        if ($until !== '' && !preg_match($dateRegex, $until)) {
+        if ($until !== '' && !$this->isValidOaiDate($until)) {
             $this->oaiError($xw, 'badArgument', 'Invalid until date format. Use YYYY-MM-DD or YYYY-MM-DDThh:mm:ssZ.');
+            return;
+        }
+        if ($from !== '' && $until !== '' && $this->oaiDateTimestamp($from) > $this->oaiDateTimestamp($until)) {
+            $this->oaiError($xw, 'badArgument', 'from must not be later than until.');
             return;
         }
 

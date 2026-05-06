@@ -1,7 +1,7 @@
 {
   "name": "ncip-server",
   "display_name": "NCIP 2.0 Server",
-  "description": "Protocollo NISO Circulation Interchange Protocol (NCIP) 2.0 per lo scambio di informazioni sui prestiti con ILS, self-service kiosk e reti bibliotecarie. Endpoint /ncip con LookupItem, LookupUser, CheckOutItem, CheckInItem, RenewItem.",
+  "description": "Protocollo NISO Circulation Interchange Protocol (NCIP) 2.0 per lo scambio di informazioni sui prestiti con ILS, self-service kiosk e reti bibliotecarie. Endpoint /ncip con LookupItem, LookupUser, CheckOutItem, CheckInItem, RenewItem, RequestItem e CancelRequestItem.",
   "version": "1.0.0",
   "author": "Fabiodalez",
   "author_url": "",

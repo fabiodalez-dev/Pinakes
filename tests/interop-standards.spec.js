@@ -536,7 +536,7 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
     test('G.2 NCIP unsupported message type → Problem unsupported-request', async ({ request }) => {
         const body = `<?xml version="1.0" encoding="UTF-8"?>
 <NCIPMessage xmlns="${NCIP_NS}">
-  <RequestItem><ItemId><ItemIdentifierValue>1</ItemIdentifierValue></ItemId></RequestItem>
+  <UnsupportedInteropRequest><ItemId><ItemIdentifierValue>1</ItemIdentifierValue></ItemId></UnsupportedInteropRequest>
 </NCIPMessage>`;
         const res = await ncipPost(request, body);
         const responseBody = await res.text();

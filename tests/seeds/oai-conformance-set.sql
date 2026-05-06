@@ -234,3 +234,14 @@ INSERT INTO libri (titolo, isbn13, lingua, anno_pubblicazione, created_at, updat
 INSERT INTO libri (titolo, isbn13, lingua, anno_pubblicazione, created_at, updated_at, deleted_at) VALUES ('OAI Conformance Book 228', '9780000000228', 'francese', 2020, '2026-04-15 00:00:00', '2026-04-15 00:00:00', '2026-04-15 00:00:00');
 INSERT INTO libri (titolo, isbn13, lingua, anno_pubblicazione, created_at, updated_at, deleted_at) VALUES ('OAI Conformance Book 229', '9780000000229', 'spagnolo', 2021, '2026-04-25 00:00:00', '2026-04-25 00:00:00', '2026-04-25 00:00:00');
 INSERT INTO libri (titolo, isbn13, lingua, anno_pubblicazione, created_at, updated_at, deleted_at) VALUES ('OAI Conformance Book 230', '9780000000230', 'italiano', 2022, '2026-05-06 00:00:00', '2026-05-06 00:00:00', '2026-05-06 00:00:00');
+
+-- Inserts with deleted_at set do not fire the soft-delete UPDATE trigger.
+-- Materialize the deleted headers expected by deletedRecord=persistent tests.
+INSERT INTO oai_deleted_records (entity_type, entity_id, oai_id, datestamp)
+SELECT 'book', id, CONCAT('oai:pinakes:book:', id), COALESCE(deleted_at, updated_at)
+FROM libri
+WHERE titolo LIKE 'OAI Conformance Book %'
+  AND deleted_at IS NOT NULL
+ON DUPLICATE KEY UPDATE
+  oai_id = VALUES(oai_id),
+  datestamp = VALUES(datestamp);
