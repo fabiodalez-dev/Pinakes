@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS archival_units (
     acquisition_source   VARCHAR(500) NULL,
     physical_location    VARCHAR(255) NULL,
     material_status      ENUM('unclassified','cataloguing','completed') NOT NULL DEFAULT 'unclassified',
+    registration_date    DATE NULL,
     specific_material    ENUM('text','photograph','poster','postcard','drawing','audio','video','other',
                               'map','picture','object','film','microform','electronic','mixed')
                          NOT NULL DEFAULT 'text',
@@ -66,6 +67,7 @@ CREATE TABLE IF NOT EXISTS archival_units (
     deleted_at           TIMESTAMP NULL,
     PRIMARY KEY (id),
     UNIQUE KEY uq_reference (institution_code, reference_code),
+    UNIQUE KEY uq_ark_identifier (ark_identifier),
     KEY idx_parent (parent_id),
     KEY idx_level (level),
     KEY idx_dates (date_start, date_end),
@@ -124,6 +126,10 @@ CREATE TABLE IF NOT EXISTS autori_authority_link (
 
 SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='material_status');
 SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN material_status ENUM('unclassified','cataloguing','completed') NOT NULL DEFAULT 'unclassified' AFTER physical_location", 'SELECT 1');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='registration_date');
+SET @s := IF(@c=0, "ALTER TABLE archival_units ADD COLUMN registration_date DATE NULL AFTER material_status", 'SELECT 1');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 
 SET @c := (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='archival_units' AND COLUMN_NAME='specific_material');

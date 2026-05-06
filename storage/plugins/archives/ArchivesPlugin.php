@@ -4047,7 +4047,7 @@ class ArchivesPlugin
      * @param array<string, mixed> $values
      * @return array<string, string>
      */
-    private function validateArchivalUnit(array $values, ?int $excludeId = null): array
+    private function validateArchivalUnit(array &$values, ?int $excludeId = null): array
     {
         $errors = [];
 
@@ -4122,7 +4122,7 @@ class ArchivesPlugin
         } elseif ($ark !== '' && preg_match('#^ark:/#i', $ark) !== 1) {
             $errors['ark_identifier'] = "Inserire un identificatore ARK valido nel formato ark:/... (es. ark:/12345/abc123).";
         } elseif ($ark !== '') {
-            $sql = 'SELECT id FROM archival_units WHERE ark_identifier = ?';
+            $sql = 'SELECT id FROM archival_units WHERE ark_identifier = ? AND deleted_at IS NULL';
             if ($excludeId !== null) {
                 $sql .= ' AND id != ?';
             }
@@ -4490,7 +4490,8 @@ class ArchivesPlugin
             }
             $s->bind_param('i', $currentParent);
             $s->execute();
-            $r = $s->get_result()->fetch_assoc();
+            $res = $s->get_result();
+            $r   = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
             $s->close();
             if ($r === null) {
                 break;
@@ -4507,7 +4508,8 @@ class ArchivesPlugin
         if ($s2 !== false) {
             $s2->bind_param('i', $leafId);
             $s2->execute();
-            $r2 = $s2->get_result()->fetch_assoc();
+            $res2      = $s2->get_result();
+            $r2        = $res2 instanceof \mysqli_result ? $res2->fetch_assoc() : null;
             $s2->close();
             $leafTitle = (string) ($r2['constructed_title'] ?? $r2['formal_title'] ?? 'Untitled');
         }
@@ -4887,10 +4889,19 @@ class ArchivesPlugin
         $base   = rtrim((string) absoluteUrl(''), '/');
         $unitId = (int) ($row['id'] ?? 0);
         $title  = (string) ($row['constructed_title'] ?? $row['formal_title'] ?? 'Untitled');
-        $objId  = 'oai:pinakes:archival_unit:' . $unitId;
+        $objId = !empty($row['ark_identifier'])
+            ? (string) $row['ark_identifier']
+            : 'oai:pinakes:archival_unit:' . $unitId;
 
-        $updatedAt = gmdate('Y-m-d\TH:i:s\Z');
+        $now       = gmdate('Y-m-d\TH:i:s\Z');
+        $createdAt = $now;
+        $updatedAt = $now;
         try {
+            if (!empty($row['created_at'])) {
+                $createdAt = (new \DateTimeImmutable((string) $row['created_at']))
+                    ->setTimezone(new \DateTimeZone('UTC'))
+                    ->format('Y-m-d\TH:i:s\Z');
+            }
             if (!empty($row['updated_at'])) {
                 $updatedAt = (new \DateTimeImmutable((string) $row['updated_at']))
                     ->setTimezone(new \DateTimeZone('UTC'))
@@ -4914,7 +4925,8 @@ class ArchivesPlugin
 
         // metsHdr
         $xw->startElement('mets:metsHdr');
-        $xw->writeAttribute('CREATEDATE', $updatedAt);
+        $xw->writeAttribute('CREATEDATE',   $createdAt);
+        $xw->writeAttribute('LASTMODDATE',  $updatedAt);
         $xw->startElement('mets:agent');
         $xw->writeAttribute('ROLE', 'CREATOR');
         $xw->writeAttribute('TYPE', 'OTHER');
@@ -5542,6 +5554,16 @@ class ArchivesPlugin
         if ($set !== '') {
             $this->oaiError($xw, 'noSetHierarchy',
                 'This repository does not support sets.');
+            return;
+        }
+
+        $dateRegex = '/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}Z)?$/';
+        if ($from !== '' && !preg_match($dateRegex, $from)) {
+            $this->oaiError($xw, 'badArgument', 'Invalid from date format. Use YYYY-MM-DD or YYYY-MM-DDThh:mm:ssZ.');
+            return;
+        }
+        if ($until !== '' && !preg_match($dateRegex, $until)) {
+            $this->oaiError($xw, 'badArgument', 'Invalid until date format. Use YYYY-MM-DD or YYYY-MM-DDThh:mm:ssZ.');
             return;
         }
 
