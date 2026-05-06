@@ -50,9 +50,8 @@ function dbExec(sql) {
     execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000, env: MYSQL_ENV() });
 }
 
-const TAG    = 'E2E_OAI_' + Date.now();
+const TAG      = 'E2E_OAI_' + Date.now();
 const BOOK_TAG = TAG + '_BOOK';
-const ARCH_TAG = TAG + '_ARCH';
 
 test.skip(
     !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME,
