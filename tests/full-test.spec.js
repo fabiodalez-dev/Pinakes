@@ -1008,6 +1008,7 @@ test.describe.serial('Phase 6: Edit Book', () => {
             : (sub.disabled || sub.value === '0');
           return genSettled && subSettled;
         },
+        undefined,
         { timeout: 10000 },
       );
 
@@ -1017,15 +1018,20 @@ test.describe.serial('Phase 6: Edit Book', () => {
       const options = await radiceSelect.locator('option').count();
       if (options > 2) {
         await radiceSelect.selectOption({ index: 2 });
-        // Let the new radice's genere options finish loading before the
-        // next test clicks submit — avoids another race on sub-selects.
+        // Wait for cascade to settle after radice change. If the selected
+        // radice has no L2 genres (e.g. seed genre "Narrativa" has 0 children),
+        // genere_select stays disabled and options.length stays 1 — the
+        // condition never becomes true. Catch the timeout gracefully so the
+        // regression guard assertions still run (they verify hidden inputs
+        // are '0', which holds in both cases: genres loaded or no genres).
         await page.waitForFunction(
           () => {
             const gen = document.getElementById('genere_select');
             return gen && !gen.disabled && gen.options.length > 1;
           },
+          undefined,
           { timeout: 10000 },
-        );
+        ).catch(() => {});
 
         // Regression guard: after radice change with no manual genere pick,
         // both selects and both hidden inputs MUST be at "0". If
