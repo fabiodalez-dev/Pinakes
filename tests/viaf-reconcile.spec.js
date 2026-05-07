@@ -225,14 +225,13 @@ test.describe.serial('W3C Reconciliation API — v0.7.4 (18 tests)', () => {
             q0: { query: testAuthorName, limit: 1 },
         });
         const body = await res.json();
-        if (body.q0.result.length > 0) {
-            const item = body.q0.result[0];
-            expect(item).toHaveProperty('id');
-            expect(item).toHaveProperty('name');
-            expect(typeof item.score).toBe('number');
-            expect(typeof item.match).toBe('boolean');
-            expect(Array.isArray(item.type)).toBe(true);
-        }
+        expect(body.q0.result.length).toBeGreaterThan(0);
+        const item = body.q0.result[0];
+        expect(item).toHaveProperty('id');
+        expect(item).toHaveProperty('name');
+        expect(typeof item.score).toBe('number');
+        expect(typeof item.match).toBe('boolean');
+        expect(Array.isArray(item.type)).toBe(true);
     });
 
     test('15. POST result type has id and name', async ({ request }) => {
@@ -242,11 +241,10 @@ test.describe.serial('W3C Reconciliation API — v0.7.4 (18 tests)', () => {
             q0: { query: testAuthorName, limit: 1 },
         });
         const body = await res.json();
-        if (body.q0.result.length > 0) {
-            const typeEntry = body.q0.result[0].type[0];
-            expect(typeEntry).toHaveProperty('id');
-            expect(typeEntry).toHaveProperty('name');
-        }
+        expect(body.q0.result.length).toBeGreaterThan(0);
+        const typeEntry = body.q0.result[0].type[0];
+        expect(typeEntry).toHaveProperty('id');
+        expect(typeEntry).toHaveProperty('name');
     });
 
     // ── Tests 16-17: Score semantics ─────────────────────────────────────────
@@ -261,10 +259,9 @@ test.describe.serial('W3C Reconciliation API — v0.7.4 (18 tests)', () => {
         const exact = (body.q0.result || []).find(
             (/** @type {any} */ r) => r.name.toLowerCase() === testAuthorName.toLowerCase()
         );
-        if (exact) {
-            expect(exact.score).toBe(100);
-            expect(exact.match).toBe(true);
-        }
+        expect(exact).toBeDefined();
+        expect(exact.score).toBe(100);
+        expect(exact.match).toBe(true);
     });
 
     test('17. Nonsense query returns empty result (not an error)', async ({ request }) => {

@@ -83,7 +83,7 @@ class SRUServer
 
     // SRU namespaces
     private const NS_SRU = 'http://www.loc.gov/zing/srw/';
-    private const NS_DIAG = 'http://www.loc.gov/zing/srw/diagnostic/';
+    private const NS_DIAG = 'info:srw/diagnostic/1/';
 
     /**
      * Constructor
@@ -197,7 +197,7 @@ class SRUServer
         $record->appendChild($recordData);
 
         // Explain record
-        $explain = $xml->createElement('explain');
+        $explain = $xml->createElementNS('http://explain.z3950.org/dtd/2.1/', 'explain');
         $recordData->appendChild($explain);
 
         // Server info
@@ -269,7 +269,7 @@ class SRUServer
             'dc'         => 'info:srw/schema/1/dc-v1.1',
             'mods'       => 'info:srw/schema/1/mods-v3.6',
             'oai_dc'     => 'http://www.openarchives.org/OAI/2.0/oai_dc/',
-            'unimarcxml' => 'http://www.loc.gov/MARC21/slim',
+            'unimarcxml' => 'info:srw/schema/8/unimarcxml-v0.1',
         ];
 
         foreach ($supportedFormats as $format) {
@@ -365,7 +365,7 @@ class SRUServer
         $maximumTerms = min((int) ($params['maximumTerms'] ?? 10), 100);
 
         if (empty($scanClause)) {
-            return $this->errorResponse(7, 'Mandatory parameter not supplied: scanClause', $version);
+            return $this->errorResponse(7, 'Mandatory parameter not supplied: scanClause', $version, 'scan');
         }
 
         try {
@@ -377,17 +377,17 @@ class SRUServer
 
             return $this->formatScanResponse($version, $scanClause, $terms, $responsePosition);
         } catch (\Z39Server\Exceptions\UnsupportedIndexException $e) {
-            return $this->errorResponse(16, $e->getMessage(), $version);
+            return $this->errorResponse(16, $e->getMessage(), $version, 'scan');
         } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException | \Z39Server\Exceptions\UnsupportedRelationException $e) {
-            return $this->errorResponse(10, $e->getMessage(), $version);
+            return $this->errorResponse(10, $e->getMessage(), $version, 'scan');
         } catch (\Z39Server\Exceptions\DatabaseException $e) {
             // SECURITY FIX: Don't expose database error details
             \App\Support\SecureLogger::error("[SRU Server] Database error in scan: " . $e->getMessage());
-            return $this->errorResponse(1, 'A database error occurred. Please try again later.', $version);
+            return $this->errorResponse(1, 'A database error occurred. Please try again later.', $version, 'scan');
         } catch (\Throwable $e) {
             // SECURITY FIX: Don't expose system error details
             \App\Support\SecureLogger::error("[SRU Server] Error in scan: " . $e->getMessage());
-            return $this->errorResponse(1, 'An error occurred while scanning the index.', $version);
+            return $this->errorResponse(1, 'An error occurred while scanning the index.', $version, 'scan');
         }
     }
 
@@ -807,12 +807,23 @@ class SRUServer
         // Add records
         $formatter = RecordFormatter::create($recordSchema, $xml);
 
+        $schemaUriMap = [
+            'marcxml'    => 'info:srw/schema/1/marcxml-v1.1',
+            'dc'         => 'info:srw/schema/1/dc-v1.1',
+            'mods'       => 'info:srw/schema/1/mods-v3.3',
+            'unimarcxml' => 'info:srw/schema/1/unimarc-v0.1',
+        ];
+        $schemaUri = $schemaUriMap[$recordSchema] ?? $recordSchema;
+
+        $recordsEl = $xml->createElement('records');
+        $root->appendChild($recordsEl);
+
         $position = $startRecord;
         foreach ($records as $record) {
             $recordEl = $xml->createElement('record');
-            $root->appendChild($recordEl);
+            $recordsEl->appendChild($recordEl);
 
-            $recordSchemaEl = $xml->createElement('recordSchema', $this->escapeXml($recordSchema));
+            $recordSchemaEl = $xml->createElement('recordSchema', $this->escapeXml($schemaUri));
             $recordEl->appendChild($recordSchemaEl);
 
             $recordPacking = $xml->createElement('recordPacking', 'xml');
@@ -1013,14 +1024,21 @@ class SRUServer
      * @param int $code Error code
      * @param string $message Error message
      * @param string $version SRU version
+     * @param string $operation SRU operation context ('searchRetrieve', 'scan', 'explain')
      * @return string XML error response
      */
-    private function errorResponse(int $code, string $message, string $version = '1.2'): string
+    private function errorResponse(int $code, string $message, string $version = '1.2', string $operation = 'searchRetrieve'): string
     {
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = true;
 
-        $root = $xml->createElementNS(self::NS_SRU, 'searchRetrieveResponse');
+        $rootElement = match ($operation) {
+            'scan'    => 'scanResponse',
+            'explain' => 'explainResponse',
+            default   => 'searchRetrieveResponse',
+        };
+
+        $root = $xml->createElementNS(self::NS_SRU, $rootElement);
         $xml->appendChild($root);
 
         $versionEl = $xml->createElement('version', $this->escapeXml($version));

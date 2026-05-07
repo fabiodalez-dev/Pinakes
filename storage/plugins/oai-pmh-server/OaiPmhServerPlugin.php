@@ -417,9 +417,12 @@ class OaiPmhServerPlugin
 
         static $validVerbs = ['Identify', 'ListMetadataFormats', 'ListRecords',
                                'GetRecord', 'ListIdentifiers', 'ListSets'];
-        $verbIsValid = in_array($verb, $validVerbs, true);
+        $verbIsValid   = in_array($verb, $validVerbs, true);
+        $argumentError = $verbIsValid ? $this->validateOaiArguments($verb, $params) : null;
+        $isErrorResponse = !$verbIsValid || $argumentError !== null;
+
         $xw->startElement('request');
-        if ($verbIsValid) {
+        if (!$isErrorResponse) {
             if ($verb !== '') { $xw->writeAttribute('verb', $verb); }
             foreach (['metadataPrefix', 'identifier', 'from', 'until', 'set', 'resumptionToken'] as $k) {
                 if (!empty($params[$k])) { $xw->writeAttribute($k, (string) $params[$k]); }
@@ -428,7 +431,6 @@ class OaiPmhServerPlugin
         $xw->text($baseUrl);
         $xw->endElement(); // request
 
-        $argumentError = $verbIsValid ? $this->validateOaiArguments($verb, $params) : null;
         if ($argumentError !== null) {
             [$code, $message] = $argumentError;
             $this->oaiError($xw, $code, $message);
@@ -478,7 +480,7 @@ class OaiPmhServerPlugin
         }
 
         if ($verb === 'ListSets' && !empty($params['resumptionToken'])) {
-            return ['badResumptionToken', 'The value of the resumptionToken argument is invalid or expired.'];
+            return ['badResumptionToken', 'This repository does not support resumption tokens for ListSets.'];
         }
 
         if ($verb === 'GetRecord') {
@@ -550,7 +552,8 @@ class OaiPmhServerPlugin
     private function oaiIdentify(\XMLWriter $xw, string $baseUrl, string $host, string $now): void
     {
         // Earliest datestamp: MIN of books and archival units (if archives active).
-        $earliest = $now;
+        // Use a static epoch fallback when the repository is empty — never the current time.
+        $earliest = '1970-01-01T00:00:00Z';
         $r = $this->db->query(
             "SELECT MIN(created_at) AS e FROM libri WHERE deleted_at IS NULL"
         );
@@ -747,8 +750,8 @@ class OaiPmhServerPlugin
 
         $validSets = ['', 'books', 'archives'];
         if (!in_array($set, $validSets, true)) {
-            $this->oaiError($xw, 'noSetHierarchy',
-                'This repository does not support the requested set.');
+            $this->oaiError($xw, 'badArgument',
+                'The value of the set argument specifies a set that does not exist in this repository.');
             return;
         }
 
@@ -826,7 +829,7 @@ class OaiPmhServerPlugin
             if (!$identifiersOnly && !$isDeleted) {
                 try {
                     $xw->startElement('metadata');
-                    $this->writeMetadata($xw, $rec, $metadataPrefix);
+                    $this->writeMetadata($xw, $rec, $metadataPrefix, $host);
                     $xw->endElement(); // metadata
                 } catch (CannotDisseminateFormatException $e) {
                     // This record type doesn't support the requested format — skip it.
@@ -841,9 +844,12 @@ class OaiPmhServerPlugin
             }
         }
 
-        // Resumption token
+        // Resumption token — always emit the element with cursor + expirationDate,
+        // even on the last page (empty text content when no more pages).
         $nextCursor = $cursor + self::PAGE_SIZE;
         $xw->startElement('resumptionToken');
+        $xw->writeAttribute('expirationDate', gmdate('Y-m-d\TH:i:s\Z', time() + self::TOKEN_TTL));
+        $xw->writeAttribute('cursor', (string) $cursor);
         if ($hasMore) {
             $newToken = $this->saveResumptionToken($metadataPrefix, $from, $until, $set, $nextCursor);
             $xw->text($newToken);
@@ -918,7 +924,7 @@ class OaiPmhServerPlugin
 
         try {
             $xw->startElement('metadata');
-            $this->writeMetadata($xw, $rec, $metadataPrefix);
+            $this->writeMetadata($xw, $rec, $metadataPrefix, $host);
             $xw->endElement(); // metadata
         } catch (CannotDisseminateFormatException $e) {
             $this->oaiError($xw, 'cannotDisseminateFormat',
@@ -935,7 +941,7 @@ class OaiPmhServerPlugin
     /**
      * @param array<string, mixed> $rec
      */
-    private function writeMetadata(\XMLWriter $xw, array $rec, string $metadataPrefix): void
+    private function writeMetadata(\XMLWriter $xw, array $rec, string $metadataPrefix, string $host = 'localhost'): void
     {
         if ($rec['_entity'] === 'archival_unit') {
             $this->writeArchivalUnitMetadata($xw, $rec, $metadataPrefix);
@@ -949,7 +955,7 @@ class OaiPmhServerPlugin
         $genre     = !empty($rec['genere_id'])  ? $this->fetchGenre((int) $rec['genere_id'])     : null;
 
         match ($metadataPrefix) {
-            'oai_dc'  => $this->writeBookOaiDc($xw, $rec, $authors, $publisher, $genre),
+            'oai_dc'  => $this->writeBookOaiDc($xw, $rec, $authors, $publisher, $genre, $host),
             'marcxml' => $this->writeBookMarcXml($xw, $rec, $authors, $publisher, $genre),
             'mods'    => $this->writeBookMods($xw, $rec, $authors, $publisher, $genre),
             'mag'     => $this->writeBookMag($xw, $rec, $authors, $publisher, $genre),
@@ -971,10 +977,12 @@ class OaiPmhServerPlugin
         array $row,
         array $authors,
         ?array $publisher,
-        ?array $genre
+        ?array $genre,
+        string $host = 'localhost'
     ): void {
         $xw->startElementNs('oai_dc', 'dc', 'http://www.openarchives.org/OAI/2.0/oai_dc/');
         $xw->writeAttributeNs('xmlns', 'dc', null, 'http://purl.org/dc/elements/1.1/');
+        $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
         $xw->writeAttributeNs('xsi', 'schemaLocation', null,
             'http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd');
 
@@ -1033,11 +1041,11 @@ class OaiPmhServerPlugin
             $xw->writeElementNs('dc', 'format', null, (string) $row['formato']);
         }
 
-        // dc:identifier (ISBN13 preferred, fallback ISBN10, then EAN)
+        // dc:identifier — OAI identifier first, then all available ISBNs/EAN
+        $xw->writeElementNs('dc', 'identifier', null, 'oai:' . $host . ':book:' . $row['id']);
         foreach (['isbn13', 'isbn10', 'ean'] as $col) {
             if (!empty($row[$col])) {
                 $xw->writeElementNs('dc', 'identifier', null, (string) $row[$col]);
-                break;
             }
         }
 
@@ -1724,6 +1732,7 @@ class OaiPmhServerPlugin
         if ($metadataPrefix === 'oai_dc') {
             $xw->startElementNs('oai_dc', 'dc', 'http://www.openarchives.org/OAI/2.0/oai_dc/');
             $xw->writeAttributeNs('xmlns', 'dc', null, 'http://purl.org/dc/elements/1.1/');
+            $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
             $xw->writeAttributeNs('xsi', 'schemaLocation', null,
                 'http://www.openarchives.org/OAI/2.0/oai_dc/ http://www.openarchives.org/OAI/2.0/oai_dc.xsd');
 
@@ -1847,6 +1856,9 @@ class OaiPmhServerPlugin
      * Fetch up to $limit records (active + deleted) for the given set/date range.
      * Returns rows with _entity (book|archival_unit) and _status (active|deleted).
      *
+     * Uses a UNION ALL subquery with DB-level LIMIT/OFFSET so only the requested
+     * page is loaded — avoids fetching the entire repository into PHP memory.
+     *
      * @return list<array<string, mixed>>
      */
     private function fetchRecordsPage(
@@ -1856,173 +1868,176 @@ class OaiPmhServerPlugin
         int $cursor,
         int $limit
     ): array {
-        $rows = [];
-
-        // Determine which entity types to query.
         $doBooks    = ($set === '' || $set === 'books');
         $doArchives = ($set === '' || $set === 'archives');
 
-        // ── Active books ──────────────────────────────────────────────────────
+        // Check archival_units existence once (optional plugin).
+        $auExists = false;
+        if ($doArchives) {
+            $r = $this->db->query(
+                "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units'"
+            );
+            if ($r instanceof \mysqli_result) {
+                $auExists = (int) ($r->fetch_assoc()['c'] ?? 0) > 0;
+                $r->free();
+            }
+        }
+
+        // Build UNION ALL parts for page identifiers only.
+        // Each part returns: _id INT, _entity VARCHAR, _status VARCHAR, _datestamp DATETIME.
+        $parts = [];
+        $types = '';
+        $vals  = [];
+
         if ($doBooks) {
-            $where = ['l.deleted_at IS NULL'];
-            $types = '';
-            $vals  = [];
-            if ($fromMysql !== null) {
-                $where[] = 'l.updated_at >= ?';
-                $types  .= 's';
-                $vals[]  = $fromMysql;
+            $w = ['l.deleted_at IS NULL'];
+            if ($fromMysql !== null)  { $w[] = 'l.updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
+            if ($untilMysql !== null) { $w[] = 'l.updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
+            $parts[] = 'SELECT l.id AS _id, \'book\' AS _entity, \'active\' AS _status, l.updated_at AS _datestamp'
+                . ' FROM libri l WHERE ' . implode(' AND ', $w);
+        }
+
+        if ($doArchives && $auExists) {
+            $w = ['deleted_at IS NULL'];
+            if ($fromMysql !== null)  { $w[] = 'updated_at >= ?'; $types .= 's'; $vals[] = $fromMysql; }
+            if ($untilMysql !== null) { $w[] = 'updated_at <= ?'; $types .= 's'; $vals[] = $untilMysql; }
+            $parts[] = 'SELECT id AS _id, \'archival_unit\' AS _entity, \'active\' AS _status, updated_at AS _datestamp'
+                . ' FROM archival_units WHERE ' . implode(' AND ', $w);
+        }
+
+        $delW = [];
+        if ($doBooks && !$doArchives)      { $delW[] = "entity_type = 'book'"; }
+        elseif ($doArchives && !$doBooks)  { $delW[] = "entity_type = 'archival_unit'"; }
+        if ($fromMysql !== null)  { $delW[] = 'datestamp >= ?'; $types .= 's'; $vals[] = $fromMysql; }
+        if ($untilMysql !== null) { $delW[] = 'datestamp <= ?'; $types .= 's'; $vals[] = $untilMysql; }
+        $delCond = !empty($delW) ? 'WHERE ' . implode(' AND ', $delW) : '';
+        $parts[] = "SELECT id AS _id, entity_type AS _entity, 'deleted' AS _status, datestamp AS _datestamp"
+            . " FROM oai_deleted_records $delCond";
+
+        // UNION ALL with DB-level ORDER + LIMIT + OFFSET.
+        $union   = implode(' UNION ALL ', $parts);
+        $pageSql = "SELECT _id, _entity, _status, _datestamp FROM ($union) AS _combined ORDER BY _datestamp, _id LIMIT ? OFFSET ?";
+        $types  .= 'ii';
+        $vals[]  = $limit;
+        $vals[]  = $cursor;
+
+        $pageRefs = [];
+        $stmt = $this->db->prepare($pageSql);
+        if ($stmt !== false) {
+            $stmt->bind_param($types, ...$vals);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if ($res instanceof \mysqli_result) {
+                while ($r = $res->fetch_assoc()) { $pageRefs[] = $r; }
+                $res->free();
             }
-            if ($untilMysql !== null) {
-                $where[] = 'l.updated_at <= ?';
-                $types  .= 's';
-                $vals[]  = $untilMysql;
-            }
-            $whereStr = implode(' AND ', $where);
+            $stmt->close();
+        }
+
+        if (empty($pageRefs)) {
+            return [];
+        }
+
+        // Batch-fetch full book rows for the page.
+        $bookMap = [];
+        $bookIds = array_values(array_map(
+            fn($r) => (int) $r['_id'],
+            array_filter($pageRefs, fn($r) => $r['_entity'] === 'book' && $r['_status'] === 'active')
+        ));
+        if (!empty($bookIds)) {
+            $ph  = implode(',', array_fill(0, count($bookIds), '?'));
             $sql = "SELECT l.id, l.titolo, l.sottotitolo, l.anno_pubblicazione, l.lingua,
                            l.isbn13, l.isbn10, l.ean, l.issn, l.editore_id, l.genere_id,
                            l.sottogenere_id, l.numero_pagine, l.formato, l.tipo_media,
                            l.descrizione, l.descrizione_plain, l.parole_chiave,
                            l.traduttore, l.illustratore, l.curatore, l.collana,
                            l.numero_serie, l.classificazione_dewey, l.file_url,
-                           l.edizione, l.created_at, l.updated_at,
-                           'book' AS _entity, 'active' AS _status,
-                           l.updated_at AS _datestamp
-                      FROM libri l
-                     WHERE $whereStr
-                     ORDER BY l.updated_at, l.id";
-
-            if (!empty($vals)) {
-                $stmt = $this->db->prepare($sql);
-                if ($stmt !== false) {
-                    $stmt->bind_param($types, ...$vals);
-                    $stmt->execute();
-                    $res = $stmt->get_result();
-                    if ($res instanceof \mysqli_result) {
-                        while ($r = $res->fetch_assoc()) { $rows[] = $r; }
-                        $res->free();
-                    }
-                    $stmt->close();
-                }
-            } else {
-                $res = $this->db->query($sql);
-                if ($res instanceof \mysqli_result) {
-                    while ($r = $res->fetch_assoc()) { $rows[] = $r; }
-                    $res->free();
-                }
-            }
-        }
-
-        // ── Active archival units ─────────────────────────────────────────────
-        if ($doArchives) {
-            $auTable = $this->db->query(
-                "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units'"
-            );
-            $auExists = false;
-            if ($auTable instanceof \mysqli_result) {
-                $auRow = $auTable->fetch_assoc();
-                $auTable->free();
-                $auExists = (($auRow['c'] ?? 0) > 0);
-            }
-
-            if ($auExists) {
-                $where = ['deleted_at IS NULL'];
-                $types = '';
-                $vals  = [];
-                if ($fromMysql !== null) {
-                    $where[] = 'updated_at >= ?';
-                    $types  .= 's';
-                    $vals[]  = $fromMysql;
-                }
-                if ($untilMysql !== null) {
-                    $where[] = 'updated_at <= ?';
-                    $types  .= 's';
-                    $vals[]  = $untilMysql;
-                }
-                $whereStr = implode(' AND ', $where);
-                $sql = "SELECT id, reference_code, constructed_title, formal_title,
-                               scope_content, language_codes, created_at, updated_at,
-                               'archival_unit' AS _entity, 'active' AS _status,
-                               updated_at AS _datestamp
-                          FROM archival_units
-                         WHERE $whereStr
-                         ORDER BY updated_at, id";
-
-                if (!empty($vals)) {
-                    $stmt = $this->db->prepare($sql);
-                    if ($stmt !== false) {
-                        $stmt->bind_param($types, ...$vals);
-                        $stmt->execute();
-                        $res = $stmt->get_result();
-                        if ($res instanceof \mysqli_result) {
-                            while ($r = $res->fetch_assoc()) { $rows[] = $r; }
-                            $res->free();
-                        }
-                        $stmt->close();
-                    }
-                } else {
-                    $res = $this->db->query($sql);
-                    if ($res instanceof \mysqli_result) {
-                        while ($r = $res->fetch_assoc()) { $rows[] = $r; }
-                        $res->free();
-                    }
-                }
-            }
-        }
-
-        // ── Deleted records (persistent) ──────────────────────────────────────
-        $delWhere  = [];
-        $delTypes  = '';
-        $delVals   = [];
-
-        if ($doBooks && !$doArchives) {
-            $delWhere[] = "entity_type = 'book'";
-        } elseif ($doArchives && !$doBooks) {
-            $delWhere[] = "entity_type = 'archival_unit'";
-        }
-        if ($fromMysql !== null) {
-            $delWhere[] = 'datestamp >= ?';
-            $delTypes  .= 's';
-            $delVals[]  = $fromMysql;
-        }
-        if ($untilMysql !== null) {
-            $delWhere[] = 'datestamp <= ?';
-            $delTypes  .= 's';
-            $delVals[]  = $untilMysql;
-        }
-        $delWhereStr = !empty($delWhere) ? 'WHERE ' . implode(' AND ', $delWhere) : '';
-        $delSql = "SELECT id, entity_type AS _entity, entity_id, oai_id, datestamp,
-                          datestamp AS _datestamp, 'deleted' AS _status
-                     FROM oai_deleted_records $delWhereStr
-                     ORDER BY datestamp, id";
-
-        if (!empty($delVals)) {
-            $stmt = $this->db->prepare($delSql);
+                           l.edizione, l.created_at, l.updated_at
+                      FROM libri l WHERE l.deleted_at IS NULL AND l.id IN ($ph)";
+            $stmt = $this->db->prepare($sql);
             if ($stmt !== false) {
-                $stmt->bind_param($delTypes, ...$delVals);
+                $stmt->bind_param(str_repeat('i', count($bookIds)), ...$bookIds);
                 $stmt->execute();
                 $res = $stmt->get_result();
                 if ($res instanceof \mysqli_result) {
-                    while ($r = $res->fetch_assoc()) { $rows[] = $r; }
+                    while ($r = $res->fetch_assoc()) { $bookMap[(int) $r['id']] = $r; }
                     $res->free();
                 }
                 $stmt->close();
             }
-        } else {
-            $res = $this->db->query($delSql);
-            if ($res instanceof \mysqli_result) {
-                while ($r = $res->fetch_assoc()) { $rows[] = $r; }
-                $res->free();
+        }
+
+        // Batch-fetch full archival_unit rows for the page.
+        $auMap = [];
+        $auIds = array_values(array_map(
+            fn($r) => (int) $r['_id'],
+            array_filter($pageRefs, fn($r) => $r['_entity'] === 'archival_unit' && $r['_status'] === 'active')
+        ));
+        if (!empty($auIds) && $auExists) {
+            $ph  = implode(',', array_fill(0, count($auIds), '?'));
+            $sql = "SELECT id, reference_code, constructed_title, formal_title,
+                           scope_content, language_codes, created_at, updated_at
+                      FROM archival_units WHERE deleted_at IS NULL AND id IN ($ph)";
+            $stmt = $this->db->prepare($sql);
+            if ($stmt !== false) {
+                $stmt->bind_param(str_repeat('i', count($auIds)), ...$auIds);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($res instanceof \mysqli_result) {
+                    while ($r = $res->fetch_assoc()) { $auMap[(int) $r['id']] = $r; }
+                    $res->free();
+                }
+                $stmt->close();
             }
         }
 
-        // Sort merged results by datestamp, then apply cursor + limit.
-        usort($rows, function (array $a, array $b): int {
-            $da = (string) ($a['_datestamp'] ?? '');
-            $db = (string) ($b['_datestamp'] ?? '');
-            return strcmp($da, $db) ?: (int) ($a['id'] ?? 0) - (int) ($b['id'] ?? 0);
-        });
+        // Batch-fetch deleted record details.
+        $delMap = [];
+        $delIds = array_values(array_map(
+            fn($r) => (int) $r['_id'],
+            array_filter($pageRefs, fn($r) => $r['_status'] === 'deleted')
+        ));
+        if (!empty($delIds)) {
+            $ph  = implode(',', array_fill(0, count($delIds), '?'));
+            $sql = "SELECT id, entity_type AS _entity, entity_id, oai_id,
+                           datestamp, datestamp AS _datestamp, 'deleted' AS _status
+                      FROM oai_deleted_records WHERE id IN ($ph)";
+            $stmt = $this->db->prepare($sql);
+            if ($stmt !== false) {
+                $stmt->bind_param(str_repeat('i', count($delIds)), ...$delIds);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                if ($res instanceof \mysqli_result) {
+                    while ($r = $res->fetch_assoc()) { $delMap[(int) $r['id']] = $r; }
+                    $res->free();
+                }
+                $stmt->close();
+            }
+        }
 
-        return array_slice($rows, $cursor, $limit);
+        // Reassemble page in UNION order.
+        $result = [];
+        foreach ($pageRefs as $ref) {
+            $id = (int) $ref['_id'];
+            if ($ref['_status'] === 'deleted') {
+                if (isset($delMap[$id])) { $result[] = $delMap[$id]; }
+            } elseif ($ref['_entity'] === 'book' && isset($bookMap[$id])) {
+                $row = $bookMap[$id];
+                $row['_entity']    = 'book';
+                $row['_status']    = 'active';
+                $row['_datestamp'] = $row['updated_at'];
+                $result[] = $row;
+            } elseif ($ref['_entity'] === 'archival_unit' && isset($auMap[$id])) {
+                $row = $auMap[$id];
+                $row['_entity']    = 'archival_unit';
+                $row['_status']    = 'active';
+                $row['_datestamp'] = $row['updated_at'];
+                $result[] = $row;
+            }
+        }
+
+        return $result;
     }
 
     // ── Resumption token management ───────────────────────────────────────────
@@ -2249,7 +2264,7 @@ class OaiPmhServerPlugin
     ): ResponseInterface {
         $out = null;
         if (!$this->requireAdminForDownload($response, $out, $request)) {
-            return $out; // @phpstan-ignore-line
+            return $out;
         }
 
         $id  = (int) ($args['id'] ?? 0);
@@ -2292,7 +2307,7 @@ class OaiPmhServerPlugin
     ): ResponseInterface {
         $out = null;
         if (!$this->requireAdminForDownload($response, $out, $request)) {
-            return $out; // @phpstan-ignore-line
+            return $out;
         }
 
         $id  = (int) ($args['id'] ?? 0);

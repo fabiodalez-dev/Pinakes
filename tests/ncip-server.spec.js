@@ -332,6 +332,8 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
     let ncipLoanBookId = 0;
     /** @type {number} */
     let copieBaseline = 0;
+    /** @type {number} */
+    let ncipLoanCountBaseline = 0;
 
     test('18. POST RequestItem (staff auth) → RequestItemResponse', async ({ request }) => {
         test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Missing admin credentials');
@@ -339,6 +341,7 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
 
         ncipLoanBookId = testBookId;
         copieBaseline = parseInt(dbQuery(`SELECT copie_disponibili FROM libri WHERE id = ${testBookId} LIMIT 1`)) || 0;
+        ncipLoanCountBaseline = parseInt(dbQuery(`SELECT COUNT(*) FROM prestiti WHERE libro_id = ${testBookId} AND origine = 'ncip'`)) || 0;
         const auth = basicAuth(ADMIN_EMAIL, ADMIN_PASS);
         const body = `<?xml version="1.0" encoding="UTF-8"?>
 <NCIPMessage xmlns="${NCIP_NS}">
@@ -357,10 +360,10 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
 
     test('19. RequestItem creates prestito with origine=ncip in DB', async () => {
         test.skip(ncipLoanBookId === 0, 'Test 18 skipped or failed');
-        const count = dbQuery(
-            `SELECT COUNT(*) FROM prestiti WHERE libro_id = ${ncipLoanBookId} AND origine = 'ncip' ORDER BY created_at DESC LIMIT 1`
-        );
-        expect(parseInt(count)).toBeGreaterThanOrEqual(1);
+        const count = parseInt(dbQuery(
+            `SELECT COUNT(*) FROM prestiti WHERE libro_id = ${ncipLoanBookId} AND origine = 'ncip'`
+        )) || 0;
+        expect(count).toBeGreaterThan(ncipLoanCountBaseline);
     });
 
     test('20. POST CancelRequestItem (staff auth) → CancelRequestItemResponse', async ({ request }) => {

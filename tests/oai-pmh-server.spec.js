@@ -28,6 +28,8 @@ const { execFileSync } = require('child_process');
 
 const BASE        = process.env.E2E_BASE_URL    || 'http://localhost:8081';
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL || '';
+// OAI identifiers use the hostname from the base URL (matches PHP parse_url PHP_URL_HOST).
+const oaiHost = new URL(BASE).hostname;
 const ADMIN_PASS  = process.env.E2E_ADMIN_PASS  || '';
 const DB_USER     = process.env.E2E_DB_USER     || '';
 const DB_PASS     = process.env.E2E_DB_PASS     || '';
@@ -65,6 +67,8 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (16 tests)', () => {
     let page;
     /** @type {number} */
     let testBookId = 0;
+    /** ISO-8601 timestamp captured just before test book insertion — used as ?from= filter */
+    let beforeAllFrom = '';
 
     test.beforeAll(async ({ browser }) => {
         context = await browser.newContext();
@@ -92,6 +96,9 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (16 tests)', () => {
                 await page.waitForLoadState('domcontentloaded');
             }
         }
+
+        // Snapshot time before inserting the test book (used as OAI ?from= filter).
+        beforeAllFrom = new Date(Date.now() - 5000).toISOString().replace(/\.\d+Z$/, 'Z');
 
         // Create a test book via admin UI.
         await page.goto(`${BASE}/admin/books/new`);
@@ -223,7 +230,10 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (16 tests)', () => {
     // ── Tests 7-10: ListRecords per format ────────────────────────────────────
 
     test('7. ListRecords oai_dc → valid OAI-PMH XML with book identifier', async () => {
-        const res  = await page.request.get(`${BASE}/oai?verb=ListRecords&metadataPrefix=oai_dc&set=books`);
+        // Use ?from= to restrict to records modified since just before this test run,
+        // so the test book is always on the first page regardless of total repository size.
+        const url  = `${BASE}/oai?verb=ListRecords&metadataPrefix=oai_dc&set=books&from=${beforeAllFrom}`;
+        const res  = await page.request.get(url);
         expect(res.status()).toBe(200);
         const text = await res.text();
         // Must not have error codes.
@@ -231,7 +241,7 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (16 tests)', () => {
         // Must contain at least one record.
         expect(text).toContain('<record>');
         // Must include our test book.
-        expect(text).toContain(`oai:localhost:book:${testBookId}`);
+        expect(text).toContain(`oai:${oaiHost}:book:${testBookId}`);
         // Must have oai_dc namespace.
         expect(text).toContain('oai_dc:dc');
         // resumptionToken element (always present, even if empty).
@@ -292,7 +302,7 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (16 tests)', () => {
     // ── Tests 12-13: GetRecord (active + deleted) ─────────────────────────────
 
     test('12. GetRecord on active book → correct metadata', async () => {
-        const identifier = `oai:localhost:book:${testBookId}`;
+        const identifier = `oai:${oaiHost}:book:${testBookId}`;
         const res  = await page.request.get(
             `${BASE}/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=${identifier}`
         );
@@ -322,7 +332,7 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (16 tests)', () => {
         expect(logged).toBe('1');
 
         // GetRecord must return a deleted header.
-        const identifier = `oai:localhost:book:${delId}`;
+        const identifier = `oai:${oaiHost}:book:${delId}`;
         const res = await page.request.get(
             `${BASE}/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=${identifier}`
         );
