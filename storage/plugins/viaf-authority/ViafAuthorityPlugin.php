@@ -81,7 +81,7 @@ class ViafAuthorityPlugin
             $this->db->query("ALTER TABLE autori ADD COLUMN viaf_uri VARCHAR(500) DEFAULT NULL AFTER viaf_id");
         }
         if (!isset($columns['isni_id'])) {
-            $this->db->query("ALTER TABLE autori ADD COLUMN isni_id CHAR(19) DEFAULT NULL AFTER viaf_uri");
+            $this->db->query("ALTER TABLE autori ADD COLUMN isni_id VARCHAR(16) DEFAULT NULL AFTER viaf_uri");
             $this->db->query("ALTER TABLE autori ADD UNIQUE KEY uq_isni_id (isni_id)");
         }
         if (!isset($columns['isni_uri'])) {

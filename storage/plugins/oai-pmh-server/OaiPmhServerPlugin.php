@@ -170,6 +170,25 @@ class OaiPmhServerPlugin
             }
         }
 
+        // Migrate oai_resumption_tokens if it still has the old column-per-field schema
+        // (pre-payload refactor). Tokens are ephemeral — DROP + recreate is safe.
+        $colRes = $this->db->query(
+            "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE()
+                AND TABLE_NAME  = 'oai_resumption_tokens'
+                AND COLUMN_NAME = 'payload'"
+        );
+        $hasPayload = false;
+        if ($colRes instanceof \mysqli_result) {
+            $colRow = $colRes->fetch_assoc();
+            $colRes->free();
+            $hasPayload = ((int) ($colRow['c'] ?? 0)) > 0;
+        }
+        if (!$hasPayload) {
+            $this->db->query('DROP TABLE IF EXISTS oai_resumption_tokens');
+            $this->db->query($tables['oai_resumption_tokens']);
+        }
+
         // Install triggers for persistent deleted record tracking.
         $this->installTriggers();
 
@@ -2101,11 +2120,13 @@ class OaiPmhServerPlugin
      */
     private function buildOaiId(array $rec, string $host): string
     {
-        if ($rec['_status'] === 'deleted') {
-            return (string) ($rec['oai_id'] ?? '');
-        }
         $entity = ($rec['_entity'] === 'archival_unit') ? 'archival_unit' : 'book';
-        return 'oai:' . $host . ':' . $entity . ':' . (string) ($rec['id'] ?? '');
+        // For deleted records use entity_id (stored by trigger); for active records use id.
+        // Both use the same host-based namespace for OAI identifier consistency.
+        $recId = $rec['_status'] === 'deleted'
+            ? (string) ($rec['entity_id'] ?? '')
+            : (string) ($rec['id'] ?? '');
+        return 'oai:' . $host . ':' . $entity . ':' . $recId;
     }
 
     /**
