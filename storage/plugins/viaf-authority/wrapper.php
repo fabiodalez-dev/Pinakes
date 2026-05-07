@@ -32,6 +32,7 @@ if (!class_exists('ViafAuthorityPlugin', false)) {
 
         public function onInstall(): void
         {
+            $this->instance->ensureSchema();
             \App\Support\SecureLogger::debug('[ViafAuthority] Plugin installed');
         }
 

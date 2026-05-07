@@ -26,10 +26,9 @@ class ResourceSyncPlugin
     private const SM_NS    = 'http://www.sitemaps.org/schemas/sitemap/0.9';
     private const PAGE_SIZE = 500;
 
-    /** @phpstan-ignore-next-line property.onlyWritten */
+    /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private \mysqli $db;
-    /** @phpstan-ignore-next-line property.onlyWritten */
     private ?int $pluginId = null;
 
     public function __construct(\mysqli $db, HookManager $hookManager)
@@ -202,6 +201,12 @@ class ResourceSyncPlugin
         $xw->writeAttribute('at', gmdate('c'));
         $xw->endElement();
 
+        // rs:ln — self-reference for ResourceSync discovery
+        $xw->startElementNs('rs', 'ln', null);
+        $xw->writeAttribute('rel', 'resourcesync');
+        $xw->writeAttribute('href', $base . '/resync/capabilitylist.xml');
+        $xw->endElement();
+
         // one <url> per capability list (we have only one)
         $xw->startElement('url');
         $xw->writeElement('loc', $base . '/resync/capabilitylist.xml');
@@ -239,11 +244,17 @@ class ResourceSyncPlugin
         $xw->writeAttribute('href', $base . '/.well-known/resourcesync');
         $xw->endElement();
 
+        $capabilityListUrl = $base . '/resync/capabilitylist.xml';
+
         // resourcelist capability
         $xw->startElement('url');
         $xw->writeElement('loc', $base . '/resync/resourcelist.xml');
         $xw->startElementNs('rs', 'md', null);
         $xw->writeAttribute('capability', 'resourcelist');
+        $xw->endElement();
+        $xw->startElementNs('rs', 'ln', null);
+        $xw->writeAttribute('rel', 'resourcesync');
+        $xw->writeAttribute('href', $capabilityListUrl);
         $xw->endElement();
         $xw->endElement();
 
@@ -252,6 +263,10 @@ class ResourceSyncPlugin
         $xw->writeElement('loc', $base . '/resync/changelist.xml');
         $xw->startElementNs('rs', 'md', null);
         $xw->writeAttribute('capability', 'changelist');
+        $xw->endElement();
+        $xw->startElementNs('rs', 'ln', null);
+        $xw->writeAttribute('rel', 'resourcesync');
+        $xw->writeAttribute('href', $capabilityListUrl);
         $xw->endElement();
         $xw->endElement();
 
@@ -346,11 +361,14 @@ class ResourceSyncPlugin
         $xw->endElement();
 
         foreach ($books as $book) {
-            $id       = (int) $book['id'];
-            $modified = $this->w3cDate((string) ($book['updated_at'] ?? $book['created_at'] ?? ''));
-            $change   = ($book['deleted_at'] !== null) ? 'deleted' : (
-                ($book['is_new_entry'] ?? false) ? 'created' : 'updated'
-            );
+            $id = (int) $book['id'];
+            if ($book['deleted_at'] !== null) {
+                $modified = $this->w3cDate((string) $book['deleted_at']);
+                $change   = 'deleted';
+            } else {
+                $modified = $this->w3cDate((string) ($book['updated_at'] ?? $book['created_at'] ?? ''));
+                $change   = ($book['is_new_entry'] ?? false) ? 'created' : 'updated';
+            }
 
             $xw->startElement('url');
             $xw->writeElement('loc', $base . '/api/bibframe/book/' . $id);

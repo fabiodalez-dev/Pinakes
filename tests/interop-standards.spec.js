@@ -420,7 +420,7 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
         expect(res.status()).toBe(200);
         const body = await res.text();
         expect(body).toContain('CheckInItemResponse');
-        expect(body).toContain('ReturnDate');
+        expect(body).toContain('DateReturned');
     });
 
     test('E.10 RenewItem on non-existent loan → Problem response', async ({ request }) => {

@@ -230,6 +230,9 @@ class SearchController
             // Search publishers with details
             $publisherResults = $this->searchPublishersWithDetails($db, $q);
             $results = array_merge($results, $publisherResults);
+
+            // Plugin sources (e.g. archive units via Archives plugin hook).
+            $results = \App\Support\Hooks::apply('search.unified.sources', $results, [$q]);
         }
 
         // Limit to 15 results total

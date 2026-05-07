@@ -36,6 +36,38 @@
     -webkit-box-shadow: none !important;
 }
 
+/* ── Search form ───────────────────────────────────────────────────── */
+.archive-search-form {
+    background: var(--archives-bg-primary);
+    border: 1px solid var(--archives-border-color);
+    border-radius: .5rem;
+    padding: 1rem 1.25rem;
+}
+.archive-search-form .form-control,
+.archive-search-form .form-select {
+    border-color: var(--archives-border-color);
+    background-color: var(--archives-bg-primary);
+    color: var(--archives-text-primary);
+}
+.archive-search-form .form-control:focus,
+.archive-search-form .form-select:focus {
+    border-color: var(--archives-color-primary);
+    box-shadow: 0 0 0 .2rem color-mix(in srgb, var(--archives-color-primary) 25%, transparent);
+}
+.archive-search-icon {
+    background: var(--archives-bg-secondary);
+    border-color: var(--archives-border-color);
+    color: var(--archives-text-secondary);
+}
+.archive-search-form .btn-primary {
+    background-color: var(--archives-color-primary);
+    border-color: var(--archives-color-primary);
+}
+.archive-search-form .btn-outline-secondary {
+    color: var(--archives-text-secondary);
+    border-color: var(--archives-border-color);
+}
+
 /* ── Index grid ────────────────────────────────────────────────────── */
 .archive-hero-index {
     padding: 3rem 0 2rem;

@@ -36,12 +36,26 @@ class UNIMARCXMLFormatter extends RecordFormatter
         $recordEl->appendChild($this->cf('005', gmdate('YmdHis') . '.0'));
 
         // 100 — General processing data (UNIMARC fixed 36-char field)
+        // Layout: 0-7 date entered, 8 type of date, 9-12 year1, 13-16 year2,
+        //         17 audience, 18-21 illustrations, 22-24 language, 25 transliteration, 26-35 charset
         $langCode = $this->langCode((string) ($record['lingua'] ?? ''));
         $year     = (string) ($record['anno_pubblicazione'] ?? '');
-        $date1    = (strlen($year) === 4 && ctype_digit($year)) ? $year : '    ';
-        $recordEl->appendChild(
-            $this->cf('100', str_pad(gmdate('Ymd') . '1' . $date1 . '    0000ba' . $langCode, 36))
+        $date1    = str_pad(
+            (strlen($year) === 4 && ctype_digit($year)) ? $year : '',
+            4,
+            '0',
+            STR_PAD_LEFT
         );
+        $f100 = gmdate('Ymd')   // 0-7:  date entered
+              . 'a'              // 8:    type of date = single known date
+              . $date1           // 9-12: year 1
+              . '    '           // 13-16: year 2
+              . ' '              // 17:   target audience
+              . '    '           // 18-21: illustrations
+              . $langCode        // 22-24: language code
+              . ' '              // 25:   transliteration
+              . '          ';    // 26-35: character set (10 spaces)
+        $recordEl->appendChild($this->cf('100', $f100));
 
         // 010 — ISBN
         $isbn = (string) ($record['isbn13'] ?? $record['isbn10'] ?? '');
@@ -122,9 +136,10 @@ class UNIMARCXMLFormatter extends RecordFormatter
         }
 
         // 700/701 — Personal name (primary / alternative intellectual responsibility)
+        // Indicator 1 = '1' for surname entry
         foreach ($authorList as $i => $name) {
             $tag = ($i === 0) ? '700' : '701';
-            $recordEl->appendChild($this->df($tag, '0', ' ', [
+            $recordEl->appendChild($this->df($tag, '1', ' ', [
                 ['a', $name],
                 ['4', '070'],
             ]));
@@ -192,7 +207,7 @@ class UNIMARCXMLFormatter extends RecordFormatter
             'cinese', 'chinese'        => 'chi',
             'giapponese', 'japanese'   => 'jpn',
             'arabo', 'arabic'          => 'ara',
-            default                    => 'ita',
+            default                    => 'und',
         };
     }
 }

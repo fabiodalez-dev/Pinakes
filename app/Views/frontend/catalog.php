@@ -3,6 +3,7 @@
 /** @var array $genre_display */
 /** @var array $filter_options */
 /** @var ?int $total_books */
+/** @var array<int, array<string, mixed>> $archiveResults */
 
 use App\Support\HtmlHelper;
 
@@ -1427,6 +1428,28 @@ ob_start();
                             <?= __("Pulisci filtri") ?>
                         </button>
                     </div>
+
+                    <?php if (!empty($archiveResults)): ?>
+                    <?php $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); ?>
+                    <div class="mt-4 p-3 rounded border" style="background:var(--light-bg,#f8f9fa);border-color:var(--border-color,#e5e7eb)!important;">
+                        <p class="small fw-semibold text-muted mb-2">
+                            <i class="fas fa-archive me-1"></i>
+                            <?= __("Trovato anche nell'archivio:") ?>
+                        </p>
+                        <ul class="list-unstyled mb-0">
+                            <?php foreach ($archiveResults as $ar): ?>
+                            <li class="mb-1">
+                                <a href="<?= $e($ar['url']) ?>" class="text-decoration-none">
+                                    <?= $e($ar['label']) ?>
+                                    <?php if (($ar['reference_code'] ?? '') !== ''): ?>
+                                        <span class="text-muted small ms-1">(<?= $e($ar['reference_code']) ?>)</span>
+                                    <?php endif; ?>
+                                </a>
+                            </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Pagination -->

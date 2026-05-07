@@ -9,7 +9,7 @@
  * Tests:
  *  1.  SRU explain response is 200 OK
  *  2.  SRU explain lists "unimarcxml" as supported schema
- *  3.  SRU explain includes MARC21slim namespace URI for unimarcxml
+ *  3.  SRU explain includes the SRU UNIMARC/XML schema URI
  *  4.  searchRetrieve?recordSchema=unimarcxml → 200
  *  5.  Response Content-Type contains xml
  *  6.  Response body contains searchRetrieveResponse element
@@ -74,11 +74,10 @@ test.describe.serial('SRU recordSchema=unimarcxml — v0.7.4 (10 tests)', () => 
         expect(body).toContain('unimarcxml');
     });
 
-    test('3. SRU explain includes MARC21slim namespace URI for unimarcxml', async ({ request }) => {
+    test('3. SRU explain includes SRU UNIMARC/XML schema URI', async ({ request }) => {
         const res = await request.get(`${SRU}?operation=explain&version=1.1`);
         const body = await res.text();
-        // The schema identifier for unimarcxml uses the MARC21slim namespace
-        expect(body).toContain('loc.gov/MARC21/slim');
+        expect(body).toContain('info:srw/schema/8/unimarcxml-v0.1');
     });
 
     // ── searchRetrieve with recordSchema=unimarcxml ───────────────────────────

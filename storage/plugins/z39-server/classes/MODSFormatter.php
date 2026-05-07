@@ -71,6 +71,7 @@ class MODSFormatter extends RecordFormatter
         // Genre
         if (!empty($record['genere'])) {
             $genre = $this->doc->createElement('genre', $this->escapeXml($record['genere']));
+            $genre->setAttribute('authority', 'local');
             $mods->appendChild($genre);
         }
 
@@ -101,6 +102,25 @@ class MODSFormatter extends RecordFormatter
             $languageTerm = $this->doc->createElement('languageTerm', $this->escapeXml($record['lingua']));
             $languageTerm->setAttribute('type', 'text');
             $language->appendChild($languageTerm);
+
+            // Machine-readable ISO 639-2b code
+            $langCodeMap = [
+                'italiano' => 'ita', 'italian' => 'ita',
+                'inglese'  => 'eng', 'english' => 'eng',
+                'francese' => 'fre', 'french'  => 'fre',
+                'tedesco'  => 'ger', 'german'  => 'ger',
+                'spagnolo' => 'spa', 'spanish' => 'spa',
+                'portoghese' => 'por', 'portuguese' => 'por',
+                'russo'    => 'rus', 'russian'  => 'rus',
+                'cinese'   => 'chi', 'chinese'  => 'chi',
+                'giapponese' => 'jpn', 'japanese' => 'jpn',
+                'arabo'    => 'ara', 'arabic'   => 'ara',
+            ];
+            $isoCode = $langCodeMap[strtolower(trim($record['lingua']))] ?? 'und';
+            $languageTermCode = $this->doc->createElement('languageTerm', $isoCode);
+            $languageTermCode->setAttribute('type', 'code');
+            $languageTermCode->setAttribute('authority', 'iso639-2b');
+            $language->appendChild($languageTermCode);
         }
 
         // Physical Description

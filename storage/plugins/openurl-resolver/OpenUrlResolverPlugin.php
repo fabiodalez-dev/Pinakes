@@ -29,10 +29,9 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class OpenUrlResolverPlugin
 {
-    /** @phpstan-ignore-next-line property.onlyWritten */
+    /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private \mysqli $db;
-    /** @phpstan-ignore-next-line property.onlyWritten */
     private ?int $pluginId = null;
 
     // External resolver targets (in priority order when redirecting)
@@ -169,6 +168,23 @@ class OpenUrlResolverPlugin
     ): ResponseInterface {
         $params = $request->getQueryParams();
 
+        // Soft-validate OpenURL version (log warning; don't hard-reject as many systems omit it)
+        $urlVer = (string) ($params['url_ver'] ?? '');
+        if ($urlVer !== '' && $urlVer !== 'Z39.88-2004') {
+            SecureLogger::warning('[OpenUrlResolver] Non-conformant url_ver received: ' . $urlVer);
+        }
+
+        // Reject journal requests — this resolver handles books only
+        $rftValFmt = (string) ($params['rft_val_fmt'] ?? '');
+        if ($rftValFmt === 'info:ofi/fmt:kev:mtx:journal') {
+            $body = (string) json_encode([
+                'error'   => true,
+                'message' => __('Questo resolver supporta solo risorse di tipo libro (book). I metadati per articoli di riviste non sono supportati.'),
+            ]);
+            $response->getBody()->write($body);
+            return $response->withStatus(400)->withHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+
         // 1. Try to match locally by ISBN
         $isbn = $this->extractIsbn($params);
         if ($isbn !== '') {
@@ -224,6 +240,7 @@ class OpenUrlResolverPlugin
         ServerRequestInterface $request
     ): string {
         $parts = [
+            'url_ver'     => 'Z39.88-2004',
             'ctx_ver'     => 'Z39.88-2004',
             'ctx_enc'     => 'info:ofi/enc:UTF-8',
             'rft_val_fmt' => 'info:ofi/fmt:kev:mtx:book',
@@ -235,11 +252,22 @@ class OpenUrlResolverPlugin
             $parts['rft.btitle'] = $title;
         }
 
-        // Authors: first is rft.au, additional are rft.au (repeated keys handled via array)
-        $auParts = [];
+        // Authors: first author split into rft.aulast/rft.aufirst if comma-separated
+        $auParts     = [];
+        $firstAuthor = true;
         foreach ($authors as $a) {
             $name = trim((string) ($a['nome'] ?? ''));
-            if ($name !== '') {
+            if ($name === '') { continue; }
+            if ($firstAuthor) {
+                $firstAuthor = false;
+                if (str_contains($name, ',')) {
+                    [$last, $first] = explode(',', $name, 2);
+                    $auParts[] = 'rft.aulast='  . rawurlencode(trim($last));
+                    $auParts[] = 'rft.aufirst=' . rawurlencode(trim($first));
+                } else {
+                    $auParts[] = 'rft.au=' . rawurlencode($name);
+                }
+            } else {
                 $auParts[] = 'rft.au=' . rawurlencode($name);
             }
         }

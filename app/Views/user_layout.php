@@ -1142,6 +1142,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 const books = results.filter(r => r.type === 'book');
                 const authors = results.filter(r => r.type === 'author');
                 const publishers = results.filter(r => r.type === 'publisher');
+                const archives = results.filter(r => r.type === 'archive');
 
                 if (books.length > 0) {
                     html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + window.__('Libri') + '</h6>';
@@ -1198,6 +1199,23 @@ $htmlLang = substr($currentLocale, 0, 2);
                             '<div class="search-publisher-name" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: #000000;">' + publisherName + '</div>' +
                             '<div class="search-publisher-books" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.125rem;">' + publisherBooks + '</div>' +
                             (publisher.description ? '<div class="search-publisher-desc" style="font-size: 0.75rem; color: #9ca3af; line-height: 1.2;">' + publisherDesc + '</div>' : '') +
+                            '</div>' +
+                            '</a>';
+                    });
+                    html += '</div>';
+                }
+
+                if (archives.length > 0) {
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + window.__('Archivio') + '</h6>';
+                    archives.forEach(arc => {
+                        const arcUrl = sanitizeUrl(arc.url ?? '#');
+                        const arcLabel = escapeHtml(arc.label ?? '');
+                        const arcRef = escapeHtml(arc.identifier ?? '');
+                        html += '<a href="' + arcUrl + '" class="search-result-item archive-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                            '<div style="width: 40px; height: 40px; background: #dcfce7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: #16a34a; flex-shrink: 0;"><i class="fas fa-archive"></i></div>' +
+                            '<div>' +
+                            '<div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.125rem; color: #000000;">' + arcLabel + '</div>' +
+                            (arcRef ? '<div style="font-size: 0.75rem; color: #6b7280; font-family: monospace;">' + arcRef + '</div>' : '') +
                             '</div>' +
                             '</a>';
                     });

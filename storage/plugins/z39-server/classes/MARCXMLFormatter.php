@@ -27,8 +27,8 @@ class MARCXMLFormatter extends RecordFormatter
         // Create record element
         $recordEl = $this->doc->createElementNS(self::NS_MARC, 'record');
 
-        // Leader (required in MARC)
-        $leader = $this->doc->createElement('leader', '00000nam a2200000 a 4500');
+        // Leader (required in MARC) — exactly 24 characters
+        $leader = $this->doc->createElement('leader', '00000nam a22000004i4500');
         $recordEl->appendChild($leader);
 
         // Control fields
@@ -41,12 +41,13 @@ class MARCXMLFormatter extends RecordFormatter
         $field008 = $this->generateField008($record);
         $recordEl->appendChild($this->createControlField('008', $field008));
 
-        // ISBN - 020
-        if (!empty($record['isbn13']) || !empty($record['isbn10'])) {
-            $isbn = $record['isbn13'] ?? $record['isbn10'];
-            $recordEl->appendChild($this->createDataField('020', ' ', ' ', [
-                ['a', $isbn]
-            ]));
+        // ISBN - 020 — one field per available ISBN
+        foreach (['isbn13', 'isbn10'] as $isbnField) {
+            if (!empty($record[$isbnField])) {
+                $recordEl->appendChild($this->createDataField('020', ' ', ' ', [
+                    ['a', (string) $record[$isbnField]]
+                ]));
+            }
         }
 
         // EAN - 024
@@ -90,11 +91,13 @@ class MARCXMLFormatter extends RecordFormatter
         }
 
         // Title Statement - 245
+        // Indicator 1: '1' when a 1XX field is present (added entry required), '0' otherwise
+        $ind1_245 = empty($record['autori']) ? '0' : '1';
         $titleSubfields = [['a', $record['titolo'] ?? 'Untitled']];
         if (!empty($record['sottotitolo'])) {
             $titleSubfields[] = ['b', $record['sottotitolo']];
         }
-        $recordEl->appendChild($this->createDataField('245', '1', '0', $titleSubfields));
+        $recordEl->appendChild($this->createDataField('245', $ind1_245, '0', $titleSubfields));
 
         // Edition - 250
         if (!empty($record['edizione'])) {
@@ -283,9 +286,9 @@ class MARCXMLFormatter extends RecordFormatter
         // Date type (position 6): s = single date
         $field = substr_replace($field, 's', 6, 1);
 
-        // Date 1 (positions 7-10): publication year
+        // Date 1 (positions 7-10): publication year (zero-padded)
         if (!empty($record['anno_pubblicazione'])) {
-            $year = str_pad((string) $record['anno_pubblicazione'], 4, ' ', STR_PAD_LEFT);
+            $year = str_pad((string) $record['anno_pubblicazione'], 4, '0', STR_PAD_LEFT);
             $field = substr_replace($field, $year, 7, 4);
         }
 

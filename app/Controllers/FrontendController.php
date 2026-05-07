@@ -416,6 +416,10 @@ class FrontendController
         $query_params = $where_conditions['params'];
         $param_types = $where_conditions['types'];
 
+        // Extra results from plugins (e.g. archive units) when a search is active.
+        /** @var array<int, array<string, mixed>> $archiveResults */
+        $archiveResults = \App\Support\Hooks::apply('frontend.catalog.archive_results', [], [$filters['search'] ?? '']);
+
         // Query base senza JOIN con autori per evitare duplicati
         // Include genre parents/grandparents to support filtering at any level
         $base_query = "

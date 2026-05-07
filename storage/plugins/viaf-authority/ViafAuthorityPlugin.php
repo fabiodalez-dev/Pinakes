@@ -25,7 +25,7 @@ use Psr\Http\Message\ServerRequestInterface;
 class ViafAuthorityPlugin
 {
     private mysqli $db;
-    /** @phpstan-ignore-next-line property.onlyWritten */
+    /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private ?int $pluginId = null;
 
@@ -48,10 +48,15 @@ class ViafAuthorityPlugin
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    public function onActivate(): void
+    public function ensureSchema(): void
     {
         $this->ensureSchemaColumns();
         $this->ensureAlternatesTable();
+    }
+
+    public function onActivate(): void
+    {
+        $this->ensureSchema();
         $this->db->begin_transaction();
         try {
             $this->registerHookInDb('app.routes.register', 'registerRoutes', 20);

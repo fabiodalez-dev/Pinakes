@@ -27,7 +27,7 @@ class DublinCoreFormatter extends RecordFormatter
     {
         // Create dc record element
         $dcRecord = $this->doc->createElementNS(self::NS_OAI_DC, 'oai_dc:dc');
-        $dcRecord->setAttribute('xmlns:dc', self::NS_DC);
+        $dcRecord->setAttributeNS('http://www.w3.org/2000/xmlns/', 'xmlns:dc', self::NS_DC);
 
         // Title - dc:title
         if (!empty($record['titolo'])) {
@@ -118,31 +118,9 @@ class DublinCoreFormatter extends RecordFormatter
             $dcRecord->appendChild($this->createElement('relation', $series));
         }
 
-        // Rights - dc:rights (with availability information)
-        $rightsText = 'Available for loan';
-        if (!empty($record['copies']) && is_array($record['copies'])) {
-            $totalCopies = count($record['copies']);
-            $availableCopies = 0;
-            foreach ($record['copies'] as $copy) {
-                if (($copy['stato'] ?? '') === 'disponibile') {
-                    $availableCopies++;
-                }
-            }
-            $rightsText .= " ($availableCopies of $totalCopies copies available)";
-        }
-        $dcRecord->appendChild($this->createElement('rights', $rightsText));
-
-        // Copy inventory numbers as identifiers
-        if (!empty($record['copies']) && is_array($record['copies'])) {
-            foreach ($record['copies'] as $copy) {
-                if (!empty($copy['numero_inventario'])) {
-                    $copyInfo = 'Copy:' . $copy['numero_inventario'];
-                    if (!empty($copy['stato'])) {
-                        $copyInfo .= ' [' . $copy['stato'] . ']';
-                    }
-                    $dcRecord->appendChild($this->createElement('identifier', $copyInfo));
-                }
-            }
+        // Rights - dc:rights (rights/copyright statement only — no availability data)
+        if (!empty($record['diritti'])) {
+            $dcRecord->appendChild($this->createElement('rights', (string) $record['diritti']));
         }
 
         // Location information

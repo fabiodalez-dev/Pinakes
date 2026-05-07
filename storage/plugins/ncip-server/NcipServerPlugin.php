@@ -10,7 +10,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * NCIP 2.0 (NISO Circulation Interchange Protocol) server for Pinakes v0.7.3.
+ * NCIP 2.02 (NISO Circulation Interchange Protocol) server for Pinakes v0.7.3.
  *
  * Single endpoint: POST /ncip
  * Content-Type accepted: application/xml, text/xml, application/octet-stream
@@ -36,10 +36,9 @@ class NcipServerPlugin
     private const NCIP_NS      = 'http://www.niso.org/2008/ncip';
     private const NCIP_VERSION = 'http://www.niso.org/schemas/ncip/v2_02/ncip_v2_02.xsd';
 
-    /** @phpstan-ignore-next-line property.onlyWritten */
+    /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private \mysqli $db;
-    /** @phpstan-ignore-next-line property.onlyWritten */
     private ?int $pluginId = null;
 
     public function __construct(\mysqli $db, HookManager $hookManager)
@@ -420,7 +419,7 @@ class NcipServerPlugin
         if (trim($body) === '') {
             return $this->xmlResponse(
                 $response->withStatus(400),
-                $this->buildProblem('Empty request body', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/empty-request')
+                $this->buildProblem('Empty request body', 'empty-request')
             );
         }
 
@@ -429,7 +428,7 @@ class NcipServerPlugin
         if ($xml === false) {
             return $this->xmlResponse(
                 $response->withStatus(400),
-                $this->buildProblem('Malformed XML', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/invalid-xml')
+                $this->buildProblem('Malformed XML', 'invalid-xml')
             );
         }
 
@@ -451,7 +450,7 @@ class NcipServerPlugin
                 $response,
                 $this->buildProblem(
                     "Message type '{$messageType}' is not supported by this responder",
-                    'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unsupported-request'
+                    'unsupported-request'
                 )
             ),
         };
@@ -470,7 +469,7 @@ class NcipServerPlugin
         if ($itemId === '') {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemIdentifierValue', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unknown-item')
+                $this->buildProblem('Missing ItemIdentifierValue', 'unknown-item')
             );
         }
 
@@ -479,7 +478,7 @@ class NcipServerPlugin
         if ($book === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem("Item '{$itemId}' not found", 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unknown-item')
+                $this->buildProblem("Item '{$itemId}' not found", 'unknown-item')
             );
         }
 
@@ -499,7 +498,7 @@ class NcipServerPlugin
         if ($caller === null) {
             return $this->xmlResponse(
                 $response->withStatus(401),
-                $this->buildProblem('Authentication required', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unauthorized')
+                $this->buildProblem('Authentication required', 'unauthorized')
             );
         }
 
@@ -509,7 +508,7 @@ class NcipServerPlugin
         if ($user === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem("User '{$userId}' not found", 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unknown-user')
+                $this->buildProblem("User '{$userId}' not found", 'unknown-user')
             );
         }
 
@@ -528,7 +527,7 @@ class NcipServerPlugin
         if (!$this->isStaff($caller)) {
             return $this->xmlResponse(
                 $response->withStatus(403),
-                $this->buildProblem('Insufficient privileges', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unauthorized')
+                $this->buildProblem('Insufficient privileges', 'unauthorized')
             );
         }
 
@@ -539,7 +538,7 @@ class NcipServerPlugin
         if ($itemId <= 0 || $userId <= 0) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId or UserId', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/invalid-data')
+                $this->buildProblem('Missing ItemId or UserId', 'invalid-data')
             );
         }
 
@@ -547,7 +546,7 @@ class NcipServerPlugin
         if ($user === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('User not found', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unknown-user')
+                $this->buildProblem('User not found', 'unknown-user')
             );
         }
 
@@ -561,18 +560,18 @@ class NcipServerPlugin
             if ($book === null) {
                 return $this->xmlResponse(
                     $response,
-                    $this->buildProblem('Item not found', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unknown-item')
+                    $this->buildProblem('Item not found', 'unknown-item')
                 );
             }
             if ((int) ($book['copie_disponibili'] ?? 0) <= 0) {
                 return $this->xmlResponse(
                     $response,
-                    $this->buildProblem('No copies available', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/item-not-checked-in')
+                    $this->buildProblem('No copies available', 'item-not-checked-in')
                 );
             }
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Failed to create loan', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/temporary-processing-failure')
+                $this->buildProblem('Failed to create loan', 'temporary-processing-failure')
             );
         }
 
@@ -591,7 +590,7 @@ class NcipServerPlugin
         if (!$this->isStaff($caller)) {
             return $this->xmlResponse(
                 $response->withStatus(403),
-                $this->buildProblem('Insufficient privileges', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unauthorized')
+                $this->buildProblem('Insufficient privileges', 'unauthorized')
             );
         }
 
@@ -600,7 +599,7 @@ class NcipServerPlugin
         if ($itemId <= 0) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/invalid-data')
+                $this->buildProblem('Missing ItemId', 'invalid-data')
             );
         }
 
@@ -608,7 +607,7 @@ class NcipServerPlugin
         if ($loan === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('No active loan for this item', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/item-not-checked-out')
+                $this->buildProblem('No active loan for this item', 'item-not-checked-out')
             );
         }
 
@@ -628,7 +627,7 @@ class NcipServerPlugin
         if (!$this->isStaff($caller)) {
             return $this->xmlResponse(
                 $response->withStatus(403),
-                $this->buildProblem('Insufficient privileges', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unauthorized')
+                $this->buildProblem('Insufficient privileges', 'unauthorized')
             );
         }
 
@@ -637,7 +636,7 @@ class NcipServerPlugin
         if ($itemId <= 0) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/invalid-data')
+                $this->buildProblem('Missing ItemId', 'invalid-data')
             );
         }
 
@@ -645,7 +644,7 @@ class NcipServerPlugin
         if ($loan === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('No active loan to renew', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/item-not-checked-out')
+                $this->buildProblem('No active loan to renew', 'item-not-checked-out')
             );
         }
 
@@ -655,7 +654,7 @@ class NcipServerPlugin
         $newDue      = date('Y-m-d', strtotime('+30 days', $baseDateTs));
         $this->extendLoan((int) $loan['id'], $newDue);
 
-        return $this->xmlResponse($response, $this->buildRenewItemResponse($itemId, $newDue));
+        return $this->xmlResponse($response, $this->buildRenewItemResponse($itemId, $newDue, (int) ($loan['utente_id'] ?? 0)));
     }
 
     /**
@@ -670,7 +669,7 @@ class NcipServerPlugin
         if (!$this->isStaff($caller)) {
             return $this->xmlResponse(
                 $response->withStatus(403),
-                $this->buildProblem('Insufficient privileges', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unauthorized')
+                $this->buildProblem('Insufficient privileges', 'unauthorized')
             );
         }
 
@@ -681,7 +680,7 @@ class NcipServerPlugin
         if ($itemId <= 0 || $userId <= 0) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId or UserId', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/invalid-data')
+                $this->buildProblem('Missing ItemId or UserId', 'invalid-data')
             );
         }
 
@@ -690,7 +689,7 @@ class NcipServerPlugin
         if ($book === null || $user === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Item or user not found', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unknown-item')
+                $this->buildProblem('Item or user not found', 'unknown-item')
             );
         }
 
@@ -700,7 +699,7 @@ class NcipServerPlugin
         if ($loanId === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Failed to create ILL request', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/temporary-processing-failure')
+                $this->buildProblem('Failed to create ILL request', 'temporary-processing-failure')
             );
         }
 
@@ -721,7 +720,7 @@ class NcipServerPlugin
         if (!$this->isStaff($caller)) {
             return $this->xmlResponse(
                 $response->withStatus(403),
-                $this->buildProblem('Insufficient privileges', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/unauthorized')
+                $this->buildProblem('Insufficient privileges', 'unauthorized')
             );
         }
 
@@ -732,7 +731,7 @@ class NcipServerPlugin
         if ($itemId <= 0) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/invalid-data')
+                $this->buildProblem('Missing ItemId', 'invalid-data')
             );
         }
 
@@ -740,7 +739,7 @@ class NcipServerPlugin
         if ($loan === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('No active ILL request for this item', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/item-not-checked-out')
+                $this->buildProblem('No active ILL request for this item', 'item-not-checked-out')
             );
         }
 
@@ -756,34 +755,31 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('xmlns:ncip', self::NCIP_NS);
-        $xw->writeAttribute('ncip:version', self::NCIP_VERSION);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
 
-        $xw->startElement('InitiationHeader');
-        $xw->startElement('ApplicationProfileSupportedType');
-        $xw->writeElement('Scheme', 'http://www.niso.org/ncip/v2_02/schemes/applicationprofiletype/');
-        $xw->writeElement('Value', 'NCIP 2.02');
+        $xw->startElement('LookupAgencyResponse');
+        $xw->startElement('AgencyId');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/agencyidtype/');
+        $xw->text('Pinakes');
         $xw->endElement();
-        $xw->endElement(); // InitiationHeader
 
-        $this->writeSupportedMessages($xw);
+        $xw->startElement('OrganizationNameInformation');
+        $xw->startElement('OrganizationNameType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/organizationnametype/');
+        $xw->text('Library Name');
+        $xw->endElement();
+        $xw->writeElement('OrganizationName', 'Pinakes');
+        $xw->endElement();
+
+        $xw->startElement('ApplicationProfileSupportedType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/applicationprofiletype/');
+        $xw->text('NCIP 2.02; supported messages: LookupItem, LookupUser, CheckOutItem, CheckInItem, RenewItem, RequestItem, CancelRequestItem');
+        $xw->endElement();
+        $xw->endElement(); // LookupAgencyResponse
 
         $xw->endElement(); // NCIPMessage
         $xw->endDocument();
         return (string) $xw->outputMemory();
-    }
-
-    private function writeSupportedMessages(\XMLWriter $xw): void
-    {
-        $supported = ['LookupItem', 'LookupUser', 'CheckOutItem', 'CheckInItem', 'RenewItem', 'RequestItem', 'CancelRequestItem'];
-        foreach ($supported as $msg) {
-            $xw->startElement('SupportedMessage');
-            $xw->startElement('MessageType');
-            $xw->writeElement('Scheme', 'http://www.niso.org/ncip/v2_02/schemes/messagetype/');
-            $xw->writeElement('Value', $msg);
-            $xw->endElement();
-            $xw->endElement();
-        }
     }
 
     /**
@@ -796,13 +792,16 @@ class NcipServerPlugin
         $avail = (int) ($book['copie_disponibili'] ?? 0);
 
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('ncip:version', self::NCIP_VERSION);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
 
         $xw->startElement('LookupItemResponse');
 
         // ItemId
         $xw->startElement('ItemId');
-        $xw->writeElement('ItemIdentifierType', 'Accession Number');
+        $xw->startElement('ItemIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
+        $xw->text('Accession Number');
+        $xw->endElement();
         $xw->writeElement('ItemIdentifierValue', (string) $id);
         $xw->endElement();
 
@@ -810,17 +809,17 @@ class NcipServerPlugin
         $xw->startElement('ItemOptionalFields');
         $xw->startElement('BibliographicDescription');
         $xw->writeElement('Author', (string) ($book['author_name'] ?? ''));
-        $xw->writeElement('Title', (string) ($book['titolo'] ?? ''));
         $xw->writeElement('PublicationDate', (string) ($book['anno_pubblicazione'] ?? ''));
+        $xw->writeElement('Title', (string) ($book['titolo'] ?? ''));
         $xw->endElement(); // BibliographicDescription
+
+        $xw->startElement('CirculationStatus');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/circulationstatus/');
+        $xw->text($avail > 0 ? 'Available On Shelf' : 'Checked Out');
+        $xw->endElement();
 
         $xw->startElement('ItemDescription');
         $xw->writeElement('NumberOfPieces', (string) ($book['copie_totali'] ?? 1));
-        $xw->endElement();
-
-        $xw->startElement('CirculationStatus');
-        $xw->writeElement('Scheme', 'http://www.niso.org/ncip/v2_02/schemes/circulationstatus/');
-        $xw->writeElement('Value', $avail > 0 ? 'Available On Shelf' : 'Checked Out');
         $xw->endElement();
 
         $xw->endElement(); // ItemOptionalFields
@@ -838,26 +837,36 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('ncip:version', self::NCIP_VERSION);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
 
         $xw->startElement('LookupUserResponse');
 
         $xw->startElement('UserId');
-        $xw->writeElement('UserIdentifierType', 'Institution Id Number');
+        $xw->startElement('UserIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/useridentifiertype/');
+        $xw->text('Institution Id Number');
+        $xw->endElement();
         $xw->writeElement('UserIdentifierValue', (string) ($user['id'] ?? ''));
         $xw->endElement();
 
         $xw->startElement('UserOptionalFields');
         $xw->startElement('NameInformation');
         $xw->startElement('PersonalNameInformation');
-        $xw->writeElement('StructuredPersonalUserName', (string) ($user['nome'] ?? ''));
-        $xw->endElement();
+        $xw->startElement('StructuredPersonalUserName');
+        $xw->writeElement('GivenName', (string) ($user['nome'] ?? ''));
+        $xw->writeElement('Surname', (string) ($user['cognome'] ?? ''));
+        $xw->endElement(); // StructuredPersonalUserName
+        $xw->endElement(); // PersonalNameInformation
         $xw->endElement(); // NameInformation
 
         $xw->startElement('UserPrivilege');
+        $xw->startElement('AgencyId');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/agencyidtype/');
+        $xw->text('Pinakes');
+        $xw->endElement();
         $xw->startElement('AgencyUserPrivilegeType');
-        $xw->writeElement('Scheme', 'http://www.niso.org/ncip/v2_02/schemes/agencyuserprivilegetype/');
-        $xw->writeElement('Value', (string) ($user['tipo_utente'] ?? 'utente'));
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/agencyuserprivilegetype/');
+        $xw->text((string) ($user['tipo_utente'] ?? 'utente'));
         $xw->endElement();
         $xw->endElement(); // UserPrivilege
 
@@ -873,16 +882,24 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('ncip:version', self::NCIP_VERSION);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
 
         $xw->startElement('CheckOutItemResponse');
         $xw->startElement('ItemId');
+        $xw->startElement('ItemIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
+        $xw->text('Accession Number');
+        $xw->endElement();
         $xw->writeElement('ItemIdentifierValue', (string) $itemId);
         $xw->endElement();
         $xw->startElement('UserId');
+        $xw->startElement('UserIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/useridentifiertype/');
+        $xw->text('Institution Id Number');
+        $xw->endElement();
         $xw->writeElement('UserIdentifierValue', (string) $userId);
         $xw->endElement();
-        $xw->writeElement('DateDue', $dueDate . 'T23:59:59Z');
+        $xw->writeElement('DateDue', gmdate('Y-m-d\T23:59:59\Z', strtotime($dueDate)));
         $xw->endElement(); // CheckOutItemResponse
 
         $xw->endElement(); // NCIPMessage
@@ -894,13 +911,19 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('ncip:version', self::NCIP_VERSION);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
 
         $xw->startElement('CheckInItemResponse');
         $xw->startElement('ItemId');
+        $xw->startElement('ItemIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
+        $xw->text('Accession Number');
+        $xw->endElement();
         $xw->writeElement('ItemIdentifierValue', (string) $itemId);
         $xw->endElement();
-        $xw->writeElement('ReturnDate', gmdate('Y-m-d\TH:i:s\Z'));
+        $xw->startElement('Ext');
+        $xw->writeElement('DateReturned', gmdate('Y-m-d\TH:i:s\Z'));
+        $xw->endElement();
         $xw->endElement(); // CheckInItemResponse
 
         $xw->endElement(); // NCIPMessage
@@ -908,17 +931,28 @@ class NcipServerPlugin
         return (string) $xw->outputMemory();
     }
 
-    private function buildRenewItemResponse(int $itemId, string $newDueDate): string
+    private function buildRenewItemResponse(int $itemId, string $newDueDate, int $userId): string
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('ncip:version', self::NCIP_VERSION);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
 
         $xw->startElement('RenewItemResponse');
         $xw->startElement('ItemId');
+        $xw->startElement('ItemIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
+        $xw->text('Accession Number');
+        $xw->endElement();
         $xw->writeElement('ItemIdentifierValue', (string) $itemId);
         $xw->endElement();
-        $xw->writeElement('DateDue', $newDueDate . 'T23:59:59Z');
+        $xw->startElement('UserId');
+        $xw->startElement('UserIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/useridentifiertype/');
+        $xw->text('Institution Id Number');
+        $xw->endElement();
+        $xw->writeElement('UserIdentifierValue', (string) $userId);
+        $xw->endElement();
+        $xw->writeElement('DateDue', gmdate('Y-m-d\T23:59:59\Z', strtotime($newDueDate)));
         $xw->endElement(); // RenewItemResponse
 
         $xw->endElement(); // NCIPMessage
@@ -930,20 +964,32 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('ncip:version', self::NCIP_VERSION);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
 
         $xw->startElement('RequestItemResponse');
         $xw->startElement('ItemId');
+        $xw->startElement('ItemIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
+        $xw->text('Accession Number');
+        $xw->endElement();
         $xw->writeElement('ItemIdentifierValue', (string) $itemId);
         $xw->endElement();
         $xw->startElement('UserId');
+        $xw->startElement('UserIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/useridentifiertype/');
+        $xw->text('Institution Id Number');
+        $xw->endElement();
         $xw->writeElement('UserIdentifierValue', (string) $userId);
         $xw->endElement();
         $xw->startElement('RequestType');
-        $xw->writeElement('Scheme', 'http://www.niso.org/ncip/v2_02/schemes/requesttype/');
-        $xw->writeElement('Value', 'Hold');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/requesttype/');
+        $xw->text('Hold');
         $xw->endElement();
-        $xw->writeElement('DateAvailable', $dueDate . 'T23:59:59Z');
+        $xw->startElement('RequestScopeType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/requestscopetype/');
+        $xw->text('Item');
+        $xw->endElement();
+        $xw->writeElement('DateAvailable', gmdate('Y-m-d\T23:59:59\Z', strtotime($dueDate)));
         $xw->endElement(); // RequestItemResponse
 
         $xw->endElement(); // NCIPMessage
@@ -955,14 +1001,22 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('ncip:version', self::NCIP_VERSION);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
 
         $xw->startElement('CancelRequestItemResponse');
         $xw->startElement('ItemId');
+        $xw->startElement('ItemIdentifierType');
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
+        $xw->text('Accession Number');
+        $xw->endElement();
         $xw->writeElement('ItemIdentifierValue', (string) $itemId);
         $xw->endElement();
         if ($userId !== null) {
             $xw->startElement('UserId');
+            $xw->startElement('UserIdentifierType');
+            $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/useridentifiertype/');
+            $xw->text('Institution Id Number');
+            $xw->endElement();
             $xw->writeElement('UserIdentifierValue', (string) $userId);
             $xw->endElement();
         }
@@ -977,12 +1031,12 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttribute('ncip:version', self::NCIP_VERSION);
+        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
 
         $xw->startElement('Problem');
         $xw->startElement('ProblemType');
-        $xw->writeElement('Scheme', 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/');
-        $xw->writeElement('Value', $type);
+        $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/processingerrortype/');
+        $xw->text($type);
         $xw->endElement();
         $xw->writeElement('ProblemDetail', $message);
         $xw->endElement(); // Problem

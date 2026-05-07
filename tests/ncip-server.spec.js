@@ -4,9 +4,9 @@
  *
  * Covers:
  *  1. Plugin registered in plugins table
- *  2. GET /ncip → 200 XML capability discovery (SupportedMessage list)
- *  3. GET /ncip contains LookupItem in SupportedMessage
- *  4. GET /ncip contains CheckOutItem in SupportedMessage
+ *  2. GET /ncip → 200 XML capability discovery
+ *  3. GET /ncip contains LookupItem in capability profile
+ *  4. GET /ncip contains CheckOutItem in capability profile
  *  5. POST /ncip LookupItem → 200 with ItemId and CirculationStatus
  *  6. POST /ncip LookupItem non-existent item → Problem response
  *  7. POST /ncip LookupUser (authenticated) → 200 with UserId

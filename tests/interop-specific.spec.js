@@ -19,7 +19,7 @@
  * 11.  ResourceSync changelist.xml: valid XML structure
  * 12.  OpenURL COinS: injection script uses unescaped /api/coins/book/ path
  * 13.  Archives OAI Identify: repositoryIdentifier matches actual oai:pinakes: IDs
- * 14.  Z39.50 SRU explain: unimarcxml schema URI is MARC21slim
+ * 14.  Z39.50 SRU explain: unimarcxml schema URI is the SRU UNIMARC/XML identifier
  * 15.  BIBFRAME book with VIAF author: bf:agent has viaf URI (not bf:Work owl:sameAs)
  *
  * Run: /tmp/run-e2e.sh tests/interop-specific.spec.js --config=tests/playwright.config.js --workers=1
@@ -311,7 +311,7 @@ test.describe.serial('Interop specific — 15 persistent tests (v0.7.4)', () => 
 
     // ── Test 14: Z39.50 SRU UNIMARC schema URI ────────────────────────────────
 
-    test('14. Z39.50 SRU explain: unimarcxml schema URI is MARC21slim', async ({ request }) => {
+    test('14. Z39.50 SRU explain: unimarcxml schema URI is SRU UNIMARC/XML', async ({ request }) => {
         const res = await request.get(`${BASE}/sru?operation=explain&version=1.2`);
         if (res.status() === 404 || res.status() === 403) {
             test.skip(true, 'Z39.50 SRU endpoint not active');
@@ -320,7 +320,7 @@ test.describe.serial('Interop specific — 15 persistent tests (v0.7.4)', () => 
         expect(res.status()).toBe(200);
         const xml = await res.text();
         if (xml.includes('unimarcxml')) {
-            expect(xml).toContain('http://www.loc.gov/MARC21/slim');
+            expect(xml).toContain('info:srw/schema/8/unimarcxml-v0.1');
         }
     });
 

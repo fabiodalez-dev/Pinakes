@@ -29,7 +29,7 @@ use Psr\Http\Message\ServerRequestInterface;
 class BibframeLinkedDataPlugin
 {
     private mysqli $db;
-    /** @phpstan-ignore-next-line property.onlyWritten */
+    /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private ?int $pluginId = null;
 
@@ -169,8 +169,7 @@ class BibframeLinkedDataPlugin
         if ($book === null) {
             return $this->notFound($response);
         }
-        $baseUri  = absoluteUrl('/api/bibframe/book/' . (int) $book['id']);
-        $graph    = $this->buildGraph($book, $baseUri);
+        $graph    = $this->buildGraph($book);
         return $this->serializeResponse($request, $response, $graph);
     }
 
@@ -183,9 +182,10 @@ class BibframeLinkedDataPlugin
         if ($book === null) {
             return $this->notFound($response);
         }
-        $baseUri = absoluteUrl('/api/bibframe/book/' . (int) $book['id']);
-        $graph   = $this->buildGraph($book, $baseUri);
-        $work    = array_values(array_filter($graph['@graph'], fn($n) => $n['@id'] === $baseUri . '/work'))[0] ?? $graph;
+        $bookId  = (int) $book['id'];
+        $graph   = $this->buildGraph($book);
+        $workUri = absoluteUrl('/id/work/' . $bookId);
+        $work    = array_values(array_filter($graph['@graph'], fn($n) => is_array($n) && ($n['@id'] ?? '') === $workUri))[0] ?? $graph;
         $doc     = ['@context' => $graph['@context'], '@graph' => [$work]];
         return $this->serializeResponse($request, $response, $doc);
     }
@@ -199,10 +199,11 @@ class BibframeLinkedDataPlugin
         if ($book === null) {
             return $this->notFound($response);
         }
-        $baseUri  = absoluteUrl('/api/bibframe/book/' . (int) $book['id']);
-        $graph    = $this->buildGraph($book, $baseUri);
-        $instance = array_values(array_filter($graph['@graph'], fn($n) => $n['@id'] === $baseUri . '/instance'))[0] ?? $graph;
-        $doc      = ['@context' => $graph['@context'], '@graph' => [$instance]];
+        $bookId      = (int) $book['id'];
+        $graph       = $this->buildGraph($book);
+        $instanceUri = absoluteUrl('/id/instance/' . $bookId);
+        $instance    = array_values(array_filter($graph['@graph'], fn($n) => is_array($n) && ($n['@id'] ?? '') === $instanceUri))[0] ?? $graph;
+        $doc         = ['@context' => $graph['@context'], '@graph' => [$instance]];
         return $this->serializeResponse($request, $response, $doc);
     }
 
@@ -218,10 +219,10 @@ class BibframeLinkedDataPlugin
             return $this->notFound($response);
         }
         if ($this->wantsMachineReadable(strtolower($request->getHeaderLine('Accept')))) {
-            $baseUri = absoluteUrl('/api/bibframe/book/' . (int) $book['id']);
-            $graph   = $this->buildGraph($book, $baseUri);
+            $bookId  = (int) $book['id'];
+            $graph   = $this->buildGraph($book);
             $nodes   = is_array($graph['@graph']) ? $graph['@graph'] : [];
-            $workUri = $baseUri . '/work';
+            $workUri = absoluteUrl('/id/work/' . $bookId);
             $node    = null;
             foreach ($nodes as $n) {
                 if (is_array($n) && ($n['@id'] ?? '') === $workUri) { $node = $n; break; }
@@ -242,10 +243,10 @@ class BibframeLinkedDataPlugin
             return $this->notFound($response);
         }
         if ($this->wantsMachineReadable(strtolower($request->getHeaderLine('Accept')))) {
-            $baseUri     = absoluteUrl('/api/bibframe/book/' . (int) $book['id']);
-            $graph       = $this->buildGraph($book, $baseUri);
+            $bookId      = (int) $book['id'];
+            $graph       = $this->buildGraph($book);
             $nodes       = is_array($graph['@graph']) ? $graph['@graph'] : [];
-            $instanceUri = $baseUri . '/instance';
+            $instanceUri = absoluteUrl('/id/instance/' . $bookId);
             $node        = null;
             foreach ($nodes as $n) {
                 if (is_array($n) && ($n['@id'] ?? '') === $instanceUri) { $node = $n; break; }
@@ -267,12 +268,12 @@ class BibframeLinkedDataPlugin
     // ── BIBFRAME graph builder ────────────────────────────────────────────────
 
     /**
-     * Build a BIBFRAME 2.0 @graph with Work + Instance nodes.
+     * Build a BIBFRAME 2.0 @graph with Work + Instance + Item nodes.
      *
      * @param array<string, mixed> $book
      * @return array<string, mixed>
      */
-    private function buildGraph(array $book, string $baseUri): array
+    private function buildGraph(array $book): array
     {
         $bookId  = (int) $book['id'];
         $authors = $this->fetchAuthors($bookId);
@@ -285,8 +286,8 @@ class BibframeLinkedDataPlugin
         $langCode = $this->langCode((string) ($book['lingua'] ?? ''));
         $viafId   = (string) ($book['viaf_id'] ?? '');
 
-        $workUri     = $baseUri . '/work';
-        $instanceUri = $baseUri . '/instance';
+        $workUri     = absoluteUrl('/id/work/' . $bookId);
+        $instanceUri = absoluteUrl('/id/instance/' . $bookId);
 
         // bf:Work node
         $work = [
@@ -336,10 +337,10 @@ class BibframeLinkedDataPlugin
             $work['bf:contribution'] = count($contributions) === 1 ? $contributions[0] : $contributions;
         }
 
-        // Subject — genre
+        // Genre form
         if ($genre !== null && !empty($genre['nome'])) {
-            $work['bf:subject'] = [
-                '@type'      => 'bf:Topic',
+            $work['bf:genreForm'] = [
+                '@type'      => 'bf:GenreForm',
                 'rdfs:label' => (string) $genre['nome'],
             ];
         }
@@ -349,18 +350,27 @@ class BibframeLinkedDataPlugin
             $kws = array_filter(array_map('trim', explode(',', (string) $book['parole_chiave'])));
             if (!empty($kws)) {
                 $kwNodes = array_map(fn($k) => ['@type' => 'bf:Topic', 'rdfs:label' => $k], array_values($kws));
+                /** @phpstan-ignore isset.offset */
                 $existing = isset($work['bf:subject']) ? [$work['bf:subject']] : [];
                 $work['bf:subject'] = array_merge($existing, $kwNodes);
             }
         }
 
-        $work['bf:hasInstance'] = [['@id' => $instanceUri]];
+        // Dewey classification
+        if (!empty($book['classificazione_dewey'])) {
+            $work['bf:classification'] = [
+                '@type'     => 'bf:ClassificationDdc',
+                'rdf:value' => (string) $book['classificazione_dewey'],
+            ];
+        }
+
+        $work['bf:hasInstance'] = ['@id' => $instanceUri];
 
         // bf:Instance node
         $instance = [
             '@id'            => $instanceUri,
             '@type'          => 'bf:Instance',
-            'bf:isInstanceOf' => ['@id' => $workUri],
+            'bf:instanceOf' => ['@id' => $workUri],
             'bf:title'       => [
                 '@type'        => 'bf:Title',
                 'bf:mainTitle' => ['@value' => $title, '@language' => $langCode],
@@ -421,6 +431,16 @@ class BibframeLinkedDataPlugin
             ];
         }
 
+        // bf:Item node
+        $itemUri = absoluteUrl('/id/item/' . $bookId);
+        $item = [
+            '@id'       => $itemUri,
+            '@type'     => 'bf:Item',
+            'bf:itemOf' => ['@id' => $instanceUri],
+            'bf:heldBy' => ['@id' => rtrim(absoluteUrl('/'), '/'), '@type' => 'bf:Agent'],
+        ];
+        $instance['bf:hasItem'] = ['@id' => $itemUri];
+
         return [
             '@context' => [
                 'bf'   => self::BF_NS,
@@ -429,7 +449,7 @@ class BibframeLinkedDataPlugin
                 'xsd'  => self::XSD_NS,
                 'owl'  => 'http://www.w3.org/2002/07/owl#',
             ],
-            '@graph' => [$work, $instance],
+            '@graph' => [$work, $instance, $item],
         ];
     }
 
@@ -542,7 +562,7 @@ class BibframeLinkedDataPlugin
             return '<' . (string) $val['@id'] . '>';
         }
         if (isset($val['@value'])) {
-            $v = addslashes((string) $val['@value']);
+            $v = $this->escapeTurtleString((string) $val['@value']);
             if (isset($val['@language'])) {
                 return '"' . $v . '"@' . (string) $val['@language'];
             }
@@ -576,6 +596,15 @@ class BibframeLinkedDataPlugin
             return '[ ' . implode(' ; ', $parts) . ' ]';
         }
         return '';
+    }
+
+    private function escapeTurtleString(string $s): string
+    {
+        return str_replace(
+            ['\\',  '"',   "\n",  "\r",  "\t"],
+            ['\\\\', '\\"', '\\n', '\\r', '\\t'],
+            $s
+        );
     }
 
     /**
@@ -679,10 +708,13 @@ class BibframeLinkedDataPlugin
      */
     private function fetchPublisher(int $id): ?array
     {
-        $res = $this->db->query("SELECT * FROM editori WHERE id = {$id}");
-        if (!($res instanceof \mysqli_result)) { return null; }
-        $row = $res->fetch_assoc();
-        $res->free();
+        $stmt = $this->db->prepare('SELECT * FROM editori WHERE id = ?');
+        if ($stmt === false) { return null; }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row    = ($result instanceof \mysqli_result) ? $result->fetch_assoc() : null;
+        $stmt->close();
         return is_array($row) ? $row : null;
     }
 
@@ -691,10 +723,13 @@ class BibframeLinkedDataPlugin
      */
     private function fetchGenre(int $id): ?array
     {
-        $res = $this->db->query("SELECT * FROM generi WHERE id = {$id}");
-        if (!($res instanceof \mysqli_result)) { return null; }
-        $row = $res->fetch_assoc();
-        $res->free();
+        $stmt = $this->db->prepare('SELECT * FROM generi WHERE id = ?');
+        if ($stmt === false) { return null; }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $row    = ($result instanceof \mysqli_result) ? $result->fetch_assoc() : null;
+        $stmt->close();
         return is_array($row) ? $row : null;
     }
 

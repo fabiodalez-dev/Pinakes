@@ -9,7 +9,7 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
-[![Version](https://img.shields.io/badge/version-0.5.9.6-0ea5e9?style=for-the-badge)](version.json)
+[![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Ffabiodalez-dev%2FPinakes%2Fmain%2Fversion.json&query=%24.version&label=version&style=for-the-badge&color=0ea5e9)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
 
@@ -24,9 +24,67 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.5.9.6
+## What's New in v0.7.4
 
-> This is the latest patch in the v0.5.9 series. All v0.5.9.x changes are listed below newest-first.
+> Releases v0.6.x through v0.7.4 focused on library interoperability and archive search. All changes are listed below newest-first.
+
+### Archive search bar — admin + public (v0.7.4)
+
+The **Archives** plugin now ships a full search interface on both the admin and the public catalog.
+
+**Admin (`/admin/archives?q=…&level=…`)**
+- Free-text search hits `reference_code` (LIKE, for short codes like `IT-MI-001`), `constructed_title`/`formal_title` (LIKE), and `scope_content`/`archival_history` (MySQL FULLTEXT — two-pass query, deduplicated).
+- Level filter (`fonds` / `series` / `file` / `item`) narrows by archival hierarchy without a separate page.
+- Search mode renders a flat list instead of the tree indent, making all matched nodes equally scannable regardless of depth.
+- Result counter (`N risultati per "query" · livello: series`) and input persistence (query + selected level remain filled after submission).
+- "Azzera" reset link returns to the full hierarchical tree.
+
+**Public (`/archivio?q=…&level=…&date_from=…&date_to=…`)**
+- Same text + level filters plus a **date range** filter: `date_from` matches units whose `date_end ≥ year`; `date_to` matches units whose `date_start ≤ year`; both can be combined for an overlap query.
+- In search mode results include all hierarchy levels (series, files, items), not just root fonds — so a reference-code search for `IT-MI-ARC-001/2` finds the exact fascicolo.
+- Theme-aware CSS (`.archive-search-form`) reads `--primary-color` / `--archives-color-primary` so the form inherits whatever palette the admin chose in Settings → Appearance.
+- × reset button clears all filters back to the root catalog.
+
+**Bug fixes included**
+- `reference_code` was previously not searchable at all — the old endpoint used only FULLTEXT, which skips tokens shorter than `ft_min_word_len` (3); the new two-pass strategy uses LIKE first.
+- Level filter was silently ignored due to a PHP associative-array bug (`in_array` was checking integer values `[1,2,3,4]` instead of string keys `['fonds','series',…]`); corrected to `isset(self::LEVELS[$level])`.
+
+**E2E coverage**: `tests/archives-search.spec.js` — 25 serial tests covering admin search (15) and public search (10), run with `/tmp/run-e2e.sh tests/archives-search.spec.js --config=tests/playwright.config.js --workers=1`.
+
+### Interoperability stack — OAI-PMH, NCIP, BIBFRAME, ResourceSync, OpenURL, VIAF (v0.7.x)
+
+Pinakes v0.7.x introduced a full library-interoperability layer, delivered as opt-in plugins that activate without touching the core schema.
+
+**OAI-PMH 2.0 data provider** (`/archives/oai`)
+- Exposes archival units as OAI-PMH records. Supports `Identify`, `ListMetadataFormats` (`oai_dc`, `marc21`), `ListSets` (one set per ISAD level), `ListRecords`, `GetRecord`, and resumption-token-based pagination.
+- Dublin Core crosswalk from ISAD fields (title, description, date, identifier, type); MARCXML crosswalk from the same ABA field mapping used by the SRU endpoint.
+- Selective harvesting by set (`level:fonds`, `level:series`, …) and by `from`/`until` date range (uses `updated_at`).
+
+**NCIP 2.02 server**
+- Implements the NISO Circulation Interchange Protocol: `LookupUser`, `LookupItem`, `CheckOutItem`, `CheckInItem`, `RenewItem`, `RequestItem`, `CancelRequestItem`.
+- Partner library management UI at `/admin/ncip` — register external systems with shared secret, set borrowing quotas.
+- Maps Pinakes loan/reservation/user records onto NCIP data elements; returns structured NCIP XML responses.
+
+**BIBFRAME 2.0 linked-data export**
+- `GET /api/bibframe/{id}` — emits JSON-LD `bf:Work` + `bf:Instance` for books; `bf:Item` for archival units.
+- Includes `bf:title`, `bf:contribution` (authors as `bf:Agent`), `bf:subject` (keywords), `bf:genreForm`, `bf:classification` (Dewey), `bf:language`, `bf:identifiedBy` (ISBN-13, EAN), and persistent `/id/work/{id}` + `/id/instance/{id}` URIs.
+- Bulk export at `/api/bibframe/export` (newline-delimited JSON-LD).
+
+**ResourceSync**
+- `GET /.well-known/resourcesync` — W3C ResourceSync source description.
+- `GET /resync/capabilitylist.xml` — capability list linking to resource list and change list.
+- `GET /resync/resourcelist.xml` — enumeration of all book and archive URLs with `md:hash` (MD5) and `md:lastmod`.
+- `GET /resync/changelist.xml` — incremental change log (created/updated/deleted) since a given `from` date.
+
+**OpenURL / COinS**
+- OpenURL 1.0 resolver at `/openurl` — parses `ctx_ver=Z39.88-2004` + `rft.*` parameters, resolves to full-text link, catalog record, or ILL form.
+- COinS `<span class="Z3988">` auto-embedded in public book detail pages for Zotero/Mendeley browser extensions.
+
+**VIAF auto-linking**
+- Scheduled task checks unlinked `authority_records` against the VIAF SRU endpoint; fills `viaf_id` for exact-name matches.
+- Admin UI at `/admin/archives/authorities` shows VIAF reconciliation status per record and allows manual override.
+
+**Documentation**: full technical guides (IT + EN) published at <https://fabiodalez-dev.github.io/Pinakes/> — one page per protocol.
 
 ### Membership consistency hardening + performance indexes (v0.5.9.6)
 
@@ -464,6 +522,13 @@ Shipped as the bundled **Archives** plugin (opt-in; activate from Admin → Plug
 **Unified cross-entity search**
 - `/admin/archives/search` hits three sources in a single query: `archival_units` (FULLTEXT on title + scope + archival_history), `authority_records` (FULLTEXT on authorised_form + history + functions), and `autori` rows reconciled to an authority.
 
+**Search bars (admin + public)**
+- **Admin** (`/admin/archives?q=…&level=…`): two-pass query — LIKE on `reference_code` first (short archival codes like `IT-MI-001` are below FULLTEXT's `ft_min_word_len`), then FULLTEXT on title/scope/history. Level filter narrows to one archival tier. Search mode renders results as a flat list (no hierarchy indent). Result counter and input persistence.
+- **Public** (`/archivio?q=…&level=…&date_from=…&date_to=…`): same text + level filters plus date-range overlap (`date_from` / `date_to`). In search mode all hierarchy levels are returned (not just root fonds), so a user can search directly for a series or fascicolo by reference code. Theme-aware CSS.
+
+**OAI-PMH 2.0 data provider**
+- `GET /archives/oai` exposes archival units for harvesting: `Identify`, `ListMetadataFormats` (oai_dc + marc21), `ListSets` (per ISAD level), `ListRecords`/`GetRecord` with resumption tokens, selective harvesting by set + date range.
+
 **Plugin integration**
 - Self-contained at `storage/plugins/archives/`. Wires up through two `plugin_hooks` rows (`app.routes.register`, `admin.menu.render`) on activation; deactivation removes the route + sidebar entry without touching DB data.
 - Full i18n (IT/EN/DE) with ICA-ISAD(G) terminology (IT) / ICA (EN) / ICA-Deutsch (DE: Bestand / Signatur / Einzelstück).
@@ -484,7 +549,7 @@ Plugins support encrypted secrets and isolated configuration. Install via ZIP up
 - **API Book Scraper** — External ISBN enrichment via custom APIs
 - **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with streaming player
 - **Dewey Editor** — Visual editor for Dewey classification data with import/export and validation
-- **Archives** — ISAD(G) hierarchical archival records + ISAAR(CPF) authority records with MARCXML import/export, SRU 1.2 endpoint, photographic material support (ABA billedmarc), and unified cross-entity search bridging books + archives. Opt-in (`is_active=0` on install)
+- **Archives** — ISAD(G) hierarchical archival records + ISAAR(CPF) authority records with MARCXML import/export, SRU 1.2 endpoint, OAI-PMH 2.0 data provider, full-text + reference-code search bar (admin + public with date-range filter), photographic material support (ABA billedmarc), and unified cross-entity search bridging books + archives. Opt-in (`is_active=0` on install)
 
 ### CMS and Customization
 - **Homepage editor** with drag-and-drop blocks (hero banner, featured shelves, events, testimonials)
