@@ -251,6 +251,21 @@ SET @sql = IF(
 );
 PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
 
+-- Add FK prestito_id → prestiti(id) ON DELETE SET NULL if not yet present.
+SET @fk_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA    = DATABASE()
+      AND TABLE_NAME      = 'ncip_transactions'
+      AND CONSTRAINT_NAME = 'ncip_transactions_ibfk_2'
+      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+SET @sql = IF(
+    @fk_exists = 0,
+    'ALTER TABLE ncip_transactions ADD CONSTRAINT ncip_transactions_ibfk_2 FOREIGN KEY (prestito_id) REFERENCES prestiti (id) ON DELETE SET NULL',
+    'SELECT 1'
+);
+PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
+
 -- ─── Self-contained upgrade for installs at v0.7.3 ───────────────────────────
 -- migrate_0.7.3.sql is skipped when upgrading FROM exactly v0.7.3 (updater lower-bound
 -- check). The prestiti schema changes and plugin registration below are idempotent.

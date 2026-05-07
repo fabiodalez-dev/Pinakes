@@ -405,7 +405,10 @@ $levelLabels = [
             <input type="text" name="version_note" id="version_note"
                    value="<?= $val('version_note') ?>" maxlength="500"
                    placeholder="<?= $val('version_note') !== '' ? '' : $e(__('es. Aggiornati i dati di estensione dopo inventario 2024')) ?>"
-                   class="form-input text-sm">
+                   class="form-input text-sm <?= $err('version_note') ? 'border-red-500' : '' ?>">
+            <?php if ($err('version_note')): ?>
+                <p class="mt-1 text-xs text-red-600"><?= $e($err('version_note')) ?></p>
+            <?php endif ?>
         </div>
 
         <!-- IIIF digital object URL — outside accordion, always visible -->

@@ -358,9 +358,14 @@ class ArchivesPlugin
             $idxResult->free();
             if ((int) ($idxRow['cnt'] ?? 0) === 0) {
                 try {
-                    $this->db->query(
+                    $result = $this->db->query(
                         'ALTER TABLE archival_units ADD UNIQUE KEY uq_ark_identifier (ark_identifier)'
                     );
+                    if ($result === false) {
+                        SecureLogger::error(
+                            '[Archives] migrateImageColumns: failed to add uq_ark_identifier: ' . $this->db->error
+                        );
+                    }
                 } catch (\Throwable $e) {
                     SecureLogger::error(
                         '[Archives] migrateImageColumns: failed to add uq_ark_identifier: ' . $e->getMessage()
@@ -4553,42 +4558,45 @@ class ArchivesPlugin
             ];
         }
 
-        // Canvas items: one canvas per locally stored image, with real dimensions
+        // Canvas items: one canvas per locally stored image, with real dimensions.
+        // Skip canvas entirely if the file no longer exists — avoids 404 references.
         $items = [];
         if (!empty($row['cover_image_path'])) {
             $coverPath = (string) $row['cover_image_path'];
-            $imageUrl  = $base . '/' . ltrim($coverPath, '/');
             $fsPath    = __DIR__ . '/../../../public' . $coverPath;
-            $imgSize   = is_file($fsPath) ? @getimagesize($fsPath) : false;
-            $imgWidth  = ($imgSize !== false && $imgSize[0] > 0) ? $imgSize[0] : 1500;
-            $imgHeight = ($imgSize !== false && $imgSize[1] > 0) ? $imgSize[1] : 2000;
-            $mime      = ($imgSize !== false) ? $imgSize['mime'] : 'image/jpeg';
+            if (is_file($fsPath)) {
+                $imageUrl  = $base . '/' . ltrim($coverPath, '/');
+                $imgSize   = @getimagesize($fsPath);
+                $imgWidth  = ($imgSize !== false && $imgSize[0] > 0) ? $imgSize[0] : 1500;
+                $imgHeight = ($imgSize !== false && $imgSize[1] > 0) ? $imgSize[1] : 2000;
+                $mime      = ($imgSize !== false) ? $imgSize['mime'] : 'image/jpeg';
 
-            $canvasId = $manifestId . '/canvas/1';
-            $items[]  = [
-                'id'     => $canvasId,
-                'type'   => 'Canvas',
-                'label'  => ['none' => ['1']],
-                'width'  => $imgWidth,
-                'height' => $imgHeight,
-                'items'  => [[
-                    'id'    => $canvasId . '/page',
-                    'type'  => 'AnnotationPage',
-                    'items' => [[
-                        'id'         => $canvasId . '/annotation/1',
-                        'type'       => 'Annotation',
-                        'motivation' => 'painting',
-                        'body'       => [
-                            'id'     => $imageUrl,
-                            'type'   => 'Image',
-                            'format' => $mime,
-                            'width'  => $imgWidth,
-                            'height' => $imgHeight,
-                        ],
-                        'target' => $canvasId,
+                $canvasId = $manifestId . '/canvas/1';
+                $items[]  = [
+                    'id'     => $canvasId,
+                    'type'   => 'Canvas',
+                    'label'  => ['none' => ['1']],
+                    'width'  => $imgWidth,
+                    'height' => $imgHeight,
+                    'items'  => [[
+                        'id'    => $canvasId . '/page',
+                        'type'  => 'AnnotationPage',
+                        'items' => [[
+                            'id'         => $canvasId . '/annotation/1',
+                            'type'       => 'Annotation',
+                            'motivation' => 'painting',
+                            'body'       => [
+                                'id'     => $imageUrl,
+                                'type'   => 'Image',
+                                'format' => $mime,
+                                'width'  => $imgWidth,
+                                'height' => $imgHeight,
+                            ],
+                            'target' => $canvasId,
+                        ]],
                     ]],
-                ]],
-            ];
+                ];
+            }
         }
         // IIIF 3.0 §3.3: items must have cardinality ≥ 1.
         // When no local image is available, serve a minimal placeholder Canvas
@@ -5128,7 +5136,9 @@ class ArchivesPlugin
         $xw->endElement(); // file
         $xw->endElement(); // fileGrp
 
-        if (!empty($row['cover_image_path'])) {
+        $hasCoverFile = !empty($row['cover_image_path'])
+            && is_file(__DIR__ . '/../../../public' . (string) $row['cover_image_path']);
+        if ($hasCoverFile) {
             $coverPath = (string) $row['cover_image_path'];
             $fsPath    = __DIR__ . '/../../../public' . $coverPath;
             $imgSize   = @getimagesize($fsPath);
@@ -5159,7 +5169,7 @@ class ArchivesPlugin
         $xw->startElement('mets:fptr');
         $xw->writeAttribute('FILEID', 'IIIF_MANIFEST');
         $xw->endElement(); // fptr
-        if (!empty($row['cover_image_path'])) {
+        if ($hasCoverFile) {
             $xw->startElement('mets:fptr');
             $xw->writeAttribute('FILEID', 'COVER_IMAGE');
             $xw->endElement(); // fptr
@@ -5429,7 +5439,9 @@ class ArchivesPlugin
             $xw->writeAttribute('actuate', 'onrequest');
             $xw->writeAttribute('show', 'new');
             $xw->endElement(); // dao
-            if (!empty($row['cover_image_path'])) {
+            if (!empty($row['cover_image_path'])
+                && is_file(__DIR__ . '/../../../public' . (string) $row['cover_image_path'])
+            ) {
                 $xw->startElement('dao');
                 $xw->writeAttribute('daotype', 'borndigital');
                 $xw->writeAttribute('href', (string) absoluteUrl('/' . ltrim((string) $row['cover_image_path'], '/')));

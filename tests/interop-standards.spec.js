@@ -122,6 +122,20 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
         }
     });
 
+    test.afterAll(async () => {
+        // FK-safe cleanup of any NCIP loan created by E.8 that E.9 may not have returned.
+        if (bookId > 0 && userId > 0) {
+            try {
+                // ncip_transactions.prestito_id FK → prestiti; clear dependents first.
+                dbQuery(`UPDATE ncip_transactions SET prestito_id = NULL
+                          WHERE prestito_id IN (
+                              SELECT id FROM prestiti WHERE libro_id = ${bookId} AND utente_id = ${userId}
+                          )`);
+                dbQuery(`DELETE FROM prestiti WHERE libro_id = ${bookId} AND utente_id = ${userId} AND origine = 'ncip'`);
+            } catch { /* best-effort */ }
+        }
+    });
+
     // ═══════════════════════════════════════════════════════════════════════
     // GROUP A — Plugin registration & health (4 tests)
     // ═══════════════════════════════════════════════════════════════════════
@@ -176,9 +190,9 @@ test.describe.serial('Interoperability Standards Suite — v0.7.1–v0.7.3 (52 t
         });
         const json = await res.json();
         const ctx = json['@context'];
-        const hasBf = typeof ctx === 'object'
+        const hasBf = typeof ctx === 'object' && ctx !== null
             ? Object.values(ctx).some(v => String(v).includes('id.loc.gov/ontologies/bibframe'))
-            : String(ctx).includes('bibframe');
+            : String(ctx ?? '').includes('bibframe');
         expect(hasBf).toBe(true);
     });
 

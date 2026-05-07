@@ -78,12 +78,29 @@ test.skip(
 test.describe.serial('VIAF Authority + ISNI plugin — v1.1.0 (16 tests)', () => {
     /** @type {number} */
     let testAuthorId = 0;
+    /** @type {Record<string, string>} original authority field values to restore after tests */
+    let originalAuthorFields = {};
 
     test.beforeAll(async () => {
         const row = dbQuery("SELECT id FROM autori ORDER BY id LIMIT 1");
         testAuthorId = parseInt(row) || 0;
 
         if (testAuthorId > 0) {
+            // Save original values so afterAll can perform a symmetric restore.
+            const orig = dbQuery(
+                `SELECT viaf_id, viaf_uri, isni_id, isni_uri, authority_source, authority_confidence
+                 FROM autori WHERE id = ${testAuthorId}`
+            );
+            const cols = orig.split('\t');
+            originalAuthorFields = {
+                viaf_id:              cols[0] ?? 'NULL',
+                viaf_uri:             cols[1] ?? 'NULL',
+                isni_id:              cols[2] ?? 'NULL',
+                isni_uri:             cols[3] ?? 'NULL',
+                authority_source:     cols[4] ?? 'NULL',
+                authority_confidence: cols[5] ?? 'NULL',
+            };
+
             dbQuery(
                 `UPDATE autori SET viaf_id = NULL, viaf_uri = NULL, isni_id = NULL,
                  isni_uri = NULL, authority_source = NULL, authority_confidence = NULL
@@ -95,9 +112,16 @@ test.describe.serial('VIAF Authority + ISNI plugin — v1.1.0 (16 tests)', () =>
     test.afterAll(async () => {
         if (testAuthorId > 0) {
             try {
+                // Restore original values (symmetric restore — not just NULLing).
+                const toSql = (v) => (v === 'NULL' || v === '' || v === '\\N') ? 'NULL' : `'${v.replace(/'/g, "\\'")}'`;
                 dbQuery(
-                    `UPDATE autori SET viaf_id = NULL, viaf_uri = NULL, isni_id = NULL,
-                     isni_uri = NULL, authority_source = NULL, authority_confidence = NULL
+                    `UPDATE autori SET
+                       viaf_id              = ${toSql(originalAuthorFields.viaf_id ?? 'NULL')},
+                       viaf_uri             = ${toSql(originalAuthorFields.viaf_uri ?? 'NULL')},
+                       isni_id              = ${toSql(originalAuthorFields.isni_id ?? 'NULL')},
+                       isni_uri             = ${toSql(originalAuthorFields.isni_uri ?? 'NULL')},
+                       authority_source     = ${toSql(originalAuthorFields.authority_source ?? 'NULL')},
+                       authority_confidence = ${toSql(originalAuthorFields.authority_confidence ?? 'NULL')}
                      WHERE id = ${testAuthorId}`
                 );
             } catch { /* best-effort */ }

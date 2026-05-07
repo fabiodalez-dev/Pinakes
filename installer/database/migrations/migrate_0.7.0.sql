@@ -155,6 +155,42 @@ CREATE TABLE IF NOT EXISTS author_authority_alternates (
         FOREIGN KEY (autore_id) REFERENCES autori(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Idempotent guards: ensure indexes and FK exist even if a prior partial run
+-- created the table without them (CREATE TABLE IF NOT EXISTS skips the whole DDL).
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'author_authority_alternates'
+      AND INDEX_NAME   = 'idx_autore_id'
+);
+SET @sql = IF(@idx_exists = 0,
+    'ALTER TABLE author_authority_alternates ADD KEY idx_autore_id (autore_id)',
+    'SELECT 1');
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+SET @idx_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'author_authority_alternates'
+      AND INDEX_NAME   = 'idx_authority'
+);
+SET @sql = IF(@idx_exists = 0,
+    'ALTER TABLE author_authority_alternates ADD KEY idx_authority (source, authority_id)',
+    'SELECT 1');
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+SET @fk_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA    = DATABASE()
+      AND TABLE_NAME      = 'author_authority_alternates'
+      AND CONSTRAINT_NAME = 'fk_author_authority_alternates_autore'
+      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
+SET @sql = IF(@fk_exists = 0,
+    'ALTER TABLE author_authority_alternates ADD CONSTRAINT fk_author_authority_alternates_autore FOREIGN KEY (autore_id) REFERENCES autori(id) ON DELETE CASCADE',
+    'SELECT 1');
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
 -- ─── Register viaf-authority plugin ──────────────────────────────────────────
 
 INSERT INTO plugins

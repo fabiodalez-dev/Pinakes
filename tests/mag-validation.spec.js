@@ -184,8 +184,10 @@ test.describe.serial('MAG 2.0.1 metadata validation — v0.7.4 (18 tests)', () =
         const body = await res.text();
         if (parseInt(authorCount) > 0) {
             expect(body).toContain('<dc:creator>');
+        } else {
+            // When no authors are linked, dc:creator must be absent.
+            expect(body).not.toContain('<dc:creator>');
         }
-        // If no authors, no dc:creator element — that's also valid.
     });
 
     test('12. MAG <bib> contains <paese>IT</paese>', async ({ request }) => {
