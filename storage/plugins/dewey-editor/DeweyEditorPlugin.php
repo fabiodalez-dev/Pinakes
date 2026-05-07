@@ -22,6 +22,7 @@ require_once __DIR__ . '/classes/DeweyValidator.php';
 class DeweyEditorPlugin
 {
     private mysqli $db;
+    /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private ?int $pluginId = null;
     private string $dataDir;
@@ -560,7 +561,7 @@ class DeweyEditorPlugin
         $body = $this->getJsonBody($request);
         $filename = $body['filename'] ?? null;
 
-        if (!$filename || !preg_match('/^dewey_' . preg_quote($locale) . '_\d{8}_\d{6}\.json$/', $filename)) {
+        if (!$filename || !preg_match('/^dewey_' . preg_quote($locale, '/') . '_\d{8}_\d{6}\.json$/', $filename)) {
             return $this->jsonError($response, __('Nome file non valido.'), 400);
         }
 

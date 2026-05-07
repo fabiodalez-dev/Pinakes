@@ -32,7 +32,7 @@ class DeweyValidator
         $this->seenCodes = [];
 
         // Must be an array of main classes
-        if (!is_array($data) || empty($data)) {
+        if (empty($data)) {
             $this->errors[] = __('I dati devono essere un array non vuoto.');
             return $this->errors;
         }

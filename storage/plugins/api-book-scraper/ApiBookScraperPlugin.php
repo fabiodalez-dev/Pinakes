@@ -16,6 +16,7 @@ class ApiBookScraperPlugin
     private const PLUGIN_NAME = 'api-book-scraper';
 
     private ?\mysqli $db = null;
+    /** @phpstan-ignore property.onlyWritten */
     private ?object $hookManager = null;
     private ?int $pluginId = null;
 
@@ -260,7 +261,8 @@ class ApiBookScraperPlugin
 
         // Decodifica base64
         $decoded = base64_decode($encrypted);
-        if ($decoded === false) {
+        /** @phpstan-ignore function.alreadyNarrowedType */
+        if (!is_string($decoded)) {
             return $value;
         }
 
@@ -340,7 +342,7 @@ class ApiBookScraperPlugin
 
                 // Fill empty fields in existing data with API data
                 foreach ($bookData as $key => $value) {
-                    if (!isset($existing[$key]) || $existing[$key] === '' || $existing[$key] === null) {
+                    if (!isset($existing[$key]) || $existing[$key] === '') {
                         $existing[$key] = $value;
                     }
                 }

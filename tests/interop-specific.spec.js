@@ -57,6 +57,23 @@ function dbQuery(sql) {
 function dbExec(sql) {
     execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000, env: MYSQL_ENV() });
 }
+function isViafUrl(value) {
+    try {
+        const url = new URL(String(value));
+        return url.protocol === 'https:'
+            && (url.hostname === 'viaf.org' || url.hostname.endsWith('.viaf.org'));
+    } catch {
+        return false;
+    }
+}
+function containsViafUrl(value) {
+    if (typeof value === 'string') return isViafUrl(value);
+    if (Array.isArray(value)) return value.some((item) => containsViafUrl(item));
+    if (value && typeof value === 'object') {
+        return Object.values(value).some((item) => containsViafUrl(item));
+    }
+    return false;
+}
 function basicAuth(user, pass) {
     return 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
 }
@@ -321,13 +338,13 @@ test.describe.serial('Interop specific — 15 persistent tests (v0.7.4)', () => 
         if (workNode) {
             const sameAs = workNode['owl:sameAs'];
             const hasViafSameAs = typeof sameAs === 'string'
-                ? sameAs.includes('viaf.org')
-                : Array.isArray(sameAs) && sameAs.some((/** @type {any} */ s) => String(s).includes('viaf.org'));
+                ? isViafUrl(sameAs)
+                : Array.isArray(sameAs) && sameAs.some((/** @type {any} */ s) => isViafUrl(s));
             expect(hasViafSameAs).toBe(false);
         }
 
         // At least one contribution/agent must reference VIAF URI
-        const hasViafAgent = JSON.stringify(graph).includes('viaf.org');
+        const hasViafAgent = containsViafUrl(graph);
         expect(hasViafAgent).toBe(true);
     });
 });

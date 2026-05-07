@@ -4,6 +4,9 @@
  * Integrated with standard layout.php
  */
 
+/** @var string $csrfToken */
+/** @var string $defaultLocale */
+
 use App\Support\HtmlHelper;
 
 $pageTitle = __('Editor Classificazione Dewey');

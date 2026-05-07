@@ -195,19 +195,17 @@ function decryptSettingValue(string $encrypted): ?string
     $payload = substr($encrypted, 4);
     $decoded = base64_decode($payload);
 
-    if ($decoded === false || strlen($decoded) < 28) {
+    if (!is_string($decoded) || strlen($decoded) < 28) {
         \App\Support\SecureLogger::error('[Z39 SRU Endpoint] Invalid encrypted payload');
         return null;
     }
 
     // Get encryption key from environment
-    $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
-        ?? getenv('PLUGIN_ENCRYPTION_KEY')
-        ?? $_ENV['APP_KEY']
-        ?? getenv('APP_KEY')
-        ?? null;
+    $pluginKey = ($_ENV['PLUGIN_ENCRYPTION_KEY'] ?? '') ?: (getenv('PLUGIN_ENCRYPTION_KEY') ?: '');
+    $appKey    = ($_ENV['APP_KEY'] ?? '') ?: (getenv('APP_KEY') ?: '');
+    $rawKey    = $pluginKey !== '' ? $pluginKey : ($appKey !== '' ? $appKey : null);
 
-    if ($rawKey === null || $rawKey === '') {
+    if ($rawKey === null) {
         \App\Support\SecureLogger::error('[Z39 SRU Endpoint] Cannot decrypt: PLUGIN_ENCRYPTION_KEY not available');
         return null;
     }

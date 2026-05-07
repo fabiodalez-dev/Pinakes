@@ -22,6 +22,7 @@ class OpenLibraryPlugin
     private const MIN_COVER_SIZE_BYTES = 1000;
 
     private ?\mysqli $db = null;
+    /** @phpstan-ignore property.onlyWritten */
     private ?object $hookManager = null;
     private ?int $pluginId = null;
 
@@ -276,7 +277,7 @@ class OpenLibraryPlugin
 
             // Build response in the format expected by the application
             $openLibraryData = [
-                'title' => $editionData['title'] ?? '',
+                'title' => (string) ($editionData['title'] ?? ''),
                 'subtitle' => $editionData['subtitle'] ?? '',
                 'author' => implode(', ', $authorNames),
                 'authors' => $authorsList,
@@ -336,7 +337,7 @@ class OpenLibraryPlugin
             if (str_starts_with($key, '_')) {
                 continue; // Skip internal fields
             }
-            if (!isset($existing[$key]) || $existing[$key] === '' || $existing[$key] === null ||
+            if (!isset($existing[$key]) || $existing[$key] === '' ||
                 (is_array($existing[$key]) && empty($existing[$key]))) {
                 $existing[$key] = $value;
             }
@@ -997,17 +998,15 @@ class OpenLibraryPlugin
     private function decryptSettingValue(string $encryptedValue): ?string
     {
         // Get encryption key from environment
-        $rawKey = $_ENV['PLUGIN_ENCRYPTION_KEY']
-            ?? getenv('PLUGIN_ENCRYPTION_KEY')
-            ?? $_ENV['APP_KEY']
-            ?? getenv('APP_KEY')
-            ?? null;
+        $pluginKey = ($_ENV['PLUGIN_ENCRYPTION_KEY'] ?? '') ?: (getenv('PLUGIN_ENCRYPTION_KEY') ?: '');
+        $appKey    = ($_ENV['APP_KEY'] ?? '') ?: (getenv('APP_KEY') ?: '');
+        $rawKey    = $pluginKey !== '' ? $pluginKey : ($appKey !== '' ? $appKey : null);
 
-        if ($rawKey !== null && empty($_ENV['PLUGIN_ENCRYPTION_KEY']) && !getenv('PLUGIN_ENCRYPTION_KEY')) {
+        if ($rawKey !== null && $pluginKey === '') {
             \App\Support\SecureLogger::warning('[OpenLibrary] Using APP_KEY as fallback for plugin encryption. Set PLUGIN_ENCRYPTION_KEY for isolation.');
         }
 
-        if (!$rawKey || $rawKey === '') {
+        if (!$rawKey) {
             \App\Support\SecureLogger::error('[OpenLibrary] Encryption key not found, cannot decrypt setting');
             return null;
         }
@@ -1268,7 +1267,7 @@ class OpenLibraryPlugin
     public function registerRoutes($app): void
     {
         // Register test endpoint for Open Library plugin (admin-only)
-        $app->get('/api/open-library/test', function ($request, $response) use ($app) {
+        $app->get('/api/open-library/test', function ($request, $response) {
             $queryParams = $request->getQueryParams();
             $isbn = $queryParams['isbn'] ?? '9788804666592'; // Default ISBN for testing
 

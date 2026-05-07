@@ -419,6 +419,7 @@ class SruClient
                 if ($sub->nodeType !== XML_ELEMENT_NODE) {
                     continue;
                 }
+                /** @var \DOMElement $sub */
                 $code = $sub->getAttribute('code');
                 if ($code === 'a') {
                     $nameA = trim($sub->nodeValue);

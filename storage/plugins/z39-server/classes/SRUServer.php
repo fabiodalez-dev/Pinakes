@@ -18,6 +18,7 @@ class SRUServer
 {
     private mysqli $db;
     private array $settings;
+    /** @phpstan-ignore property.onlyWritten */
     private ?int $pluginId;
     private ?int $lastLogId = null;
     /** @var array<string,array<string,mixed>> */
@@ -965,7 +966,6 @@ class SRUServer
      * @param string $version SRU version
      * @param string $scanClause Scan clause
      * @param int $responsePosition Response position
-     * @param int $maximumTerms Maximum terms
      * @return string XML response
      */
     private function formatScanResponse(
