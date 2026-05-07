@@ -268,7 +268,7 @@ class SRUServer
             'dc'         => 'info:srw/schema/1/dc-v1.1',
             'mods'       => 'info:srw/schema/1/mods-v3.6',
             'oai_dc'     => 'http://www.openarchives.org/OAI/2.0/oai_dc/',
-            'unimarcxml' => 'info:srw/schema/8/unimarcxml-v0.1',
+            'unimarcxml' => 'http://www.loc.gov/MARC21/slim',
         ];
 
         foreach ($supportedFormats as $format) {

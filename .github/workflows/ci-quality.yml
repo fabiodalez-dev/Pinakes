@@ -55,10 +55,13 @@ jobs:
         run: |
           set -o pipefail
           echo "Checking PHP syntax..."
-          ERRORS=$(find app/ config/ public/ installer/ server/ storage/plugins/ -name '*.php' \
+          PHP_DIRS=$(printf '%s\n' app/ config/ public/ installer/ server/ storage/plugins/ | while read -r dir; do
+            [ -d "$dir" ] && printf '%s\n' "$dir"
+          done)
+          ERRORS=$(find $PHP_DIRS -name '*.php' \
             ! -path '*/vendor/*' \
             | xargs -P4 -n1 php -l 2>&1 \
-            | grep -E "Parse error|Fatal error")
+            | grep -E "Parse error|Fatal error" || true)
           if [ -n "$ERRORS" ]; then
             echo "$ERRORS"
             exit 1
