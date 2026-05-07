@@ -61,7 +61,14 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
         'file'   => 'bg-green-100 text-green-800',
         'item'   => 'bg-gray-100 text-gray-800',
     ];
-    $badgeClass = $levelBadge[$row['level']] ?? 'bg-gray-100 text-gray-800';
+    $levelLabel = [
+        'fonds'  => __('Fondo'),
+        'series' => __('Serie'),
+        'file'   => __('Fascicolo'),
+        'item'   => __('Unità'),
+    ];
+    $badgeClass  = $levelBadge[$row['level']] ?? 'bg-gray-100 text-gray-800';
+    $levelText   = $levelLabel[$row['level']] ?? $e((string) $row['level']);
     $dateRange = '';
     if ($row['date_start'] !== null) {
         $dateRange = (string) $row['date_start'];
@@ -76,7 +83,7 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
     $html .= '<a href="' . $viewUrl . '" class="text-blue-600 hover:underline">' . $e((string) $row['reference_code']) . '</a>';
     $html .= '</td>';
     $html .= '<td class="px-4 py-2">';
-    $html .= '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded ' . $badgeClass . '">' . $e((string) $row['level']) . '</span>';
+    $html .= '<span class="inline-block px-2 py-0.5 text-xs font-semibold rounded ' . $badgeClass . '">' . $e($levelText) . '</span>';
     $html .= '</td>';
     $html .= '<td class="px-4 py-2">' . $indent;
     $html .= '<a href="' . $viewUrl . '" class="text-gray-900 hover:underline">' . $e((string) $row['constructed_title']) . '</a>';
@@ -84,7 +91,7 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
     $html .= '<td class="px-4 py-2 text-sm text-gray-600">' . $e($dateRange) . '</td>';
     $html .= '<td class="px-4 py-2 text-sm text-gray-600">' . $e((string) ($row['extent'] ?? '')) . '</td>';
     $html .= '<td class="px-4 py-2 text-right text-sm whitespace-nowrap">';
-    $html .= '<a href="' . $editUrl . '" class="text-blue-600 hover:underline">modifica</a>';
+    $html .= '<a href="' . $editUrl . '" class="text-blue-600 hover:underline">' . __('modifica') . '</a>';
     $html .= '</td>';
     $html .= '</tr>';
 

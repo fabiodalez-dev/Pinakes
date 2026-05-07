@@ -23,6 +23,11 @@ $typeBadge = [
     'corporate' => 'bg-amber-100 text-amber-800',
     'family'    => 'bg-pink-100 text-pink-800',
 ];
+$typeLabel = [
+    'person'    => __('Persona (biografica)'),
+    'corporate' => __('Ente'),
+    'family'    => __('Famiglia'),
+];
 $levelBadge = [
     'fonds'  => 'bg-purple-100 text-purple-800',
     'series' => 'bg-blue-100 text-blue-800',
@@ -30,22 +35,28 @@ $levelBadge = [
     'item'   => 'bg-gray-100 text-gray-800',
 ];
 $badgeClass = $typeBadge[(string) $row['type']] ?? 'bg-gray-100 text-gray-800';
+$typeText   = $typeLabel[(string) $row['type']] ?? $v('type');
 $id = (int) $row['id'];
 ?>
 <div class="p-6 max-w-4xl mx-auto">
-    <nav class="text-sm text-gray-500 mb-2">
-        <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __("Archivi") ?></a>
-        &nbsp;&raquo;&nbsp;
-        <a href="<?= $e(url('/admin/archives/authorities')) ?>" class="hover:underline"><?= __("Authority records") ?></a>
-        &nbsp;&raquo;&nbsp;
-        <?= $v('authorised_form') ?>
-    </nav>
+    <div class="flex items-center gap-3 mb-2">
+        <button type="button" onclick="history.back()" class="btn-secondary text-xs px-3 py-1.5">
+            &larr; <?= __("Indietro") ?>
+        </button>
+        <nav class="text-sm text-gray-500">
+            <a href="<?= $e(url('/admin/archives')) ?>" class="hover:underline"><?= __("Archivi") ?></a>
+            &nbsp;&raquo;&nbsp;
+            <a href="<?= $e(url('/admin/archives/authorities')) ?>" class="hover:underline"><?= __("Authority records") ?></a>
+            &nbsp;&raquo;&nbsp;
+            <?= $v('authorised_form') ?>
+        </nav>
+    </div>
 
     <div class="flex items-start justify-between mb-6">
         <div>
             <div class="flex items-center gap-3 mb-1">
                 <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $badgeClass ?>">
-                    <?= $v('type') ?>
+                    <?= $e($typeText) ?>
                 </span>
             </div>
             <h1 class="text-2xl font-bold text-gray-900"><?= $v('authorised_form') ?></h1>

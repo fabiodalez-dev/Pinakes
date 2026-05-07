@@ -420,7 +420,7 @@ ON DUPLICATE KEY UPDATE
 
 CREATE TABLE IF NOT EXISTS archival_unit_files (
     id                INT UNSIGNED     NOT NULL AUTO_INCREMENT,
-    unit_id           INT              NOT NULL,
+    unit_id           BIGINT UNSIGNED  NOT NULL,
     file_path         VARCHAR(500)     NOT NULL,
     file_mime         VARCHAR(127)     NOT NULL DEFAULT 'application/octet-stream',
     original_filename VARCHAR(255)     NOT NULL DEFAULT '',

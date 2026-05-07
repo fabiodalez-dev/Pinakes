@@ -1610,6 +1610,16 @@ class ArchivesPlugin
                 $stmt->bind_param('isssi', $id, $relPath, $mime, $clientName, $id);
                 $stmt->execute();
                 $stmt->close();
+                // Null out legacy single-document columns so they no longer act
+                // as an orphaned reference now that the file lives in archival_unit_files.
+                $nullStmt = $this->db->prepare(
+                    'UPDATE archival_units SET document_path = NULL, document_mime = NULL, document_filename = NULL WHERE id = ?'
+                );
+                if ($nullStmt !== false) {
+                    $nullStmt->bind_param('i', $id);
+                    $nullStmt->execute();
+                    $nullStmt->close();
+                }
             }
         }
         return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
@@ -1643,9 +1653,13 @@ class ArchivesPlugin
 
         $filePath = (string) $file['file_path'];
         if (str_starts_with($filePath, '/uploads/archives/documents/')) {
-            $fsPath = __DIR__ . '/../../../public' . $filePath;
-            if (is_file($fsPath)) {
-                @unlink($fsPath);
+            $fsPath  = __DIR__ . '/../../../public' . $filePath;
+            $baseDir = realpath(__DIR__ . '/../../../public/uploads/archives/documents');
+            if ($baseDir !== false) {
+                $real = realpath($fsPath);
+                if ($real !== false && str_starts_with($real, $baseDir . DIRECTORY_SEPARATOR)) {
+                    @unlink($real);
+                }
             }
         }
 
@@ -1664,6 +1678,49 @@ class ArchivesPlugin
      *
      * @return list<array{id:int,file_path:string,file_mime:string,original_filename:string,sort_order:int}>
      */
+    /**
+     * Bulk-fetch unit files for multiple units in a single query.
+     * Returns a map keyed by unit_id.
+     *
+     * @param list<int> $unitIds
+     * @return array<int, list<array{id:int,file_path:string,file_mime:string,original_filename:string,sort_order:int}>>
+     */
+    private function fetchUnitFilesForUnits(array $unitIds): array
+    {
+        if (empty($unitIds)) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
+        $stmt = $this->db->prepare(
+            "SELECT id, unit_id, file_path, file_mime, original_filename, sort_order
+               FROM archival_unit_files
+              WHERE unit_id IN ($placeholders)
+              ORDER BY unit_id, sort_order, id"
+        );
+        if ($stmt === false) {
+            return [];
+        }
+        $types = str_repeat('i', count($unitIds));
+        $stmt->bind_param($types, ...$unitIds);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $map    = [];
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) {
+                $uid = (int) $r['unit_id'];
+                $map[$uid][] = [
+                    'id'                => (int)    $r['id'],
+                    'file_path'         => (string) $r['file_path'],
+                    'file_mime'         => (string) $r['file_mime'],
+                    'original_filename' => (string) $r['original_filename'],
+                    'sort_order'        => (int)    $r['sort_order'],
+                ];
+            }
+        }
+        $stmt->close();
+        return $map;
+    }
+
     private function fetchUnitFiles(int $unitId): array
     {
         $stmt = $this->db->prepare(
@@ -1680,8 +1737,10 @@ class ArchivesPlugin
         $result = $stmt->get_result();
         /** @var list<array{id:int,file_path:string,file_mime:string,original_filename:string,sort_order:int}> $rows */
         $rows = [];
-        while ($row = $result->fetch_assoc()) {
-            $rows[] = $row;
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
         }
         $stmt->close();
         return $rows;
@@ -4730,9 +4789,14 @@ class ArchivesPlugin
                 ];
                 $canvasIndex++;
             } else {
+                $iiifType = match (true) {
+                    str_starts_with($fileMime, 'audio/') => 'Sound',
+                    str_starts_with($fileMime, 'video/') => 'Video',
+                    default                              => 'Text',
+                };
                 $rendering[] = [
                     'id'     => $fileUrl,
-                    'type'   => 'Text',
+                    'type'   => $iiifType,
                     'label'  => ['none' => [$label]],
                     'format' => $fileMime,
                 ];
@@ -5302,25 +5366,25 @@ class ArchivesPlugin
             $xw->endElement(); // fileGrp
         }
 
-        // fileGrp for multi-document files stored in archival_unit_files
-        $docFileIds = [];
-        if (!empty($unitFiles)) {
+        // fileGrp for multi-document files stored in archival_unit_files.
+        // Pre-collect valid (on-disk) files to avoid emitting an empty fileGrp.
+        $validDocFiles = array_values(array_filter(
+            $unitFiles,
+            fn(array $uf): bool => is_file(__DIR__ . '/../../../public' . (string) $uf['file_path'])
+        ));
+        // $docFileEntries: array<int, array{id: string, label: string}> for structMap
+        $docFileEntries = [];
+        if (!empty($validDocFiles)) {
             $xw->startElement('mets:fileGrp');
             $xw->writeAttribute('USE', 'documents');
-            foreach ($unitFiles as $idx => $uf) {
-                $fsPathDoc = __DIR__ . '/../../../public' . (string) $uf['file_path'];
-                if (!is_file($fsPathDoc)) {
-                    continue;
-                }
+            foreach ($validDocFiles as $idx => $uf) {
                 $docMime  = (string) ($uf['file_mime'] ?: 'application/octet-stream');
                 $fileId   = 'DOC_' . $idx;
-                $docFileIds[] = $fileId;
+                $docLabel = (string) ($uf['original_filename'] ?: basename((string) $uf['file_path']));
+                $docFileEntries[] = ['id' => $fileId, 'label' => $docLabel];
                 $xw->startElement('mets:file');
                 $xw->writeAttribute('ID',       $fileId);
                 $xw->writeAttribute('MIMETYPE', $docMime);
-                if (!empty($uf['original_filename'])) {
-                    $xw->writeAttribute('LABEL', (string) $uf['original_filename']);
-                }
                 $xw->startElement('mets:FLocat');
                 $xw->writeAttribute('LOCTYPE', 'URL');
                 $xw->writeAttributeNs('xlink', 'type', null, 'simple');
@@ -5348,12 +5412,16 @@ class ArchivesPlugin
             $xw->writeAttribute('FILEID', 'COVER_IMAGE');
             $xw->endElement(); // fptr
         }
-        foreach ($docFileIds as $fileId) {
+        foreach ($docFileEntries as $entry) {
+            $xw->startElement('mets:div');
+            $xw->writeAttribute('TYPE',  'Document');
+            $xw->writeAttribute('LABEL', $entry['label']);
             $xw->startElement('mets:fptr');
-            $xw->writeAttribute('FILEID', $fileId);
+            $xw->writeAttribute('FILEID', $entry['id']);
             $xw->endElement(); // fptr
+            $xw->endElement(); // div
         }
-        $xw->endElement(); // div
+        $xw->endElement(); // div (ArchivalUnit)
         $xw->endElement(); // structMap
 
         $xw->endElement(); // mets:mets
@@ -5425,11 +5493,16 @@ class ArchivesPlugin
         // schema) used to group multiple <ead> documents in a single XML file.
         // EAD3 has no standard bulk-export wrapper; tools that consume this file
         // can strip the outer element and process each <ead> child independently.
+        // Pre-fetch all unit files in one query to avoid N+1 on collection export.
+        $allUnitIds   = array_map(fn(array $r): int => (int) $r['id'], $rows);
+        $allUnitFiles = $this->fetchUnitFilesForUnits($allUnitIds);
+
         $xw->startElement('eadlist');
         $xw->writeAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
         foreach ($rows as $row) {
-            $auth = $this->fetchAuthoritiesForArchivalUnit((int) $row['id']);
-            $this->writeEad3Document($xw, $row, $auth);
+            $auth        = $this->fetchAuthoritiesForArchivalUnit((int) $row['id']);
+            $rowUnitFiles = $allUnitFiles[(int) $row['id']] ?? [];
+            $this->writeEad3Document($xw, $row, $auth, $rowUnitFiles);
         }
         $xw->endElement(); // eadlist
         $xw->endDocument();
@@ -5463,7 +5536,12 @@ class ArchivesPlugin
      * @param array<string, mixed> $row
      * @param list<array<string, mixed>> $authorities
      */
-    private function writeEad3Document(\XMLWriter $xw, array $row, array $authorities): void
+    /**
+     * @param list<array{id:int,file_path:string,file_mime:string,original_filename:string,sort_order:int}> $unitFiles
+     *     Pre-fetched files for this unit; if empty the method fetches them itself.
+     *     Pass a non-empty array to avoid N+1 queries in collection exports.
+     */
+    private function writeEad3Document(\XMLWriter $xw, array $row, array $authorities, array $unitFiles = []): void
     {
         $ns = 'http://ead3.archivists.org/schema/';
         $xw->startElementNs(null, 'ead', $ns);
@@ -5630,7 +5708,8 @@ class ArchivesPlugin
                 $xw->endElement(); // dao
             }
             // One <dao> per multi-document file in archival_unit_files.
-            foreach ($this->fetchUnitFiles($unitId) as $uf) {
+            $filesToEmit = !empty($unitFiles) ? $unitFiles : $this->fetchUnitFiles($unitId);
+            foreach ($filesToEmit as $uf) {
                 $fsPathDoc = __DIR__ . '/../../../public' . (string) $uf['file_path'];
                 if (!is_file($fsPathDoc)) {
                     continue;
@@ -6508,7 +6587,7 @@ class ArchivesPlugin
         return <<<'SQL'
         CREATE TABLE IF NOT EXISTS archival_unit_files (
             id                INT UNSIGNED      NOT NULL AUTO_INCREMENT,
-            unit_id           INT               NOT NULL,
+            unit_id           BIGINT UNSIGNED   NOT NULL,
             file_path         VARCHAR(500)      NOT NULL,
             file_mime         VARCHAR(127)      NOT NULL DEFAULT 'application/octet-stream',
             original_filename VARCHAR(255)      NOT NULL DEFAULT '',

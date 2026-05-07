@@ -81,7 +81,14 @@ $docPath    = $firstFile !== null ? (string) $firstFile['file_path'] : (string) 
 $docMime    = $firstFile !== null ? (string) $firstFile['file_mime'] : (string) ($row['document_mime'] ?? '');
 $docName    = $firstFile !== null ? (string) $firstFile['original_filename'] : (string) ($row['document_filename'] ?? '');
 $docUrl     = $docPath !== '' ? url($docPath) : '';
-$isAudio    = $docMime !== '' && str_starts_with($docMime, 'audio/');
+$isAudio    = (function () use ($unit_files, $docMime): bool {
+    foreach ($unit_files as $uf) {
+        if (str_starts_with((string) $uf['file_mime'], 'audio/')) {
+            return true;
+        }
+    }
+    return $docMime !== '' && str_starts_with($docMime, 'audio/');
+})();
 $specific  = (string) ($row['specific_material'] ?? '');
 ?>
 <link rel="stylesheet" href="<?= $e(url('/plugins/archives/assets/css/archives-public.css')) ?>">

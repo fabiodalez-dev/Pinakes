@@ -44,7 +44,14 @@ $levelBadge = [
     'file'   => 'bg-green-100 text-green-800',
     'item'   => 'bg-gray-100 text-gray-800',
 ];
-$badgeClass = $levelBadge[(string) $row['level']] ?? 'bg-gray-100 text-gray-800';
+$levelLabel = [
+    'fonds'  => __('Fondo'),
+    'series' => __('Serie'),
+    'file'   => __('Fascicolo'),
+    'item'   => __('Unità'),
+];
+$badgeClass  = $levelBadge[(string) $row['level']] ?? 'bg-gray-100 text-gray-800';
+$levelText   = $levelLabel[(string) $row['level']] ?? $v('level');
 
 $id = (int) $row['id'];
 ?>
@@ -58,7 +65,7 @@ $id = (int) $row['id'];
         <div>
             <div class="flex items-center gap-3 mb-1">
                 <span class="inline-block px-2 py-0.5 text-xs font-semibold rounded <?= $badgeClass ?>">
-                    <?= $v('level') ?>
+                    <?= $e($levelText) ?>
                 </span>
                 <span class="font-mono text-sm text-gray-500"><?= $v('reference_code') ?></span>
             </div>
@@ -260,7 +267,7 @@ $id = (int) $row['id'];
     <!-- Cover image + downloadable document -->
     <div class="bg-white shadow rounded-lg overflow-hidden mt-6">
         <div class="px-6 py-3 bg-gray-50 border-b">
-            <h2 class="text-sm font-semibold text-gray-700"><?= __("Copertina e documento") ?></h2>
+            <h2 class="text-sm font-semibold text-gray-700"><?= __("Copertina e documenti") ?></h2>
         </div>
         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Cover -->
@@ -299,6 +306,14 @@ $id = (int) $row['id'];
                 <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                     <?= __("Documenti scaricabili") ?>
                 </h3>
+                <?php
+                // Legacy fallback: if no multi-file entries yet, show the old
+                // single-document columns so pre-migration data remains visible.
+                $legacyDocPath = (string) ($row['document_path'] ?? '');
+                $legacyDocMime = (string) ($row['document_mime'] ?? 'application/octet-stream');
+                $legacyDocName = (string) ($row['document_filename'] ?? basename($legacyDocPath));
+                $showLegacy    = empty($unit_files) && $legacyDocPath !== '';
+                ?>
                 <?php if (!empty($unit_files)): ?>
                     <ul class="divide-y divide-gray-200 border border-gray-200 rounded-md mb-3">
                         <?php foreach ($unit_files as $uf): ?>
@@ -315,7 +330,7 @@ $id = (int) $row['id'];
                                 <form method="POST"
                                       action="<?= $e(url('/admin/archives/' . $id . '/files/' . (int) $uf['id'] . '/delete')) ?>"
                                       class="inline flex-shrink-0"
-                                      onsubmit="return confirm('<?= $e(__("Rimuovere questo file?")) ?>');">
+                                      onsubmit="return confirm(<?= $jsAttr(__("Rimuovere questo file?")) ?>);">
                                     <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                                     <button type="submit" class="text-xs text-red-600 hover:underline">
                                         <?= __("Rimuovi") ?>
@@ -324,6 +339,19 @@ $id = (int) $row['id'];
                             </li>
                         <?php endforeach; ?>
                     </ul>
+                <?php elseif ($showLegacy): ?>
+                    <div class="border border-yellow-200 rounded-md mb-3 bg-yellow-50 px-3 py-2">
+                        <p class="text-xs text-yellow-700 font-medium mb-1">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            <?= __("Documento precedente (carica uno nuovo per migrare al sistema multi-file)") ?>
+                        </p>
+                        <a href="<?= $e(url($legacyDocPath)) ?>" target="_blank" rel="noopener"
+                           class="text-sm text-blue-600 hover:underline truncate block">
+                            <i class="fas fa-file-alt mr-1"></i>
+                            <?= $e($legacyDocName ?: basename($legacyDocPath)) ?>
+                        </a>
+                        <span class="text-xs text-gray-400 font-mono"><?= $e($legacyDocMime) ?></span>
+                    </div>
                 <?php else: ?>
                     <p class="text-xs text-gray-500 italic mb-3"><?= __("Nessun documento caricato.") ?></p>
                 <?php endif; ?>

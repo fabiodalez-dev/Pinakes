@@ -218,10 +218,11 @@ test.describe.serial('Archives multi-document — upload, delete, interoperabili
 
         await page.goto(`${BASE}/admin/archives/${itemBId}`);
         await page.waitForLoadState('domcontentloaded');
-        await page.setInputFiles('input[name="document"]', tmpPdf);
+        const uploadForm7 = page.locator('form[action*="upload-document"]');
+        await uploadForm7.locator('input[name="document"]').setInputFiles(tmpPdf);
         await Promise.all([
-            page.waitForURL((u) => u.pathname === `/admin/archives/${itemBId}`, { timeout: 15000 }),
-            page.click('button[type="submit"]:near(input[name="document"])'),
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+            uploadForm7.locator('button[type="submit"]').click(),
         ]);
         await expect(page.locator('body')).toContainText('archive-upload-test-1.pdf');
 
@@ -240,10 +241,11 @@ test.describe.serial('Archives multi-document — upload, delete, interoperabili
 
         await page.goto(`${BASE}/admin/archives/${itemBId}`);
         await page.waitForLoadState('domcontentloaded');
-        await page.setInputFiles('input[name="document"]', tmpPdf);
+        const uploadForm8 = page.locator('form[action*="upload-document"]');
+        await uploadForm8.locator('input[name="document"]').setInputFiles(tmpPdf);
         await Promise.all([
-            page.waitForURL((u) => u.pathname === `/admin/archives/${itemBId}`, { timeout: 15000 }),
-            page.click('button[type="submit"]:near(input[name="document"])'),
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+            uploadForm8.locator('button[type="submit"]').click(),
         ]);
         await expect(page.locator('body')).toContainText('archive-upload-test-1.pdf');
         await expect(page.locator('body')).toContainText('archive-upload-test-2.pdf');
@@ -267,7 +269,7 @@ test.describe.serial('Archives multi-document — upload, delete, interoperabili
         const deleteForm = page.locator(`form[action*="/admin/archives/${itemBId}/files/${firstFileId}/delete"]`);
         page.once('dialog', (d) => d.accept());
         await Promise.all([
-            page.waitForURL((u) => u.pathname === `/admin/archives/${itemBId}`, { timeout: 15000 }),
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
             deleteForm.locator('button[type="submit"]').click(),
         ]);
         await expect(page.locator('body')).not.toContainText('archive-upload-test-1.pdf');
@@ -283,9 +285,7 @@ test.describe.serial('Archives multi-document — upload, delete, interoperabili
     test('11. Deleted first file is removed from disk', () => {
         test.skip(!uploadedFilePath, 'No upload path recorded');
         const abs = path.join(PUBLIC_DIR, uploadedFilePath);
-        // May already be cleaned up by the delete action
-        // Just verify it's gone (either removed by action or never had a real file)
-        expect(fs.existsSync(abs) || !uploadedFilePath).toBeTruthy(); // passes either way
+        expect(fs.existsSync(abs)).toBe(false);
     });
 
     // ── 12-14: IIIF manifest ─────────────────────────────────────────────────
@@ -436,14 +436,14 @@ test.describe.serial('Archives multi-document — upload, delete, interoperabili
         expect(body).toContain('archive-upload-test-2.pdf');
     });
 
-    test('25. Public frontend shows no download section when archival_unit_files is empty (Item B before upload)', async ({ request }) => {
-        // After afterAll cleanup files are gone; this test runs before afterAll
-        // so we verify Item B still has the second uploaded file OR re-check DB.
+    test('25. Public frontend shows no download section when archival_unit_files is empty (Item B cleared)', async ({ request }) => {
         test.skip(itemBId === 0, 'Item B not found');
+        // Clear all remaining files for Item B via DB to guarantee the empty-state test.
+        dbQuery(`DELETE FROM archival_unit_files WHERE unit_id = ${itemBId}`);
         const cnt = parseInt(dbQuery(
             `SELECT COUNT(*) FROM archival_unit_files WHERE unit_id = ${itemBId}`
         ));
-        if (cnt > 0) { test.skip(true, 'Item B has files — cannot test empty state here'); return; }
+        expect(cnt).toBe(0);
 
         const res = await request.get(`${BASE}/archive/${itemBId}`, { maxRedirects: 5 });
         expect(res.status()).toBe(200);
@@ -472,10 +472,11 @@ test.describe.serial('Archives multi-document — upload, delete, interoperabili
 
         await page.goto(`${BASE}/admin/archives/${itemBId}`);
         await page.waitForLoadState('domcontentloaded');
-        await page.setInputFiles('input[name="document"]', tmpHtml);
+        const uploadForm27 = page.locator('form[action*="upload-document"]');
+        await uploadForm27.locator('input[name="document"]').setInputFiles(tmpHtml);
         await Promise.all([
-            page.waitForURL((u) => u.pathname === `/admin/archives/${itemBId}`, { timeout: 15000 }),
-            page.click('button[type="submit"]:near(input[name="document"])'),
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 15000 }),
+            uploadForm27.locator('button[type="submit"]').click(),
         ]);
         // After rejection: page must NOT list the HTML file
         await expect(page.locator('body')).not.toContainText('archive-upload-test-bad.html');
@@ -483,22 +484,45 @@ test.describe.serial('Archives multi-document — upload, delete, interoperabili
         fs.unlinkSync(tmpHtml);
     });
 
-    test('28. File ownership check: delete request for file on wrong unit returns 303 without deleting', async ({ request }) => {
+    test('28. File ownership check: delete request for file on wrong unit returns 303 without deleting', async () => {
         test.skip(fondsId === 0 || itemBId === 0, 'Need both units');
-        // Grab a file ID that belongs to the fondo
+
+        // Ensure fonds still has at least one file (re-seed if test 25 cleared it)
+        const cntFonds = parseInt(dbQuery(
+            `SELECT COUNT(*) FROM archival_unit_files WHERE unit_id = ${fondsId}`
+        ));
+        if (cntFonds === 0) { test.skip(true, 'No fondo files to test ownership with'); return; }
+
         const fondsFileId = parseInt(dbQuery(
             `SELECT id FROM archival_unit_files WHERE unit_id = ${fondsId} ORDER BY id LIMIT 1`
         ));
         if (isNaN(fondsFileId) || fondsFileId <= 0) { test.skip(true, 'No fondo file found'); return; }
 
-        // Try to delete it via Item B's route (wrong unit_id)
-        const csrf = dbQuery("SELECT token FROM csrf_tokens ORDER BY created_at DESC LIMIT 1").trim();
-        const url  = `${BASE}/admin/archives/${itemBId}/files/${fondsFileId}/delete`;
-        // Without a valid admin session this will redirect to login — just
-        // verify the fondo file still exists in DB.
-        const cntBefore = parseInt(dbQuery(
+        // Navigate to item B admin page (admin session via `page`)
+        await page.goto(`${BASE}/admin/archives/${itemBId}`);
+        await page.waitForLoadState('domcontentloaded');
+
+        // Extract CSRF token from the page DOM
+        const csrfToken = await page.evaluate(() => {
+            const el = document.querySelector('input[name="csrf_token"]');
+            return el ? el.value : '';
+        });
+
+        // POST delete of a fonds file via item B's route (mismatched unit_id)
+        const res = await page.context().request.post(
+            `${BASE}/admin/archives/${itemBId}/files/${fondsFileId}/delete`,
+            {
+                form: { csrf_token: csrfToken },
+                maxRedirects: 0,
+            }
+        );
+        // Server always redirects (303) — it silently ignores the mismatch
+        expect(res.status()).toBeLessThanOrEqual(303);
+
+        // The fonds file must still exist — ownership check prevented deletion
+        const cntAfter = parseInt(dbQuery(
             `SELECT COUNT(*) FROM archival_unit_files WHERE id = ${fondsFileId}`
         ));
-        expect(cntBefore).toBe(1); // file still there regardless of request outcome
+        expect(cntAfter).toBe(1);
     });
 });

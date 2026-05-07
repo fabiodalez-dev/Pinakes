@@ -111,7 +111,7 @@ $check(
     '14. sort_order auto-increments via MAX() subquery'
 );
 $check(
-    str_contains($src, 'bind_param(\'isssi\''),
+    str_contains($src, "bind_param('isssi', \$id, \$relPath"),
     '15. document INSERT binds (unit_id, path, mime, filename, unit_id) — 5 params'
 );
 $check(
@@ -133,7 +133,7 @@ $check(
 // ── IIIF multi-Canvas and rendering[] ────────────────────────────────────────
 echo "\n19-20. iiifManifestAction() multi-document logic:\n";
 $check(
-    str_contains($src, "\$unitFiles   = \$this->fetchUnitFiles(\$id)"),
+    (bool) preg_match('/\$unitFiles\s+=\s+\$this->fetchUnitFiles\(\$id\)/', $src),
     '19. iiifManifestAction() fetches unit files for Canvases and rendering'
 );
 $check(
@@ -148,22 +148,23 @@ $check(
     '21. buildMetsXml() emits fileGrp USE="documents" for multi-document files'
 );
 $check(
-    str_contains($src, "\$docFileIds[] = \$fileId"),
-    '22. buildMetsXml() collects file IDs for structMap fptr references'
+    str_contains($src, "\$docFileEntries[] = ['id' => \$fileId, 'label' => \$docLabel]"),
+    '22. buildMetsXml() collects file entries (id+label) for structMap fptr references'
 );
 
 // ── EAD3 daoset multi-dao ─────────────────────────────────────────────────────
 echo "\n23. writeEad3Document() multi-dao:\n";
 $check(
-    str_contains($src, 'foreach ($this->fetchUnitFiles($unitId) as $uf)'),
-    '23. writeEad3Document() loops archival_unit_files to emit one <dao> per file'
+    str_contains($src, '$filesToEmit = !empty($unitFiles) ? $unitFiles : $this->fetchUnitFiles($unitId)') &&
+    str_contains($src, 'foreach ($filesToEmit as $uf)'),
+    '23. writeEad3Document() loops archival_unit_files to emit one <dao> per file (with pre-fetch fallback)'
 );
 
 // ── View: $unit_files passed to admin and public show views ──────────────────
 echo "\n24. showAction() and publicShowAction() pass unit_files to views:\n";
 $check(
-    str_contains($src, "'unit_files'           => \$this->fetchUnitFiles(\$id)") &&
-    str_contains($src, "'unit_files'  => \$this->fetchUnitFiles(\$id)"),
+    (bool) preg_match("/'unit_files'\s+=>\s+\\\$this->fetchUnitFiles\(\\\$id\)/", $src) &&
+    substr_count($src, '$this->fetchUnitFiles($id)') >= 2,
     '24. Both showAction() and publicShowAction() pass unit_files to their view'
 );
 

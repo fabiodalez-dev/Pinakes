@@ -53,10 +53,10 @@ $levelLabels = [
         <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
         <!-- ── ISAD(G) Area 1 — Identity Statement ─────────────────────── -->
-        <div class="border-l-4 border-indigo-400 pl-4">
-            <h2 class="text-sm font-semibold text-indigo-700 uppercase tracking-wide mb-3">
+        <div class="border-l-4 border-gray-300 pl-4">
+            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
                 <?= __("Area di identificazione") ?>
-                <span class="text-xs font-normal text-gray-500 normal-case ml-1">(ISAD(G) 3.1 — Identity Statement)</span>
+                <span class="text-xs font-normal text-gray-400 normal-case ml-1">(ISAD(G) 3.1)</span>
             </h2>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- reference_code -->
@@ -191,10 +191,10 @@ $levelLabels = [
         </div><!-- end Area 1 -->
 
         <!-- ── ISAD(G) Area 3 — Content and Structure ──────────────────── -->
-        <div class="border-l-4 border-green-400 pl-4">
-            <h2 class="text-sm font-semibold text-green-700 uppercase tracking-wide mb-3">
+        <div class="border-l-4 border-gray-300 pl-4">
+            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
                 <?= __("Contenuto e struttura") ?>
-                <span class="text-xs font-normal text-gray-500 normal-case ml-1">(ISAD(G) 3.3 — Content &amp; Structure)</span>
+                <span class="text-xs font-normal text-gray-400 normal-case ml-1">(ISAD(G) 3.3)</span>
             </h2>
 
         <!-- scope_content -->
@@ -209,10 +209,10 @@ $levelLabels = [
         </div><!-- end Area 3 -->
 
         <!-- ── ISAD(G) Area 4 — Conditions of Access and Use ───────────── -->
-        <div class="border-l-4 border-yellow-400 pl-4">
-            <h2 class="text-sm font-semibold text-yellow-700 uppercase tracking-wide mb-3">
+        <div class="border-l-4 border-gray-300 pl-4">
+            <h2 class="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
                 <?= __("Condizioni di accesso e uso") ?>
-                <span class="text-xs font-normal text-gray-500 normal-case ml-1">(ISAD(G) 3.4 — Conditions of Access &amp; Use)</span>
+                <span class="text-xs font-normal text-gray-400 normal-case ml-1">(ISAD(G) 3.4)</span>
             </h2>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
