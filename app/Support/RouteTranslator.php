@@ -216,4 +216,17 @@ class RouteTranslator
     {
         return isset(self::$fallbackRoutes[$key]);
     }
+
+    /**
+     * Get the list of keys defined in the static fallback routes
+     *
+     * Used by CI to validate that route_path() calls in views are
+     * covered either by the locale JSON files or by the fallback map.
+     *
+     * @return array<int, string> List of fallback route keys
+     */
+    public static function getStaticFallbackKeys(): array
+    {
+        return array_keys(self::$fallbackRoutes);
+    }
 }

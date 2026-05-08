@@ -84,28 +84,44 @@ class ViafAuthorityPlugin
         $columns = $this->getExistingColumns('autori');
 
         if (!isset($columns['viaf_id'])) {
-            $this->db->query("ALTER TABLE autori ADD COLUMN viaf_id VARCHAR(50) DEFAULT NULL AFTER sito_web");
-            $this->db->query("ALTER TABLE autori ADD KEY idx_viaf_id (viaf_id)");
+            if ($this->db->query("ALTER TABLE autori ADD COLUMN viaf_id VARCHAR(50) DEFAULT NULL AFTER sito_web") === false) {
+                throw new \RuntimeException('[ViafAuthority] ensureSchemaColumns: ' . $this->db->error);
+            }
+            if ($this->db->query("ALTER TABLE autori ADD KEY idx_viaf_id (viaf_id)") === false) {
+                throw new \RuntimeException('[ViafAuthority] ensureSchemaColumns: ' . $this->db->error);
+            }
         }
         if (!isset($columns['viaf_uri'])) {
-            $this->db->query("ALTER TABLE autori ADD COLUMN viaf_uri VARCHAR(500) DEFAULT NULL AFTER viaf_id");
+            if ($this->db->query("ALTER TABLE autori ADD COLUMN viaf_uri VARCHAR(500) DEFAULT NULL AFTER viaf_id") === false) {
+                throw new \RuntimeException('[ViafAuthority] ensureSchemaColumns: ' . $this->db->error);
+            }
         }
         if (!isset($columns['isni_id'])) {
-            $this->db->query("ALTER TABLE autori ADD COLUMN isni_id VARCHAR(16) DEFAULT NULL AFTER viaf_uri");
-            $this->db->query("ALTER TABLE autori ADD UNIQUE KEY uq_isni_id (isni_id)");
+            if ($this->db->query("ALTER TABLE autori ADD COLUMN isni_id VARCHAR(16) DEFAULT NULL AFTER viaf_uri") === false) {
+                throw new \RuntimeException('[ViafAuthority] ensureSchemaColumns: ' . $this->db->error);
+            }
+            if ($this->db->query("ALTER TABLE autori ADD UNIQUE KEY uq_isni_id (isni_id)") === false) {
+                throw new \RuntimeException('[ViafAuthority] ensureSchemaColumns: ' . $this->db->error);
+            }
         }
         if (!isset($columns['isni_uri'])) {
-            $this->db->query("ALTER TABLE autori ADD COLUMN isni_uri VARCHAR(500) DEFAULT NULL AFTER isni_id");
+            if ($this->db->query("ALTER TABLE autori ADD COLUMN isni_uri VARCHAR(500) DEFAULT NULL AFTER isni_id") === false) {
+                throw new \RuntimeException('[ViafAuthority] ensureSchemaColumns: ' . $this->db->error);
+            }
         }
         if (!isset($columns['authority_source'])) {
-            $this->db->query(
+            if ($this->db->query(
                 "ALTER TABLE autori ADD COLUMN authority_source ENUM('manual','viaf','isni','sbn','wikidata') DEFAULT NULL AFTER isni_uri"
-            );
+            ) === false) {
+                throw new \RuntimeException('[ViafAuthority] ensureSchemaColumns: ' . $this->db->error);
+            }
         }
         if (!isset($columns['authority_confidence'])) {
-            $this->db->query(
+            if ($this->db->query(
                 "ALTER TABLE autori ADD COLUMN authority_confidence ENUM('exact','probable','candidate','rejected') DEFAULT NULL AFTER authority_source"
-            );
+            ) === false) {
+                throw new \RuntimeException('[ViafAuthority] ensureSchemaColumns: ' . $this->db->error);
+            }
         }
     }
 
@@ -127,7 +143,7 @@ class ViafAuthorityPlugin
 
     private function ensureAlternatesTable(): void
     {
-        $this->db->query(
+        if ($this->db->query(
             "CREATE TABLE IF NOT EXISTS author_authority_alternates (
                 id           INT AUTO_INCREMENT PRIMARY KEY,
                 autore_id    INT NOT NULL,
@@ -143,7 +159,9 @@ class ViafAuthorityPlugin
                 CONSTRAINT fk_author_authority_alternates_autore
                     FOREIGN KEY (autore_id) REFERENCES autori(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-        );
+        ) === false) {
+            throw new \RuntimeException('[ViafAuthority] ensureAlternatesTable: ' . $this->db->error);
+        }
 
         $columns = $this->getExistingColumns('author_authority_alternates');
         $addColumn = function (string $name, string $ddl) use ($columns): void {
@@ -280,6 +298,13 @@ class ViafAuthorityPlugin
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->reconcileAction($request, $response);
+        });
+
+        $app->get('/admin/api/reconcile/preview', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->reconcilePreviewAction($request, $response);
         });
     }
 
@@ -611,6 +636,49 @@ class ViafAuthorityPlugin
         ];
 
         return $this->reconcileJson($response, $manifest, $callback);
+    }
+
+    public function reconcilePreviewAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $id = (int) ($request->getQueryParams()['id'] ?? 0);
+        if ($id <= 0) {
+            $response->getBody()->write('<p>Invalid ID</p>');
+            return $response->withHeader('Content-Type', 'text/html; charset=utf-8')->withStatus(400);
+        }
+        $stmt = $this->db->prepare(
+            'SELECT nome, viaf_id, viaf_uri, isni_id FROM autori WHERE id = ?'
+        );
+        if ($stmt === false) {
+            $response->getBody()->write('<p>Database error</p>');
+            return $response->withHeader('Content-Type', 'text/html; charset=utf-8')->withStatus(500);
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if ($row === null) {
+            $response->getBody()->write('<p>Author not found</p>');
+            return $response->withHeader('Content-Type', 'text/html; charset=utf-8')->withStatus(404);
+        }
+        $name    = htmlspecialchars((string) $row['nome'], ENT_QUOTES, 'UTF-8');
+        $viafId  = htmlspecialchars((string) ($row['viaf_id'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $viafUri = htmlspecialchars((string) ($row['viaf_uri'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $isniId  = htmlspecialchars((string) ($row['isni_id'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $html  = "<!DOCTYPE html><html><head><meta charset='utf-8'>";
+        $html .= "<style>body{font-family:sans-serif;padding:8px;font-size:13px;}h2{margin:0 0 6px;}p{margin:3px 0;color:#555;}a{color:#1a73e8;}</style></head><body>";
+        $html .= "<h2>{$name}</h2>";
+        if ($viafId !== '') {
+            $html .= "<p>VIAF: <a href='{$viafUri}' target='_blank' rel='noopener noreferrer'>{$viafId}</a></p>";
+        }
+        if ($isniId !== '') {
+            $html .= "<p>ISNI: {$isniId}</p>";
+        }
+        $html .= "</body></html>";
+        $response->getBody()->write($html);
+        return $response->withHeader('Content-Type', 'text/html; charset=utf-8');
     }
 
     /**

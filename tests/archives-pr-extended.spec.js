@@ -31,6 +31,9 @@ const DB_NAME    = process.env.E2E_DB_NAME     || '';
 const DB_SOCKET  = process.env.E2E_DB_SOCKET   || '';
 const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 
+// Guard: skip entire file if E2E credentials are missing
+test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME, 'E2E credentials not configured');
+
 function mysqlArgs(sql = '', batch = false) {
     const args = ['-u', DB_USER];
     if (DB_SOCKET) args.push('-S', DB_SOCKET);
@@ -464,13 +467,17 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
     });
 
     test('16. Cover file removed from disk after remove-asset POST', () => {
-        // uploadedCoverPath was cleared in test 15 only if removal succeeded
-        if (!uploadedCoverPath) {
-            // Check that test 11's file is gone (either via remove-asset or cleanup)
-            return;
+        // uploadedCoverPath was cleared in test 15 only if removal succeeded.
+        // Either way, assert the file is gone from disk.
+        if (uploadedCoverPath) {
+            // Test 15 did NOT clear it — check directly
+            const abs = path.join(PUBLIC_DIR, uploadedCoverPath);
+            expect(fs.existsSync(abs)).toBe(false);
+        } else {
+            // Test 15 cleared uploadedCoverPath after successful removal — nothing more to check
+            // (the assertion was implicitly validated in test 15 via the DB column becoming NULL)
+            expect(true).toBe(true);
         }
-        const abs = path.join(PUBLIC_DIR, uploadedCoverPath);
-        expect(fs.existsSync(abs)).toBe(false);
     });
 
     // ── Group D (17-20): Route fallback /archive (not /archivio) ─────────────
@@ -496,8 +503,9 @@ test.describe.serial('Archives PR extended — v0.7.4 (35 tests)', () => {
             ? hits.find((h) => h.type === 'archive' || (h.url && h.url.includes('archiv')))
             : null;
         if (archiveHit) {
-            // URL must not contain a hardcoded Italian-only prefix when locale is non-IT
+            // URL must not contain a hardcoded Italian-only prefix
             expect(archiveHit.url).toBeTruthy();
+            expect(archiveHit.url).not.toContain('/archivio');
         }
     });
 

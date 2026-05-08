@@ -76,14 +76,16 @@ jobs:
       - name: Route key integrity (route_path() keys exist in routes_it_IT.json)
         run: |
           ROUTE_KEYS=$(python3 -c "import json; d=json.load(open('locale/routes_it_IT.json')); [print(k) for k in d.keys()]")
+          FALLBACK_KEYS=$(php -r "require 'vendor/autoload.php'; echo implode(PHP_EOL, App\\Support\\RouteTranslator::getStaticFallbackKeys());")
+          ALL_KEYS=$(printf '%s\n%s' "$ROUTE_KEYS" "$FALLBACK_KEYS" | sort -u)
           FAILED=0
           while IFS= read -r key; do
-            if ! echo "$ROUTE_KEYS" | grep -qx "$key"; then
-              echo "  ✗ route_path('$key') usato in views ma mancante in routes_it_IT.json"
+            if ! echo "$ALL_KEYS" | grep -qx "$key"; then
+              echo "  ✗ route_path('$key') usato in views ma mancante in routes_it_IT.json o fallbackRoutes"
               FAILED=1
             fi
           done < <(grep -rohE "route_path\('([^']+)'\)" app/Views/ | grep -oE "'[^']+'" | tr -d "'" | sort -u)
-          [ "$FAILED" -eq 0 ] && echo "✓ Tutte le chiavi route_path() esistono in routes_it_IT.json" || exit 1
+          [ "$FAILED" -eq 0 ] && echo "✓ Tutte le chiavi route_path() esistono in routes_it_IT.json o fallbackRoutes" || exit 1
 
       # ── Tailwind JIT safety ───────────────────────────────────────────────
       - name: Tailwind JIT — no dynamic class construction
