@@ -191,6 +191,7 @@ class SruClient
             $ch = curl_init();
             curl_setopt_array($ch, [
                 CURLOPT_URL => $url,
+                CURLOPT_PROTOCOLS => CURLPROTO_HTTP | CURLPROTO_HTTPS,
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_TIMEOUT => $this->timeout,
                 CURLOPT_CONNECTTIMEOUT => 5,

@@ -240,7 +240,7 @@ class ViafAuthorityPlugin
             return $plugin->viafSuggestAction($request, $response);
         });
 
-        $app->get('/api/viaf/author/{id}', function (
+        $app->get('/api/viaf/author/{id:[0-9]+}', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
             array $args
@@ -248,7 +248,7 @@ class ViafAuthorityPlugin
             return $plugin->getAuthorViafAction($request, $response, $args);
         });
 
-        $app->post('/api/viaf/author/{id}/set', function (
+        $app->post('/api/viaf/author/{id:[0-9]+}/set', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
             array $args
@@ -257,7 +257,7 @@ class ViafAuthorityPlugin
         });
 
         // POST /api/viaf/author/{id}/isni/set — store ISNI only
-        $app->post('/api/viaf/author/{id}/isni/set', function (
+        $app->post('/api/viaf/author/{id:[0-9]+}/isni/set', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
             array $args
@@ -654,11 +654,12 @@ class ViafAuthorityPlugin
      */
     private function reconcileSearch(string $query, int $limit): array
     {
-        $like  = '%' . $this->db->real_escape_string($query) . '%';
+        $escaped = strtr($query, ['\\' => '\\\\', '%' => '\\%', '_' => '\\_']);
+        $like    = '%' . $escaped . '%';
         $stmt  = $this->db->prepare(
             "SELECT id, nome, viaf_id, viaf_uri, isni_id
                FROM autori
-              WHERE nome LIKE ?
+              WHERE nome LIKE ? ESCAPE '\\\\'
            ORDER BY nome
               LIMIT ?"
         );

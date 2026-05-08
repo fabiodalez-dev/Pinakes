@@ -116,7 +116,7 @@ class BibframeLinkedDataPlugin
     {
         $plugin = $this;
 
-        $app->get('/api/bibframe/book/{id}', function (
+        $app->get('/api/bibframe/book/{id:[0-9]+}', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
             array $args
@@ -124,7 +124,7 @@ class BibframeLinkedDataPlugin
             return $plugin->bookGraphAction($request, $response, $args);
         });
 
-        $app->get('/api/bibframe/book/{id}/work', function (
+        $app->get('/api/bibframe/book/{id:[0-9]+}/work', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
             array $args
@@ -132,7 +132,7 @@ class BibframeLinkedDataPlugin
             return $plugin->bookWorkAction($request, $response, $args);
         });
 
-        $app->get('/api/bibframe/book/{id}/instance', function (
+        $app->get('/api/bibframe/book/{id:[0-9]+}/instance', function (
             ServerRequestInterface $request,
             ResponseInterface $response,
             array $args
@@ -511,8 +511,13 @@ class BibframeLinkedDataPlugin
                 $lines[] = '    a ' . $type . ' ;';
             }
             foreach ($node as $prop => $val) {
-                if (in_array($prop, ['@id', '@type'], true) || !is_array($val)) { continue; }
-                $turtleVal = $this->turtleValues($val, $ctx);
+                if (in_array($prop, ['@id', '@type'], true)) { continue; }
+                if (!is_array($val)) {
+                    // scalar value — emit as a literal
+                    $turtleVal = '"' . addslashes((string) $val) . '"';
+                } else {
+                    $turtleVal = $this->turtleValues($val, $ctx);
+                }
                 if ($turtleVal !== '') {
                     $lines[] = '    ' . $prop . ' ' . $turtleVal . ' ;';
                 }

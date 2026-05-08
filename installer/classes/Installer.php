@@ -1443,7 +1443,8 @@ HTACCESS;
                     $ensureHooks($pluginId, $hooks, $callbackClass);
                 }
 
-                $results[] = ['name' => $pluginName, 'status' => 'installed_and_activated', 'plugin_id' => $pluginId];
+                $status = $activate ? 'installed_and_activated' : 'installed_inactive';
+                $results[] = ['name' => $pluginName, 'status' => $status, 'plugin_id' => $pluginId];
 
             } catch (Exception $e) {
                 $results[] = ['name' => $pluginName, 'status' => 'error', 'message' => $e->getMessage()];

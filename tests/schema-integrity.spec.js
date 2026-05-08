@@ -8,10 +8,10 @@
  *
  * IMPORTANT — two-tier table model:
  *   CORE_TABLES (56): always created by the base installer via schema.sql.
- *   ARCHIVES_TABLES (5): created only when the Archives plugin is activated
+ *   Archives tables (5): created only when the Archives plugin is activated
  *     (archival_units, authority_records, archival_unit_authority,
  *      autori_authority_link, archival_unit_files). Tests 10–12 skip
- *     automatically when those tables are absent.
+ *     automatically when those tables are absent (checked via tableExists()).
  *
  * Covers:
  *  1. Installer creates exactly N core tables (auto-crosscheck vs schema.sql)
@@ -87,7 +87,7 @@ function parseCoreTablesFromSchema() {
     const sqlPath = path.resolve(__dirname, '..', 'installer', 'database', 'schema.sql');
     try {
         const sql = fs.readFileSync(sqlPath, 'utf-8');
-        return [...sql.matchAll(/^CREATE TABLE `(\w+)`/gm)].map(m => m[1]).sort();
+        return [...sql.matchAll(/^CREATE TABLE(?:\s+IF\s+NOT\s+EXISTS)?\s+`(\w+)`/gim)].map(m => m[1]).sort();
     } catch {
         return null;
     }
@@ -115,15 +115,6 @@ const CORE_TABLES = [
     'prenotazioni', 'prestiti', 'recensioni', 'scaffali', 'sedi', 'staff',
     'system_settings', 'tag', 'themes', 'update_logs', 'user_sessions',
     'utenti', 'volumi', 'wishlist', 'z39_access_logs', 'z39_rate_limits',
-];
-
-/**
- * 5 tables created only when the Archives plugin is activated.
- * Tests 10–12 skip if these tables are absent.
- */
-const ARCHIVES_TABLES = [
-    'archival_units', 'authority_records', 'archival_unit_authority',
-    'autori_authority_link', 'archival_unit_files',
 ];
 
 /** All 16 bundled plugins that must be registered in `plugins` table */

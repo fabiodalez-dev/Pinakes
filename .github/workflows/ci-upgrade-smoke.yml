@@ -115,7 +115,7 @@ jobs:
             OUTPUT=$(mysql --force -h 127.0.0.1 -u root -proot pinakes_upgrade < "$sql" 2>&1) || true
             while IFS= read -r line; do
               if echo "$line" | grep -qiE '^ERROR'; then
-                if echo "$line" | grep -qiE 'duplicate (column name|key|index)|table .* already exists|check constraint .* already exists|can.t drop|unknown column|column .* does not exist'; then
+                if echo "$line" | grep -qiE 'duplicate (column name|key|index)|table .* already exists|check constraint .* already exists|can.t drop'; then
                   echo "  ↳ idempotent: $line"
                 else
                   echo "  ✗ $line"
@@ -143,7 +143,7 @@ jobs:
             OUTPUT=$(mysql --force -h 127.0.0.1 -u root -proot pinakes_upgrade < "$sql" 2>&1) || true
             while IFS= read -r line; do
               if echo "$line" | grep -qiE '^ERROR'; then
-                if echo "$line" | grep -qiE 'duplicate (column name|key|index)|table .* already exists|check constraint .* already exists|can.t drop|unknown column|column .* does not exist'; then
+                if echo "$line" | grep -qiE 'duplicate (column name|key|index)|table .* already exists|check constraint .* already exists|can.t drop'; then
                   echo "  ↳ idempotent: $line"
                 else
                   echo "  ✗ $line"

@@ -532,13 +532,12 @@ class NcipServerPlugin
         }
 
         $ns     = self::NCIP_NS;
-        $itemId = (int) ($xml->children($ns)->CheckOutItem->ItemId->ItemIdentifierValue ?? 0);
-        $userId = (int) ($xml->children($ns)->CheckOutItem->UserId->UserIdentifierValue ?? 0);
-
-        if ($itemId <= 0 || $userId <= 0) {
+        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->CheckOutItem->ItemId->ItemIdentifierValue ?? ''));
+        $userId = $this->parseNcipNumericId((string) ($xml->children($ns)->CheckOutItem->UserId->UserIdentifierValue ?? ''));
+        if ($itemId === null || $userId === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId or UserId', 'invalid-data')
+                $this->buildProblem('Invalid ItemId or UserId', 'invalid-data')
             );
         }
 
@@ -595,11 +594,11 @@ class NcipServerPlugin
         }
 
         $ns     = self::NCIP_NS;
-        $itemId = (int) ($xml->children($ns)->CheckInItem->ItemId->ItemIdentifierValue ?? 0);
-        if ($itemId <= 0) {
+        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->CheckInItem->ItemId->ItemIdentifierValue ?? ''));
+        if ($itemId === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId', 'invalid-data')
+                $this->buildProblem('Invalid ItemId', 'invalid-data')
             );
         }
 
@@ -632,11 +631,11 @@ class NcipServerPlugin
         }
 
         $ns     = self::NCIP_NS;
-        $itemId = (int) ($xml->children($ns)->RenewItem->ItemId->ItemIdentifierValue ?? 0);
-        if ($itemId <= 0) {
+        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->RenewItem->ItemId->ItemIdentifierValue ?? ''));
+        if ($itemId === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId', 'invalid-data')
+                $this->buildProblem('Invalid ItemId', 'invalid-data')
             );
         }
 
@@ -674,13 +673,12 @@ class NcipServerPlugin
         }
 
         $ns     = self::NCIP_NS;
-        $itemId = (int) ($xml->children($ns)->RequestItem->ItemId->ItemIdentifierValue ?? 0);
-        $userId = (int) ($xml->children($ns)->RequestItem->UserId->UserIdentifierValue ?? 0);
-
-        if ($itemId <= 0 || $userId <= 0) {
+        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->RequestItem->ItemId->ItemIdentifierValue ?? ''));
+        $userId = $this->parseNcipNumericId((string) ($xml->children($ns)->RequestItem->UserId->UserIdentifierValue ?? ''));
+        if ($itemId === null || $userId === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId or UserId', 'invalid-data')
+                $this->buildProblem('Invalid ItemId or UserId', 'invalid-data')
             );
         }
 
@@ -725,17 +723,17 @@ class NcipServerPlugin
         }
 
         $ns     = self::NCIP_NS;
-        $itemId = (int) ($xml->children($ns)->CancelRequestItem->ItemId->ItemIdentifierValue ?? 0);
-        $userId = (int) ($xml->children($ns)->CancelRequestItem->UserId->UserIdentifierValue ?? 0);
+        $itemId = $this->parseNcipNumericId((string) ($xml->children($ns)->CancelRequestItem->ItemId->ItemIdentifierValue ?? ''));
+        $userId = $this->parseNcipNumericId((string) ($xml->children($ns)->CancelRequestItem->UserId->UserIdentifierValue ?? ''));
 
-        if ($itemId <= 0) {
+        if ($itemId === null) {
             return $this->xmlResponse(
                 $response,
-                $this->buildProblem('Missing ItemId', 'invalid-data')
+                $this->buildProblem('Invalid ItemId', 'invalid-data')
             );
         }
 
-        $loan = $this->findNcipLoan($itemId, $userId > 0 ? $userId : null);
+        $loan = $this->findNcipLoan($itemId, $userId);
         if ($loan === null) {
             return $this->xmlResponse(
                 $response,
@@ -746,7 +744,7 @@ class NcipServerPlugin
         $this->cancelLoan((int) $loan['id']);
         $this->logTransaction('CancelRequestItem', (int) $loan['id'], null);
 
-        return $this->xmlResponse($response, $this->buildCancelRequestItemResponse($itemId, $userId > 0 ? $userId : null));
+        return $this->xmlResponse($response, $this->buildCancelRequestItemResponse($itemId, $userId));
     }
 
     // ─── XML builders ─────────────────────────────────────────────────────────
@@ -1138,7 +1136,7 @@ class NcipServerPlugin
             $today = date('Y-m-d');
             $ins   = $this->db->prepare(
                 "INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, origine, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, 'in_corso', 'diretto', NOW(), NOW())"
+                 VALUES (?, ?, ?, ?, 'in_corso', 'ncip', NOW(), NOW())"
             );
             if ($ins === false) { $this->db->rollback(); return null; }
             $ins->bind_param('iiss', $bookId, $userId, $today, $dueDate);
@@ -1151,7 +1149,11 @@ class NcipServerPlugin
             );
             if ($upd === false) { $this->db->rollback(); return null; }
             $upd->bind_param('i', $bookId);
-            $upd->execute();
+            if (!$upd->execute() || $upd->affected_rows !== 1) {
+                $upd->close();
+                $this->db->rollback();
+                return null;
+            }
             $upd->close();
 
             $this->db->commit();
@@ -1229,25 +1231,28 @@ class NcipServerPlugin
 
     private function closeLoan(int $loanId, int $bookId): void
     {
+        $this->db->begin_transaction();
         $stmt = $this->db->prepare(
             "UPDATE prestiti SET stato = 'restituito', data_restituzione = CURDATE(), updated_at = NOW()
-              WHERE id = ?"
+              WHERE id = ? AND stato <> 'restituito'"
         );
-        if ($stmt !== false) {
-            $stmt->bind_param('i', $loanId);
-            $stmt->execute();
+        if ($stmt === false) { $this->db->rollback(); return; }
+        $stmt->bind_param('i', $loanId);
+        if (!$stmt->execute() || $stmt->affected_rows !== 1) {
             $stmt->close();
+            $this->db->rollback();
+            return;
         }
+        $stmt->close();
 
-        // Restore available copies
         $upd = $this->db->prepare(
             'UPDATE libri SET copie_disponibili = LEAST(copie_totali, copie_disponibili + 1) WHERE id = ?'
         );
-        if ($upd !== false) {
-            $upd->bind_param('i', $bookId);
-            $upd->execute();
-            $upd->close();
-        }
+        if ($upd === false) { $this->db->rollback(); return; }
+        $upd->bind_param('i', $bookId);
+        $upd->execute();
+        $upd->close();
+        $this->db->commit();
     }
 
     private function extendLoan(int $loanId, string $newDueDate): void
@@ -1306,6 +1311,12 @@ class NcipServerPlugin
         }
 
         return $user;
+    }
+
+    private function parseNcipNumericId(string $value): ?int
+    {
+        $trimmed = trim($value);
+        return ctype_digit($trimmed) ? (int) $trimmed : null;
     }
 
     /**

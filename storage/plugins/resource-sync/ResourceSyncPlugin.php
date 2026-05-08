@@ -177,7 +177,8 @@ class ResourceSyncPlugin
         $base   = $this->baseUrl();
         $params = $request->getQueryParams();
         $since  = isset($params['from']) ? (string) $params['from'] : null;
-        $books  = $this->fetchChangedBooks($since);
+        $page   = max(0, (int) ($params['page'] ?? 0));
+        $books  = $this->fetchChangedBooks($since, $page);
         $xml    = $this->buildChangeList($base, $books, $since);
         return $this->xmlResponse($response, $xml);
     }
@@ -416,7 +417,7 @@ class ResourceSyncPlugin
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function fetchChangedBooks(?string $since): array
+    private function fetchChangedBooks(?string $since, int $page = 0): array
     {
         if ($since !== null && !preg_match('/^\d{4}-\d{2}-\d{2}(T[\d:]+Z?)?$/', $since)) {
             $since = null;
@@ -429,12 +430,15 @@ class ResourceSyncPlugin
                         (created_at >= ?) AS is_new_entry
                  FROM libri
                  WHERE updated_at >= ? OR deleted_at >= ?
-                 ORDER BY COALESCE(deleted_at, updated_at) ASC'
+                 ORDER BY COALESCE(deleted_at, updated_at) ASC
+                 LIMIT ? OFFSET ?'
             );
             if ($stmt === false) {
                 return [];
             }
-            $stmt->bind_param('sss', $since, $since, $since);
+            $limit  = 500;
+            $offset = max(0, $page) * 500;
+            $stmt->bind_param('sssii', $since, $since, $since, $limit, $offset);
         } else {
             $stmt = $this->db->prepare(
                 'SELECT id, updated_at, created_at, deleted_at, 0 AS is_new_entry

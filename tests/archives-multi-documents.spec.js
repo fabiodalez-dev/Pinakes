@@ -509,8 +509,8 @@ test.describe.serial('Archives multi-document — upload, delete, interoperabili
                 maxRedirects: 0,
             }
         );
-        // Server always redirects (303) — it silently ignores the mismatch
-        expect(res.status()).toBeLessThanOrEqual(303);
+        // Server always redirects (302 or 303) — it silently ignores the mismatch
+        expect([302, 303]).toContain(res.status());
 
         // The fonds file must still exist — ownership check prevented deletion
         const cntAfter = parseInt(dbQuery(

@@ -238,6 +238,7 @@ test.describe.serial('MAG 2.0.1 metadata validation — v0.7.4 (18 tests)', () =
         expect(body).toContain('<dc:title>');
         // Extract <dc:title> value and compare with DB title (XML may HTML-encode chars).
         const match = body.match(/<dc:title>([^<]*)<\/dc:title>/);
+        expect(match).not.toBeNull();
         if (match) {
             const xmlTitle = match[1]
                 .replace(/&lt;/g, '<').replace(/&gt;/g, '>')

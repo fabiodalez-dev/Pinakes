@@ -53,6 +53,7 @@ function oaiFormatBytes(int $bytes): string
                 <tr class="border-b border-teal-100 dark:border-teal-800/50" data-asset-id="<?= (int) $asset['id'] ?>">
                     <td class="py-2 pr-4 max-w-xs">
                         <a href="<?= HtmlHelper::e((string) $asset['url']) ?>" target="_blank"
+                           rel="noopener noreferrer"
                            class="text-teal-700 dark:text-teal-300 hover:underline truncate block max-w-xs">
                             <?= HtmlHelper::e(basename((string) $asset['url'])) ?>
                         </a>

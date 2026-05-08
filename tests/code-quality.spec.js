@@ -127,7 +127,9 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
                 }
                 // Extract onActivate() body and verify ensureSchema is called
                 const activateBody = content.match(/function onActivate\(\)[^{]*\{([\s\S]*?)(?=\n\s+(?:public|private|protected)\s+function |\n}$)/m);
-                if (activateBody && !activateBody[1].includes('ensureSchema')) {
+                if (!activateBody) {
+                    violations.push(`${dir}/${f}: missing onActivate() method`);
+                } else if (!activateBody[1].includes('ensureSchema')) {
                     violations.push(`${dir}/${f}: ensureSchema() not called from onActivate()`);
                 }
             }
@@ -148,7 +150,9 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
                 const content = fs.readFileSync(path.join(plugDir, f), 'utf-8');
                 if (!content.includes('CREATE TABLE') || !content.includes('ensureSchema()')) continue;
                 const installBody = content.match(/function onInstall\(\)[^{]*\{([\s\S]*?)(?=\n\s+(?:public|private|protected)\s+function |\n}$)/m);
-                if (installBody && !installBody[1].includes('ensureSchema')) {
+                if (!installBody) {
+                    violations.push(`${dir}/${f}: missing onInstall() method`);
+                } else if (!installBody[1].includes('ensureSchema')) {
                     violations.push(`${dir}/${f}: ensureSchema() not called from onInstall()`);
                 }
             }

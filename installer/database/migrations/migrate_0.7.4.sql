@@ -279,11 +279,12 @@ PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
 
 -- Add FK prestito_id → prestiti(id) ON DELETE SET NULL if not yet present.
 SET @fk_exists = (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-    WHERE TABLE_SCHEMA    = DATABASE()
-      AND TABLE_NAME      = 'ncip_transactions'
-      AND CONSTRAINT_NAME = 'ncip_transactions_ibfk_2'
-      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA           = DATABASE()
+      AND TABLE_NAME             = 'ncip_transactions'
+      AND COLUMN_NAME            = 'prestito_id'
+      AND REFERENCED_TABLE_NAME  = 'prestiti'
+      AND REFERENCED_COLUMN_NAME = 'id'
 );
 SET @sql = IF(
     @fk_exists = 0,
@@ -496,8 +497,15 @@ CREATE TABLE IF NOT EXISTS archival_unit_files (
     KEY idx_unit_id (unit_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+SET @fk_uf_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+    WHERE TABLE_SCHEMA    = DATABASE()
+      AND TABLE_NAME      = 'archival_unit_files'
+      AND CONSTRAINT_NAME = 'fk_archival_unit_files_unit'
+      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+);
 SET @sql = IF(
-    @au_exists > 0,
+    @au_exists > 0 AND @fk_uf_exists = 0,
     'ALTER TABLE archival_unit_files ADD CONSTRAINT fk_archival_unit_files_unit FOREIGN KEY (unit_id) REFERENCES archival_units(id) ON DELETE CASCADE',
     'SELECT 1'
 );

@@ -62,7 +62,7 @@ Pinakes v0.7.x introduced a full library-interoperability layer, delivered as op
 
 **NCIP 2.02 server**
 - Implements the NISO Circulation Interchange Protocol: `LookupUser`, `LookupItem`, `CheckOutItem`, `CheckInItem`, `RenewItem`, `RequestItem`, `CancelRequestItem`.
-- Partner library management UI at `/admin/ncip` — register external systems with shared secret, set borrowing quotas.
+- Partner library management UI at `/admin/plugins/ncip-server/partners` and `/admin/plugins/ncip-server/transactions` — register external systems with shared secret, set borrowing quotas.
 - Maps Pinakes loan/reservation/user records onto NCIP data elements; returns structured NCIP XML responses.
 
 **BIBFRAME 2.0 linked-data export**

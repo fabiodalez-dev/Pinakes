@@ -156,9 +156,15 @@ jobs:
             --config=tests/playwright.config.js \
             --workers=1
 
-      - name: "[4/4] mag-validation.spec.js — OAI-PMH MAG 2.0.1 metadata"
+      - name: "[4/5] mag-validation.spec.js — OAI-PMH MAG 2.0.1 metadata"
         run: |
           npx playwright test tests/mag-validation.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      - name: "[5/5] archives-search.spec.js — ricerca archivi admin + pubblica"
+        run: |
+          npx playwright test tests/archives-search.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
 

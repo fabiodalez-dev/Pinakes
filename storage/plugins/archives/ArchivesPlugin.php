@@ -298,18 +298,27 @@ class ArchivesPlugin
                 AND CONSTRAINT_TYPE = 'FOREIGN KEY'"
         );
         if (!($cnt instanceof \mysqli_result)) {
-            return;
+            throw new \RuntimeException(
+                '[Archives] Unable to inspect fk_archival_unit_files_unit: ' . $this->db->error
+            );
         }
         $row = $cnt->fetch_assoc();
         $cnt->free();
-        if ($row === null || (int) ($row['n'] ?? 1) > 0) {
+        if ($row === null) {
+            throw new \RuntimeException('[Archives] Unable to read FK inspection result');
+        }
+        if ((int) ($row['n'] ?? 1) > 0) {
             return;
         }
-        $this->db->query(
+        if ($this->db->query(
             'ALTER TABLE archival_unit_files
                ADD CONSTRAINT fk_archival_unit_files_unit
                FOREIGN KEY (unit_id) REFERENCES archival_units(id) ON DELETE CASCADE'
-        );
+        ) === false) {
+            throw new \RuntimeException(
+                '[Archives] Unable to add fk_archival_unit_files_unit: ' . $this->db->error
+            );
+        }
     }
 
     /**
@@ -1690,22 +1699,22 @@ class ArchivesPlugin
         }
 
         $filePath = (string) $file['file_path'];
-        if (str_starts_with($filePath, '/uploads/archives/documents/')) {
-            $fsPath  = __DIR__ . '/../../../public' . $filePath;
-            $baseDir = realpath(__DIR__ . '/../../../public/uploads/archives/documents');
-            if ($baseDir !== false) {
-                $real = realpath($fsPath);
-                if ($real !== false && str_starts_with($real, $baseDir . DIRECTORY_SEPARATOR)) {
-                    @unlink($real);
-                }
-            }
-        }
 
         $del = $this->db->prepare('DELETE FROM archival_unit_files WHERE id = ? AND unit_id = ?');
         if ($del !== false) {
             $del->bind_param('ii', $fileId, $unitId);
-            $del->execute();
+            $deleted = $del->execute() && $del->affected_rows === 1;
             $del->close();
+            if ($deleted && str_starts_with($filePath, '/uploads/archives/documents/')) {
+                $fsPath  = __DIR__ . '/../../../public' . $filePath;
+                $baseDir = realpath(__DIR__ . '/../../../public/uploads/archives/documents');
+                if ($baseDir !== false) {
+                    $real = realpath($fsPath);
+                    if ($real !== false && str_starts_with($real, $baseDir . DIRECTORY_SEPARATOR)) {
+                        @unlink($real);
+                    }
+                }
+            }
         }
 
         return $response->withHeader('Location', '/admin/archives/' . $unitId)->withStatus(303);
