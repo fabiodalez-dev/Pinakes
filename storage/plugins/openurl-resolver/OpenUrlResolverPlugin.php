@@ -272,7 +272,9 @@ class OpenUrlResolverPlugin
             }
         }
 
-        $isbn = trim((string) ($book['isbn13'] ?? $book['isbn10'] ?? ''));
+        $isbn13 = trim((string) ($book['isbn13'] ?? ''));
+        $isbn10 = trim((string) ($book['isbn10'] ?? ''));
+        $isbn   = $isbn13 !== '' ? $isbn13 : $isbn10;
         if ($isbn !== '') {
             $parts['rft.isbn'] = preg_replace('/[^0-9X]/', '', strtoupper($isbn)) ?? '';
         }
@@ -334,7 +336,16 @@ class OpenUrlResolverPlugin
 
         // Build search query from title + author
         $parts = [];
-        foreach (['rft.btitle', 'title', 'rft.au', 'au', 'au_last', 'au_first'] as $k) {
+        foreach ([
+            'rft.btitle',
+            'title',
+            'rft.au',
+            'au',
+            'rft.aulast',
+            'rft.aufirst',
+            'au_last',
+            'au_first',
+        ] as $k) {
             $v = trim((string) ($params[$k] ?? ''));
             if ($v !== '') {
                 $parts[] = $v;

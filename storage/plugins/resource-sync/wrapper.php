@@ -38,11 +38,13 @@ if (!class_exists('ResourceSyncPlugin', false)) {
 
         public function onInstall(): void
         {
+            $this->instance->onInstall();
             \App\Support\SecureLogger::debug('[ResourceSync] Plugin installed');
         }
 
         public function onUninstall(): void
         {
+            $this->instance->onUninstall();
             \App\Support\SecureLogger::debug('[ResourceSync] Plugin uninstalled');
         }
 

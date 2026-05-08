@@ -808,22 +808,24 @@ class SRUServer
         $root->appendChild($numRecords);
 
         // FIX 3: nextRecordPosition when more records exist beyond this page
-        $nextPos = $startRecord + $maximumRecords;
-        if ($nextPos <= $totalRecords) {
+        $nextPos = $startRecord + $returnedRecords;
+        if ($returnedRecords > 0 && $nextPos <= $totalRecords) {
             $root->appendChild($xml->createElementNS($ns, 'nextRecordPosition', (string) $nextPos));
         }
 
         // Add records
-        $formatter = RecordFormatter::create($recordSchema, $xml);
+        $schemaKey = strtolower($recordSchema);
+        $formatter = RecordFormatter::create($schemaKey, $xml);
 
         // FIX 5: use mods-v3.6 consistently
         $schemaUriMap = [
             'marcxml'    => 'info:srw/schema/1/marcxml-v1.1',
             'dc'         => 'info:srw/schema/1/dc-v1.1',
             'mods'       => 'info:srw/schema/1/mods-v3.6',
+            'oai_dc'     => 'http://www.openarchives.org/OAI/2.0/oai_dc/',
             'unimarcxml' => 'info:srw/schema/8/unimarcxml-v0.1',
         ];
-        $schemaUri = $schemaUriMap[$recordSchema] ?? $recordSchema;
+        $schemaUri = $schemaUriMap[$schemaKey] ?? $recordSchema;
 
         $recordsEl = $xml->createElementNS($ns, 'records');
         $root->appendChild($recordsEl);

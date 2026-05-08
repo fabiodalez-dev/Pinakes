@@ -78,23 +78,25 @@ jobs:
               FAILED=1
             fi
           done
-          # 2. Placeholder parity: %s / %d must match count between en_US and de_DE
+          # 2. Placeholder parity: %s / %d must match count between en_US, de_DE and it_IT
           python3 - <<'PYEOF'
-import json, re, sys
-en = json.load(open('locale/en_US.json'))
-de = json.load(open('locale/de_DE.json'))
-ph = re.compile(r'%(?:\d+\$)?[sd]')
-failed = 0
-for k in en:
-    if k not in de:
-        continue
-    ep = sorted(ph.findall(str(en[k])))
-    dp = sorted(ph.findall(str(de[k])))
-    if ep != dp:
-        print(f'✗ Placeholder mismatch for key "{k[:80]}": en={ep} de={dp}')
-        failed = 1
-sys.exit(failed)
-PYEOF
+          import json, re, sys
+          en = json.load(open('locale/en_US.json'))
+          de = json.load(open('locale/de_DE.json'))
+          it = json.load(open('locale/it_IT.json'))
+          ph = re.compile(r'%(?:\d+\$)?[sd]')
+          failed = 0
+          for locale_name, data in [('de_DE', de), ('it_IT', it)]:
+              for k in en:
+                  if k not in data:
+                      continue
+                  ep = sorted(ph.findall(str(en[k])))
+                  lp = sorted(ph.findall(str(data[k])))
+                  if ep != lp:
+                      print(f'✗ Placeholder mismatch for key "{k[:80]}": en={ep} {locale_name}={lp}')
+                      failed = 1
+          sys.exit(failed)
+          PYEOF
           [ "$FAILED" -eq 0 ] && echo "✓ Parità chiavi e placeholder confermata" || exit 1
 
       # ── Route key integrity ───────────────────────────────────────────────

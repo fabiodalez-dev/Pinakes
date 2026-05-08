@@ -312,7 +312,7 @@ test.describe.serial('Interop specific — 15 persistent tests (v0.7.4)', () => 
     // ── Test 14: Z39.50 SRU UNIMARC schema URI ────────────────────────────────
 
     test('14. Z39.50 SRU explain: unimarcxml schema URI is SRU UNIMARC/XML', async ({ request }) => {
-        const res = await request.get(`${BASE}/sru?operation=explain&version=1.2`);
+        const res = await request.get(`${BASE}/api/sru?operation=explain&version=1.2`);
         if (res.status() === 404 || res.status() === 403) {
             test.skip(true, 'Z39.50 SRU endpoint not active');
             return;

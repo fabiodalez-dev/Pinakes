@@ -156,7 +156,12 @@ class Z39ServerPlugin
      */
     public function onInstall(): void
     {
-        $this->ensureSchema();
+        $result = $this->ensureSchema();
+        if (!empty($result['failed'])) {
+            throw new \RuntimeException(
+                '[Z39Server] Schema install failed for: ' . implode(', ', $result['failed'])
+            );
+        }
 
         // Set default settings
         foreach (self::DEFAULT_SETTINGS as $key => $value) {
@@ -167,7 +172,7 @@ class Z39ServerPlugin
         $this->setSetting('servers', json_encode(self::NORDIC_SERVERS, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
 
         $this->log('info', 'Z39.50/SRU Server Plugin installed successfully', [
-            'tables_created' => ['z39_access_logs', 'z39_rate_limits'],
+            'tables_created' => $result['created'],
             'default_settings' => count(self::DEFAULT_SETTINGS),
             'nordic_servers' => count(self::NORDIC_SERVERS),
         ]);

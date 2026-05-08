@@ -42,13 +42,13 @@ const ADMIN_PASS   = process.env.E2E_ADMIN_PASS  || '';
 
 const NCIP_NS = 'http://www.niso.org/2008/ncip';
 
-function mysqlArgs(sql, batch = false) {
+function mysqlArgs(sql = '', batch = false) {
     const args = [];
-    if (DB_SOCKET) {
-        args.push('-S', DB_SOCKET);
-    } else {
-        if (DB_HOST) args.push('-h', DB_HOST);
+    if (DB_HOST) {
+        args.push('-h', DB_HOST);
         if (DB_PORT) args.push('-P', DB_PORT);
+    } else if (DB_SOCKET) {
+        args.push('-S', DB_SOCKET);
     }
     args.push('-u', DB_USER, DB_NAME);
     if (batch) args.push('-N', '-B');

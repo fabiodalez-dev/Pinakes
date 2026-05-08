@@ -417,8 +417,11 @@ class FrontendController
         $param_types = $where_conditions['types'];
 
         // Extra results from plugins (e.g. archive units) when a search is active.
+        $searchTerm = trim((string) ($filters['search'] ?? ''));
         /** @var array<int, array<string, mixed>> $archiveResults */
-        $archiveResults = \App\Support\Hooks::apply('frontend.catalog.archive_results', [], [$filters['search'] ?? '']);
+        $archiveResults = $searchTerm !== ''
+            ? \App\Support\Hooks::apply('frontend.catalog.archive_results', [], [$searchTerm])
+            : [];
 
         // Query base senza JOIN con autori per evitare duplicati
         // Include genre parents/grandparents to support filtering at any level
@@ -749,8 +752,9 @@ class FrontendController
                 $viafUri = 'https://viaf.org/viaf/' . rawurlencode($primaryAuthor['viaf_id']);
             }
             if ($viafUri !== '' && filter_var($viafUri, FILTER_VALIDATE_URL) !== false
-                && preg_match('/^https?:\/\//', $viafUri)) {
-                $signLinks[] = '<' . preg_replace('/[<>\r\n]/', '', $viafUri) . '>; rel="author"';
+                && preg_match('/^https?:\/\//', $viafUri)
+                && strpbrk($viafUri, "<>,\r\n") === false) {
+                $signLinks[] = '<' . $viafUri . '>; rel="author"';
             }
         }
 

@@ -64,8 +64,9 @@ const FILE_REF  = TAG + '_FI1';
 
 function cleanupTag() {
     try {
-        dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%' AND parent_id IS NOT NULL`);
-        dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%'`);
+        const escapedTag = TAG.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_');
+        dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${escapedTag}%' ESCAPE '\\\\' AND parent_id IS NOT NULL`);
+        dbExec(`DELETE FROM archival_units WHERE reference_code LIKE '${escapedTag}%' ESCAPE '\\\\'`);
     } catch { /* ignore if table missing */ }
 }
 

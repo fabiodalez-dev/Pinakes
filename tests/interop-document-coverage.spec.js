@@ -177,7 +177,7 @@ test.describe.serial('Interop document coverage - 50 tests', () => {
   test('22. 0.7.4 migration guards NCIP partner column upgrades', async () => {
     const migration = read('installer/database/migrations/migrate_0.7.4.sql');
     expect(migration).toContain('INFORMATION_SCHEMA.COLUMNS');
-    expect(migration).toContain("COLUMN_NAME  = 'isil'");
+    expect(migration).toMatch(/COLUMN_NAME\s*=\s*'isil'/);
   });
 
   test('23. OAI plugin metadata advertises UNIMARC and current app range', async () => {

@@ -27,8 +27,12 @@ class MARCXMLFormatter extends RecordFormatter
         // Create record element
         $recordEl = $this->doc->createElementNS(self::NS_MARC, 'record');
 
-        // Leader (required in MARC) — exactly 24 characters
-        $leader = $this->doc->createElement('leader', '00000nam a22000004i4500');
+        // Leader (required in MARC) — exactly 24 characters: '00000nam a2200000 a 4500'
+        // Positions: 0-4 logical record length, 5 status, 6 type, 7 bibl.level,
+        // 8 ctrl type, 9 char encoding, 10-16 data/base offsets, 17 encoding level,
+        // 18 desc.cataloging form, 19 multipart, 20-23 entry map.
+        $leaderStr = '00000nam a2200000 a 4500'; // strlen === 24
+        $leader = $this->doc->createElement('leader', $leaderStr);
         $recordEl->appendChild($leader);
 
         // Control fields

@@ -219,6 +219,8 @@ storage/plugins/ncip-server/**
 !storage/plugins/ncip-server/*.php
 !storage/plugins/ncip-server/*.json
 !storage/plugins/ncip-server/*.md
+!storage/plugins/ncip-server/views/
+!storage/plugins/ncip-server/views/*.php
 
 # Premium plugin - never track (private/commercial)
 storage/plugins/scraping-pro/

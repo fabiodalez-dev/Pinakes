@@ -165,7 +165,7 @@ class NcipServerPlugin
         if ($stmt === false) {
             throw new \RuntimeException('[NcipServer] prepare() failed for hook ' . $hookName . ': ' . $this->db->error);
         }
-        $callbackClass = 'NcipServerPlugin';
+        $callbackClass = self::class;
         $stmt->bind_param('isssi', $this->pluginId, $hookName, $callbackClass, $method, $priority);
         if (!$stmt->execute()) {
             $err = $stmt->error;

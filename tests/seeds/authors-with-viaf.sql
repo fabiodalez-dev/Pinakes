@@ -4,7 +4,11 @@
 -- Confidence values match viaf-authority schema: exact, probable, candidate, rejected.
 --
 -- To load: mysql -u <user> -p <db> < tests/seeds/authors-with-viaf.sql
--- To clean: DELETE FROM autori WHERE nome LIKE 'SEED_VIAF_%';
+
+-- FK-safe cleanup before re-seeding:
+DELETE FROM libri_autori
+WHERE autore_id IN (SELECT id FROM autori WHERE nome LIKE 'SEED_VIAF_%');
+DELETE FROM autori WHERE nome LIKE 'SEED_VIAF_%';
 
 INSERT IGNORE INTO autori (nome, viaf_id, viaf_uri, isni_id, isni_uri, authority_source, authority_confidence) VALUES
 ('SEED_VIAF_Dante Alighieri',           '97006617',  'https://viaf.org/viaf/97006617',  NULL, NULL, 'viaf', 'exact'),

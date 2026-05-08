@@ -58,7 +58,9 @@ class UNIMARCXMLFormatter extends RecordFormatter
         $recordEl->appendChild($this->cf('100', $f100));
 
         // 010 — ISBN
-        $isbn = (string) ($record['isbn13'] ?? $record['isbn10'] ?? '');
+        $isbn13 = trim((string) ($record['isbn13'] ?? ''));
+        $isbn10 = trim((string) ($record['isbn10'] ?? ''));
+        $isbn   = $isbn13 !== '' ? $isbn13 : $isbn10;
         if ($isbn !== '') {
             $recordEl->appendChild($this->df('010', ' ', ' ', [['a', $isbn]]));
         }

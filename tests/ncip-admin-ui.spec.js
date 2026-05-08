@@ -86,8 +86,9 @@ test.describe.serial('NCIP Admin UI — partners and transactions (8 tests)', ()
     });
 
     test.afterAll(async () => {
-        // Clean up test partner rows if any survived
+        // Clean up test partner rows if any survived (FK-safe order)
         try {
+            dbExec(`DELETE FROM ncip_transactions WHERE prestito_id IS NULL AND request_id LIKE '%E2E%'`);
             dbExec(`DELETE FROM ncip_partners WHERE name LIKE 'E2E_NCIP_Partner_%'`);
         } catch { /* best-effort */ }
         await context?.close();

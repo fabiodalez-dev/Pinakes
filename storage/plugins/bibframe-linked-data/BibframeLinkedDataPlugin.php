@@ -67,7 +67,14 @@ class BibframeLinkedDataPlugin
 
     public function onDeactivate(): void
     {
-        $this->deleteHooksFromDb();
+        $this->db->begin_transaction();
+        try {
+            $this->deleteHooksFromDb();
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
+        }
     }
 
     // ── Hook registration ─────────────────────────────────────────────────────
@@ -104,9 +111,15 @@ class BibframeLinkedDataPlugin
     {
         if ($this->pluginId === null) { return; }
         $stmt = $this->db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ?');
-        if ($stmt === false) { return; }
+        if ($stmt === false) {
+            throw new \RuntimeException('[BibframeLD] hook delete prepare() failed: ' . $this->db->error);
+        }
         $stmt->bind_param('i', $this->pluginId);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[BibframeLD] hook delete failed: ' . $err);
+        }
         $stmt->close();
     }
 
@@ -315,17 +328,23 @@ class BibframeLinkedDataPlugin
         $instanceUri = absoluteUrl('/id/instance/' . $bookId);
 
         // bf:Work node
+        $mainTitleVal = $langCode !== ''
+            ? ['@value' => $title, '@language' => $langCode]
+            : ['@value' => $title];
         $work = [
             '@id'   => $workUri,
             '@type' => 'bf:Work',
             'bf:title' => [
                 '@type'         => 'bf:Title',
-                'bf:mainTitle'  => ['@value' => $title, '@language' => $langCode],
+                'bf:mainTitle'  => $mainTitleVal,
             ],
         ];
 
         if ($subtitle !== '') {
-            $work['bf:title']['bf:subtitle'] = ['@value' => $subtitle, '@language' => $langCode];
+            $subtitleVal = $langCode !== ''
+                ? ['@value' => $subtitle, '@language' => $langCode]
+                : ['@value' => $subtitle];
+            $work['bf:title']['bf:subtitle'] = $subtitleVal;
         }
 
         if ($langCode !== '') {
@@ -392,13 +411,16 @@ class BibframeLinkedDataPlugin
         $work['bf:hasInstance'] = ['@id' => $instanceUri];
 
         // bf:Instance node
+        $instanceMainTitleVal = $langCode !== ''
+            ? ['@value' => $title, '@language' => $langCode]
+            : ['@value' => $title];
         $instance = [
             '@id'            => $instanceUri,
             '@type'          => 'bf:Instance',
             'bf:instanceOf' => ['@id' => $workUri],
             'bf:title'       => [
                 '@type'        => 'bf:Title',
-                'bf:mainTitle' => ['@value' => $title, '@language' => $langCode],
+                'bf:mainTitle' => $instanceMainTitleVal,
             ],
             'bf:carrier' => ['@id' => 'http://id.loc.gov/vocabulary/carriers/nc'],
             'bf:media'   => ['@id' => 'http://id.loc.gov/vocabulary/mediaTypes/n'],
@@ -665,7 +687,10 @@ class BibframeLinkedDataPlugin
             $titleNode = $node['bf:title'] ?? null;
             if (is_array($titleNode) && !empty($titleNode['bf:mainTitle']['@value'])) {
                 $xw->startElementNs('bf', 'title', null);
-                $xw->writeAttribute('xml:lang', (string) ($titleNode['bf:mainTitle']['@language'] ?? 'it'));
+                $lang = (string) ($titleNode['bf:mainTitle']['@language'] ?? '');
+                if ($lang !== '') {
+                    $xw->writeAttribute('xml:lang', $lang);
+                }
                 $xw->text((string) $titleNode['bf:mainTitle']['@value']);
                 $xw->endElement();
             }
@@ -773,7 +798,7 @@ class BibframeLinkedDataPlugin
             'spagnolo' => 'es', 'español' => 'es', 'spanish' => 'es',
             'ita' => 'it', 'eng' => 'en', 'fre' => 'fr', 'ger' => 'de', 'spa' => 'es',
         ];
-        return $map[strtolower(trim($lingua))] ?? 'it';
+        return $map[strtolower(trim($lingua))] ?? '';
     }
 
     private function marcRelatorUri(string $role): string

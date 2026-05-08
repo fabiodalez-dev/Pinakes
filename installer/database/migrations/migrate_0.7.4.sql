@@ -191,10 +191,27 @@ SET @sql = IF(
 );
 PREPARE _stmt FROM @sql; EXECUTE _stmt; DEALLOCATE PREPARE _stmt;
 
+-- Ensure ncip_transactions exists for fresh installs or installs upgrading from ≤0.7.3
+-- that skip migrate_0.7.3.sql. The ALTER TABLE guards below are safe no-ops when
+-- all columns already exist.
+CREATE TABLE IF NOT EXISTS ncip_transactions (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    partner_id     INT NULL,
+    message_type   VARCHAR(64) NOT NULL,
+    prestito_id    INT NULL,
+    request_id     VARCHAR(255) NULL,
+    status         ENUM('pending','success','error') NOT NULL DEFAULT 'pending',
+    error_msg      VARCHAR(1000) NULL,
+    created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_message_type (message_type),
+    KEY idx_request_id (request_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ncip_transactions: upgrade path — add columns introduced in v0.7.4.
--- The old schema (from ≤v0.7.3) had only: id, message_type, related_loan_id, request_id, created_at.
--- The plugin's ensureSchema() creates the full schema, but on upgrades the table already exists so
--- CREATE TABLE IF NOT EXISTS is a no-op. We add the missing columns and drop the old one here.
+-- The CREATE TABLE above handles fresh installs and 0.7.3 upgrades (where migrate_0.7.3.sql was
+-- skipped). On installs that already ran migrate_0.7.3.sql, the table exists with the old schema
+-- (id, message_type, related_loan_id, request_id, created_at) — the ALTER TABLE guards below
+-- add new columns and drop the legacy one idempotently.
 SET @col_exists = (
     SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
@@ -502,11 +519,12 @@ CREATE TABLE IF NOT EXISTS archival_unit_files (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET @fk_uf_exists = (
-    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-    WHERE TABLE_SCHEMA    = DATABASE()
-      AND TABLE_NAME      = 'archival_unit_files'
-      AND CONSTRAINT_NAME = 'fk_archival_unit_files_unit'
-      AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA           = DATABASE()
+      AND TABLE_NAME             = 'archival_unit_files'
+      AND COLUMN_NAME            = 'unit_id'
+      AND REFERENCED_TABLE_NAME  = 'archival_units'
+      AND REFERENCED_COLUMN_NAME = 'id'
 );
 SET @sql = IF(
     @au_exists > 0 AND @fk_uf_exists = 0,

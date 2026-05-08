@@ -166,7 +166,9 @@ class ViafAuthorityPlugin
         $columns = $this->getExistingColumns('author_authority_alternates');
         $addColumn = function (string $name, string $ddl) use ($columns): void {
             if (!isset($columns[$name])) {
-                $this->db->query("ALTER TABLE author_authority_alternates ADD COLUMN {$ddl}");
+                if ($this->db->query("ALTER TABLE author_authority_alternates ADD COLUMN {$ddl}") === false) {
+                    throw new \RuntimeException('[ViafAuthority] ensureAlternatesTable: ' . $this->db->error);
+                }
             }
         };
 
@@ -196,8 +198,9 @@ class ViafAuthorityPlugin
             if (isset($columns['preferred_form'])) {
                 $setParts[] = 'label = COALESCE(label, preferred_form)';
             }
-            if ($setParts !== []) {
-                $this->db->query('UPDATE author_authority_alternates SET ' . implode(', ', $setParts));
+            if ($setParts !== [] &&
+                $this->db->query('UPDATE author_authority_alternates SET ' . implode(', ', $setParts)) === false) {
+                throw new \RuntimeException('[ViafAuthority] ensureAlternatesTable backfill: ' . $this->db->error);
             }
         }
     }
@@ -462,8 +465,16 @@ class ViafAuthorityPlugin
         $viafUriParam = $viafIdParam !== null ? 'https://viaf.org/viaf/' . $viafIdParam : null;
         $isniIdParam  = $isniRaw !== '' ? $isniRaw : null;
         $isniUriParam = $isniIdParam !== null ? 'https://isni.org/isni/' . $isniIdParam : null;
-        $sourceParam  = $viafIdParam !== null ? 'viaf' : null;
-        $confParam    = $viafIdParam !== null ? 'exact' : null;
+        if ($viafIdParam !== null) {
+            $sourceParam = 'viaf';
+            $confParam   = 'exact';
+        } elseif ($isniIdParam !== null) {
+            $sourceParam = 'isni';
+            $confParam   = 'exact';
+        } else {
+            $sourceParam = null;
+            $confParam   = null;
+        }
 
         $stmt = $this->db->prepare(
             'UPDATE autori

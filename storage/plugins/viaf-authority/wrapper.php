@@ -32,13 +32,8 @@ if (!class_exists('ViafAuthorityPlugin', false)) {
 
         public function onInstall(): void
         {
-            $this->instance->ensureSchema();
+            $this->instance->onInstall();
             \App\Support\SecureLogger::debug('[ViafAuthority] Plugin installed');
-        }
-
-        public function onUninstall(): void
-        {
-            \App\Support\SecureLogger::debug('[ViafAuthority] Plugin uninstalled');
         }
 
         /** @param array<int, mixed> $args */

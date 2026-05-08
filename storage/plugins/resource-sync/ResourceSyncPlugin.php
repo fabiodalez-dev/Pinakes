@@ -56,7 +56,14 @@ class ResourceSyncPlugin
 
     public function onDeactivate(): void
     {
-        $this->deleteHooksFromDb();
+        $this->db->begin_transaction();
+        try {
+            $this->deleteHooksFromDb();
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
+        }
     }
 
     public function onInstall(): void {}
@@ -90,9 +97,15 @@ class ResourceSyncPlugin
     {
         if ($this->pluginId === null) { return; }
         $stmt = $this->db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ?');
-        if ($stmt === false) { return; }
+        if ($stmt === false) {
+            throw new \RuntimeException('[ResourceSync] hook delete prepare() failed: ' . $this->db->error);
+        }
         $stmt->bind_param('i', $this->pluginId);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[ResourceSync] hook delete failed: ' . $err);
+        }
         $stmt->close();
     }
 
