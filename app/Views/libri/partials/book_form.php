@@ -81,7 +81,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
   </div>
 <?php endif; ?>
 
-    <form id="bookForm" data-mode="<?php echo $modeAttr; ?>" method="post" action="<?php echo $actionAttr; ?>" class="space-y-8" enctype="multipart/form-data">
+    <form id="bookForm" novalidate data-mode="<?php echo $modeAttr; ?>" method="post" action="<?php echo $actionAttr; ?>" class="space-y-8" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars((string)$csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Hidden fields for scraped data -->

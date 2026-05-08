@@ -54,7 +54,12 @@ class NcipServerPlugin
 
     public function onActivate(): void
     {
-        $this->ensureSchema();
+        $result = $this->ensureSchema();
+        if (!empty($result['failed'])) {
+            throw new \RuntimeException(
+                '[NcipServer] Schema activation failed for: ' . implode(', ', $result['failed'])
+            );
+        }
         $this->db->begin_transaction();
         try {
             $this->registerHookInDb('app.routes.register', 'registerRoutes', 10);
@@ -72,17 +77,28 @@ class NcipServerPlugin
 
     public function onInstall(): void
     {
-        $this->ensureSchema();
+        $result = $this->ensureSchema();
+        if (!empty($result['failed'])) {
+            throw new \RuntimeException(
+                '[NcipServer] Schema install failed for: ' . implode(', ', $result['failed'])
+            );
+        }
     }
 
     public function onUninstall(): void {}
 
     // ─── Schema ───────────────────────────────────────────────────────────────
 
-    private function ensureSchema(): void
+    /**
+     * @return array{created:list<string>, failed:list<string>}
+     */
+    public function ensureSchema(): array
     {
-        if (!$this->db->query(
-            "CREATE TABLE IF NOT EXISTS ncip_partners (
+        $created = [];
+        $failed  = [];
+
+        $tables = [
+            'ncip_partners' => "CREATE TABLE IF NOT EXISTS ncip_partners (
                 id           INT AUTO_INCREMENT PRIMARY KEY,
                 code         VARCHAR(64)   NULL DEFAULT NULL,
                 name         VARCHAR(255)  NOT NULL,
@@ -95,13 +111,9 @@ class NcipServerPlugin
                 updated_at   TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 UNIQUE KEY uq_code (code),
                 KEY idx_active (active)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-        )) {
-            throw new \RuntimeException('[NcipServer] Cannot create ncip_partners: ' . $this->db->error);
-        }
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
-        if (!$this->db->query(
-            "CREATE TABLE IF NOT EXISTS ncip_transactions (
+            'ncip_transactions' => "CREATE TABLE IF NOT EXISTS ncip_transactions (
                 id           INT AUTO_INCREMENT PRIMARY KEY,
                 partner_id   INT          NULL,
                 message_type VARCHAR(64)  NOT NULL,
@@ -113,48 +125,21 @@ class NcipServerPlugin
                 KEY idx_partner  (partner_id),
                 KEY idx_status   (status),
                 KEY idx_prestito (prestito_id)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
-        )) {
-            throw new \RuntimeException('[NcipServer] Cannot create ncip_transactions: ' . $this->db->error);
-        }
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        ];
 
-        $cols = $this->getExistingColumns('prestiti');
-        if (!isset($cols['ncip_request_id'])) {
-            if (!$this->db->query(
-                "ALTER TABLE prestiti ADD COLUMN ncip_request_id VARCHAR(255) NULL DEFAULT NULL AFTER origine"
-            )) {
-                throw new \RuntimeException('[NcipServer] Cannot alter prestiti (ncip_request_id): ' . $this->db->error);
+        foreach ($tables as $name => $ddl) {
+            if ($this->db->query($ddl) === true) {
+                $created[] = $name;
+            } else {
+                SecureLogger::error("[NcipServer] CREATE TABLE {$name} failed: " . $this->db->error);
+                $failed[] = $name;
             }
         }
 
-        $res = $this->db->query("SHOW COLUMNS FROM prestiti LIKE 'origine'");
-        if ($res instanceof \mysqli_result) {
-            $col = $res->fetch_assoc();
-            $res->free();
-            if (is_array($col) && is_string($col['Type'] ?? null) && !str_contains((string) $col['Type'], "'ncip'")) {
-                if (!$this->db->query(
-                    "ALTER TABLE prestiti MODIFY COLUMN origine ENUM('richiesta','prenotazione','diretto','ncip') COLLATE utf8mb4_unicode_ci DEFAULT 'richiesta'"
-                )) {
-                    throw new \RuntimeException('[NcipServer] Cannot alter prestiti (origine): ' . $this->db->error);
-                }
-            }
-        }
-    }
+        // Core schema changes for prestiti.ncip_request_id and origine ENUM are in migrate_0.7.4.sql
 
-    /** @return array<string, true> */
-    private function getExistingColumns(string $table): array
-    {
-        $res = $this->db->query(
-            "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS
-              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '" . $this->db->real_escape_string($table) . "'"
-        );
-        if (!($res instanceof \mysqli_result)) { return []; }
-        $cols = [];
-        while ($row = $res->fetch_assoc()) {
-            $cols[(string) $row['COLUMN_NAME']] = true;
-        }
-        $res->free();
-        return $cols;
+        return ['created' => $created, 'failed' => $failed];
     }
 
     // ─── Hook registration ────────────────────────────────────────────────────
@@ -271,7 +256,7 @@ class NcipServerPlugin
         string $success = ''
     ): ResponseInterface {
         if (!$this->requireAdmin()) {
-            return $response->withStatus(403)->withHeader('Location', url('/admin/login'));
+            return $response->withStatus(302)->withHeader('Location', url('/admin/login'));
         }
         $partners   = $this->fetchAllPartners();
         $csrfToken  = \App\Support\Csrf::ensureToken();
@@ -351,7 +336,7 @@ class NcipServerPlugin
         ResponseInterface $response
     ): ResponseInterface {
         if (!$this->requireAdmin()) {
-            return $response->withStatus(403)->withHeader('Location', url('/admin/login'));
+            return $response->withStatus(302)->withHeader('Location', url('/admin/login'));
         }
         $params  = $request->getQueryParams();
         $perPage = 50;
@@ -420,6 +405,12 @@ class NcipServerPlugin
             return $this->xmlResponse(
                 $response->withStatus(400),
                 $this->buildProblem('Empty request body', 'empty-request')
+            );
+        }
+        if (strlen($body) > 1_048_576) {
+            return $this->xmlResponse(
+                $response->withStatus(413),
+                $this->buildProblem('Request body too large', 'oversized-request')
             );
         }
 
@@ -503,7 +494,7 @@ class NcipServerPlugin
     ): ResponseInterface {
         if ($caller === null) {
             return $this->xmlResponse(
-                $response->withStatus(401),
+                $response->withStatus(401)->withHeader('WWW-Authenticate', 'Basic realm="NCIP"'),
                 $this->buildProblem('Authentication required', 'unauthorized')
             );
         }
@@ -675,7 +666,15 @@ class NcipServerPlugin
         $currentDue  = (string) ($loan['data_scadenza'] ?? date('Y-m-d'));
         $baseDateTs  = max(strtotime($currentDue) ?: time(), time());
         $newDue      = date('Y-m-d', strtotime('+30 days', $baseDateTs));
-        $this->extendLoan((int) $loan['id'], $newDue);
+        try {
+            $this->extendLoan((int) $loan['id'], $newDue);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[NcipServer] extendLoan failed: ' . $e->getMessage());
+            return $this->xmlResponse(
+                $response,
+                $this->buildProblem('Failed to extend loan', 'temporary-processing-failure')
+            );
+        }
 
         return $this->xmlResponse($response, $this->buildRenewItemResponse($itemId, $newDue, (int) ($loan['utente_id'] ?? 0)));
     }
@@ -765,13 +764,34 @@ class NcipServerPlugin
             );
         }
 
-        $this->cancelLoan((int) $loan['id']);
+        try {
+            $this->cancelLoan((int) $loan['id']);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[NcipServer] cancelLoan failed: ' . $e->getMessage());
+            return $this->xmlResponse(
+                $response,
+                $this->buildProblem('Failed to cancel request', 'temporary-processing-failure')
+            );
+        }
         $this->logTransaction('CancelRequestItem', (int) $loan['id'], null);
 
         return $this->xmlResponse($response, $this->buildCancelRequestItemResponse($itemId, $userId));
     }
 
     // ─── XML builders ─────────────────────────────────────────────────────────
+
+    private function writeResponseHeader(\XMLWriter $xw, string $toAgencyId = 'LOCAL'): void
+    {
+        $ns = self::NCIP_NS;
+        $xw->startElementNs('ncip', 'ResponseHeader', $ns);
+        $xw->startElementNs('ncip', 'FromAgencyId', $ns);
+        $xw->writeElementNs('ncip', 'AgencyId', $ns, $toAgencyId);
+        $xw->endElement();
+        $xw->startElementNs('ncip', 'ToAgencyId', $ns);
+        $xw->writeElementNs('ncip', 'AgencyId', $ns, 'PINAKES');
+        $xw->endElement();
+        $xw->endElement();
+    }
 
     private function buildCapabilityXml(): string
     {
@@ -817,6 +837,7 @@ class NcipServerPlugin
         $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('LookupItemResponse');
+        $this->writeResponseHeader($xw);
 
         // ItemId
         $xw->startElement('ItemId');
@@ -862,6 +883,7 @@ class NcipServerPlugin
         $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('LookupUserResponse');
+        $this->writeResponseHeader($xw);
 
         $xw->startElement('UserId');
         $xw->startElement('UserIdentifierType');
@@ -907,6 +929,7 @@ class NcipServerPlugin
         $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('CheckOutItemResponse');
+        $this->writeResponseHeader($xw);
         $xw->startElement('ItemId');
         $xw->startElement('ItemIdentifierType');
         $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
@@ -936,6 +959,7 @@ class NcipServerPlugin
         $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('CheckInItemResponse');
+        $this->writeResponseHeader($xw);
         $xw->startElement('ItemId');
         $xw->startElement('ItemIdentifierType');
         $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
@@ -943,9 +967,7 @@ class NcipServerPlugin
         $xw->endElement();
         $xw->writeElement('ItemIdentifierValue', (string) $itemId);
         $xw->endElement();
-        $xw->startElement('Ext');
         $xw->writeElement('DateReturned', gmdate('Y-m-d\TH:i:s\Z'));
-        $xw->endElement();
         $xw->endElement(); // CheckInItemResponse
 
         $xw->endElement(); // NCIPMessage
@@ -960,6 +982,7 @@ class NcipServerPlugin
         $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('RenewItemResponse');
+        $this->writeResponseHeader($xw);
         $xw->startElement('ItemId');
         $xw->startElement('ItemIdentifierType');
         $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
@@ -989,6 +1012,7 @@ class NcipServerPlugin
         $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('RequestItemResponse');
+        $this->writeResponseHeader($xw);
         $xw->startElement('ItemId');
         $xw->startElement('ItemIdentifierType');
         $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
@@ -1026,6 +1050,7 @@ class NcipServerPlugin
         $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('CancelRequestItemResponse');
+        $this->writeResponseHeader($xw);
         $xw->startElement('ItemId');
         $xw->startElement('ItemIdentifierType');
         $xw->writeAttributeNs('ncip', 'Scheme', self::NCIP_NS, 'http://www.niso.org/ncip/v2_02/schemes/itemidentifiertype/');
@@ -1089,7 +1114,12 @@ class NcipServerPlugin
         if ($stmt === false) { return null; }
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $res = $stmt->get_result();
+        if (!($res instanceof \mysqli_result)) {
+            $stmt->close();
+            return null;
+        }
+        $row = $res->fetch_assoc();
         $stmt->close();
         return is_array($row) ? $row : null;
     }
@@ -1106,7 +1136,12 @@ class NcipServerPlugin
         if ($stmt === false) { return null; }
         $stmt->bind_param('i', $id);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $res = $stmt->get_result();
+        if (!($res instanceof \mysqli_result)) {
+            $stmt->close();
+            return null;
+        }
+        $row = $res->fetch_assoc();
         $stmt->close();
         return is_array($row) ? $row : null;
     }
@@ -1125,7 +1160,12 @@ class NcipServerPlugin
         if ($stmt === false) { return null; }
         $stmt->bind_param('i', $bookId);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $res = $stmt->get_result();
+        if (!($res instanceof \mysqli_result)) {
+            $stmt->close();
+            return null;
+        }
+        $row = $res->fetch_assoc();
         $stmt->close();
         return is_array($row) ? $row : null;
     }
@@ -1224,7 +1264,12 @@ class NcipServerPlugin
         if ($stmt === false) { return null; }
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
-        $row = $stmt->get_result()->fetch_assoc();
+        $res = $stmt->get_result();
+        if (!($res instanceof \mysqli_result)) {
+            $stmt->close();
+            return null;
+        }
+        $row = $res->fetch_assoc();
         $stmt->close();
         return is_array($row) ? $row : null;
     }
@@ -1234,11 +1279,16 @@ class NcipServerPlugin
         $stmt = $this->db->prepare(
             "UPDATE prestiti SET stato = 'annullato', updated_at = NOW() WHERE id = ?"
         );
-        if ($stmt !== false) {
-            $stmt->bind_param('i', $loanId);
-            $stmt->execute();
-            $stmt->close();
+        if ($stmt === false) {
+            throw new \RuntimeException('[NcipServer] ' . __FUNCTION__ . ' prepare failed: ' . $this->db->error);
         }
+        $stmt->bind_param('i', $loanId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[NcipServer] ' . __FUNCTION__ . ' execute failed: ' . $err);
+        }
+        $stmt->close();
     }
 
     private function logTransaction(string $messageType, int $prestitoId, ?string $requestId): void
@@ -1292,11 +1342,16 @@ class NcipServerPlugin
         $stmt = $this->db->prepare(
             'UPDATE prestiti SET data_scadenza = ?, updated_at = NOW() WHERE id = ?'
         );
-        if ($stmt !== false) {
-            $stmt->bind_param('si', $newDueDate, $loanId);
-            $stmt->execute();
-            $stmt->close();
+        if ($stmt === false) {
+            throw new \RuntimeException('[NcipServer] ' . __FUNCTION__ . ' prepare failed: ' . $this->db->error);
         }
+        $stmt->bind_param('si', $newDueDate, $loanId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[NcipServer] ' . __FUNCTION__ . ' execute failed: ' . $err);
+        }
+        $stmt->close();
     }
 
     // ─── Auth helpers ─────────────────────────────────────────────────────────
@@ -1319,8 +1374,6 @@ class NcipServerPlugin
         }
 
         [$email, $password] = explode(':', $decoded, 2);
-        $email    = trim($email);
-        $password = trim($password);
 
         if ($email === '' || $password === '') {
             return null;
@@ -1334,7 +1387,12 @@ class NcipServerPlugin
         if ($stmt === false) { return null; }
         $stmt->bind_param('s', $email);
         $stmt->execute();
-        $user = $stmt->get_result()->fetch_assoc();
+        $res = $stmt->get_result();
+        if (!($res instanceof \mysqli_result)) {
+            $stmt->close();
+            return null;
+        }
+        $user = $res->fetch_assoc();
         $stmt->close();
 
         if (!is_array($user)) { return null; }

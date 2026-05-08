@@ -38,6 +38,7 @@ if (!class_exists('BibframeLinkedDataPlugin', false)) {
 
         public function onInstall(): void
         {
+            $this->instance->onInstall();
             \App\Support\SecureLogger::debug('[BibframeLinkedData] Plugin installed');
         }
 

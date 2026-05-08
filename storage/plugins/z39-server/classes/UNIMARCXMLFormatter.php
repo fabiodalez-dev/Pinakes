@@ -136,10 +136,10 @@ class UNIMARCXMLFormatter extends RecordFormatter
         }
 
         // 700/701 — Personal name (primary / alternative intellectual responsibility)
-        // Indicator 1 = '1' for surname entry
+        // FIX 7: UNIMARC ind1=undefined (space), ind2=form of name: 1=surname entry
         foreach ($authorList as $i => $name) {
             $tag = ($i === 0) ? '700' : '701';
-            $recordEl->appendChild($this->df($tag, '1', ' ', [
+            $recordEl->appendChild($this->df($tag, ' ', '1', [
                 ['a', $name],
                 ['4', '070'],
             ]));

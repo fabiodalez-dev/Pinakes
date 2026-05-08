@@ -68,7 +68,7 @@ class ResourceSyncPlugin
             SecureLogger::warning('[ResourceSync] pluginId not set; cannot register hook ' . $hookName);
             return;
         }
-        $callbackClass = 'ResourceSyncPlugin';
+        $callbackClass = 'ResourceSyncPlugin'; // must match wrapper.php global class name, not self::class
         $stmt = $this->db->prepare(
             'INSERT INTO plugin_hooks (plugin_id, hook_name, callback_class, callback_method, priority, is_active, created_at)
              VALUES (?, ?, ?, ?, ?, 1, NOW())
@@ -199,10 +199,10 @@ class ResourceSyncPlugin
         $xw->writeAttribute('at', gmdate('c'));
         $xw->endElement();
 
-        // rs:ln — self-reference for ResourceSync discovery
+        // rs:ln rel="self" — canonical URL of this document
         $xw->startElementNs('rs', 'ln', null);
-        $xw->writeAttribute('rel', 'resourcesync');
-        $xw->writeAttribute('href', $base . '/resync/capabilitylist.xml');
+        $xw->writeAttribute('rel', 'self');
+        $xw->writeAttribute('href', $base . '/.well-known/resourcesync');
         $xw->endElement();
 
         // one <url> per capability list (we have only one)
@@ -234,6 +234,12 @@ class ResourceSyncPlugin
         $xw->startElementNs('rs', 'md', null);
         $xw->writeAttribute('capability', 'capabilitylist');
         $xw->writeAttribute('at', gmdate('c'));
+        $xw->endElement();
+
+        // rs:ln rel="self" — canonical URL of this document
+        $xw->startElementNs('rs', 'ln', null);
+        $xw->writeAttribute('rel', 'self');
+        $xw->writeAttribute('href', $base . '/resync/capabilitylist.xml');
         $xw->endElement();
 
         // rs:ln — up-link to source description
@@ -291,6 +297,13 @@ class ResourceSyncPlugin
         $xw->startElementNs('rs', 'md', null);
         $xw->writeAttribute('capability', 'resourcelist');
         $xw->writeAttribute('at', gmdate('c'));
+        $xw->endElement();
+
+        // rs:ln rel="self" — canonical URL of this document (page-aware)
+        $selfHref = $base . '/resync/resourcelist.xml' . ($page > 0 ? '?page=' . $page : '');
+        $xw->startElementNs('rs', 'ln', null);
+        $xw->writeAttribute('rel', 'self');
+        $xw->writeAttribute('href', $selfHref);
         $xw->endElement();
 
         $xw->startElementNs('rs', 'ln', null);
@@ -351,6 +364,16 @@ class ResourceSyncPlugin
         if ($since !== null) {
             $xw->writeAttribute('from', $since);
         }
+        $xw->endElement();
+
+        // rs:ln rel="self" — canonical URL of this document (page- and since-aware)
+        $selfQuery = [];
+        if ($page > 0) { $selfQuery[] = 'page=' . $page; }
+        if ($since !== null) { $selfQuery[] = 'from=' . urlencode($since); }
+        $selfHref = $base . '/resync/changelist.xml' . (!empty($selfQuery) ? '?' . implode('&', $selfQuery) : '');
+        $xw->startElementNs('rs', 'ln', null);
+        $xw->writeAttribute('rel', 'self');
+        $xw->writeAttribute('href', $selfHref);
         $xw->endElement();
 
         $xw->startElementNs('rs', 'ln', null);

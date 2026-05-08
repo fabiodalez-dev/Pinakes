@@ -19,6 +19,8 @@
  * 14. Endpoint /oai?verb=ListRecords&from=bad-date → badArgument error
  * 15. Endpoint /oai?verb=ListRecords&metadataPrefix=unknown → cannotDisseminateFormat
  * 16. Endpoint /oai?verb=badVerb → badVerb error
+ * 17. Endpoint /oai?verb=ListIdentifiers&metadataPrefix=oai_dc → headers only (no metadata)
+ * 18. Endpoint /oai?verb=ListIdentifiers (no metadataPrefix) → badArgument error
  *
  * Run: /tmp/run-e2e.sh tests/oai-pmh-server.spec.js --config=tests/playwright.config.js --workers=1
  */
@@ -60,7 +62,7 @@ test.skip(
     'Missing E2E env (ADMIN_EMAIL/PASS, DB_*)'
 );
 
-test.describe.serial('OAI-PMH Server plugin — v0.7.0 (16 tests)', () => {
+test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
     /** @type {import('@playwright/test').Page} */
@@ -375,5 +377,37 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (16 tests)', () => {
         expect(res.status()).toBe(200);
         const text = await res.text();
         expect(text).toContain('<error code="badVerb"');
+    });
+
+    // ── Tests 17-18: ListIdentifiers ──────────────────────────────────────────
+
+    test('17. ListIdentifiers returns headers without metadata', async ({ request }) => {
+        const res  = await request.get(`${BASE}/oai?verb=ListIdentifiers&metadataPrefix=oai_dc`);
+        expect(res.status()).toBe(200);
+        const body = await res.text();
+
+        // Must have correct OAI envelope.
+        expect(body).toContain('xmlns="http://www.openarchives.org/OAI/2.0/"');
+        expect(body).toContain('<ListIdentifiers>');
+
+        // Must have <header> elements.
+        expect(body).toContain('<header>');
+        expect(body).toContain('<identifier>');
+        expect(body).toContain('<datestamp>');
+
+        // Must NOT have <metadata> elements (ListIdentifiers returns headers only).
+        expect(body).not.toContain('<metadata>');
+        // Full <record> elements are ListRecords-only.
+        expect(body).not.toContain('<record>');
+
+        // No error response.
+        expect(body).not.toContain('<error code=');
+    });
+
+    test('18. ListIdentifiers without metadataPrefix → badArgument', async ({ request }) => {
+        const res  = await request.get(`${BASE}/oai?verb=ListIdentifiers`);
+        expect(res.status()).toBe(200);
+        const body = await res.text();
+        expect(body).toContain('<error code="badArgument"');
     });
 });

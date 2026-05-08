@@ -334,7 +334,7 @@ class SRUServer
             $records = $this->executeDataQuery($sqlQuery['data']);
 
             // Format response
-            return $this->formatSearchResponse($version, $query, $totalRecords, $startRecord, count($records), $records, $recordSchema);
+            return $this->formatSearchResponse($version, $query, $totalRecords, $startRecord, count($records), $records, $recordSchema, $maximumRecords);
         } catch (\Z39Server\Exceptions\UnsupportedIndexException $e) {
             return $this->errorResponse(16, $e->getMessage(), $version);
         } catch (\Z39Server\Exceptions\InvalidCQLSyntaxException | \Z39Server\Exceptions\UnsupportedRelationException $e) {
@@ -438,7 +438,7 @@ class SRUServer
                     p.scaffale_id,
                     p.mensola_id
                 {$baseQuery}
-                " . $this->buildSortClause($ast['sortKeys'] ?? '') . "
+                " . $this->buildSortClause($sortKeys) . "
                 LIMIT " . (int) $maximumRecords . " OFFSET " . (int) $offset
         ];
     }
@@ -788,7 +788,8 @@ class SRUServer
         int $startRecord,
         int $returnedRecords,
         array $records,
-        string $recordSchema
+        string $recordSchema,
+        int $maximumRecords = 10
     ): string {
         $xml = new \DOMDocument('1.0', 'UTF-8');
         $xml->formatOutput = true;
@@ -796,43 +797,52 @@ class SRUServer
         $root = $xml->createElementNS(self::NS_SRU, 'searchRetrieveResponse');
         $xml->appendChild($root);
 
-        // Add version
-        $versionEl = $xml->createElement('version', $this->escapeXml($version));
+        $ns = self::NS_SRU;
+
+        // Add version (FIX 1: use createElementNS for SRU child elements)
+        $versionEl = $xml->createElementNS($ns, 'version', $this->escapeXml($version));
         $root->appendChild($versionEl);
 
-        // Add number of records
-        $numRecords = $xml->createElement('numberOfRecords', (string) $totalRecords);
+        // Add number of records (FIX 1)
+        $numRecords = $xml->createElementNS($ns, 'numberOfRecords', (string) $totalRecords);
         $root->appendChild($numRecords);
+
+        // FIX 3: nextRecordPosition when more records exist beyond this page
+        $nextPos = $startRecord + $maximumRecords;
+        if ($nextPos <= $totalRecords) {
+            $root->appendChild($xml->createElementNS($ns, 'nextRecordPosition', (string) $nextPos));
+        }
 
         // Add records
         $formatter = RecordFormatter::create($recordSchema, $xml);
 
+        // FIX 5: use mods-v3.6 consistently
         $schemaUriMap = [
             'marcxml'    => 'info:srw/schema/1/marcxml-v1.1',
             'dc'         => 'info:srw/schema/1/dc-v1.1',
-            'mods'       => 'info:srw/schema/1/mods-v3.3',
+            'mods'       => 'info:srw/schema/1/mods-v3.6',
             'unimarcxml' => 'info:srw/schema/8/unimarcxml-v0.1',
         ];
         $schemaUri = $schemaUriMap[$recordSchema] ?? $recordSchema;
 
-        $recordsEl = $xml->createElement('records');
+        $recordsEl = $xml->createElementNS($ns, 'records');
         $root->appendChild($recordsEl);
 
         $position = $startRecord;
         foreach ($records as $record) {
-            $recordEl = $xml->createElement('record');
+            $recordEl = $xml->createElementNS($ns, 'record');
             $recordsEl->appendChild($recordEl);
 
-            $recordSchemaEl = $xml->createElement('recordSchema', $this->escapeXml($schemaUri));
+            $recordSchemaEl = $xml->createElementNS($ns, 'recordSchema', $this->escapeXml($schemaUri));
             $recordEl->appendChild($recordSchemaEl);
 
-            $recordPacking = $xml->createElement('recordPacking', 'xml');
+            $recordPacking = $xml->createElementNS($ns, 'recordPacking', 'xml');
             $recordEl->appendChild($recordPacking);
 
-            $recordPosition = $xml->createElement('recordPosition', (string) $position);
+            $recordPosition = $xml->createElementNS($ns, 'recordPosition', (string) $position);
             $recordEl->appendChild($recordPosition);
 
-            $recordData = $xml->createElement('recordData');
+            $recordData = $xml->createElementNS($ns, 'recordData');
             $recordEl->appendChild($recordData);
 
             $formattedRecord = $formatter->format($record);
@@ -841,11 +851,11 @@ class SRUServer
             $position++;
         }
 
-        // Echo query
-        $echoedQuery = $xml->createElement('echoedSearchRetrieveRequest');
+        // Echo query (FIX 1)
+        $echoedQuery = $xml->createElementNS($ns, 'echoedSearchRetrieveRequest');
         $root->appendChild($echoedQuery);
 
-        $queryEl = $xml->createElement('query', $this->escapeXml($query));
+        $queryEl = $xml->createElementNS($ns, 'query', $this->escapeXml($query));
         $echoedQuery->appendChild($queryEl);
 
         return $xml->saveXML();
@@ -991,29 +1001,32 @@ class SRUServer
         $root = $xml->createElementNS(self::NS_SRU, 'scanResponse');
         $xml->appendChild($root);
 
-        $versionEl = $xml->createElement('version', $this->escapeXml($version));
+        $ns = self::NS_SRU;
+
+        // FIX 1b: use createElementNS for all SRU root-level child elements
+        $versionEl = $xml->createElementNS($ns, 'version', $this->escapeXml($version));
         $root->appendChild($versionEl);
 
-        $termsEl = $xml->createElement('terms');
+        $termsEl = $xml->createElementNS($ns, 'terms');
         $root->appendChild($termsEl);
 
         foreach ($terms as $offset => $termData) {
-            $termEl = $xml->createElement('term');
+            $termEl = $xml->createElementNS($ns, 'term');
             $termsEl->appendChild($termEl);
 
-            $value = $xml->createElement('value', $this->escapeXml($termData['value'] ?? ''));
+            $value = $xml->createElementNS($ns, 'value', $this->escapeXml($termData['value'] ?? ''));
             $termEl->appendChild($value);
 
-            $number = $xml->createElement('numberOfRecords', (string) ($termData['frequency'] ?? 0));
+            $number = $xml->createElementNS($ns, 'numberOfRecords', (string) ($termData['frequency'] ?? 0));
             $termEl->appendChild($number);
 
-            $position = $xml->createElement('position', (string) ($responsePosition + $offset));
+            $position = $xml->createElementNS($ns, 'position', (string) ($responsePosition + $offset));
             $termEl->appendChild($position);
         }
 
-        $echoed = $xml->createElement('echoedScanRequest');
+        $echoed = $xml->createElementNS($ns, 'echoedScanRequest');
         $root->appendChild($echoed);
-        $echoed->appendChild($xml->createElement('scanClause', $this->escapeXml($scanClause)));
+        $echoed->appendChild($xml->createElementNS($ns, 'scanClause', $this->escapeXml($scanClause)));
 
         return $xml->saveXML();
     }
@@ -1115,6 +1128,11 @@ class SRUServer
             INSERT INTO z39_access_logs (ip_address, user_agent, operation, query, format, created_at)
             VALUES (?, ?, ?, ?, ?, NOW())
         ");
+
+        // FIX 4: null guard — table may be unavailable (e.g. during migration)
+        if ($stmt === false) {
+            return;
+        }
 
         $stmt->bind_param('sssss', $ipAddress, $userAgent, $operation, $query, $format);
         $stmt->execute();

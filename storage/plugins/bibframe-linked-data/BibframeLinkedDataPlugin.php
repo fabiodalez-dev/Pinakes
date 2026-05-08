@@ -158,6 +158,15 @@ class BibframeLinkedDataPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->idInstanceAction($request, $response, $args);
         });
+
+        // GET /id/item/{id} — bf:Item URI (physical copy); redirect to Instance representation
+        $app->get('/id/item/{id:[0-9]+}', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->handleItemRequest($request, $response, $args);
+        });
     }
 
     // ── Handlers ──────────────────────────────────────────────────────────────
@@ -259,6 +268,20 @@ class BibframeLinkedDataPlugin
         return $response->withStatus(303)->withHeader('Location', absoluteUrl(book_url($book)));
     }
 
+    public function handleItemRequest(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        array $args
+    ): ResponseInterface {
+        $id = (int) ($args['id'] ?? 0);
+        if ($id <= 0) {
+            return $response->withStatus(404);
+        }
+        // Item is a physical copy — redirect to the Instance representation (303 See Other)
+        $instanceUri = absoluteUrl('/id/instance/' . $id);
+        return $response->withHeader('Location', $instanceUri)->withStatus(303);
+    }
+
     private function wantsMachineReadable(string $accept): bool
     {
         return str_contains($accept, 'application/ld+json')
@@ -312,7 +335,7 @@ class BibframeLinkedDataPlugin
             ];
         }
 
-        $work['bf:content'] = ['@id' => 'http://id.loc.gov/vocabulary/contentTypes/txt'];
+        $work['bf:content'] = ['@type' => 'bf:Content', '@id' => 'http://id.loc.gov/vocabulary/contentTypes/txt'];
 
         // Contributions (authors)
         $contributions = [];
@@ -389,7 +412,7 @@ class BibframeLinkedDataPlugin
             $identifiers[] = ['@type' => 'bf:Isbn', 'rdf:value' => (string) $book['isbn10']];
         }
         if (!empty($book['ean'])) {
-            $identifiers[] = ['@type' => 'bf:Identifier', 'bf:source' => 'EAN', 'rdf:value' => (string) $book['ean']];
+            $identifiers[] = ['@type' => 'bf:Identifier', 'bf:source' => ['@type' => 'bf:Source', 'rdfs:label' => 'EAN'], 'rdf:value' => (string) $book['ean']];
         }
         if (!empty($identifiers)) {
             $instance['bf:identifiedBy'] = count($identifiers) === 1 ? $identifiers[0] : $identifiers;

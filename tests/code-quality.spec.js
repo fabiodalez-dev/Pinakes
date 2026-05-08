@@ -169,7 +169,11 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
         const SOFT_DEL   = /deleted_at\s+IS\s+NULL/i;
         const violations = [];
 
-        for (const file of glob('app', '.php', ['vendor'])) {
+        const phpFiles = [
+            ...glob('app',             '.php', ['vendor']),
+            ...glob('storage/plugins', '.php', ['vendor']),
+        ];
+        for (const file of phpFiles) {
             const content = fs.readFileSync(file, 'utf-8');
             if ((FROM_LIBRI.test(content) || JOIN_LIBRI.test(content)) && !SOFT_DEL.test(content)) {
                 violations.push(path.relative(ROOT, file));
@@ -333,7 +337,7 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
         expect(violations, violations.join('\n')).toHaveLength(0);
     });
 
-    // ── 14. No forEach() + return false anti-pattern in JS ────────────────────
+    // ── 14. All plugin.json files have required fields ────────────────────────
 
     test('14. All plugin.json files have required fields (name, display_name, version, main_file)', () => {
         const REQUIRED = ['name', 'display_name', 'version', 'main_file', 'requires_php', 'requires_app'];

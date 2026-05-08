@@ -106,7 +106,8 @@ class MARCXMLFormatter extends RecordFormatter
             ]));
         }
 
-        // Publication - 260
+        // Publication, Distribution, Manufacture, and Copyright Notice - 264
+        // FIX 6: field 260 is obsolete; 264 ind2='1' = production/publication
         $pubSubfields = [];
         if (!empty($record['editore'])) {
             $pubSubfields[] = ['b', $record['editore']];
@@ -115,7 +116,7 @@ class MARCXMLFormatter extends RecordFormatter
             $pubSubfields[] = ['c', (string) $record['anno_pubblicazione']];
         }
         if (!empty($pubSubfields)) {
-            $recordEl->appendChild($this->createDataField('260', ' ', ' ', $pubSubfields));
+            $recordEl->appendChild($this->createDataField('264', ' ', '1', $pubSubfields));
         }
 
         // Physical Description - 300

@@ -283,8 +283,8 @@ test.describe.serial('Schema integrity — v0.7.4 (17 tests)', () => {
     // ── 7. ncip_transactions v0.7.4 schema ───────────────────────────────────
 
     test('7. ncip_transactions: v0.7.4 columns added, related_loan_id dropped', () => {
-        expect(colType('ncip_transactions', 'partner_id'),  'ncip_transactions.partner_id missing').toBeTruthy();
-        expect(colType('ncip_transactions', 'prestito_id'), 'ncip_transactions.prestito_id missing').toBeTruthy();
+        expect(colType('ncip_transactions', 'partner_id'),  'ncip_transactions.partner_id must be integer').toContain('int');
+        expect(colType('ncip_transactions', 'prestito_id'), 'ncip_transactions.prestito_id must be integer').toContain('int');
         expect(colType('ncip_transactions', 'error_msg'),   'ncip_transactions.error_msg missing').toContain('varchar(1000)');
         const status = colType('ncip_transactions', 'status');
         expect(status, 'ncip_transactions.status missing').toContain('enum');

@@ -662,9 +662,9 @@ CREATE TABLE `plugins` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `oai_deleted_records` (
-  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `entity_type` enum('book','archival_unit') COLLATE utf8mb4_unicode_ci NOT NULL,
-  `entity_id` int NOT NULL,
+  `entity_id` bigint unsigned NOT NULL,
   `oai_id` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `datestamp` datetime NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -677,18 +677,11 @@ CREATE TABLE `oai_deleted_records` (
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `oai_resumption_tokens` (
-  `token` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `verb` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `metadata_prefix` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `set_spec` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `from_date` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `until_date` varchar(32) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `offset_value` int unsigned NOT NULL DEFAULT '0',
-  `batch_size` int unsigned NOT NULL DEFAULT '100',
+  `token` varchar(64) NOT NULL,
+  `payload` json NOT NULL,
   `expires_at` datetime NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`token`),
-  KEY `idx_expires_at` (`expires_at`)
+  KEY `idx_expires` (`expires_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;

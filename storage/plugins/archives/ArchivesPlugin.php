@@ -226,6 +226,7 @@ class ArchivesPlugin
         }
         $stmt = $this->db->prepare('DELETE FROM plugin_hooks WHERE plugin_id = ?');
         if ($stmt === false) {
+            SecureLogger::error('[Archives] deleteHooksFromDb prepare failed: ' . $this->db->error);
             return;
         }
         $stmt->bind_param('i', $this->pluginId);
@@ -1404,13 +1405,18 @@ class ArchivesPlugin
             'UPDATE archival_units SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
         );
         if ($stmt === false) {
-            SecureLogger::error('[Archives] delete prepare failed: ' . $this->db->error);
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            SecureLogger::error('[Archives] delete prepare failed: ' . $this->db->error, ['id' => $id]);
+            return $response->withHeader('Location', htmlspecialchars(url('/admin/archives/' . $id), ENT_QUOTES, 'UTF-8'))->withStatus(303);
         }
         $stmt->bind_param('i', $id);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] destroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+            $stmt->close();
+            return $response->withHeader('Location', htmlspecialchars(url('/admin/archives/' . $id), ENT_QUOTES, 'UTF-8'))
+                ->withStatus(303);
+        }
         $stmt->close();
-        return $response->withHeader('Location', '/admin/archives')->withStatus(303);
+        return $response->withHeader('Location', htmlspecialchars(url('/admin/archives'), ENT_QUOTES, 'UTF-8'))->withStatus(303);
     }
 
     // ── Phase 5+ — cover + document asset upload ─────────────────────────
@@ -1519,12 +1525,16 @@ class ArchivesPlugin
             }
         }
         $stmt = $this->db->prepare($sql);
-        if ($stmt !== false) {
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            $stmt->close();
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] removeAssetAction prepare failed: ' . $this->db->error, ['id' => $id]);
+            return $response->withHeader('Location', htmlspecialchars(url('/admin/archives/' . $id), ENT_QUOTES, 'UTF-8'))->withStatus(303);
         }
-        return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] removeAssetAction execute failed after file deletion: ' . $stmt->error, ['id' => $id, 'note' => 'physical file may be orphaned']);
+        }
+        $stmt->close();
+        return $response->withHeader('Location', htmlspecialchars(url('/admin/archives/' . $id), ENT_QUOTES, 'UTF-8'))->withStatus(303);
     }
 
     /**
@@ -2065,13 +2075,18 @@ class ArchivesPlugin
             'UPDATE authority_records SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
         );
         if ($stmt === false) {
-            SecureLogger::error('[Archives] authority delete prepare failed: ' . $this->db->error);
-            return $response->withHeader('Location', '/admin/archives/authorities/' . $id)->withStatus(303);
+            SecureLogger::error('[Archives] authority delete prepare failed: ' . $this->db->error, ['id' => $id]);
+            return $response->withHeader('Location', htmlspecialchars(url('/admin/archives/authorities/' . $id), ENT_QUOTES, 'UTF-8'))->withStatus(303);
         }
         $stmt->bind_param('i', $id);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] authorityDestroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+            $stmt->close();
+            return $response->withHeader('Location', htmlspecialchars(url('/admin/archives/authorities/' . $id), ENT_QUOTES, 'UTF-8'))
+                ->withStatus(303);
+        }
         $stmt->close();
-        return $response->withHeader('Location', '/admin/archives/authorities')->withStatus(303);
+        return $response->withHeader('Location', htmlspecialchars(url('/admin/archives/authorities'), ENT_QUOTES, 'UTF-8'))->withStatus(303);
     }
 
     /**
@@ -2102,14 +2117,18 @@ class ArchivesPlugin
                 );
                 if ($stmt !== false) {
                     $stmt->bind_param('iis', $archivalUnitId, $authorityId, $role);
-                    $stmt->execute();
+                    if (!$stmt->execute()) {
+                        SecureLogger::error('[Archives] attachAuthorityAction execute failed: ' . $stmt->error, ['archival_unit_id' => $archivalUnitId, 'authority_id' => $authorityId]);
+                    }
                     $stmt->close();
+                } else {
+                    SecureLogger::error('[Archives] attachAuthorityAction prepare failed: ' . $this->db->error, ['archival_unit_id' => $archivalUnitId, 'authority_id' => $authorityId]);
                 }
             }
         }
 
         return $response
-            ->withHeader('Location', '/admin/archives/' . $archivalUnitId)
+            ->withHeader('Location', htmlspecialchars(url('/admin/archives/' . $archivalUnitId), ENT_QUOTES, 'UTF-8'))
             ->withStatus(303);
     }
 
@@ -2163,12 +2182,16 @@ class ArchivesPlugin
             );
             if ($stmt !== false) {
                 $stmt->bind_param('ii', $autoreId, $authorityId);
-                $stmt->execute();
+                if (!$stmt->execute()) {
+                    SecureLogger::error('[Archives] linkAutoreAction execute failed: ' . $stmt->error, ['autori_id' => $autoreId, 'authority_id' => $authorityId]);
+                }
                 $stmt->close();
+            } else {
+                SecureLogger::error('[Archives] linkAutoreAction prepare failed: ' . $this->db->error, ['autori_id' => $autoreId, 'authority_id' => $authorityId]);
             }
         }
         return $response
-            ->withHeader('Location', '/admin/archives/authorities/' . $authorityId)
+            ->withHeader('Location', htmlspecialchars(url('/admin/archives/authorities/' . $authorityId), ENT_QUOTES, 'UTF-8'))
             ->withStatus(303);
     }
 
@@ -2364,6 +2387,46 @@ class ArchivesPlugin
         }
         $stmt->close();
         return $rows;
+    }
+
+    /**
+     * Batch-fetch authorities for multiple archival units in a single query.
+     * Eliminates N+1 queries in export loops that iterate over many units.
+     *
+     * @param int[] $unitIds
+     * @return array<int, list<array<string, mixed>>>  unit_id → list of authority rows
+     */
+    private function fetchAuthoritiesForUnits(array $unitIds): array
+    {
+        if (empty($unitIds)) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
+        $types = str_repeat('i', count($unitIds));
+        $sql = 'SELECT aua.archival_unit_id, ar.id, ar.type, ar.authorised_form, ar.dates_of_existence, aua.role
+                FROM archival_unit_authority aua
+                JOIN authority_records ar ON ar.id = aua.authority_id AND ar.deleted_at IS NULL
+                WHERE aua.archival_unit_id IN (' . $placeholders . ')
+                ORDER BY aua.archival_unit_id, ar.authorised_form';
+        $stmt = $this->db->prepare($sql);
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] fetchAuthoritiesForUnits prepare failed: ' . $this->db->error);
+            return [];
+        }
+        $stmt->bind_param($types, ...$unitIds);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $map = [];
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $unitId = (int) $row['archival_unit_id'];
+                unset($row['archival_unit_id']);
+                $map[$unitId][] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $map;
     }
 
     /**
@@ -2827,6 +2890,8 @@ class ArchivesPlugin
         $xw->writeElementNs('sru', 'numberOfRecords', null, (string) $total);
 
         if (!empty($rows)) {
+            $sruUnitIds = array_map(fn(array $r): int => (int) $r['id'], $rows);
+            $sruAuthoritiesMap = $this->fetchAuthoritiesForUnits($sruUnitIds);
             $xw->startElementNs('sru', 'records', null);
             $position = $startRecord;
             foreach ($rows as $row) {
@@ -2834,7 +2899,7 @@ class ArchivesPlugin
                 $xw->writeElementNs('sru', 'recordSchema', null, 'info:srw/schema/1/marcxml-v1.1');
                 $xw->writeElementNs('sru', 'recordPacking', null, 'xml');
                 $xw->startElementNs('sru', 'recordData', null);
-                $authorities = $this->fetchAuthoritiesForArchivalUnit((int) $row['id']);
+                $authorities = $sruAuthoritiesMap[(int) $row['id']] ?? [];
                 $this->writeArchivalUnitMarcRecord($xw, $row, $authorities);
                 $xw->endElement();
                 $xw->writeElementNs('sru', 'recordPosition', null, (string) $position);
@@ -3066,13 +3131,16 @@ class ArchivesPlugin
             }
         }
 
+        $unitIds = array_map(fn(array $r): int => (int) $r['id'], $rows);
+        $authoritiesMap = $this->fetchAuthoritiesForUnits($unitIds);
+
         $xw = new \XMLWriter();
         $xw->openMemory();
         $xw->setIndent(true);
         $xw->startDocument('1.0', 'UTF-8');
         $xw->startElementNs(null, 'collection', 'http://www.loc.gov/MARC21/slim');
         foreach ($rows as $row) {
-            $auth = $this->fetchAuthoritiesForArchivalUnit((int) $row['id']);
+            $auth = $authoritiesMap[(int) $row['id']] ?? [];
             $this->writeArchivalUnitMarcRecord($xw, $row, $auth);
         }
         $xw->endElement();
@@ -5556,15 +5624,16 @@ class ArchivesPlugin
         // schema) used to group multiple <ead> documents in a single XML file.
         // EAD3 has no standard bulk-export wrapper; tools that consume this file
         // can strip the outer element and process each <ead> child independently.
-        // Pre-fetch all unit files in one query to avoid N+1 on collection export.
-        $allUnitIds   = array_map(fn(array $r): int => (int) $r['id'], $rows);
-        $allUnitFiles = $this->fetchUnitFilesForUnits($allUnitIds);
-        $allUnitFiles = array_replace(array_fill_keys($allUnitIds, []), $allUnitFiles);
+        // Pre-fetch all unit files and authorities in one query each to avoid N+1.
+        $allUnitIds        = array_map(fn(array $r): int => (int) $r['id'], $rows);
+        $allUnitFiles      = $this->fetchUnitFilesForUnits($allUnitIds);
+        $allUnitFiles      = array_replace(array_fill_keys($allUnitIds, []), $allUnitFiles);
+        $ead3AuthoritiesMap = $this->fetchAuthoritiesForUnits($allUnitIds);
 
         $xw->startElement('eadlist');
         $xw->writeAttribute('xmlns:xsi', 'http://www.w3.org/2001/XMLSchema-instance');
         foreach ($rows as $row) {
-            $auth        = $this->fetchAuthoritiesForArchivalUnit((int) $row['id']);
+            $auth         = $ead3AuthoritiesMap[(int) $row['id']] ?? [];
             $rowUnitFiles = $allUnitFiles[(int) $row['id']] ?? null;
             $this->writeEad3Document($xw, $row, $auth, $rowUnitFiles);
         }
@@ -6169,6 +6238,9 @@ class ArchivesPlugin
         $verbElement = $identifiersOnly ? 'ListIdentifiers' : 'ListRecords';
         $xw->startElement($verbElement);
 
+        $oaiUnitIds = array_map(fn(array $r): int => (int) $r['id'], $rows);
+        $oaiAuthoritiesMap = $identifiersOnly ? [] : $this->fetchAuthoritiesForUnits($oaiUnitIds);
+
         foreach ($rows as $row) {
             $rowId   = (int) $row['id'];
             $oaiId   = 'oai:pinakes:archival_unit:' . $rowId;
@@ -6188,7 +6260,7 @@ class ArchivesPlugin
 
             if (!$identifiersOnly) {
                 $xw->startElement('metadata');
-                $authorities = $this->fetchAuthoritiesForArchivalUnit($rowId);
+                $authorities = $oaiAuthoritiesMap[$rowId] ?? [];
                 if ($metadataPrefix === 'oai_dc') {
                     $this->writeDublinCoreRecord($xw, $row, $authorities);
                 } elseif ($metadataPrefix === 'ead3') {
@@ -6654,6 +6726,7 @@ class ArchivesPlugin
             created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (autori_id, authority_id),
             KEY idx_authority_autore (authority_id),
+            CONSTRAINT fk_aal_autore    FOREIGN KEY (autori_id)    REFERENCES autori(id) ON DELETE CASCADE,
             CONSTRAINT fk_aal_authority FOREIGN KEY (authority_id) REFERENCES authority_records(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         SQL;

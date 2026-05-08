@@ -40,6 +40,9 @@ class OaiPmhServerPlugin
     private HookManager $hookManager;
     private ?int $pluginId = null;
 
+    /** Cached result of the archival_units table existence check. */
+    private ?bool $archivalUnitsTableExists = null;
+
     /** Page size for ListRecords / ListIdentifiers */
     private const PAGE_SIZE = 100;
 
@@ -293,11 +296,19 @@ class OaiPmhServerPlugin
                 continue; // table doesn't exist yet (e.g. archives not installed)
             }
 
-            $this->db->query("DROP TRIGGER IF EXISTS `{$name}`");
-            $this->db->query(
+            if ($this->db->query("DROP TRIGGER IF EXISTS `{$name}`") === false) {
+                SecureLogger::warning('[OaiPmhServer] DROP TRIGGER failed for ' . $name . ': ' . $this->db->error);
+            }
+            $created = $this->db->query(
                 "CREATE TRIGGER `{$name}` BEFORE UPDATE ON `{$table}`
                  FOR EACH ROW BEGIN {$def['body']}; END"
             );
+            if ($created === false) {
+                SecureLogger::error(
+                    '[OaiPmhServer] CREATE TRIGGER ' . $name . ' failed: ' . $this->db->error
+                    . ' — deleted record tracking may be inactive'
+                );
+            }
         }
     }
 
@@ -416,8 +427,10 @@ class OaiPmhServerPlugin
             $params = array_merge($params, $body);
         }
 
-        // Purge expired tokens on every request (cheap maintenance).
-        $this->purgeExpiredTokens();
+        // Purge expired tokens probabilistically (1% chance) to avoid per-request overhead.
+        if (random_int(0, 99) === 0) {
+            $this->purgeExpiredTokens();
+        }
 
         $verb    = (string) ($params['verb'] ?? '');
         $now     = gmdate('Y-m-d\TH:i:s\Z');
@@ -640,18 +653,25 @@ class OaiPmhServerPlugin
     private function oaiListMetadataFormats(\XMLWriter $xw, array $params, string $host): void
     {
         $identifier = (string) ($params['identifier'] ?? '');
+        $entityType = null; // null = no identifier filter; 'book' or 'archival_unit'
         if ($identifier !== '') {
             // Validate identifier refers to a known item (book or archival_unit).
-            if ($this->resolveIdentifier($identifier, $host) === null) {
+            $resolved = $this->resolveIdentifier($identifier, $host);
+            if ($resolved === null) {
                 $this->oaiError($xw, 'idDoesNotExist',
                     'The value of the identifier argument is unknown or illegal in this repository.');
                 return;
             }
+            $entityType = (string) ($resolved['_entity'] ?? 'book');
         }
 
         $xw->startElement('ListMetadataFormats');
 
         foreach ($this->metadataFormats() as $fmt) {
+            // archival_unit records only support oai_dc in this endpoint.
+            if ($entityType === 'archival_unit' && $fmt['prefix'] !== 'oai_dc') {
+                continue;
+            }
             $xw->startElement('metadataFormat');
             $xw->writeElement('metadataPrefix', $fmt['prefix']);
             $xw->writeElement('schema', $fmt['schema']);
@@ -770,8 +790,8 @@ class OaiPmhServerPlugin
 
         $validSets = ['', 'books', 'archives'];
         if (!in_array($set, $validSets, true)) {
-            $this->oaiError($xw, 'badArgument',
-                'The value of the set argument specifies a set that does not exist in this repository.');
+            $this->oaiError($xw, 'noRecordsMatch',
+                'No records match the specified set.');
             return;
         }
 
@@ -853,8 +873,9 @@ class OaiPmhServerPlugin
                     $xw->endElement(); // metadata
                 } catch (CannotDisseminateFormatException $e) {
                     // This record type doesn't support the requested format — skip it.
-                    // The XMLWriter may have an open 'metadata' element; close it safely.
-                    try { $xw->endElement(); } catch (\Throwable $ignored) {}
+                    // The XMLWriter may have open 'metadata' and 'record' elements; close them safely.
+                    try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <metadata>
+                    try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <record>
                     continue;
                 }
             }
@@ -968,11 +989,18 @@ class OaiPmhServerPlugin
             return;
         }
 
-        // Books — fetch related data.
+        // Books — use pre-fetched related data when available (batch path from fetchRecordsPage),
+        // otherwise fall back to individual queries (GetRecord / direct download paths).
         $bookId    = (int) $rec['id'];
-        $authors   = $this->fetchAuthorsForBook($bookId);
-        $publisher = !empty($rec['editore_id']) ? $this->fetchPublisher((int) $rec['editore_id']) : null;
-        $genre     = !empty($rec['genere_id'])  ? $this->fetchGenre((int) $rec['genere_id'])     : null;
+        $authors   = array_key_exists('_authors', $rec)
+            ? (array) $rec['_authors']
+            : $this->fetchAuthorsForBook($bookId);
+        $publisher = array_key_exists('_publisher', $rec)
+            ? (is_array($rec['_publisher']) ? $rec['_publisher'] : null)
+            : (!empty($rec['editore_id']) ? $this->fetchPublisher((int) $rec['editore_id']) : null);
+        $genre     = array_key_exists('_genre', $rec)
+            ? (is_array($rec['_genre']) ? $rec['_genre'] : null)
+            : (!empty($rec['genere_id']) ? $this->fetchGenre((int) $rec['genere_id']) : null);
 
         match ($metadataPrefix) {
             'oai_dc'  => $this->writeBookOaiDc($xw, $rec, $authors, $publisher, $genre, $host),
@@ -1624,11 +1652,14 @@ class OaiPmhServerPlugin
         $dcNs      = 'http://purl.org/dc/elements/1.1/';
         $magSchema = 'http://www.iccu.sbn.it/mag/mag_V2.0.1.xsd';
 
-        // Fetch MAG project config (fallback to defaults).
-        $magCfg = $this->fetchMagProjectConfig();
+        // Use pre-fetched MAG project config when available (batch path), else fetch once.
+        $magCfg = (array_key_exists('_mag_config', $row) && is_array($row['_mag_config']) && !empty($row['_mag_config']))
+            ? $row['_mag_config']
+            : $this->fetchMagProjectConfig();
 
         $xw->startElementNs(null, 'metadigit', $magNs);
         $xw->writeAttributeNs('xmlns', 'dc', null, $dcNs);
+        $xw->writeAttributeNs('xmlns', 'xsi', null, 'http://www.w3.org/2001/XMLSchema-instance');
         $xw->writeAttributeNs('xsi', 'schemaLocation', null, $magNs . ' ' . $magSchema);
         $xw->writeAttribute('version', '2.0.1');
 
@@ -1638,6 +1669,7 @@ class OaiPmhServerPlugin
         $xw->writeElement('progetto', (string) ($magCfg['project_code'] ?? 'PINAKES'));
         $xw->writeElement('codice_progetto', (string) ($magCfg['institution_code'] ?? 'IT'));
         $xw->endElement(); // stprog
+        $xw->writeElement('agency', (string) ($magCfg['institution_code'] ?? 'IT-UNKNOWN'));
         $xw->writeElement('collection', (string) ($magCfg['collection_name'] ?? 'Biblioteca'));
         $xw->writeElement('item', (string) ($row['id'] ?? ''));
         $xw->writeElement('rights', (string) ($magCfg['rights_statement'] ?? 'In Copyright'));
@@ -1894,17 +1926,20 @@ class OaiPmhServerPlugin
         $doBooks    = ($set === '' || $set === 'books');
         $doArchives = ($set === '' || $set === 'archives');
 
-        // Check archival_units existence once (optional plugin).
+        // Check archival_units existence (cached per request to avoid repeated I_S queries).
         $auExists = false;
         if ($doArchives) {
-            $r = $this->db->query(
-                "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
-                  WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units'"
-            );
-            if ($r instanceof \mysqli_result) {
-                $auExists = (int) ($r->fetch_assoc()['c'] ?? 0) > 0;
-                $r->free();
+            if ($this->archivalUnitsTableExists === null) {
+                $r = $this->db->query(
+                    "SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.TABLES
+                      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'archival_units'"
+                );
+                $this->archivalUnitsTableExists = $r !== false
+                    && $r instanceof \mysqli_result
+                    && ((int) ($r->fetch_assoc()['c'] ?? 0)) > 0;
+                if ($r instanceof \mysqli_result) { $r->free(); }
             }
+            $auExists = $this->archivalUnitsTableExists;
         }
 
         // Build UNION ALL parts for page identifiers only.
@@ -2039,6 +2074,84 @@ class OaiPmhServerPlugin
             }
         }
 
+        // ── Batch-fetch related data for all book records on this page ─────────
+        $authorsMap  = [];
+        $publisherMap = [];
+        $genreMap    = [];
+
+        if (!empty($bookIds)) {
+            $ph    = implode(',', array_fill(0, count($bookIds), '?'));
+            $types = str_repeat('i', count($bookIds));
+
+            // Batch authors
+            $stmtA = $this->db->prepare(
+                "SELECT la.libro_id, a.nome_autore AS nome, la.ruolo, la.ordine_credito
+                   FROM libri_autori la
+                   JOIN autori a ON a.id = la.autore_id
+                  WHERE la.libro_id IN ($ph)
+                  ORDER BY la.libro_id, la.ordine_credito, a.nome_autore"
+            );
+            if ($stmtA !== false) {
+                $stmtA->bind_param($types, ...$bookIds);
+                $stmtA->execute();
+                $resA = $stmtA->get_result();
+                if ($resA instanceof \mysqli_result) {
+                    while ($rowA = $resA->fetch_assoc()) {
+                        $authorsMap[(int) $rowA['libro_id']][] = $rowA;
+                    }
+                    $resA->free();
+                }
+                $stmtA->close();
+            }
+
+            // Batch publishers
+            $publisherIds = array_values(array_filter(array_unique(
+                array_map(fn($bm) => (int) ($bm['editore_id'] ?? 0), $bookMap)
+            )));
+            if (!empty($publisherIds)) {
+                $ph2   = implode(',', array_fill(0, count($publisherIds), '?'));
+                $types2 = str_repeat('i', count($publisherIds));
+                $stmtP = $this->db->prepare("SELECT id, nome FROM editori WHERE id IN ($ph2)");
+                if ($stmtP !== false) {
+                    $stmtP->bind_param($types2, ...$publisherIds);
+                    $stmtP->execute();
+                    $resP = $stmtP->get_result();
+                    if ($resP instanceof \mysqli_result) {
+                        while ($rowP = $resP->fetch_assoc()) {
+                            $publisherMap[(int) $rowP['id']] = $rowP;
+                        }
+                        $resP->free();
+                    }
+                    $stmtP->close();
+                }
+            }
+
+            // Batch genres
+            $genreIds = array_values(array_filter(array_unique(
+                array_map(fn($bm) => (int) ($bm['genere_id'] ?? 0), $bookMap)
+            )));
+            if (!empty($genreIds)) {
+                $ph3   = implode(',', array_fill(0, count($genreIds), '?'));
+                $types3 = str_repeat('i', count($genreIds));
+                $stmtG = $this->db->prepare("SELECT id, nome FROM generi WHERE id IN ($ph3)");
+                if ($stmtG !== false) {
+                    $stmtG->bind_param($types3, ...$genreIds);
+                    $stmtG->execute();
+                    $resG = $stmtG->get_result();
+                    if ($resG instanceof \mysqli_result) {
+                        while ($rowG = $resG->fetch_assoc()) {
+                            $genreMap[(int) $rowG['id']] = $rowG;
+                        }
+                        $resG->free();
+                    }
+                    $stmtG->close();
+                }
+            }
+        }
+
+        // Fetch MAG config once for the whole page (used by writeBookMag).
+        $magConfig = !empty($bookIds) ? $this->fetchMagProjectConfig() : [];
+
         // Reassemble page in UNION order.
         $result = [];
         foreach ($pageRefs as $ref) {
@@ -2050,6 +2163,11 @@ class OaiPmhServerPlugin
                 $row['_entity']    = 'book';
                 $row['_status']    = 'active';
                 $row['_datestamp'] = $row['updated_at'];
+                // Attach pre-fetched related data to avoid N+1 queries in writeMetadata().
+                $row['_authors']   = $authorsMap[$id] ?? [];
+                $row['_publisher'] = $publisherMap[(int) ($row['editore_id'] ?? 0)] ?? null;
+                $row['_genre']     = $genreMap[(int) ($row['genere_id'] ?? 0)] ?? null;
+                $row['_mag_config'] = $magConfig;
                 $result[] = $row;
             } elseif ($ref['_entity'] === 'archival_unit' && isset($auMap[$id])) {
                 $row = $auMap[$id];
@@ -2085,11 +2203,15 @@ class OaiPmhServerPlugin
         $stmt = $this->db->prepare(
             'INSERT INTO oai_resumption_tokens (token, payload, expires_at) VALUES (?, ?, ?)'
         );
-        if ($stmt !== false) {
-            $stmt->bind_param('sss', $token, $payload, $expires);
-            $stmt->execute();
-            $stmt->close();
+        if ($stmt === false) {
+            SecureLogger::error('[OaiPmhServer] saveResumptionToken prepare() failed: ' . $this->db->error);
+            return $token;
         }
+        $stmt->bind_param('sss', $token, $payload, $expires);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[OaiPmhServer] saveResumptionToken INSERT failed: ' . $stmt->error);
+        }
+        $stmt->close();
 
         return $token;
     }

@@ -1605,7 +1605,7 @@ ob_start();
 
                     <div class="mb-1">
                         <span class="badge bg-light text-secondary fw-normal" style="font-size: 0.7rem;">
-                            <i class="fas <?= \App\Support\MediaLabels::icon($resolvedTipoMedia) ?> me-1"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
+                            <i class="fas <?= htmlspecialchars(\App\Support\MediaLabels::icon($resolvedTipoMedia), ENT_QUOTES, 'UTF-8') ?> me-1"></i><?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
                         </span>
                     </div>
                     <h1 class="fw-bold mb-3" id="book-title" style="font-size: clamp(1.5rem, 3.5vw, 2.25rem);">
@@ -1615,7 +1615,7 @@ ob_start();
                     <div class="authors-list" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
                             <a href="<?= htmlspecialchars(route_path('author') . '/' . urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none">
-                                <span class="author-item role-<?= $author['ruolo'] ?>">
+                                <span class="author-item role-<?= htmlspecialchars($author['ruolo'], ENT_QUOTES, 'UTF-8') ?>">
                                     <?= htmlspecialchars(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                                     <?php if ($author['ruolo'] !== 'principale'): ?>
                                         (<?= ucfirst($author['ruolo']) ?>)
@@ -1633,7 +1633,7 @@ ob_start();
 
                     <div class="mt-4">
                         <span class="availability-badge <?= ($book['copie_disponibili'] > 0) ? 'available' : 'unavailable' ?>">
-                            <i class="fas fa-<?= ($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle' ?> me-2"></i>
+                            <i class="fas fa-<?= ($book['copie_disponibili'] > 0) ? 'check-circle' : 'times-circle' ?> me-2" aria-hidden="true"></i>
                             <?= ($book['copie_disponibili'] > 0)
                                 ? ($book['copie_totali'] > 1
                                     ? "{$book['copie_disponibili']}/{$book['copie_totali']} " . __("Disponibili")
@@ -1649,7 +1649,7 @@ ob_start();
                                     <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="text-dark"><?= __("Home") ?></a>
                                 </li>
                                 <li class="breadcrumb-item">
-                                    <a href="<?= $legacyCatalogRoute ?>" class="text-dark-50"><?= __("Catalogo") ?></a>
+                                    <a href="<?= htmlspecialchars($legacyCatalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="text-dark-50"><?= __("Catalogo") ?></a>
                                 </li>
                                 <li class="breadcrumb-item active text-dark" aria-current="page">
                                     <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
@@ -1683,7 +1683,7 @@ ob_start();
                         <i class="fas fa-heart me-2"></i><span><?= __("Aggiungi ai Preferiti") ?></span>
                       </button>
                     <?php else: ?>
-                      <a href="<?= $loginRoute ?>" class="btn btn-light btn-lg btn-fav-custom">
+                      <a href="<?= htmlspecialchars($loginRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn btn-light btn-lg btn-fav-custom">
                         <i class="fas fa-heart me-2"></i><?= __("Accedi per aggiungere ai Preferiti") ?>
                       </a>
                     <?php endif; ?>
@@ -1705,7 +1705,7 @@ ob_start();
                     <?php if (!empty($_GET['loan_request_success'])): ?>
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
                             <i class="fas fa-check-circle me-2"></i><?= __("Prestito richiesto con successo.") ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['loan_error'])): ?>
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -1714,13 +1714,13 @@ ob_start();
                               $e = $_GET['loan_error'];
                               echo $e==='not_available' ? __('Nessuna copia disponibile per il periodo richiesto.') : __('Errore nella richiesta di prestito.');
                             ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php endif; ?>
                     <?php if (!empty($_GET['reserve_success'])): ?>
                         <div class="alert alert-success alert-dismissible fade show" role="alert">
                             <i class="fas fa-check-circle me-2"></i><?= __("Prenotazione effettuata con successo") ?><?php if(!empty($_GET['reserve_date'])): ?> <?= __("per il giorno") ?> <strong><?= htmlspecialchars($_GET['reserve_date'], ENT_QUOTES, 'UTF-8') ?></strong><?php endif; ?>.
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php elseif (!empty($_GET['reserve_error'])): ?>
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -1734,7 +1734,7 @@ ob_start();
                               ];
                               echo $reserveErrorMessages[$_GET['reserve_error']] ?? __('Errore nella prenotazione.');
                             ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -2253,11 +2253,12 @@ ob_start();
                             <?php $relatedCover = ($related['copertina_url'] ?? '') ?: ($related['immagine_copertina'] ?? '') ?: '/uploads/copertine/placeholder.jpg'; ?>
                             <img src="<?= htmlspecialchars(url($relatedCover), ENT_QUOTES, 'UTF-8') ?>"
                                  alt="<?= htmlspecialchars($relatedCoverAlt, ENT_QUOTES, 'UTF-8') ?>"
-                                 class="related-book-image">
+                                 class="related-book-image"
+                                 loading="lazy">
                         </a>
                         <?php if (($related['copie_disponibili'] ?? 0) > 0): ?>
                         <span class="related-availability-badge available-badge">
-                            <i class="fas fa-check-circle"></i>
+                            <i class="fas fa-check-circle" aria-hidden="true"></i>
                             <?php
                             // Hook: Allow plugins to add icons to related book badge (e.g., eBook/audio icons)
                             do_action('book.badge.digital_icons', $related);

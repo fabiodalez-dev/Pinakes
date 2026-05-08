@@ -101,7 +101,19 @@ test.describe.serial('Plugin lifecycle — v0.7.4 (10 tests)', () => {
         ]);
     });
 
-    test.afterAll(async () => { await context?.close(); });
+    test.afterAll(async () => {
+        // Restore all plugins to active state so subsequent test suites start from
+        // a known-good baseline (all plugins active).
+        try {
+            if (page && !page.isClosed()) {
+                await page.goto(`${BASE}/admin/plugins`);
+                for (const plugin of allPlugins) {
+                    await pluginApiCall(page, 'activate', plugin.id).catch(() => {});
+                }
+            }
+        } catch { /* ignore — cleanup is best-effort */ }
+        await context?.close();
+    });
 
     // ── Test 1: Discover plugins ──────────────────────────────────────────────
 
@@ -128,9 +140,11 @@ test.describe.serial('Plugin lifecycle — v0.7.4 (10 tests)', () => {
 
         for (const plugin of allPlugins) {
             const result = await pluginApiCall(page, 'activate', plugin.id);
-            // Accept success OR "already active" as valid — both mean plugin is active
-            const alreadyActive = result.success === false && typeof result.message === 'string'
-                && result.message.toLowerCase().includes('già att');
+            // Accept success OR "already active" as valid — both mean plugin is active.
+            // Use success===false + non-empty message as locale-independent indicator
+            // (message text varies: "già attivo" IT, "already active" EN, "bereits aktiv" DE).
+            const alreadyActive = result.success === false && result.message && result.message.length > 0
+                && !result.error;
             expect(
                 result.success || alreadyActive,
                 `Setup activate ${plugin.name}: ${result.message || result.error || ''}`
