@@ -755,7 +755,7 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+        $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('LookupAgencyResponse');
         $xw->startElement('AgencyId');
@@ -792,7 +792,7 @@ class NcipServerPlugin
         $avail = (int) ($book['copie_disponibili'] ?? 0);
 
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+        $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('LookupItemResponse');
 
@@ -837,7 +837,7 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+        $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('LookupUserResponse');
 
@@ -882,7 +882,7 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+        $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('CheckOutItemResponse');
         $xw->startElement('ItemId');
@@ -911,7 +911,7 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+        $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('CheckInItemResponse');
         $xw->startElement('ItemId');
@@ -935,7 +935,7 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+        $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('RenewItemResponse');
         $xw->startElement('ItemId');
@@ -964,7 +964,7 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+        $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('RequestItemResponse');
         $xw->startElement('ItemId');
@@ -1001,7 +1001,7 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+        $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('CancelRequestItemResponse');
         $xw->startElement('ItemId');
@@ -1031,7 +1031,7 @@ class NcipServerPlugin
     {
         $xw = $this->newXmlWriter();
         $xw->startElementNs(null, 'NCIPMessage', self::NCIP_NS);
-        $xw->writeAttributeNs('ncip', 'version', self::NCIP_NS, self::NCIP_VERSION);
+        $xw->writeAttribute('version', self::NCIP_VERSION);
 
         $xw->startElement('Problem');
         $xw->startElement('ProblemType');

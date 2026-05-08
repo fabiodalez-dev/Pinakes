@@ -144,7 +144,7 @@ class ResourceSyncPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        $base = $this->baseUrl($request);
+        $base = $this->baseUrl();
         $xml  = $this->buildSourceDescription($base);
         return $this->xmlResponse($response, $xml);
     }
@@ -153,7 +153,7 @@ class ResourceSyncPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        $base = $this->baseUrl($request);
+        $base = $this->baseUrl();
         $xml  = $this->buildCapabilityList($base);
         return $this->xmlResponse($response, $xml);
     }
@@ -162,7 +162,7 @@ class ResourceSyncPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        $base   = $this->baseUrl($request);
+        $base   = $this->baseUrl();
         $params = $request->getQueryParams();
         $page   = max(0, (int) ($params['page'] ?? 0));
         $books  = $this->fetchBooks($page);
@@ -174,7 +174,7 @@ class ResourceSyncPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        $base   = $this->baseUrl($request);
+        $base   = $this->baseUrl();
         $params = $request->getQueryParams();
         $since  = isset($params['from']) ? (string) $params['from'] : null;
         $books  = $this->fetchChangedBooks($since);
@@ -457,20 +457,9 @@ class ResourceSyncPlugin
 
     // ─── Utilities ────────────────────────────────────────────────────────────
 
-    private function baseUrl(ServerRequestInterface $request): string
+    private function baseUrl(): string
     {
-        $uri    = $request->getUri();
-        $scheme = $uri->getScheme();
-        $host   = $uri->getHost();
-        $port   = $uri->getPort();
-
-        $base = $scheme . '://' . $host;
-        if ($port !== null && !(($scheme === 'http' && $port === 80) || ($scheme === 'https' && $port === 443))) {
-            $base .= ':' . $port;
-        }
-
-        $basePath = defined('BASE_PATH') ? rtrim((string) BASE_PATH, '/') : '';
-        return $base . $basePath;
+        return \App\Support\HtmlHelper::getBaseUrl();
     }
 
     private function w3cDate(string $mysqlDatetime): string

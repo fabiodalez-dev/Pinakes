@@ -66,9 +66,10 @@ Pinakes v0.7.x introduced a full library-interoperability layer, delivered as op
 - Maps Pinakes loan/reservation/user records onto NCIP data elements; returns structured NCIP XML responses.
 
 **BIBFRAME 2.0 linked-data export**
-- `GET /api/bibframe/{id}` — emits JSON-LD `bf:Work` + `bf:Instance` for books; `bf:Item` for archival units.
+- `GET /api/bibframe/book/{id}` — emits JSON-LD `bf:Work` + `bf:Instance` for books.
+- `GET /api/bibframe/book/{id}/work` — `bf:Work` only.
+- `GET /api/bibframe/book/{id}/instance` — `bf:Instance` only.
 - Includes `bf:title`, `bf:contribution` (authors as `bf:Agent`), `bf:subject` (keywords), `bf:genreForm`, `bf:classification` (Dewey), `bf:language`, `bf:identifiedBy` (ISBN-13, EAN), and persistent `/id/work/{id}` + `/id/instance/{id}` URIs.
-- Bulk export at `/api/bibframe/export` (newline-delimited JSON-LD).
 
 **ResourceSync**
 - `GET /.well-known/resourcesync` — W3C ResourceSync source description.
