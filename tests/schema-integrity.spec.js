@@ -14,8 +14,8 @@
  *     automatically when those tables are absent.
  *
  * Covers:
- *  1. Installer creates exactly 56 core tables
- *  2. All 56 core tables exist by name
+ *  1. Installer creates exactly N core tables (auto-crosscheck vs schema.sql)
+ *  2. All core tables exist by name (hardcoded CORE_TABLES + auto-derived)
  *  3. libri: critical columns + tipo_media ENUM values
  *  4. autori: VIAF/ISNI authority control columns (v0.7.0)
  *  5. prestiti: NCIP columns; origine ENUM includes 'ncip' (v0.7.3)
@@ -41,6 +41,8 @@
 
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
+const fs   = require('fs');
+const path = require('path');
 
 const DB_USER   = process.env.E2E_DB_USER   || '';
 const DB_PASS   = process.env.E2E_DB_PASS   || '';
@@ -69,12 +71,36 @@ function dbQuery(sql) {
 
 test.skip(!DB_USER || !DB_NAME, 'Missing E2E env (DB_*)');
 
+// ── Schema.sql auto-derive (approach 2) ──────────────────────────────────────
+
+/**
+ * Parse CREATE TABLE names from the authoritative schema.sql.
+ * Returns null when schema.sql is not readable (e.g. remote-only CI target).
+ * Plugin-optional tables are NOT in schema.sql, so they are naturally excluded.
+ *
+ * __dirname is always the tests/ folder of the *source repo*, regardless of
+ * where the app is installed — so this always reflects the latest definition.
+ *
+ * @returns {string[]|null}
+ */
+function parseCoreTablesFromSchema() {
+    const sqlPath = path.resolve(__dirname, '..', 'installer', 'database', 'schema.sql');
+    try {
+        const sql = fs.readFileSync(sqlPath, 'utf-8');
+        return [...sql.matchAll(/^CREATE TABLE `(\w+)`/gm)].map(m => m[1]).sort();
+    } catch {
+        return null;
+    }
+}
+
 // ── Expected state ────────────────────────────────────────────────────────────
 
 /**
  * 56 tables always created by the base installer via schema.sql.
  * Present after fresh install AND after upgrade, regardless of which
  * optional plugins the user has activated.
+ *
+ * KEEP IN SYNC WITH schema.sql — Test 1 will fail if this list diverges.
  */
 const CORE_TABLES = [
     'admin_notifications', 'api_keys', 'autori', 'author_authority_alternates',
@@ -140,24 +166,55 @@ test.describe.serial('Schema integrity — v0.7.4 (17 tests)', () => {
 
     // ── 1. Core table count ───────────────────────────────────────────────────
 
-    test('1. Installer creates exactly 56 core tables', () => {
+    test(`1. Installer creates exactly ${CORE_TABLES.length} core tables (+ schema.sql cross-check)`, () => {
+        // Approach 1 — hardcoded CORE_TABLES (PR-discipline check)
         const list = CORE_TABLES.map(t => `'${t}'`).join(',');
         const cnt = parseInt(dbQuery(
             `SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES` +
             ` WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (${list})`
         ));
-        expect(cnt, `Expected 56 core tables, found ${cnt}`).toBe(56);
+        expect(cnt, `Expected ${CORE_TABLES.length} core tables, found ${cnt}`).toBe(CORE_TABLES.length);
+
+        // Approach 2 — auto-derive from schema.sql and cross-validate against CORE_TABLES
+        // Catches: table added to schema.sql but CORE_TABLES not updated (or vice-versa).
+        const fromSchema = parseCoreTablesFromSchema();
+        if (fromSchema !== null) {
+            const schemaSet    = new Set(fromSchema);
+            const hardcodedSet = new Set(CORE_TABLES);
+            const inSchemaOnly    = fromSchema.filter(t => !hardcodedSet.has(t));
+            const inHardcodedOnly = CORE_TABLES.filter(t => !schemaSet.has(t));
+            expect(inSchemaOnly,
+                `Tables in schema.sql but missing from CORE_TABLES — update the hardcoded list: ${inSchemaOnly.join(', ')}`
+            ).toHaveLength(0);
+            expect(inHardcodedOnly,
+                `Tables in CORE_TABLES but absent from schema.sql — stale entry or typo: ${inHardcodedOnly.join(', ')}`
+            ).toHaveLength(0);
+        }
     });
 
     // ── 2. All core tables present by name ────────────────────────────────────
 
-    test('2. All 56 core tables exist by name', () => {
+    test('2. All core tables exist by name (CORE_TABLES + schema.sql)', () => {
         const actual = new Set(
             dbQuery("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE()")
                 .split('\n').map(t => t.trim()).filter(Boolean)
         );
-        const missing = CORE_TABLES.filter(t => !actual.has(t));
-        expect(missing, `Missing core tables: ${missing.join(', ')}`).toHaveLength(0);
+
+        // Approach 1 — hardcoded list by name (detailed error output)
+        const missingHardcoded = CORE_TABLES.filter(t => !actual.has(t));
+        expect(missingHardcoded,
+            `Tables in CORE_TABLES but missing from DB: ${missingHardcoded.join(', ')}`
+        ).toHaveLength(0);
+
+        // Approach 2 — auto-derived from schema.sql (catches installer regressions
+        //   where a new table in schema.sql was silently omitted during install)
+        const fromSchema = parseCoreTablesFromSchema();
+        if (fromSchema !== null) {
+            const missingFromSchema = fromSchema.filter(t => !actual.has(t));
+            expect(missingFromSchema,
+                `Tables defined in schema.sql but missing from DB: ${missingFromSchema.join(', ')}`
+            ).toHaveLength(0);
+        }
     });
 
     // ── 3. libri columns ──────────────────────────────────────────────────────
