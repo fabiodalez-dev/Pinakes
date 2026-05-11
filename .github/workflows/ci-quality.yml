@@ -59,11 +59,13 @@ jobs:
         continue-on-error: true  # Warn, don't block — js devDependencies may have unfixed advisories
 
       # ── Translation completeness ──────────────────────────────────────────
-      - name: Translation key parity (en_US ↔ de_DE ↔ it_IT, exact sets + placeholders)
+      - name: Translation key parity (en_US ↔ de_DE, placeholders en/de/it)
         run: |
           FAILED=0
-          # 1. Exact key-set parity between all three locales
-          for PAIR in "en_US:de_DE" "en_US:it_IT"; do
+          # 1. Exact key-set parity for non-Italian translations only.
+          # it_IT is intentionally sparse: __() falls back to the key itself
+          # (keys are native Italian text), so it_IT.json only needs overrides.
+          for PAIR in "en_US:de_DE"; do
             A=${PAIR%%:*}; B=${PAIR##*:}
             MISSING=$(comm -23 <(jq -r 'keys[]' locale/${A}.json | sort) <(jq -r 'keys[]' locale/${B}.json | sort))
             EXTRA=$(comm -13 <(jq -r 'keys[]' locale/${A}.json | sort) <(jq -r 'keys[]' locale/${B}.json | sort))
