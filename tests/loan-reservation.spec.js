@@ -348,7 +348,17 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
 
     await pickupBtn.click();
     await adminPage.waitForSelector('.swal2-popup', { timeout: 10000 });
+
+    const confirmResponsePromise = adminPage.waitForResponse((response) => {
+      return response.url().includes('/admin/loans/confirm-pickup')
+        && response.request().method() === 'POST';
+    }, { timeout: 15000 });
+
     await adminPage.locator('.swal2-confirm').click();
+    const confirmResponse = await confirmResponsePromise;
+    const confirmBody = await confirmResponse.json().catch(() => ({}));
+    expect(confirmResponse.ok(), `confirm-pickup HTTP ${confirmResponse.status()}`).toBe(true);
+    expect(confirmBody.success, confirmBody.message || 'confirm-pickup response did not report success').toBe(true);
 
     // Wait for success
     await adminPage.waitForFunction(
@@ -358,11 +368,16 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     await dismissSwal(adminPage);
 
     // DB verify: in_corso
-    expect(dbQuery(`SELECT stato FROM prestiti WHERE id=${loanId}`)).toBe('in_corso');
+    await expect.poll(
+      () => dbQuery(`SELECT stato FROM prestiti WHERE id=${loanId}`),
+      { message: 'Pickup confirmation must move loan to in_corso', timeout: 10000 }
+    ).toBe('in_corso');
 
     // DB verify: copy is 'prestato'
-    const copyStat = dbQuery(`SELECT stato FROM copie WHERE id=(SELECT copia_id FROM prestiti WHERE id=${loanId})`);
-    expect(copyStat).toBe('prestato');
+    await expect.poll(
+      () => dbQuery(`SELECT stato FROM copie WHERE id=(SELECT copia_id FROM prestiti WHERE id=${loanId})`),
+      { message: 'Pickup confirmation must mark the assigned copy as prestato', timeout: 10000 }
+    ).toBe('prestato');
   });
 
   test('3.2: User sees active loan', async () => {

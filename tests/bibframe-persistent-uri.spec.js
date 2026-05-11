@@ -186,7 +186,7 @@ test.describe.serial('BIBFRAME Persistent URIs — /id/work and /id/instance (15
         const body = await res.json();
         const graph = Array.isArray(body['@graph']) ? body['@graph'] : [];
         const inst = graph.find(n => n && n['@type'] === 'bf:Instance');
-        const isInstanceOf = inst?.['bf:isInstanceOf']?.['@id'] ?? '';
+        const isInstanceOf = inst?.['bf:instanceOf']?.['@id'] ?? '';
         expect(isInstanceOf).toContain(`/id/work/${bookId}`);
     });
 

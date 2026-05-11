@@ -1076,8 +1076,17 @@ function toggleLibraryThingAccordion() {
 }
 
 // Global translation function for JavaScript
-window.__ = function(key) {
-    return i18nTranslations[key] || key;
+window.__ = function(key, ...args) {
+    let translated = i18nTranslations[key] || key;
+    if (args.length > 0) {
+        let argIndex = 0;
+        translated = translated.replace(/%(\d+\$)?[sd]/g, function(match, position) {
+            const index = position ? parseInt(position, 10) - 1 : argIndex++;
+            const value = args[index];
+            return value !== undefined ? String(value) : '';
+        });
+    }
+    return translated;
 };
 
 // Convenience object for direct access

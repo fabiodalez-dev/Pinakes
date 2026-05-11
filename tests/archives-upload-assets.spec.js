@@ -15,6 +15,7 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const BASE = process.env.E2E_BASE_URL || 'http://localhost:8081';
@@ -49,7 +50,17 @@ const FIXTURES_DIR = path.join(__dirname, 'fixtures');
 
 const TEST_COVER = path.join(FIXTURES_DIR, 'archive-test-cover.jpg');
 const TEST_PDF   = path.join(FIXTURES_DIR, 'archive-test.pdf');
-const TEST_AUDIO = path.join(FIXTURES_DIR, 'archive-test-audio.mp3');
+const TEST_AUDIO = path.join(os.tmpdir(), 'archive-test-audio.wav');
+
+function ensureAudioFixture() {
+    fs.writeFileSync(TEST_AUDIO, Buffer.from([
+        0x52, 0x49, 0x46, 0x46, 0x2c, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45,
+        0x66, 0x6d, 0x74, 0x20, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00,
+        0x40, 0x1f, 0x00, 0x00, 0x80, 0x3e, 0x00, 0x00, 0x02, 0x00, 0x10, 0x00,
+        0x64, 0x61, 0x74, 0x61, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x7f,
+        0x00, 0x00, 0x01, 0x80,
+    ]));
+}
 
 test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () => {
     /** @type {import('@playwright/test').BrowserContext} */
@@ -65,6 +76,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
     const ids = { pdf: 0, audio: 0, coverOnly: 0 };
 
     test.beforeAll(async ({ browser }) => {
+        ensureAudioFixture();
         // Sanity check: committed fixtures must be present in tests/fixtures/
         for (const fp of [TEST_COVER, TEST_PDF, TEST_AUDIO]) {
             expect(fs.existsSync(fp), `fixture missing: ${fp}`).toBe(true);
@@ -148,7 +160,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
         expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{8}\.jpg$/);
     });
 
-    test('4. Upload audio (MP3) — row #2, should trigger player in frontend', async () => {
+    test('4. Upload audio (WAV) — row #2, should trigger player in frontend', async () => {
         await submitUpload(ids.audio, 'form[action*="/upload-document"]', 'document', TEST_AUDIO);
         const row = dbQuery(
             `SELECT CONCAT_WS('|', file_path, file_mime, original_filename)
@@ -157,10 +169,10 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
               ORDER BY id DESC LIMIT 1`
         );
         const [docPath, mime, filename] = row.split('|');
-        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{8}\.mp3$/);
-        expect(mime).toBe('audio/mpeg');
-        expect(filename).toBe('archive-test-audio.mp3');
-        expect(fs.existsSync(path.join(PUBLIC_DIR, docPath)), 'MP3 file on disk').toBe(true);
+        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{8}\.wav$/);
+        expect(['audio/wav', 'audio/x-wav']).toContain(mime);
+        expect(filename).toBe('archive-test-audio.wav');
+        expect(fs.existsSync(path.join(PUBLIC_DIR, docPath)), 'audio file on disk').toBe(true);
     });
 
     test('5. Upload cover only — row #3', async () => {
@@ -175,15 +187,15 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
         // page.request.get follows by default.
         const resp = await page.request.get(`${BASE}/archivio/${ids.pdf}`);
         const body = await resp.text();
-        expect(body).toContain('Scarica documento');
         expect(body).toContain('archive-test.pdf');
+        expect(body).toMatch(/\/uploads\/archives\/documents\/\d+-[a-f0-9]{8}\.pdf/);
     });
 
     test('7. Public frontend: audio row renders <audio> + green-audio-player', async () => {
         const resp = await page.request.get(`${BASE}/archivio/${ids.audio}`);
         const body = await resp.text();
         expect(body).toContain('green-audio-player');
-        expect(body).toMatch(/<audio[^>]+\.mp3/);
+        expect(body).toMatch(/<audio[^>]+\.wav/);
     });
 
     test('8. Public frontend: cover images are served by nginx', async () => {

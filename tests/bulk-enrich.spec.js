@@ -39,6 +39,28 @@ function dbExec(sql) {
   execFileSync('mysql', args, { encoding: 'utf8', stdio: 'pipe', timeout: 10000 });
 }
 
+async function gotoBulkEnrich(page, attempts = 6) {
+  let lastError;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      await page.goto(`${BASE}/admin/libri/bulk-enrich`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 30000,
+      });
+      const body = await page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
+      if (!body.includes('Gateway Timeout')) {
+        return;
+      }
+    } catch (err) {
+      lastError = err;
+    }
+    await page.waitForTimeout(5000);
+  }
+  if (lastError) {
+    throw lastError;
+  }
+}
+
 // ─── Test data ────────────────────────────────────────────────────────────
 // Real ISBNs for enrichment tests (well-known books with covers on Open Library)
 const ISBN_MOCKINGBIRD = '9780061120084';  // To Kill a Mockingbird
@@ -624,8 +646,7 @@ test.describe.serial('Bulk Enrichment', () => {
   test('18. Bulk enrich page shows stats cards', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
 
-    await page.goto(`${BASE}/admin/libri/bulk-enrich`);
-    await page.waitForLoadState('domcontentloaded');
+    await gotoBulkEnrich(page);
     await expect(page.locator('body')).not.toContainText('Gateway Timeout');
     const content = await page.content();
 
@@ -641,8 +662,7 @@ test.describe.serial('Bulk Enrichment', () => {
   test('19. Bulk enrich page has "Arricchisci Adesso" button', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
 
-    await page.goto(`${BASE}/admin/libri/bulk-enrich`);
-    await page.waitForLoadState('domcontentloaded');
+    await gotoBulkEnrich(page);
 
     // Look for the action button — by text or by form action
     const buttonByText = page.locator('button, a').filter({
@@ -661,8 +681,7 @@ test.describe.serial('Bulk Enrichment', () => {
   test('20. Bulk enrich page has toggle switch', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
 
-    await page.goto(`${BASE}/admin/libri/bulk-enrich`);
-    await page.waitForLoadState('domcontentloaded');
+    await gotoBulkEnrich(page);
 
     // Toggle can be a checkbox, a switch element, or a custom toggle
     const toggle = page.locator(

@@ -2095,11 +2095,11 @@ class OaiPmhServerPlugin
 
             // Batch authors
             $stmtA = $this->db->prepare(
-                "SELECT la.libro_id, a.nome_autore AS nome, la.ruolo, la.ordine_credito
+                "SELECT la.libro_id, a.nome, la.ruolo, la.ordine_credito
                    FROM libri_autori la
                    JOIN autori a ON a.id = la.autore_id
                   WHERE la.libro_id IN ($ph)
-                  ORDER BY la.libro_id, la.ordine_credito, a.nome_autore"
+                  ORDER BY la.libro_id, la.ordine_credito, a.nome"
             );
             if ($stmtA !== false) {
                 $stmtA->bind_param($types, ...$bookIds);

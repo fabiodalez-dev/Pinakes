@@ -1,6 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 public/uploads/archives/e2e/*.pdf binary
+tests/fixtures/archive-test.pdf binary -whitespace
+tests/fixtures/test_import_languages.tsv -whitespace
 
 # Exclude from release archives (git archive)
 # NOTE: public/installer/assets/ MUST be in the ZIP — contains installer.js

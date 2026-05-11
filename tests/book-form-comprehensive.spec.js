@@ -136,11 +136,17 @@ test.describe.serial('book_form — comprehensive smoke + regressions', () => {
   test('9. TinyMCE editor initialises with model: dom (regression v8)', async () => {
     await page.goto(CREATE_BOOK_URL);
     await page.waitForFunction(
-      () => typeof window.tinymce !== 'undefined' && window.tinymce.editors.length > 0,
+      () => {
+        const tm = window.tinymce;
+        if (!tm) return false;
+        if (Array.isArray(tm.editors) && tm.editors.length > 0) return true;
+        return typeof tm.get === 'function' && !!tm.get('descrizione');
+      },
       { timeout: 20000 },
     );
     const modelOk = await page.evaluate(() => {
-      const ed = window.tinymce.editors[0];
+      const tm = window.tinymce;
+      const ed = (Array.isArray(tm.editors) && tm.editors[0]) || tm.get?.('descrizione');
       return ed && (ed.options.get('model') === 'dom' || ed.settings?.model === 'dom');
     });
     expect(modelOk, 'TinyMCE 8 must declare model: dom').toBe(true);
@@ -180,6 +186,13 @@ test.describe.serial('book_form — comprehensive smoke + regressions', () => {
     const flag = page.locator('#remove_cover');
     await expect(flag).toHaveValue('0');
     await page.evaluate(() => {
+      window.confirm = () => true;
+      const preview = document.getElementById('cover-preview-container');
+      if (preview && !preview.querySelector('img')) {
+        const img = document.createElement('img');
+        img.src = '/uploads/test-cover.jpg';
+        preview.appendChild(img);
+      }
       const f = document.getElementById('remove_cover');
       if (f && typeof window.removeCoverImage === 'function') window.removeCoverImage();
       else if (f) f.value = '1';
@@ -194,11 +207,17 @@ test.describe.serial('book_form — comprehensive smoke + regressions', () => {
     await page.fill('#titolo', uniqueTitle);
     await page.fill('#anno_pubblicazione', '2024');
     await page.fill('#lingua', 'Italiano');
-    await Promise.all([
-      page.waitForURL(/libri|admin/, { timeout: 30000 }),
-      page.locator('button[type="submit"]').first().click(),
-    ]);
     const safeTitle = uniqueTitle.replace(/[^\w\s.-]/g, '');
+    await page.locator('#bookForm button[type="submit"]').click();
+    const swalConfirm = page.locator('.swal2-confirm');
+    if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await swalConfirm.click();
+    }
+    await expect.poll(
+      () => dbQuery(`SELECT id, titolo FROM libri WHERE titolo = '${safeTitle}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`),
+      { timeout: 30000 }
+    ).toContain(safeTitle);
+    await page.waitForURL(/\/admin\/libri(?:\/\d+)?(?:\?.*)?$/, { timeout: 30000 });
     const row = dbQuery(`SELECT id, titolo FROM libri WHERE titolo = '${safeTitle}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
     expect(row, 'created book should exist in DB').toContain(safeTitle);
     const idStr = row.split('\t')[0];

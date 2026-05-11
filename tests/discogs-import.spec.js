@@ -134,6 +134,12 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
 
     const titleValue = await titleField.inputValue();
     expect(titleValue.toLowerCase()).toContain('nevermind');
+
+    // The form continues to populate related fields (author/publisher/EAN)
+    // after the title is written. Wait for the import cycle to finish before
+    // the next serial test reads those fields.
+    await expect(importBtn, 'Discogs import did not finish populating the form')
+      .toBeEnabled({ timeout: 30000 });
   });
 
   test('3. Verify scraped fields are populated', async () => {
@@ -157,9 +163,14 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     // Check EAN field has the barcode — and isbn13 MUST be empty.
     // Regression guard: music barcodes must never be stuffed into isbn13
     // (commit 7016608 + normalizeIsbnFields guard).
-    const eanValue = await page.locator('input[name="ean"]').inputValue();
+    await expect.poll(
+      async () => page.locator('input[name="ean"]').inputValue(),
+      {
+        message: 'Barcode must land in ean for music media',
+        timeout: 30000,
+      }
+    ).toBe(TEST_BARCODE);
     const isbn13Value = await page.locator('input[name="isbn13"]').inputValue();
-    expect(eanValue, 'Barcode must land in ean for music media').toBe(TEST_BARCODE);
     expect(isbn13Value, 'isbn13 must stay empty for non-book scraping').toBe('');
   });
 

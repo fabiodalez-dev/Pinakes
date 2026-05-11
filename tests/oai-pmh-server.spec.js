@@ -54,6 +54,32 @@ function dbExec(sql) {
     execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000, env: MYSQL_ENV() });
 }
 
+function nextResumptionToken(xml) {
+    const match = xml.match(/<resumptionToken(?:\s[^>]*)?>([^<]*)<\/resumptionToken>/);
+    return match && match[1] ? match[1].trim() : '';
+}
+
+async function fetchOaiPagesUntil(request, initialUrl, needle, maxPages = 12) {
+    let url = initialUrl;
+    let lastText = '';
+    for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
+        const res = await request.get(url);
+        expect(res.status()).toBe(200);
+        const text = await res.text();
+        lastText = text;
+        expect(text).not.toContain('<error code=');
+        if (text.includes(needle)) {
+            return text;
+        }
+        const token = nextResumptionToken(text);
+        if (!token) {
+            break;
+        }
+        url = `${BASE}/oai?verb=ListRecords&resumptionToken=${encodeURIComponent(token)}`;
+    }
+    return lastText;
+}
+
 const TAG      = 'E2E_OAI_' + Date.now();
 const BOOK_TAG = TAG + '_BOOK';
 
@@ -239,15 +265,12 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
         // Use ?from= to restrict to records modified since just before this test run,
         // so the test book is always on the first page regardless of total repository size.
         const url  = `${BASE}/oai?verb=ListRecords&metadataPrefix=oai_dc&set=books&from=${beforeAllFrom}`;
-        const res  = await page.request.get(url);
-        expect(res.status()).toBe(200);
-        const text = await res.text();
-        // Must not have error codes.
-        expect(text).not.toContain('<error code=');
+        const expectedIdentifier = `oai:${oaiHost}:book:${testBookId}`;
+        const text = await fetchOaiPagesUntil(page.request, url, expectedIdentifier);
         // Must contain at least one record.
         expect(text).toContain('<record>');
         // Must include our test book.
-        expect(text).toContain(`oai:${oaiHost}:book:${testBookId}`);
+        expect(text).toContain(expectedIdentifier);
         // Must have oai_dc namespace.
         expect(text).toContain('oai_dc:dc');
         // resumptionToken element (always present, even if empty).

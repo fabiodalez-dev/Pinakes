@@ -41,12 +41,13 @@ $htmlLang = substr($currentLocale, 0, 2);
           if (!args.length) {
             return message;
           }
-          let argIndex = 0;
-          return message.replace(/%(\d+\$)?[sd]/g, function () {
-            const value = args[argIndex++];
-            return value !== undefined ? String(value) : '';
-          });
-        };
+	          let argIndex = 0;
+	          return message.replace(/%(\d+\$)?[sd]/g, function (match, position) {
+	            const index = position ? parseInt(position, 10) - 1 : argIndex++;
+	            const value = args[index];
+	            return value !== undefined ? String(value) : '';
+	          });
+	        };
       }
       if (typeof window.__n !== 'function') {
         window.__n = function (singular, plural, count, ...args) {
@@ -767,12 +768,13 @@ $htmlLang = substr($currentLocale, 0, 2);
 
       // If args provided, do string replacement (for %s, %d placeholders)
       if (args.length > 0) {
-        let argIndex = 0;
-        translated = translated.replace(/%(\d+\$)?[sd]/g, function () {
-          const value = args[argIndex++];
-          return value !== undefined ? String(value) : '';
-        });
-      }
+	        let argIndex = 0;
+	        translated = translated.replace(/%(\d+\$)?[sd]/g, function (match, position) {
+	          const index = position ? parseInt(position, 10) - 1 : argIndex++;
+	          const value = args[index];
+	          return value !== undefined ? String(value) : '';
+	        });
+	      }
 
       return translated;
     };
