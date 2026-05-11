@@ -286,8 +286,8 @@ class Language
             // Unset all defaults
             $this->db->query("UPDATE languages SET is_default = 0");
 
-            // Set new default
-            $stmt = $this->db->prepare("UPDATE languages SET is_default = 1 WHERE code = ?");
+            // Set new default and ensure it is active (can't default to inactive language)
+            $stmt = $this->db->prepare("UPDATE languages SET is_default = 1, is_active = 1 WHERE code = ?");
             $stmt->bind_param('s', $code);
             $stmt->execute();
             $stmt->close();
