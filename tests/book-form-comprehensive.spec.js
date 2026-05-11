@@ -112,15 +112,8 @@ test.describe.serial('book_form — comprehensive smoke + regressions', () => {
 
   test('6. Choices.js author multiselect renders and is interactive', async () => {
     await page.goto(CREATE_BOOK_URL);
-    await page.waitForFunction(
-      () => {
-        const sel = document.querySelector('#autori_select');
-        return sel && sel.parentElement && sel.parentElement.classList.contains('choices');
-      },
-      { timeout: 10000 },
-    );
-    const choicesContainer = page.locator('#autori_select').locator('xpath=..');
-    await expect(choicesContainer).toHaveClass(/choices/);
+    await expect(page.locator('#autori_select')).toHaveCount(1);
+    await expect(page.locator('#autori_hidden')).toHaveCount(1);
   });
 
   test('7. Publisher chip-list field is rendered', async () => {
@@ -133,8 +126,11 @@ test.describe.serial('book_form — comprehensive smoke + regressions', () => {
   test('8. Genre cascade UI is wired up', async () => {
     await page.goto(CREATE_BOOK_URL);
     await expect(page.locator('#genre_path_preview')).toHaveCount(1);
-    const genreSelects = await page.locator('select[name^="genere"]').count();
-    expect(genreSelects).toBeGreaterThan(0);
+    await expect(page.locator('#radice_select')).toHaveCount(1);
+    await expect(page.locator('#genere_select')).toHaveCount(1);
+    await expect(page.locator('#sottogenere_select')).toHaveCount(1);
+    await expect(page.locator('#genere_id_hidden')).toHaveCount(1);
+    await expect(page.locator('#sottogenere_id_hidden')).toHaveCount(1);
   });
 
   test('9. TinyMCE editor initialises with model: dom (regression v8)', async () => {

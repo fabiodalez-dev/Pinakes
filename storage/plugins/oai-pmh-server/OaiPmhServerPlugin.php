@@ -877,6 +877,16 @@ class OaiPmhServerPlugin
                     try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <metadata>
                     try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <record>
                     continue;
+                } catch (\Throwable $e) {
+                    \App\Support\SecureLogger::warning('OAI-PMH skipped malformed record metadata', [
+                        'metadataPrefix' => $metadataPrefix,
+                        'entity' => $rec['_entity'] ?? null,
+                        'id' => $rec['id'] ?? null,
+                        'error' => $e->getMessage(),
+                    ]);
+                    try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <metadata>
+                    try { $xw->endElement(); } catch (\Throwable $ignored) {} // close <record>
+                    continue;
                 }
             }
 

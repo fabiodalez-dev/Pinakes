@@ -1,0 +1,21 @@
+id;isbn10;isbn13;ean;titolo;sottotitolo;autori;editore;anno_pubblicazione;lingua;edizione;numero_pagine;genere;descrizione;formato;prezzo;copie_totali;collana;numero_serie;traduttore;illustratore;parole_chiave;classificazione_dewey
+;8804562625;9788804562627;9788804562627;Il nome della rosa;Un romanzo storico;Umberto Eco;Mondadori;1980;Italiano;Prima edizione;503;Narrativa;Un romanzo ambientato in un monastero medievale;cartaceo;12.50;2;Oscar Bestsellers;1;;;medioevo, giallo;853
+;;9780141036144;;1984;;George Orwell;Penguin;1949;English;;328;Fiction;A dystopian classic;paperback;9.99;1;;;;;dystopia, totalitarianism;823
+;;9783518368824;;Der Prozess;;Franz Kafka;Suhrkamp;1925;Deutsch;;304;Roman;Kafkas bekanntester Roman;Taschenbuch;10.00;1;;;;;kafka, trial;833
+;;9782070368228;;L'Étranger;;Albert Camus;Gallimard;1942;Français;;185;Roman;L'absurde selon Camus;poche;7.50;1;;;;;existentialisme, absurde;843
+;;9788420412146;;Don Quijote de la Mancha;;Miguel de Cervantes;Alfaguara;1605;Español;;1345;Novela;La obra maestra de Cervantes;tapa blanda;15.00;1;;;;;quijote, caballeria;863
+;;9788806234515;;Il Gattopardo;;Giuseppe Tomasi di Lampedusa;Einaudi;1958;it;;240;Narrativa;Il romanzo sulla Sicilia;cartaceo;11.00;1;;;;;sicilia, risorgimento;853
+;;9780140449136;;The Odyssey;;Homer;Penguin;-800;en;;374;Poetry;The epic Greek poem;paperback;12.99;1;;;;;epic, greek, mythology;883
+;;9783596902842;;Faust;;Johann Wolfgang von Goethe;Fischer;1808;de;;464;Drama;Goethes Meisterwerk;Taschenbuch;8.00;1;;;;;faust, pact;832
+;;9782070360024;;Les Misérables;;Victor Hugo;Gallimard;1862;french;;1900;Roman;Le chef-d'oeuvre de Hugo;poche;12.00;3;;;;;revolution, france;843
+;;9785389001565;;Война и мир;;Lev Tolstoj;Azbooka;1869;Русский;;1408;Роман;Il capolavoro di Tolstoj;cartaceo;20.00;1;;;;;russia, war, peace;891
+;;9784003261019;;雪国;;Kawabata Yasunari;Iwanami;1948;日本語;;180;小説;Romanzo premio Nobel;文庫本;6.00;1;;;;;giappone, snow;895
+;;9789754700527;;İnce Memed;;Yaşar Kemal;Yapı Kredi;1955;Türkçe;;436;Roman;Classico turco;karton kapak;9.00;1;;;;;turkey, folk;894
+;;9788573261202;;Dom Casmurro;;Machado de Assis;Martin Claret;1899;Português;;256;Romance;Classico brasiliano;brochura;8.00;1;;;;;brasil, jealousy;869
+;;9789023443087;;Het achterhuis;;Anne Frank;Prometheus;1947;Nederlands;;304;Memoir;Il diario di Anna Frank;paperback;10.00;1;;;;;diary, wwii;940
+;;9780141187761;;War and Peace;(English edition);Leo Tolstoy;Penguin;1869;russian;;1408;Fiction;Epic novel by Tolstoy;paperback;14.99;1;;;;;russia, napoleonic;891
+;;9782070361023;;Le Petit Prince;;Antoine de Saint-Exupéry;Gallimard;1943;fr;;96;Conte;Le classique pour enfants;poche;6.50;1;;;;;prince, children;843
+;;9788804668237;;I Promessi Sposi;;Alessandro Manzoni;Mondadori;1842;italian;;720;Narrativa;Il grande romanzo italiano;cartaceo;13.00;2;;;;;lombardia, settecento;853
+;;9783458327653;;Siddhartha;;Hermann Hesse;Insel;1922;german;;136;Roman;Spirituelle Reise;Taschenbuch;7.50;1;;;;;buddha, spiritual;833
+;;9788420471839;;Cien años de soledad;;Gabriel García Márquez;Alfaguara;1967;spanish;;496;Novela;El realismo mágico;tapa blanda;14.00;1;;;;;macondo, magic;863
+;;9780140449181;;The Iliad;;Homer;Penguin;-750;English, Français;Bilingual;624;Poetry;Bilingual edition of the Iliad;paperback;15.99;1;;;;;troy, epic, bilingual;883

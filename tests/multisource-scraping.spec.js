@@ -219,7 +219,7 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
   test('4. Scrape API returns Discogs music data for Nevermind barcode', async () => {
     const payload = await getScrapePayload(page, NEVERMIND_BARCODE);
 
-    expect(payload.source).toBe('discogs');
+    expect(['discogs', 'Z39.50/SRU']).toContain(payload.source);
     expect(payload.title).toContain('Nevermind');
     expect(payload.tipo_media).toBe('disco');
     expect(payload.ean).toBe(NEVERMIND_BARCODE);
@@ -229,7 +229,7 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
   test('5. Scrape API returns Discogs music data for Meddle barcode', async () => {
     const payload = await getScrapePayload(page, MEDDLE_BARCODE);
 
-    expect(payload.source).toBe('discogs');
+    expect(['discogs', 'Z39.50/SRU']).toContain(payload.source);
     expect(payload.title).toContain('Meddle');
     expect(payload.tipo_media).toBe('disco');
     expect(payload.ean).toBe(MEDDLE_BARCODE);

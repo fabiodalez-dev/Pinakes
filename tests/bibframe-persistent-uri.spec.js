@@ -148,7 +148,7 @@ test.describe.serial('BIBFRAME Persistent URIs — /id/work and /id/instance (15
         expect(work).toBeTruthy();
     });
 
-    test('7. /id/work/{id} JSON-LD @id ends with /work', async ({ request }) => {
+    test('7. /id/work/{id} JSON-LD @id is the persistent work URI', async ({ request }) => {
         test.skip(bookId === 0, 'No test book');
         const res = await request.get(`${BASE}/id/work/${bookId}`, {
             headers: { Accept: 'application/ld+json' },
@@ -156,7 +156,7 @@ test.describe.serial('BIBFRAME Persistent URIs — /id/work and /id/instance (15
         const body = await res.json();
         const graph = Array.isArray(body['@graph']) ? body['@graph'] : [];
         const work = graph.find(n => n && n['@type'] === 'bf:Work');
-        expect((work?.['@id'] ?? '')).toMatch(/\/work$/);
+        expect((work?.['@id'] ?? '')).toContain(`/id/work/${bookId}`);
     });
 
     test('8. /id/instance/{id} Accept:application/ld+json → 200', async ({ request }) => {
@@ -187,7 +187,7 @@ test.describe.serial('BIBFRAME Persistent URIs — /id/work and /id/instance (15
         const graph = Array.isArray(body['@graph']) ? body['@graph'] : [];
         const inst = graph.find(n => n && n['@type'] === 'bf:Instance');
         const isInstanceOf = inst?.['bf:isInstanceOf']?.['@id'] ?? '';
-        expect(isInstanceOf).toMatch(/\/work$/);
+        expect(isInstanceOf).toContain(`/id/work/${bookId}`);
     });
 
     // ── Turtle and RDF/XML serialisations ─────────────────────────────────────

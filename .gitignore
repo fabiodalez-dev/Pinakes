@@ -401,6 +401,13 @@ tests/seeds/*
 !tests/seeds/*.md
 !tests/seeds/*.csv
 !tests/seeds/*.tsv
+!tests/fixtures/
+tests/fixtures/*
+!tests/fixtures/*.jpg
+!tests/fixtures/*.pdf
+!tests/fixtures/*.mp3
+!tests/fixtures/*.csv
+!tests/fixtures/*.tsv
 !tests/helpers/
 tests/helpers/*
 !tests/helpers/*.php

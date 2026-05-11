@@ -133,6 +133,10 @@ test.describe.serial('Bulk Enrichment', () => {
     // poison the next full-suite run before this suite reaches afterAll.
     dbExec("UPDATE libri SET isbn13 = NULL, isbn10 = NULL, ean = NULL WHERE titolo LIKE 'ENRICH\\_%'");
     dbExec("DELETE FROM libri WHERE titolo LIKE 'ENRICH\\_%'");
+    dbExec(
+      `UPDATE libri SET isbn13 = NULL
+        WHERE isbn13 IN ('${ISBN_MOCKINGBIRD}', '${ISBN_1984}', '${ISBN_GATSBY}', '${ISBN_CATCHER}', '${ISBN_HOBBIT}', '${ISBN_NOOVERWRITE1}', '${ISBN_NOOVERWRITE2}', '${ISBN_FAKE}')`
+    );
 
     // Seed 5 test books with ISBNs but NO cover and NO description
     const isbns = [ISBN_MOCKINGBIRD, ISBN_1984, ISBN_GATSBY, ISBN_CATCHER, ISBN_HOBBIT];
@@ -622,14 +626,13 @@ test.describe.serial('Bulk Enrichment', () => {
 
     await page.goto(`${BASE}/admin/libri/bulk-enrich`);
     await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('body')).not.toContainText('Gateway Timeout');
     const content = await page.content();
 
-    // Page should contain stat labels (Italian) for books and missing covers/descriptions
-    const hasBookCount = content.includes('libri') || content.includes('Libri');
-    const hasCoverStat = content.includes('copertina') || content.includes('Copertina') ||
-                         content.includes('copertine') || content.includes('Copertine');
-    const hasDescStat  = content.includes('descrizione') || content.includes('Descrizione') ||
-                         content.includes('descrizioni') || content.includes('Descrizioni');
+    // Page should contain localized stat labels for books and missing covers/descriptions.
+    const hasBookCount = /\b(libri|livres|books)\b/i.test(content);
+    const hasCoverStat = /\b(copertin[ae]|couvertures?|covers?)\b/i.test(content);
+    const hasDescStat  = /\b(descrizioni?|descriptions?)\b/i.test(content);
 
     expect(hasBookCount).toBe(true);
     expect(hasCoverStat || hasDescStat).toBe(true);
