@@ -69,6 +69,7 @@ jobs:
           php-version: '8.2'
           extensions: mysqli, mbstring, json, curl, openssl, zip, gd, intl, xml
           coverage: none
+          github-token: ''
 
       - name: Configure virtual host on port 8081
         env:

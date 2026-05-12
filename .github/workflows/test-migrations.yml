@@ -37,6 +37,7 @@ jobs:
         with:
           php-version: '8.2'
           coverage: none
+          github-token: ''
 
       - name: Check all migrate_*.sql ≤ version.json
         run: |
@@ -87,6 +88,7 @@ jobs:
           php-version: '8.2'
           extensions: mysqli
           coverage: none
+          github-token: ''
 
       - name: Wait for MySQL
         run: until mysqladmin ping -h"127.0.0.1" --silent; do sleep 1; done
@@ -206,6 +208,7 @@ jobs:
         with:
           php-version: '8.2'
           extensions: mysqli, pdo_mysql
+          github-token: ''
 
       - name: Wait for MySQL
         run: |

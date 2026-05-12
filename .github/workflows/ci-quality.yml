@@ -40,6 +40,7 @@ jobs:
         with:
           php-version: '8.2'
           coverage: none
+          github-token: ''
 
       - name: Setup Node
         uses: actions/setup-node@v4

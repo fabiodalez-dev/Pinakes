@@ -53,6 +53,7 @@ jobs:
         with:
           php-version: '8.2'
           coverage: none
+          github-token: ''
 
       - name: Wait for MySQL
         run: until mysqladmin ping -h"127.0.0.1" --silent; do sleep 1; done
