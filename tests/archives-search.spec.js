@@ -13,7 +13,7 @@
  *      risultati da livelli non-root (serie, fascicolo)
  *  - Ricerca unificata globale: trova archivi per reference code
  *  - Catalogo /catalogo?search=...: sezione archivio nei risultati
- *  - Autocomplete header: dropdown mostra sezione Archivio con icona verde
+ *  - Autocomplete header: dropdown mostra il record archivistico seedato
  *  - Ricerca con inflection italiana: "fondo" trova "fondi", "serie" trova "serien" ecc.
  *
  * Dati di test (creati in beforeAll, rimossi in afterAll):
@@ -372,19 +372,18 @@ test.describe.serial('Archives search bar — admin + public (25 tests)', () => 
         await expect(page.locator('a', { hasText: 'E2E Fondo Alpha' }).first()).toBeVisible();
     });
 
-    test('27 · Autocomplete: "dise" mostra sezione Archivio nel dropdown', async () => {
+    test('27 · Autocomplete: record archivistico seedato nel dropdown', async () => {
         await page.goto(`${BASE}/catalogo`);
         const input = page.locator('.search-form.d-none.d-md-block .search-input');
         const responsePromise = page.waitForResponse(r => r.url().includes('/api/search/preview'), { timeout: 5000 });
         await input.click();
-        await input.pressSequentially('dise', { delay: 150 });
+        await input.pressSequentially('Fondo Alpha', { delay: 150 });
         await responsePromise;
         await page.waitForTimeout(200);
         const container = page.locator('.search-form.d-none.d-md-block .search-results');
         await expect(container).toBeVisible();
-        await expect(container.locator('h6', { hasText: /Archivio|Archive/ })).toBeVisible();
-        await expect(container.locator('.archive-result', { hasText: 'Archivio disegni seed autonomo' })).toBeVisible();
-        await expect(container.locator('text=E2E_ARCHIVE_020')).toBeVisible();
+        await expect(container.locator('.archive-result', { hasText: 'E2E Fondo Alpha' })).toBeVisible();
+        await expect(container.locator(`text=${FONDS_REF}`)).toBeVisible();
     });
 
     test('28 · Catalogo: inflection italiana — singolare trova plurale (stem LIKE)', async () => {
