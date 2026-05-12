@@ -62,6 +62,94 @@ function dbQuery(sql) {
     }).trim();
 }
 
+function tableExists(tableName) {
+    const count = dbQuery(
+        `SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+          WHERE TABLE_SCHEMA = DATABASE()
+            AND TABLE_NAME = '${tableName.replace(/'/g, "''")}'`
+    );
+    return parseInt(count, 10) === 1;
+}
+
+function getNcipPluginState() {
+    const row = dbQuery(
+        "SELECT p.id, p.is_active, COUNT(ph.id) AS hooks " +
+        "FROM plugins p " +
+        "LEFT JOIN plugin_hooks ph ON ph.plugin_id = p.id " +
+        "AND ph.hook_name = 'app.routes.register' " +
+        "AND ph.callback_method = 'registerRoutes' " +
+        "AND ph.is_active = 1 " +
+        "WHERE p.name = 'ncip-server' " +
+        "GROUP BY p.id, p.is_active " +
+        "LIMIT 1"
+    );
+    if (!row) return { id: 0, active: false, hooks: 0 };
+    const parts = row.split('\t');
+    return {
+        id: parseInt(parts[0], 10) || 0,
+        active: parts[1] === '1',
+        hooks: parseInt(parts[2], 10) || 0,
+    };
+}
+
+async function pluginApiCall(page, action, pluginId) {
+    return page.evaluate(async ([act, pid]) => {
+        const csrfInput = document.querySelector('input[name="csrf_token"]');
+        const token = csrfInput ? (/** @type {HTMLInputElement} */ (csrfInput)).value : '';
+        const formData = new FormData();
+        formData.append('csrf_token', token);
+        const res = await fetch(
+            `${window.location.origin}${window.BASE_PATH || ''}/admin/plugins/${pid}/${act}`,
+            { method: 'POST', body: formData }
+        );
+        return res.json();
+    }, [action, pluginId]);
+}
+
+async function ensureNcipPlugin(browser) {
+    let plugin = getNcipPluginState();
+    if (plugin.id === 0) {
+        throw new Error('NCIP server plugin is not registered in the plugins table');
+    }
+
+    const hasSchema = () => tableExists('ncip_partners') && tableExists('ncip_transactions');
+    if (plugin.active && plugin.hooks > 0 && hasSchema()) {
+        return;
+    }
+
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    try {
+        await page.goto(`${BASE}/login`);
+        await page.fill('input[name="email"]', ADMIN_EMAIL);
+        await page.fill('input[name="password"]', ADMIN_PASS);
+        await Promise.all([
+            page.waitForURL(/\/admin\//, { timeout: 15_000 }),
+            page.click('button[type="submit"]'),
+        ]);
+        await page.goto(`${BASE}/admin/plugins`);
+
+        if (plugin.active) {
+            const deactivate = await pluginApiCall(page, 'deactivate', plugin.id);
+            if (!deactivate.success) {
+                throw new Error(`NCIP plugin deactivation failed: ${deactivate.message || deactivate.error || ''}`);
+            }
+        }
+
+        const activate = await pluginApiCall(page, 'activate', plugin.id);
+        if (!activate.success) {
+            throw new Error(`NCIP plugin activation failed: ${activate.message || activate.error || ''}`);
+        }
+    } finally {
+        await context.close();
+    }
+
+    plugin = getNcipPluginState();
+    if (!plugin.active || plugin.hooks === 0 || !hasSchema()) {
+        throw new Error('NCIP plugin activation did not create schema and route hooks');
+    }
+}
+
 /** Build NCIP LookupItem XML body for a given item barcode/id. */
 function lookupItemXml(itemId) {
     return `<?xml version="1.0" encoding="UTF-8"?>
@@ -148,8 +236,8 @@ function ncipPost(request, body, auth = null) {
 }
 
 test.skip(
-    !DB_USER || !DB_NAME,
-    'Missing E2E env (DB_*)'
+    !DB_USER || !DB_NAME || !ADMIN_EMAIL || !ADMIN_PASS,
+    'Missing E2E env (DB_* and admin credentials)'
 );
 
 test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
@@ -162,7 +250,9 @@ test.describe.serial('NCIP 2.0 Server plugin — v0.7.4 (20 tests)', () => {
     /** Track specific prestiti IDs created during these tests for targeted cleanup */
     let createdPrestitiIds = /** @type {number[]} */ ([]);
 
-    test.beforeAll(async () => {
+    test.beforeAll(async ({ browser }) => {
+        await ensureNcipPlugin(browser);
+
         // Find a book with available copies.
         const bookRow = dbQuery(
             "SELECT id FROM libri WHERE deleted_at IS NULL AND copie_disponibili > 0 ORDER BY id LIMIT 1"
