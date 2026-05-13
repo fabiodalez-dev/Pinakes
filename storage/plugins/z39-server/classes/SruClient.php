@@ -221,8 +221,11 @@ class SruClient
         }
 
         // Build query parameters
-        // quote_search_terms: some servers (e.g. BNF) require the term wrapped in CQL quotes
-        $quotedTerm = !empty($server['quote_search_terms']) ? '"' . $term . '"' : $term;
+        // quote_search_terms: some servers (e.g. BNF) require the term wrapped in CQL quotes.
+        // Backslash-escape embedded " per CQL spec (§ 4 of the LOC CQL standard).
+        $quotedTerm = !empty($server['quote_search_terms'])
+            ? '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $term) . '"'
+            : $term;
         $params = [
             'operation' => 'searchRetrieve',
             'version' => $version,

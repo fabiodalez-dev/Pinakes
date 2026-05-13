@@ -372,15 +372,10 @@ class OpenUrlResolverPlugin
      */
     private function localBookUrl(ServerRequestInterface $request, array $book): string
     {
-        $uri    = $request->getUri();
-        $origin = $uri->getScheme() . '://' . $uri->getHost();
-        $port   = $uri->getPort();
-        if ($port !== null && !(($uri->getScheme() === 'http' && $port === 80) || ($uri->getScheme() === 'https' && $port === 443))) {
-            $origin .= ':' . $port;
-        }
-        // book_url() already includes the base path AND respects the locale
-        // (slug-based canonical path). Do NOT prepend basePath again here.
-        return $origin . book_url($book);
+        // Use absoluteUrl() so the origin goes through the trusted-host check
+        // (APP_TRUSTED_HOSTS in HtmlHelper::getBaseUrl). Reading the Host header
+        // from $request->getUri() directly bypasses that guard.
+        return absoluteUrl(book_url($book));
     }
 
     // ─── DB helpers ───────────────────────────────────────────────────────────
