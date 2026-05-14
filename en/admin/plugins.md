@@ -5,23 +5,42 @@ Pinakes supports plugins to extend functionality.
 ## Bundled Plugins
 
 Bundled plugins ship with Pinakes and are updated automatically by the
-auto-update mechanism. Complete list as of v0.5.9.4:
+auto-update mechanism. Complete list as of v0.7.7 (16 plugins):
+
+### Metadata scraping & enrichment
 
 | Plugin | Version | Default | Description |
 |--------|---------|---------|-------------|
 | Open Library | 1.0.1 | Active | Book metadata scraping (ISBN/EAN) via Open Library + Google Books fallback |
-| Z39.50/SRU Integration | 1.2.3 | Active | SRU server + federated client for Nordic catalogues (BIBSYS, LIBRIS) |
 | API Book Scraper | 1.1.1 | Active | Scraping via API key authentication (Alma, ExLibris, custom services) |
-| Dewey Editor | 1.0.1 | Active | Dewey classification editor — add/modify/import/export JSON |
-| Digital Library | 1.3.0 | Active | eBook (PDF/ePub) + audiobook management with Green Audio Player and inline PDF viewer |
-| GoodLib — External Sources | 1.0.0 | Active | Clickable badges to search Anna's Archive, Z-Library, Project Gutenberg |
-| Archives (ISAD(G) / ISAAR(CPF)) | 1.0.0 | **Inactive** | Archival + photographic material management — see [Archives](/en/guide/archives.md) |
 | Discogs Music Scraper | 1.1.0 | **Inactive** | Discogs + MusicBrainz + Deezer music metadata (CD, vinyl, cassette, Cat# "CDP 7912682") |
 | Deezer Music Search | 1.0.0 | **Inactive** | HD cover art + tracklist enrichment from Deezer |
 | MusicBrainz | 1.0.0 | **Inactive** | MusicBrainz + Cover Art Archive metadata (barcode fallback) |
+| GoodLib — External Sources | 1.0.0 | **Inactive** | Clickable badges to search Anna's Archive, Z-Library, Project Gutenberg |
+| VIAF Authority Control | 1.1.0 | **Inactive** | Link authors to VIAF/ISNI with confidence scoring and W3C Reconciliation API |
+
+### Interoperability protocols
+
+| Plugin | Version | Default | Description |
+|--------|---------|---------|-------------|
+| Z39 Server | 1.2.3 | Active | SRU 1.2 server + Z39.50/SRU client for Italian SBN, French **BNF** (UNIMARC, v0.7.6+), and any standard catalogue with Dewey extraction |
+| OAI-PMH Server | 1.0.0 | **Inactive** | OAI-PMH 2.0 data provider for books + archives. Formats: `oai_dc`, `marc21`, `mods`, `mag` (2.0.1), `unimarc`. Harvest by Internet Culturale (ICCU), Europeana, DPLA |
+| NCIP 2.0 Server | 1.0.0 | **Inactive** | NISO Circulation Interchange Protocol — self-service kiosks, partner ILS, library networks |
+| BIBFRAME 2.0 Linked Data | 1.0.0 | **Inactive** | Exposes book catalogue as BIBFRAME 2.0 JSON-LD / Turtle (Library of Congress transition from MARC) |
+| OpenURL Resolver | 1.0.0 | **Inactive** | Z39.88-2004 resolver + COinS embedded. Compatible with Zotero, Mendeley, EndNote |
+| ResourceSync | 1.0.0 | **Inactive** | ANSI/NISO Z39.99-2014 protocol for bulk catalogue sync with harvester partners |
+
+### Cataloging & specialised collections
+
+| Plugin | Version | Default | Description |
+|--------|---------|---------|-------------|
+| Dewey Editor | 1.0.1 | Active | Dewey classification editor — add/modify/import/export JSON |
+| Digital Library | 1.3.0 | Active | eBook (PDF/ePub) + audiobook management with Green Audio Player and inline PDF viewer |
+| Archives (ISAD(G) / ISAAR(CPF) / RiC-O) | 1.3.0 | **Inactive** | Archival material: ISAD(G), ISAAR(CPF), MARCXML / EAD3 / METS / UNIMARC / Dublin Core export, IIIF Presentation 3.0 (v0.7.6+), **RiC-O JSON-LD** (v0.7.7+), AtoM area labels, ARK identifiers — see [Archives](/en/guide/archives.md) |
 
 Plugins marked **Inactive** ship disabled because they depend on external
-network services or an additional DB schema (like `archives`). Enable them
+network services, an additional DB schema (like `archives`), or expose
+public endpoints the administrator must consciously opt into. Enable them
 under **Administration → Plugins** when you need them.
 
 ## Premium Plugin

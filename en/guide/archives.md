@@ -193,6 +193,113 @@ The identity test verifies: `export → import → re-export` yields
 byte-identical output. This guarantees no information loss through the
 interchange format.
 
+## IIIF Presentation 3.0 (v0.7.6+)
+
+`GET /archives/{id}/manifest.json` returns a standards-compliant IIIF
+Presentation 3.0 manifest for every archival unit. Compatible with
+**Universal Viewer**, **Mirador**, and any IIIF viewer.
+
+```
+GET /archives/42/manifest.json
+→ application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"
+```
+
+Features:
+
+- **Canvas items** for each digitised file attached to the unit (cover
+  + documents from multi-document uploads).
+- **Painting annotation** on each canvas pointing to the asset
+  (PDF / JPEG / TIFF).
+- **`seeAlso` block** populated with every alternative format
+  (Dublin Core, EAD3, METS, **RiC-O**, OAI-PMH record, ARK identifier)
+  so an IIIF-aware client can discover the full metadata graph with no
+  second discovery round-trip.
+- **IIIF Collection** — `GET /archives/collection.json` (root: all
+  fonds) and `GET /archives/{id}/collection.json` (sub-collection for
+  units with children).
+
+## RiC-O JSON-LD — Records in Contexts (v0.7.7+)
+
+Phase 1 of the [#122](https://github.com/fabiodalez-dev/Pinakes/issues/122) roadmap. Read-only export of archival units and
+authority records using the **RiC-O** (Records in Contexts Ontology,
+ICA 2023) vocabulary — the linked-data successor to ISAD(G)/ISAAR.
+**Zero DB schema changes**: the existing ISAD(G) hierarchy is simply
+translated into the RiC-CM graph model.
+
+Public endpoints (no auth — meant for harvesters like Europeana,
+ArchivesPortalEurope, and the ICA aggregator):
+
+```
+GET /archives/{id}/ric.json            → ric:Record or ric:RecordSet
+GET /archives/collection.ric.json      → ric:RecordSet (all fonds)
+GET /archives/agents/{id}/ric.json     → ric:Person | ric:CorporateBody | ric:Family
+```
+
+Role → RiC-O predicate mapping:
+
+| Local role | RiC-O predicate |
+|------------|-----------------|
+| `creator` | `ric:isCreatorOf` |
+| `subject` | `ric:isSubjectOf` |
+| `custodian` | `ric:isOrWasCustodianOf` |
+| `recipient` | `ric:isAddresseeOf` |
+| `associated` | `ric:isAssociatedWith` |
+
+Features:
+
+- **`ric:Relation` with deterministic `@id`** — the unit-side and
+  agent-side serialisations of the same relation converge on a single
+  RDF node when consumers merge them into a graph.
+- **Automatic `owl:sameAs`** — populated transparently from the
+  `viaf-authority` plugin's tables (`autori.viaf_uri`,
+  `autori.isni_uri`, `author_authority_alternates`); installations
+  with VIAF/ISNI authority control get linked-data interop for free.
+  URIs are filtered through a strict scheme allow-list (`http(s)`,
+  `urn`, `ark`, `info`, `doi`).
+- **`xsd:gYear` correctly formatted** — 4-digit zero-padding + BCE
+  support (`-YYYY`); ancient/medieval material is serialised as valid
+  RDF.
+- **`Link` header `rel="canonical"`** + `Cache-Control: public,max-age=300`
+  + `Access-Control-Allow-Origin: *` on every response.
+
+## AtoM ISAD(G) area labels (v0.7.6+)
+
+The admin UI and the public archive page use the canonical ISAD(G)
+area names standardised by **AtoM** (Access to Memory):
+
+- *Identity area* (3.1)
+- *Context area* (3.2)
+- *Content and structure area* (3.3)
+- *Conditions of access and use area* (3.4)
+- *Allied materials area* (3.5)
+- *Notes area* (3.6-3.7)
+
+Users coming from AtoM or ArchivesSpace find the familiar structure
+immediately.
+
+## Multi-document upload (v0.7.6+)
+
+Each archival unit can now carry **multiple digitised files** (in
+addition to the cover image). Drag-and-drop upload in the admin form;
+each file keeps its original filename, MIME type, and display order.
+
+Supported formats: PDF, ePub, JPEG, TIFF, PNG, MP3, MP4, WebM.
+
+Storage: `public/storage/archives/{unit_id}/{file_id}-{slug}.ext`.
+Per-file deletion with admin confirmation.
+
+Files are published as canvas items in the IIIF manifest and as
+`<fileSec>` entries in METS.
+
+## ARK identifiers + rightsstatements.org
+
+- **ARK** (Archival Resource Key) — optional persistent identifier for
+  each archival unit. Emitted as `https://n2t.net/{ark}` in IIIF
+  `seeAlso` and RiC-O `rdfs:seeAlso`.
+- **Rights** — mapped to [rightsstatements.org](https://rightsstatements.org)
+  URIs (e.g., `https://rightsstatements.org/vocab/InC/1.0/`); emitted
+  as `ric:Rule` + `owl:sameAs` in the RiC-O output.
+
 ## SRU endpoint (Phase 6)
 
 The plugin exposes an SRU 1.2 endpoint for archival records too:

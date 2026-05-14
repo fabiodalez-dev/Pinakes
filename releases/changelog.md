@@ -8,50 +8,144 @@ Per l'ultimo aggiornamento consulta sempre la [pagina releases su GitHub](https:
 
 ## In arrivo (branch attivi)
 
-Le seguenti funzionalità sono in fase di revisione e saranno disponibili
-nella prossima release.
+### PR #136 — RiC-CM Phase 1 (target v0.7.7)
 
-### PR #118 — Verifica estensione `zip`
+Prima fase del roadmap **Records in Contexts** ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122)): export
+read-only delle unità archivistiche e degli authority record nel
+vocabolario **RiC-O** (Records in Contexts Ontology, ICA 2023). Zero
+modifiche allo schema DB — si traduce semplicemente la gerarchia
+ISAD(G) esistente nel modello a grafo RiC-CM. Vedi
+[Archivi → RiC-O JSON-LD](/guida/archivi.md) per dettagli.
 
-L'installer ora controlla che l'estensione PHP `zip` sia installata e
-caricata prima di procedere. Se mancante, l'installazione si blocca con
-un messaggio chiaro e le istruzioni per l'installazione
-(`apt install php-zip` / `yum install php-zip`).
+---
 
-Aggiorna `tecnico/requisiti.md`: l'estensione `zip` è **obbligatoria**
-(non opzionale come nelle versioni precedenti alla verifica).
+## v0.7.6 — 2026-05-13
+**PR:** [#132](https://github.com/fabiodalez-dev/Pinakes/pull/132)
 
-### PR #119 — Rimozione rate limit import
+### French locale + integrazione BNF
 
-Il rate limit interno degli endpoint `/import/chunk` e `/import/progress`
-è stato rimosso. L'import CSV/TSV di file di grandi dimensioni (migliaia
-di righe) ora non subisce interruzioni artificiali lato server.
+- **Traduzione francese completa** (`fr_FR`) — 4.145 chiavi tradotte
+  (100% coverage). Selezionabile dall'installer; le installazioni
+  esistenti possono cambiare la locale da Impostazioni → Localizzazione.
+- **Z39 Server / BNF (Bibliothèque nationale de France)** — il plugin
+  Z39 Server ora include un client SRU verso la BNF con parser UNIMARC
+  e mapping completo dei campi (titolo, autori, editore, ISBN, Dewey
+  dal campo 676, soggetti). Aggiungi `sru.bnf.fr` come fonte in
+  Impostazioni → Z39 Server per importare record francesi.
 
-> **Nota per chi esegue import grandi:** il rate limiting upstream delle
-> API di scraping (Discogs, MusicBrainz, ecc.) resta invariato — si applica
-> solo durante la fase di arricchimento automatico, non durante l'import
-> dati puro.
+### Archives — IIIF 3.0 + AtoM alignment + multi-document upload
 
-### PR #120 — Ricerca unificata per archivi
+- **IIIF Presentation 3.0** ([#123](https://github.com/fabiodalez-dev/Pinakes/issues/123)) — `GET /archives/{id}/manifest.json`
+  restituisce un manifest IIIF 3.0 standard-compliant per ogni unità
+  archivistica. Compatibile con Universal Viewer, Mirador e ogni
+  viewer IIIF. Il blocco `seeAlso` punta a Dublin Core, EAD3, METS,
+  OAI-PMH record e ARK identifier.
+- **AtoM ISAD(G) area labels** ([#121](https://github.com/fabiodalez-dev/Pinakes/issues/121)) — l'UI admin e la pagina pubblica
+  usano i nomi canonici delle aree ISAD(G) (`Identity area`,
+  `Context area`, `Content and structure area`, `Conditions of access
+  and use area`, `Allied materials area`, `Notes area`), così i record
+  sono immediatamente riconoscibili a chi viene da AtoM.
+- **Multi-document upload** — ogni unità archivistica può ora avere
+  più file digitalizzati allegati (PDF / ePub / audio / video), oltre
+  alla cover image. Drag-and-drop in admin; ogni file con nome
+  originale, MIME type e ordine di visualizzazione.
 
-I risultati della ricerca admin includono ora le unità archivistiche
-(plugin Archives) insieme a libri, autori e editori. Ogni risultato
-mostra il tipo di provenienza per una navigazione più rapida.
+### Security fixes
 
-### PR #127 — Interoperabilità archivi (Dublin Core, EAD3, OAI-PMH 2.0)
+- **Open-redirect via Host spoofing** — fix nel resolver OpenURL: ora
+  usa `absoluteUrl()` invece di costruire l'URL direttamente da
+  `Host:` header (che bypassava `APP_TRUSTED_HOSTS`).
+- **CQL injection nel client SRU** — i termini di ricerca contenenti
+  `"` o `\` sono ora correttamente escaped prima di essere inseriti
+  nelle query CQL verso endpoint SRU esterni (BNF, SUDOC).
 
-Aggiunge tre protocolli standard di interoperabilità al plugin Archives:
+### Compatibilità
 
-- **Dublin Core XML** — `GET /archives/{id}/dc.xml` — export singola
-  unità; discovery link `<link rel="alternate">` automatico nelle pagine
-  pubbliche.
-- **EAD3 Bulk Export** — `GET /admin/archives/export.ead3?ids=1,2,3` —
-  export multiplo selezionato.
-- **OAI-PMH 2.0** — `GET/POST /archives/oai` — protocollo standard per
-  harvesting da aggregatori e portali culturali. Verbs completi:
-  `Identify`, `ListMetadataFormats`, `ListRecords`, `GetRecord`,
-  `ListIdentifiers`, `ListSets`. Formati: `oai_dc`, `ead3`. Sets =
-  livelli ISAD(G). ResumptionToken base64url per paginazione.
+- **Updater Windows** ([#130](https://github.com/fabiodalez-dev/Pinakes/issues/130)) — separatori path ora normalizzati a forward
+  slash prima del lookup version file.
+- **Route tedesche** — aggiunta la chiave `bibframe.book` mancante in
+  `routes_de_DE.json` (parità con IT/EN/FR).
+
+---
+
+## v0.7.5 — 2026-05-09
+**PR:** intermedia tra #131 e #132
+
+### Hardening migrazione locale francese
+
+Migrazione `migrate_0.7.5.sql` usa `ON DUPLICATE KEY UPDATE` invece di
+`INSERT IGNORE` per garantire che `fr_FR` sia attivato anche su upgrade
+dove la riga lingua esisteva già con `is_active=0`. `Language::setDefault()`
+forza `is_active=1` sulla lingua target per evitare lo stato inconsistente
+"default invisibile alla resolution chain".
+
+---
+
+## v0.7.4 — 2026-05-04
+**PR:** [#129](https://github.com/fabiodalez-dev/Pinakes/pull/129)
+
+### Stack interoperabilità completo + ricerca archivi
+
+Sei nuovi plugin di interoperabilità + ricerca archivi avanzata:
+
+- **OAI-PMH Server** plugin — provider OAI-PMH 2.0 sia per libri sia
+  per archivi (Internet Culturale, Europeana, DPLA). Formati:
+  `oai_dc`, `marc21`, `mods`, `mag 2.0.1`, `unimarc`.
+- **NCIP 2.0 Server** plugin — protocollo NISO per scambio circolazione
+  con kiosk self-service e partner ILS. Servizi: `LookupItem`,
+  `LookupUser`, `CheckOutItem`, `CheckInItem`, `RenewItem`,
+  `RequestItem`, `CancelRequestItem`.
+- **BIBFRAME 2.0 Linked Data** plugin — content negotiation JSON-LD /
+  Turtle per il catalogo libri.
+- **OpenURL Resolver** plugin — Z39.88-2004 resolver + COinS embedded.
+- **ResourceSync** plugin — protocollo Z39.99-2014 per sync bulk.
+- **VIAF Authority Control** plugin — collegamento autori al VIAF/ISNI
+  con confidence scoring e API W3C Reconciliation.
+
+### Ricerca archivi (admin + pubblica)
+
+- **Admin** (`/admin/archives?q=…&level=…`) — query a doppio passaggio:
+  LIKE su `reference_code` (codici brevi sotto `ft_min_word_len`), poi
+  FULLTEXT su title/scope/history. Filtro per livello, contatore
+  risultati, persistenza input.
+- **Pubblica** (`/archivio?q=…&level=…&date_from=…&date_to=…`) — stessi
+  filtri + date-range overlap. In modalità ricerca tutti i livelli
+  sono restituiti (non solo i fondi root).
+
+### Interoperabilità archivi (Dublin Core, EAD3, OAI-PMH 2.0) — PR #127 mergiata
+
+- **Dublin Core XML** — `GET /archives/{id}/dc.xml`
+- **EAD3 Bulk Export** — `GET /admin/archives/export.ead3?ids=…`
+- **OAI-PMH 2.0** — `GET/POST /archives/oai`
+
+### Fix vari
+
+- **PR #118** — verifica estensione PHP `zip` prima dell'installazione
+  (errore con istruzioni `apt install php-zip` se mancante).
+- **PR #119** — rimosso rate limit interno su `/import/chunk` e
+  `/import/progress` per import CSV/TSV grandi.
+- **PR #120** — ricerca unificata admin include unità archivistiche
+  insieme a libri/autori/editori con badge di provenienza.
+
+---
+
+## v0.7.0 → v0.7.3 — 2026-05-01 → 2026-05-03
+
+### Archives plugin (PR #103, #105) + VIAF/ISNI authority control
+
+- **Archives plugin v1.0 → v1.2** ([#103](https://github.com/fabiodalez-dev/Pinakes/issues/103)) — modello gerarchico ISAD(G) a
+  4 livelli (`fonds` → `series` → `file` → `item`), authority records
+  ISAAR(CPF), link M:N con ruoli MARC-aligned, MARCXML import/export
+  + XSD validation, SRU 1.2 endpoint, photographic items (ABA
+  billedmarc 15 codici), unified search cross-entity libri/archivi/
+  authority. Tutti i dettagli in [Archivi](/guida/archivi.md).
+- **VIAF/ISNI columns su `autori`** — preparazione per il plugin
+  viaf-authority. Colonne `viaf_id`, `viaf_uri`, `isni_id`, `isni_uri`,
+  `authority_source`, `authority_confidence`. Tabella
+  `author_authority_alternates` per identificatori alternativi.
+- **Migration `migrate_0.7.0.sql`** — idempotente con
+  INFORMATION_SCHEMA guards; rileva e ricrea `author_authority_alternates`
+  da schema legacy con colonna `source_code`.
 
 ---
 

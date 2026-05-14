@@ -5,24 +5,43 @@ Pinakes supporta plugin per estendere le funzionalità.
 ## Plugin Bundled
 
 I plugin bundled vengono distribuiti insieme a Pinakes e aggiornati automaticamente
-dal meccanismo di auto-update. Elenco completo al rilascio v0.5.9.4:
+dal meccanismo di auto-update. Elenco completo al rilascio v0.7.7 (16 plugin):
+
+### Metadata scraping & arricchimento
 
 | Plugin | Versione | Default | Descrizione |
 |--------|----------|---------|-------------|
 | Open Library | 1.0.1 | Attivo | Scraping metadati libro (ISBN/EAN) via Open Library + fallback Google Books |
-| Z39.50/SRU Integration | 1.2.3 | Attivo | Server SRU + client federato verso cataloghi Nordic (BIBSYS, LIBRIS) |
 | API Book Scraper | 1.1.1 | Attivo | Scraping via API key authentication (Alma, ExLibris, servizi custom) |
-| Dewey Editor | 1.0.1 | Attivo | Editor classificazioni Dewey — aggiunta, modifica, import/export JSON |
-| Digital Library | 1.3.0 | Attivo | Gestione eBook (PDF/ePub) e audiobook con Green Audio Player + visualizzatore PDF inline |
-| GoodLib — Fonti Esterne | 1.0.0 | Attivo | Badge cliccabili per cercare su Anna's Archive, Z-Library, Project Gutenberg |
-| Archives (ISAD(G) / ISAAR(CPF)) | 1.0.0 | **Inattivo** | Gestione materiale archivistico e fotografico — vedi [Archivi](/guida/archivi.md) |
 | Discogs Music Scraper | 1.1.0 | **Inattivo** | Metadati musicali Discogs + MusicBrainz + Deezer (CD, vinili, cassette, Cat# "CDP 7912682") |
 | Deezer Music Search | 1.0.0 | **Inattivo** | Arricchimento cover HD + tracklist da Deezer |
 | MusicBrainz | 1.0.0 | **Inattivo** | Metadati MusicBrainz + Cover Art Archive (fallback barcode) |
+| GoodLib — Fonti Esterne | 1.0.0 | **Inattivo** | Badge cliccabili per cercare su Anna's Archive, Z-Library, Project Gutenberg |
+| VIAF Authority Control | 1.1.0 | **Inattivo** | Collegamento autori a VIAF/ISNI con confidence scoring e API W3C Reconciliation |
+
+### Protocolli di interoperabilità
+
+| Plugin | Versione | Default | Descrizione |
+|--------|----------|---------|-------------|
+| Z39 Server | 1.2.3 | Attivo | Server SRU 1.2 + client Z39.50/SRU per SBN Italia, **BNF** Francia (UNIMARC, v0.7.6+), e qualsiasi catalogo standard con estrazione Dewey |
+| OAI-PMH Server | 1.0.0 | **Inattivo** | Provider OAI-PMH 2.0 per libri + archivi. Formati: `oai_dc`, `marc21`, `mods`, `mag` (2.0.1), `unimarc`. Harvest da Internet Culturale (ICCU), Europeana, DPLA |
+| NCIP 2.0 Server | 1.0.0 | **Inattivo** | NISO Circulation Interchange Protocol — kiosk self-service, partner ILS, reti bibliotecarie |
+| BIBFRAME 2.0 Linked Data | 1.0.0 | **Inattivo** | Espone catalogo libri come BIBFRAME 2.0 JSON-LD / Turtle (transizione Library of Congress da MARC) |
+| OpenURL Resolver | 1.0.0 | **Inattivo** | Resolver Z39.88-2004 + COinS embedded. Compatibile con Zotero, Mendeley, EndNote |
+| ResourceSync | 1.0.0 | **Inattivo** | Protocollo ANSI/NISO Z39.99-2014 per sync bulk del catalogo con partner harvester |
+
+### Catalogazione & collezioni specializzate
+
+| Plugin | Versione | Default | Descrizione |
+|--------|----------|---------|-------------|
+| Dewey Editor | 1.0.1 | Attivo | Editor classificazioni Dewey — aggiunta, modifica, import/export JSON |
+| Digital Library | 1.3.0 | Attivo | Gestione eBook (PDF/ePub) e audiobook con Green Audio Player + visualizzatore PDF inline |
+| Archives (ISAD(G) / ISAAR(CPF) / RiC-O) | 1.3.0 | **Inattivo** | Materiale archivistico: ISAD(G), ISAAR(CPF), MARCXML / EAD3 / METS / UNIMARC / Dublin Core export, IIIF Presentation 3.0 (v0.7.6+), **RiC-O JSON-LD** (v0.7.7+), AtoM area labels, ARK identifiers — vedi [Archivi](/guida/archivi.md) |
 
 I plugin marcati **Inattivo** partono disattivati perché dipendono da servizi di
-rete esterni o da uno schema DB aggiuntivo (come `archives`). Attivali da
-**Amministrazione → Plugin** quando li vuoi usare.
+rete esterni, da uno schema DB aggiuntivo (come `archives`), o perché aprono
+endpoint pubblici che l'amministratore deve scegliere consapevolmente di esporre.
+Attivali da **Amministrazione → Plugin** quando li vuoi usare.
 
 ## Plugin Premium
 

@@ -190,9 +190,20 @@ The plugin also includes a **client** to query external servers:
 ### Preconfigured Servers
 
 - OPAC SBN (Italy)
+- **BNF — Bibliothèque nationale de France** (v0.7.6+) — endpoint
+  `sru.bnf.fr`; records in **UNIMARC** with a dedicated parser
+  (fields 200, 210, 215, 700/701/702, and Dewey from field 676)
 - Library of Congress (USA)
 - British Library (UK)
 - Custom configurable
+
+### Security hardening (v0.7.6+)
+
+- **CQL injection** — search terms containing `"` or `\` are now
+  properly escaped before being embedded in CQL queries to external
+  SRU endpoints. Pre-fix: `query=dc.title="foo\"bar"` on a term
+  `foo"bar` produced a malformed query some endpoints interpreted as
+  two separate predicates.
 
 ## Copy Cataloging
 
