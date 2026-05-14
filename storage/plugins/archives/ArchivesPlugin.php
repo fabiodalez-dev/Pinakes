@@ -2411,8 +2411,11 @@ class ArchivesPlugin
     private function fetchArchivalUnitsForAuthority(int $authorityId): array
     {
         $rows = [];
+        // adamsreview F002: formal_title is the fallback preferTitle() reads
+        // when constructed_title is empty — must be selected so the fallback
+        // is not dead code on units lacking a constructed title.
         $stmt = $this->db->prepare(
-            'SELECT au.id, au.reference_code, au.level, au.constructed_title, aua.role
+            'SELECT au.id, au.reference_code, au.level, au.constructed_title, au.formal_title, aua.role
                FROM archival_unit_authority aua
                JOIN archival_units au ON au.id = aua.archival_unit_id AND au.deleted_at IS NULL
               WHERE aua.authority_id = ?
@@ -2443,7 +2446,9 @@ class ArchivesPlugin
     {
         $rows = [];
         $stmt = $this->db->prepare(
-            'SELECT ar.id, ar.type, ar.authorised_form, ar.dates_of_existence, aua.role
+            'SELECT ar.id, ar.type, ar.authorised_form, ar.dates_of_existence,
+                    ar.parallel_forms, ar.other_forms, ar.history, ar.functions,
+                    ar.places, aua.role
                FROM archival_unit_authority aua
                JOIN authority_records ar ON ar.id = aua.authority_id AND ar.deleted_at IS NULL
               WHERE aua.archival_unit_id = ?
@@ -5429,14 +5434,20 @@ class ArchivesPlugin
             JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
         );
         $response->getBody()->write($json);
+        // adamsreview F003: no Vary header. The body is pinned to the
+        // installation locale via I18n::getInstallationLocale() (see
+        // makeRicBuilder) and is therefore fully URL-deterministic — it
+        // never varies with the request's Accept-Language. Emitting
+        // `Vary: Accept-Language` would mis-signal cacheability and
+        // fragment shared caches per client language while every fragment
+        // stored byte-identical bodies, directly defeating
+        // `Cache-Control: public, max-age=300`. If a future change
+        // re-introduces per-request locale logic, also re-introduce Vary
+        // here in the same commit.
         return $response
             ->withHeader('Content-Type', 'application/ld+json; charset=utf-8')
             ->withHeader('Link', '<' . $canonicalUrl . '>; rel="canonical"')
             ->withHeader('Access-Control-Allow-Origin', '*')
-            // The body is pinned to the installation locale (see
-            // makeRicBuilder) so cache key by URL is already sufficient,
-            // but emitting Vary protects against future regressions.
-            ->withHeader('Vary', 'Accept-Language')
             ->withHeader('Cache-Control', 'public, max-age=300');
     }
 
@@ -5483,7 +5494,14 @@ class ArchivesPlugin
             return $rows;
         }
         $stmt->bind_param('i', $parentId);
-        $stmt->execute();
+        // adamsreview F006: surface execute() failures so a silent
+        // degradation (empty children list with no log) cannot hide a
+        // real DB problem.
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] fetchDirectChildren execute failed: ' . $stmt->error);
+            $stmt->close();
+            return $rows;
+        }
         $result = $stmt->get_result();
         if ($result instanceof \mysqli_result) {
             while ($row = $result->fetch_assoc()) {
@@ -5582,6 +5600,17 @@ class ArchivesPlugin
         // separator is unambiguous and matches the PHP explode("\x1f", …)
         // below. CHAR(31) would also work and reads slightly clearer; we go
         // with 0x1F for parity with the PHP escape sequence.
+        //
+        // adamsreview F004: GROUP_CONCAT inherits the server-wide
+        // group_concat_max_len (default 1024 bytes on MySQL/MariaDB). With
+        // a handful of alternate URIs we already get close to that, and
+        // the truncation is silent — the trailing token after the last
+        // 0x1F becomes a malformed URL in owl:sameAs. Raise the session
+        // limit before the query. 65535 is the maximum permitted as a
+        // SESSION value across MySQL 8.x and MariaDB 10.x without
+        // server-global tweaks; well above any plausible per-author URI
+        // fan-out.
+        $this->db->query('SET SESSION group_concat_max_len = 65535');
         $stmt = $this->db->prepare(
             "SELECT a.viaf_uri, a.isni_uri,
                     GROUP_CONCAT(aaa.uri SEPARATOR 0x1F) AS alt_uris
@@ -5599,7 +5628,13 @@ class ArchivesPlugin
             return $uris;
         }
         $stmt->bind_param('i', $authorityId);
-        $stmt->execute();
+        // adamsreview F006: surface execute() failures so an empty
+        // owl:sameAs in the JSON-LD output cannot mask a real DB problem.
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] collectSameAsForAuthority execute failed: ' . $stmt->error);
+            $stmt->close();
+            return $uris;
+        }
         $result = $stmt->get_result();
         if ($result instanceof \mysqli_result) {
             while ($row = $result->fetch_assoc()) {

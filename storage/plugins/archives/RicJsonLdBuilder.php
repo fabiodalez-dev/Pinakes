@@ -111,7 +111,7 @@ final class RicJsonLdBuilder
      *                                                    Each row has: id, type, authorised_form,
      *                                                    dates_of_existence, role.
      * @param list<array<string, mixed>>      $children    Direct children — partial rows with
-     *                                                    id, level, constructed_title.
+     *                                                    id, level, constructed_title, formal_title.
      * @return array<string, mixed>
      */
     public function buildUnit(array $unit, array $authorities = [], array $children = []): array
@@ -185,8 +185,9 @@ final class RicJsonLdBuilder
             }
         }
 
+        // adamsreview F005: same scheme allow-list as owl:sameAs below.
         $rightsUri = $this->str($unit, 'rights_statement_url');
-        if ($rightsUri !== '') {
+        if ($rightsUri !== '' && self::isValidLodUri($rightsUri)) {
             $doc['ric:isOrWasRegulatedBy'] = [
                 '@type'      => 'ric:Rule',
                 'owl:sameAs' => $rightsUri,
@@ -229,25 +230,33 @@ final class RicJsonLdBuilder
                 $authType  = (string) ($auth['type'] ?? 'person');
                 $ricType   = self::AUTHORITY_TYPE_TO_RIC[$authType] ?? 'ric:Agent';
 
-                $target = [
+                // adamsreview F001: the predicate (ric:isCreatorOf etc.) reads
+                // AGENT → UNIT — "the agent IS creator OF this unit". So the
+                // agent MUST be the relation source and the unit MUST be the
+                // target, regardless of which document is emitting the
+                // serialisation. buildAuthority already does this naturally
+                // (entityId == agentIri); buildUnit previously had source
+                // and target inverted, producing the contradictory triple
+                // "Unit isCreatorOf Agent" — semantically wrong RDF.
+                $agentNode = [
                     '@id'   => $this->agentIri($agentId),
                     '@type' => $ricType,
                 ];
                 $name = $this->str($auth, 'authorised_form');
                 if ($name !== '') {
-                    $target['ric:authorizedFormOfName'] = $name;
+                    $agentNode['ric:authorizedFormOfName'] = $name;
                 }
                 $existence = $this->str($auth, 'dates_of_existence');
                 if ($existence !== '') {
-                    $target['ric:descriptiveNote'] = $existence;
+                    $agentNode['ric:descriptiveNote'] = $existence;
                 }
 
                 $relations[] = [
                     '@id'                    => $this->relationIri($id, $agentId, $role),
                     '@type'                  => 'ric:Relation',
                     'ric:relationType'       => $predicate,
-                    'ric:relationHasSource'  => ['@id' => $entityId],
-                    'ric:relationHasTarget'  => $target,
+                    'ric:relationHasSource'  => $agentNode,
+                    'ric:relationHasTarget'  => ['@id' => $entityId],
                 ];
             }
             if (!empty($relations)) {
@@ -352,10 +361,19 @@ final class RicJsonLdBuilder
             ];
         }
 
-        // Deduplicate, drop empties, drop the agent IRI itself.
+        // adamsreview F005: URIs come from DB rows (autori.viaf_uri,
+        // autori.isni_uri, author_authority_alternates.uri) — the admin
+        // form on save uses FILTER_VALIDATE_URL, which permits javascript:
+        // and data: URIs. RDF consumers sometimes follow owl:sameAs
+        // permissively, so a malicious stored URI could propagate into
+        // user-agent dereferences. Filter on a strict scheme allow-list
+        // here so the public JSON-LD never emits a non-Linked-Data scheme,
+        // regardless of what an admin (or a future DB-direct entry path)
+        // stored. Deduplicate, drop empties, drop the agent IRI itself.
         $sameAsClean = array_values(array_unique(array_filter(
             $sameAs,
-            static fn (string $uri): bool => $uri !== '' && $uri !== $entityId
+            fn (string $uri): bool =>
+                $uri !== '' && $uri !== $entityId && self::isValidLodUri($uri)
         )));
         if (!empty($sameAsClean)) {
             $doc['owl:sameAs'] = count($sameAsClean) === 1 ? $sameAsClean[0] : $sameAsClean;
@@ -399,7 +417,7 @@ final class RicJsonLdBuilder
      * Build the JSON-LD root collection document — a synthetic RecordSet
      * that aggregates all top-level fonds (rows where parent_id IS NULL).
      *
-     * @param list<array<string, mixed>> $rootUnits Partial rows: id, level, constructed_title.
+     * @param list<array<string, mixed>> $rootUnits Partial rows: id, level, constructed_title, formal_title.
      * @return array<string, mixed>
      */
     public function buildCollection(array $rootUnits): array
@@ -551,5 +569,42 @@ final class RicJsonLdBuilder
             return $constructed;
         }
         return $this->str($row, 'formal_title');
+    }
+
+    /**
+     * Whitelist of URI schemes safe to emit into public Linked Data
+     * properties (`owl:sameAs`, rights URIs, etc.). Anything else —
+     * `javascript:`, `data:`, `file:`, scheme-less, control chars — is
+     * silently dropped, even if it round-tripped through PHP's
+     * permissive `FILTER_VALIDATE_URL`. See adamsreview F005.
+     *
+     * `http(s)`: the overwhelming majority of Linked Data identifiers.
+     * `urn`: namespaced URNs (ISNI URN form, ISBN URN, etc.).
+     * `ark`: ARK persistent identifiers (frequently used by archives).
+     * `info`: legacy LCNAF / OCLC namespace.
+     * `doi`: DOI scheme used by publication identifiers.
+     */
+    private const ALLOWED_URI_SCHEMES = ['http', 'https', 'urn', 'ark', 'info', 'doi'];
+
+    private static function isValidLodUri(string $uri): bool
+    {
+        // Strip leading/trailing whitespace defensively — a stored value
+        // can carry stray characters that confuse parse_url.
+        $uri = trim($uri);
+        if ($uri === '') {
+            return false;
+        }
+        // Control characters in URIs (NUL, CR, LF, etc.) are always wrong
+        // and can lead to header-injection-style issues if the URI ends
+        // up in a Link header. parse_url accepts them silently — guard
+        // explicitly.
+        if (preg_match('/[\x00-\x1F\x7F]/', $uri) === 1) {
+            return false;
+        }
+        $scheme = parse_url($uri, PHP_URL_SCHEME);
+        if (!is_string($scheme) || $scheme === '') {
+            return false;
+        }
+        return in_array(strtolower($scheme), self::ALLOWED_URI_SCHEMES, true);
     }
 }
