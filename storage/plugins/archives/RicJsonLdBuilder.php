@@ -207,11 +207,18 @@ final class RicJsonLdBuilder
                     continue;
                 }
                 $clevel = (string) ($child['level'] ?? 'file');
-                $parts[] = [
-                    '@id'        => $this->unitIri($cid),
-                    '@type'      => self::LEVEL_TO_TYPE[$clevel] ?? 'ric:Record',
-                    'rdfs:label' => $this->preferTitle($child),
+                $part = [
+                    '@id'   => $this->unitIri($cid),
+                    '@type' => self::LEVEL_TO_TYPE[$clevel] ?? 'ric:Record',
                 ];
+                // CodeRabbit R3: omit rdfs:label when both titles are
+                // missing — emitting "" is a syntactically valid but
+                // semantically empty literal that pollutes the graph.
+                $childLabel = $this->preferTitle($child);
+                if ($childLabel !== '') {
+                    $part['rdfs:label'] = $childLabel;
+                }
+                $parts[] = $part;
             }
             if (!empty($parts)) {
                 $doc['ric:hasOrHadPart'] = $parts;
@@ -390,10 +397,15 @@ final class RicJsonLdBuilder
                 $predicate = self::ROLE_TO_PREDICATE[$role] ?? 'ric:isAssociatedWith';
                 $ulevel    = (string) ($unitRow['level'] ?? 'file');
                 $target = [
-                    '@id'        => $this->unitIri($uid),
-                    '@type'      => self::LEVEL_TO_TYPE[$ulevel] ?? 'ric:Record',
-                    'rdfs:label' => $this->preferTitle($unitRow),
+                    '@id'   => $this->unitIri($uid),
+                    '@type' => self::LEVEL_TO_TYPE[$ulevel] ?? 'ric:Record',
                 ];
+                // CodeRabbit R3: omit empty rdfs:label rather than emit
+                // a vacuous "" literal.
+                $unitLabel = $this->preferTitle($unitRow);
+                if ($unitLabel !== '') {
+                    $target['rdfs:label'] = $unitLabel;
+                }
                 // CodeRabbit #6: same relation IRI emitted by buildUnit
                 // (which sees the relation from the unit side) so the two
                 // serialisations converge on the same node when merged.
@@ -429,18 +441,30 @@ final class RicJsonLdBuilder
                 continue;
             }
             $ulevel = (string) ($u['level'] ?? 'fonds');
-            $parts[] = [
-                '@id'        => $this->unitIri($uid),
-                '@type'      => self::LEVEL_TO_TYPE[$ulevel] ?? 'ric:RecordSet',
-                'rdfs:label' => $this->preferTitle($u),
+            $part = [
+                '@id'   => $this->unitIri($uid),
+                '@type' => self::LEVEL_TO_TYPE[$ulevel] ?? 'ric:RecordSet',
             ];
+            // CodeRabbit R3: omit empty rdfs:label rather than emit "".
+            $label = $this->preferTitle($u);
+            if ($label !== '') {
+                $part['rdfs:label'] = $label;
+            }
+            $parts[] = $part;
         }
 
+        // CodeRabbit R3: the literal string "Archival collections" is
+        // hardcoded English — tagging it with `@language: $this->lang`
+        // (the INSTALLATION locale, e.g. `it`) would emit a false
+        // language declaration ("Archival collections"@it). Tag with
+        // `en` instead so consumers don't mis-index the literal in the
+        // wrong language. ric:title stays as a plain string (no
+        // language tag) since RiC-O treats it as language-neutral.
         return [
             '@context'         => $this->context(),
             '@id'              => $this->baseUrl . '/archives/collection.ric.json',
             '@type'            => 'ric:RecordSet',
-            'rdfs:label'       => ['@value' => 'Archival collections', '@language' => $this->lang],
+            'rdfs:label'       => ['@value' => 'Archival collections', '@language' => 'en'],
             'ric:title'        => 'Archival collections',
             'ric:hasOrHadPart' => $parts,
         ];
