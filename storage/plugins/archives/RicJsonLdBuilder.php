@@ -243,6 +243,7 @@ final class RicJsonLdBuilder
                 }
 
                 $relations[] = [
+                    '@id'                    => $this->relationIri($id, $agentId, $role),
                     '@type'                  => 'ric:Relation',
                     'ric:relationType'       => $predicate,
                     'ric:relationHasSource'  => ['@id' => $entityId],
@@ -313,10 +314,23 @@ final class RicJsonLdBuilder
             $doc['ric:descriptiveNote'] = $existence;
         }
 
-        foreach (['parallel_forms', 'other_forms'] as $variantKey) {
+        // CodeRabbit #7: ric:hasOrHadName has range ric:Name, not xsd:string.
+        // parallel_forms (ISAAR 5.1.3) and other_forms (5.1.5 — pseudonyms,
+        // historical variants) carry distinct semantics that must be
+        // preserved when we serialise them. Each value becomes a ric:Name
+        // object tagged with its category and the installation language.
+        $variantCategories = [
+            'parallel_forms' => 'parallel',
+            'other_forms'    => 'other',
+        ];
+        foreach ($variantCategories as $variantKey => $categoryLabel) {
             $val = $this->str($auth, $variantKey);
             if ($val !== '') {
-                $doc['ric:hasOrHadName'][] = $val;
+                $doc['ric:hasOrHadName'][] = [
+                    '@type'      => 'ric:Name',
+                    'rdfs:label' => ['@value' => $val, '@language' => $this->lang],
+                    'ric:type'   => $categoryLabel,
+                ];
             }
         }
 
@@ -362,7 +376,11 @@ final class RicJsonLdBuilder
                     '@type'      => self::LEVEL_TO_TYPE[$ulevel] ?? 'ric:Record',
                     'rdfs:label' => $this->preferTitle($unitRow),
                 ];
+                // CodeRabbit #6: same relation IRI emitted by buildUnit
+                // (which sees the relation from the unit side) so the two
+                // serialisations converge on the same node when merged.
                 $relations[] = [
+                    '@id'                   => $this->relationIri($uid, $id, $role),
                     '@type'                 => 'ric:Relation',
                     'ric:relationType'      => $predicate,
                     'ric:relationHasSource' => ['@id' => $entityId],
@@ -421,27 +439,69 @@ final class RicJsonLdBuilder
     }
 
     /**
+     * Build a deterministic IRI for a ric:Relation between an archival
+     * unit and an authority record, qualified by the role/predicate.
+     *
+     * Deterministic so the same logical relation emitted by buildUnit
+     * (from the unit's side) and by buildAuthority (from the agent's
+     * side) materialises as the same RDF node when the two documents
+     * are merged into a graph by a consumer (CodeRabbit #6). Otherwise
+     * each side would create a distinct blank node and the relation
+     * would be duplicated in the union.
+     *
+     * The role is included so an Agent that is BOTH creator AND subject
+     * of the same unit yields two distinct relations rather than one.
+     */
+    public function relationIri(int $unitId, int $agentId, string $role): string
+    {
+        $roleSlug = preg_replace('/[^a-z0-9]+/i', '-', $role) ?? 'rel';
+        $roleSlug = strtolower(trim($roleSlug, '-'));
+        if ($roleSlug === '') {
+            $roleSlug = 'rel';
+        }
+        return $this->baseUrl . '/archives/relations/' . $unitId . '-' . $agentId . '-' . $roleSlug;
+    }
+
+    /**
      * Build a `ric:DateRange` node from two SMALLINT year columns, or
-     * return null when both are empty/zero. RiC-O expects xsd:gYear
-     * literals at year-precision.
+     * return null when both are null. RiC-O expects xsd:gYear literals
+     * at year-precision.
+     *
+     * CodeRabbit #8: `xsd:gYear` requires at least 4 digits (YYYY) with
+     * an optional `-` sign for BCE. Previously `(string) 850` produced
+     * "850", which is not a valid xsd:gYear literal and would fail
+     * SHACL/RDF parsers downstream. We also previously rejected year 0
+     * and negative years entirely, dropping BCE dates that the SMALLINT
+     * column can legitimately hold. Both behaviours are now fixed.
      *
      * @return array<string, mixed>|null
      */
     private function buildDateRange(?int $start, ?int $end): ?array
     {
-        $hasStart = $start !== null && $start > 0;
-        $hasEnd   = $end   !== null && $end   > 0;
-        if (!$hasStart && !$hasEnd) {
+        if ($start === null && $end === null) {
             return null;
         }
         $node = ['@type' => 'ric:DateRange'];
-        if ($hasStart) {
-            $node['ric:hasBeginningDate'] = ['@value' => (string) $start, '@type' => 'xsd:gYear'];
+        if ($start !== null) {
+            $node['ric:hasBeginningDate'] = ['@value' => self::formatGYear($start), '@type' => 'xsd:gYear'];
         }
-        if ($hasEnd) {
-            $node['ric:hasEndDate'] = ['@value' => (string) $end, '@type' => 'xsd:gYear'];
+        if ($end !== null) {
+            $node['ric:hasEndDate'] = ['@value' => self::formatGYear($end), '@type' => 'xsd:gYear'];
         }
         return $node;
+    }
+
+    /**
+     * Format an integer year as an xsd:gYear literal. Zero-pads to at
+     * least 4 digits; emits a leading `-` for BCE (negative input). The
+     * year 0 is preserved as `0000` since xsd:gYear permits it.
+     */
+    private static function formatGYear(int $year): string
+    {
+        if ($year < 0) {
+            return '-' . sprintf('%04d', abs($year));
+        }
+        return sprintf('%04d', $year);
     }
 
     /**

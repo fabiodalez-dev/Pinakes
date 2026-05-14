@@ -2811,6 +2811,14 @@ class ArchivesPlugin
                             'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
                             'title' => 'IIIF Manifest',
                             'href' => absoluteUrl('/archives/' . $unitId . '/manifest.json')];
+            // CodeRabbit #1: the public archive page was missing the RiC-O
+            // alternate link that the admin detail page already exposes.
+            // Without it, an HTTP harvester crawling the public URL cannot
+            // discover the JSON-LD serialisation via <link> tags.
+            $headLinks[] = ['rel' => 'alternate',
+                            'type' => 'application/ld+json',
+                            'title' => 'RiC-O (Records in Contexts)',
+                            'href' => absoluteUrl('/archives/' . $unitId . '/ric.json')];
         }
 
         $layoutPath = __DIR__ . '/../../../app/Views/frontend/layout.php';
@@ -5290,11 +5298,20 @@ class ArchivesPlugin
         ResponseInterface $response,
         int $id
     ): ResponseInterface {
-        $row = $this->findById($id);
-        if ($row === null) {
+        // CodeRabbit #2: distinguish "missing" from "DB error" — both yield
+        // null from findById() today, which would 404 a harvester that's
+        // actually hitting a database problem. Use the discriminated lookup.
+        $lookup = $this->findUnitForRic($id);
+        if ($lookup['status'] === 'error') {
+            SecureLogger::error('[Archives] ricUnitAction DB error: ' . $lookup['message']);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+        if ($lookup['status'] === 'missing') {
             return $this->ricJsonError($response, 404, 'not_found',
                 'Archival unit ' . $id . ' does not exist or has been removed.');
         }
+        $row = $lookup['row'];
 
         $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
         $children    = $this->fetchDirectChildren($id);
@@ -5313,19 +5330,27 @@ class ArchivesPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
-        $rootUnits = [];
+        // CodeRabbit #3: an empty 200 on DB failure would look identical to
+        // a real "no fonds yet" response — harvesters cannot tell the two
+        // apart and would treat a transient outage as repository emptying.
+        // Bail with 500 the moment the query returns false.
         $result = $this->db->query(
             "SELECT id, level, constructed_title, formal_title
                FROM archival_units
               WHERE parent_id IS NULL AND deleted_at IS NULL AND level = 'fonds'
               ORDER BY reference_code"
         );
-        if ($result instanceof \mysqli_result) {
-            while ($r = $result->fetch_assoc()) {
-                $rootUnits[] = $r;
-            }
-            $result->free();
+        if (!($result instanceof \mysqli_result)) {
+            SecureLogger::error('[Archives] ricCollectionAction DB error: ' . $this->db->error);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
         }
+
+        $rootUnits = [];
+        while ($r = $result->fetch_assoc()) {
+            $rootUnits[] = $r;
+        }
+        $result->free();
 
         $builder = $this->makeRicBuilder();
         $doc     = $builder->buildCollection($rootUnits);
@@ -5346,11 +5371,18 @@ class ArchivesPlugin
         ResponseInterface $response,
         int $id
     ): ResponseInterface {
-        $auth = $this->findAuthorityById($id);
-        if ($auth === null) {
+        // CodeRabbit #2: same as ricUnitAction — disambiguate missing vs DB error.
+        $lookup = $this->findAuthorityForRic($id);
+        if ($lookup['status'] === 'error') {
+            SecureLogger::error('[Archives] ricAgentAction DB error: ' . $lookup['message']);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+        if ($lookup['status'] === 'missing') {
             return $this->ricJsonError($response, 404, 'not_found',
                 'Authority record ' . $id . ' does not exist or has been removed.');
         }
+        $auth = $lookup['row'];
 
         $linkedUnits = $this->fetchArchivalUnitsForAuthority($id);
         $sameAs      = $this->collectSameAsForAuthority($id);
@@ -5363,13 +5395,21 @@ class ArchivesPlugin
 
     /**
      * Build a per-request RicJsonLdBuilder configured with the current
-     * canonical base URL and locale. Kept private so callers cannot bypass
-     * the canonical-URL resolution path.
+     * canonical base URL and the INSTALLATION locale. Kept private so
+     * callers cannot bypass the canonical-URL resolution path.
+     *
+     * CodeRabbit #4: the RiC endpoints are public + cacheable on a fixed
+     * URL. Using the per-request locale (which can change with the user
+     * session) would make two clients see different bodies for the same
+     * URL, corrupting any shared HTTP cache. We pin to the installation
+     * locale so the response is byte-deterministic per URL. The matching
+     * `Vary: Accept-Language` is also emitted (defense in depth in case
+     * a future change re-introduces per-request locale logic).
      */
     private function makeRicBuilder(): RicJsonLdBuilder
     {
         $base   = rtrim(absoluteUrl(''), '/');
-        $locale = (string) (\App\Support\I18n::getLocale() ?: 'en');
+        $locale = (string) (\App\Support\I18n::getInstallationLocale() ?: 'en');
         return new RicJsonLdBuilder($base, $locale);
     }
 
@@ -5393,6 +5433,10 @@ class ArchivesPlugin
             ->withHeader('Content-Type', 'application/ld+json; charset=utf-8')
             ->withHeader('Link', '<' . $canonicalUrl . '>; rel="canonical"')
             ->withHeader('Access-Control-Allow-Origin', '*')
+            // The body is pinned to the installation locale (see
+            // makeRicBuilder) so cache key by URL is already sufficient,
+            // but emitting Vary protects against future regressions.
+            ->withHeader('Vary', 'Accept-Language')
             ->withHeader('Cache-Control', 'public, max-age=300');
     }
 
@@ -5452,6 +5496,74 @@ class ArchivesPlugin
     }
 
     /**
+     * Look up an archival_unit row by id, distinguishing "not found"
+     * from "DB error". Used by the RiC endpoints so harvesters can tell
+     * a real 404 from a transient persistence failure (CodeRabbit #2).
+     *
+     * @return array{status:'found',row:array<string,mixed>}|array{status:'missing'}|array{status:'error',message:string}
+     */
+    private function findUnitForRic(int $id): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archival_units WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            return ['status' => 'error', 'message' => $this->db->error];
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err];
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err !== '' ? $err : 'get_result returned false'];
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        $stmt->close();
+        return is_array($row)
+            ? ['status' => 'found', 'row' => $row]
+            : ['status' => 'missing'];
+    }
+
+    /**
+     * Same as findUnitForRic but for authority_records. See CodeRabbit #2.
+     *
+     * @return array{status:'found',row:array<string,mixed>}|array{status:'missing'}|array{status:'error',message:string}
+     */
+    private function findAuthorityForRic(int $id): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM authority_records WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            return ['status' => 'error', 'message' => $this->db->error];
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err];
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err !== '' ? $err : 'get_result returned false'];
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        $stmt->close();
+        return is_array($row)
+            ? ['status' => 'found', 'row' => $row]
+            : ['status' => 'missing'];
+    }
+
+    /**
      * Collect external authority URIs (VIAF, ISNI, Wikidata, ...) for
      * one authority_record by walking the autori_authority_link table
      * onto autori + author_authority_alternates. This is the Phase 1
@@ -5463,9 +5575,16 @@ class ArchivesPlugin
     private function collectSameAsForAuthority(int $authorityId): array
     {
         $uris = [];
+        // CodeRabbit #5: MySQL does NOT interpret `\x1f` inside a single-quoted
+        // string literal as the byte 0x1F — the backslash is silently dropped
+        // and the separator becomes the three-character string "x1f". Use the
+        // hex literal `0x1F` (the actual ASCII unit-separator byte) so the
+        // separator is unambiguous and matches the PHP explode("\x1f", …)
+        // below. CHAR(31) would also work and reads slightly clearer; we go
+        // with 0x1F for parity with the PHP escape sequence.
         $stmt = $this->db->prepare(
             "SELECT a.viaf_uri, a.isni_uri,
-                    GROUP_CONCAT(aaa.uri SEPARATOR '\\x1f') AS alt_uris
+                    GROUP_CONCAT(aaa.uri SEPARATOR 0x1F) AS alt_uris
                FROM autori_authority_link aal
                JOIN autori a ON a.id = aal.autori_id
           LEFT JOIN author_authority_alternates aaa
