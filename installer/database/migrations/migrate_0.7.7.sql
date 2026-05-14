@@ -1,0 +1,34 @@
+-- Pinakes v0.7.7 — RiC-CM Phase 1: RiC-O JSON-LD read-only export
+--
+-- Issue #122 — Records in Contexts – Conceptual Model (ICA 2023).
+-- Phase 1 of the 6-phase roadmap (see ~/Desktop/ric-cm-plan.md).
+--
+-- THIS MIGRATION IS INTENTIONALLY EMPTY OF DDL.
+--
+-- Phase 1 is the schema-free entry point of the RiC-CM roadmap. It adds:
+--   - storage/plugins/archives/RicJsonLdBuilder.php    (new pure helper class)
+--   - 3 public read-only endpoints on the archives plugin:
+--       GET /archives/{id}/ric.json
+--       GET /archives/collection.ric.json
+--       GET /archives/agents/{id}/ric.json
+--   - HTTP Link rel="alternate" + IIIF manifest seeAlso cross-references
+--   - plugin.json: archives 1.2.0 → 1.3.0, requires_app 0.7.4 → 0.7.7
+--
+-- No CREATE TABLE, no ALTER TABLE, no INSERT — because the data is the same
+-- ISAD(G)/ISAAR(CPF) rows already in `archival_units` + `authority_records`,
+-- only the JSON-LD vocabulary is new. This guarantees zero risk of breaking
+-- the existing MARCXML/EAD3/OAI-PMH/IIIF/SRU outputs that depend on those
+-- tables.
+--
+-- The DDL work begins in migrate_0.7.8.sql when Phase 2 introduces:
+--   - archive_agent_identifiers (multi-scheme authority IDs)
+--   - archive_agent_relations   (Agent ↔ Agent edges)
+--   - ALTER authority_records ADD COLUMN ric_type, birth_date, death_date,
+--                                          place_of_origin
+--
+-- This empty file is committed so the updater registers the 0.7.7 version
+-- jump in `system_migrations` and downstream installs can determine
+-- "the 0.7.7 → 0.7.8 path requires migrate_0.7.8.sql, not 0.7.7".
+--
+-- Idempotent no-op so re-running the migration causes no side effects.
+SELECT 'RiC-CM Phase 1: no schema changes (see plugin code)' AS migration_note;
