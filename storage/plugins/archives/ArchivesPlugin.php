@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Plugins\Archives;
 
+// Phase 1 of issue #122 (RiC-CM): pure helper class for JSON-LD output.
+// Loaded eagerly because the plugin file is included via require_once from
+// wrapper.php and there is no PSR-4 autoloader scope for plugin classes.
+require_once __DIR__ . '/RicJsonLdBuilder.php';
+
 use App\Support\HookManager;
 use App\Support\SecureLogger;
 use mysqli;
@@ -829,6 +834,36 @@ class ArchivesPlugin
             return $plugin->iiifCollectionAction($request, $response, (int) $args['id']);
         });
 
+        // ── RiC-O (Records in Contexts Ontology) JSON-LD ────────────────────
+        // Phase 1 of issue #122 — three public, read-only endpoints that
+        // expose the existing ISAD(G) tree as RiC-CM entities for harvesting
+        // by Europeana, ArchivesPortalEurope and the ICA aggregator.
+        // No DB changes: the data is the same as MARCXML/EAD3, only the
+        // serialisation vocabulary differs.
+
+        $app->get('/archives/collection.ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricCollectionAction($request, $response);
+        });
+
+        $app->get('/archives/{id:[0-9]+}/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricUnitAction($request, $response, (int) $args['id']);
+        });
+
+        $app->get('/archives/agents/{id:[0-9]+}/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricAgentAction($request, $response, (int) $args['id']);
+        });
+
         // Import form (GET) + submit (POST multipart/form-data)
         $app->get('/admin/archives/import', function (
             ServerRequestInterface $request,
@@ -1284,6 +1319,9 @@ class ArchivesPlugin
                 ['rel' => 'alternate', 'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
                  'title' => 'IIIF Manifest',
                  'href' => absoluteUrl('/archives/' . $id . '/manifest.json')],
+                ['rel' => 'alternate', 'type' => 'application/ld+json',
+                 'title' => 'RiC-O (Records in Contexts)',
+                 'href' => absoluteUrl('/archives/' . $id . '/ric.json')],
             ],
         ]);
     }
@@ -1987,6 +2025,11 @@ class ArchivesPlugin
             'links'           => $links,
             'linked_autori'   => $this->fetchAutoriForAuthority($id),
             'available_autori'=> $this->searchAutori('', 100),
+            'headLinks'       => [
+                ['rel' => 'alternate', 'type' => 'application/ld+json',
+                 'title' => 'RiC-O (Records in Contexts)',
+                 'href' => absoluteUrl('/archives/agents/' . $id . '/ric.json')],
+            ],
         ]);
     }
 
@@ -4836,7 +4879,7 @@ class ArchivesPlugin
             ]];
         }
 
-        // seeAlso: other serialisations (DC, EAD3, METS, OAI-PMH, external IIIF)
+        // seeAlso: other serialisations (DC, EAD3, METS, OAI-PMH, RiC-O, external IIIF)
         $manifest['seeAlso'] = [
             ['id'     => $base . '/archives/' . $id . '/dc.xml',
              'type'   => 'Dataset', 'format' => 'application/xml',
@@ -4849,6 +4892,10 @@ class ArchivesPlugin
              'type'   => 'Dataset', 'format' => 'application/xml',
              'profile' => 'http://www.loc.gov/METS/',
              'label'  => ['en' => ['METS package']]],
+            ['id'     => $base . '/archives/' . $id . '/ric.json',
+             'type'   => 'Dataset', 'format' => 'application/ld+json',
+             'profile' => 'https://www.ica.org/standards/RiC/ontology',
+             'label'  => ['en' => ['RiC-O (Records in Contexts)']]],
             ['id'     => $base . '/archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:archival_unit:' . $id,
              'type'   => 'Dataset', 'format' => 'text/xml',
              'label'  => ['en' => ['OAI-PMH record']]],
@@ -5222,6 +5269,241 @@ class ArchivesPlugin
         return $response
             ->withHeader('Content-Type', 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"')
             ->withHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    // ── RiC-O (Records in Contexts Ontology) JSON-LD ────────────────────────
+    //
+    // Phase 1 of issue #122: read-only export of archival_units and
+    // authority_records as RiC-CM entities. No DB schema changes. The
+    // heavy lifting lives in RicJsonLdBuilder (pure, namespaced helper
+    // class) so this method stays small and PHPStan-friendly.
+    //
+    // RiC-O: https://www.ica.org/standards/RiC/ontology
+
+    /**
+     * GET /archives/{id}/ric.json — RiC-O JSON-LD for one archival_unit.
+     *
+     * Public route (no auth). Mirrors the visibility of /archives/{id}/dc.xml.
+     */
+    public function ricUnitAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findById($id);
+        if ($row === null) {
+            return $this->ricJsonError($response, 404, 'not_found',
+                'Archival unit ' . $id . ' does not exist or has been removed.');
+        }
+
+        $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+        $children    = $this->fetchDirectChildren($id);
+
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildUnit($row, $authorities, $children);
+
+        return $this->ricJsonResponse($response, $doc, $builder->unitIri($id));
+    }
+
+    /**
+     * GET /archives/collection.ric.json — synthetic RecordSet that
+     * aggregates all top-level fonds. Public route.
+     */
+    public function ricCollectionAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $rootUnits = [];
+        $result = $this->db->query(
+            "SELECT id, level, constructed_title, formal_title
+               FROM archival_units
+              WHERE parent_id IS NULL AND deleted_at IS NULL AND level = 'fonds'
+              ORDER BY reference_code"
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) {
+                $rootUnits[] = $r;
+            }
+            $result->free();
+        }
+
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildCollection($rootUnits);
+
+        return $this->ricJsonResponse(
+            $response,
+            $doc,
+            rtrim(absoluteUrl(''), '/') . '/archives/collection.ric.json'
+        );
+    }
+
+    /**
+     * GET /archives/agents/{id}/ric.json — RiC-O JSON-LD for one
+     * authority_record (Agent). Public route.
+     */
+    public function ricAgentAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $auth = $this->findAuthorityById($id);
+        if ($auth === null) {
+            return $this->ricJsonError($response, 404, 'not_found',
+                'Authority record ' . $id . ' does not exist or has been removed.');
+        }
+
+        $linkedUnits = $this->fetchArchivalUnitsForAuthority($id);
+        $sameAs      = $this->collectSameAsForAuthority($id);
+
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildAuthority($auth, $linkedUnits, $sameAs);
+
+        return $this->ricJsonResponse($response, $doc, $builder->agentIri($id));
+    }
+
+    /**
+     * Build a per-request RicJsonLdBuilder configured with the current
+     * canonical base URL and locale. Kept private so callers cannot bypass
+     * the canonical-URL resolution path.
+     */
+    private function makeRicBuilder(): RicJsonLdBuilder
+    {
+        $base   = rtrim(absoluteUrl(''), '/');
+        $locale = (string) (\App\Support\I18n::getLocale() ?: 'en');
+        return new RicJsonLdBuilder($base, $locale);
+    }
+
+    /**
+     * Emit a JSON-LD response with the appropriate Content-Type,
+     * caching, and CORS headers for cross-domain harvesters.
+     *
+     * @param array<string, mixed> $doc
+     */
+    private function ricJsonResponse(
+        ResponseInterface $response,
+        array $doc,
+        string $canonicalUrl
+    ): ResponseInterface {
+        $json = json_encode(
+            $doc,
+            JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+        $response->getBody()->write($json);
+        return $response
+            ->withHeader('Content-Type', 'application/ld+json; charset=utf-8')
+            ->withHeader('Link', '<' . $canonicalUrl . '>; rel="canonical"')
+            ->withHeader('Access-Control-Allow-Origin', '*')
+            ->withHeader('Cache-Control', 'public, max-age=300');
+    }
+
+    /**
+     * Standard JSON-LD error envelope for the RiC endpoints. Avoids
+     * mixing HTML 404 pages into a Content-Type: application/ld+json
+     * channel that harvesters expect to parse as JSON.
+     */
+    private function ricJsonError(
+        ResponseInterface $response,
+        int $status,
+        string $code,
+        string $message
+    ): ResponseInterface {
+        $payload = json_encode(
+            ['error' => $code, 'message' => $message],
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+        $response->getBody()->write($payload);
+        return $response
+            ->withStatus($status)
+            ->withHeader('Content-Type', 'application/ld+json; charset=utf-8')
+            ->withHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    /**
+     * Fetch direct children of an archival_unit (one level only — the
+     * full subtree is referenced lazily by clients via the @id of each
+     * child).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchDirectChildren(int $parentId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT id, level, constructed_title, formal_title
+               FROM archival_units
+              WHERE parent_id = ? AND deleted_at IS NULL
+              ORDER BY reference_code'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] fetchDirectChildren prepare failed: ' . $this->db->error);
+            return $rows;
+        }
+        $stmt->bind_param('i', $parentId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * Collect external authority URIs (VIAF, ISNI, Wikidata, ...) for
+     * one authority_record by walking the autori_authority_link table
+     * onto autori + author_authority_alternates. This is the Phase 1
+     * source of `owl:sameAs`; Phase 2 introduces a dedicated
+     * archive_agent_identifiers table.
+     *
+     * @return list<string>
+     */
+    private function collectSameAsForAuthority(int $authorityId): array
+    {
+        $uris = [];
+        $stmt = $this->db->prepare(
+            "SELECT a.viaf_uri, a.isni_uri,
+                    GROUP_CONCAT(aaa.uri SEPARATOR '\\x1f') AS alt_uris
+               FROM autori_authority_link aal
+               JOIN autori a ON a.id = aal.autori_id
+          LEFT JOIN author_authority_alternates aaa
+                 ON aaa.autore_id = a.id AND aaa.uri IS NOT NULL AND aaa.uri <> ''
+              WHERE aal.authority_id = ?
+              GROUP BY a.id"
+        );
+        if ($stmt === false) {
+            // Table may be absent on installs where viaf-authority has never
+            // been activated; silently degrade to an empty list rather than
+            // logging a noisy error on every RiC request.
+            return $uris;
+        }
+        $stmt->bind_param('i', $authorityId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                foreach (['viaf_uri', 'isni_uri'] as $col) {
+                    $v = $row[$col] ?? null;
+                    if (is_string($v) && $v !== '') {
+                        $uris[] = $v;
+                    }
+                }
+                $alt = $row['alt_uris'] ?? null;
+                if (is_string($alt) && $alt !== '') {
+                    foreach (explode("\x1f", $alt) as $u) {
+                        $u = trim($u);
+                        if ($u !== '') {
+                            $uris[] = $u;
+                        }
+                    }
+                }
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $uris;
     }
 
     // ── Dublin Core XML ──────────────────────────────────────────────────────
