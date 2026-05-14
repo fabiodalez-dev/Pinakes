@@ -567,10 +567,36 @@ Shipped as the bundled **Archives** plugin (opt-in; activate from Admin → Plug
 - `specific_material` ENUM with 15 ABA codes: text (bf), photograph (hf), poster (hp), postcard (hm), drawing (hd), map (hk), picture (hb), 3D object/realia (ho), audio recording (lm), motion-picture film (lf), video (vm), microform (bm), electronic/born-digital (le), mixed materials (zz), other.
 - Dedicated columns for colour mode (bw / colour / mixed), dimensions, photographer, publisher, collection name, local classification — matching the MARC 300/337/338 content/media/carrier vocabulary.
 
-**MARCXML import/export + SRU endpoint**
-- **Export**: `GET /admin/archives/{id}/export.xml` and `GET /admin/archives/export.xml?ids=…` emit ABA-crosswalk MARCXML via XMLWriter. Authorities exported as 100/110/600/610/700/710 tags depending on `(type, role)`.
+**Per-document digital assets** (v0.7.6+)
+- Each archival unit can hold a cover image plus multiple downloadable digitised files (PDF / ePub / audio / video). Files are stored under `public/storage/archives/{unit_id}/` with original filename, MIME type, and display order. Drag-and-drop upload from the admin form; per-file delete with admin confirmation.
+
+**Multi-format export — MARCXML, EAD3, METS, UNIMARC, Dublin Core**
+- **MARCXML** (Library of Congress MARC21 Slim): `GET /admin/archives/{id}/export.xml` and `GET /admin/archives/export.xml?ids=…` emit ABA-crosswalk MARCXML via XMLWriter. Authorities exported as 100/110/600/610/700/710 tags depending on `(type, role)`.
+- **EAD3** (archivists.org Encoded Archival Description): `GET /admin/archives/export.ead3` emits a full EAD3 finding aid. Mirrors what AtoM, ArchivesSpace, and the national portals consume.
+- **METS** (Library of Congress Metadata Encoding & Transmission): `GET /archives/{id}/mets.xml` packages descriptive metadata + IIIF manifest link + digitised assets into a single METS document for OAI-PMH MAG harvesting (Internet Culturale / ICCU).
+- **UNIMARC** (IFLA): exposed via SRU/OAI-PMH for federation with BNF and Italian SBN partners.
+- **Dublin Core** (oai_dc): `GET /archives/{id}/dc.xml` and via OAI-PMH below.
 - **Import**: `POST /admin/archives/import` parses MARCXML (SimpleXML) with optional XSD validation against the Library of Congress MARC21 Slim v1.1 schema. UPSERT on `(institution_code, reference_code)` — re-importing the same file is idempotent. Dry-run preview available.
-- **SRU 1.2 read-only endpoint**: `GET /api/archives/sru` — supports `explain`, `searchRetrieve` (CQL subset: `title`, `reference`, `level`, `anywhere`, joined with `AND`), and `scan` stub. External catalogues (Reindex, Koha, ARKIS) can federate-search the archive using MARCXML records.
+
+**SRU 1.2 read-only endpoint**
+- `GET /api/archives/sru` — supports `explain`, `searchRetrieve` (CQL subset: `title`, `reference`, `level`, `anywhere`, joined with `AND`), and `scan` stub. External catalogues (Reindex, Koha, ARKIS, BNF) can federate-search the archive using MARCXML records.
+
+**IIIF Presentation 3.0** ([#123](https://github.com/fabiodalez-dev/Pinakes/issues/123), v0.7.6+)
+- `GET /archives/{id}/manifest.json` returns a standards-compliant IIIF Presentation 3.0 manifest for every archival unit, exposing attached digitised documents as `Canvas` items with painting `Annotation`s. Works out of the box with **Universal Viewer**, **Mirador**, and any other IIIF-compatible viewer.
+- `GET /archives/collection.json` and `GET /archives/{id}/collection.json` emit IIIF Collection documents for the root fonds list and per-unit sub-collections.
+- The manifest's `seeAlso` block points to every alternative serialisation (Dublin Core, EAD3, METS, RiC-O, OAI-PMH record, ARK identifier) so an IIIF-aware client can discover the full graph of metadata representations with no second discovery round-trip.
+
+**RiC-O JSON-LD** (Records in Contexts Ontology, ICA 2023 — [#122](https://github.com/fabiodalez-dev/Pinakes/issues/122), v0.7.7+)
+- `GET /archives/{id}/ric.json` and `GET /archives/agents/{id}/ric.json` emit RiC-O JSON-LD for archival units and authority records — the linked-data successor to ISAD(G)/ISAAR. Each role on `archival_unit_authority` maps to a typed predicate (`ric:isCreatorOf`, `ric:isOrWasCustodianOf`, `ric:isSubjectOf`, `ric:isAddresseeOf`, `ric:isAssociatedWith`).
+- `GET /archives/collection.ric.json` emits a synthetic `ric:RecordSet` aggregating all top-level fonds, suitable for harvesting by Europeana, ArchivesPortalEurope, and the ICA aggregator.
+- `owl:sameAs` URIs are gathered transparently from the `viaf-authority` plugin's authority links and filtered through a strict scheme allow-list (`http(s)`, `urn`, `ark`, `info`, `doi`) before emission.
+
+**AtoM ISAD(G) area labels** ([#121](https://github.com/fabiodalez-dev/Pinakes/issues/121), v0.7.6+)
+- The admin UI and public display now use the canonical ISAD(G) area names (`Identity area`, `Context area`, `Content and structure area`, `Conditions of access and use area`, `Allied materials area`, `Notes area`), so records are immediately recognisable to users coming from AtoM or other archival catalogue software.
+
+**ARK persistent identifiers + rightsstatements.org** (v0.7.x)
+- Each archival unit can carry an ARK identifier (Archival Resource Key) — emitted as `https://n2t.net/{ark}` in the IIIF `seeAlso` and the RiC-O `rdfs:seeAlso` blocks.
+- Rights are expressed via a `rightsstatements.org` URI (e.g., `https://rightsstatements.org/vocab/InC/1.0/`) — mapped to `ric:Rule` + `owl:sameAs` in the RiC-O output.
 
 **Unified cross-entity search**
 - `/admin/archives/search` hits three sources in a single query: `archival_units` (FULLTEXT on title + scope + archival_history), `authority_records` (FULLTEXT on authorised_form + history + functions), and `autori` rows reconciled to an authority.
@@ -580,7 +606,7 @@ Shipped as the bundled **Archives** plugin (opt-in; activate from Admin → Plug
 - **Public** (`/archivio?q=…&level=…&date_from=…&date_to=…`): same text + level filters plus date-range overlap (`date_from` / `date_to`). In search mode all hierarchy levels are returned (not just root fonds), so a user can search directly for a series or fascicolo by reference code. Theme-aware CSS.
 
 **OAI-PMH 2.0 data provider**
-- `GET /archives/oai` exposes archival units for harvesting: `Identify`, `ListMetadataFormats` (oai_dc + marc21), `ListSets` (per ISAD level), `ListRecords`/`GetRecord` with resumption tokens, selective harvesting by set + date range.
+- `GET /archives/oai` exposes archival units for harvesting: `Identify`, `ListMetadataFormats` (oai_dc + marc21 + ead3), `ListSets` (per ISAD level), `ListRecords`/`GetRecord` with resumption tokens, selective harvesting by set + date range.
 
 **Plugin integration**
 - Self-contained at `storage/plugins/archives/`. Wires up through two `plugin_hooks` rows (`app.routes.register`, `admin.menu.render`) on activation; deactivation removes the route + sidebar entry without touching DB data.
@@ -596,13 +622,27 @@ Extend without modifying core files. Plugins can implement:
 
 Plugins support encrypted secrets and isolated configuration. Install via ZIP upload in admin panel.
 
-**Pre-installed plugins** (6 included):
-- **Open Library** — Metadata scraping from Open Library + Google Books API
-- **Z39 Server** — SRU 1.2 API + SBN client for Italian library metadata with Dewey extraction
-- **API Book Scraper** — External ISBN enrichment via custom APIs
-- **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with streaming player
-- **Dewey Editor** — Visual editor for Dewey classification data with import/export and validation
-- **Archives** — ISAD(G) hierarchical archival records + ISAAR(CPF) authority records with MARCXML import/export, SRU 1.2 endpoint, OAI-PMH 2.0 data provider, full-text + reference-code search bar (admin + public with date-range filter), photographic material support (ABA billedmarc), and unified cross-entity search bridging books + archives. Opt-in (`is_active=0` on install)
+**Pre-installed plugins** (16 included — every one opt-in via Admin → Plugins; the only one auto-active is Open Library):
+
+*Metadata scraping & enrichment*
+- **Open Library** — Metadata scraping from Open Library + Google Books API; the default scraper
+- **API Book Scraper** — External ISBN enrichment via configurable REST endpoints
+- **Discogs / MusicBrainz / Deezer** — Music scrapers for CDs, LPs, vinyls, cassettes (barcode + title lookup, Cover Art Archive HD jackets, tracklists, label info)
+- **GoodLib** — One-click cross-search badges on the book detail page (Anna's Archive, Z-Library, Project Gutenberg)
+- **VIAF Authority Control** — Links authors to VIAF/ISNI authority records with confidence scoring + W3C reconciliation API
+
+*Interoperability protocols*
+- **Z39 Server** — SRU 1.2 API + Z39.50/SRU client for Italian SBN, French **BNF** (UNIMARC), and any standard library catalogue with Dewey extraction (v0.7.6+)
+- **OAI-PMH Server** — OAI-PMH 2.0 data provider for books + archives, harvestable by Internet Culturale (ICCU), Europeana, DPLA. Formats: `oai_dc`, `marc21`, `mods`, `mag` (2.0.1), `unimarc`
+- **NCIP 2.0 Server** — NISO Circulation Interchange Protocol for self-service kiosks, partner ILS, and library networks
+- **BIBFRAME 2.0 Linked Data** — Exposes the book catalogue as BIBFRAME 2.0 JSON-LD / Turtle with content negotiation (Library of Congress transition path from MARC)
+- **OpenURL Resolver** — Z39.88-2004 resolver + COinS metadata embedded in book pages; works with Zotero, Mendeley, EndNote
+- **ResourceSync** — ANSI/NISO Z39.99-2014 dataset synchronisation for harvester partners
+
+*Cataloging & specialised collections*
+- **Dewey Editor** — Visual tree editor for Dewey classification data with JSON import/export and auto-population from SBN/SRU scraping
+- **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with HTML5 streaming player
+- **Archives** — ISAD(G) hierarchical archival records + ISAAR(CPF) authority records. MARCXML / EAD3 / METS / UNIMARC / Dublin Core export, SRU 1.2 endpoint, OAI-PMH 2.0 data provider, **IIIF Presentation 3.0** manifests (v0.7.6), **RiC-O JSON-LD** export (v0.7.7), AtoM ISAD(G) area labels, ARK persistent identifiers, full-text + reference-code search bar (admin + public with date-range filter), photographic-material support (ABA billedmarc 15 codes), per-document cover + downloadable file uploads, and unified cross-entity search bridging books + archives
 
 ### CMS and Customization
 - **Homepage editor** with drag-and-drop blocks (hero banner, featured shelves, events, testimonials)
@@ -664,14 +704,18 @@ Implements the **SRU (Search/Retrieve via URL)** protocol, the HTTP-based succes
 **Client Mode** (import from external catalogs):
 - **Copy cataloging** from Z39.50/SRU servers (Library of Congress, OCLC, K10plus, SUDOC, national libraries)
 - **SBN Italia client** — Automatic metadata retrieval from Italian national library catalog
+- **BNF (Bibliothèque nationale de France) client** (v0.7.6+) — UNIMARC scraping from the BNF SRU endpoint with field mapping to Pinakes metadata (title, authors, publisher, ISBN, Dewey, subjects). Enable Z39 Server and add `sru.bnf.fr` as a source to start importing French bibliographic records.
+- **UNIMARC parser** — Handles UNIMARC field codes (200, 210, 215, 700/701/702, 676 for Dewey) in addition to MARC21, so French + Italian + Swiss + Belgian + Quebecois catalogues are all consumable
 - **Dewey classification extraction**:
   - SBN: Parses Dewey codes from `classificazioneDewey` field (format: `335.4092 (19.) SISTEMI MARXIANI`)
   - SRU/MARCXML: Extracts from MARC field 082 (Dewey Decimal Classification Number)
+  - UNIMARC: Extracts from field 676 (BNF Dewey representation)
   - Dublin Core: Parses from `dc:subject` (DDC scheme) and `dc:coverage` fields
 - **Federated search** across multiple configured servers
 - **Automatic retry** with exponential backoff (100ms, 200ms, 400ms)
 - **TLS certificate validation** for secure connections
-- **MARCXML and Dublin Core parsing** with author extraction (MARC 100/700 fields)
+- **MARCXML, UNIMARC, and Dublin Core parsing** with author extraction (MARC 100/700, UNIMARC 700/701/702 fields)
+- **CQL injection hardening** (v0.7.6+) — search terms containing `"` or `\` are properly escaped per the CQL specification before being embedded into queries sent to external SRU endpoints
 
 **Example queries**:
 ```bash
@@ -733,6 +777,102 @@ Complete Dewey Decimal Classification management system with multilingual suppor
 - **Hierarchical navigation** — Optional collapsible "Browse categories" for discovering codes
 - **Breadcrumb display** — Shows full classification path (e.g., "500 → 590 → 599 → 599.9")
 - **Frontend validation** — Real-time format validation before submission
+
+### 6. Archives (`archives`)
+
+ISAD(G) / ISAAR(CPF) hierarchical archival records — see [Archival Records](#archival-records--isadg--isaarcpf) in Core Features for the full feature breakdown (IIIF 3.0 manifests, RiC-O JSON-LD export, MARCXML / EAD3 / METS / UNIMARC / Dublin Core, SRU 1.2, OAI-PMH 2.0, AtoM area labels, ARK identifiers, photographic-material support).
+
+### 7. VIAF Authority Control (`viaf-authority`)
+
+Bibliographic authority control linking authors to the **Virtual International Authority File** (VIAF, OCLC) and **ISNI** (ISO 27729).
+
+- **Authority enrichment** — Adds `viaf_id` / `viaf_uri` / `isni_id` / `isni_uri` columns to the `autori` table; `authority_source` (manual / viaf / isni / sbn / wikidata) records where each binding came from
+- **Confidence scoring** — Each authority binding carries an `authority_confidence` (exact / probable / candidate / rejected) so curators can review weak matches
+- **VIAF AutoSuggest** — Type-ahead search in the author edit form queries the VIAF AutoSuggest API directly
+- **W3C Reconciliation API** — `/api/viaf/reconcile` endpoint compatible with OpenRefine and other reconciliation clients
+- **ISNI check-digit validation** — Rejects malformed 16-character ISNI strings before they reach the DB
+- **Authority alternates** — `author_authority_alternates` table holds additional identifier candidates (Wikidata, BNF, GND, etc.) for future scheme expansion
+- **Used by**: the Archives plugin's RiC-O JSON-LD output pulls `owl:sameAs` URIs from these tables so books and archives surface the same persons under a unified Linked-Data identity
+
+### 8. OAI-PMH Server (`oai-pmh-server`)
+
+OAI-PMH 2.0 data provider exposing the **book catalogue + archives** to national and international harvesters (Internet Culturale / ICCU, Europeana, DPLA).
+
+- **Endpoint**: `GET/POST /oai` — supports all six required verbs (`Identify`, `ListMetadataFormats`, `ListSets`, `ListIdentifiers`, `ListRecords`, `GetRecord`)
+- **Formats**: `oai_dc` (Dublin Core), `marc21` (MARCXML), `mods`, `mag` (MAG 2.0.1 — the ICCU national format), `unimarc`
+- **Sets**: separates books, archives, and per-archival-level subsets (`fonds`, `series`, `file`, `item`) so harvesters can selectively ingest
+- **Resumption tokens**: DB-backed (`oai_pmh_resumption_tokens` table) so cursor-paginated `ListRecords` calls survive across requests with a stable token
+- **Selective harvesting**: `from` / `until` date filters + `deletedRecord=persistent` so harvesters get tombstones for soft-deleted rows
+- **Compliance**: validated against the OAI Validator and the Europeana harvester
+
+### 9. NCIP 2.0 Server (`ncip-server`)
+
+**NISO Circulation Interchange Protocol** 2.0 — enables interlibrary loan exchange, self-service kiosks, and partner-ILS integration.
+
+- **Endpoint**: `POST /ncip` (Content-Type: `application/xml`)
+- **Services supported**: `LookupItem`, `LookupUser`, `CheckOutItem`, `CheckInItem`, `RenewItem`, `RequestItem`, `CancelRequestItem`
+- **Authentication**: NCIP `InitiationHeader` with `FromAgencyAuthentication` shared-secret model
+- **Use cases**: self-service borrowing kiosks (3M / Bibliotheca SelfCheck), library-network reciprocal lending, partner ILS bridging
+
+### 10. BIBFRAME 2.0 Linked Data (`bibframe-linked-data`)
+
+Exposes the book catalogue as **BIBFRAME 2.0** Linked Data per the Library of Congress transition path from MARC.
+
+- **Content negotiation** — `Accept: application/ld+json` returns BIBFRAME JSON-LD; `Accept: text/turtle` returns Turtle
+- **Stable resource URIs** — `/bibframe/works/{id}`, `/bibframe/instances/{id}`, `/bibframe/items/{id}`
+- **Authority links** — When the `viaf-authority` plugin is also enabled, agents carry `owl:sameAs` to VIAF/ISNI
+- **Suitable for**: Linked-Data discovery, library-of-the-future pilots, reconciliation workflows
+
+### 11. OpenURL Resolver (`openurl-resolver`)
+
+**Z39.88-2004 OpenURL** resolver — bridges Pinakes to bibliographic reference managers.
+
+- **Endpoint**: `GET /openurl?rft.isbn=…` accepts standard OpenURL ContextObjects and redirects to the matching book page (or returns 404 if no match)
+- **COinS metadata** — Every public book page embeds a `<span class="Z3988" title="ctx_ver=Z39.88-2004…">` so reference managers can capture the citation with one click
+- **Compatible with**: Zotero, Mendeley, EndNote, RefWorks, and any OpenURL-aware tool
+- **Hardening** (v0.7.6+) — `absoluteUrl()` is used for all redirect URL construction, so host-header spoofing cannot trick the resolver into open-redirecting to an attacker-controlled domain
+
+### 12. ResourceSync (`resource-sync`)
+
+**ANSI/NISO Z39.99-2014 ResourceSync** — large-scale dataset synchronisation for harvester partners.
+
+- **Endpoints**: `/.well-known/resourcesync`, `/resourcesync/capabilitylist.xml`, `/resourcesync/resourcelist.xml`, `/resourcesync/changelist.xml`
+- **Use cases**: bulk-mirror Pinakes catalogue to a partner system, periodic differential sync, large-scale Linked-Data harvesting
+- **Pairs with**: OAI-PMH (record-level) and SRU (query-time) for a three-layer interop stack
+
+### 13. Music Scraper (`discogs`)
+
+Multi-source music metadata scraping for CDs, LPs, vinyls, cassettes, and other physical music media.
+
+- **Sources**: Discogs (barcode + title lookup), MusicBrainz + Cover Art Archive (fallback by barcode), Deezer (HD jackets)
+- **Catalog-number support** — Accepts Cat# identifiers (e.g. `DGG 477 8761`) in addition to barcodes ([#101](https://github.com/fabiodalez-dev/Pinakes/issues/101))
+- **Rich metadata**: artist, album, label, year, tracklist with durations, genre, country of pressing
+- **Bulk enrichment** — Re-scrape all music records in one click from Admin → Books → Music
+
+### 14. MusicBrainz + Cover Art Archive (`musicbrainz`)
+
+Open-data music metadata source — no API token required.
+
+- **Search by barcode** — Direct MBID lookup via barcode
+- **Cover Art Archive** integration for HD album art
+- **Tracklist, label, year, country** extraction
+
+### 15. Deezer Music Search (`deezer`)
+
+Lightweight music search backed by the Deezer API — no token required.
+
+- **Search by title/artist** — Best for completing metadata when barcode lookup fails
+- **HD covers** — High-resolution album artwork
+- **Tracklist with durations** and genre tags
+
+### 16. GoodLib (`goodlib`)
+
+Adds one-click cross-search badges to the public book detail page.
+
+- **Targets**: Anna's Archive, Z-Library, Project Gutenberg
+- **Use case**: when a library wants to point patrons at legitimate open-access full-text sources alongside its own catalogue
+- **Inspired by**: the GoodLib browser extension
+- **Activation**: opt-in — disabled by default since not every library wants to surface third-party shadow-library links
 
 ---
 
