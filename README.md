@@ -24,6 +24,31 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.7
+
+### Archives: RiC-O JSON-LD export — Records in Contexts Phase 1 ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+Pinakes now exposes archival units and authority records as **RiC-O** (Records in Contexts Ontology, [ICA 2023](https://www.ica.org/standards/RiC/ontology)) JSON-LD — the linked-data successor to the four ICA standards (ISAD(G), ISAAR(CPF), ISDIAH, ISDF). This is **Phase 1 of 6** in the RiC-CM roadmap: read-only translation of the existing tree-shaped ISAD(G) data into RiC-CM's graph vocabulary. **Zero database changes** — the same rows that drive Dublin Core, EAD3, METS, and OAI-PMH outputs are simply re-serialised with the RiC-O namespace.
+
+- **Three new public endpoints** (no auth — meant for harvesters like Europeana, ArchivesPortalEurope, and the ICA aggregator):
+  - `GET /archives/{id}/ric.json` — RiC-O JSON-LD for one archival unit (`ric:Record` or `ric:RecordSet` depending on `level`).
+  - `GET /archives/collection.ric.json` — synthetic top-level `ric:RecordSet` aggregating all fonds.
+  - `GET /archives/agents/{id}/ric.json` — RiC-O JSON-LD for one authority record (`ric:Person`, `ric:CorporateBody`, or `ric:Family`).
+- **Predicates** map ISAD(G)/ISAAR roles onto the RiC-O vocabulary: `creator` → `ric:isCreatorOf`, `subject` → `ric:isSubjectOf`, `custodian` → `ric:isOrWasCustodianOf`, `recipient` → `ric:isAddresseeOf`, `associated` → `ric:isAssociatedWith`. `ric:Relation` nodes carry a deterministic `@id` so the unit-side and agent-side serialisations of the same relation converge on a single RDF node when consumers merge the two documents.
+- **Linked-data cross-references** — `owl:sameAs` for agents is collected transparently from the `viaf-authority` plugin's tables (`autori.viaf_uri`, `autori.isni_uri`, `author_authority_alternates`); installations with VIAF/ISNI control get the URIs in the output for free. URIs are filtered through a strict scheme allow-list (`http(s)`, `urn`, `ark`, `info`, `doi`) before emission so non-Linked-Data schemes cannot leak into the public output.
+- **Cross-format discovery** — RiC-O is added to the `seeAlso` block of the existing IIIF Presentation 3.0 manifest, and `<link rel="alternate" type="application/ld+json">` tags appear in the `<head>` of both the admin and public archive detail pages. HTTP `Link: <…>; rel="canonical"` and `Cache-Control: public, max-age=300` headers are emitted on every RiC response.
+- **`xsd:gYear` literals** are zero-padded to 4 digits with proper BCE support (`-YYYY`) — older or medieval material is now serialised in valid RDF rather than being dropped by the previous `year > 0` gate.
+
+### Compatibility
+
+All existing serialisations (Dublin Core, MARCXML, EAD3, METS, OAI-PMH 2.0, IIIF 3.0, SRU 1.2) are **byte-for-byte unchanged** — RiC-O is strictly additive. Phase 2 of the RiC-CM roadmap (next release) will introduce the optional `archive_agent_identifiers` and `archive_agent_relations` tables for first-class agent entities; Phase 1 introduces zero schema changes.
+
+### Migration
+
+`migrate_0.7.7.sql` is intentionally a documented no-op — Phase 1 is schema-free. The file exists so the updater can record the 0.7.6 → 0.7.7 version jump.
+
+---
+
 ## What's New in v0.7.6
 
 ### French locale (fr_FR) and BNF scraping
