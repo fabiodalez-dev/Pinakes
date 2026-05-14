@@ -2414,6 +2414,12 @@ class ArchivesPlugin
         // adamsreview F002: formal_title is the fallback preferTitle() reads
         // when constructed_title is empty — must be selected so the fallback
         // is not dead code on units lacking a constructed title.
+        //
+        // CodeRabbit R2: throw on DB prepare/execute failure so the RiC
+        // endpoints can return 500 rather than silently degrading to a
+        // partial 200 graph that harvesters mistake for a real removal.
+        // Admin HTML callers let the exception bubble up to Slim's default
+        // error handler — also the correct behaviour for a DB failure.
         $stmt = $this->db->prepare(
             'SELECT au.id, au.reference_code, au.level, au.constructed_title, au.formal_title, aua.role
                FROM archival_unit_authority aua
@@ -2422,10 +2428,16 @@ class ArchivesPlugin
               ORDER BY FIELD(au.level,\'fonds\',\'series\',\'file\',\'item\'), au.reference_code'
         );
         if ($stmt === false) {
-            return $rows;
+            throw new \RuntimeException(
+                '[Archives] fetchArchivalUnitsForAuthority prepare failed: ' . $this->db->error
+            );
         }
         $stmt->bind_param('i', $authorityId);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] fetchArchivalUnitsForAuthority execute failed: ' . $err);
+        }
         $result = $stmt->get_result();
         if ($result instanceof \mysqli_result) {
             while ($row = $result->fetch_assoc()) {
@@ -2445,6 +2457,7 @@ class ArchivesPlugin
     public function fetchAuthoritiesForArchivalUnit(int $archivalUnitId): array
     {
         $rows = [];
+        // CodeRabbit R2: throw on DB failure so RiC endpoints can 500.
         $stmt = $this->db->prepare(
             'SELECT ar.id, ar.type, ar.authorised_form, ar.dates_of_existence,
                     ar.parallel_forms, ar.other_forms, ar.history, ar.functions,
@@ -2455,10 +2468,16 @@ class ArchivesPlugin
               ORDER BY ar.authorised_form'
         );
         if ($stmt === false) {
-            return $rows;
+            throw new \RuntimeException(
+                '[Archives] fetchAuthoritiesForArchivalUnit prepare failed: ' . $this->db->error
+            );
         }
         $stmt->bind_param('i', $archivalUnitId);
-        $stmt->execute();
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] fetchAuthoritiesForArchivalUnit execute failed: ' . $err);
+        }
         $result = $stmt->get_result();
         if ($result instanceof \mysqli_result) {
             while ($row = $result->fetch_assoc()) {
@@ -5318,8 +5337,18 @@ class ArchivesPlugin
         }
         $row = $lookup['row'];
 
-        $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
-        $children    = $this->fetchDirectChildren($id);
+        // CodeRabbit R2: the secondary fetchers now throw on DB failure
+        // rather than silently degrading — catch and translate to 500
+        // instead of publishing a partial 200 graph that harvesters
+        // would mistake for a real structural change.
+        try {
+            $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+            $children    = $this->fetchDirectChildren($id);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[Archives] ricUnitAction secondary fetch failed: ' . $e->getMessage());
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
 
         $builder = $this->makeRicBuilder();
         $doc     = $builder->buildUnit($row, $authorities, $children);
@@ -5389,8 +5418,16 @@ class ArchivesPlugin
         }
         $auth = $lookup['row'];
 
-        $linkedUnits = $this->fetchArchivalUnitsForAuthority($id);
-        $sameAs      = $this->collectSameAsForAuthority($id);
+        // CodeRabbit R2: secondary fetchers throw on DB failure — catch
+        // and 500 rather than publish an incomplete agent record.
+        try {
+            $linkedUnits = $this->fetchArchivalUnitsForAuthority($id);
+            $sameAs      = $this->collectSameAsForAuthority($id);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[Archives] ricAgentAction secondary fetch failed: ' . $e->getMessage());
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
 
         $builder = $this->makeRicBuilder();
         $doc     = $builder->buildAuthority($auth, $linkedUnits, $sameAs);
@@ -5489,18 +5526,18 @@ class ArchivesPlugin
               WHERE parent_id = ? AND deleted_at IS NULL
               ORDER BY reference_code'
         );
+        // adamsreview F006 + CodeRabbit R2: throw on DB failure rather
+        // than logging-and-degrading. RiC actions catch and return 500;
+        // a silent empty children list would publish an incomplete graph
+        // that harvesters mistake for a real structural change.
         if ($stmt === false) {
-            SecureLogger::error('[Archives] fetchDirectChildren prepare failed: ' . $this->db->error);
-            return $rows;
+            throw new \RuntimeException('[Archives] fetchDirectChildren prepare failed: ' . $this->db->error);
         }
         $stmt->bind_param('i', $parentId);
-        // adamsreview F006: surface execute() failures so a silent
-        // degradation (empty children list with no log) cannot hide a
-        // real DB problem.
         if (!$stmt->execute()) {
-            SecureLogger::error('[Archives] fetchDirectChildren execute failed: ' . $stmt->error);
+            $err = $stmt->error;
             $stmt->close();
-            return $rows;
+            throw new \RuntimeException('[Archives] fetchDirectChildren execute failed: ' . $err);
         }
         $result = $stmt->get_result();
         if ($result instanceof \mysqli_result) {
@@ -5622,18 +5659,25 @@ class ArchivesPlugin
               GROUP BY a.id"
         );
         if ($stmt === false) {
-            // Table may be absent on installs where viaf-authority has never
-            // been activated; silently degrade to an empty list rather than
-            // logging a noisy error on every RiC request.
-            return $uris;
+            // CodeRabbit R2: distinguish "table missing" (legitimate
+            // degradation when the viaf-authority plugin has never been
+            // activated) from "real DB error" (must propagate).
+            // mysqli reports error code 1146 = ER_NO_SUCH_TABLE: in that
+            // case we keep the silent-degrade behaviour. Anything else
+            // is a real failure and must reach the RiC action's error
+            // envelope.
+            if ($this->db->errno === 1146) {
+                return $uris;
+            }
+            throw new \RuntimeException(
+                '[Archives] collectSameAsForAuthority prepare failed: ' . $this->db->error
+            );
         }
         $stmt->bind_param('i', $authorityId);
-        // adamsreview F006: surface execute() failures so an empty
-        // owl:sameAs in the JSON-LD output cannot mask a real DB problem.
         if (!$stmt->execute()) {
-            SecureLogger::error('[Archives] collectSameAsForAuthority execute failed: ' . $stmt->error);
+            $err = $stmt->error;
             $stmt->close();
-            return $uris;
+            throw new \RuntimeException('[Archives] collectSameAsForAuthority execute failed: ' . $err);
         }
         $result = $stmt->get_result();
         if ($result instanceof \mysqli_result) {
