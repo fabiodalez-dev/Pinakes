@@ -72,12 +72,16 @@ test.describe.serial('RiC-O JSON-LD endpoints — v0.7.7', () => {
 
     test.beforeAll(async () => {
         // Use the first archival_unit that has at least one linked
-        // authority so the relation block is exercised. Fall back to
-        // any non-deleted unit if no authority link exists.
+        // authority so the relation block is exercised. Both sides of
+        // the join MUST filter `deleted_at IS NULL` — picking up a
+        // soft-deleted authority would cause the agent test below to
+        // get a 404 (the production endpoint correctly hides
+        // soft-deleted rows) and the test would flake (CodeRabbit R6).
         const linked = dbQuery(
             "SELECT au.id, aua.authority_id " +
             "  FROM archival_unit_authority aua " +
             "  JOIN archival_units au ON au.id = aua.archival_unit_id AND au.deleted_at IS NULL " +
+            "  JOIN authority_records ar ON ar.id = aua.authority_id AND ar.deleted_at IS NULL " +
             " LIMIT 1"
         );
         if (linked) {
