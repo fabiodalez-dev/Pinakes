@@ -1,7 +1,7 @@
 -- Pinakes v0.7.7 — RiC-CM Phase 1: RiC-O JSON-LD read-only export
 --
 -- Issue #122 — Records in Contexts – Conceptual Model (ICA 2023).
--- Phase 1 of the 6-phase roadmap (see ~/Desktop/ric-cm-plan.md).
+-- Phase 1 of the 6-phase roadmap documented in issue #122 and README.md.
 --
 -- THIS MIGRATION IS INTENTIONALLY EMPTY OF DDL.
 --
