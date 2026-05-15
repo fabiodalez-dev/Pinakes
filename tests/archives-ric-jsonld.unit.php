@@ -143,6 +143,99 @@ $check(is_string($collection['ric:title'] ?? null), 'collection ric:title remain
 $check(count($collection['ric:hasOrHadPart']) === 2, 'collection skips invalid root unit IDs');
 $check(!array_key_exists('rdfs:label', $collection['ric:hasOrHadPart'][1]), 'collection omits empty part labels');
 
+// ── URI scheme allow-list (isValidLodUri) ────────────────────────────
+// adamsreview F005 + CodeRabbit R3: only the safe Linked Data schemes
+// should propagate to public output; everything else (javascript:,
+// data:, file:, control-char-injected URIs, no-scheme strings) must
+// be dropped. We exercise the private helper via Reflection so the
+// allow-list cannot drift without a failing test.
+
+echo "\nURI scheme allow-list:\n";
+$ric    = new \ReflectionClass(\App\Plugins\Archives\RicJsonLdBuilder::class);
+$isValid = $ric->getMethod('isValidLodUri');
+$isValid->setAccessible(true);
+
+$uriCases = [
+    // Positive — every scheme in ALLOWED_URI_SCHEMES must pass.
+    ['https://viaf.org/viaf/29539',        true,  'https VIAF URI is accepted'],
+    ['http://example.org/foo',             true,  'plain http URI is accepted'],
+    ['urn:isni:0000000121234567',          true,  'urn: scheme is accepted'],
+    ['ark:/12345/abc',                     true,  'ark: scheme is accepted'],
+    ['info:lc/authorities/n79006044',      true,  'info: scheme is accepted'],
+    ['doi:10.1234/example',                true,  'doi: scheme is accepted'],
+    ['HTTPS://CASE.example.org/foo',       true,  'scheme matching is case-insensitive'],
+    [' https://trim.example.org/foo ',     true,  'leading/trailing whitespace is trimmed'],
+    // Negative — every other scheme must be rejected.
+    ['javascript:alert(1)',                false, 'javascript: scheme is rejected'],
+    ['data:text/html,<script>',            false, 'data: scheme is rejected'],
+    ['file:///etc/passwd',                 false, 'file: scheme is rejected'],
+    ['no-scheme-at-all',                   false, 'scheme-less string is rejected'],
+    ['',                                   false, 'empty string is rejected'],
+    ["https://ok.example.org/\r\nX:Y",     false, 'CR/LF in URI is rejected (header-injection guard)'],
+    ["https://ok.example.org/\x00null",    false, 'NUL byte in URI is rejected'],
+    ["https://ok.example.org/\x1F",        false, 'unit-separator byte in URI is rejected'],
+];
+
+foreach ($uriCases as [$uri, $expected, $label]) {
+    $check($isValid->invoke(null, $uri) === $expected, $label);
+}
+
+// ── xsd:gYear formatting (formatGYear via buildDateRange) ────────────
+// adamsreview F008: the date emitter must zero-pad to 4 digits and
+// support BCE via a leading `-`. (string) cast on a SMALLINT would
+// emit "850" or "-100" which are not valid xsd:gYear literals.
+
+echo "\nxsd:gYear formatting:\n";
+$buildDateRange = $ric->getMethod('buildDateRange');
+$buildDateRange->setAccessible(true);
+
+// Helper that returns the two formatted gYear strings (begin, end).
+$gyear = static function (?int $start, ?int $end) use ($builder, $buildDateRange): array {
+    $node = $buildDateRange->invoke($builder, $start, $end);
+    return [
+        $node['ric:hasBeginningDate']['@value'] ?? null,
+        $node['ric:hasEndDate']['@value'] ?? null,
+        $node === null ? null : true,
+    ];
+};
+
+// Both endpoints null → no DateRange node at all.
+$nullNode = $buildDateRange->invoke($builder, null, null);
+$check($nullNode === null, 'no DateRange when both dates are null');
+
+// Year 0 (legal xsd:gYear) — preserved as "0000".
+[$b, $e] = $gyear(0, null);
+$check($b === '0000', 'year 0 is zero-padded to "0000"');
+
+// 4-digit year — unchanged.
+[$b, $e] = $gyear(1922, 1978);
+$check($b === '1922' && $e === '1978', '4-digit years pass through unchanged');
+
+// Year < 1000 — zero-padded.
+[$b, $e] = $gyear(850, 999);
+$check($b === '0850' && $e === '0999', 'years < 1000 are zero-padded to 4 digits');
+
+// BCE — negative SMALLINT values emerge as "-YYYY".
+[$b, $e] = $gyear(-44, -27);
+$check($b === '-0044' && $e === '-0027', 'BCE years emit a leading "-" with zero padding');
+
+// Asymmetric: only start, only end.
+$onlyStart = $buildDateRange->invoke($builder, 1500, null);
+$check(($onlyStart['ric:hasBeginningDate']['@value'] ?? null) === '1500'
+    && !array_key_exists('ric:hasEndDate', $onlyStart),
+    'DateRange with only a begin date omits ric:hasEndDate');
+
+$onlyEnd = $buildDateRange->invoke($builder, null, 1999);
+$check(!array_key_exists('ric:hasBeginningDate', $onlyEnd)
+    && ($onlyEnd['ric:hasEndDate']['@value'] ?? null) === '1999',
+    'DateRange with only an end date omits ric:hasBeginningDate');
+
+// Both gYear literals must declare @type xsd:gYear so RDF consumers
+// don't misinterpret them as xsd:string.
+$typed = $buildDateRange->invoke($builder, 1898, 1978);
+$check(($typed['ric:hasBeginningDate']['@type'] ?? null) === 'xsd:gYear', 'begin date carries xsd:gYear @type');
+$check(($typed['ric:hasEndDate']['@type']       ?? null) === 'xsd:gYear', 'end date carries xsd:gYear @type');
+
 echo "\n================================\n";
 echo "RiC-O JSON-LD checks passed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);
