@@ -3,7 +3,7 @@
  * E2E — SRU recordSchema=unimarcxml (v0.7.4+)
  *
  * Verifies that the z39-server plugin's SRU endpoint correctly handles
- * recordSchema=unimarcxml, producing UNIMARC/XML inside the MARC21slim
+ * recordSchema=unimarcxml, producing UNIMARC/XML inside the MARCXchange
  * namespace container.
  *
  * Tests:
@@ -13,7 +13,7 @@
  *  4.  searchRetrieve?recordSchema=unimarcxml → 200
  *  5.  Response Content-Type contains xml
  *  6.  Response body contains searchRetrieveResponse element
- *  7.  Response body contains MARC21slim namespace declaration
+ *  7.  Response body contains MARCXchange namespace declaration
  *  8.  numberOfRecords element is present and non-negative
  *  9.  When books exist: response contains <record> element
  * 10.  When books exist: record contains UNIMARC field 200 (title)
@@ -112,13 +112,13 @@ test.describe.serial('SRU recordSchema=unimarcxml — v0.7.4 (10 tests)', () => 
         expect(body).toContain('searchRetrieveResponse');
     });
 
-    test('7. Response body contains MARC21slim namespace declaration', async ({ request }) => {
+    test('7. Response body contains MARCXchange namespace declaration', async ({ request }) => {
         test.skip(!hasBooks, 'No books in DB to produce records');
         const res = await request.get(
             `${SRU}?operation=searchRetrieve&version=1.1&query=dc.title+%3D+%22e%22&recordSchema=unimarcxml&maximumRecords=1`
         );
         const body = await res.text();
-        expect(body).toContain('loc.gov/MARC21/slim');
+        expect(body).toContain('info:lc/xmlns/marcxchange-v2');
     });
 
     test('8. numberOfRecords element is present and non-negative', async ({ request }) => {

@@ -49,6 +49,10 @@ class OaiPmhServerPlugin
     /** Resumption token TTL in seconds (24 hours) */
     private const TOKEN_TTL = 86400;
 
+    /** MARCXchange XML container for UNIMARC records (ISO 25577). */
+    private const NS_MARCXCHANGE = 'info:lc/xmlns/marcxchange-v2';
+    private const SCHEMA_MARCXCHANGE = 'http://www.loc.gov/standards/iso25577/marcxchange-2-0.xsd';
+
     public function setPluginId(int $pluginId): void
     {
         $this->pluginId = $pluginId;
@@ -812,8 +816,8 @@ class OaiPmhServerPlugin
             ],
             [
                 'prefix'    => 'unimarc',
-                'schema'    => 'http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd',
-                'namespace' => 'http://www.loc.gov/MARC21/slim',
+                'schema'    => self::SCHEMA_MARCXCHANGE,
+                'namespace' => self::NS_MARCXCHANGE,
             ],
         ];
     }
@@ -1455,7 +1459,7 @@ class OaiPmhServerPlugin
     // ── UNIMARC for books ─────────────────────────────────────────────────────
 
     /**
-     * UNIMARC/XML serialisation using the MARC21slim XML container.
+     * UNIMARC/XML serialisation using the MARCXchange XML container.
      * Field codes follow the UNIMARC Bibliographic format (IFLA 2008).
      *
      * @param array<string, mixed>             $row
@@ -1470,10 +1474,10 @@ class OaiPmhServerPlugin
         ?array $publisher,
         ?array $genre
     ): void {
-        $xw->startElementNs(null, 'record', 'http://www.loc.gov/MARC21/slim');
+        $xw->startElementNs(null, 'record', self::NS_MARCXCHANGE);
+        $xw->writeAttribute('type', 'Bibliographic');
         $xw->writeAttributeNs('xsi', 'schemaLocation', null,
-            'http://www.loc.gov/MARC21/slim ' .
-            'http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd');
+            self::NS_MARCXCHANGE . ' ' . self::SCHEMA_MARCXCHANGE);
 
         // Leader — 'nam': text language material, monograph
         $xw->writeElement('leader', '00000nam a2200000 u 4500');

@@ -2439,12 +2439,18 @@ class ArchivesPlugin
             throw new \RuntimeException('[Archives] fetchArchivalUnitsForAuthority execute failed: ' . $err);
         }
         $result = $stmt->get_result();
-        if ($result instanceof \mysqli_result) {
-            while ($row = $result->fetch_assoc()) {
-                $rows[] = $row;
-            }
-            $result->free();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] fetchArchivalUnitsForAuthority get_result failed: '
+                . ($err !== '' ? $err : 'get_result returned false')
+            );
         }
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $result->free();
         $stmt->close();
         return $rows;
     }
@@ -2479,12 +2485,18 @@ class ArchivesPlugin
             throw new \RuntimeException('[Archives] fetchAuthoritiesForArchivalUnit execute failed: ' . $err);
         }
         $result = $stmt->get_result();
-        if ($result instanceof \mysqli_result) {
-            while ($row = $result->fetch_assoc()) {
-                $rows[] = $row;
-            }
-            $result->free();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] fetchAuthoritiesForArchivalUnit get_result failed: '
+                . ($err !== '' ? $err : 'get_result returned false')
+            );
         }
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $result->free();
         $stmt->close();
         return $rows;
     }
@@ -5444,9 +5456,9 @@ class ArchivesPlugin
      * URL. Using the per-request locale (which can change with the user
      * session) would make two clients see different bodies for the same
      * URL, corrupting any shared HTTP cache. We pin to the installation
-     * locale so the response is byte-deterministic per URL. The matching
-     * `Vary: Accept-Language` is also emitted (defense in depth in case
-     * a future change re-introduces per-request locale logic).
+     * locale so the response is byte-deterministic per URL. If a future
+     * change re-introduces per-request locale logic, ricJsonResponse()
+     * must also re-introduce `Vary: Accept-Language` in the same commit.
      */
     private function makeRicBuilder(): RicJsonLdBuilder
     {
@@ -5540,12 +5552,18 @@ class ArchivesPlugin
             throw new \RuntimeException('[Archives] fetchDirectChildren execute failed: ' . $err);
         }
         $result = $stmt->get_result();
-        if ($result instanceof \mysqli_result) {
-            while ($row = $result->fetch_assoc()) {
-                $rows[] = $row;
-            }
-            $result->free();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] fetchDirectChildren get_result failed: '
+                . ($err !== '' ? $err : 'get_result returned false')
+            );
         }
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $result->free();
         $stmt->close();
         return $rows;
     }
@@ -5647,7 +5665,11 @@ class ArchivesPlugin
         // SESSION value across MySQL 8.x and MariaDB 10.x without
         // server-global tweaks; well above any plausible per-author URI
         // fan-out.
-        $this->db->query('SET SESSION group_concat_max_len = 65535');
+        if ($this->db->query('SET SESSION group_concat_max_len = 65535') === false) {
+            throw new \RuntimeException(
+                '[Archives] collectSameAsForAuthority group_concat_max_len failed: ' . $this->db->error
+            );
+        }
         $stmt = $this->db->prepare(
             "SELECT a.viaf_uri, a.isni_uri,
                     GROUP_CONCAT(aaa.uri SEPARATOR 0x1F) AS alt_uris
@@ -5680,26 +5702,32 @@ class ArchivesPlugin
             throw new \RuntimeException('[Archives] collectSameAsForAuthority execute failed: ' . $err);
         }
         $result = $stmt->get_result();
-        if ($result instanceof \mysqli_result) {
-            while ($row = $result->fetch_assoc()) {
-                foreach (['viaf_uri', 'isni_uri'] as $col) {
-                    $v = $row[$col] ?? null;
-                    if (is_string($v) && $v !== '') {
-                        $uris[] = $v;
-                    }
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] collectSameAsForAuthority get_result failed: '
+                . ($err !== '' ? $err : 'get_result returned false')
+            );
+        }
+        while ($row = $result->fetch_assoc()) {
+            foreach (['viaf_uri', 'isni_uri'] as $col) {
+                $v = $row[$col] ?? null;
+                if (is_string($v) && $v !== '') {
+                    $uris[] = $v;
                 }
-                $alt = $row['alt_uris'] ?? null;
-                if (is_string($alt) && $alt !== '') {
-                    foreach (explode("\x1f", $alt) as $u) {
-                        $u = trim($u);
-                        if ($u !== '') {
-                            $uris[] = $u;
-                        }
+            }
+            $alt = $row['alt_uris'] ?? null;
+            if (is_string($alt) && $alt !== '') {
+                foreach (explode("\x1f", $alt) as $u) {
+                    $u = trim($u);
+                    if ($u !== '') {
+                        $uris[] = $u;
                     }
                 }
             }
-            $result->free();
         }
+        $result->free();
         $stmt->close();
         return $uris;
     }

@@ -95,6 +95,36 @@ $frontendLayoutSource = file_get_contents(__DIR__ . '/../app/Views/frontend/layo
 $check($frontendLayoutSource !== false && str_contains($frontendLayoutSource, '$headLinks'), 'public layout renders $headLinks (structured, no XSS sink)');
 $check($frontendLayoutSource !== false && !str_contains($frontendLayoutSource, "echo \"\\n\" . \$headExtra"), 'public layout does not raw-echo $headExtra');
 
+echo "\nRiC-O persistence regressions:\n";
+$check(
+    $source !== false
+    && str_contains($source, 'ricUnitAction secondary fetch failed')
+    && str_contains($source, 'ricAgentAction secondary fetch failed')
+    && str_contains($source, "'persistence_error'"),
+    'RiC endpoints convert secondary fetch failures to persistence_error 500'
+);
+foreach ([
+    'fetchArchivalUnitsForAuthority',
+    'fetchAuthoritiesForArchivalUnit',
+    'fetchDirectChildren',
+    'collectSameAsForAuthority',
+] as $helperName) {
+    $check(
+        $source !== false
+        && preg_match(
+            '/function\s+' . preg_quote($helperName, '/') . '\s*\(.*?get_result\(\).*?'
+            . preg_quote("[Archives] {$helperName} get_result failed:", '/')
+            . '/s',
+            $source
+        ) === 1,
+        "{$helperName} propagates get_result failures"
+    );
+}
+$check(
+    $source !== false && str_contains($source, 'collectSameAsForAuthority group_concat_max_len failed'),
+    'collectSameAsForAuthority propagates group_concat_max_len setup failure'
+);
+
 $reflection = new ReflectionClass(ArchivesPlugin::class);
 $instance = $reflection->newInstanceWithoutConstructor();
 

@@ -190,7 +190,7 @@ final class RicJsonLdBuilder
         if ($rightsUri !== '' && self::isValidLodUri($rightsUri)) {
             $doc['ric:isOrWasRegulatedBy'] = [
                 '@type'      => 'ric:Rule',
-                'owl:sameAs' => $rightsUri,
+                'owl:sameAs' => ['@id' => $rightsUri],
             ];
         }
 
@@ -383,7 +383,11 @@ final class RicJsonLdBuilder
                 $uri !== '' && $uri !== $entityId && self::isValidLodUri($uri)
         )));
         if (!empty($sameAsClean)) {
-            $doc['owl:sameAs'] = count($sameAsClean) === 1 ? $sameAsClean[0] : $sameAsClean;
+            $sameAsNodes = array_map(
+                static fn (string $uri): array => ['@id' => $uri],
+                $sameAsClean
+            );
+            $doc['owl:sameAs'] = count($sameAsNodes) === 1 ? $sameAsNodes[0] : $sameAsNodes;
         }
 
         if (!empty($units)) {
