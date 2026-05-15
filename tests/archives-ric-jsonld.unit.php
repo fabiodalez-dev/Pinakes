@@ -236,6 +236,47 @@ $typed = $buildDateRange->invoke($builder, 1898, 1978);
 $check(($typed['ric:hasBeginningDate']['@type'] ?? null) === 'xsd:gYear', 'begin date carries xsd:gYear @type');
 $check(($typed['ric:hasEndDate']['@type']       ?? null) === 'xsd:gYear', 'end date carries xsd:gYear @type');
 
+// ── ARK identifier sanitiser (sanitizeArkIdentifier) ─────────────────
+// CodeRabbit R5: the ark_identifier column is a free-form VARCHAR(255)
+// interpolated into `https://n2t.net/{ark}` — a stored value with
+// whitespace, control characters, an absolute URL prefix, or a `../`
+// escape would either produce a malformed n2t.net URL or, if the IRI
+// later flows into an HTTP Link header, expose a header-injection
+// surface. The sanitiser normalises canonical-form ARKs and rejects
+// every other shape.
+
+echo "\nARK identifier sanitiser:\n";
+$sanitizeArk = $ric->getMethod('sanitizeArkIdentifier');
+$sanitizeArk->setAccessible(true);
+
+$arkCases = [
+    // Canonical form already prefixed — pass through.
+    ['ark:/12345/abc',              'ark:/12345/abc',  'canonical ark:/NAAN/Name accepted as-is'],
+    ['ark:/99166/w6c34s1z',         'ark:/99166/w6c34s1z',  'real-world SNAC ARK accepted'],
+    // Bare NAAN/Name form — prefix is added.
+    ['12345/abc',                   'ark:/12345/abc',  'bare NAAN/Name form gets ark:/ prefix'],
+    // Trim whitespace edges.
+    [' ark:/12345/abc ',            'ark:/12345/abc',  'leading/trailing whitespace is trimmed'],
+    // Rejections.
+    ['',                            null, 'empty input is rejected'],
+    [' ',                           null, 'whitespace-only input is rejected'],
+    ['ark:/1234/abc',               null, 'NAAN < 5 digits is rejected'],
+    ['ark:/abcde/foo',              null, 'non-digit NAAN is rejected'],
+    ['12/abc',                      null, 'bare form with NAAN < 5 digits is rejected'],
+    ['random-string',               null, 'unstructured string is rejected'],
+    ['https://attacker.tld/ark/123', null, 'absolute URL is rejected (no scheme injection)'],
+    ['/etc/passwd',                 null, 'leading-slash path is rejected'],
+    ['../../escape',                null, 'path-traversal sequence is rejected'],
+    ["ark:/12345/foo\r\nX:Y",       null, 'CR/LF inside ARK is rejected (header-injection guard)'],
+    ["ark:/12345/foo\x00bar",       null, 'NUL byte inside ARK is rejected'],
+    ["ark:/12345/foo bar",          null, 'internal whitespace is rejected'],
+];
+
+foreach ($arkCases as [$input, $expected, $label]) {
+    $got = $sanitizeArk->invoke(null, $input);
+    $check($got === $expected, $label);
+}
+
 echo "\n================================\n";
 echo "RiC-O JSON-LD checks passed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);

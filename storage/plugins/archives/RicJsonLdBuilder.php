@@ -284,8 +284,15 @@ final class RicJsonLdBuilder
             ['@id' => $this->baseUrl . '/archives/' . $id . '/manifest.json',
              'rdfs:label' => 'IIIF Manifest'],
         ];
-        $ark = $this->str($unit, 'ark_identifier');
-        if ($ark !== '') {
+        // CodeRabbit R5: validate ark_identifier before interpolating it
+        // into an n2t.net resolver URL. The DB column is a free-form
+        // VARCHAR(255) so a row could carry whitespace, control chars
+        // (CR/LF/NUL — header-injection risk if the IRI later flows
+        // into a Link header), or an unexpected prefix (an absolute
+        // URL like https://attacker.tld/, or a leading "../"). Apply
+        // the same defensive posture as the F005 URI allow-list.
+        $ark = self::sanitizeArkIdentifier($this->str($unit, 'ark_identifier'));
+        if ($ark !== null) {
             $seeAlso[] = ['@id' => 'https://n2t.net/' . $ark, 'rdfs:label' => 'ARK persistent identifier'];
         }
         $doc['rdfs:seeAlso'] = $seeAlso;
@@ -634,5 +641,56 @@ final class RicJsonLdBuilder
             return false;
         }
         return in_array(strtolower($scheme), self::ALLOWED_URI_SCHEMES, true);
+    }
+
+    /**
+     * Validate and normalise an ARK identifier (CodeRabbit R5).
+     *
+     * ARK syntax (RFC draft + n2t.net practice):
+     *     ark:/NAAN/Name[/Qualifier][?Variant][#Anchor]
+     * where NAAN is a 5+ digit naming authority number. We accept the
+     * canonical form with or without the literal `ark:/` prefix — the
+     * column historically stored both shapes — and emit the prefix
+     * back so the resulting `https://n2t.net/ark:/…` URL is always
+     * well-formed.
+     *
+     * Returns the prefix-bearing ARK on success, or null when the
+     * input is empty / malformed / contains control characters or
+     * whitespace. Control-character rejection mirrors isValidLodUri
+     * to defend against the same header-injection class of attack.
+     */
+    private static function sanitizeArkIdentifier(string $raw): ?string
+    {
+        $candidate = trim($raw);
+        if ($candidate === '') {
+            return null;
+        }
+        // Reject control characters and any internal whitespace —
+        // both would corrupt the IRI and the URL composition.
+        if (preg_match('/[\x00-\x1F\x7F\s]/', $candidate) === 1) {
+            return null;
+        }
+        // Reject anything that's already an absolute URL or escapes
+        // the n2t.net path (`../`, leading `/`, scheme:// prefix).
+        if (preg_match('#^(?:[a-z][a-z0-9+\-.]*://|/|\.\./)#i', $candidate) === 1) {
+            return null;
+        }
+        // Normalise to canonical form `ark:/NAAN/Name…`. Accept both
+        // bare `ark:/...` (correct) and `12345/foo` shapes; reject
+        // anything that doesn't look like an ARK at all.
+        $normalised = $candidate;
+        if (preg_match('#^ark:/#i', $normalised) !== 1) {
+            // Bare NAAN/Name form — must look like `<5+ digits>/<rest>`.
+            if (preg_match('#^[0-9]{5,}/#', $normalised) !== 1) {
+                return null;
+            }
+            $normalised = 'ark:/' . $normalised;
+        } else {
+            // Already prefixed — verify the NAAN segment is digits.
+            if (preg_match('#^ark:/[0-9]{5,}/#i', $normalised) !== 1) {
+                return null;
+            }
+        }
+        return $normalised;
     }
 }
