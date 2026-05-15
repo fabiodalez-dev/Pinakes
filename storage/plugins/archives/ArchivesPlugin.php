@@ -2415,11 +2415,14 @@ class ArchivesPlugin
         // when constructed_title is empty — must be selected so the fallback
         // is not dead code on units lacking a constructed title.
         //
-        // CodeRabbit R2: throw on DB prepare/execute failure so the RiC
-        // endpoints can return 500 rather than silently degrading to a
-        // partial 200 graph that harvesters mistake for a real removal.
-        // Admin HTML callers let the exception bubble up to Slim's default
-        // error handler — also the correct behaviour for a DB failure.
+        // CodeRabbit R4: shared helper — silent-degrade on DB error (the
+        // pre-RiC contract used by admin HTML views, MARCXML/EAD3/METS
+        // exporters, the OAI provider, and the IIIF manifest builder).
+        // The R2 strict-throw behaviour broke those non-RiC callers by
+        // surfacing raw exceptions to Slim's default error handler when
+        // each format had its own error-envelope semantics. RiC callers
+        // detect the failure via mysqli error state immediately after
+        // the call (see fetchSharedAuthoritiesForRic helpers below).
         $stmt = $this->db->prepare(
             'SELECT au.id, au.reference_code, au.level, au.constructed_title, au.formal_title, aua.role
                FROM archival_unit_authority aua
@@ -2428,29 +2431,22 @@ class ArchivesPlugin
               ORDER BY FIELD(au.level,\'fonds\',\'series\',\'file\',\'item\'), au.reference_code'
         );
         if ($stmt === false) {
-            throw new \RuntimeException(
-                '[Archives] fetchArchivalUnitsForAuthority prepare failed: ' . $this->db->error
-            );
+            SecureLogger::error('[Archives] fetchArchivalUnitsForAuthority prepare failed: ' . $this->db->error);
+            return $rows;
         }
         $stmt->bind_param('i', $authorityId);
         if (!$stmt->execute()) {
-            $err = $stmt->error;
+            SecureLogger::error('[Archives] fetchArchivalUnitsForAuthority execute failed: ' . $stmt->error);
             $stmt->close();
-            throw new \RuntimeException('[Archives] fetchArchivalUnitsForAuthority execute failed: ' . $err);
+            return $rows;
         }
         $result = $stmt->get_result();
-        if (!($result instanceof \mysqli_result)) {
-            $err = $stmt->error;
-            $stmt->close();
-            throw new \RuntimeException(
-                '[Archives] fetchArchivalUnitsForAuthority get_result failed: '
-                . ($err !== '' ? $err : 'get_result returned false')
-            );
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
         }
-        while ($row = $result->fetch_assoc()) {
-            $rows[] = $row;
-        }
-        $result->free();
         $stmt->close();
         return $rows;
     }
@@ -2463,7 +2459,9 @@ class ArchivesPlugin
     public function fetchAuthoritiesForArchivalUnit(int $archivalUnitId): array
     {
         $rows = [];
-        // CodeRabbit R2: throw on DB failure so RiC endpoints can 500.
+        // CodeRabbit R4: shared helper — silent-degrade on DB error. See
+        // fetchArchivalUnitsForAuthority above for the rationale. The RiC
+        // endpoints use the *ForRic strict wrappers further down.
         $stmt = $this->db->prepare(
             'SELECT ar.id, ar.type, ar.authorised_form, ar.dates_of_existence,
                     ar.parallel_forms, ar.other_forms, ar.history, ar.functions,
@@ -2474,29 +2472,22 @@ class ArchivesPlugin
               ORDER BY ar.authorised_form'
         );
         if ($stmt === false) {
-            throw new \RuntimeException(
-                '[Archives] fetchAuthoritiesForArchivalUnit prepare failed: ' . $this->db->error
-            );
+            SecureLogger::error('[Archives] fetchAuthoritiesForArchivalUnit prepare failed: ' . $this->db->error);
+            return $rows;
         }
         $stmt->bind_param('i', $archivalUnitId);
         if (!$stmt->execute()) {
-            $err = $stmt->error;
+            SecureLogger::error('[Archives] fetchAuthoritiesForArchivalUnit execute failed: ' . $stmt->error);
             $stmt->close();
-            throw new \RuntimeException('[Archives] fetchAuthoritiesForArchivalUnit execute failed: ' . $err);
+            return $rows;
         }
         $result = $stmt->get_result();
-        if (!($result instanceof \mysqli_result)) {
-            $err = $stmt->error;
-            $stmt->close();
-            throw new \RuntimeException(
-                '[Archives] fetchAuthoritiesForArchivalUnit get_result failed: '
-                . ($err !== '' ? $err : 'get_result returned false')
-            );
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
         }
-        while ($row = $result->fetch_assoc()) {
-            $rows[] = $row;
-        }
-        $result->free();
         $stmt->close();
         return $rows;
     }
@@ -5349,13 +5340,20 @@ class ArchivesPlugin
         }
         $row = $lookup['row'];
 
-        // CodeRabbit R2: the secondary fetchers now throw on DB failure
-        // rather than silently degrading — catch and translate to 500
-        // instead of publishing a partial 200 graph that harvesters
-        // would mistake for a real structural change.
+        // CodeRabbit R4: the shared helper fetchAuthoritiesForArchivalUnit
+        // silent-degrades on DB error (preserves non-RiC exporter
+        // contracts). For RiC we need to surface the failure as a
+        // proper 500 — check mysqli error state immediately after the
+        // call to detect it. The RiC-only fetchDirectChildren still
+        // throws because no non-RiC caller exists.
         try {
             $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
-            $children    = $this->fetchDirectChildren($id);
+            if ($this->db->errno !== 0) {
+                throw new \RuntimeException(
+                    '[Archives] fetchAuthoritiesForArchivalUnit failed: ' . $this->db->error
+                );
+            }
+            $children = $this->fetchDirectChildren($id);
         } catch (\RuntimeException $e) {
             SecureLogger::error('[Archives] ricUnitAction secondary fetch failed: ' . $e->getMessage());
             return $this->ricJsonError($response, 500, 'persistence_error',
@@ -5430,11 +5428,18 @@ class ArchivesPlugin
         }
         $auth = $lookup['row'];
 
-        // CodeRabbit R2: secondary fetchers throw on DB failure — catch
-        // and 500 rather than publish an incomplete agent record.
+        // CodeRabbit R4: fetchArchivalUnitsForAuthority silent-degrades
+        // (used also by authorityShowAction admin view) — check mysqli
+        // error state to translate failure into 500. collectSameAsForAuthority
+        // is RiC-only and throws.
         try {
             $linkedUnits = $this->fetchArchivalUnitsForAuthority($id);
-            $sameAs      = $this->collectSameAsForAuthority($id);
+            if ($this->db->errno !== 0) {
+                throw new \RuntimeException(
+                    '[Archives] fetchArchivalUnitsForAuthority failed: ' . $this->db->error
+                );
+            }
+            $sameAs = $this->collectSameAsForAuthority($id);
         } catch (\RuntimeException $e) {
             SecureLogger::error('[Archives] ricAgentAction secondary fetch failed: ' . $e->getMessage());
             return $this->ricJsonError($response, 500, 'persistence_error',
@@ -5501,9 +5506,17 @@ class ArchivesPlugin
     }
 
     /**
-     * Standard JSON-LD error envelope for the RiC endpoints. Avoids
-     * mixing HTML 404 pages into a Content-Type: application/ld+json
-     * channel that harvesters expect to parse as JSON.
+     * RFC 7807 problem-details error envelope for the RiC endpoints.
+     * Avoids mixing HTML 404 pages into a Content-Type the harvesters
+     * expect to parse as JSON.
+     *
+     * CodeRabbit R4: the previous Content-Type `application/ld+json`
+     * was misleading — the body `{"error":"...","message":"..."}` has
+     * no `@context` and therefore is NOT valid JSON-LD. RFC 7807
+     * defines `application/problem+json` for exactly this use case
+     * (machine-readable HTTP error envelopes). A JSON-LD client
+     * receiving a problem+json response can still parse it as plain
+     * JSON without mis-applying JSON-LD processing.
      */
     private function ricJsonError(
         ResponseInterface $response,
@@ -5511,14 +5524,24 @@ class ArchivesPlugin
         string $code,
         string $message
     ): ResponseInterface {
+        // RFC 7807 fields: type, title, status, detail. We keep `error`
+        // and `message` for backward compatibility with any consumer
+        // that started reading the previous payload shape.
         $payload = json_encode(
-            ['error' => $code, 'message' => $message],
+            [
+                'type'    => 'about:blank',
+                'title'   => $code,
+                'status'  => $status,
+                'detail'  => $message,
+                'error'   => $code,
+                'message' => $message,
+            ],
             JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
         );
         $response->getBody()->write($payload);
         return $response
             ->withStatus($status)
-            ->withHeader('Content-Type', 'application/ld+json; charset=utf-8')
+            ->withHeader('Content-Type', 'application/problem+json; charset=utf-8')
             ->withHeader('Access-Control-Allow-Origin', '*');
     }
 
