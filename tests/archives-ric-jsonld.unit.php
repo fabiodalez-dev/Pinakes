@@ -713,6 +713,95 @@ $ret = $method->invoke($builder, 'unknownprefix:Foo', []);
 $check($ret[1] === 'Foo' && $ret[0]['uri'] === '',
     'unknown prefix → empty namespace URI (falls back to rdf:Description on emit)');
 
+// ── F010 / F011 / F017: RDF/XML serializer hardening ────────────────
+// Exercise the private writers directly so we can verify the boolean /
+// integer / float datatype emission, the typed-reference compact form,
+// and the `@id === '0'` survival without depending on a database row.
+$writeProp    = $reflection->getMethod('writeRdfProperty');
+$writeProp->setAccessible(true);
+$writeSubject = $reflection->getMethod('writeRdfSubject');
+$writeSubject->setAccessible(true);
+
+$renderProp = static function (string $tag, mixed $value) use ($builder, $writeProp): string {
+    $xw = new \XMLWriter();
+    $xw->openMemory();
+    $xw->startElement('rdf:RDF');
+    $xw->writeAttributeNs('xmlns', 'rdf', null, 'http://www.w3.org/1999/02/22-rdf-syntax-ns#');
+    $xw->writeAttributeNs('xmlns', 'ric', null, RicJsonLdBuilder::NS_RIC);
+    $xw->writeAttributeNs('xmlns', 'xsd', null, RicJsonLdBuilder::NS_XSD);
+    $ctx = ['ric' => RicJsonLdBuilder::NS_RIC, 'xsd' => RicJsonLdBuilder::NS_XSD];
+    $writeProp->invoke($builder, $xw, $tag, $value, $ctx);
+    $xw->endElement();
+    return $xw->outputMemory();
+};
+
+// F010: bool false must NOT become an empty string element. It must
+// carry rdf:datatype="xsd:boolean" with literal "false".
+$xmlBoolFalse = $renderProp('ric:isDigital', false);
+$check(strpos($xmlBoolFalse, 'rdf:datatype="' . RicJsonLdBuilder::NS_XSD . 'boolean"') !== false
+    && strpos($xmlBoolFalse, '>false<') !== false,
+    'F010: boolean false serialises as xsd:boolean "false" (not empty literal)');
+
+$xmlBoolTrue = $renderProp('ric:isDigital', true);
+$check(strpos($xmlBoolTrue, 'rdf:datatype="' . RicJsonLdBuilder::NS_XSD . 'boolean"') !== false
+    && strpos($xmlBoolTrue, '>true<') !== false,
+    'F010: boolean true serialises as xsd:boolean "true"');
+
+// F010: integer literals must carry xsd:integer, not implicit xsd:string.
+$xmlInt = $renderProp('ric:extent', 42);
+$check(strpos($xmlInt, 'rdf:datatype="' . RicJsonLdBuilder::NS_XSD . 'integer"') !== false
+    && strpos($xmlInt, '>42<') !== false,
+    'F010: integer literal carries xsd:integer datatype');
+
+// F010: float literals must carry xsd:double.
+$xmlFloat = $renderProp('ric:measure', 3.14);
+$check(strpos($xmlFloat, 'rdf:datatype="' . RicJsonLdBuilder::NS_XSD . 'double"') !== false,
+    'F010: float literal carries xsd:double datatype');
+
+// F010: strings retain the plain-element form (no datatype attribute).
+$xmlString = $renderProp('ric:title', 'Fondo Rossi');
+$check(strpos($xmlString, 'rdf:datatype') === false
+    && strpos($xmlString, '<ric:title>Fondo Rossi</ric:title>') !== false,
+    'F010: string literal stays plain (no rdf:datatype)');
+
+// F011: typed-reference {'@id', '@type'} must collapse to compact
+// rdf:resource attribute rather than the heavier striped resource.
+$xmlTypedRef = $renderProp('ric:isOrWasIncludedIn', [
+    '@id'   => 'https://example.test/archives/3',
+    '@type' => 'ric:RecordSet',
+]);
+$check(strpos($xmlTypedRef, 'rdf:resource="https://example.test/archives/3"') !== false
+    && strpos($xmlTypedRef, '<ric:RecordSet') === false,
+    'F011: typed reference {@id,@type} emits compact rdf:resource (no striped subject)');
+
+// F011 sanity: untyped reference still uses the same compact form.
+$xmlUntypedRef = $renderProp('ric:isOrWasIncludedIn', [
+    '@id' => 'https://example.test/archives/4',
+]);
+$check(strpos($xmlUntypedRef, 'rdf:resource="https://example.test/archives/4"') !== false,
+    'F011: untyped reference {@id} emits compact rdf:resource (regression)');
+
+// F017: a node whose @id is literal "0" must survive serialisation.
+// !empty('0') === true would silently drop the rdf:about attribute.
+$renderSubject = static function (array $node) use ($builder, $writeSubject): string {
+    $xw = new \XMLWriter();
+    $xw->openMemory();
+    $xw->startElement('rdf:RDF');
+    $xw->writeAttributeNs('xmlns', 'rdf', null, 'http://www.w3.org/1999/02/22-rdf-syntax-ns#');
+    $xw->writeAttributeNs('xmlns', 'ric', null, RicJsonLdBuilder::NS_RIC);
+    $ctx = ['ric' => RicJsonLdBuilder::NS_RIC];
+    $writeSubject->invoke($builder, $xw, $node, $ctx);
+    $xw->endElement();
+    return $xw->outputMemory();
+};
+$xmlZeroId = $renderSubject([
+    '@id'   => '0',
+    '@type' => 'ric:Record',
+    'ric:title' => 'Edge case',
+]);
+$check(strpos($xmlZeroId, 'rdf:about="0"') !== false,
+    'F017: literal "0" identifier is preserved in rdf:about (not dropped by !empty)');
+
 echo "\n================================\n";
 echo "RiC-O JSON-LD checks passed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);

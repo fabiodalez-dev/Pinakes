@@ -2036,11 +2036,11 @@ class OaiPmhServerPlugin
      * RicJsonLdBuilder (single source of truth for ICA semantics) and
      * canonicalises it to RDF/XML through the builder's serialiser.
      *
-     * Per-record cost: ~3 short prepared queries (authorities + direct
-     * children + activities) plus the in-memory tree walk. We re-issue
-     * the queries per-record rather than batching because OAI-PMH
-     * `ric-o` harvests are expected to be small (one fonds tree at a
-     * time, typically).
+     * Per-record cost: 3 short prepared queries (authorities + direct
+     * children + linked activities) plus the in-memory tree walk. We
+     * re-issue the queries per-record rather than batching because
+     * OAI-PMH `ric-o` harvests are expected to be small (one fonds
+     * tree at a time, typically).
      *
      * @param array<string, mixed> $rec
      */
@@ -2062,6 +2062,7 @@ class OaiPmhServerPlugin
 
         $authorities = $this->fetchAuthoritiesForArchivalUnitRic($unitId);
         $children    = $this->fetchDirectChildrenForRic($unitId);
+        $activities  = $this->fetchActivitiesForUnitRic($unitId);
 
         // Use absoluteUrl() when available; otherwise build from the OAI request
         // host so rdf:about attributes are always absolute IRIs (RDF clients
@@ -2073,11 +2074,18 @@ class OaiPmhServerPlugin
             $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
             $baseUrl = $scheme . '://' . $host;
         }
-        $locale  = getenv('APP_LOCALE') ?: 'it';
+        // F042: prefer the installation-wide locale (same source the main
+        // Archives plugin uses) over the unreliable APP_LOCALE env var,
+        // which is rarely set under FPM. Fall through to getenv when the
+        // I18n class is not loaded in this scope (plugin loaded in
+        // isolation, e.g. from a bare CLI harvester).
+        $locale = class_exists('\\App\\Support\\I18n')
+            ? (string) (\App\Support\I18n::getInstallationLocale() ?: 'it')
+            : (getenv('APP_LOCALE') ?: 'it');
 
         /** @var \App\Plugins\Archives\RicJsonLdBuilder $builder */
         $builder = new $builderClass($baseUrl, $locale);
-        $doc     = $builder->buildUnit($rec, $authorities, $children);
+        $doc     = $builder->buildUnit($rec, $authorities, $children, $activities);
 
         $xw->startElementNs('rdf', 'RDF', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#');
         $xw->writeAttributeNs('xmlns', 'rdfs', null, $builderClass::NS_RDFS);
@@ -2139,6 +2147,43 @@ class OaiPmhServerPlugin
               WHERE parent_id = ? AND deleted_at IS NULL
               ORDER BY reference_code'
         );
+        if (!$stmt) {
+            return [];
+        }
+        $stmt->bind_param('i', $unitId);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            return [];
+        }
+        $res = $stmt->get_result();
+        $rows = $res instanceof \mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * F022 (Phase 8): load RiC-CM Phase 3 activity links for one
+     * archival unit, in the shape RicJsonLdBuilder::buildUnit expects
+     * (activity_id, ric_predicate, title, activity_type, date_start,
+     * date_end). Same silent-degrade contract as the other fetch
+     * helpers in this plugin: errors / missing link table return [].
+     *
+     * Mirrors ArchivesPlugin::fetchActivitiesForUnit() (which throws
+     * on persistence error). The OAI surface stays soft-failing so a
+     * Phase-3 schema gap on a partially-upgraded install never
+     * shipwrecks a whole harvest response.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchActivitiesForUnitRic(int $unitId): array
+    {
+        $sql = "SELECT a.id AS activity_id, l.ric_predicate, a.title, a.activity_type, a.date_start, a.date_end
+                  FROM archive_unit_activities l
+                  JOIN archive_activities a ON a.id = l.activity_id
+                 WHERE l.unit_id = ?
+                   AND a.deleted_at IS NULL
+                 ORDER BY a.title";
+        $stmt = $this->db->prepare($sql);
         if (!$stmt) {
             return [];
         }
