@@ -649,6 +649,70 @@ $check($builder->buildRelationNode([
 ]) === null,
     'empty predicate returns null');
 
+// ─────────────────────────────────────────────────────────────────────
+// Phase 6 — RDF/XML serializer (OAI-PMH metadataPrefix=ric-o)
+// ─────────────────────────────────────────────────────────────────────
+
+$serializeUnit = function (array $unit, array $authorities = [], array $children = []) use ($builder): string {
+    $doc = $builder->buildUnit($unit, $authorities, $children);
+    $xw  = new \XMLWriter();
+    $xw->openMemory();
+    $xw->startElement('rdf:RDF');
+    $xw->writeAttributeNs('xmlns', 'rdf',  null, 'http://www.w3.org/1999/02/22-rdf-syntax-ns#');
+    $xw->writeAttributeNs('xmlns', 'rdfs', null, RicJsonLdBuilder::NS_RDFS);
+    $xw->writeAttributeNs('xmlns', 'xsd',  null, RicJsonLdBuilder::NS_XSD);
+    $xw->writeAttributeNs('xmlns', 'owl',  null, RicJsonLdBuilder::NS_OWL);
+    $xw->writeAttributeNs('xmlns', 'ric',  null, RicJsonLdBuilder::NS_RIC);
+    $builder->serializeToRdfXml($doc, $xw);
+    $xw->endElement();
+    return $xw->outputMemory();
+};
+
+$xmlUnit = $serializeUnit([
+    'id' => 42, 'level' => 'file', 'reference_code' => 'AS-FS-1', 'language_codes' => 'it',
+    'constructed_title' => 'Fascicolo personale',
+    'date_start' => 1850, 'date_end' => 1899,
+]);
+$check(strpos($xmlUnit, 'rdf:about="' . $base . '/archives/42"') !== false,
+    'RDF/XML root has rdf:about pointing to unit IRI');
+$check(strpos($xmlUnit, '<ric:Record') !== false,
+    'RDF/XML root element is ric:Record (mapped from level=file)');
+$check(strpos($xmlUnit, '<ric:title>Fascicolo personale</ric:title>') !== false,
+    'ric:title emitted as plain literal property element');
+$check(strpos($xmlUnit, '<ric:identifier>AS-FS-1</ric:identifier>') !== false,
+    'ric:identifier emitted from reference_code');
+$check(strpos($xmlUnit, '<rdfs:label xml:lang="it">Fascicolo personale</rdfs:label>') !== false,
+    'rdfs:label literal carries xml:lang attribute (BCP-47 short form)');
+$check(strpos($xmlUnit, '<ric:DateRange>') !== false
+    && strpos($xmlUnit, 'rdf:datatype="' . RicJsonLdBuilder::NS_XSD . 'gYear"') !== false,
+    'DateRange nested resource with xsd:gYear typed literals');
+
+// Reference (parent) emitted as rdf:resource attribute, not nested literal.
+$xmlChild = $serializeUnit([
+    'id' => 43, 'level' => 'series', 'parent_id' => 42, 'constructed_title' => 'Fondo XYZ',
+]);
+$check(strpos($xmlChild, '<ric:isOrWasIncludedIn rdf:resource="' . $base . '/archives/42"') !== false,
+    'unit reference emits rdf:resource (not rdf:about/nested)');
+
+// Agent relation produces nested ric:Relation subject with embedded Agent.
+$xmlWithAgent = $serializeUnit(
+    ['id' => 44, 'level' => 'item', 'constructed_title' => 'Lettera'],
+    [['id' => 7, 'type' => 'person', 'authorised_form' => 'Manzoni, Alessandro', 'role' => 'creator']]
+);
+$check(strpos($xmlWithAgent, '<ric:Relation') !== false,
+    'agent link emits nested <ric:Relation> subject');
+$check(strpos($xmlWithAgent, '<ric:Person') !== false
+    && strpos($xmlWithAgent, 'rdf:about="' . $base . '/archives/agents/7"') !== false,
+    'agent embedded as <ric:Person> with rdf:about');
+
+// Unknown CURIE prefix returns empty URI so the writer can fall back.
+$reflection = new \ReflectionClass($builder);
+$method = $reflection->getMethod('expandCurie');
+$method->setAccessible(true);
+$ret = $method->invoke($builder, 'unknownprefix:Foo', []);
+$check($ret[1] === 'Foo' && $ret[0]['uri'] === '',
+    'unknown prefix → empty namespace URI (falls back to rdf:Description on emit)');
+
 echo "\n================================\n";
 echo "RiC-O JSON-LD checks passed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);
