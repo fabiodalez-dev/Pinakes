@@ -496,6 +496,159 @@ $check(($rels[0]['ric:relationHasTarget']['@type'] ?? null) === 'ric:Activity',
 $check(($rels[0]['ric:relationHasTarget']['rdfs:label'] ?? null) === 'Catalogo manoscritti',
     'activity title appears as rdfs:label on the relation target');
 
+// ── Phase 4 (v0.7.10) — Places + polymorphic Relations graph ────────
+// Issue #122 Phase 4: archive_places + archive_relations.
+
+echo "\nPhase 4 — buildPlace:\n";
+
+$place = $builder->buildPlace([
+    'id' => 7,
+    'name' => 'Catania',
+    'place_type' => 'municipality',
+    'latitude'  => '37.50213',
+    'longitude' => '15.08719',
+    'geonames_id' => '2525068',
+    'wikidata_id' => 'Q40218',
+    'tgn_id' => '7008168',
+    'description' => 'Capoluogo della provincia di Catania',
+    'parent_id' => 2,
+    'date_start' => '',
+    'date_end' => '',
+]);
+$check(($place['@type'] ?? null) === 'ric:Place',
+    'buildPlace emits @type ric:Place');
+$check(($place['@id'] ?? null) === $base . '/archives/places/7',
+    'place @id follows /archives/places/{id} pattern');
+$check(($place['rdfs:label']['@value'] ?? null) === 'Catania'
+    && ($place['rdfs:label']['@language'] ?? null) === 'it',
+    'place rdfs:label carries name with installation @language');
+$check(($place['ric:type'] ?? null) === 'municipality',
+    'place_type column surfaces as ric:type');
+$check(($place['ric:descriptiveNote'] ?? null) === 'Capoluogo della provincia di Catania',
+    'description maps to ric:descriptiveNote');
+$check(($place['ric:hasOrHadCoordinate']['ric:latitude'] ?? null) === 37.50213
+    && ($place['ric:hasOrHadCoordinate']['ric:longitude'] ?? null) === 15.08719,
+    'lat/lng produce ric:CoordinateLocation with float values');
+$sameAs = $place['owl:sameAs'] ?? [];
+$check(is_array($sameAs) && count($sameAs) === 3,
+    'GeoNames + Wikidata + TGN all emit as owl:sameAs entries');
+$check(($sameAs[0]['@id'] ?? null) === 'https://www.geonames.org/2525068',
+    'GeoNames id composes the canonical https://www.geonames.org/ID URI');
+$check(($sameAs[1]['@id'] ?? null) === 'https://www.wikidata.org/entity/Q40218',
+    'Wikidata id composes the canonical wikidata entity URI');
+$check(str_starts_with($sameAs[2]['@id'] ?? '', 'http://vocab.getty.edu/page/tgn/'),
+    'TGN id composes the Getty TGN URI');
+$check(($place['ric:isOrWasIncludedIn']['@id'] ?? null) === $base . '/archives/places/2',
+    'parent_id emits ric:isOrWasIncludedIn → parent place IRI');
+
+// Single-source sameAs degrades to a node, not a single-element array.
+$placeOneRef = $builder->buildPlace([
+    'id' => 8, 'name' => 'Italia', 'place_type' => 'country',
+    'wikidata_id' => 'Q38',
+]);
+$check(is_array($placeOneRef['owl:sameAs']) && isset($placeOneRef['owl:sameAs']['@id']),
+    'single sameAs entry collapses from list to single node');
+
+// Historical place with date range.
+$placeHist = $builder->buildPlace([
+    'id' => 9, 'name' => 'Regno delle Due Sicilie',
+    'place_type' => 'country',
+    'date_start' => '1816', 'date_end' => '1861',
+]);
+$check(($placeHist['ric:isAssociatedWithDate']['@type'] ?? null) === 'ric:DateRange',
+    'historical place emits ric:DateRange');
+
+// placeIri helper.
+$check($builder->placeIri(42) === $base . '/archives/places/42',
+    'placeIri composes /archives/places/{id}');
+
+echo "\nPhase 4 — buildRelationNode (polymorphic):\n";
+
+// Unit → Place: ric:isOrWasLocatedAt
+$relRow = $builder->buildRelationNode([
+    'id' => 10,
+    'source_type' => 'archival_unit',  'source_id' => 100,
+    'target_type' => 'archive_place',  'target_id' => 7,
+    'ric_predicate' => 'ric:isOrWasLocatedAt',
+    'qualifier' => 'Conservato presso Archivio di Stato',
+    'certainty' => 'certain',
+]);
+$check($relRow !== null, 'valid archive_relations row produces a node');
+$check(($relRow['@type'] ?? null) === 'ric:Relation',
+    'relation node @type is ric:Relation');
+$check(($relRow['@id'] ?? null) === $base . '/archives/relations/10',
+    'relation @id uses the row id (/archives/relations/{id})');
+$check(($relRow['ric:relationHasSource']['@id'] ?? null) === $base . '/archives/100',
+    'source IRI resolves via iriForEntity (archival_unit → /archives/{id})');
+$check(($relRow['ric:relationHasTarget']['@id'] ?? null) === $base . '/archives/places/7',
+    'target IRI resolves via iriForEntity (archive_place → /archives/places/{id})');
+$check(($relRow['ric:descriptiveNote'] ?? null) === 'Conservato presso Archivio di Stato',
+    'qualifier becomes ric:descriptiveNote');
+$check(!array_key_exists('ric:certainty', $relRow),
+    'certainty=certain is the default — omitted from output');
+
+// Agent → Place with uncertain certainty + source citation.
+$relAgent = $builder->buildRelationNode([
+    'id' => 11,
+    'source_type' => 'authority_record', 'source_id' => 4,
+    'target_type' => 'archive_place',    'target_id' => 7,
+    'ric_predicate' => 'ric:isOrWasResidentAt',
+    'certainty' => 'uncertain',
+    'source_ref' => 'Atti notarili 1850',
+    'date_start' => '1850-01-01', 'date_end' => '1860-12-31',
+]);
+$check(($relAgent['ric:relationHasSource']['@id'] ?? null) === $base . '/archives/agents/4',
+    'authority_record source resolves to /archives/agents/{id}');
+$check(($relAgent['ric:certainty'] ?? null) === 'uncertain',
+    'non-default certainty is surfaced in the JSON-LD');
+$check(($relAgent['ric:hasSource'] ?? null) === 'Atti notarili 1850',
+    'source_ref maps to ric:hasSource');
+$check(($relAgent['ric:isAssociatedWithDate']['@type'] ?? null) === 'ric:DateRange',
+    'relation with date emits ric:DateRange');
+
+// Activity → Place
+$relAct = $builder->buildRelationNode([
+    'id' => 12,
+    'source_type' => 'archive_activity', 'source_id' => 1,
+    'target_type' => 'archive_place',    'target_id' => 7,
+    'ric_predicate' => 'ric:isOrWasPerformedAt',
+]);
+$check(($relAct['ric:relationHasSource']['@id'] ?? null) === $base . '/archives/activities/1',
+    'archive_activity source resolves to /archives/activities/{id}');
+
+// Place → Place (parent hierarchy via relations)
+$relPlace = $builder->buildRelationNode([
+    'id' => 13,
+    'source_type' => 'archive_place', 'source_id' => 7,
+    'target_type' => 'archive_place', 'target_id' => 2,
+    'ric_predicate' => 'ric:isOrWasIncludedIn',
+]);
+$check(($relPlace['ric:relationHasSource']['@id'] ?? null) === $base . '/archives/places/7'
+    && ($relPlace['ric:relationHasTarget']['@id'] ?? null) === $base . '/archives/places/2',
+    'archive_place ↔ archive_place relation resolves both endpoints');
+
+// Malformed rows return null.
+$check($builder->buildRelationNode([]) === null,
+    'empty row returns null (no malformed RDF emitted)');
+$check($builder->buildRelationNode([
+    'source_type' => 'unknown_type', 'source_id' => 1,
+    'target_type' => 'archive_place', 'target_id' => 1,
+    'ric_predicate' => 'ric:isOrWasLocatedAt',
+]) === null,
+    'unknown source_type returns null');
+$check($builder->buildRelationNode([
+    'source_type' => 'archival_unit', 'source_id' => 0,
+    'target_type' => 'archive_place', 'target_id' => 1,
+    'ric_predicate' => 'ric:isOrWasLocatedAt',
+]) === null,
+    'zero source_id returns null');
+$check($builder->buildRelationNode([
+    'source_type' => 'archival_unit', 'source_id' => 1,
+    'target_type' => 'archive_place', 'target_id' => 1,
+    'ric_predicate' => '',
+]) === null,
+    'empty predicate returns null');
+
 echo "\n================================\n";
 echo "RiC-O JSON-LD checks passed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);
