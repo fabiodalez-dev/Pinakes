@@ -127,9 +127,14 @@ final class RicJsonLdBuilder
      *                                                    dates_of_existence, role.
      * @param list<array<string, mixed>>      $children    Direct children — partial rows with
      *                                                    id, level, constructed_title, formal_title.
+     * @param list<array<string, mixed>>      $activities  RiC-CM Phase 3 link rows
+     *                                                    (`archive_unit_activities` joined to
+     *                                                    `archive_activities`). Each row carries
+     *                                                    `activity_id`, `ric_predicate`, `title`,
+     *                                                    `activity_type`, `date_start`, `date_end`.
      * @return array<string, mixed>
      */
-    public function buildUnit(array $unit, array $authorities = [], array $children = []): array
+    public function buildUnit(array $unit, array $authorities = [], array $children = [], array $activities = []): array
     {
         $id       = (int) ($unit['id'] ?? 0);
         $level    = (string) ($unit['level'] ?? 'file');
@@ -311,6 +316,182 @@ final class RicJsonLdBuilder
             $seeAlso[] = ['@id' => 'https://n2t.net/' . $ark, 'rdfs:label' => 'ARK persistent identifier'];
         }
         $doc['rdfs:seeAlso'] = $seeAlso;
+
+        // Phase 3 (v0.7.9): activity relations from
+        // archive_unit_activities. Each link becomes a ric:Relation
+        // node typed with the row's `ric_predicate` (default
+        // ric:resultsOrResultedFrom). Targets reference the Activity
+        // by its dedicated IRI (/archives/activities/{id}) so a
+        // consumer can dereference the full activity document
+        // separately.
+        if (!empty($activities)) {
+            $existing = $doc['ric:isOrWasRelatedTo'] ?? [];
+            foreach ($activities as $link) {
+                $actId = (int) ($link['activity_id'] ?? 0);
+                if ($actId <= 0) {
+                    continue;
+                }
+                $predicate = (string) ($link['ric_predicate'] ?? 'ric:resultsOrResultedFrom');
+                if ($predicate === '') {
+                    $predicate = 'ric:resultsOrResultedFrom';
+                }
+                $target = [
+                    '@id'   => $this->activityIri($actId),
+                    '@type' => 'ric:Activity',
+                ];
+                $title = $this->str($link, 'title');
+                if ($title !== '') {
+                    $target['rdfs:label'] = $title;
+                }
+                $existing[] = [
+                    '@id'                   => $this->unitActivityRelationIri($id, $actId, $predicate),
+                    '@type'                 => 'ric:Relation',
+                    'ric:relationType'      => $predicate,
+                    'ric:relationHasSource' => ['@id' => $entityId],
+                    'ric:relationHasTarget' => $target,
+                ];
+            }
+            if (!empty($existing)) {
+                $doc['ric:isOrWasRelatedTo'] = $existing;
+            }
+        }
+
+        return $doc;
+    }
+
+    /**
+     * Build the JSON-LD document for one `archive_activities` row.
+     * Phase 3 (v0.7.9) — RiC-CM Activity entity.
+     *
+     * @param array<string, mixed>       $activity    Row from `archive_activities`.
+     * @param list<array<string, mixed>> $unitLinks   Rows from `archive_unit_activities`
+     *                                                joined to `archival_units` — each carries
+     *                                                `unit_id`, `level`, `constructed_title`,
+     *                                                `formal_title`, `ric_predicate`.
+     * @return array<string, mixed>
+     */
+    public function buildActivity(array $activity, array $unitLinks = []): array
+    {
+        $id       = (int) ($activity['id'] ?? 0);
+        $entityId = $this->activityIri($id);
+
+        $doc = [
+            '@context' => $this->context(),
+            '@id'      => $entityId,
+            '@type'    => 'ric:Activity',
+        ];
+
+        $title = $this->str($activity, 'title');
+        if ($title !== '') {
+            $doc['rdfs:label']  = ['@value' => $title, '@language' => $this->lang];
+            $doc['ric:name']    = $title;
+        }
+
+        $description = $this->str($activity, 'description');
+        if ($description !== '') {
+            $doc['ric:descriptiveNote'] = $description;
+        }
+
+        $activityType = $this->str($activity, 'activity_type');
+        if ($activityType !== '') {
+            // Surface the ISDF sub-type so consumers can filter by
+            // function vs activity vs transaction. ric:type is a
+            // free-form classification slot in RiC-O.
+            $doc['ric:type'] = $activityType;
+        }
+
+        $sourceRef = $this->str($activity, 'source_ref');
+        if ($sourceRef !== '') {
+            $doc['ric:hasSource'] = $sourceRef;
+        }
+
+        // Date range — both Phase-2 helpers (xsd:date for individual
+        // dates) and Phase-1 buildDateRange (xsd:gYear for year-only)
+        // accept the same VARCHAR(20) shape. Use xsd:date here because
+        // ISDF activities are typically dated by event year or full
+        // date, not gYear.
+        $start = $this->str($activity, 'date_start');
+        $end   = $this->str($activity, 'date_end');
+        if ($start !== '' || $end !== '') {
+            $dateNode = ['@type' => 'ric:DateRange'];
+            if ($start !== '') {
+                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => 'xsd:date'];
+            }
+            if ($end !== '') {
+                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => 'xsd:date'];
+            }
+            $doc['ric:isAssociatedWithDate'] = $dateNode;
+        }
+
+        $isOngoing = (int) ($activity['is_ongoing'] ?? 0);
+        if ($isOngoing === 1) {
+            // RiC-O has no dedicated "ongoing" flag — surface it as a
+            // descriptive note keyed on a stable label so consumers
+            // querying for active activities can match it.
+            $doc['ric:descriptiveNote'] = ($description === '' ? '' : $description . "\n")
+                . '[ongoing]';
+        }
+
+        // ric:isOrWasPerformedBy — when the activity carries an
+        // agent_id, emit a relation pointing at the agent IRI.
+        $agentId = $this->intOrNull($activity['agent_id'] ?? null);
+        if ($agentId !== null && $agentId > 0) {
+            $doc['ric:isOrWasPerformedBy'] = ['@id' => $this->agentIri($agentId)];
+        }
+
+        // Parent activity in the ISDF function → activity → transaction
+        // hierarchy.
+        $parentId = $this->intOrNull($activity['parent_id'] ?? null);
+        if ($parentId !== null && $parentId > 0) {
+            $doc['ric:hasOrHadPartOf'] = ['@id' => $this->activityIri($parentId)];
+        }
+
+        // ric:resultsOrResultedIn — units the activity produced /
+        // touched. Inverse of the buildUnit emission above; both
+        // directions must converge on the same relation IRI when the
+        // two documents are merged into a graph.
+        if (!empty($unitLinks)) {
+            $relations = [];
+            foreach ($unitLinks as $link) {
+                $uid = (int) ($link['unit_id'] ?? 0);
+                if ($uid <= 0) {
+                    continue;
+                }
+                $predicate = (string) ($link['ric_predicate'] ?? 'ric:resultsOrResultedFrom');
+                if ($predicate === '') {
+                    $predicate = 'ric:resultsOrResultedFrom';
+                }
+                $ulevel = (string) ($link['level'] ?? 'file');
+                $target = [
+                    '@id'   => $this->unitIri($uid),
+                    '@type' => self::LEVEL_TO_TYPE[$ulevel] ?? 'ric:Record',
+                ];
+                $label = $this->preferTitle($link);
+                if ($label !== '') {
+                    $target['rdfs:label'] = $label;
+                }
+                $relations[] = [
+                    '@id'                   => $this->unitActivityRelationIri($uid, $id, $predicate),
+                    '@type'                 => 'ric:Relation',
+                    // Activity side: the activity is the source, the
+                    // unit is the target. Predicate stays the same as
+                    // the buildUnit side so the merged graph is
+                    // internally consistent.
+                    'ric:relationType'      => $predicate,
+                    'ric:relationHasSource' => ['@id' => $entityId],
+                    'ric:relationHasTarget' => $target,
+                ];
+            }
+            if (!empty($relations)) {
+                $doc['ric:isOrWasRelatedTo'] = $relations;
+            }
+        }
+
+        // Cross-reference to the public Activity detail page.
+        $doc['rdfs:seeAlso'] = [
+            ['@id' => $this->baseUrl . '/archives/activities/' . $id,
+             'rdfs:label' => 'Activity detail (HTML)'],
+        ];
 
         return $doc;
     }
@@ -586,6 +767,34 @@ final class RicJsonLdBuilder
     public function agentIri(int $id): string
     {
         return $this->baseUrl . '/archives/agents/' . $id;
+    }
+
+    /**
+     * Phase 3 (v0.7.9): IRI for an `archive_activities` row.
+     * Public route at /archives/activities/{id}/ric.json serves the
+     * RiC-O JSON-LD; /archives/activities/{id} is the HTML view.
+     */
+    public function activityIri(int $id): string
+    {
+        return $this->baseUrl . '/archives/activities/' . $id;
+    }
+
+    /**
+     * Phase 3 (v0.7.9): deterministic IRI for the unit ↔ activity
+     * relation. Same convergence guarantee as relationIri: the unit
+     * side (buildUnit) and the activity side (buildActivity) emit
+     * relation nodes with identical @id so a graph-merge consumer
+     * collapses them to one node.
+     */
+    public function unitActivityRelationIri(int $unitId, int $activityId, string $predicate): string
+    {
+        $slug = preg_replace('/[^a-z0-9]+/i', '-', $predicate) ?? 'rel';
+        $slug = strtolower(trim($slug, '-'));
+        if ($slug === '') {
+            $slug = 'rel';
+        }
+        return $this->baseUrl . '/archives/unit-activity-relations/'
+            . $unitId . '-' . $activityId . '-' . $slug;
     }
 
     /**

@@ -260,6 +260,9 @@ class ArchivesPlugin
             // RiC-CM Phase 2 (v0.7.8 — issue #122) — agents as first-class entities.
             'archive_agent_identifiers'  => self::ddlAgentIdentifiers(),
             'archive_agent_relations'    => self::ddlAgentRelations(),
+            // RiC-CM Phase 3 (v0.7.9 — issue #122) — Activity entities + M:N to units.
+            'archive_activities'         => self::ddlArchiveActivities(),
+            'archive_unit_activities'    => self::ddlArchiveUnitActivities(),
         ];
         $created = [];
         $failed = [];
@@ -957,6 +960,25 @@ class ArchivesPlugin
             array $args
         ) use ($plugin): ResponseInterface {
             return $plugin->ricAgentAction($request, $response, (int) $args['id']);
+        });
+
+        // RiC-CM Phase 3 (v0.7.9 — issue #122) — Activity entities.
+        // Public, no auth: harvested by Europeana / ICA aggregators
+        // alongside the unit + agent endpoints.
+
+        $app->get('/archives/activities/{id:[0-9]+}/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricActivityAction($request, $response, (int) $args['id']);
+        });
+
+        $app->get('/archives/activities/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricActivitiesListAction($request, $response);
         });
 
         // Import form (GET) + submit (POST multipart/form-data)
@@ -5448,7 +5470,9 @@ class ArchivesPlugin
                     '[Archives] fetchAuthoritiesForArchivalUnit failed: ' . $this->db->error
                 );
             }
-            $children = $this->fetchDirectChildren($id);
+            $children   = $this->fetchDirectChildren($id);
+            // RiC-CM Phase 3 (v0.7.9): activities linked to this unit.
+            $activities = $this->fetchActivitiesForUnit($id);
         } catch (\RuntimeException $e) {
             SecureLogger::error('[Archives] ricUnitAction secondary fetch failed: ' . $e->getMessage());
             return $this->ricJsonError($response, 500, 'persistence_error',
@@ -5456,7 +5480,7 @@ class ArchivesPlugin
         }
 
         $builder = $this->makeRicBuilder();
-        $doc     = $builder->buildUnit($row, $authorities, $children);
+        $doc     = $builder->buildUnit($row, $authorities, $children, $activities);
 
         return $this->ricJsonResponse($response, $doc, $builder->unitIri($id));
     }
@@ -5547,6 +5571,244 @@ class ArchivesPlugin
         $doc     = $builder->buildAuthority($auth, $linkedUnits, $sameAs, $agentRelations);
 
         return $this->ricJsonResponse($response, $doc, $builder->agentIri($id));
+    }
+
+    /**
+     * GET /archives/activities/{id}/ric.json — RiC-O JSON-LD for one
+     * `archive_activities` row (RiC-CM Phase 3 — v0.7.9). Public route.
+     */
+    public function ricActivityAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $lookup = $this->findActivityForRic($id);
+        if ($lookup['status'] === 'error') {
+            SecureLogger::error('[Archives] ricActivityAction DB error: ' . $lookup['message']);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+        if ($lookup['status'] === 'missing') {
+            return $this->ricJsonError($response, 404, 'not_found',
+                'Archive activity ' . $id . ' does not exist or has been removed.');
+        }
+        $row = $lookup['row'];
+
+        try {
+            $unitLinks = $this->fetchUnitsForActivity($id);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[Archives] ricActivityAction secondary fetch failed: ' . $e->getMessage());
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildActivity($row, $unitLinks);
+        return $this->ricJsonResponse($response, $doc, $builder->activityIri($id));
+    }
+
+    /**
+     * GET /archives/activities/ric.json — synthetic RiC-O collection
+     * listing all top-level activities (the ones with parent_id IS
+     * NULL). Phase 3 (v0.7.9). Public route.
+     */
+    public function ricActivitiesListAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $result = $this->db->query(
+            'SELECT id, title, activity_type
+               FROM archive_activities
+              WHERE parent_id IS NULL AND deleted_at IS NULL
+              ORDER BY activity_type, title'
+        );
+        if (!($result instanceof \mysqli_result)) {
+            // archive_activities table may legitimately not exist on
+            // installs that activated the plugin pre-0.7.9 and never
+            // re-ran ensureSchema. Treat as empty list (200) rather
+            // than 500 — the table will appear on the next plugin
+            // re-activation or auto-update.
+            if ($this->db->errno === 1146) {
+                $rows = [];
+            } else {
+                SecureLogger::error('[Archives] ricActivitiesListAction DB error: ' . $this->db->error);
+                return $this->ricJsonError($response, 500, 'persistence_error',
+                    'A persistence error prevented the request from being served.');
+            }
+        } else {
+            $rows = [];
+            while ($r = $result->fetch_assoc()) {
+                $rows[] = $r;
+            }
+            $result->free();
+        }
+
+        // Use the existing collection builder pattern via the helper —
+        // emit a ric:RecordSet-style aggregator pointing at each
+        // top-level activity. We avoid teaching the builder a separate
+        // method by hand-rolling the document here.
+        $builder = $this->makeRicBuilder();
+        $parts   = [];
+        foreach ($rows as $r) {
+            $aid = (int) ($r['id'] ?? 0);
+            if ($aid <= 0) {
+                continue;
+            }
+            $node = [
+                '@id'   => $builder->activityIri($aid),
+                '@type' => 'ric:Activity',
+            ];
+            $title = (string) ($r['title'] ?? '');
+            if ($title !== '') {
+                $node['rdfs:label'] = $title;
+            }
+            $aType = (string) ($r['activity_type'] ?? '');
+            if ($aType !== '') {
+                $node['ric:type'] = $aType;
+            }
+            $parts[] = $node;
+        }
+        $base = rtrim(absoluteUrl(''), '/');
+        $doc = [
+            '@context'         => $builder->context(),
+            '@id'              => $base . '/archives/activities/ric.json',
+            '@type'            => 'ric:RecordSet',
+            'rdfs:label'       => ['@value' => 'Archival activities', '@language' => 'en'],
+            'ric:title'        => 'Archival activities',
+            'ric:hasOrHadPart' => $parts,
+        ];
+        return $this->ricJsonResponse($response, $doc, $base . '/archives/activities/ric.json');
+    }
+
+    /**
+     * Look up an archive_activities row, disambiguating missing rows
+     * from DB persistence errors (CodeRabbit R2 pattern, applied to
+     * Phase 3 activity lookups).
+     *
+     * @return array{status:'found',row:array<string,mixed>}|array{status:'missing'}|array{status:'error',message:string}
+     */
+    private function findActivityForRic(int $id): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archive_activities WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            // Table missing on pre-Phase-3 installs is a graceful
+            // "not found" — caller emits 404 the same way it would
+            // for a deleted row, since the activity catalogue is
+            // legitimately empty until ensureSchema() runs again.
+            if ($this->db->errno === 1146) {
+                return ['status' => 'missing'];
+            }
+            return ['status' => 'error', 'message' => $this->db->error];
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err];
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err !== '' ? $err : 'get_result returned false'];
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        $stmt->close();
+        return is_array($row)
+            ? ['status' => 'found', 'row' => $row]
+            : ['status' => 'missing'];
+    }
+
+    /**
+     * RiC-CM Phase 3 (v0.7.9): for one activity, fetch every linked
+     * archival unit with the relation's RiC predicate. Skips
+     * soft-deleted units at the JOIN. Throws \RuntimeException on
+     * persistence error so the caller can 500 cleanly; returns []
+     * when the link table is missing (pre-Phase-3 install).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchUnitsForActivity(int $activityId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT au.id AS unit_id, au.level, au.constructed_title, au.formal_title,
+                    aua.ric_predicate
+               FROM archive_unit_activities aua
+               JOIN archival_units au ON au.id = aua.unit_id AND au.deleted_at IS NULL
+              WHERE aua.activity_id = ?
+              ORDER BY aua.ric_predicate, au.reference_code'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $rows;
+            }
+            throw new \RuntimeException(
+                '[Archives] fetchUnitsForActivity prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('i', $activityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] fetchUnitsForActivity execute failed: ' . $err);
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * RiC-CM Phase 3 (v0.7.9): for one archival unit, fetch every
+     * linked activity with its title + type so buildUnit can embed
+     * the ric:relationHasTarget label inline. Same silent-degrade /
+     * throw split as fetchUnitsForActivity.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchActivitiesForUnit(int $unitId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT aa.id AS activity_id, aa.title, aa.activity_type,
+                    aua.ric_predicate
+               FROM archive_unit_activities aua
+               JOIN archive_activities aa ON aa.id = aua.activity_id AND aa.deleted_at IS NULL
+              WHERE aua.unit_id = ?
+              ORDER BY aua.ric_predicate, aa.title'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $rows;
+            }
+            throw new \RuntimeException(
+                '[Archives] fetchActivitiesForUnit prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('i', $unitId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] fetchActivitiesForUnit execute failed: ' . $err);
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
     }
 
     /**
@@ -7640,6 +7902,83 @@ class ArchivesPlugin
             CONSTRAINT fk_aar_related
                 FOREIGN KEY (related_id) REFERENCES authority_records(id) ON DELETE CASCADE,
             CONSTRAINT chk_aar_no_self_loop CHECK (agent_id <> related_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_activities` (RiC-CM Phase 3 — v0.7.9).
+     *
+     * First-class Activity entity corresponding to ISDF. Captures any
+     * human or organisational activity that produced, used, or
+     * managed archival material. Self-referential parent_id supports
+     * the ISDF function → activity → transaction hierarchy.
+     */
+    public static function ddlArchiveActivities(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_activities (
+            id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            title         VARCHAR(500) NOT NULL,
+            description   TEXT NULL,
+            activity_type ENUM('function','activity','transaction','task','mandate') NOT NULL DEFAULT 'activity',
+            parent_id     BIGINT UNSIGNED NULL,
+            date_start    VARCHAR(20) NULL,
+            date_end      VARCHAR(20) NULL,
+            is_ongoing    TINYINT(1) NOT NULL DEFAULT 0,
+            agent_id      BIGINT UNSIGNED NULL,
+            place_id      BIGINT UNSIGNED NULL,
+            source_ref    VARCHAR(500) NULL,
+            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            deleted_at    TIMESTAMP NULL,
+            PRIMARY KEY (id),
+            KEY idx_parent (parent_id),
+            KEY idx_agent (agent_id),
+            KEY idx_type (activity_type),
+            KEY idx_deleted (deleted_at),
+            FULLTEXT KEY ft_activity_search (title, description),
+            CONSTRAINT fk_activity_parent FOREIGN KEY (parent_id)
+                REFERENCES archive_activities(id) ON DELETE SET NULL,
+            CONSTRAINT fk_activity_agent  FOREIGN KEY (agent_id)
+                REFERENCES authority_records(id) ON DELETE SET NULL
+            -- Self-parent and deeper-cycle guards live in
+            -- ArchivesPlugin::activityWouldCreateCycle() (application
+            -- layer) because MySQL rejects a CHECK constraint on a
+            -- column that's also part of a FK referential action
+            -- (ON DELETE SET NULL).
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_unit_activities` (RiC-CM Phase 3 — v0.7.9).
+     *
+     * M:N link between archival units and activities. The
+     * `ric_predicate` column captures the nature of the link in
+     * RiC-O terms — `ric:resultsOrResultedFrom`, `ric:isOrWasUsedBy`,
+     * `ric:isSubjectOf`. The column is VARCHAR (open vocabulary)
+     * rather than ENUM because the RiC-O predicate set is open and
+     * the admin form validates against a known allow-list.
+     */
+    public static function ddlArchiveUnitActivities(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_unit_activities (
+            id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            unit_id        BIGINT UNSIGNED NOT NULL,
+            activity_id    BIGINT UNSIGNED NOT NULL,
+            ric_predicate  VARCHAR(128) NOT NULL DEFAULT 'ric:resultsOrResultedFrom',
+            created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_unit_activity_predicate (unit_id, activity_id, ric_predicate),
+            KEY idx_unit (unit_id),
+            KEY idx_activity (activity_id),
+            KEY idx_predicate (ric_predicate),
+            CONSTRAINT fk_ua_unit
+                FOREIGN KEY (unit_id)     REFERENCES archival_units(id)     ON DELETE CASCADE,
+            CONSTRAINT fk_ua_activity
+                FOREIGN KEY (activity_id) REFERENCES archive_activities(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         SQL;
     }
