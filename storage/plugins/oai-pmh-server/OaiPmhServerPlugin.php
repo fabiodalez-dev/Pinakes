@@ -1193,7 +1193,7 @@ class OaiPmhServerPlugin
     private function writeMetadata(\XMLWriter $xw, array $rec, string $metadataPrefix, string $host = 'localhost'): void
     {
         if ($rec['_entity'] === 'archival_unit') {
-            $this->writeArchivalUnitMetadata($xw, $rec, $metadataPrefix);
+            $this->writeArchivalUnitMetadata($xw, $rec, $metadataPrefix, $host);
             return;
         }
 
@@ -1992,7 +1992,7 @@ class OaiPmhServerPlugin
     /**
      * @param array<string, mixed> $rec
      */
-    private function writeArchivalUnitMetadata(\XMLWriter $xw, array $rec, string $metadataPrefix): void
+    private function writeArchivalUnitMetadata(\XMLWriter $xw, array $rec, string $metadataPrefix, string $host = 'localhost'): void
     {
         // For archival units, we produce minimal DC output.
         // The archives plugin's own /archives/oai endpoint handles richer formats.
@@ -2021,7 +2021,7 @@ class OaiPmhServerPlugin
 
         // Phase 6 (v0.8.0): RiC-O as RDF/XML for archival units.
         if ($metadataPrefix === 'ric-o') {
-            $this->writeArchivalUnitRicO($xw, $rec);
+            $this->writeArchivalUnitRicO($xw, $rec, $host);
             return;
         }
 
@@ -2044,7 +2044,7 @@ class OaiPmhServerPlugin
      *
      * @param array<string, mixed> $rec
      */
-    private function writeArchivalUnitRicO(\XMLWriter $xw, array $rec): void
+    private function writeArchivalUnitRicO(\XMLWriter $xw, array $rec, string $host = 'localhost'): void
     {
         $unitId = (int) ($rec['id'] ?? 0);
         if ($unitId <= 0) {
@@ -2063,9 +2063,16 @@ class OaiPmhServerPlugin
         $authorities = $this->fetchAuthoritiesForArchivalUnitRic($unitId);
         $children    = $this->fetchDirectChildrenForRic($unitId);
 
+        // Use absoluteUrl() when available; otherwise build from the OAI request
+        // host so rdf:about attributes are always absolute IRIs (RDF clients
+        // resolve relative URIs against the harvester's POV otherwise).
         $baseUrl = function_exists('absoluteUrl')
             ? rtrim((string) \absoluteUrl(''), '/')
             : '';
+        if ($baseUrl === '' && $host !== '') {
+            $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+            $baseUrl = $scheme . '://' . $host;
+        }
         $locale  = getenv('APP_LOCALE') ?: 'it';
 
         /** @var \App\Plugins\Archives\RicJsonLdBuilder $builder */

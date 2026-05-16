@@ -42,6 +42,28 @@ class ArchivesPlugin
     }
 
     /**
+     * Validate a `_return_to` candidate against open-redirect abuse.
+     *
+     * Accepts only absolute paths starting with a single '/' (e.g.
+     * '/admin/archives/edit/42'). Rejects empty values, anything not
+     * starting with '/', and protocol-relative URLs starting with '//'
+     * (which would let an attacker redirect to '//evil.com'). The
+     * helper `url()` in app/helpers.php passes such values through
+     * unchanged, so we filter here before composing the Location header.
+     */
+    private static function safeReturnTo(?string $candidate): string
+    {
+        if (!is_string($candidate) || $candidate === '') {
+            return '/admin/archives';
+        }
+        // Must be an absolute path starting with single '/', not '//'.
+        if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {
+            return '/admin/archives';
+        }
+        return $candidate;
+    }
+
+    /**
      * Logical archival-unit levels, per ISAD(G) 3.1.4.
      * Ordered from most-inclusive (1) to least (4).
      */
@@ -1720,6 +1742,29 @@ class ArchivesPlugin
                 ->withStatus(303);
         }
         $stmt->close();
+
+        // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+        // Hard-delete relations whose endpoint is this soft-deleted entity, in
+        // both source and target positions.
+        $relSweep = $this->db->prepare(
+            'DELETE FROM archive_relations
+               WHERE (source_type = ? AND source_id = ?)
+                  OR (target_type = ? AND target_id = ?)'
+        );
+        if ($relSweep !== false) {
+            $entType = 'archival_unit';
+            $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+            $relSweep->execute();
+            $relSweep->close();
+        }
+        // Also sweep archive_unit_activities link rows for this archival_unit.
+        $auaSweep = $this->db->prepare('DELETE FROM archive_unit_activities WHERE archival_unit_id = ?');
+        if ($auaSweep !== false) {
+            $auaSweep->bind_param('i', $id);
+            $auaSweep->execute();
+            $auaSweep->close();
+        }
+
         return $response->withHeader('Location', url('/admin/archives') /* FIX F032 */)->withStatus(303);
     }
 
@@ -2412,6 +2457,22 @@ class ArchivesPlugin
                 ->withStatus(303);
         }
         $stmt->close();
+
+        // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+        // Hard-delete relations whose endpoint is this soft-deleted entity, in
+        // both source and target positions.
+        $relSweep = $this->db->prepare(
+            'DELETE FROM archive_relations
+               WHERE (source_type = ? AND source_id = ?)
+                  OR (target_type = ? AND target_id = ?)'
+        );
+        if ($relSweep !== false) {
+            $entType = 'authority_record';
+            $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+            $relSweep->execute();
+            $relSweep->close();
+        }
+
         return $response->withHeader('Location', url('/admin/archives/authorities') /* FIX F032 */)->withStatus(303);
     }
 
@@ -5614,6 +5675,7 @@ class ArchivesPlugin
 
         $builder = $this->makeRicBuilder();
         $doc     = $builder->buildUnit($row, $authorities, $children, $activities);
+        $doc     = $this->attachRelationsToRicDoc($doc, 'archival_unit', $id, $builder);
 
         return $this->ricJsonResponse($response, $doc, $builder->unitIri($id));
     }
@@ -5702,6 +5764,7 @@ class ArchivesPlugin
 
         $builder = $this->makeRicBuilder();
         $doc     = $builder->buildAuthority($auth, $linkedUnits, $sameAs, $agentRelations);
+        $doc     = $this->attachRelationsToRicDoc($doc, 'authority_record', $id, $builder);
 
         return $this->ricJsonResponse($response, $doc, $builder->agentIri($id));
     }
@@ -5737,6 +5800,7 @@ class ArchivesPlugin
 
         $builder = $this->makeRicBuilder();
         $doc     = $builder->buildActivity($row, $unitLinks);
+        $doc     = $this->attachRelationsToRicDoc($doc, 'archive_activity', $id, $builder);
         return $this->ricJsonResponse($response, $doc, $builder->activityIri($id));
     }
 
@@ -5921,6 +5985,7 @@ class ArchivesPlugin
         }
         $builder = $this->makeRicBuilder();
         $doc     = $builder->buildPlace($lookup['row']);
+        $doc     = $this->attachRelationsToRicDoc($doc, 'archive_place', $id, $builder);
         return $this->ricJsonResponse($response, $doc, $builder->placeIri($id));
     }
 
@@ -6168,6 +6233,66 @@ class ArchivesPlugin
         $base   = rtrim(absoluteUrl(''), '/');
         $locale = (string) (\App\Support\I18n::getInstallationLocale() ?: 'en');
         return new RicJsonLdBuilder($base, $locale);
+    }
+
+    /**
+     * Phase 4 (v0.7.10) — adamsreview F006: enrich a per-entity RiC-O
+     * JSON-LD document with the polymorphic `archive_relations` rows
+     * that have this entity on either side. The per-entity builders
+     * (buildUnit, buildAuthority, buildActivity, buildPlace) return a
+     * flat document keyed by `@context`/`@id`/`@type` — when extra
+     * relation nodes need to ride along we promote the document to a
+     * JSON-LD `@graph`, stripping the inner `@context` so it lives once
+     * at the envelope level.
+     *
+     * Failures from `fetchRelationsForEntity` are degraded silently
+     * (logged + empty) so a transient `archive_relations` outage cannot
+     * 500-out an otherwise valid per-entity export. Pre-Phase-4
+     * installs without the table simply emit no relation nodes (the
+     * fetcher returns []).
+     *
+     * @param array<string, mixed> $doc        Document returned by the per-entity builder.
+     * @param string               $entityType Canonical value from `archive_relations`
+     *                                         (`archival_unit`, `authority_record`,
+     *                                         `archive_activity`, `archive_place`).
+     * @return array<string, mixed>
+     */
+    private function attachRelationsToRicDoc(
+        array $doc,
+        string $entityType,
+        int $entityId,
+        RicJsonLdBuilder $builder
+    ): array {
+        try {
+            $relations = $this->fetchRelationsForEntity($entityType, $entityId);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[Archives] attachRelationsToRicDoc fetch failed: ' . $e->getMessage());
+            return $doc;
+        }
+
+        $relationNodes = [];
+        foreach ($relations as $relRow) {
+            $node = $builder->buildRelationNode($relRow);
+            if ($node !== null) {
+                $relationNodes[] = $node;
+            }
+        }
+        if ($relationNodes === []) {
+            return $doc;
+        }
+
+        if (isset($doc['@graph']) && is_array($doc['@graph'])) {
+            $doc['@graph'] = array_merge($doc['@graph'], $relationNodes);
+            return $doc;
+        }
+
+        $context = $doc['@context'] ?? $builder->context();
+        $inner   = $doc;
+        unset($inner['@context']);
+        return [
+            '@context' => $context,
+            '@graph'   => array_merge([$inner], $relationNodes),
+        ];
     }
 
     /**
@@ -6820,6 +6945,29 @@ class ArchivesPlugin
             $stmt->execute();
             $stmt->close();
         }
+
+        // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+        // Hard-delete relations whose endpoint is this soft-deleted entity, in
+        // both source and target positions.
+        $relSweep = $this->db->prepare(
+            'DELETE FROM archive_relations
+               WHERE (source_type = ? AND source_id = ?)
+                  OR (target_type = ? AND target_id = ?)'
+        );
+        if ($relSweep !== false) {
+            $entType = 'archive_activity';
+            $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+            $relSweep->execute();
+            $relSweep->close();
+        }
+        // Also sweep archive_unit_activities link rows for this activity.
+        $auaSweep = $this->db->prepare('DELETE FROM archive_unit_activities WHERE activity_id = ?');
+        if ($auaSweep !== false) {
+            $auaSweep->bind_param('i', $id);
+            $auaSweep->execute();
+            $auaSweep->close();
+        }
+
         return $response
             ->withHeader('Location', url('/admin/archives/activities'))
             ->withStatus(302);
@@ -7136,6 +7284,22 @@ class ArchivesPlugin
             $stmt->execute();
             $stmt->close();
         }
+
+        // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+        // Hard-delete relations whose endpoint is this soft-deleted entity, in
+        // both source and target positions.
+        $relSweep = $this->db->prepare(
+            'DELETE FROM archive_relations
+               WHERE (source_type = ? AND source_id = ?)
+                  OR (target_type = ? AND target_id = ?)'
+        );
+        if ($relSweep !== false) {
+            $entType = 'archive_place';
+            $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+            $relSweep->execute();
+            $relSweep->close();
+        }
+
         return $response
             ->withHeader('Location', url('/admin/archives/places'))
             ->withStatus(302);
@@ -7202,6 +7366,8 @@ class ArchivesPlugin
         if ($values['parent_id'] !== null) {
             if ($editingId !== null && $values['parent_id'] === $editingId) {
                 $errors['parent_id'] = 'A place cannot be its own parent.';
+            } elseif ($editingId !== null && $this->placeWouldCreateCycle($editingId, (int) $values['parent_id'])) {
+                $errors['parent_id'] = __('Ciclo rilevato — scegli un genitore che non sia discendente.');
             } elseif ($this->findPlaceRow((int) $values['parent_id']) === null) {
                 $errors['parent_id'] = 'Parent place does not exist.';
             }
@@ -7214,6 +7380,46 @@ class ArchivesPlugin
             $errors['longitude'] = 'Longitude must be between -180 and 180.';
         }
         return $errors;
+    }
+
+    /**
+     * Phase 5: ancestor walk to reject cycles in the place tree.
+     * Mirrors activityWouldCreateCycle / parentWouldCreateCycle pattern —
+     * MySQL can't enforce this since the FK uses ON DELETE SET NULL.
+     */
+    private function placeWouldCreateCycle(int $childId, int $proposedParentId): bool
+    {
+        $current = $proposedParentId;
+        $visited = [];
+        $iterations = 0;
+        while ($current > 0 && $iterations++ < 100) {
+            if ($current === $childId) {
+                return true;
+            }
+            if (isset($visited[$current])) {
+                break;
+            }
+            $visited[$current] = true;
+            $stmt = $this->db->prepare(
+                'SELECT parent_id FROM archive_places WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('i', $current);
+            if (!$stmt->execute()) {
+                $stmt->close();
+                return false;
+            }
+            $res = $stmt->get_result();
+            $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+            $stmt->close();
+            if ($row === null || empty($row['parent_id'])) {
+                break;
+            }
+            $current = (int) $row['parent_id'];
+        }
+        return false;
     }
 
     /**
@@ -7258,9 +7464,7 @@ class ArchivesPlugin
         if (!in_array($certainty, $allowedCertainty, true)) {
             $certainty = 'certain';
         }
-        $returnTo = is_string($body['_return_to'] ?? null) && $body['_return_to'] !== ''
-            ? (string) $body['_return_to']
-            : '/admin/archives';
+        $returnTo = self::safeReturnTo(is_string($body['_return_to'] ?? null) ? (string) $body['_return_to'] : null);
 
         if ($predicate === '' || !$this->validateRelationEndpoints($srcType, $srcId, $tgtType, $tgtId)) {
             // Bail to the referrer with a query-flagged error — the
@@ -7287,6 +7491,41 @@ class ArchivesPlugin
             );
             $stmt->execute();
             $stmt->close();
+
+            // Phase 4 → Phase 3 mirror: when the relation connects
+            // archival_unit ↔ archive_activity, also populate the M:N link
+            // table so existing readers (fetchActivitiesForUnit /
+            // fetchUnitsForActivity) see the edge. Without this mirror the
+            // archive_unit_activities table would be write-orphaned.
+            if (($srcType === 'archival_unit' && $tgtType === 'archive_activity')
+             || ($srcType === 'archive_activity' && $tgtType === 'archival_unit')) {
+                $unitId  = $srcType === 'archival_unit'    ? $srcId : $tgtId;
+                $actId   = $srcType === 'archive_activity' ? $srcId : $tgtId;
+                $linkStmt = $this->db->prepare(
+                    'INSERT IGNORE INTO archive_unit_activities (unit_id, activity_id, ric_predicate)
+                     VALUES (?, ?, ?)'
+                );
+                if ($linkStmt !== false) {
+                    $linkStmt->bind_param('iis', $unitId, $actId, $predicate);
+                    $linkStmt->execute();
+                    $linkStmt->close();
+                }
+            }
+
+            // Phase 2 mirror: when the relation connects two
+            // authority_records, also populate archive_agent_relations so
+            // the dedicated agent-to-agent readers see the edge.
+            if ($srcType === 'authority_record' && $tgtType === 'authority_record') {
+                $linkStmt = $this->db->prepare(
+                    'INSERT IGNORE INTO archive_agent_relations (agent_id, related_id, ric_predicate)
+                     VALUES (?, ?, ?)'
+                );
+                if ($linkStmt !== false) {
+                    $linkStmt->bind_param('iis', $srcId, $tgtId, $predicate);
+                    $linkStmt->execute();
+                    $linkStmt->close();
+                }
+            }
         }
         return $response
             ->withHeader('Location', url($returnTo))
@@ -7297,15 +7536,81 @@ class ArchivesPlugin
         ServerRequestInterface $request, ResponseInterface $response, int $id
     ): ResponseInterface {
         $body = $request->getParsedBody() ?? [];
-        $returnTo = is_array($body) && is_string($body['_return_to'] ?? null) && $body['_return_to'] !== ''
-            ? (string) $body['_return_to']
-            : '/admin/archives';
+        $candidateReturn = (is_array($body) && is_string($body['_return_to'] ?? null)) ? (string) $body['_return_to'] : null;
+        $returnTo = self::safeReturnTo($candidateReturn);
+
+        // Capture the row's polymorphic keys BEFORE deletion so we can sweep
+        // the mirrored Phase 2 / Phase 3 link tables (archive_agent_relations,
+        // archive_unit_activities). Without this lookup, detaching a relation
+        // would orphan the mirror row.
+        $mirror = null;
+        $sel = $this->db->prepare(
+            'SELECT source_type, source_id, target_type, target_id, ric_predicate
+             FROM archive_relations WHERE id = ?'
+        );
+        if ($sel !== false) {
+            $sel->bind_param('i', $id);
+            if ($sel->execute()) {
+                $res = $sel->get_result();
+                if ($res !== false) {
+                    $row = $res->fetch_assoc();
+                    if (is_array($row)) {
+                        $mirror = [
+                            'source_type'   => (string) ($row['source_type']   ?? ''),
+                            'source_id'     => (int)    ($row['source_id']     ?? 0),
+                            'target_type'   => (string) ($row['target_type']   ?? ''),
+                            'target_id'     => (int)    ($row['target_id']     ?? 0),
+                            'ric_predicate' => (string) ($row['ric_predicate'] ?? ''),
+                        ];
+                    }
+                    $res->free();
+                }
+            }
+            $sel->close();
+        }
+
         $stmt = $this->db->prepare('DELETE FROM archive_relations WHERE id = ?');
         if ($stmt !== false) {
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $stmt->close();
         }
+
+        if (is_array($mirror) && $mirror['ric_predicate'] !== '') {
+            $sType = $mirror['source_type'];
+            $sId   = $mirror['source_id'];
+            $tType = $mirror['target_type'];
+            $tId   = $mirror['target_id'];
+            $pred  = $mirror['ric_predicate'];
+
+            if (($sType === 'archival_unit' && $tType === 'archive_activity')
+             || ($sType === 'archive_activity' && $tType === 'archival_unit')) {
+                $unitId  = $sType === 'archival_unit'    ? $sId : $tId;
+                $actId   = $sType === 'archive_activity' ? $sId : $tId;
+                $del = $this->db->prepare(
+                    'DELETE FROM archive_unit_activities
+                     WHERE unit_id = ? AND activity_id = ? AND ric_predicate = ?'
+                );
+                if ($del !== false) {
+                    $del->bind_param('iis', $unitId, $actId, $pred);
+                    $del->execute();
+                    $del->close();
+                }
+            }
+
+            if ($sType === 'authority_record' && $tType === 'authority_record') {
+                $del = $this->db->prepare(
+                    'DELETE FROM archive_agent_relations
+                     WHERE agent_id = ? AND related_id = ? AND ric_predicate = ?'
+                );
+                if ($del !== false) {
+                    $del->bind_param('iis', $sId, $tId, $pred);
+                    $del->execute();
+                    $del->close();
+                }
+            }
+        }
+
         return $response
             ->withHeader('Location', url($returnTo))
             ->withStatus(302);
@@ -7339,7 +7644,10 @@ class ArchivesPlugin
             $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
         }
-        $like = $q === '' ? '%' : '%' . $q . '%';
+        // Escape LIKE wildcards (% _ \) in user input to prevent
+        // wildcard-injection enumeration (e.g. q=% returning everything).
+        $qEscaped = $q === '' ? '' : addcslashes($q, '%_\\');
+        $like = $q === '' ? '%' : '%' . $qEscaped . '%';
         // Column names are from a static map — safe to interpolate.
         $sql = "SELECT id, `{$spec['label']}` AS label, `{$spec['extra']}` AS extra
                   FROM `{$spec['table']}`
