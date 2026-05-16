@@ -6884,11 +6884,62 @@ class ArchivesPlugin
         } catch (\RuntimeException $e) {
             SecureLogger::warning('[Archives] activityShow units fetch failed: ' . $e->getMessage());
         }
+
+        // Resolve human-readable labels for agent_id / parent_id so the
+        // detail view can render names instead of just numeric IDs (F036).
+        // Both queries respect soft-delete and fall back to null on miss.
+        $agentLabel  = null;
+        $parentLabel = null;
+        if (!empty($row['agent_id'])) {
+            try {
+                $stmt = $this->db->prepare(
+                    'SELECT authorised_form FROM authority_records
+                      WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+                );
+                if ($stmt !== false) {
+                    $agentId = (int) $row['agent_id'];
+                    $stmt->bind_param('i', $agentId);
+                    $stmt->execute();
+                    $r = $stmt->get_result();
+                    $a = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+                    $stmt->close();
+                    if (is_array($a) && !empty($a['authorised_form'])) {
+                        $agentLabel = (string) $a['authorised_form'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[Archives] activityShow agent label fetch failed: ' . $e->getMessage());
+            }
+        }
+        if (!empty($row['parent_id'])) {
+            try {
+                $stmt = $this->db->prepare(
+                    'SELECT title FROM archive_activities
+                      WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+                );
+                if ($stmt !== false) {
+                    $parentId = (int) $row['parent_id'];
+                    $stmt->bind_param('i', $parentId);
+                    $stmt->execute();
+                    $r = $stmt->get_result();
+                    $p = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+                    $stmt->close();
+                    if (is_array($p) && !empty($p['title'])) {
+                        $parentLabel = (string) $p['title'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[Archives] activityShow parent label fetch failed: ' . $e->getMessage());
+            }
+        }
+
         return $this->renderView($response, 'activities/show', [
-            'row'         => $row,
-            'linkedUnits' => $linkedUnits,
-            'types'       => array_keys(self::ACTIVITY_TYPES),
-            'headLinks'   => [
+            'row'          => $row,
+            'linkedUnits'  => $linkedUnits,
+            'agent_label'  => $agentLabel,
+            'parent_label' => $parentLabel,
+            'types'        => array_keys(self::ACTIVITY_TYPES),
+            'headLinks'    => [
                 ['rel' => 'alternate', 'type' => 'application/ld+json',
                  'title' => 'RiC-O (Records in Contexts)',
                  'href' => absoluteUrl('/archives/activities/' . $id . '/ric.json')],
@@ -7055,21 +7106,21 @@ class ArchivesPlugin
     {
         $errors = [];
         if (($values['title'] ?? '') === '') {
-            $errors['title'] = 'Required.';
+            $errors['title'] = __('Obbligatorio.');
         } elseif (mb_strlen((string) $values['title']) > 500) {
-            $errors['title'] = 'Max 500 characters.';
+            $errors['title'] = __('Massimo 500 caratteri.');
         }
         $type = (string) ($values['activity_type'] ?? '');
         if (!isset(self::ACTIVITY_TYPES[$type])) {
-            $errors['activity_type'] = 'Invalid type.';
+            $errors['activity_type'] = __('Tipo non valido.');
         }
         if ($values['parent_id'] !== null) {
             if ($editingId !== null && $values['parent_id'] === $editingId) {
-                $errors['parent_id'] = 'An activity cannot be its own parent.';
+                $errors['parent_id'] = __("Un'attività non può essere genitore di se stessa.");
             } elseif ($editingId !== null && $this->activityWouldCreateCycle($editingId, (int) $values['parent_id'])) {
-                $errors['parent_id'] = 'Cycle detected — pick a non-descendant parent.';
+                $errors['parent_id'] = __('Ciclo rilevato — scegli un genitore che non sia discendente.');
             } elseif ($this->findActivityRow((int) $values['parent_id']) === null) {
-                $errors['parent_id'] = 'Parent activity does not exist.';
+                $errors['parent_id'] = __('Attività padre inesistente.');
             }
             // F005: BOTH CREATE and UPDATE paths must guard against pre-existing
             // cycles reachable from the proposed parent. The would-create-cycle
@@ -7078,11 +7129,11 @@ class ArchivesPlugin
             // proposed parent could already sit inside a corrupted cycle (e.g.
             // imported offline). Any later ancestor walker would follow the loop.
             elseif ($this->activityAncestorChainHasCycle((int) $values['parent_id'])) {
-                $errors['parent_id'] = 'Pre-existing cycle in the parent ancestor chain — fix the upstream data.';
+                $errors['parent_id'] = __('La catena ascendente del genitore contiene un ciclo pre-esistente — correggi il dato a monte.');
             }
         }
         if ($values['agent_id'] !== null && $this->findAuthorityById((int) $values['agent_id']) === null) {
-            $errors['agent_id'] = 'Selected agent does not exist.';
+            $errors['agent_id'] = __('Agente selezionato inesistente.');
         }
         return $errors;
     }
@@ -7436,28 +7487,28 @@ class ArchivesPlugin
     {
         $errors = [];
         if (($values['name'] ?? '') === '') {
-            $errors['name'] = 'Required.';
+            $errors['name'] = __('Obbligatorio.');
         } elseif (mb_strlen((string) $values['name']) > 500) {
-            $errors['name'] = 'Max 500 characters.';
+            $errors['name'] = __('Massimo 500 caratteri.');
         }
         if (!isset(self::PLACE_TYPES[(string) ($values['place_type'] ?? '')])) {
-            $errors['place_type'] = 'Invalid type.';
+            $errors['place_type'] = __('Tipo non valido.');
         }
         if ($values['parent_id'] !== null) {
             if ($editingId !== null && $values['parent_id'] === $editingId) {
-                $errors['parent_id'] = 'A place cannot be its own parent.';
+                $errors['parent_id'] = __('Un luogo non può essere genitore di se stesso.');
             } elseif ($editingId !== null && $this->placeWouldCreateCycle($editingId, (int) $values['parent_id'])) {
                 $errors['parent_id'] = __('Ciclo rilevato — scegli un genitore che non sia discendente.');
             } elseif ($this->findPlaceRow((int) $values['parent_id']) === null) {
-                $errors['parent_id'] = 'Parent place does not exist.';
+                $errors['parent_id'] = __('Luogo padre inesistente.');
             }
         }
         $lat = $values['latitude']; $lng = $values['longitude'];
         if ($lat !== null && ($lat < -90 || $lat > 90)) {
-            $errors['latitude'] = 'Latitude must be between -90 and 90.';
+            $errors['latitude'] = sprintf(__('La latitudine deve essere compresa tra -90 e 90, ricevuto: %s'), (string) $lat);
         }
         if ($lng !== null && ($lng < -180 || $lng > 180)) {
-            $errors['longitude'] = 'Longitude must be between -180 and 180.';
+            $errors['longitude'] = sprintf(__('La longitudine deve essere compresa tra -180 e 180, ricevuto: %s'), (string) $lng);
         }
         // F041 (Phase 8): the place identifier columns flow directly into
         // owl:sameAs IRIs in RicJsonLdBuilder::buildPlace (geonames.org/{id},

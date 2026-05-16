@@ -1293,6 +1293,7 @@
     "Eliminare l'utente?": "Supprimer l'utilisateur ?",
     "Eliminare partner?": "Supprimer le partenaire ?",
     "Eliminare questa attività?": "Supprimer cette activité ?",
+    "Eliminare questa attività? È collegata a %d unità archivistiche — le relazioni saranno orfane.": "Supprimer cette activité ? Elle est liée à %d unités archivistiques — les relations deviendront orphelines.",
     "Eliminare questa copia digitalizzata?": "Supprimer cette copie numérisée ?",
     "Eliminare questa mensola? (Solo se vuota)": "Supprimer cette étagère ? (Uniquement si vide)",
     "Eliminare questo authority record? L'operazione è reversibile (soft-delete).": "Supprimer cette notice d'autorité ? L'opération est réversible (suppression logique).",

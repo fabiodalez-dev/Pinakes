@@ -12,6 +12,20 @@ $row       = $row       ?? [];
 $relations = $relations ?? [];
 $id        = (int) ($row['id'] ?? 0);
 
+/**
+ * Safely serialise a PHP value as a JS literal for use INSIDE an HTML
+ * attribute delimited with double quotes (e.g. `onclick="..."`).
+ * Matches the helper used in storage/plugins/archives/views/show.php.
+ */
+$jsAttr = static fn (mixed $x): string =>
+    htmlspecialchars(
+        (string) json_encode($x, JSON_UNESCAPED_UNICODE),
+        ENT_QUOTES,
+        'UTF-8'
+    );
+
+$archivesDeletePlaceId = 'archivesDeletePlace_' . $id;
+
 $typeLabel = [
     'country'            => __('Paese'),
     'region'             => __('Regione'),
@@ -47,10 +61,12 @@ $type = (string) ($row['place_type'] ?? '');
                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-semibold shadow-sm">
                     <?= __('Modifica') ?>
                 </a>
-                <form method="POST" action="<?= $e(url('/admin/archives/places/' . $id . '/delete')) ?>" class="inline">
+                <form id="<?= $e($archivesDeletePlaceId) ?>"
+                      method="POST" action="<?= $e(url('/admin/archives/places/' . $id . '/delete')) ?>"
+                      class="inline">
                     <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-                    <button type="submit"
-                            onclick="return confirm('<?= $e(__('Eliminare questo luogo?')) ?>')"
+                    <button type="button"
+                            onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeletePlaceId) ?>, <?= $jsAttr(__('Eliminare questo luogo?')) ?>, <?= $jsAttr(__('Elimina')) ?>)"
                             class="bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded text-sm font-semibold">
                         <?= __('Elimina') ?>
                     </button>
@@ -154,3 +170,31 @@ $type = (string) ($row['place_type'] ?? '');
         </a>
     </p>
 </div>
+
+<?php /* SweetAlert2 confirm helper — matches the pattern used in
+          storage/plugins/archives/views/show.php. Idempotency guard so
+          multiple views on the same page can load it without redefining. */ ?>
+<script>
+if (typeof window.archivesSwalConfirm !== 'function') {
+    window.archivesSwalConfirm = function (formId, message, confirmLabel) {
+        var form = document.getElementById(formId);
+        if (!form) return;
+        if (typeof Swal === 'undefined' || !Swal.fire) {
+            if (window.confirm(message)) form.submit();
+            return;
+        }
+        Swal.fire({
+            title: message,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: confirmLabel || <?= json_encode(__('Conferma'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            cancelButtonText: <?= json_encode(__('Annulla'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            confirmButtonColor: '#dc2626',
+            focusCancel: true,
+            reverseButtons: true
+        }).then(function (r) {
+            if (r && r.isConfirmed) form.submit();
+        });
+    };
+}
+</script>

@@ -24,11 +24,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.8.0
+## What's New in v0.7.11
 
 ### Archives: RiC-CM Phases 5 & 6 — admin UI + OAI-PMH `ric-o` ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
 
-v0.8.0 closes the six-phase RiC-CM roadmap. Phases 1-4 (shipped progressively in 0.7.7 → 0.7.10) modelled the four RiC-CM entity types (Record/RecordSet, Agent, Activity, Place) and the polymorphic relations graph. Phases 5 and 6 expose them to curators and to harvesters.
+v0.7.11 closes the six-phase RiC-CM roadmap. Phases 1-4 (shipped progressively in 0.7.7 → 0.7.10) modelled the four RiC-CM entity types (Record/RecordSet, Agent, Activity, Place) and the polymorphic relations graph. Phases 5 and 6 expose them to curators and to harvesters.
 
 **Phase 5 — native admin UI for activities, places and relations.**
 
@@ -46,7 +46,7 @@ The chrome mirrors the existing books/archives admin views (Tailwind `p-6 max-w-
 - Symmetric validation: `metadataPrefix=ric-o` on `set=books` or on a book identifier returns `cannotDisseminateFormat`; `metadataPrefix=oai_dc` keeps working on both sets unchanged.
 - Re-uses `RicJsonLdBuilder::serializeToRdfXml()` (new in this release) which translates the JSON-LD compact document to canonical RDF/XML — `@id`→`rdf:about`/`rdf:resource`, `@type`→tag name (CURIE expanded against the document `@context`), language tags via `xml:lang`, typed literals via `rdf:datatype`, nested blank nodes for inline objects. 159/159 unit assertions passing on the round-trip.
 
-The full RiC-CM journey: v0.7.7 read-only JSON-LD → v0.7.8 agents → v0.7.9 activities → v0.7.10 places + polymorphic relations → v0.8.0 admin UI + OAI-PMH RDF/XML. The application's `version.json` bumps from 0.7.10 to 0.8.0 once, at the end of the chain.
+The full RiC-CM journey: v0.7.7 read-only JSON-LD → v0.7.8 agents → v0.7.9 activities → v0.7.10 places + polymorphic relations → v0.7.11 admin UI + OAI-PMH RDF/XML. The application's `version.json` bumps from 0.7.10 to 0.7.11 once, at the end of the chain.
 
 ---
 

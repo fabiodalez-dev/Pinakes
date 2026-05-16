@@ -5,6 +5,8 @@
  * @var array<string, mixed>|null       $row
  * @var list<array<string, mixed>>|null $linkedUnits
  * @var list<array<string, mixed>>|null $relations
+ * @var string|null                     $agent_label
+ * @var string|null                     $parent_label
  */
 declare(strict_types=1);
 
@@ -15,6 +17,33 @@ $relations   = $relations   ?? [];
 $id          = (int) ($row['id'] ?? 0);
 $title       = (string) ($row['title'] ?? '');
 $type        = (string) ($row['activity_type'] ?? '');
+// PHPDoc declares $agent_label/$parent_label as string|null — isset+!=='' is
+// the only test we need; is_string() is redundant under the declared type.
+$agentLabel  = (isset($agent_label)  && $agent_label  !== '') ? $agent_label  : null;
+$parentLabel = (isset($parent_label) && $parent_label !== '') ? $parent_label : null;
+
+/**
+ * Safely serialise a PHP value as a JS literal for use INSIDE an HTML
+ * attribute delimited with double quotes (e.g. `onclick="..."`).
+ * Matches the helper used in storage/plugins/archives/views/show.php.
+ */
+$jsAttr = static fn (mixed $x): string =>
+    htmlspecialchars(
+        (string) json_encode($x, JSON_UNESCAPED_UNICODE),
+        ENT_QUOTES,
+        'UTF-8'
+    );
+
+// Dynamic confirm message: include linked-unit count when relevant so the
+// user sees the side-effect of deletion (orphaned RiC relations) BEFORE
+// confirming. Italian source string; en_US / fr_FR / de_DE land in JSON.
+$archivesDeleteActivityId = 'archivesDeleteActivity_' . $id;
+$archivesDeleteMsg        = empty($linkedUnits)
+    ? __('Eliminare questa attività?')
+    : sprintf(
+        __('Eliminare questa attività? È collegata a %d unità archivistiche — le relazioni saranno orfane.'),
+        count($linkedUnits)
+    );
 
 $typeLabel = [
     'function'    => __('Funzione'),
@@ -51,10 +80,12 @@ $typeLabel = [
                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-semibold shadow-sm">
                     <?= __('Modifica') ?>
                 </a>
-                <form method="POST" action="<?= $e(url('/admin/archives/activities/' . $id . '/delete')) ?>" class="inline">
+                <form id="<?= $e($archivesDeleteActivityId) ?>"
+                      method="POST" action="<?= $e(url('/admin/archives/activities/' . $id . '/delete')) ?>"
+                      class="inline">
                     <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-                    <button type="submit"
-                            onclick="return confirm('<?= $e(__('Eliminare questa attività?')) ?>')"
+                    <button type="button"
+                            onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeleteActivityId) ?>, <?= $jsAttr($archivesDeleteMsg) ?>, <?= $jsAttr(__('Elimina')) ?>)"
                             class="bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded text-sm font-semibold">
                         <?= __('Elimina') ?>
                     </button>
@@ -88,7 +119,7 @@ $typeLabel = [
                 <dd>
                     <a class="text-blue-600 hover:underline"
                        href="<?= $e(url('/admin/archives/authorities/' . (int) $row['agent_id'])) ?>">
-                        #<?= (int) $row['agent_id'] ?>
+                        <?= $agentLabel !== null ? $e($agentLabel) : '#' . (int) $row['agent_id'] ?>
                     </a>
                 </dd>
             <?php endif; ?>
@@ -97,7 +128,7 @@ $typeLabel = [
                 <dd>
                     <a class="text-blue-600 hover:underline"
                        href="<?= $e(url('/admin/archives/activities/' . (int) $row['parent_id'])) ?>">
-                        #<?= (int) $row['parent_id'] ?>
+                        <?= $parentLabel !== null ? $e($parentLabel) : '#' . (int) $row['parent_id'] ?>
                     </a>
                 </dd>
             <?php endif; ?>
@@ -179,3 +210,31 @@ $typeLabel = [
         </a>
     </p>
 </div>
+
+<?php /* SweetAlert2 confirm helper — matches the pattern used in
+          storage/plugins/archives/views/show.php. Idempotency guard so
+          multiple views on the same page can load it without redefining. */ ?>
+<script>
+if (typeof window.archivesSwalConfirm !== 'function') {
+    window.archivesSwalConfirm = function (formId, message, confirmLabel) {
+        var form = document.getElementById(formId);
+        if (!form) return;
+        if (typeof Swal === 'undefined' || !Swal.fire) {
+            if (window.confirm(message)) form.submit();
+            return;
+        }
+        Swal.fire({
+            title: message,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: confirmLabel || <?= json_encode(__('Conferma'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            cancelButtonText: <?= json_encode(__('Annulla'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+            confirmButtonColor: '#dc2626',
+            focusCancel: true,
+            reverseButtons: true
+        }).then(function (r) {
+            if (r && r.isConfirmed) form.submit();
+        });
+    };
+}
+</script>

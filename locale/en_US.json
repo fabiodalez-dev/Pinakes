@@ -1234,6 +1234,7 @@
     "Eliminare l'utente?": "Delete the user?",
     "Eliminare partner?": "Delete partner?",
     "Eliminare questa attività?": "Delete this activity?",
+    "Eliminare questa attività? È collegata a %d unità archivistiche — le relazioni saranno orfane.": "Delete this activity? It is linked to %d archival units — the relations will become orphaned.",
     "Eliminare questa copia digitalizzata?": "Delete this digitised copy?",
     "Eliminare questa mensola? (Solo se vuota)": "Delete this shelf? (Only if empty)",
     "Eliminare questo authority record? L'operazione è reversibile (soft-delete).": "Delete this authority record? The operation is reversible (soft-delete).",

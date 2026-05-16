@@ -3,7 +3,7 @@
   "display_name": "OAI-PMH Server (libri + archivi)",
   "description": "Server OAI-PMH 2.0 completo per esposizione del catalogo libri e archivi a harvester nazionali (Internet Culturale / ICCU, Europeana, DPLA). Supporta oai_dc, MARCXML, MODS, MAG 2.0.1, UNIMARC e RiC-O (RDF/XML, archivi). Endpoint GET/POST /oai con deletedRecord=persistent e resumption token DB-backed.",
   "version": "1.1.0",
-  "changelog": "v1.1.0 (Pinakes 0.8.0): aggiunta metadataPrefix=ric-o (RDF/XML serializzato da RicJsonLdBuilder) per archival_unit; il formato viene esposto in ListMetadataFormats solo quando il plugin archives è attivo e la tabella archival_units esiste. Per set=books e per identifier book il prefisso ric-o restituisce cannotDisseminateFormat.",
+  "changelog": "v1.1.0 (Pinakes 0.7.11): aggiunta metadataPrefix=ric-o (RDF/XML serializzato da RicJsonLdBuilder) per archival_unit; il formato viene esposto in ListMetadataFormats solo quando il plugin archives è attivo e la tabella archival_units esiste. Per set=books e per identifier book il prefisso ric-o restituisce cannotDisseminateFormat.",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://www.openarchives.org/pmh/",

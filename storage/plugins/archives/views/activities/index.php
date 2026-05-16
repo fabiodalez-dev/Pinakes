@@ -65,7 +65,9 @@ $typeBadge = [
                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __('Titolo') ?></th>
                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __('Tipo') ?></th>
                         <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"><?= __('Date') ?></th>
-                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
+                        <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <span class="sr-only"><?= __('Azioni') ?></span>
+                        </th>
                     </tr>
                 </thead>
                 <tbody>

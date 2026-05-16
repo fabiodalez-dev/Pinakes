@@ -1234,6 +1234,7 @@
     "Eliminare l'utente?": "Benutzer löschen?",
     "Eliminare partner?": "Partner löschen?",
     "Eliminare questa attività?": "Diese Aktivität löschen?",
+    "Eliminare questa attività? È collegata a %d unità archivistiche — le relazioni saranno orfane.": "Diese Aktivität löschen? Sie ist mit %d Archiveinheiten verknüpft — die Verbindungen werden verwaisen.",
     "Eliminare questa copia digitalizzata?": "Diese digitalisierte Kopie löschen?",
     "Eliminare questa mensola? (Solo se vuota)": "Dieses Regalbrett löschen? (Nur wenn leer)",
     "Eliminare questo authority record? L'operazione è reversibile (soft-delete).": "Diesen Normdatensatz löschen? Die Aktion ist umkehrbar (Soft-Delete).",
