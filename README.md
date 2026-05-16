@@ -24,11 +24,11 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
-## What's New in v0.7.11
+## What's New in v0.7.12
 
 ### Archives: RiC-CM Phases 5 & 6 — admin UI + OAI-PMH `ric-o` ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
 
-v0.7.11 closes the six-phase RiC-CM roadmap. Phases 1-4 (shipped progressively in 0.7.7 → 0.7.10) modelled the four RiC-CM entity types (Record/RecordSet, Agent, Activity, Place) and the polymorphic relations graph. Phases 5 and 6 expose them to curators and to harvesters.
+v0.7.12 closes the six-phase RiC-CM roadmap. Phases 1-4 (shipped progressively in 0.7.7 → 0.7.10) modelled the four RiC-CM entity types (Record/RecordSet, Agent, Activity, Place) and the polymorphic relations graph. Phases 5 and 6 expose them to curators and to harvesters.
 
 **Phase 5 — native admin UI for activities, places and relations.**
 
@@ -46,7 +46,9 @@ The chrome mirrors the existing books/archives admin views (Tailwind `p-6 max-w-
 - Symmetric validation: `metadataPrefix=ric-o` on `set=books` or on a book identifier returns `cannotDisseminateFormat`; `metadataPrefix=oai_dc` keeps working on both sets unchanged.
 - Re-uses `RicJsonLdBuilder::serializeToRdfXml()` (new in this release) which translates the JSON-LD compact document to canonical RDF/XML — `@id`→`rdf:about`/`rdf:resource`, `@type`→tag name (CURIE expanded against the document `@context`), language tags via `xml:lang`, typed literals via `rdf:datatype`, nested blank nodes for inline objects. 159/159 unit assertions passing on the round-trip.
 
-The full RiC-CM journey: v0.7.7 read-only JSON-LD → v0.7.8 agents → v0.7.9 activities → v0.7.10 places + polymorphic relations → v0.7.11 admin UI + OAI-PMH RDF/XML. The application's `version.json` bumps from 0.7.10 to 0.7.11 once, at the end of the chain.
+The full RiC-CM journey: v0.7.7 read-only JSON-LD → v0.7.8 agents → v0.7.9 activities → v0.7.10 places + polymorphic relations → v0.7.12 admin UI + OAI-PMH RDF/XML. The application's `version.json` bumps from 0.7.10 to 0.7.12 once, at the end of the chain.
+
+**Cleanup — dead schema column dropped (review F015).** The `archive_activities.place_id` column was introduced in 0.7.9 as a placeholder reserved for the Phase 4 `archive_places` FK, but Phase 4 (0.7.10) chose the polymorphic `archive_relations` graph instead and no application code ever read or wrote the column. Migration `migrate_0.7.12.sql` drops it with `ALTER TABLE archive_activities DROP COLUMN place_id;` so the schema reflects what the code actually uses.
 
 ---
 
@@ -703,7 +705,7 @@ Plugins support encrypted secrets and isolated configuration. Install via ZIP up
 
 *Interoperability protocols*
 - **Z39 Server** — SRU 1.2 API + Z39.50/SRU client for Italian SBN, French **BNF** (UNIMARC), and any standard library catalogue with Dewey extraction (v0.7.6+)
-- **OAI-PMH Server** — OAI-PMH 2.0 data provider for books + archives, harvestable by Internet Culturale (ICCU), Europeana, DPLA. Formats: `oai_dc`, `marc21`, `mods`, `mag` (2.0.1), `unimarc`
+- **OAI-PMH Server** — OAI-PMH 2.0 data provider for books + archives, harvestable by Internet Culturale (ICCU), Europeana, DPLA. Formats: `oai_dc`, `marc21`, `mods`, `mag` (2.0.1), `unimarc`, `ric-o` (RDF/XML, archival units)
 - **NCIP 2.0 Server** — NISO Circulation Interchange Protocol for self-service kiosks, partner ILS, and library networks
 - **BIBFRAME 2.0 Linked Data** — Exposes the book catalogue as BIBFRAME 2.0 JSON-LD / Turtle with content negotiation (Library of Congress transition path from MARC)
 - **OpenURL Resolver** — Z39.88-2004 resolver + COinS metadata embedded in book pages; works with Zotero, Mendeley, EndNote
@@ -869,7 +871,7 @@ Bibliographic authority control linking authors to the **Virtual International A
 OAI-PMH 2.0 data provider exposing the **book catalogue + archives** to national and international harvesters (Internet Culturale / ICCU, Europeana, DPLA).
 
 - **Endpoint**: `GET/POST /oai` — supports all six required verbs (`Identify`, `ListMetadataFormats`, `ListSets`, `ListIdentifiers`, `ListRecords`, `GetRecord`)
-- **Formats**: `oai_dc` (Dublin Core), `marc21` (MARCXML), `mods`, `mag` (MAG 2.0.1 — the ICCU national format), `unimarc`
+- **Formats**: `oai_dc` (Dublin Core), `marc21` (MARCXML), `mods`, `mag` (MAG 2.0.1 — the ICCU national format), `unimarc`, `ric-o` (Records in Contexts Ontology, RDF/XML — archival units only)
 - **Sets**: separates books, archives, and per-archival-level subsets (`fonds`, `series`, `file`, `item`) so harvesters can selectively ingest
 - **Resumption tokens**: DB-backed (`oai_pmh_resumption_tokens` table) so cursor-paginated `ListRecords` calls survive across requests with a stable token
 - **Selective harvesting**: `from` / `until` date filters + `deletedRecord=persistent` so harvesters get tombstones for soft-deleted rows

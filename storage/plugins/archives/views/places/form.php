@@ -64,7 +64,7 @@ $typeLabel = [
             </label>
             <input type="text" id="name" name="name" required maxlength="500"
                    value="<?= $val('name') ?>"
-                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                   class="mt-1 block w-full rounded-md <?= $err('name') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             <?php if ($err('name')): ?>
                 <p class="mt-1 text-sm text-red-600"><?= $e($err('name')) ?></p>
             <?php endif; ?>
@@ -74,7 +74,7 @@ $typeLabel = [
             <div>
                 <label for="place_type" class="form-label"><?= __('Tipo di luogo') ?></label>
                 <select id="place_type" name="place_type"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        class="mt-1 block w-full rounded-md <?= $err('place_type') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <?php foreach ($types as $t): ?>
                         <option value="<?= $e($t) ?>" <?= ((string) ($values['place_type'] ?? '') === $t) ? 'selected' : '' ?>>
                             <?= $e($typeLabel[$t] ?? $t) ?>
@@ -88,7 +88,7 @@ $typeLabel = [
             <div>
                 <label for="parent_id" class="form-label"><?= __('Luogo padre') ?></label>
                 <select id="parent_id" name="parent_id"
-                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        class="mt-1 block w-full rounded-md <?= $err('parent_id') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="">— <?= __('nessuno') ?> —</option>
                     <?php foreach ($parentOpts as $opt): ?>
                         <option value="<?= (int) $opt['id'] ?>" <?= ((int) ($values['parent_id'] ?? 0) === (int) $opt['id']) ? 'selected' : '' ?>>
@@ -107,7 +107,7 @@ $typeLabel = [
                 <label for="latitude" class="form-label"><?= __('Latitudine') ?></label>
                 <input type="text" id="latitude" name="latitude" value="<?= $val('latitude') ?>"
                        placeholder="37.50213"
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                       class="mt-1 block w-full rounded-md <?= $err('latitude') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                 <?php if ($err('latitude')): ?>
                     <p class="mt-1 text-sm text-red-600"><?= $e($err('latitude')) ?></p>
                 <?php endif; ?>
@@ -116,7 +116,7 @@ $typeLabel = [
                 <label for="longitude" class="form-label"><?= __('Longitudine') ?></label>
                 <input type="text" id="longitude" name="longitude" value="<?= $val('longitude') ?>"
                        placeholder="15.08719"
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                       class="mt-1 block w-full rounded-md <?= $err('longitude') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                 <?php if ($err('longitude')): ?>
                     <p class="mt-1 text-sm text-red-600"><?= $e($err('longitude')) ?></p>
                 <?php endif; ?>
@@ -139,6 +139,7 @@ $typeLabel = [
             <div>
                 <label for="tgn_id" class="form-label"><?= __('Identificativo Getty TGN') ?></label>
                 <input type="text" id="tgn_id" name="tgn_id" value="<?= $val('tgn_id') ?>"
+                       placeholder="7004329"
                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
         </div>
@@ -153,14 +154,14 @@ $typeLabel = [
             <div>
                 <label for="date_start" class="form-label"><?= __('Esistente dal') ?></label>
                 <input type="text" id="date_start" name="date_start" value="<?= $val('date_start') ?>"
-                       placeholder="AAAA"
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                       placeholder="<?= $e(__('AAAA o AAAA-MM-GG')) ?>"
+                       class="mt-1 block w-full rounded-md <?= $err('date_start') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div>
                 <label for="date_end" class="form-label"><?= __('Esistente fino al') ?></label>
                 <input type="text" id="date_end" name="date_end" value="<?= $val('date_end') ?>"
-                       placeholder="AAAA"
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                       placeholder="<?= $e(__('AAAA o AAAA-MM-GG')) ?>"
+                       class="mt-1 block w-full rounded-md <?= $err('date_end') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
         </div>
 
