@@ -43,12 +43,27 @@ final class RicJsonLdBuilder
     ];
 
     /**
-     * ISAAR(CPF) types → RiC-CM agent types.
+     * Legacy ISAAR(CPF) types → RiC-CM agent types. Used as a fallback
+     * when the Phase 2 `ric_type` column (v0.7.8+) is not populated.
      */
     private const AUTHORITY_TYPE_TO_RIC = [
         'person'    => 'ric:Person',
         'corporate' => 'ric:CorporateBody',
         'family'    => 'ric:Family',
+    ];
+
+    /**
+     * Phase 2 (v0.7.8) RiC-CM canonical types. Maps the
+     * `authority_records.ric_type` enum values to their RiC-O class
+     * IRIs. `Position` and `Group` have no ISAAR equivalent — they
+     * exist only in this layer.
+     */
+    private const RIC_TYPE_TO_CLASS = [
+        'Person'        => 'ric:Person',
+        'CorporateBody' => 'ric:CorporateBody',
+        'Family'        => 'ric:Family',
+        'Position'      => 'ric:Position',
+        'Group'         => 'ric:Group',
     ];
 
     /**
@@ -313,11 +328,21 @@ final class RicJsonLdBuilder
      *                                             `author_authority_alternates`.
      * @return array<string, mixed>
      */
-    public function buildAuthority(array $auth, array $units = [], array $sameAs = []): array
+    public function buildAuthority(array $auth, array $units = [], array $sameAs = [], array $agentRelations = []): array
     {
         $id       = (int) ($auth['id'] ?? 0);
-        $type     = (string) ($auth['type'] ?? 'person');
-        $ricType  = self::AUTHORITY_TYPE_TO_RIC[$type] ?? 'ric:Agent';
+        // Phase 2 (v0.7.8): prefer the new ric_type column over the
+        // legacy ISAAR `type` so authorities tagged as Position or
+        // Group surface with the correct RiC-O class. Fall back to
+        // the ISAAR map when ric_type is empty (pre-Phase-2 row that
+        // the backfill SQL missed for any reason).
+        $ricTypeRaw = $this->str($auth, 'ric_type');
+        if ($ricTypeRaw !== '' && isset(self::RIC_TYPE_TO_CLASS[$ricTypeRaw])) {
+            $ricType = self::RIC_TYPE_TO_CLASS[$ricTypeRaw];
+        } else {
+            $type    = (string) ($auth['type'] ?? 'person');
+            $ricType = self::AUTHORITY_TYPE_TO_RIC[$type] ?? 'ric:Agent';
+        }
         $entityId = $this->agentIri($id);
 
         $doc = [
@@ -332,9 +357,35 @@ final class RicJsonLdBuilder
             $doc['ric:authorizedFormOfName'] = $name;
         }
 
+        // Phase 2 (v0.7.8): structured birth/death dates take precedence
+        // over the legacy free-text `dates_of_existence` blob. When
+        // present, emit them as RiC-O begin/end date predicates so
+        // consumers can filter agents by lifespan; otherwise fall back
+        // to the descriptiveNote for back-compat with pre-Phase-2 data.
+        $birth = $this->str($auth, 'birth_date');
+        $death = $this->str($auth, 'death_date');
+        if ($birth !== '') {
+            $doc['ric:beginningDate'] = ['@value' => $birth, '@type' => 'xsd:date'];
+        }
+        if ($death !== '') {
+            $doc['ric:endDate'] = ['@value' => $death, '@type' => 'xsd:date'];
+        }
         $existence = $this->str($auth, 'dates_of_existence');
-        if ($existence !== '') {
+        if ($existence !== '' && $birth === '' && $death === '') {
             $doc['ric:descriptiveNote'] = $existence;
+        }
+
+        // Phase 2 (v0.7.8): place_of_origin emits a Place node so Phase 4
+        // can swap the literal label for a /archives/places/{id} IRI
+        // without churning consumers. The `places` blob (TEXT, free
+        // form) stays as a fallback for installs that haven't filled in
+        // the structured column.
+        $placeOfOrigin = $this->str($auth, 'place_of_origin');
+        if ($placeOfOrigin !== '') {
+            $doc['ric:isOrWasLocatedAt'] = [
+                '@type'      => 'ric:Place',
+                'rdfs:label' => $placeOfOrigin,
+            ];
         }
 
         // CodeRabbit #7: ric:hasOrHadName has range ric:Name, not xsd:string.
@@ -367,8 +418,11 @@ final class RicJsonLdBuilder
             $doc['ric:performsOrPerformed'] = $functions;
         }
 
+        // Legacy free-text places blob — only used if Phase 2's
+        // structured place_of_origin column is empty (above) so we
+        // don't double-emit the same predicate.
         $places = $this->str($auth, 'places');
-        if ($places !== '') {
+        if ($places !== '' && !isset($doc['ric:isOrWasLocatedAt'])) {
             $doc['ric:isOrWasLocatedAt'] = [
                 '@type'      => 'ric:Place',
                 'rdfs:label' => $places,
@@ -430,6 +484,49 @@ final class RicJsonLdBuilder
             }
             if (!empty($relations)) {
                 $doc['ric:isOrWasRelatedTo'] = $relations;
+            }
+        }
+
+        // Phase 2 (v0.7.8): Agent → Agent relations from
+        // archive_agent_relations. The role/predicate is stored
+        // verbatim in the DB (VARCHAR), so we trust it as-is —
+        // validation lives in the admin form, not here. Each edge
+        // becomes a ric:Relation with the current agent as source.
+        if (!empty($agentRelations)) {
+            $existing = $doc['ric:isOrWasRelatedTo'] ?? [];
+            foreach ($agentRelations as $rel) {
+                $targetId = (int) ($rel['related_id'] ?? 0);
+                $pred     = (string) ($rel['ric_predicate'] ?? '');
+                if ($targetId <= 0 || $pred === '') {
+                    continue;
+                }
+                $relNode = [
+                    '@id'                   => $this->agentRelationIri($id, $targetId, $pred),
+                    '@type'                 => 'ric:Relation',
+                    'ric:relationType'      => $pred,
+                    'ric:relationHasSource' => ['@id' => $entityId],
+                    'ric:relationHasTarget' => ['@id' => $this->agentIri($targetId)],
+                ];
+                $qual = $this->str($rel, 'qualifier');
+                if ($qual !== '') {
+                    $relNode['ric:descriptiveNote'] = $qual;
+                }
+                $start = $this->str($rel, 'date_start');
+                $end   = $this->str($rel, 'date_end');
+                if ($start !== '' || $end !== '') {
+                    $dateNode = ['@type' => 'ric:DateRange'];
+                    if ($start !== '') {
+                        $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => 'xsd:date'];
+                    }
+                    if ($end !== '') {
+                        $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => 'xsd:date'];
+                    }
+                    $relNode['ric:isAssociatedWithDate'] = $dateNode;
+                }
+                $existing[] = $relNode;
+            }
+            if (!empty($existing)) {
+                $doc['ric:isOrWasRelatedTo'] = $existing;
             }
         }
 
@@ -513,6 +610,24 @@ final class RicJsonLdBuilder
             $roleSlug = 'rel';
         }
         return $this->baseUrl . '/archives/relations/' . $unitId . '-' . $agentId . '-' . $roleSlug;
+    }
+
+    /**
+     * Build a deterministic IRI for an Agent → Agent relation
+     * (RiC-CM Phase 2 — v0.7.8). The predicate is part of the IRI so
+     * an Agent that is both `ric:isMemberOf` and `ric:isSuccessorOf`
+     * the same other agent yields two distinct relation nodes. The
+     * predicate is slugged (`ric:isMemberOf` → `ric-ismemberof`) to
+     * keep the URL safe.
+     */
+    public function agentRelationIri(int $agentId, int $relatedId, string $predicate): string
+    {
+        $slug = preg_replace('/[^a-z0-9]+/i', '-', $predicate) ?? 'rel';
+        $slug = strtolower(trim($slug, '-'));
+        if ($slug === '') {
+            $slug = 'rel';
+        }
+        return $this->baseUrl . '/archives/agent-relations/' . $agentId . '-' . $relatedId . '-' . $slug;
     }
 
     /**
