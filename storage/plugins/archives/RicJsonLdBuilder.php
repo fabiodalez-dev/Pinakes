@@ -1242,7 +1242,11 @@ final class RicJsonLdBuilder
         [$ns, $local] = $this->expandCurie((string) ($node['@type'] ?? 'rdf:Description'), $context);
 
         $xw->startElement(($ns['prefix'] === '' ? '' : $ns['prefix'] . ':') . $local);
-        if (!empty($node['@id'])) {
+        // F017: !empty('0') === true would silently drop a literal '0'
+        // identifier; check existence and emptiness explicitly instead.
+        // isset() already excludes null, so only the empty-string guard
+        // is required after it.
+        if (isset($node['@id']) && $node['@id'] !== '') {
             $xw->writeAttribute('rdf:about', (string) $node['@id']);
         }
 
@@ -1267,8 +1271,32 @@ final class RicJsonLdBuilder
         [$ns, $local] = $this->expandCurie($curie, $context);
         $tag = ($ns['prefix'] === '' ? '' : $ns['prefix'] . ':') . $local;
 
-        if (is_string($value) || is_int($value) || is_float($value) || is_bool($value)) {
-            $xw->writeElement($tag, (string) $value);
+        // F010: emit explicit xsd datatypes for non-string scalars so
+        // booleans don't become empty strings ((string) false === '') and
+        // numeric literals carry the proper xsd:integer / xsd:double type.
+        if (is_bool($value)) {
+            $xw->startElement($tag);
+            $xw->writeAttribute('rdf:datatype', self::NS_XSD . 'boolean');
+            $xw->text($value ? 'true' : 'false');
+            $xw->endElement();
+            return;
+        }
+        if (is_int($value)) {
+            $xw->startElement($tag);
+            $xw->writeAttribute('rdf:datatype', self::NS_XSD . 'integer');
+            $xw->text((string) $value);
+            $xw->endElement();
+            return;
+        }
+        if (is_float($value)) {
+            $xw->startElement($tag);
+            $xw->writeAttribute('rdf:datatype', self::NS_XSD . 'double');
+            $xw->text((string) $value);
+            $xw->endElement();
+            return;
+        }
+        if (is_string($value)) {
+            $xw->writeElement($tag, $value);
             return;
         }
         if (!is_array($value)) {
@@ -1283,12 +1311,26 @@ final class RicJsonLdBuilder
             return;
         }
 
+        // F011: typed reference {"@id": "...", "@type": "..."} — emit the
+        // compact rdf:resource form rather than the heavier striped
+        // resource. Trade-off: the @type is dropped from the striped
+        // output because RDF/XML cannot attach rdf:type to an external
+        // reference in compact form; consumers must rely on the
+        // dereferenced subject (or OWL/RDFS reasoning) to recover the
+        // type. JSON-LD output is unaffected and still carries @type.
+        if (isset($value['@id']) && isset($value['@type']) && !isset($value['@value']) && count($value) === 2) {
+            $xw->startElement($tag);
+            $xw->writeAttribute('rdf:resource', (string) $value['@id']);
+            $xw->endElement();
+            return;
+        }
+
         // Typed/lang literal: {"@value": "...", "@language"|"@type": "..."}
         if (isset($value['@value'])) {
             $xw->startElement($tag);
-            if (!empty($value['@language'])) {
+            if (isset($value['@language']) && $value['@language'] !== '') {
                 $xw->writeAttribute('xml:lang', (string) $value['@language']);
-            } elseif (!empty($value['@type'])) {
+            } elseif (isset($value['@type']) && $value['@type'] !== '') {
                 [$dns, $dlocal] = $this->expandCurie((string) $value['@type'], $context);
                 $xw->writeAttribute('rdf:datatype', $dns['uri'] . $dlocal);
             }

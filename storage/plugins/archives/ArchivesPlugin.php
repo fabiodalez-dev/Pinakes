@@ -5886,8 +5886,15 @@ class ArchivesPlugin
      */
     private function findActivityForRic(int $id): array
     {
+        // F044 (Phase 8): enumerate the columns RicJsonLdBuilder::buildActivity
+        // actually reads instead of SELECT * — see findUnitForRic for the
+        // rationale. agent_id / parent_id / place_id stay because the
+        // builder emits them as relation IRIs.
         $stmt = $this->db->prepare(
-            'SELECT * FROM archive_activities WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+            'SELECT id, title, description, activity_type, parent_id,
+                    date_start, date_end, is_ongoing, agent_id, source_ref
+               FROM archive_activities
+              WHERE id = ? AND deleted_at IS NULL LIMIT 1'
         );
         if ($stmt === false) {
             // Table missing on pre-Phase-3 installs is a graceful
@@ -6052,8 +6059,15 @@ class ArchivesPlugin
      */
     private function findPlaceForRic(int $id): array
     {
+        // F044 (Phase 8): enumerate the columns RicJsonLdBuilder::buildPlace
+        // actually reads instead of SELECT * — same rationale as the other
+        // find*ForRic helpers.
         $stmt = $this->db->prepare(
-            'SELECT * FROM archive_places WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+            'SELECT id, name, place_type, parent_id, latitude, longitude,
+                    geonames_id, wikidata_id, tgn_id, description,
+                    date_start, date_end
+               FROM archive_places
+              WHERE id = ? AND deleted_at IS NULL LIMIT 1'
         );
         if ($stmt === false) {
             if ($this->db->errno === 1146) {
@@ -6423,8 +6437,19 @@ class ArchivesPlugin
      */
     private function findUnitForRic(int $id): array
     {
+        // F044 (Phase 8): enumerate the columns RicJsonLdBuilder::buildUnit
+        // actually reads instead of SELECT *. Any future column on
+        // archival_units (e.g. internal notes, donor PII, draft fields)
+        // would otherwise leak into the public ric.json / OAI ric-o
+        // payloads automatically. Keep this list in sync with the
+        // builder if it grows.
         $stmt = $this->db->prepare(
-            'SELECT * FROM archival_units WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+            'SELECT id, parent_id, reference_code, level, formal_title,
+                    constructed_title, date_start, date_end, extent,
+                    scope_content, archival_history, language_codes,
+                    physical_location, rights_statement_url, ark_identifier
+               FROM archival_units
+              WHERE id = ? AND deleted_at IS NULL LIMIT 1'
         );
         if ($stmt === false) {
             return ['status' => 'error', 'message' => $this->db->error];
@@ -6456,8 +6481,15 @@ class ArchivesPlugin
      */
     private function findAuthorityForRic(int $id): array
     {
+        // F044 (Phase 8): enumerate the columns RicJsonLdBuilder::buildAuthority
+        // actually reads instead of SELECT * — same rationale as findUnitForRic.
+        // Anything we don't list never reaches the public Agent JSON-LD.
         $stmt = $this->db->prepare(
-            'SELECT * FROM authority_records WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+            'SELECT id, type, ric_type, authorised_form, parallel_forms,
+                    other_forms, dates_of_existence, birth_date, death_date,
+                    place_of_origin, history, places, functions
+               FROM authority_records
+              WHERE id = ? AND deleted_at IS NULL LIMIT 1'
         );
         if ($stmt === false) {
             return ['status' => 'error', 'message' => $this->db->error];
@@ -6808,7 +6840,7 @@ class ArchivesPlugin
         $agentId  = $values['agent_id'];
         $isOngoing = (int) $values['is_ongoing'];
         $stmt->bind_param(
-            'sssisssis',
+            'sssissiis',
             $values['title'],
             $values['description'],
             $values['activity_type'],
@@ -6919,7 +6951,7 @@ class ArchivesPlugin
         $agentId   = $values['agent_id'];
         $isOngoing = (int) $values['is_ongoing'];
         $stmt->bind_param(
-            'sssisssisi',
+            'sssissiisi',
             $values['title'], $values['description'], $values['activity_type'],
             $parentId, $values['date_start'], $values['date_end'],
             $isOngoing, $agentId, $values['source_ref'], $id
@@ -7039,6 +7071,15 @@ class ArchivesPlugin
             } elseif ($this->findActivityRow((int) $values['parent_id']) === null) {
                 $errors['parent_id'] = 'Parent activity does not exist.';
             }
+            // F005: BOTH CREATE and UPDATE paths must guard against pre-existing
+            // cycles reachable from the proposed parent. The would-create-cycle
+            // helper above is necessary but not sufficient — it only catches the
+            // edge case of an edit looping back through descendants. On CREATE the
+            // proposed parent could already sit inside a corrupted cycle (e.g.
+            // imported offline). Any later ancestor walker would follow the loop.
+            elseif ($this->activityAncestorChainHasCycle((int) $values['parent_id'])) {
+                $errors['parent_id'] = 'Pre-existing cycle in the parent ancestor chain — fix the upstream data.';
+            }
         }
         if ($values['agent_id'] !== null && $this->findAuthorityById((int) $values['agent_id']) === null) {
             $errors['agent_id'] = 'Selected agent does not exist.';
@@ -7050,11 +7091,17 @@ class ArchivesPlugin
      * Phase 5: ancestor walk to reject cycles in the activity tree
      * (MySQL can't enforce this since the FK uses ON DELETE SET NULL).
      * Mirrors parentWouldCreateCycle for archival_units.
+     *
+     * F018: intentionally NOT filtering on deleted_at — integrity checks must
+     * see the full topology of the tree, not just rows still visible to UI.
+     * If the chain crosses a soft-deleted ancestor, filtering would silently
+     * truncate the walk and let a path through a deleted node go undetected.
+     * The visibility/integrity distinction belongs to render code, not here.
      */
     private function activityWouldCreateCycle(int $childId, int $proposedParentId): bool
     {
         $stmt = $this->db->prepare(
-            'SELECT parent_id FROM archive_activities WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+            'SELECT parent_id FROM archive_activities WHERE id = ? LIMIT 1'
         );
         if ($stmt === false) { return true; }
         $current = $proposedParentId;
@@ -7062,6 +7109,39 @@ class ArchivesPlugin
         for ($i = 0; $i < 100; $i++) {
             if ($current === $childId) { $stmt->close(); return true; }
             if (isset($visited[$current])) { break; }
+            $visited[$current] = true;
+            $stmt->bind_param('i', $current);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            $row = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+            if (!is_array($row) || $row['parent_id'] === null) {
+                break;
+            }
+            $current = (int) $row['parent_id'];
+        }
+        $stmt->close();
+        return false;
+    }
+
+    /**
+     * F005: detect a pre-existing cycle reachable from $startId by walking
+     * the parent chain upward. Unlike activityWouldCreateCycle this does not
+     * model a proposed edit — it simply asks "is the chain above this node
+     * already broken?". Used on CREATE (where there is no editingId to feed
+     * to the would-create-cycle form) and as a defense-in-depth check on
+     * UPDATE too. Same deleted_at policy as activityWouldCreateCycle: integrity
+     * walks see all rows, not just visible ones.
+     */
+    private function activityAncestorChainHasCycle(int $startId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT parent_id FROM archive_activities WHERE id = ? LIMIT 1'
+        );
+        if ($stmt === false) { return false; }
+        $current = $startId;
+        $visited = [];
+        for ($i = 0; $i < 100; $i++) {
+            if (isset($visited[$current])) { $stmt->close(); return true; }
             $visited[$current] = true;
             $stmt->bind_param('i', $current);
             $stmt->execute();
@@ -7379,6 +7459,26 @@ class ArchivesPlugin
         if ($lng !== null && ($lng < -180 || $lng > 180)) {
             $errors['longitude'] = 'Longitude must be between -180 and 180.';
         }
+        // F041 (Phase 8): the place identifier columns flow directly into
+        // owl:sameAs IRIs in RicJsonLdBuilder::buildPlace (geonames.org/{id},
+        // wikidata.org/entity/{id}, vocab.getty.edu/page/tgn/{id}). Free-form
+        // input can yield path separators, unicode, whitespace or scheme
+        // characters that produce invalid Linked-Data IRIs the moment they
+        // hit the public ric.json. Enforce the canonical shape of each
+        // identifier here so the DB never stores something that would
+        // serialise into a malformed sameAs.
+        $gn = (string) ($values['geonames_id'] ?? '');
+        if ($gn !== '' && !preg_match('/^\d+$/', $gn)) {
+            $errors['geonames_id'] = __('GeoNames ID deve essere un numero (es. 3169070).');
+        }
+        $wd = (string) ($values['wikidata_id'] ?? '');
+        if ($wd !== '' && !preg_match('/^Q\d+$/', $wd)) {
+            $errors['wikidata_id'] = __('Wikidata ID deve essere nel formato Q seguito da numeri (es. Q220).');
+        }
+        $tgn = (string) ($values['tgn_id'] ?? '');
+        if ($tgn !== '' && !preg_match('/^\d+$/', $tgn)) {
+            $errors['tgn_id'] = __('Getty TGN ID deve essere un numero (es. 7000874).');
+        }
         return $errors;
     }
 
@@ -7466,7 +7566,17 @@ class ArchivesPlugin
         }
         $returnTo = self::safeReturnTo(is_string($body['_return_to'] ?? null) ? (string) $body['_return_to'] : null);
 
-        if ($predicate === '' || !$this->validateRelationEndpoints($srcType, $srcId, $tgtType, $tgtId)) {
+        // F013: format gate for ric_predicate. Migration comment promised a
+        // RIC_PREDICATE_VALIDATOR allowlist; this is the lightweight format
+        // check until the canonical RiC-O term list lands. Shape:
+        //   lowercase prefix [a-z]{2,10} ':' CamelCase local [A-Za-z][A-Za-z0-9]{1,80}
+        // Examples: ric:isPartOf, dcterms:relation, rdf:type.
+        // Deferred: deduplication UX — INSERT IGNORE still swallows duplicates
+        // silently, that is a separate cross-cutting change (caller-facing error
+        // state + flash messaging) and is intentionally not touched here.
+        $predicateFormatOk = $predicate !== ''
+            && preg_match('/^[a-z]{2,10}:[A-Za-z][A-Za-z0-9]{1,80}$/', $predicate) === 1;
+        if (!$predicateFormatOk || !$this->validateRelationEndpoints($srcType, $srcId, $tgtType, $tgtId)) {
             // Bail to the referrer with a query-flagged error — the
             // form view should render the message on next load.
             return $response
