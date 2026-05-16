@@ -24,6 +24,20 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.8
+
+### Archives: RiC-CM Phase 2 — Agents as first-class entities ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+Phase 2 of the 6-phase RiC-CM roadmap. Phase 1 (v0.7.7) was schema-free; this is the first migration in the chain that touches the DB.
+
+- **`authority_records` extended** — four new columns:
+  - `ric_type` (`ENUM('Person','CorporateBody','Family','Position','Group')`) — RiC-CM canonical type, broader than the legacy ISAAR `type` enum. The migration backfills it from existing `type` values; `Position` and `Group` are RiC-CM-only types ISAAR doesn't model.
+  - `birth_date` / `death_date` — structured begin/end-of-existence dates (`xsd:date`). The RiC-O JSON-LD output now emits `ric:beginningDate` and `ric:endDate` as typed literals instead of the free-text `dates_of_existence` blob (which is preserved for back-compat and surfaces as `ric:descriptiveNote` on pre-Phase-2 rows).
+  - `place_of_origin` — birthplace / founding place. Phase 4 will swap this literal for a FK to a dedicated `archive_places` table.
+- **New table `archive_agent_identifiers`** — multi-scheme identifier ledger for archive authorities (VIAF, ISNI, Wikidata, GND, BNF, LCNAF, Getty ULAN, ARK, local). Each row carries scheme + value + optional precomputed URI + an `is_preferred` flag. `collectSameAsForAuthority` now merges these into `owl:sameAs` alongside the existing `viaf-authority` plugin's data; rows without a precomputed URI are synthesised from the scheme's canonical prefix (e.g. `viaf:29539` → `https://viaf.org/viaf/29539`).
+- **New table `archive_agent_relations`** — Agent ↔ Agent edges typed with a RiC-O predicate (`ric:isParentOf`, `ric:isMemberOf`, `ric:isSuccessorOf`, `ric:isMarriedTo`, ...). Captures organisational hierarchies, corporate successions, and family ties that ISAAR's flat table cannot express. Each row becomes a `ric:Relation` node in the RiC-O JSON-LD output with a deterministic `@id` of the form `{base}/archives/agent-relations/{agentId}-{relatedId}-{predicate-slug}`. The schema rejects self-loops via a `CHECK` constraint (MySQL 8.0.16+).
+- **Migration `migrate_0.7.8.sql`** — fully idempotent (INFORMATION_SCHEMA guards on every ALTER, `CREATE TABLE IF NOT EXISTS` on every CREATE). Re-running the migration is safe; the ric_type backfill UPDATE narrows on rows still at the default value so curator overrides survive.
+
 ## What's New in v0.7.7
 
 ### Regression hotfix for author autocomplete ([#74](https://github.com/fabiodalez-dev/Pinakes/issues/74))

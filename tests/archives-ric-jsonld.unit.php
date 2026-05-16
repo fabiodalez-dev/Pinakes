@@ -277,6 +277,115 @@ foreach ($arkCases as [$input, $expected, $label]) {
     $check($got === $expected, $label);
 }
 
+// ── Phase 2 (v0.7.8) — Agents as first-class RiC-CM entities ─────────
+// Issue #122 Phase 2: ric_type / birth_date / death_date /
+// place_of_origin, multi-scheme owl:sameAs from archive_agent_identifiers,
+// and Agent → Agent relations from archive_agent_relations.
+
+echo "\nPhase 2 — ric_type → ric:* class mapping:\n";
+
+$ricTypeAuth = $builder->buildAuthority([
+    'id' => 100, 'type' => 'person', 'ric_type' => 'Position',
+    'authorised_form' => 'Director of Catania State Archive',
+]);
+$check(($ricTypeAuth['@type'] ?? null) === 'ric:Position',
+    'ric_type=Position overrides ISAAR `type` and emits ric:Position');
+
+$ricTypeAuth2 = $builder->buildAuthority([
+    'id' => 101, 'type' => 'corporate', 'ric_type' => 'Group',
+    'authorised_form' => 'Editorial board',
+]);
+$check(($ricTypeAuth2['@type'] ?? null) === 'ric:Group',
+    'ric_type=Group emits ric:Group (no ISAAR equivalent)');
+
+// Fallback when ric_type empty — falls back to legacy `type` map.
+$legacyAuth = $builder->buildAuthority([
+    'id' => 102, 'type' => 'family', 'ric_type' => '',
+    'authorised_form' => 'Famiglia Verga',
+]);
+$check(($legacyAuth['@type'] ?? null) === 'ric:Family',
+    'empty ric_type falls back to AUTHORITY_TYPE_TO_RIC[type]');
+
+echo "\nPhase 2 — birth_date / death_date / place_of_origin:\n";
+
+$datedAuth = $builder->buildAuthority([
+    'id' => 200, 'type' => 'person', 'ric_type' => 'Person',
+    'authorised_form' => 'Verga, Giovanni',
+    'birth_date' => '1840-08-31',
+    'death_date' => '1922-01-27',
+    'place_of_origin' => 'Catania',
+    'dates_of_existence' => '1840-1922',
+]);
+$check(($datedAuth['ric:beginningDate']['@value'] ?? null) === '1840-08-31',
+    'birth_date populates ric:beginningDate with xsd:date value');
+$check(($datedAuth['ric:beginningDate']['@type'] ?? null) === 'xsd:date',
+    'ric:beginningDate carries xsd:date @type');
+$check(($datedAuth['ric:endDate']['@value'] ?? null) === '1922-01-27',
+    'death_date populates ric:endDate');
+$check(($datedAuth['ric:isOrWasLocatedAt']['@type'] ?? null) === 'ric:Place'
+    && ($datedAuth['ric:isOrWasLocatedAt']['rdfs:label'] ?? null) === 'Catania',
+    'place_of_origin emits ric:Place node with label');
+$check(!array_key_exists('ric:descriptiveNote', $datedAuth),
+    'dates_of_existence is suppressed when birth/death dates are structured');
+
+// Backward compat: pre-Phase-2 rows with only dates_of_existence still
+// surface via ric:descriptiveNote.
+$legacyDates = $builder->buildAuthority([
+    'id' => 201, 'type' => 'person',
+    'authorised_form' => 'Manzoni, Alessandro',
+    'dates_of_existence' => '1785-1873',
+]);
+$check(($legacyDates['ric:descriptiveNote'] ?? null) === '1785-1873',
+    'pre-Phase-2 dates_of_existence preserved as ric:descriptiveNote');
+$check(!array_key_exists('ric:beginningDate', $legacyDates),
+    'no ric:beginningDate when only legacy dates_of_existence is set');
+
+echo "\nPhase 2 — Agent → Agent relations + agentRelationIri():\n";
+
+$withAgentRels = $builder->buildAuthority(
+    ['id' => 300, 'type' => 'corporate', 'ric_type' => 'CorporateBody',
+     'authorised_form' => 'Comune di Catania'],
+    [],  // no archival units linked
+    [],  // no sameAs
+    [    // agentRelations
+        ['related_id' => 301, 'ric_predicate' => 'ric:isSuccessorOf',
+         'qualifier' => 'merger 1927', 'date_start' => '1927-01-01', 'date_end' => ''],
+        ['related_id' => 302, 'ric_predicate' => 'ric:isMemberOf',
+         'qualifier' => '', 'date_start' => '', 'date_end' => ''],
+        // Invalid rows must be skipped, not crash.
+        ['related_id' => 0, 'ric_predicate' => 'ric:isMemberOf'],
+        ['related_id' => 303, 'ric_predicate' => ''],
+    ]
+);
+$rels = $withAgentRels['ric:isOrWasRelatedTo'] ?? [];
+$check(count($rels) === 2, 'invalid agent relation rows are skipped');
+$check(($rels[0]['ric:relationType'] ?? null) === 'ric:isSuccessorOf',
+    'ric:isSuccessorOf predicate is preserved verbatim');
+$check(($rels[0]['ric:relationHasSource']['@id'] ?? null) === $base . '/archives/agents/300',
+    'agent relation source is the current agent IRI');
+$check(($rels[0]['ric:relationHasTarget']['@id'] ?? null) === $base . '/archives/agents/301',
+    'agent relation target is the related agent IRI');
+$check(($rels[0]['@id'] ?? null) === $base . '/archives/agent-relations/300-301-ric-issuccessorof',
+    'agent relation @id is deterministic by (agentId, relatedId, predicate)');
+$check(($rels[0]['ric:descriptiveNote'] ?? null) === 'merger 1927',
+    'qualifier becomes ric:descriptiveNote on the relation');
+$check(($rels[0]['ric:isAssociatedWithDate']['@type'] ?? null) === 'ric:DateRange',
+    'agent relation with date emits ric:DateRange');
+$check(($rels[0]['ric:isAssociatedWithDate']['ric:hasBeginningDate']['@value'] ?? null) === '1927-01-01',
+    'agent relation date_start populates ric:hasBeginningDate');
+$check(!array_key_exists('ric:isAssociatedWithDate', $rels[1]),
+    'agent relation without dates omits ric:isAssociatedWithDate');
+$check(!array_key_exists('ric:descriptiveNote', $rels[1]),
+    'agent relation without qualifier omits ric:descriptiveNote');
+
+// agentRelationIri stability under predicate slugging.
+$iri = $builder->agentRelationIri(10, 20, 'ric:isMemberOf');
+$check($iri === $base . '/archives/agent-relations/10-20-ric-ismemberof',
+    'agentRelationIri slugs the predicate ("ric:" → "ric-", lowercase)');
+$iri2 = $builder->agentRelationIri(10, 20, '');
+$check($iri2 === $base . '/archives/agent-relations/10-20-rel',
+    'agentRelationIri uses "rel" fallback for empty predicate');
+
 echo "\n================================\n";
 echo "RiC-O JSON-LD checks passed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);

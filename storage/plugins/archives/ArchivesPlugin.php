@@ -252,11 +252,14 @@ class ArchivesPlugin
     public function ensureSchema(): array
     {
         $steps = [
-            'archival_units'          => self::ddlArchivalUnits(),
-            'authority_records'       => self::ddlAuthorityRecords(),
-            'archival_unit_authority' => self::ddlArchivalAuthorityLinks(),
-            'autori_authority_link'   => self::ddlAutoriAuthorityLink(),
-            'archival_unit_files'     => self::ddlArchivalUnitFiles(),
+            'archival_units'             => self::ddlArchivalUnits(),
+            'authority_records'          => self::ddlAuthorityRecords(),
+            'archival_unit_authority'    => self::ddlArchivalAuthorityLinks(),
+            'autori_authority_link'      => self::ddlAutoriAuthorityLink(),
+            'archival_unit_files'        => self::ddlArchivalUnitFiles(),
+            // RiC-CM Phase 2 (v0.7.8 — issue #122) — agents as first-class entities.
+            'archive_agent_identifiers'  => self::ddlAgentIdentifiers(),
+            'archive_agent_relations'    => self::ddlAgentRelations(),
         ];
         $created = [];
         $failed = [];
@@ -287,6 +290,13 @@ class ArchivesPlugin
         // If archival_unit_files was created by migrate_0.7.4 without the FK
         // (because archival_units didn't exist yet), add the FK now.
         $this->migrateArchivalUnitFilesFK();
+
+        // RiC-CM Phase 2 (v0.7.8): backfill ric_type / birth_date /
+        // death_date / place_of_origin on installs that activated the
+        // plugin pre-0.7.8 (the DDL above only fires CREATE TABLE IF
+        // NOT EXISTS, so a pre-existing authority_records table needs
+        // separate ALTER passes).
+        $this->migrateAuthorityRecordsRicColumns();
 
         return ['created' => $created, 'failed' => $failed];
     }
@@ -436,6 +446,91 @@ class ArchivesPlugin
         if ($failures !== []) {
             throw new \RuntimeException(
                 '[Archives] migrateImageColumns failed: ' . implode('; ', $failures)
+            );
+        }
+    }
+
+    /**
+     * RiC-CM Phase 2 (v0.7.8): add ric_type / birth_date / death_date /
+     * place_of_origin columns to authority_records on in-place upgrades.
+     *
+     * ddlAuthorityRecords() uses CREATE TABLE IF NOT EXISTS, so an
+     * installation that activated the plugin pre-0.7.8 already has the
+     * table without these columns; this method walks the existing
+     * schema and ALTERs each missing column individually. Idempotent:
+     * pre-checking via INFORMATION_SCHEMA skips columns already present
+     * so the migration can re-run after a partial failure.
+     *
+     * @throws \RuntimeException If any ALTER fails — callers should let
+     *                           it propagate so activation aborts.
+     */
+    private function migrateAuthorityRecordsRicColumns(): void
+    {
+        // Each entry: column name → MySQL DDL fragment (without the
+        // ALTER TABLE … ADD COLUMN prefix). The order matters: the
+        // backfill UPDATE on `type` runs only after `ric_type` exists.
+        $columns = [
+            'ric_type'        => "ENUM('Person','CorporateBody','Family','Position','Group') NOT NULL DEFAULT 'Person' AFTER type",
+            'birth_date'      => 'VARCHAR(20) NULL AFTER dates_of_existence',
+            'death_date'      => 'VARCHAR(20) NULL AFTER birth_date',
+            'place_of_origin' => 'VARCHAR(255) NULL AFTER death_date',
+        ];
+
+        // Snapshot existing columns so we issue at most one ALTER per
+        // missing one. Bail silently if the parent table doesn't exist
+        // yet — that's the fresh-install path where the CREATE TABLE
+        // step above already produced the full Phase-2 shape.
+        $existing = [];
+        $result = $this->db->query(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'authority_records'"
+        );
+        if (!($result instanceof \mysqli_result)) {
+            return;
+        }
+        while ($row = $result->fetch_assoc()) {
+            $existing[(string) $row['COLUMN_NAME']] = true;
+        }
+        $result->free();
+
+        $failures = [];
+        foreach ($columns as $col => $definition) {
+            if (isset($existing[$col])) {
+                continue;
+            }
+            $sql = 'ALTER TABLE authority_records ADD COLUMN ' . $col . ' ' . $definition;
+            try {
+                if ($this->db->query($sql) === false) {
+                    $failures[] = $col . ': ' . $this->db->error;
+                }
+            } catch (\Throwable $e) {
+                $failures[] = $col . ': ' . $e->getMessage();
+            }
+        }
+        if ($failures !== []) {
+            throw new \RuntimeException(
+                '[Archives] migrateAuthorityRecordsRicColumns failed: ' . implode('; ', $failures)
+            );
+        }
+
+        // Backfill ric_type from the ISAAR `type` column. Only touches
+        // rows still on the default 'Person' so a curator override
+        // (Position / Group) is preserved across re-runs.
+        try {
+            $this->db->query(
+                "UPDATE authority_records
+                    SET ric_type = CASE type
+                        WHEN 'person'    THEN 'Person'
+                        WHEN 'corporate' THEN 'CorporateBody'
+                        WHEN 'family'    THEN 'Family'
+                        ELSE 'Person'
+                    END
+                  WHERE ric_type = 'Person'
+                    AND type IN ('corporate', 'family')"
+            );
+        } catch (\Throwable $e) {
+            SecureLogger::warning(
+                '[Archives] migrateAuthorityRecordsRicColumns backfill failed: ' . $e->getMessage()
             );
         }
     }
@@ -5431,7 +5526,7 @@ class ArchivesPlugin
         // CodeRabbit R4: fetchArchivalUnitsForAuthority silent-degrades
         // (used also by authorityShowAction admin view) — check mysqli
         // error state to translate failure into 500. collectSameAsForAuthority
-        // is RiC-only and throws.
+        // and fetchAgentRelations are RiC-only and throw directly.
         try {
             $linkedUnits = $this->fetchArchivalUnitsForAuthority($id);
             if ($this->db->errno !== 0) {
@@ -5439,7 +5534,9 @@ class ArchivesPlugin
                     '[Archives] fetchArchivalUnitsForAuthority failed: ' . $this->db->error
                 );
             }
-            $sameAs = $this->collectSameAsForAuthority($id);
+            $sameAs         = $this->collectSameAsForAuthority($id);
+            // RiC-CM Phase 2 (v0.7.8): Agent → Agent relations.
+            $agentRelations = $this->fetchAgentRelations($id);
         } catch (\RuntimeException $e) {
             SecureLogger::error('[Archives] ricAgentAction secondary fetch failed: ' . $e->getMessage());
             return $this->ricJsonError($response, 500, 'persistence_error',
@@ -5447,7 +5544,7 @@ class ArchivesPlugin
         }
 
         $builder = $this->makeRicBuilder();
-        $doc     = $builder->buildAuthority($auth, $linkedUnits, $sameAs);
+        $doc     = $builder->buildAuthority($auth, $linkedUnits, $sameAs, $agentRelations);
 
         return $this->ricJsonResponse($response, $doc, $builder->agentIri($id));
     }
@@ -5752,7 +5849,148 @@ class ArchivesPlugin
         }
         $result->free();
         $stmt->close();
+
+        // RiC-CM Phase 2 (v0.7.8): merge in the dedicated Agent
+        // identifier table. This source lives on the archive side
+        // (not the bibliographic autori side) so it works even on
+        // installs without the viaf-authority plugin.
+        foreach ($this->collectAgentIdentifierUris($authorityId) as $u) {
+            $uris[] = $u;
+        }
         return $uris;
+    }
+
+    /**
+     * RiC-CM Phase 2 (v0.7.8): pull every URI tagged for this
+     * authority from `archive_agent_identifiers`. Returns the bare
+     * `uri` column when present; otherwise falls back to a synthetic
+     * representation built from `scheme` + `value` so authority IDs
+     * that don't ship with a precomputed URI still surface in the
+     * RiC-O output.
+     *
+     * Silently returns empty when the table doesn't exist (install
+     * predates Phase 2 and the migration hasn't run yet). Any other
+     * DB error is propagated so RiC actions can 500 cleanly.
+     *
+     * @return list<string>
+     */
+    private function collectAgentIdentifierUris(int $authorityId): array
+    {
+        $uris = [];
+        $stmt = $this->db->prepare(
+            'SELECT scheme, value, uri FROM archive_agent_identifiers WHERE authority_id = ?'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $uris;
+            }
+            throw new \RuntimeException(
+                '[Archives] collectAgentIdentifierUris prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('i', $authorityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] collectAgentIdentifierUris execute failed: ' . $err
+            );
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $uri = isset($row['uri']) ? trim((string) $row['uri']) : '';
+                if ($uri !== '') {
+                    $uris[] = $uri;
+                    continue;
+                }
+                // No precomputed URI — synthesise from scheme + value
+                // using the canonical Linked Data prefixes per
+                // scheme. Unknown schemes are skipped (the value
+                // alone isn't dereferenceable).
+                $scheme = isset($row['scheme']) ? (string) $row['scheme'] : '';
+                $value  = isset($row['value'])  ? trim((string) $row['value']) : '';
+                if ($value === '') {
+                    continue;
+                }
+                $synth = self::SCHEME_URI_PREFIX[$scheme] ?? null;
+                if ($synth !== null) {
+                    $uris[] = $synth . $value;
+                }
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $uris;
+    }
+
+    /**
+     * RiC-CM Phase 2 (v0.7.8): canonical URI prefix per identifier
+     * scheme. Used by collectAgentIdentifierUris() to synthesise a
+     * dereferenceable IRI when the row carries only scheme + value.
+     * `local` is excluded — local identifiers are not globally
+     * resolvable, so we'd rather omit them than emit a guess.
+     */
+    private const SCHEME_URI_PREFIX = [
+        'viaf'     => 'https://viaf.org/viaf/',
+        'isni'     => 'https://isni.org/isni/',
+        'wikidata' => 'https://www.wikidata.org/entity/',
+        'gnd'      => 'https://d-nb.info/gnd/',
+        'bnf'      => 'https://catalogue.bnf.fr/ark:/12148/cb',
+        'lcnaf'    => 'https://id.loc.gov/authorities/names/',
+        'ulan'     => 'https://vocab.getty.edu/page/ulan/',
+        'ark'      => 'https://n2t.net/',
+    ];
+
+    /**
+     * RiC-CM Phase 2 (v0.7.8): fetch Agent → Agent relations from
+     * `archive_agent_relations` for the given authority. Returns rows
+     * keyed by the columns RicJsonLdBuilder::buildAuthority expects
+     * (`related_id`, `ric_predicate`, `qualifier`, `date_start`,
+     * `date_end`). The target authority must be live (not soft-deleted)
+     * — the JOIN filters that.
+     *
+     * Silently returns empty when the table is missing (pre-Phase-2
+     * install). Any other DB error is propagated so RiC actions can
+     * 500 cleanly.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchAgentRelations(int $authorityId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT aar.related_id, aar.ric_predicate, aar.qualifier,
+                    aar.date_start, aar.date_end
+               FROM archive_agent_relations aar
+               JOIN authority_records ar ON ar.id = aar.related_id
+                                        AND ar.deleted_at IS NULL
+              WHERE aar.agent_id = ?
+              ORDER BY aar.ric_predicate, aar.related_id'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $rows;
+            }
+            throw new \RuntimeException(
+                '[Archives] fetchAgentRelations prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('i', $authorityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] fetchAgentRelations execute failed: ' . $err);
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
     }
 
     // ── Dublin Core XML ──────────────────────────────────────────────────────
@@ -7229,15 +7467,23 @@ class ArchivesPlugin
      */
     public static function ddlAuthorityRecords(): string
     {
+        // Phase 2 (v0.7.8 — issue #122) added ric_type / birth_date /
+        // death_date / place_of_origin. Fresh installs get the full
+        // shape from this DDL; in-place upgrades pick up the new
+        // columns via migrateAuthorityRecordsRicColumns().
         return <<<'SQL'
         CREATE TABLE IF NOT EXISTS authority_records (
             id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             type               ENUM('person','corporate','family') NOT NULL,
+            ric_type           ENUM('Person','CorporateBody','Family','Position','Group') NOT NULL DEFAULT 'Person',
             authorised_form    VARCHAR(500) NOT NULL,
             parallel_forms     TEXT NULL,
             other_forms        TEXT NULL,
             identifiers        VARCHAR(500) NULL,
             dates_of_existence VARCHAR(255) NULL,
+            birth_date         VARCHAR(20)  NULL,
+            death_date         VARCHAR(20)  NULL,
+            place_of_origin    VARCHAR(255) NULL,
             history            TEXT NULL,
             places             TEXT NULL,
             legal_status       VARCHAR(255) NULL,
@@ -7252,6 +7498,7 @@ class ArchivesPlugin
             deleted_at         TIMESTAMP NULL,
             PRIMARY KEY (id),
             KEY idx_type (type),
+            KEY idx_ric_type (ric_type),
             KEY idx_deleted (deleted_at),
             FULLTEXT KEY ft_search (authorised_form, parallel_forms, history, functions)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -7321,6 +7568,78 @@ class ArchivesPlugin
             KEY idx_unit_id (unit_id),
             CONSTRAINT fk_archival_unit_files_unit
                 FOREIGN KEY (unit_id) REFERENCES archival_units(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_agent_identifiers` (RiC-CM Phase 2 — v0.7.8).
+     *
+     * Multi-scheme identifier ledger for archive authorities. An
+     * authority can carry a VIAF id, an ISNI id, AND a Wikidata id at
+     * the same time; the legacy `authority_records.identifiers` blob
+     * could only hold one. New rows are added by the admin form or
+     * imported from VIAF / ISNI lookup tools; the RiC-O JSON-LD output
+     * emits each entry under `owl:sameAs`.
+     */
+    public static function ddlAgentIdentifiers(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_agent_identifiers (
+            id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            authority_id BIGINT UNSIGNED NOT NULL,
+            scheme       ENUM('viaf','isni','wikidata','gnd','bnf','lcnaf','ulan','ark','local') NOT NULL,
+            value        VARCHAR(255) NOT NULL,
+            uri          VARCHAR(500) NULL,
+            is_preferred TINYINT(1) NOT NULL DEFAULT 0,
+            created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_authority_id (authority_id),
+            KEY idx_scheme_value (scheme, value(64)),
+            UNIQUE KEY uq_authority_scheme_value (authority_id, scheme, value(128)),
+            CONSTRAINT fk_aai_authority FOREIGN KEY (authority_id)
+                REFERENCES authority_records(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_agent_relations` (RiC-CM Phase 2 — v0.7.8).
+     *
+     * Agent ↔ Agent edges typed with a RiC-O predicate. Captures
+     * organisational hierarchies (ric:isMemberOf), corporate
+     * successions (ric:isSuccessorOf), family ties (ric:isParentOf,
+     * ric:isSiblingOf, ric:isMarriedTo), and arbitrary associations
+     * (ric:isAssociatedWith). The predicate column is VARCHAR rather
+     * than ENUM because RiC-O's agent-to-agent vocabulary is open;
+     * validation lives in the application layer.
+     *
+     * The CHECK constraint rejects self-loops at the schema layer on
+     * MySQL 8.0.16+. Older versions parse but don't enforce CHECKs —
+     * the application validator covers the fallback.
+     */
+    public static function ddlAgentRelations(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_agent_relations (
+            id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            agent_id      BIGINT UNSIGNED NOT NULL,
+            related_id    BIGINT UNSIGNED NOT NULL,
+            ric_predicate VARCHAR(128) NOT NULL,
+            qualifier     VARCHAR(255) NULL,
+            date_start    VARCHAR(20)  NULL,
+            date_end      VARCHAR(20)  NULL,
+            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_agent (agent_id),
+            KEY idx_related (related_id),
+            KEY idx_predicate (ric_predicate),
+            UNIQUE KEY uq_agent_related_predicate (agent_id, related_id, ric_predicate),
+            CONSTRAINT fk_aar_agent
+                FOREIGN KEY (agent_id)   REFERENCES authority_records(id) ON DELETE CASCADE,
+            CONSTRAINT fk_aar_related
+                FOREIGN KEY (related_id) REFERENCES authority_records(id) ON DELETE CASCADE,
+            CONSTRAINT chk_aar_no_self_loop CHECK (agent_id <> related_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         SQL;
     }
