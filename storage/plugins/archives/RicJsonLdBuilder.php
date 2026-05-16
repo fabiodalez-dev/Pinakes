@@ -18,10 +18,12 @@ namespace App\Plugins\Archives;
  * RiC-O reference: https://www.ica.org/standards/RiC/ontology
  * RiC-CM reference: https://www.ica.org/standards/RiC/RiC-CM-1.0.html
  *
- * The class is intentionally pure: no DB access, no I/O. Callers fetch
- * rows from `ArchivesPlugin` (which already has dedicated finders and
- * batchers) and pass them in. This keeps the builder unit-testable in
- * isolation and avoids inflating the already-large plugin file.
+ * The class avoids DB access — callers fetch rows from ArchivesPlugin
+ * (which has dedicated finders and batchers) and pass them in. The only
+ * I/O is the optional RDF/XML emission via serializeToRdfXml(), which
+ * writes to an XMLWriter stream the caller provides; the JSON-LD path
+ * remains pure (returns arrays). This keeps the builder unit-testable
+ * in isolation and avoids inflating the already-large plugin file.
  */
 final class RicJsonLdBuilder
 {

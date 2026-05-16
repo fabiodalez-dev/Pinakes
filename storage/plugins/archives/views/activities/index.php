@@ -79,7 +79,7 @@ $typeBadge = [
                     $dend    = (string) ($r['date_end'] ?? '');
                     $ongoing = !empty($r['is_ongoing']);
                     $badge   = $typeBadge[$type] ?? 'bg-gray-100 text-gray-800';
-                    $tLabel  = $typeLabel[$type] ?? $e($type);
+                    $tLabel  = $typeLabel[$type] ?? $type;
                 ?>
                     <tr class="hover:bg-gray-50 border-b">
                         <td class="px-4 py-2 font-mono text-xs text-gray-500">#<?= $rid ?></td>
