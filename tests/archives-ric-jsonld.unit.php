@@ -386,6 +386,116 @@ $iri2 = $builder->agentRelationIri(10, 20, '');
 $check($iri2 === $base . '/archives/agent-relations/10-20-rel',
     'agentRelationIri uses "rel" fallback for empty predicate');
 
+// ── Phase 3 (v0.7.9) — Activities as RiC-CM entities ─────────────────
+// Issue #122 Phase 3: archive_activities + archive_unit_activities.
+
+echo "\nPhase 3 — buildActivity:\n";
+
+$act = $builder->buildActivity([
+    'id' => 5,
+    'title' => 'Corrispondenza diplomatica del Prefetto',
+    'description' => 'Lettere e dispacci 1890-1920',
+    'activity_type' => 'activity',
+    'agent_id' => 3,
+    'parent_id' => 9,
+    'date_start' => '1890',
+    'date_end'   => '1920',
+    'is_ongoing' => 0,
+    'source_ref' => 'RD 9 ottobre 1861 n. 250',
+]);
+$check(($act['@type'] ?? null) === 'ric:Activity',
+    'buildActivity emits @type ric:Activity');
+$check(($act['@id'] ?? null) === $base . '/archives/activities/5',
+    'activity @id follows /archives/activities/{id} pattern');
+$check(($act['rdfs:label']['@value'] ?? null) === 'Corrispondenza diplomatica del Prefetto',
+    'activity rdfs:label carries the title with @language tag');
+$check(($act['ric:name'] ?? null) === 'Corrispondenza diplomatica del Prefetto',
+    'activity ric:name carries the title as plain string');
+$check(($act['ric:descriptiveNote'] ?? null) === 'Lettere e dispacci 1890-1920',
+    'activity description maps to ric:descriptiveNote');
+$check(($act['ric:type'] ?? null) === 'activity',
+    'activity_type column surfaces as ric:type literal');
+$check(($act['ric:hasSource'] ?? null) === 'RD 9 ottobre 1861 n. 250',
+    'source_ref surfaces as ric:hasSource');
+$check(($act['ric:isOrWasPerformedBy']['@id'] ?? null) === $base . '/archives/agents/3',
+    'agent_id emits ric:isOrWasPerformedBy → agent IRI');
+$check(($act['ric:hasOrHadPartOf']['@id'] ?? null) === $base . '/archives/activities/9',
+    'parent_id emits ric:hasOrHadPartOf → parent activity IRI');
+$check(($act['ric:isAssociatedWithDate']['@type'] ?? null) === 'ric:DateRange',
+    'date range emitted as ric:DateRange');
+$check(($act['ric:isAssociatedWithDate']['ric:hasBeginningDate']['@type'] ?? null) === 'xsd:date',
+    'activity dates carry xsd:date @type');
+
+$actOngoing = $builder->buildActivity([
+    'id' => 7, 'title' => 'Ongoing function', 'is_ongoing' => 1,
+]);
+$check(str_contains((string)($actOngoing['ric:descriptiveNote'] ?? ''), '[ongoing]'),
+    'is_ongoing=1 surfaces as [ongoing] note');
+
+// activityIri stability.
+$check($builder->activityIri(42) === $base . '/archives/activities/42',
+    'activityIri composes /archives/activities/{id}');
+
+// Activity → Unit relations
+$actWithUnits = $builder->buildActivity(
+    ['id' => 10, 'title' => 'Census 1881', 'activity_type' => 'function'],
+    [
+        ['unit_id' => 100, 'level' => 'fonds',
+         'constructed_title' => 'Fondo Anagrafe', 'formal_title' => '',
+         'ric_predicate' => 'ric:resultsOrResultedFrom'],
+        ['unit_id' => 101, 'level' => 'series',
+         'constructed_title' => '', 'formal_title' => 'Serie atti',
+         'ric_predicate' => 'ric:isOrWasUsedBy'],
+        // Skipped: bad unit_id.
+        ['unit_id' => 0, 'level' => 'file', 'ric_predicate' => 'ric:isSubjectOf'],
+        // Default predicate when blank.
+        ['unit_id' => 102, 'level' => 'item',
+         'constructed_title' => 'Doc isolato', 'ric_predicate' => ''],
+    ]
+);
+$rels = $actWithUnits['ric:isOrWasRelatedTo'] ?? [];
+$check(count($rels) === 3, 'invalid unit links are skipped');
+$check(($rels[0]['ric:relationHasSource']['@id'] ?? null) === $base . '/archives/activities/10',
+    'activity-side relation source is the activity itself');
+$check(($rels[0]['ric:relationHasTarget']['@type'] ?? null) === 'ric:RecordSet',
+    'activity-side relation target picks the right @type from unit level');
+$check(($rels[0]['ric:relationType'] ?? null) === 'ric:resultsOrResultedFrom',
+    'first unit link carries the explicit predicate');
+$check(($rels[1]['ric:relationHasTarget']['rdfs:label'] ?? null) === 'Serie atti',
+    'unit-link target rdfs:label falls back to formal_title when constructed_title is empty');
+$check(($rels[2]['ric:relationType'] ?? null) === 'ric:resultsOrResultedFrom',
+    'empty predicate defaults to ric:resultsOrResultedFrom');
+
+// Relation @id convergence: unitActivityRelationIri must produce the
+// same IRI regardless of which side called it. This is what lets a
+// graph merge collapse the unit-side and activity-side emissions to
+// a single RDF node.
+$fromActivity = $rels[0]['@id'] ?? '';
+$fromUnit     = $builder->unitActivityRelationIri(100, 10, 'ric:resultsOrResultedFrom');
+$check($fromActivity === $fromUnit,
+    'activity-side and unit-side both produce the same relation IRI for the same (unit, activity, predicate) triple');
+$check(str_ends_with($fromActivity, '100-10-ric-resultsorresultedfrom'),
+    'unit-activity relation IRI slug is unit-activity-predicate (deterministic)');
+
+echo "\nPhase 3 — buildUnit gains activity relations:\n";
+
+$unitWithActs = $builder->buildUnit(
+    ['id' => 200, 'level' => 'fonds', 'constructed_title' => 'Fondo Verga'],
+    [],  // no authorities
+    [],  // no children
+    [
+        ['activity_id' => 5, 'ric_predicate' => 'ric:resultsOrResultedFrom',
+         'title' => 'Catalogo manoscritti', 'activity_type' => 'function'],
+        ['activity_id' => 0, 'ric_predicate' => 'ric:isOrWasUsedBy'],  // skipped
+    ]
+);
+$rels = $unitWithActs['ric:isOrWasRelatedTo'] ?? [];
+$check(count($rels) === 1, 'unit emits one activity relation when one valid link given');
+$check(($rels[0]['ric:relationHasTarget']['@type'] ?? null) === 'ric:Activity',
+    'unit→activity relation target is @type ric:Activity');
+$check(($rels[0]['ric:relationHasTarget']['rdfs:label'] ?? null) === 'Catalogo manoscritti',
+    'activity title appears as rdfs:label on the relation target');
+
 echo "\n================================\n";
 echo "RiC-O JSON-LD checks passed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);

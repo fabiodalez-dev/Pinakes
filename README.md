@@ -24,6 +24,20 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.9
+
+### Archives: RiC-CM Phase 3 — Activities as first-class entities ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+Third milestone of the RiC-CM roadmap. Introduces the ISDF-aligned **Activity** entity — any human or organisational activity that produced, used, or managed archival material. Phase 1 + Phase 2 already gave us records, record sets, and agents; Phase 3 closes the "what happened" side of the RiC-CM triangle.
+
+- **New table `archive_activities`** — first-class Activity entity. Columns: `title`, `description`, `activity_type` (`function` / `activity` / `transaction` / `task` / `mandate` per ISDF terminology), self-referential `parent_id` (so a function can contain activities, an activity can contain transactions), `date_start` / `date_end` / `is_ongoing`, optional `agent_id` FK to `authority_records` (the agent that performed the activity), `place_id` reserved for Phase 4, `source_ref` for the legal/normative citation (e.g. "RD 9 ottobre 1861 n. 250"), full-text index on title + description.
+- **New table `archive_unit_activities`** — M:N link between archival units and activities. The `ric_predicate` column captures the semantics of each link as a RiC-O predicate: `ric:resultsOrResultedFrom` (the unit was produced by the activity, default), `ric:isOrWasUsedBy` (the unit was used during the activity), `ric:isSubjectOf` (the activity is about this unit). Column is VARCHAR so new predicates can be added without a migration.
+- **Two new public endpoints**:
+  - `GET /archives/activities/{id}/ric.json` — RiC-O JSON-LD for one activity, with `ric:Activity` type, `ric:isOrWasPerformedBy` → agent, `ric:hasOrHadPartOf` → parent activity, `ric:isAssociatedWithDate` as `ric:DateRange` (`xsd:date`), and `ric:isOrWasRelatedTo` listing every unit the activity produced / used.
+  - `GET /archives/activities/ric.json` — synthetic `ric:RecordSet` listing every top-level activity (those with `parent_id IS NULL`), suitable for ICA / Europeana harvesting alongside the existing collection.ric.json and agents endpoints.
+- **`/archives/{id}/ric.json` now embeds activity links** — `RicJsonLdBuilder::buildUnit()` accepts a new `$activities` parameter so the unit-side serialisation lists every activity it's connected to. The relation IRI is shared between the unit side and the activity side (`/archives/unit-activity-relations/{unitId}-{activityId}-{predicate-slug}`) so a graph-merge consumer collapses both emissions into a single RDF node.
+- **Migration `migrate_0.7.9.sql`** — idempotent. The CHECK constraint guarding `parent_id <> id` is intentionally absent because MySQL rejects CHECK on a column that's part of a FK referential action (`ON DELETE SET NULL`); the application-layer cycle guard in `activityWouldCreateCycle()` provides the equivalent protection.
+
 ## What's New in v0.7.8
 
 ### Archives: RiC-CM Phase 2 — Agents as first-class entities ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
