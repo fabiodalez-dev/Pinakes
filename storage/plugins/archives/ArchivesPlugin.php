@@ -263,6 +263,9 @@ class ArchivesPlugin
             // RiC-CM Phase 3 (v0.7.9 — issue #122) — Activity entities + M:N to units.
             'archive_activities'         => self::ddlArchiveActivities(),
             'archive_unit_activities'    => self::ddlArchiveUnitActivities(),
+            // RiC-CM Phase 4 (v0.7.10 — issue #122) — Place + polymorphic relations.
+            'archive_places'             => self::ddlArchivePlaces(),
+            'archive_relations'          => self::ddlArchiveRelations(),
         ];
         $created = [];
         $failed = [];
@@ -979,6 +982,24 @@ class ArchivesPlugin
             ResponseInterface $response
         ) use ($plugin): ResponseInterface {
             return $plugin->ricActivitiesListAction($request, $response);
+        });
+
+        // RiC-CM Phase 4 (v0.7.10 — issue #122) — Place entities +
+        // polymorphic relations graph.
+
+        $app->get('/archives/places/{id:[0-9]+}/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricPlaceAction($request, $response, (int) $args['id']);
+        });
+
+        $app->get('/archives/places/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricPlacesListAction($request, $response);
         });
 
         // Import form (GET) + submit (POST multipart/form-data)
@@ -5768,6 +5789,212 @@ class ArchivesPlugin
     }
 
     /**
+     * GET /archives/places/{id}/ric.json — RiC-O JSON-LD for one
+     * archive_places row (RiC-CM Phase 4 — v0.7.10). Public route.
+     */
+    public function ricPlaceAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $lookup = $this->findPlaceForRic($id);
+        if ($lookup['status'] === 'error') {
+            SecureLogger::error('[Archives] ricPlaceAction DB error: ' . $lookup['message']);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+        if ($lookup['status'] === 'missing') {
+            return $this->ricJsonError($response, 404, 'not_found',
+                'Archive place ' . $id . ' does not exist or has been removed.');
+        }
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildPlace($lookup['row']);
+        return $this->ricJsonResponse($response, $doc, $builder->placeIri($id));
+    }
+
+    /**
+     * GET /archives/places/ric.json — synthetic ric:RecordSet listing
+     * every top-level place (parent_id IS NULL). Phase 4 (v0.7.10).
+     */
+    public function ricPlacesListAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $result = $this->db->query(
+            'SELECT id, name, place_type FROM archive_places
+              WHERE parent_id IS NULL AND deleted_at IS NULL
+              ORDER BY place_type, name'
+        );
+        if (!($result instanceof \mysqli_result)) {
+            if ($this->db->errno === 1146) {
+                $rows = [];
+            } else {
+                SecureLogger::error('[Archives] ricPlacesListAction DB error: ' . $this->db->error);
+                return $this->ricJsonError($response, 500, 'persistence_error',
+                    'A persistence error prevented the request from being served.');
+            }
+        } else {
+            $rows = [];
+            while ($r = $result->fetch_assoc()) {
+                $rows[] = $r;
+            }
+            $result->free();
+        }
+
+        $builder = $this->makeRicBuilder();
+        $parts   = [];
+        foreach ($rows as $r) {
+            $pid = (int) ($r['id'] ?? 0);
+            if ($pid <= 0) {
+                continue;
+            }
+            $node = ['@id' => $builder->placeIri($pid), '@type' => 'ric:Place'];
+            $name = (string) ($r['name'] ?? '');
+            if ($name !== '') { $node['rdfs:label'] = $name; }
+            $pt = (string) ($r['place_type'] ?? '');
+            if ($pt !== '')   { $node['ric:type']   = $pt; }
+            $parts[] = $node;
+        }
+        $base = rtrim(absoluteUrl(''), '/');
+        $doc = [
+            '@context'         => $builder->context(),
+            '@id'              => $base . '/archives/places/ric.json',
+            '@type'            => 'ric:RecordSet',
+            'rdfs:label'       => ['@value' => 'Archival places', '@language' => 'en'],
+            'ric:title'        => 'Archival places',
+            'ric:hasOrHadPart' => $parts,
+        ];
+        return $this->ricJsonResponse($response, $doc, $base . '/archives/places/ric.json');
+    }
+
+    /**
+     * Phase 4 (v0.7.10): place lookup with discriminated-union return
+     * for consistent 404/500 separation (CodeRabbit R2 pattern).
+     *
+     * @return array{status:'found',row:array<string,mixed>}|array{status:'missing'}|array{status:'error',message:string}
+     */
+    private function findPlaceForRic(int $id): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archive_places WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return ['status' => 'missing'];  // table not yet created
+            }
+            return ['status' => 'error', 'message' => $this->db->error];
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err];
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err !== '' ? $err : 'get_result returned false'];
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        $stmt->close();
+        return is_array($row)
+            ? ['status' => 'found', 'row' => $row]
+            : ['status' => 'missing'];
+    }
+
+    /**
+     * Phase 4 (v0.7.10): polymorphic-relations referential integrity.
+     * Returns true when both endpoints (source and target) exist as
+     * non-deleted rows in their respective entity tables. Used by
+     * the admin form before INSERTing into archive_relations.
+     */
+    public function validateRelationEndpoints(
+        string $sourceType, int $sourceId,
+        string $targetType, int $targetId
+    ): bool {
+        $tableMap = [
+            'archival_unit'    => 'archival_units',
+            'authority_record' => 'authority_records',
+            'archive_activity' => 'archive_activities',
+            'archive_place'    => 'archive_places',
+        ];
+        foreach ([[$sourceType, $sourceId], [$targetType, $targetId]] as [$type, $id]) {
+            $table = $tableMap[$type] ?? null;
+            if ($table === null || $id <= 0) {
+                return false;
+            }
+            $stmt = $this->db->prepare(
+                "SELECT 1 FROM `{$table}` WHERE id = ? AND deleted_at IS NULL LIMIT 1"
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('i', $id);
+            if (!$stmt->execute()) {
+                $stmt->close();
+                return false;
+            }
+            $result = $stmt->get_result();
+            $found  = ($result instanceof \mysqli_result) && $result->fetch_row() !== null;
+            if ($result instanceof \mysqli_result) {
+                $result->free();
+            }
+            $stmt->close();
+            if (!$found) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Phase 4 (v0.7.10): fetch every polymorphic relation where the
+     * given entity appears as either source or target. Returns rows
+     * directly usable by RicJsonLdBuilder::buildRelationNode. The
+     * caller passes the canonical entity_type string used in the
+     * archive_relations ENUM column.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function fetchRelationsForEntity(string $entityType, int $entityId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archive_relations
+              WHERE (source_type = ? AND source_id = ?)
+                 OR (target_type = ? AND target_id = ?)
+              ORDER BY id'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $rows;  // pre-Phase-4 install — degrade silently
+            }
+            throw new \RuntimeException(
+                '[Archives] fetchRelationsForEntity prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('sisi', $entityType, $entityId, $entityType, $entityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] fetchRelationsForEntity execute failed: ' . $err
+            );
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
      * RiC-CM Phase 3 (v0.7.9): for one archival unit, fetch every
      * linked activity with its title + type so buildUnit can embed
      * the ric:relationHasTarget label inline. Same silent-degrade /
@@ -7979,6 +8206,82 @@ class ArchivesPlugin
                 FOREIGN KEY (unit_id)     REFERENCES archival_units(id)     ON DELETE CASCADE,
             CONSTRAINT fk_ua_activity
                 FOREIGN KEY (activity_id) REFERENCES archive_activities(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_places` (RiC-CM Phase 4 — v0.7.10).
+     *
+     * First-class Place entity (RiC-CM §3.5). Lat/lng for map display,
+     * GeoNames / Wikidata / Getty TGN identifiers for external linking,
+     * self-referential parent_id for the place hierarchy
+     * (Catania → Sicilia → Italia).
+     */
+    public static function ddlArchivePlaces(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_places (
+            id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name         VARCHAR(500) NOT NULL,
+            place_type   ENUM('country','region','province','municipality','locality','building','room','geographic_feature','other') NOT NULL DEFAULT 'locality',
+            parent_id    BIGINT UNSIGNED NULL,
+            latitude     DECIMAL(10,7) NULL,
+            longitude    DECIMAL(10,7) NULL,
+            geonames_id  VARCHAR(20)   NULL,
+            wikidata_id  VARCHAR(20)   NULL,
+            tgn_id       VARCHAR(20)   NULL,
+            description  TEXT          NULL,
+            date_start   VARCHAR(20)   NULL,
+            date_end     VARCHAR(20)   NULL,
+            created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            deleted_at   TIMESTAMP NULL,
+            PRIMARY KEY (id),
+            KEY idx_parent (parent_id),
+            KEY idx_place_type (place_type),
+            KEY idx_geonames (geonames_id),
+            KEY idx_wikidata (wikidata_id),
+            KEY idx_deleted (deleted_at),
+            FULLTEXT KEY ft_place_search (name, description),
+            CONSTRAINT fk_place_parent FOREIGN KEY (parent_id)
+                REFERENCES archive_places(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_relations` (RiC-CM Phase 4 — v0.7.10).
+     *
+     * Polymorphic N:M relations between any two RiC-CM entities. No
+     * FK on source_id/target_id because MySQL can't reference "one of
+     * several tables" — referential integrity is enforced by the
+     * application layer (validateRelationEndpoints) and by the
+     * archive_relations sweep on hard-deletes.
+     */
+    public static function ddlArchiveRelations(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_relations (
+            id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            source_type   ENUM('archival_unit','authority_record','archive_activity','archive_place') NOT NULL,
+            source_id     BIGINT UNSIGNED NOT NULL,
+            target_type   ENUM('archival_unit','authority_record','archive_activity','archive_place') NOT NULL,
+            target_id     BIGINT UNSIGNED NOT NULL,
+            ric_predicate VARCHAR(128) NOT NULL,
+            qualifier     VARCHAR(500) NULL,
+            certainty     ENUM('certain','probable','uncertain') NOT NULL DEFAULT 'certain',
+            date_start    VARCHAR(20)  NULL,
+            date_end      VARCHAR(20)  NULL,
+            source_ref    VARCHAR(500) NULL,
+            created_by    BIGINT UNSIGNED NULL,
+            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_relation (source_type, source_id, target_type, target_id, ric_predicate),
+            KEY idx_source (source_type, source_id),
+            KEY idx_target (target_type, target_id),
+            KEY idx_predicate (ric_predicate)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         SQL;
     }

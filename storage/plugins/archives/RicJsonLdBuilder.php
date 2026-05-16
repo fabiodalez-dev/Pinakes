@@ -780,6 +780,174 @@ final class RicJsonLdBuilder
     }
 
     /**
+     * Phase 4 (v0.7.10): IRI for an `archive_places` row.
+     */
+    public function placeIri(int $id): string
+    {
+        return $this->baseUrl . '/archives/places/' . $id;
+    }
+
+    /**
+     * Phase 4 (v0.7.10): build a RiC-O Place document.
+     *
+     * @param array<string, mixed> $place Row from `archive_places`.
+     * @return array<string, mixed>
+     */
+    public function buildPlace(array $place): array
+    {
+        $id       = (int) ($place['id'] ?? 0);
+        $entityId = $this->placeIri($id);
+
+        $doc = [
+            '@context' => $this->context(),
+            '@id'      => $entityId,
+            '@type'    => 'ric:Place',
+        ];
+
+        $name = $this->str($place, 'name');
+        if ($name !== '') {
+            $doc['rdfs:label'] = ['@value' => $name, '@language' => $this->lang];
+            $doc['ric:name']   = $name;
+        }
+
+        $placeType = $this->str($place, 'place_type');
+        if ($placeType !== '') {
+            $doc['ric:type'] = $placeType;
+        }
+
+        $description = $this->str($place, 'description');
+        if ($description !== '') {
+            $doc['ric:descriptiveNote'] = $description;
+        }
+
+        // Lat/lng as a WGS84 geometry node — non-standard RiC-O but a
+        // common LD pattern; consumers that don't know the wkt
+        // namespace ignore it safely.
+        $lat = $place['latitude']  ?? null;
+        $lng = $place['longitude'] ?? null;
+        if ($lat !== null && $lng !== null) {
+            $doc['ric:hasOrHadCoordinate'] = [
+                '@type' => 'ric:CoordinateLocation',
+                'ric:latitude'  => (float) $lat,
+                'ric:longitude' => (float) $lng,
+            ];
+        }
+
+        // External LOD links.
+        $sameAs = [];
+        $gn  = $this->str($place, 'geonames_id');
+        $wd  = $this->str($place, 'wikidata_id');
+        $tgn = $this->str($place, 'tgn_id');
+        if ($gn  !== '') { $sameAs[] = ['@id' => 'https://www.geonames.org/' . $gn]; }
+        if ($wd  !== '') { $sameAs[] = ['@id' => 'https://www.wikidata.org/entity/' . $wd]; }
+        if ($tgn !== '') { $sameAs[] = ['@id' => 'http://vocab.getty.edu/page/tgn/' . $tgn]; }
+        if (!empty($sameAs)) {
+            $doc['owl:sameAs'] = count($sameAs) === 1 ? $sameAs[0] : $sameAs;
+        }
+
+        // Parent place reference (catania → sicilia → italia).
+        $parentId = $this->intOrNull($place['parent_id'] ?? null);
+        if ($parentId !== null && $parentId > 0) {
+            $doc['ric:isOrWasIncludedIn'] = ['@id' => $this->placeIri($parentId)];
+        }
+
+        // Historical date range (kingdoms, abolished provinces).
+        $start = $this->str($place, 'date_start');
+        $end   = $this->str($place, 'date_end');
+        if ($start !== '' || $end !== '') {
+            $dateNode = ['@type' => 'ric:DateRange'];
+            if ($start !== '') {
+                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => 'xsd:date'];
+            }
+            if ($end !== '') {
+                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => 'xsd:date'];
+            }
+            $doc['ric:isAssociatedWithDate'] = $dateNode;
+        }
+
+        return $doc;
+    }
+
+    /**
+     * Phase 4 (v0.7.10): convert one polymorphic `archive_relations`
+     * row into a ric:Relation node. Returns null when the row is
+     * unparseable (missing types or ids), so the caller can drop
+     * malformed entries without crashing.
+     *
+     * @param array<string, mixed> $row Row from `archive_relations`.
+     * @return array<string, mixed>|null
+     */
+    public function buildRelationNode(array $row): ?array
+    {
+        $srcType = (string) ($row['source_type'] ?? '');
+        $srcId   = (int) ($row['source_id'] ?? 0);
+        $tgtType = (string) ($row['target_type'] ?? '');
+        $tgtId   = (int) ($row['target_id'] ?? 0);
+        $pred    = (string) ($row['ric_predicate'] ?? '');
+        if ($srcType === '' || $srcId <= 0 || $tgtType === '' || $tgtId <= 0 || $pred === '') {
+            return null;
+        }
+
+        $srcIri = $this->iriForEntity($srcType, $srcId);
+        $tgtIri = $this->iriForEntity($tgtType, $tgtId);
+        if ($srcIri === null || $tgtIri === null) {
+            return null;
+        }
+
+        $relId = (int) ($row['id'] ?? 0);
+        $node = [
+            '@id'                   => $this->baseUrl . '/archives/relations/' . $relId,
+            '@type'                 => 'ric:Relation',
+            'ric:relationType'      => $pred,
+            'ric:relationHasSource' => ['@id' => $srcIri],
+            'ric:relationHasTarget' => ['@id' => $tgtIri],
+        ];
+
+        $qual = $this->str($row, 'qualifier');
+        if ($qual !== '') {
+            $node['ric:descriptiveNote'] = $qual;
+        }
+        $certainty = $this->str($row, 'certainty');
+        if ($certainty !== '' && $certainty !== 'certain') {
+            $node['ric:certainty'] = $certainty;
+        }
+        $sref = $this->str($row, 'source_ref');
+        if ($sref !== '') {
+            $node['ric:hasSource'] = $sref;
+        }
+        $start = $this->str($row, 'date_start');
+        $end   = $this->str($row, 'date_end');
+        if ($start !== '' || $end !== '') {
+            $dateNode = ['@type' => 'ric:DateRange'];
+            if ($start !== '') {
+                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => 'xsd:date'];
+            }
+            if ($end !== '') {
+                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => 'xsd:date'];
+            }
+            $node['ric:isAssociatedWithDate'] = $dateNode;
+        }
+
+        return $node;
+    }
+
+    /**
+     * Phase 4 (v0.7.10): build the entity IRI for a polymorphic
+     * relation endpoint. Returns null when the entity_type is not
+     * one of the four known RiC-CM types.
+     */
+    private function iriForEntity(string $type, int $id): ?string
+    {
+        switch ($type) {
+            case 'archival_unit':    return $this->unitIri($id);
+            case 'authority_record': return $this->agentIri($id);
+            case 'archive_activity': return $this->activityIri($id);
+            case 'archive_place':    return $this->placeIri($id);
+            default:                 return null;
+        }
+    }
+
+    /**
      * Phase 3 (v0.7.9): deterministic IRI for the unit ↔ activity
      * relation. Same convergence guarantee as relationIri: the unit
      * side (buildUnit) and the activity side (buildActivity) emit

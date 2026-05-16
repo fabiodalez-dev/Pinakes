@@ -24,6 +24,22 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.10
+
+### Archives: RiC-CM Phase 4 — Places + polymorphic Relations graph ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+Fourth phase of the RiC-CM roadmap. With Phases 1-3 we modelled three of the five RiC-CM entity types (Record/RecordSet, Agent, Activity). Phase 4 introduces the fourth — **Place** — and the **generic polymorphic Relations** backbone that lets any pair of entities carry a typed RiC-O predicate. The model is now complete on the entity side.
+
+- **New table `archive_places`** — first-class Place entity (RiC-CM §3.5). `name` + `place_type` ENUM (country / region / province / municipality / locality / building / room / geographic_feature / other), self-referential `parent_id` for the place hierarchy (Catania → Sicilia → Italia), optional `latitude` / `longitude` for map display, optional `geonames_id` / `wikidata_id` / `tgn_id` for external Linked Data identifiers, optional `date_start` / `date_end` for historical places (e.g. "Regno delle Due Sicilie", 1816-1861). Full-text index on `name + description`.
+- **New table `archive_relations`** — **polymorphic** N:M relations between any two RiC-CM entities. Both endpoints (`source_type`+`source_id` and `target_type`+`target_id`) reference one of four entity types: `archival_unit`, `authority_record`, `archive_activity`, `archive_place`. The `ric_predicate` column is VARCHAR so RiC-O's open vocabulary can grow without migrations. Common predicates: `ric:isOrWasLocatedAt`, `ric:isOrWasResidentAt`, `ric:isOrWasPerformedAt`, `ric:isOrWasIncludedIn`. Each row carries optional `qualifier`, `certainty` (certain/probable/uncertain), `date_start`/`date_end` for temporal validity, `source_ref` for the documentary citation, and `created_by` to track curatorial provenance.
+- **Why polymorphic, not 16 specialised link tables** — RiC-O has dozens of inter-entity predicates. One link table per (source, target, predicate) triple would explode the schema and add a migration on every new predicate. Polymorphic source/target keeps the schema compact; the application-layer validator (`validateRelationEndpoints`) checks both endpoints exist and are not soft-deleted before INSERT.
+- **Two new public endpoints**:
+  - `GET /archives/places/{id}/ric.json` — RiC-O JSON-LD for one place. Emits `ric:Place`, `ric:CoordinateLocation` from lat/lng, `owl:sameAs` to GeoNames / Wikidata / Getty TGN, `ric:isOrWasIncludedIn` to the parent place, and `ric:isAssociatedWithDate` for historical date ranges.
+  - `GET /archives/places/ric.json` — synthetic `ric:RecordSet` listing every top-level place (those with `parent_id IS NULL`), suitable for harvesting alongside the existing collection / agents / activities endpoints.
+- **`RicJsonLdBuilder::buildRelationNode()`** — new method that renders any `archive_relations` row as a `ric:Relation` JSON-LD node with deterministic `@id` (`/archives/relations/{row.id}`), `ric:relationHasSource` and `ric:relationHasTarget` resolved via the central `iriForEntity()` switch. Returns `null` on malformed input — no exception — so callers can drop bad rows from the output without crashing the whole response.
+- **`validateRelationEndpoints(sourceType, sourceId, targetType, targetId)`** — application-layer integrity check used by the admin form before inserting into `archive_relations`. Verifies both endpoints exist and are not soft-deleted; the polymorphic column shape makes a SQL FK impossible.
+- **Migration `migrate_0.7.10.sql`** — idempotent. `archive_places.parent_id` self-cycle guards live in the application layer (MySQL forbids CHECK on a column that's part of an `ON DELETE SET NULL` FK action, same constraint encountered in Phase 3).
+
 ## What's New in v0.7.9
 
 ### Archives: RiC-CM Phase 3 — Activities as first-class entities ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
