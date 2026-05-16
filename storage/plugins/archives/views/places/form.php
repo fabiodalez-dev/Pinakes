@@ -56,7 +56,7 @@ $typeLabel = [
     <?php endif; ?>
 
     <form method="POST" action="<?= $e($formAction) ?>" class="bg-white shadow rounded-lg p-6 space-y-5">
-        <input type="hidden" name="_token" value="<?= $e($_SESSION['csrf_token'] ?? '') ?>">
+        <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
         <div>
             <label for="name" class="form-label">

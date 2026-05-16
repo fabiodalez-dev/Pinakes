@@ -7035,8 +7035,10 @@ class ArchivesPlugin
         $parent = $values['parent_id'];
         $lat    = $values['latitude'];
         $lng    = $values['longitude'];
+        // 11 placeholders → 11 type-chars (s name, s place_type, i parent,
+        // d latitude, d longitude, then 6×s for geonames/wikidata/tgn/desc/date_start/date_end).
         $stmt->bind_param(
-            'ssiddsssssss',
+            'ssiddssssss',
             $values['name'], $values['place_type'], $parent, $lat, $lng,
             $values['geonames_id'], $values['wikidata_id'], $values['tgn_id'],
             $values['description'], $values['date_start'], $values['date_end']

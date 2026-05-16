@@ -50,7 +50,7 @@ $typeLabel = [
                     <?= __('Modifica') ?>
                 </a>
                 <form method="POST" action="<?= $e(url('/admin/archives/activities/' . $id . '/delete')) ?>" class="inline">
-                    <input type="hidden" name="_token" value="<?= $e($_SESSION['csrf_token'] ?? '') ?>">
+                    <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                     <button type="submit"
                             onclick="return confirm('<?= $e(__('Eliminare questa attività?')) ?>')"
                             class="bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded text-sm font-semibold">
