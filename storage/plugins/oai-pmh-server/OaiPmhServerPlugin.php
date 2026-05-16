@@ -771,11 +771,30 @@ class OaiPmhServerPlugin
             $entityType = (string) ($resolved['_entity'] ?? 'book');
         }
 
+        // Phase 6: `ric-o` is only meaningful when the Archives plugin
+        // is active AND the archival_units table exists — same gate as
+        // the `archives` setSpec. If the gate is closed we strip the
+        // format from the discovery response entirely so harvesters
+        // don't probe an endpoint that will respond cannotDisseminate.
+        $ricExposed = $this->isArchivesSetExposed();
+
         $xw->startElement('ListMetadataFormats');
 
         foreach ($this->metadataFormats() as $fmt) {
-            // archival_unit records only support oai_dc in this endpoint.
-            if ($entityType === 'archival_unit' && $fmt['prefix'] !== 'oai_dc') {
+            // archival_unit records support oai_dc and (when archives is
+            // active) ric-o. All other formats are book-only.
+            if ($entityType === 'archival_unit'
+                && $fmt['prefix'] !== 'oai_dc'
+                && $fmt['prefix'] !== 'ric-o') {
+                continue;
+            }
+            // Inverse: book identifiers MUST NOT advertise ric-o.
+            if ($entityType === 'book' && $fmt['prefix'] === 'ric-o') {
+                continue;
+            }
+            // No identifier filter: hide ric-o globally when archives
+            // plugin is inactive (avoid advertising a deadlock format).
+            if ($entityType === null && $fmt['prefix'] === 'ric-o' && !$ricExposed) {
                 continue;
             }
             $xw->startElement('metadataFormat');
@@ -818,6 +837,15 @@ class OaiPmhServerPlugin
                 'prefix'    => 'unimarc',
                 'schema'    => self::SCHEMA_MARCXCHANGE,
                 'namespace' => self::NS_MARCXCHANGE,
+            ],
+            // Phase 6 (v0.8.0): RiC-O is exposed as a metadataPrefix for
+            // archival_unit records. The schema URL is the ICA-hosted
+            // OWL ontology document; clients perform shape validation
+            // out-of-band since RDF/XML is not XSD-validatable.
+            [
+                'prefix'    => 'ric-o',
+                'schema'    => 'https://www.ica.org/standards/RiC/RiC-O_v1-0.rdf',
+                'namespace' => 'https://www.ica.org/standards/RiC/ontology#',
             ],
         ];
     }
@@ -924,7 +952,7 @@ class OaiPmhServerPlugin
             $cursor = 0;
         }
 
-        $validPrefixes = ['oai_dc', 'marcxml', 'mods', 'mag', 'unimarc'];
+        $validPrefixes = ['oai_dc', 'marcxml', 'mods', 'mag', 'unimarc', 'ric-o'];
         if ($metadataPrefix === '' || !in_array($metadataPrefix, $validPrefixes, true)) {
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The metadata format identified by the value given for the metadataPrefix '
@@ -952,9 +980,15 @@ class OaiPmhServerPlugin
             return;
         }
 
-        if ($set === 'archives' && $metadataPrefix !== 'oai_dc') {
+        if ($set === 'archives' && $metadataPrefix !== 'oai_dc' && $metadataPrefix !== 'ric-o') {
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The requested metadataPrefix is not supported for archival_unit records in this repository.');
+            return;
+        }
+        // ric-o on the books set is meaningless — agents/units are archival entities.
+        if ($set === 'books' && $metadataPrefix === 'ric-o') {
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'metadataPrefix=ric-o is only available for archival_unit records (set=archives).');
             return;
         }
 
@@ -969,7 +1003,20 @@ class OaiPmhServerPlugin
 
         // Build the combined result set: active records + persistent deletions.
         // Non-DC formats are only available for book records on the unified endpoint.
-        $fetchSet = ($set === '' && $metadataPrefix !== 'oai_dc') ? 'books' : $set;
+        // ric-o is archival_unit-only; oai_dc is the only book/archives
+        // shared format. For everything else default to the books set
+        // when no explicit set was supplied.
+        if ($set === '') {
+            if ($metadataPrefix === 'ric-o') {
+                $fetchSet = 'archives';
+            } elseif ($metadataPrefix === 'oai_dc') {
+                $fetchSet = '';
+            } else {
+                $fetchSet = 'books';
+            }
+        } else {
+            $fetchSet = $set;
+        }
         $records = $this->fetchRecordsPage($fetchSet, $fromMysql, $untilMysql, $cursor, self::PAGE_SIZE + 1);
 
         // Determine whether there's a next page.
@@ -1071,7 +1118,7 @@ class OaiPmhServerPlugin
             return;
         }
 
-        $validPrefixes = ['oai_dc', 'marcxml', 'mods', 'mag', 'unimarc'];
+        $validPrefixes = ['oai_dc', 'marcxml', 'mods', 'mag', 'unimarc', 'ric-o'];
         if (!in_array($metadataPrefix, $validPrefixes, true)) {
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The metadata format identified by the value given for the metadataPrefix '
@@ -1100,9 +1147,16 @@ class OaiPmhServerPlugin
             return;
         }
 
-        if ($rec['_entity'] === 'archival_unit' && $metadataPrefix !== 'oai_dc') {
+        if ($rec['_entity'] === 'archival_unit'
+            && $metadataPrefix !== 'oai_dc'
+            && $metadataPrefix !== 'ric-o') {
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The requested metadataPrefix is not supported for archival_unit records in this repository.');
+            return;
+        }
+        if ($rec['_entity'] === 'book' && $metadataPrefix === 'ric-o') {
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'metadataPrefix=ric-o is only available for archival_unit records.');
             return;
         }
 
@@ -1965,9 +2019,131 @@ class OaiPmhServerPlugin
             return;
         }
 
-        // Non-oai_dc formats are not supported for archival units in this OAI endpoint.
-        // The archives plugin's /archives/oai endpoint handles richer formats.
+        // Phase 6 (v0.8.0): RiC-O as RDF/XML for archival units.
+        if ($metadataPrefix === 'ric-o') {
+            $this->writeArchivalUnitRicO($xw, $rec);
+            return;
+        }
+
+        // Non-supported formats fall through to cannotDisseminateFormat.
         throw new CannotDisseminateFormatException($metadataPrefix);
+    }
+
+    /**
+     * Phase 6: emit a RiC-O RDF/XML payload for one archival_unit row.
+     *
+     * Delegates the JSON-LD shape to the Archives plugin's
+     * RicJsonLdBuilder (single source of truth for ICA semantics) and
+     * canonicalises it to RDF/XML through the builder's serialiser.
+     *
+     * Per-record cost: ~3 short prepared queries (authorities + direct
+     * children + activities) plus the in-memory tree walk. We re-issue
+     * the queries per-record rather than batching because OAI-PMH
+     * `ric-o` harvests are expected to be small (one fonds tree at a
+     * time, typically).
+     *
+     * @param array<string, mixed> $rec
+     */
+    private function writeArchivalUnitRicO(\XMLWriter $xw, array $rec): void
+    {
+        $unitId = (int) ($rec['id'] ?? 0);
+        if ($unitId <= 0) {
+            throw new CannotDisseminateFormatException('ric-o');
+        }
+
+        $builderClass = '\\App\\Plugins\\Archives\\RicJsonLdBuilder';
+        if (!class_exists($builderClass, false)) {
+            $builderFile = dirname(__DIR__) . '/archives/RicJsonLdBuilder.php';
+            if (!is_file($builderFile)) {
+                throw new CannotDisseminateFormatException('ric-o');
+            }
+            require_once $builderFile;
+        }
+
+        $authorities = $this->fetchAuthoritiesForArchivalUnitRic($unitId);
+        $children    = $this->fetchDirectChildrenForRic($unitId);
+
+        $baseUrl = function_exists('absoluteUrl')
+            ? rtrim((string) \absoluteUrl(''), '/')
+            : '';
+        $locale  = getenv('APP_LOCALE') ?: 'it';
+
+        /** @var \App\Plugins\Archives\RicJsonLdBuilder $builder */
+        $builder = new $builderClass($baseUrl, $locale);
+        $doc     = $builder->buildUnit($rec, $authorities, $children);
+
+        $xw->startElementNs('rdf', 'RDF', 'http://www.w3.org/1999/02/22-rdf-syntax-ns#');
+        $xw->writeAttributeNs('xmlns', 'rdfs', null, $builderClass::NS_RDFS);
+        $xw->writeAttributeNs('xmlns', 'xsd',  null, $builderClass::NS_XSD);
+        $xw->writeAttributeNs('xmlns', 'owl',  null, $builderClass::NS_OWL);
+        $xw->writeAttributeNs('xmlns', 'ric',  null, $builderClass::NS_RIC);
+
+        $builder->serializeToRdfXml($doc, $xw);
+
+        $xw->endElement(); // rdf:RDF
+    }
+
+    /**
+     * Load Phase 2 authority rows linked to an archival unit, in the
+     * shape RicJsonLdBuilder::buildUnit expects (id, type, authorised_form,
+     * dates_of_existence, role). Returns [] on any error — the surrounding
+     * caller will simply emit a unit with no agent relations rather than
+     * failing the whole OAI response.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchAuthoritiesForArchivalUnitRic(int $unitId): array
+    {
+        // NOTE: link table is `archival_unit_authority` (singular) — same
+        // shape ArchivesPlugin::fetchAuthoritiesForArchivalUnit uses.
+        $sql = "SELECT a.id, a.type, a.authorised_form, a.dates_of_existence, l.role
+                  FROM archival_unit_authority l
+                  JOIN authority_records a ON a.id = l.authority_id
+                 WHERE l.archival_unit_id = ?
+                   AND a.deleted_at IS NULL
+                 ORDER BY l.role, a.authorised_form";
+        $stmt = $this->db->prepare($sql);
+        if (!$stmt) {
+            return [];
+        }
+        $stmt->bind_param('i', $unitId);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            return [];
+        }
+        $res = $stmt->get_result();
+        $rows = $res instanceof \mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * Load direct children of an archival_unit for inclusion as
+     * ric:hasOrHadPart references. We only need id+level+titles —
+     * the children themselves serve their own OAI record on harvest.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchDirectChildrenForRic(int $unitId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, level, constructed_title, formal_title
+               FROM archival_units
+              WHERE parent_id = ? AND deleted_at IS NULL
+              ORDER BY reference_code'
+        );
+        if (!$stmt) {
+            return [];
+        }
+        $stmt->bind_param('i', $unitId);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            return [];
+        }
+        $res = $stmt->get_result();
+        $rows = $res instanceof \mysqli_result ? $res->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+        return $rows;
     }
 
     // ── Identifier resolution ─────────────────────────────────────────────────

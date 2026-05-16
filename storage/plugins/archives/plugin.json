@@ -2,14 +2,14 @@
   "name": "archives",
   "display_name": "Archives (ISAD(G) / ISAAR(CPF) / RiC-O)",
   "description": "Gestione di materiale archivistico e fotografico seguendo gli standard internazionali ISAD(G) (General International Standard Archival Description), ISAAR(CPF) (authority record per persone, enti, famiglie) e RiC-O (Records in Contexts Ontology, ICA 2023). Modello gerarchico a 4 livelli — Fondo → Serie → Fascicolo → Unità — con export Linked Data RiC-O JSON-LD per harvester ICA, Europeana, ArchivesPortalEurope. Ispirato al formato ABA (Arbejderbevægelsens Bibliotek og Arkiv, Copenhagen) e a ARKIS II degli Archivi Nazionali Svedesi.",
-  "version": "1.3.0",
-  "changelog": "v1.3.0: Phase 1 of RiC-CM support (issue #122) — read-only RiC-O JSON-LD export on /archives/{id}/ric.json, /archives/agents/{id}/ric.json, /archives/collection.ric.json; HTTP Link header + IIIF seeAlso cross-references; no DB changes. Subsequent Phases 2-6 land in the same PR and the version + requires_app are bumped once at the final commit so the PR ships as a single release.",
+  "version": "1.5.0",
+  "changelog": "v1.5.0 (Pinakes 0.8.0): full RiC-CM (Records in Contexts Conceptual Model, ICA 2023) support — Phase 1 read-only RiC-O JSON-LD export on /archives/{id}/ric.json, /archives/agents/{id}/ric.json, /archives/collection.ric.json (HTTP Link header + IIIF seeAlso cross-references); Phase 2 agents as first-class entities (authority_records extended with ric_type / identifier_uri / dates of existence and dedicated tables for agent relations and external identifiers); Phase 3 activities as first-class entities (archive_activities + archive_unit_activities aligned with ISDF — Function / Activity / Transaction / Task / Mandate); Phase 4 places + polymorphic relations graph (archive_places — Country/Region/Province/Municipality/Locality/Building/Room/GeographicFeature — plus archive_relations whose source/target ENUM covers archival_unit, authority_record, archive_activity, archive_place); Phase 5 native admin UI for activities, places and relations with autocomplete (/api/archives/entities); Phase 6 OAI-PMH metadataPrefix=ric-o emitting canonical RDF/XML for archival_unit records.",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://github.com/fabiodalez-dev/Pinakes/issues/103",
   "main_file": "wrapper.php",
   "requires_php": "8.1",
-  "requires_app": "0.7.7",
+  "requires_app": "0.8.0",
   "metadata": {
     "category": "archives",
     "tags": [
@@ -29,12 +29,16 @@
     "features": [
       "Modello gerarchico a 4 livelli (Fonds / Series / File / Item)",
       "Mapping completo ISAD(G) 3.1-3.7 → campi MARC-like",
-      "Authority records ISAAR(CPF) per persone/enti/famiglie",
+      "Authority records ISAAR(CPF) + RiC-CM agents (Person / CorporateBody / Family / Position / Group)",
+      "Attività ISDF (Function / Activity / Transaction / Task / Mandate) collegabili a unità e agenti",
+      "Luoghi RiC-CM (paesi/regioni/comuni/edifici) con identificativi GeoNames / Wikidata / Getty TGN",
+      "Grafo polimorfico delle relazioni fra unità, agenti, attività e luoghi",
       "Unified search cross-entity (libri + archivi + authority)",
       "Import/export MARCXML (formato ABA / MARC21 Slim) + validazione XSD",
       "SRU 1.2 endpoint (explain / searchRetrieve / scan) per federated search",
       "Materiale fotografico e audiovisivo (ABA billedmarc — 15 codici material-form)",
-      "Export RiC-O JSON-LD (Records in Contexts Ontology, ICA 2023) per harvester Linked Data"
+      "Export RiC-O JSON-LD (Records in Contexts Ontology, ICA 2023) per harvester Linked Data",
+      "OAI-PMH metadataPrefix=ric-o (RDF/XML) per harvester archivistici"
     ],
     "optional": true,
     "status": "phase-7",

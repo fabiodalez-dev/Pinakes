@@ -1185,4 +1185,149 @@ final class RicJsonLdBuilder
         }
         return $normalised;
     }
+
+    /**
+     * Phase 6 — RiC-O OAI-PMH support.
+     *
+     * Serialise a JSON-LD compact document (as produced by buildUnit /
+     * buildAuthority / buildActivity / buildPlace / buildCollection) into
+     * canonical RDF/XML on the provided XMLWriter. Caller is responsible
+     * for opening the surrounding `<rdf:RDF>` element + namespace
+     * declarations and for closing it afterwards — this method emits
+     * one or more `<rico:Foo rdf:about="...">…</rico:Foo>` subjects.
+     *
+     * Mapping rules:
+     *   - top-level `@graph` ⇒ emit one subject per array entry
+     *   - `@id` ⇒ `rdf:about` (root) or `rdf:resource` (object reference)
+     *   - `@type` ⇒ tag name for the subject element (CURIE expanded
+     *     against the document's @context)
+     *   - scalar string ⇒ `<prefix:local>value</prefix:local>`
+     *   - `{"@value":"x","@language":"it"}` ⇒
+     *     `<prefix:local xml:lang="it">x</prefix:local>`
+     *   - `{"@value":"x","@type":"xsd:gYear"}` ⇒
+     *     `<prefix:local rdf:datatype="…">x</prefix:local>`
+     *   - `{"@id":"…"}` ⇒
+     *     `<prefix:local rdf:resource="…"/>`
+     *   - nested object with `@type` but no `@id` ⇒ blank node nested
+     *     inside the property element
+     *   - array of values ⇒ repeat the property element once per item
+     *
+     * Unknown @type CURIEs fall back to `rdf:Description`.
+     *
+     * @param array<string, mixed> $doc JSON-LD document to serialise.
+     */
+    public function serializeToRdfXml(array $doc, \XMLWriter $xw): void
+    {
+        $context = isset($doc['@context']) && is_array($doc['@context'])
+            ? $doc['@context']
+            : $this->context();
+
+        if (isset($doc['@graph']) && is_array($doc['@graph'])) {
+            foreach ($doc['@graph'] as $node) {
+                if (is_array($node)) {
+                    $this->writeRdfSubject($xw, $node, $context);
+                }
+            }
+            return;
+        }
+        $this->writeRdfSubject($xw, $doc, $context);
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, string> $context
+     */
+    private function writeRdfSubject(\XMLWriter $xw, array $node, array $context): void
+    {
+        [$ns, $local] = $this->expandCurie((string) ($node['@type'] ?? 'rdf:Description'), $context);
+
+        $xw->startElement(($ns['prefix'] === '' ? '' : $ns['prefix'] . ':') . $local);
+        if (!empty($node['@id'])) {
+            $xw->writeAttribute('rdf:about', (string) $node['@id']);
+        }
+
+        foreach ($node as $key => $value) {
+            if ($key === '@id' || $key === '@type' || $key === '@context' || $key === '@graph') {
+                continue;
+            }
+            $items = is_array($value) && array_is_list($value) ? $value : [$value];
+            foreach ($items as $item) {
+                $this->writeRdfProperty($xw, (string) $key, $item, $context);
+            }
+        }
+
+        $xw->endElement();
+    }
+
+    /**
+     * @param array<string, string> $context
+     */
+    private function writeRdfProperty(\XMLWriter $xw, string $curie, mixed $value, array $context): void
+    {
+        [$ns, $local] = $this->expandCurie($curie, $context);
+        $tag = ($ns['prefix'] === '' ? '' : $ns['prefix'] . ':') . $local;
+
+        if (is_string($value) || is_int($value) || is_float($value) || is_bool($value)) {
+            $xw->writeElement($tag, (string) $value);
+            return;
+        }
+        if (!is_array($value)) {
+            return;
+        }
+
+        // Reference-only object: {"@id": "..."}
+        if (isset($value['@id']) && !isset($value['@value']) && !isset($value['@type']) && count($value) === 1) {
+            $xw->startElement($tag);
+            $xw->writeAttribute('rdf:resource', (string) $value['@id']);
+            $xw->endElement();
+            return;
+        }
+
+        // Typed/lang literal: {"@value": "...", "@language"|"@type": "..."}
+        if (isset($value['@value'])) {
+            $xw->startElement($tag);
+            if (!empty($value['@language'])) {
+                $xw->writeAttribute('xml:lang', (string) $value['@language']);
+            } elseif (!empty($value['@type'])) {
+                [$dns, $dlocal] = $this->expandCurie((string) $value['@type'], $context);
+                $xw->writeAttribute('rdf:datatype', $dns['uri'] . $dlocal);
+            }
+            $xw->text((string) $value['@value']);
+            $xw->endElement();
+            return;
+        }
+
+        // Nested resource (blank node or addressable). Render as a child
+        // subject inside the property element, RDF/XML "striped" form.
+        $xw->startElement($tag);
+        $this->writeRdfSubject($xw, $value, $context);
+        $xw->endElement();
+    }
+
+    /**
+     * Resolve a CURIE like "ric:title" against the @context.
+     *
+     * @param array<string, string> $context
+     * @return array{0: array{prefix:string, uri:string}, 1: string}
+     */
+    private function expandCurie(string $curie, array $context): array
+    {
+        if (strpos($curie, ':') === false) {
+            return [['prefix' => '', 'uri' => ''], $curie];
+        }
+        [$prefix, $local] = explode(':', $curie, 2);
+        $uri = (string) ($context[$prefix] ?? '');
+        if ($uri === '') {
+            // Unknown prefix — fall through to rdf:Description / dc:format / etc.
+            $known = [
+                'rdf'  => 'http://www.w3.org/1999/02/22-rdf-syntax-ns#',
+                'rdfs' => self::NS_RDFS,
+                'xsd'  => self::NS_XSD,
+                'owl'  => self::NS_OWL,
+                'ric'  => self::NS_RIC,
+            ];
+            $uri = $known[$prefix] ?? '';
+        }
+        return [['prefix' => $prefix, 'uri' => $uri], $local];
+    }
 }

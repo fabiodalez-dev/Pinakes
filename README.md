@@ -24,6 +24,32 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.8.0
+
+### Archives: RiC-CM Phases 5 & 6 — admin UI + OAI-PMH `ric-o` ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+v0.8.0 closes the six-phase RiC-CM roadmap. Phases 1-4 (shipped progressively in 0.7.7 → 0.7.10) modelled the four RiC-CM entity types (Record/RecordSet, Agent, Activity, Place) and the polymorphic relations graph. Phases 5 and 6 expose them to curators and to harvesters.
+
+**Phase 5 — native admin UI for activities, places and relations.**
+
+- `GET/POST /admin/archives/activities` + `/new` + `/{id}` + `/{id}/edit` + `/{id}/delete` — CRUD over ISDF activities (Function/Activity/Transaction/Task/Mandate). Hierarchical parent/child with cycle detection on the application layer (the `parent_id` FK uses `ON DELETE SET NULL`, which is incompatible with a MySQL `CHECK` constraint, so the cycle guard is enforced in PHP before INSERT/UPDATE).
+- `GET/POST /admin/archives/places` + `/new` + `/{id}` + `/{id}/edit` + `/{id}/delete` — CRUD over places (country/region/province/municipality/locality/building/room/geographic_feature/other) with optional latitude/longitude and GeoNames / Wikidata / Getty TGN identifiers for Linked Data linkage.
+- `POST /admin/archives/relations/attach` + `POST /admin/archives/relations/{id}/detach` — manage the polymorphic relations graph from the unit/agent/activity/place detail pages.
+- `GET /api/archives/entities?type=&q=` — typeahead backend for Choices.js-style autocomplete in the relation forms. Returns the four entity types validated against the ENUM definitions of `archive_relations.source_type` / `target_type`.
+
+The chrome mirrors the existing books/archives admin views (Tailwind `p-6 max-w-4xl mx-auto`, `bg-white shadow rounded-lg p-6 space-y-5` form containers, `form-label` field labels, breadcrumb navigation, indigo-600 primary actions, red-50/red-700 destructive buttons). All 60+ user-facing strings are Italian-source `__()` wrappers with full translations added to `locale/en_US.json`, `locale/fr_FR.json`, `locale/de_DE.json`.
+
+**Phase 6 — OAI-PMH `metadataPrefix=ric-o`.**
+
+- The `oai-pmh-server` plugin now exposes `ric-o` (canonical RDF/XML serialisation of the same RiC-O graph emitted on `/archives/{id}/ric.json`) as a metadataPrefix for the `archives` set. `ListMetadataFormats` advertises it conditionally — only when the `archives` plugin is active AND the `archival_units` table exists.
+- `GetRecord?identifier=oai:…:archival_unit:{id}&metadataPrefix=ric-o` serialises one archival unit as `<rdf:RDF>` with `ric:RecordSet` / `ric:Record` root, `rdfs:label` carrying `xml:lang`, `ric:DateRange` with `xsd:gYear` typed literals, embedded `ric:Relation` subjects for agent links, and `rdf:resource` references for parent/children. `ListRecords?set=archives&metadataPrefix=ric-o` streams the whole archival graph.
+- Symmetric validation: `metadataPrefix=ric-o` on `set=books` or on a book identifier returns `cannotDisseminateFormat`; `metadataPrefix=oai_dc` keeps working on both sets unchanged.
+- Re-uses `RicJsonLdBuilder::serializeToRdfXml()` (new in this release) which translates the JSON-LD compact document to canonical RDF/XML — `@id`→`rdf:about`/`rdf:resource`, `@type`→tag name (CURIE expanded against the document `@context`), language tags via `xml:lang`, typed literals via `rdf:datatype`, nested blank nodes for inline objects. 159/159 unit assertions passing on the round-trip.
+
+The full RiC-CM journey: v0.7.7 read-only JSON-LD → v0.7.8 agents → v0.7.9 activities → v0.7.10 places + polymorphic relations → v0.8.0 admin UI + OAI-PMH RDF/XML. The application's `version.json` bumps from 0.7.10 to 0.8.0 once, at the end of the chain.
+
+---
+
 ## What's New in v0.7.10
 
 ### Archives: RiC-CM Phase 4 — Places + polymorphic Relations graph ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
