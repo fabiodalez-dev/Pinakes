@@ -1002,6 +1002,118 @@ class ArchivesPlugin
             return $plugin->ricPlacesListAction($request, $response);
         });
 
+        // ── RiC-CM Phase 5 (target v0.8.0 — issue #122) — Admin UI ───
+        // CRUD for archive_activities, archive_places, and the
+        // polymorphic archive_relations + the cross-entity autocomplete
+        // helper. All routes behind AdminAuthMiddleware; writes also
+        // protected by CsrfMiddleware.
+
+        // Activities CRUD.
+        $app->get('/admin/archives/activities', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityIndexAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/activities/new', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityNewAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/activities/new', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityStoreAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->get('/admin/archives/activities/{id:[0-9]+}', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityShowAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/activities/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityEditAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/activities/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityUpdateAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post('/admin/archives/activities/{id:[0-9]+}/delete', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityDestroyAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // Places CRUD.
+        $app->get('/admin/archives/places', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeIndexAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/places/new', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeNewAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/places/new', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeStoreAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->get('/admin/archives/places/{id:[0-9]+}', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeShowAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/places/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeEditAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/places/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeUpdateAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post('/admin/archives/places/{id:[0-9]+}/delete', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeDestroyAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // Polymorphic relations attach/detach.
+        $app->post('/admin/archives/relations/attach', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->relationAttachAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post('/admin/archives/relations/{id:[0-9]+}/detach', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->relationDetachAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // Cross-entity autocomplete (used by the predicate-picker JS).
+        $app->get('/api/archives/entities', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->entitiesAutocompleteAction($request, $response);
+        })->add($adminMiddleware);
+
         // Import form (GET) + submit (POST multipart/form-data)
         $app->get('/admin/archives/import', function (
             ServerRequestInterface $request,
@@ -6480,6 +6592,779 @@ class ArchivesPlugin
         }
         $stmt->close();
         return $rows;
+    }
+
+    // ── RiC-CM Phase 5 — Activities admin CRUD ───────────────────────────────
+    //
+    // Mirrors the authority_records CRUD shape (extractAuthorityPayload /
+    // validateAuthority / authority{Index,New,Store,Show,Edit,Update,
+    // Destroy}Action). Soft-delete via `deleted_at` so a curator can
+    // restore by hand if needed.
+
+    private const ACTIVITY_TYPES = [
+        'function'    => 'Function (ISDF top-level)',
+        'activity'    => 'Activity',
+        'transaction' => 'Transaction',
+        'task'        => 'Task',
+        'mandate'     => 'Mandate',
+    ];
+
+    public function activityIndexAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, title, activity_type, agent_id, date_start, date_end, is_ongoing
+               FROM archive_activities
+              WHERE deleted_at IS NULL
+              ORDER BY activity_type, title ASC
+              LIMIT 500'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+            $result->free();
+        } elseif ($this->db->errno !== 1146) {
+            SecureLogger::warning('[Archives] activity index query failed: ' . $this->db->error);
+        }
+        return $this->renderView($response, 'activities/index', [
+            'rows'  => $rows,
+            'types' => array_keys(self::ACTIVITY_TYPES),
+        ]);
+    }
+
+    public function activityNewAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        return $this->renderView($response, 'activities/form', [
+            'mode'        => 'create',
+            'types'       => array_keys(self::ACTIVITY_TYPES),
+            'parentOpts'  => $this->listActivityOptions(null),
+            'agentOpts'   => $this->listAuthorityOptions(),
+            'values'      => [],
+            'errors'      => [],
+        ]);
+    }
+
+    public function activityStoreAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $values = $this->extractActivityPayload($request);
+        $errors = $this->validateActivity($values, null);
+        if (!empty($errors)) {
+            return $this->renderView($response, 'activities/form', [
+                'mode'       => 'create',
+                'types'      => array_keys(self::ACTIVITY_TYPES),
+                'parentOpts' => $this->listActivityOptions(null),
+                'agentOpts'  => $this->listAuthorityOptions(),
+                'values'     => $values,
+                'errors'     => $errors,
+            ]);
+        }
+        $stmt = $this->db->prepare(
+            'INSERT INTO archive_activities
+                (title, description, activity_type, parent_id, date_start, date_end,
+                 is_ongoing, agent_id, source_ref)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] activity INSERT prepare failed: ' . $this->db->error);
+            $errors['_global'] = 'Database error. Check the log and retry.';
+            return $this->renderView($response, 'activities/form', [
+                'mode' => 'create', 'types' => array_keys(self::ACTIVITY_TYPES),
+                'parentOpts' => $this->listActivityOptions(null),
+                'agentOpts' => $this->listAuthorityOptions(),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $parentId = $values['parent_id'];
+        $agentId  = $values['agent_id'];
+        $isOngoing = (int) $values['is_ongoing'];
+        $stmt->bind_param(
+            'sssisssis',
+            $values['title'],
+            $values['description'],
+            $values['activity_type'],
+            $parentId,
+            $values['date_start'],
+            $values['date_end'],
+            $isOngoing,
+            $agentId,
+            $values['source_ref']
+        );
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] activity INSERT failed: ' . $stmt->error);
+            $errors['_global'] = 'Insert failed.';
+            $stmt->close();
+            return $this->renderView($response, 'activities/form', [
+                'mode' => 'create', 'types' => array_keys(self::ACTIVITY_TYPES),
+                'parentOpts' => $this->listActivityOptions(null),
+                'agentOpts' => $this->listAuthorityOptions(),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $newId = (int) $stmt->insert_id;
+        $stmt->close();
+        return $response
+            ->withHeader('Location', url('/admin/archives/activities/' . $newId))
+            ->withStatus(302);
+    }
+
+    public function activityShowAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findActivityRow($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        $linkedUnits = [];
+        try {
+            $linkedUnits = $this->fetchUnitsForActivity($id);
+        } catch (\RuntimeException $e) {
+            SecureLogger::warning('[Archives] activityShow units fetch failed: ' . $e->getMessage());
+        }
+        return $this->renderView($response, 'activities/show', [
+            'row'         => $row,
+            'linkedUnits' => $linkedUnits,
+            'types'       => array_keys(self::ACTIVITY_TYPES),
+            'headLinks'   => [
+                ['rel' => 'alternate', 'type' => 'application/ld+json',
+                 'title' => 'RiC-O (Records in Contexts)',
+                 'href' => absoluteUrl('/archives/activities/' . $id . '/ric.json')],
+            ],
+        ]);
+    }
+
+    public function activityEditAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findActivityRow($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        return $this->renderView($response, 'activities/form', [
+            'mode'       => 'edit',
+            'id'         => $id,
+            'types'      => array_keys(self::ACTIVITY_TYPES),
+            'parentOpts' => $this->listActivityOptions($id),
+            'agentOpts'  => $this->listAuthorityOptions(),
+            'values'     => $row,
+            'errors'     => [],
+        ]);
+    }
+
+    public function activityUpdateAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        if ($this->findActivityRow($id) === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        $values = $this->extractActivityPayload($request);
+        $errors = $this->validateActivity($values, $id);
+        if (!empty($errors)) {
+            return $this->renderView($response, 'activities/form', [
+                'mode'       => 'edit',
+                'id'         => $id,
+                'types'      => array_keys(self::ACTIVITY_TYPES),
+                'parentOpts' => $this->listActivityOptions($id),
+                'agentOpts'  => $this->listAuthorityOptions(),
+                'values'     => $values,
+                'errors'     => $errors,
+            ]);
+        }
+        $stmt = $this->db->prepare(
+            'UPDATE archive_activities
+                SET title = ?, description = ?, activity_type = ?, parent_id = ?,
+                    date_start = ?, date_end = ?, is_ongoing = ?, agent_id = ?, source_ref = ?
+              WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] activity UPDATE prepare failed: ' . $this->db->error);
+            return $this->renderNotFound($response, $id);
+        }
+        $parentId  = $values['parent_id'];
+        $agentId   = $values['agent_id'];
+        $isOngoing = (int) $values['is_ongoing'];
+        $stmt->bind_param(
+            'sssisssisi',
+            $values['title'], $values['description'], $values['activity_type'],
+            $parentId, $values['date_start'], $values['date_end'],
+            $isOngoing, $agentId, $values['source_ref'], $id
+        );
+        $stmt->execute();
+        $stmt->close();
+        return $response
+            ->withHeader('Location', url('/admin/archives/activities/' . $id))
+            ->withStatus(302);
+    }
+
+    public function activityDestroyAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        // Soft-delete — mirrors the libri / archival_units convention.
+        $stmt = $this->db->prepare(
+            'UPDATE archive_activities SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        return $response
+            ->withHeader('Location', url('/admin/archives/activities'))
+            ->withStatus(302);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function findActivityRow(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archive_activities WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            return null;
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        $row = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+        $stmt->close();
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function extractActivityPayload(ServerRequestInterface $request): array
+    {
+        $body = $request->getParsedBody() ?? [];
+        if (!is_array($body)) { $body = []; }
+        $get = static fn (string $k): string => is_string($body[$k] ?? null) ? trim((string) $body[$k]) : '';
+        $parent = $get('parent_id');
+        $agent  = $get('agent_id');
+        return [
+            'title'         => $get('title'),
+            'description'   => $get('description'),
+            'activity_type' => $get('activity_type') ?: 'activity',
+            'parent_id'     => $parent === '' ? null : (int) $parent,
+            'date_start'    => $get('date_start'),
+            'date_end'      => $get('date_end'),
+            'is_ongoing'    => !empty($body['is_ongoing']) ? 1 : 0,
+            'agent_id'      => $agent === '' ? null : (int) $agent,
+            'source_ref'    => $get('source_ref'),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, string>
+     */
+    private function validateActivity(array $values, ?int $editingId): array
+    {
+        $errors = [];
+        if (($values['title'] ?? '') === '') {
+            $errors['title'] = 'Required.';
+        } elseif (mb_strlen((string) $values['title']) > 500) {
+            $errors['title'] = 'Max 500 characters.';
+        }
+        $type = (string) ($values['activity_type'] ?? '');
+        if (!isset(self::ACTIVITY_TYPES[$type])) {
+            $errors['activity_type'] = 'Invalid type.';
+        }
+        if ($values['parent_id'] !== null) {
+            if ($editingId !== null && $values['parent_id'] === $editingId) {
+                $errors['parent_id'] = 'An activity cannot be its own parent.';
+            } elseif ($editingId !== null && $this->activityWouldCreateCycle($editingId, (int) $values['parent_id'])) {
+                $errors['parent_id'] = 'Cycle detected — pick a non-descendant parent.';
+            } elseif ($this->findActivityRow((int) $values['parent_id']) === null) {
+                $errors['parent_id'] = 'Parent activity does not exist.';
+            }
+        }
+        if ($values['agent_id'] !== null && $this->findAuthorityById((int) $values['agent_id']) === null) {
+            $errors['agent_id'] = 'Selected agent does not exist.';
+        }
+        return $errors;
+    }
+
+    /**
+     * Phase 5: ancestor walk to reject cycles in the activity tree
+     * (MySQL can't enforce this since the FK uses ON DELETE SET NULL).
+     * Mirrors parentWouldCreateCycle for archival_units.
+     */
+    private function activityWouldCreateCycle(int $childId, int $proposedParentId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT parent_id FROM archive_activities WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) { return true; }
+        $current = $proposedParentId;
+        $visited = [];
+        for ($i = 0; $i < 100; $i++) {
+            if ($current === $childId) { $stmt->close(); return true; }
+            if (isset($visited[$current])) { break; }
+            $visited[$current] = true;
+            $stmt->bind_param('i', $current);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            $row = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+            if (!is_array($row) || $row['parent_id'] === null) {
+                break;
+            }
+            $current = (int) $row['parent_id'];
+        }
+        $stmt->close();
+        return false;
+    }
+
+    /**
+     * @return list<array{id:int,title:string}>
+     */
+    private function listActivityOptions(?int $excludeId): array
+    {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, title FROM archive_activities WHERE deleted_at IS NULL ORDER BY title LIMIT 1000'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) {
+                $id = (int) $r['id'];
+                if ($excludeId !== null && $id === $excludeId) { continue; }
+                $rows[] = ['id' => $id, 'title' => (string) $r['title']];
+            }
+            $result->free();
+        }
+        return $rows;
+    }
+
+    /**
+     * @return list<array{id:int,label:string}>
+     */
+    private function listAuthorityOptions(): array
+    {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, authorised_form FROM authority_records WHERE deleted_at IS NULL ORDER BY authorised_form LIMIT 1000'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) {
+                $rows[] = ['id' => (int) $r['id'], 'label' => (string) $r['authorised_form']];
+            }
+            $result->free();
+        }
+        return $rows;
+    }
+
+    // ── RiC-CM Phase 5 — Places admin CRUD ───────────────────────────────────
+
+    private const PLACE_TYPES = [
+        'country' => 'Country', 'region' => 'Region', 'province' => 'Province',
+        'municipality' => 'Municipality', 'locality' => 'Locality',
+        'building' => 'Building', 'room' => 'Room',
+        'geographic_feature' => 'Geographic feature', 'other' => 'Other',
+    ];
+
+    public function placeIndexAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, name, place_type, parent_id, latitude, longitude
+               FROM archive_places WHERE deleted_at IS NULL
+              ORDER BY place_type, name ASC LIMIT 500'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+            $result->free();
+        } elseif ($this->db->errno !== 1146) {
+            SecureLogger::warning('[Archives] place index query failed: ' . $this->db->error);
+        }
+        return $this->renderView($response, 'places/index', [
+            'rows' => $rows, 'types' => array_keys(self::PLACE_TYPES),
+        ]);
+    }
+
+    public function placeNewAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        return $this->renderView($response, 'places/form', [
+            'mode' => 'create', 'types' => array_keys(self::PLACE_TYPES),
+            'parentOpts' => $this->listPlaceOptions(null),
+            'values' => [], 'errors' => [],
+        ]);
+    }
+
+    public function placeStoreAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        $values = $this->extractPlacePayload($request);
+        $errors = $this->validatePlace($values, null);
+        if (!empty($errors)) {
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'create', 'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions(null),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $stmt = $this->db->prepare(
+            'INSERT INTO archive_places
+                (name, place_type, parent_id, latitude, longitude,
+                 geonames_id, wikidata_id, tgn_id, description, date_start, date_end)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] place INSERT prepare failed: ' . $this->db->error);
+            $errors['_global'] = 'Database error.';
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'create', 'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions(null),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $parent = $values['parent_id'];
+        $lat    = $values['latitude'];
+        $lng    = $values['longitude'];
+        $stmt->bind_param(
+            'ssiddsssssss',
+            $values['name'], $values['place_type'], $parent, $lat, $lng,
+            $values['geonames_id'], $values['wikidata_id'], $values['tgn_id'],
+            $values['description'], $values['date_start'], $values['date_end']
+        );
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] place INSERT failed: ' . $stmt->error);
+            $errors['_global'] = 'Insert failed.';
+            $stmt->close();
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'create', 'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions(null),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $newId = (int) $stmt->insert_id;
+        $stmt->close();
+        return $response
+            ->withHeader('Location', url('/admin/archives/places/' . $newId))
+            ->withStatus(302);
+    }
+
+    public function placeShowAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        $row = $this->findPlaceRow($id);
+        if ($row === null) { return $this->renderNotFound($response, $id); }
+        return $this->renderView($response, 'places/show', [
+            'row' => $row,
+            'headLinks' => [
+                ['rel' => 'alternate', 'type' => 'application/ld+json',
+                 'title' => 'RiC-O (Records in Contexts)',
+                 'href' => absoluteUrl('/archives/places/' . $id . '/ric.json')],
+            ],
+        ]);
+    }
+
+    public function placeEditAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        $row = $this->findPlaceRow($id);
+        if ($row === null) { return $this->renderNotFound($response, $id); }
+        return $this->renderView($response, 'places/form', [
+            'mode' => 'edit', 'id' => $id,
+            'types' => array_keys(self::PLACE_TYPES),
+            'parentOpts' => $this->listPlaceOptions($id),
+            'values' => $row, 'errors' => [],
+        ]);
+    }
+
+    public function placeUpdateAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        if ($this->findPlaceRow($id) === null) { return $this->renderNotFound($response, $id); }
+        $values = $this->extractPlacePayload($request);
+        $errors = $this->validatePlace($values, $id);
+        if (!empty($errors)) {
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'edit', 'id' => $id,
+                'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions($id),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $stmt = $this->db->prepare(
+            'UPDATE archive_places
+                SET name = ?, place_type = ?, parent_id = ?, latitude = ?, longitude = ?,
+                    geonames_id = ?, wikidata_id = ?, tgn_id = ?, description = ?,
+                    date_start = ?, date_end = ?
+              WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt !== false) {
+            $parent = $values['parent_id']; $lat = $values['latitude']; $lng = $values['longitude'];
+            $stmt->bind_param(
+                'ssiddssssssi',
+                $values['name'], $values['place_type'], $parent, $lat, $lng,
+                $values['geonames_id'], $values['wikidata_id'], $values['tgn_id'],
+                $values['description'], $values['date_start'], $values['date_end'], $id
+            );
+            $stmt->execute();
+            $stmt->close();
+        }
+        return $response
+            ->withHeader('Location', url('/admin/archives/places/' . $id))
+            ->withStatus(302);
+    }
+
+    public function placeDestroyAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        $stmt = $this->db->prepare(
+            'UPDATE archive_places SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        return $response
+            ->withHeader('Location', url('/admin/archives/places'))
+            ->withStatus(302);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function findPlaceRow(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archive_places WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) { return null; }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        $row = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+        $stmt->close();
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function extractPlacePayload(ServerRequestInterface $request): array
+    {
+        $body = $request->getParsedBody() ?? [];
+        if (!is_array($body)) { $body = []; }
+        $get = static fn (string $k): string => is_string($body[$k] ?? null) ? trim((string) $body[$k]) : '';
+        $parent = $get('parent_id');
+        $lat    = $get('latitude');
+        $lng    = $get('longitude');
+        return [
+            'name'        => $get('name'),
+            'place_type'  => $get('place_type') ?: 'locality',
+            'parent_id'   => $parent === '' ? null : (int) $parent,
+            'latitude'    => $lat === '' ? null : (float) $lat,
+            'longitude'   => $lng === '' ? null : (float) $lng,
+            'geonames_id' => $get('geonames_id'),
+            'wikidata_id' => $get('wikidata_id'),
+            'tgn_id'      => $get('tgn_id'),
+            'description' => $get('description'),
+            'date_start'  => $get('date_start'),
+            'date_end'    => $get('date_end'),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, string>
+     */
+    private function validatePlace(array $values, ?int $editingId): array
+    {
+        $errors = [];
+        if (($values['name'] ?? '') === '') {
+            $errors['name'] = 'Required.';
+        } elseif (mb_strlen((string) $values['name']) > 500) {
+            $errors['name'] = 'Max 500 characters.';
+        }
+        if (!isset(self::PLACE_TYPES[(string) ($values['place_type'] ?? '')])) {
+            $errors['place_type'] = 'Invalid type.';
+        }
+        if ($values['parent_id'] !== null) {
+            if ($editingId !== null && $values['parent_id'] === $editingId) {
+                $errors['parent_id'] = 'A place cannot be its own parent.';
+            } elseif ($this->findPlaceRow((int) $values['parent_id']) === null) {
+                $errors['parent_id'] = 'Parent place does not exist.';
+            }
+        }
+        $lat = $values['latitude']; $lng = $values['longitude'];
+        if ($lat !== null && ($lat < -90 || $lat > 90)) {
+            $errors['latitude'] = 'Latitude must be between -90 and 90.';
+        }
+        if ($lng !== null && ($lng < -180 || $lng > 180)) {
+            $errors['longitude'] = 'Longitude must be between -180 and 180.';
+        }
+        return $errors;
+    }
+
+    /**
+     * @return list<array{id:int,name:string,type:string}>
+     */
+    private function listPlaceOptions(?int $excludeId): array
+    {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, name, place_type FROM archive_places WHERE deleted_at IS NULL ORDER BY name LIMIT 1000'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) {
+                $id = (int) $r['id'];
+                if ($excludeId !== null && $id === $excludeId) { continue; }
+                $rows[] = ['id' => $id, 'name' => (string) $r['name'], 'type' => (string) $r['place_type']];
+            }
+            $result->free();
+        }
+        return $rows;
+    }
+
+    // ── RiC-CM Phase 5 — Polymorphic relations attach/detach ────────────────
+
+    public function relationAttachAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        $body = $request->getParsedBody() ?? [];
+        if (!is_array($body)) { $body = []; }
+        $srcType   = is_string($body['source_type']   ?? null) ? (string) $body['source_type']   : '';
+        $srcId     = (int) ($body['source_id']     ?? 0);
+        $tgtType   = is_string($body['target_type']   ?? null) ? (string) $body['target_type']   : '';
+        $tgtId     = (int) ($body['target_id']     ?? 0);
+        $predicate = is_string($body['ric_predicate'] ?? null) ? trim((string) $body['ric_predicate']) : '';
+        $qualifier = is_string($body['qualifier']     ?? null) ? trim((string) $body['qualifier']) : '';
+        $certainty = is_string($body['certainty']     ?? null) ? (string) $body['certainty']     : 'certain';
+        $dateStart = is_string($body['date_start']    ?? null) ? trim((string) $body['date_start']) : '';
+        $dateEnd   = is_string($body['date_end']      ?? null) ? trim((string) $body['date_end']) : '';
+        $sourceRef = is_string($body['source_ref']    ?? null) ? trim((string) $body['source_ref']) : '';
+
+        $allowedCertainty = ['certain', 'probable', 'uncertain'];
+        if (!in_array($certainty, $allowedCertainty, true)) {
+            $certainty = 'certain';
+        }
+        $returnTo = is_string($body['_return_to'] ?? null) && $body['_return_to'] !== ''
+            ? (string) $body['_return_to']
+            : '/admin/archives';
+
+        if ($predicate === '' || !$this->validateRelationEndpoints($srcType, $srcId, $tgtType, $tgtId)) {
+            // Bail to the referrer with a query-flagged error — the
+            // form view should render the message on next load.
+            return $response
+                ->withHeader('Location', url($returnTo . (str_contains($returnTo, '?') ? '&' : '?') . 'relation_error=1'))
+                ->withStatus(302);
+        }
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO archive_relations
+                (source_type, source_id, target_type, target_id, ric_predicate,
+                 qualifier, certainty, date_start, date_end, source_ref)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($stmt !== false) {
+            $qNull = $qualifier === '' ? null : $qualifier;
+            $dsNull = $dateStart === '' ? null : $dateStart;
+            $deNull = $dateEnd === '' ? null : $dateEnd;
+            $srNull = $sourceRef === '' ? null : $sourceRef;
+            $stmt->bind_param(
+                'sisissssss',
+                $srcType, $srcId, $tgtType, $tgtId, $predicate,
+                $qNull, $certainty, $dsNull, $deNull, $srNull
+            );
+            $stmt->execute();
+            $stmt->close();
+        }
+        return $response
+            ->withHeader('Location', url($returnTo))
+            ->withStatus(302);
+    }
+
+    public function relationDetachAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        $body = $request->getParsedBody() ?? [];
+        $returnTo = is_array($body) && is_string($body['_return_to'] ?? null) && $body['_return_to'] !== ''
+            ? (string) $body['_return_to']
+            : '/admin/archives';
+        $stmt = $this->db->prepare('DELETE FROM archive_relations WHERE id = ?');
+        if ($stmt !== false) {
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        return $response
+            ->withHeader('Location', url($returnTo))
+            ->withStatus(302);
+    }
+
+    // ── RiC-CM Phase 5 — Cross-entity autocomplete ──────────────────────────
+
+    /**
+     * GET /api/archives/entities?type=archival_unit|authority_record|archive_activity|archive_place&q=…
+     *
+     * Returns up to 20 matching rows from the requested entity table,
+     * as a JSON array of `{id, type, label, ric_type}`. Used by the
+     * Phase-5 relation-add modal's typeahead.
+     */
+    public function entitiesAutocompleteAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        $params = $request->getQueryParams();
+        $type   = is_string($params['type'] ?? null) ? (string) $params['type'] : '';
+        $q      = is_string($params['q']    ?? null) ? trim((string) $params['q']) : '';
+
+        $tableMap = [
+            'archival_unit'    => ['table' => 'archival_units',     'label' => 'constructed_title', 'extra' => 'level'],
+            'authority_record' => ['table' => 'authority_records',  'label' => 'authorised_form',   'extra' => 'ric_type'],
+            'archive_activity' => ['table' => 'archive_activities', 'label' => 'title',             'extra' => 'activity_type'],
+            'archive_place'    => ['table' => 'archive_places',     'label' => 'name',              'extra' => 'place_type'],
+        ];
+        $spec = $tableMap[$type] ?? null;
+        $payload = ['results' => []];
+        if ($spec === null) {
+            $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+        $like = $q === '' ? '%' : '%' . $q . '%';
+        // Column names are from a static map — safe to interpolate.
+        $sql = "SELECT id, `{$spec['label']}` AS label, `{$spec['extra']}` AS extra
+                  FROM `{$spec['table']}`
+                 WHERE `{$spec['label']}` LIKE ? AND deleted_at IS NULL
+                 ORDER BY `{$spec['label']}` ASC
+                 LIMIT 20";
+        $stmt = $this->db->prepare($sql);
+        if ($stmt !== false) {
+            $stmt->bind_param('s', $like);
+            if ($stmt->execute()) {
+                $r = $stmt->get_result();
+                if ($r instanceof \mysqli_result) {
+                    while ($row = $r->fetch_assoc()) {
+                        $payload['results'][] = [
+                            'id'    => (int) $row['id'],
+                            'type'  => $type,
+                            'label' => (string) ($row['label'] ?? ''),
+                            'extra' => (string) ($row['extra'] ?? ''),
+                        ];
+                    }
+                    $r->free();
+                }
+            }
+            $stmt->close();
+        }
+        $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
     // ── Dublin Core XML ──────────────────────────────────────────────────────
