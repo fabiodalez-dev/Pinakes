@@ -406,6 +406,7 @@ tests/fixtures/*
 !tests/fixtures/*.jpg
 !tests/fixtures/*.pdf
 !tests/fixtures/*.mp3
+!tests/fixtures/*.wav
 !tests/fixtures/*.csv
 !tests/fixtures/*.tsv
 !tests/helpers/
