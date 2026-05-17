@@ -2811,12 +2811,15 @@ class ArchivesPlugin
             return $rows;
         }
         $result = $stmt->get_result();
-        if ($result instanceof \mysqli_result) {
-            while ($row = $result->fetch_assoc()) {
-                $rows[] = $row;
-            }
-            $result->free();
+        if (!($result instanceof \mysqli_result)) {
+            SecureLogger::error('[Archives] fetchArchivalUnitsForAuthority get_result failed: ' . $this->db->error);
+            $stmt->close();
+            return $rows;
         }
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $result->free();
         $stmt->close();
         return $rows;
     }
@@ -2852,12 +2855,15 @@ class ArchivesPlugin
             return $rows;
         }
         $result = $stmt->get_result();
-        if ($result instanceof \mysqli_result) {
-            while ($row = $result->fetch_assoc()) {
-                $rows[] = $row;
-            }
-            $result->free();
+        if (!($result instanceof \mysqli_result)) {
+            SecureLogger::error('[Archives] fetchAuthoritiesForArchivalUnit get_result failed: ' . $this->db->error);
+            $stmt->close();
+            return $rows;
         }
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $result->free();
         $stmt->close();
         return $rows;
     }

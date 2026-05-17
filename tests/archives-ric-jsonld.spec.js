@@ -130,8 +130,13 @@ test.describe.serial('RiC-O JSON-LD endpoints — v0.7.7', () => {
         test.skip(!hasArchives, 'No archival_units seeded');
         const res = await request.get(`${BASE}/archives/${unitId}/ric.json`);
         const body = await res.json();
-        expect(body['@type']).toMatch(/^ric:(Record|RecordSet)$/);
-        expect(body['@id']).toMatch(/\/archives\/\d+$/);
+        // Post-F006: @graph wrapper when relations exist. Accept both shapes.
+        const unitNode = Array.isArray(body['@graph'])
+            ? body['@graph'].find(n => /\/archives\/\d+$/.test(n['@id'] ?? ''))
+            : body;
+        expect(unitNode, 'unit node present (flat or in @graph)').toBeDefined();
+        expect(unitNode['@type']).toMatch(/^ric:(Record|RecordSet)$/);
+        expect(unitNode['@id']).toMatch(/\/archives\/\d+$/);
     });
 
     test('GET /archives/agents/{id}/ric.json responds 200 with an agent type', async ({ request }) => {
@@ -139,8 +144,14 @@ test.describe.serial('RiC-O JSON-LD endpoints — v0.7.7', () => {
         const res = await request.get(`${BASE}/archives/agents/${agentId}/ric.json`);
         expect(res.status()).toBe(200);
         const body = await res.json();
-        expect(body['@type']).toMatch(/^ric:(Person|CorporateBody|Family)$/);
-        expect(body['@id']).toMatch(/\/archives\/agents\/\d+$/);
+        // Post-F006: when polymorphic relations exist for the agent the document
+        // is wrapped in @graph, otherwise it stays flat. Both shapes are valid.
+        const agentNode = Array.isArray(body['@graph'])
+            ? body['@graph'].find(n => /\/archives\/agents\/\d+$/.test(n['@id'] ?? ''))
+            : body;
+        expect(agentNode, 'agent node must be present (flat or in @graph)').toBeDefined();
+        expect(agentNode['@type']).toMatch(/^ric:(Person|CorporateBody|Family)$/);
+        expect(agentNode['@id']).toMatch(/\/archives\/agents\/\d+$/);
     });
 
     // ── 2. Headers — Cache-Control, Link rel=canonical, CORS, no Vary ─
