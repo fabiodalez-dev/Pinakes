@@ -50,51 +50,61 @@
 -- (the canonical 6-phase roadmap).
 
 -- ─── ALTER TABLE authority_records — Phase 2 columns ────────────────
+--
+-- Guard: when upgrading from a release that PRE-DATES the archives
+-- plugin (≤ v0.7.6 — archives plugin landed in v0.7.7 Phase 1),
+-- `authority_records` doesn't exist yet — the plugin will create it via
+-- ensureSchema() on first onActivate(). In that case skip these ALTERs;
+-- the post-install plugin activation will install the full Phase-2
+-- schema directly. The check sets @auth_table_exists=0 → every ALTER
+-- below short-circuits to 'SELECT 1' and the UPDATE backfill is wrapped
+-- behind the same guard.
+
+SET @auth_table_exists = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME   = 'authority_records'
+);
 
 -- ric_type — RiC-CM canonical type (broader than the ISAAR enum).
-SET @col_exists = (
+SET @col_exists = IF(@auth_table_exists = 0, 1, (
     SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME   = 'authority_records'
       AND COLUMN_NAME  = 'ric_type'
-);
+));
 SET @sql = IF(@col_exists = 0,
     "ALTER TABLE authority_records ADD COLUMN ric_type ENUM('Person','CorporateBody','Family','Position','Group') NOT NULL DEFAULT 'Person' AFTER type",
     'SELECT 1');
 PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 
--- Backfill ric_type from the existing ISAAR `type` column. Idempotent:
--- the WHERE narrows to rows still on the default 'Person' value, so
--- re-running the migration won't overwrite a curator-set override.
-UPDATE authority_records
-   SET ric_type = CASE type
-       WHEN 'person'    THEN 'Person'
-       WHEN 'corporate' THEN 'CorporateBody'
-       WHEN 'family'    THEN 'Family'
-       ELSE 'Person'
-   END
- WHERE ric_type = 'Person'
-   AND type IN ('corporate', 'family');
+-- Backfill ric_type from the existing ISAAR `type` column. Skipped when
+-- the table doesn't exist (auth_table_exists=0); otherwise idempotent
+-- via the WHERE ric_type='Person' guard.
+SET @sql = IF(@auth_table_exists > 0,
+    "UPDATE authority_records SET ric_type = CASE type WHEN 'person' THEN 'Person' WHEN 'corporate' THEN 'CorporateBody' WHEN 'family' THEN 'Family' ELSE 'Person' END WHERE ric_type = 'Person' AND type IN ('corporate', 'family')",
+    'SELECT 1');
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 
 -- birth_date — structured begin-of-existence date.
-SET @col_exists = (
+SET @col_exists = IF(@auth_table_exists = 0, 1, (
     SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME   = 'authority_records'
       AND COLUMN_NAME  = 'birth_date'
-);
+));
 SET @sql = IF(@col_exists = 0,
     "ALTER TABLE authority_records ADD COLUMN birth_date VARCHAR(20) NULL AFTER dates_of_existence",
     'SELECT 1');
 PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 
 -- death_date — structured end-of-existence date.
-SET @col_exists = (
+SET @col_exists = IF(@auth_table_exists = 0, 1, (
     SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME   = 'authority_records'
       AND COLUMN_NAME  = 'death_date'
-);
+));
 SET @sql = IF(@col_exists = 0,
     "ALTER TABLE authority_records ADD COLUMN death_date VARCHAR(20) NULL AFTER birth_date",
     'SELECT 1');
@@ -102,12 +112,12 @@ PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 
 -- place_of_origin — birthplace / founding place (Phase 4 swaps this for
 -- a FK to archive_places).
-SET @col_exists = (
+SET @col_exists = IF(@auth_table_exists = 0, 1, (
     SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME   = 'authority_records'
       AND COLUMN_NAME  = 'place_of_origin'
-);
+));
 SET @sql = IF(@col_exists = 0,
     "ALTER TABLE authority_records ADD COLUMN place_of_origin VARCHAR(255) NULL AFTER death_date",
     'SELECT 1');
@@ -120,30 +130,38 @@ PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 -- carry their own VIAF/ISNI/Wikidata/GND/BNF identifiers without
 -- depending on a bibliographic-author link.
 
-CREATE TABLE IF NOT EXISTS archive_agent_identifiers (
-    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    authority_id BIGINT UNSIGNED NOT NULL,
-    scheme       ENUM('viaf','isni','wikidata','gnd','bnf','lcnaf','ulan','ark','local') NOT NULL,
-    value        VARCHAR(255) NOT NULL,
-    uri          VARCHAR(500) NULL,
-    is_preferred TINYINT(1) NOT NULL DEFAULT 0,
-    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_authority_id (authority_id),
-    KEY idx_scheme_value (scheme, value(64)),
-    UNIQUE KEY uq_authority_scheme_value (authority_id, scheme, value(128)),
-    CONSTRAINT fk_aai_authority FOREIGN KEY (authority_id)
-        REFERENCES authority_records(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- CREATE TABLE is wrapped in the same @auth_table_exists guard as the
+-- ALTERs above — both tables FK into authority_records, so creating
+-- them when authority_records is absent would error with a FK-target
+-- missing message. The plugin's ensureSchema() will create both
+-- (alongside authority_records itself) on first onActivate.
+SET @sql = IF(@auth_table_exists > 0,
+    "CREATE TABLE IF NOT EXISTS archive_agent_identifiers (
+        id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        authority_id BIGINT UNSIGNED NOT NULL,
+        scheme       ENUM('viaf','isni','wikidata','gnd','bnf','lcnaf','ulan','ark','local') NOT NULL,
+        value        VARCHAR(255) NOT NULL,
+        uri          VARCHAR(500) NULL,
+        is_preferred TINYINT(1) NOT NULL DEFAULT 0,
+        created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_authority_id (authority_id),
+        KEY idx_scheme_value (scheme, value(64)),
+        UNIQUE KEY uq_authority_scheme_value (authority_id, scheme, value(128)),
+        CONSTRAINT fk_aai_authority FOREIGN KEY (authority_id) REFERENCES authority_records(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    'SELECT 1');
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 
 -- Defensive: on installs where the table existed in a pre-release form
--- without the unique constraint, add it (idempotent).
-SET @idx_exists = (
+-- without the unique constraint, add it (idempotent). Skip if the
+-- table itself doesn't exist (covered by auth_table_exists guard).
+SET @idx_exists = IF(@auth_table_exists = 0, 1, (
     SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
     WHERE TABLE_SCHEMA = DATABASE()
       AND TABLE_NAME   = 'archive_agent_identifiers'
       AND INDEX_NAME   = 'uq_authority_scheme_value'
-);
+));
 SET @sql = IF(@idx_exists = 0,
     'ALTER TABLE archive_agent_identifiers ADD UNIQUE KEY uq_authority_scheme_value (authority_id, scheme, value(128))',
     'SELECT 1');
@@ -154,35 +172,27 @@ PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 -- than ENUM because RiC-O's agent-to-agent predicate set is open and
 -- new ones can appear without a migration; the validator lives in
 -- ArchivesPlugin so the column stays flexible.
-
-CREATE TABLE IF NOT EXISTS archive_agent_relations (
-    id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    agent_id      BIGINT UNSIGNED NOT NULL,
-    related_id    BIGINT UNSIGNED NOT NULL,
-    ric_predicate VARCHAR(128) NOT NULL,
-    -- Examples: ric:isParentOf, ric:isChildOf, ric:isMemberOf,
-    --           ric:isSuccessorOf, ric:isAssociatedWith,
-    --           ric:isMarriedTo, ric:isSiblingOf.
-    qualifier     VARCHAR(255) NULL,
-    date_start    VARCHAR(20)  NULL,
-    date_end      VARCHAR(20)  NULL,
-    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    KEY idx_agent (agent_id),
-    KEY idx_related (related_id),
-    KEY idx_predicate (ric_predicate),
-    UNIQUE KEY uq_agent_related_predicate (agent_id, related_id, ric_predicate),
-    CONSTRAINT fk_aar_agent
-        FOREIGN KEY (agent_id)   REFERENCES authority_records(id) ON DELETE CASCADE,
-    CONSTRAINT fk_aar_related
-        FOREIGN KEY (related_id) REFERENCES authority_records(id) ON DELETE CASCADE,
-    -- Reject self-loops at the schema layer (an agent cannot be
-    -- related to itself with any predicate). MySQL 8.0.16+ enforces
-    -- CHECK constraints; on older versions this is parsed but ignored
-    -- — the application-layer validator in ArchivesPlugin covers the
-    -- fallback.
-    CONSTRAINT chk_aar_no_self_loop CHECK (agent_id <> related_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+SET @sql = IF(@auth_table_exists > 0,
+    "CREATE TABLE IF NOT EXISTS archive_agent_relations (
+        id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        agent_id      BIGINT UNSIGNED NOT NULL,
+        related_id    BIGINT UNSIGNED NOT NULL,
+        ric_predicate VARCHAR(128) NOT NULL,
+        qualifier     VARCHAR(255) NULL,
+        date_start    VARCHAR(20)  NULL,
+        date_end      VARCHAR(20)  NULL,
+        created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_agent (agent_id),
+        KEY idx_related (related_id),
+        KEY idx_predicate (ric_predicate),
+        UNIQUE KEY uq_agent_related_predicate (agent_id, related_id, ric_predicate),
+        CONSTRAINT fk_aar_agent   FOREIGN KEY (agent_id)   REFERENCES authority_records(id) ON DELETE CASCADE,
+        CONSTRAINT fk_aar_related FOREIGN KEY (related_id) REFERENCES authority_records(id) ON DELETE CASCADE,
+        CONSTRAINT chk_aar_no_self_loop CHECK (agent_id <> related_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    'SELECT 1');
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 
 -- Migration record (consumed by the updater's idempotent re-run guard).
 SELECT 'RiC-CM Phase 2 schema applied (authority_records + agent_identifiers + agent_relations)' AS migration_note;
