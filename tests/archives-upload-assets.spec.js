@@ -49,7 +49,7 @@ const FIXTURES_DIR = path.join(__dirname, 'fixtures');
 
 const TEST_COVER = path.join(FIXTURES_DIR, 'archive-test-cover.jpg');
 const TEST_PDF   = path.join(FIXTURES_DIR, 'archive-test.pdf');
-const TEST_AUDIO = path.join(FIXTURES_DIR, 'archive-test-audio.mp3');
+const TEST_AUDIO = path.join(FIXTURES_DIR, 'archive-test-audio.wav');
 
 test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () => {
     /** @type {import('@playwright/test').BrowserContext} */
