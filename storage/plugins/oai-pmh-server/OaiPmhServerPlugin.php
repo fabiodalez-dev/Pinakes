@@ -960,6 +960,18 @@ class OaiPmhServerPlugin
             return;
         }
 
+        // Phase 6: `ric-o` is only meaningful when the Archives plugin
+        // is installed AND has opted in to OAI exposure. Without this
+        // gate, callers could request `metadataPrefix=ric-o` against a
+        // repository that doesn't advertise the format in
+        // ListMetadataFormats — a contract violation that could leak
+        // (or crash on) archival entities the operator never wired up.
+        if ($metadataPrefix === 'ric-o' && !$this->isArchivesSetExposed()) {
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'metadataPrefix=ric-o is not available — archives module is not exposed.');
+            return;
+        }
+
         $validSets = ['', 'books', 'archives'];
         if (!in_array($set, $validSets, true)) {
             $this->oaiError($xw, 'noRecordsMatch',
@@ -1123,6 +1135,16 @@ class OaiPmhServerPlugin
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The metadata format identified by the value given for the metadataPrefix '
                 . 'argument is not supported by the item or by the repository.');
+            return;
+        }
+
+        // Phase 6: `ric-o` requires the Archives plugin to be installed
+        // and exposed via OAI. Gate identical to oaiListRecords —
+        // refuse the format upfront rather than risk leaking archival
+        // entities that the operator hasn't chosen to publish.
+        if ($metadataPrefix === 'ric-o' && !$this->isArchivesSetExposed()) {
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'metadataPrefix=ric-o is not available — archives module is not exposed.');
             return;
         }
 

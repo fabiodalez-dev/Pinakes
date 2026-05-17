@@ -409,18 +409,22 @@ final class RicJsonLdBuilder
 
         // Date range — both Phase-2 helpers (xsd:date for individual
         // dates) and Phase-1 buildDateRange (xsd:gYear for year-only)
-        // accept the same VARCHAR(20) shape. Use xsd:date here because
-        // ISDF activities are typically dated by event year or full
-        // date, not gYear.
+        // accept the same VARCHAR(20) shape. Detect year-only values
+        // (e.g. "1789") and emit them as xsd:gYear; full ISO dates
+        // (e.g. "1789-07-14") remain xsd:date. A bare year is NOT a
+        // valid xsd:date lexical value, so this avoids producing
+        // RDF that fails XSD validation.
         $start = $this->str($activity, 'date_start');
         $end   = $this->str($activity, 'date_end');
         if ($start !== '' || $end !== '') {
             $dateNode = ['@type' => 'ric:DateRange'];
             if ($start !== '') {
-                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => 'xsd:date'];
+                $dt = preg_match('/^\d{4}$/', $start) === 1 ? 'xsd:gYear' : 'xsd:date';
+                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => $dt];
             }
             if ($end !== '') {
-                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => 'xsd:date'];
+                $dt = preg_match('/^\d{4}$/', $end) === 1 ? 'xsd:gYear' : 'xsd:date';
+                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => $dt];
             }
             $doc['ric:isAssociatedWithDate'] = $dateNode;
         }
@@ -854,15 +858,19 @@ final class RicJsonLdBuilder
         }
 
         // Historical date range (kingdoms, abolished provinces).
+        // Detect year-only values (e.g. "1816") and emit as xsd:gYear
+        // — bare years are not valid xsd:date lexical values.
         $start = $this->str($place, 'date_start');
         $end   = $this->str($place, 'date_end');
         if ($start !== '' || $end !== '') {
             $dateNode = ['@type' => 'ric:DateRange'];
             if ($start !== '') {
-                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => 'xsd:date'];
+                $dt = preg_match('/^\d{4}$/', $start) === 1 ? 'xsd:gYear' : 'xsd:date';
+                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => $dt];
             }
             if ($end !== '') {
-                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => 'xsd:date'];
+                $dt = preg_match('/^\d{4}$/', $end) === 1 ? 'xsd:gYear' : 'xsd:date';
+                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => $dt];
             }
             $doc['ric:isAssociatedWithDate'] = $dateNode;
         }
@@ -896,7 +904,14 @@ final class RicJsonLdBuilder
             return null;
         }
 
+        // Reject rows without a usable primary key — emitting them would
+        // collapse every malformed/synthetic row onto the same
+        // `/archives/relations/0` IRI and silently shadow legitimate
+        // relations downstream.
         $relId = (int) ($row['id'] ?? 0);
+        if ($relId <= 0) {
+            return null;
+        }
         $node = [
             '@id'                   => $this->baseUrl . '/archives/relations/' . $relId,
             '@type'                 => 'ric:Relation',
@@ -1184,6 +1199,13 @@ final class RicJsonLdBuilder
             if (preg_match('#^ark:/[0-9]{5,}/#i', $normalised) !== 1) {
                 return null;
             }
+        }
+        // Reject dot-segments anywhere in the path (defence-in-depth
+        // against path-traversal attempts after the NAAN prefix —
+        // e.g. `ark:/12345/foo/../../etc/passwd` or trailing `/..`).
+        $path = substr($normalised, 5); // strip 'ark:/'
+        if (preg_match('#(^|/)\.\.?(/|$)#', $path) === 1) {
+            return null;
         }
         return $normalised;
     }

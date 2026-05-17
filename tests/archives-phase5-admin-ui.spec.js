@@ -396,7 +396,13 @@ test.describe.serial('Archives Phase 5 — admin UI for activities/places/relati
         });
         // Server-side ENUM validation should reject. Either 4xx or a 3xx
         // redirect-back-to-form is acceptable, but the row MUST NOT have
-        // been inserted.
+        // been inserted. A 5xx would also leave no row inserted, hiding
+        // a real bug (uncaught exception during validation) — assert
+        // the server stayed below 500 before checking the DB.
+        expect(
+            res.status(),
+            `server must not 5xx on invalid enum (got ${res.status()})`
+        ).toBeLessThan(500);
         const inserted = dbQuery(
             `SELECT COUNT(*) FROM archive_relations
               WHERE source_type LIKE '%definitely_not%' OR target_type LIKE '%definitely_not%'`

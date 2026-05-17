@@ -249,18 +249,14 @@ test.describe.serial('Archives Phase 6 — OAI-PMH metadataPrefix=ric-o', () => 
     test('8. Default set (no set= parameter) with ric-o yields archives records', async () => {
         // The plugin should auto-default to set=archives when metadataPrefix=ric-o
         // is requested without an explicit set parameter (book records can't be
-        // expressed as ric-o).
+        // expressed as ric-o). The contract is strict: no error, at least one
+        // <record>, and every record carries RDF/XML payload.
         const res = await page.request.get(`${BASE}/oai?verb=ListRecords&metadataPrefix=ric-o`);
         expect(res.status()).toBe(200);
         const body = await res.text();
-        if (body.includes('<error code="')) {
-            // Acceptable alternative: server demands explicit set= — verify
-            // that the error is at least specific to the format, not a 500.
-            expect(body).toMatch(/error code="(cannotDisseminateFormat|noRecordsMatch|badArgument)"/);
-        } else {
-            expect(body, 'must contain at least one <record>').toContain('<record>');
-            expect(body, 'each record must carry RDF/XML').toContain('<rdf:RDF');
-        }
+        expect(body, 'must not contain OAI error').not.toContain('<error');
+        expect(body, 'must contain at least one <record>').toContain('<record>');
+        expect(body, 'each record must carry RDF/XML').toContain('<rdf:RDF');
     });
 
     test('9. GetRecord on unknown archival_unit identifier returns idDoesNotExist', async () => {

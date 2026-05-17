@@ -270,6 +270,12 @@ $arkCases = [
     ["ark:/12345/foo\r\nX:Y",       null, 'CR/LF inside ARK is rejected (header-injection guard)'],
     ["ark:/12345/foo\x00bar",       null, 'NUL byte inside ARK is rejected'],
     ["ark:/12345/foo bar",          null, 'internal whitespace is rejected'],
+    // CR4: defence-in-depth — dot-segments anywhere in the path after
+    // the NAAN prefix must be rejected (path-traversal guard).
+    ['ark:/12345/foo/../bar',       null, 'dot-segment ../ after NAAN is rejected'],
+    ['ark:/12345/foo/..',           null, 'trailing /.. after NAAN is rejected'],
+    ['ark:/12345/../etc',           null, 'dot-segment immediately after NAAN is rejected'],
+    ['ark:/12345/foo/./bar',        null, 'single-dot segment /./  after NAAN is rejected'],
 ];
 
 foreach ($arkCases as [$input, $expected, $label]) {
@@ -423,8 +429,20 @@ $check(($act['ric:hasOrHadPartOf']['@id'] ?? null) === $base . '/archives/activi
     'parent_id emits ric:hasOrHadPartOf → parent activity IRI');
 $check(($act['ric:isAssociatedWithDate']['@type'] ?? null) === 'ric:DateRange',
     'date range emitted as ric:DateRange');
-$check(($act['ric:isAssociatedWithDate']['ric:hasBeginningDate']['@type'] ?? null) === 'xsd:date',
-    'activity dates carry xsd:date @type');
+// Year-only inputs ("1890", "1920") must emit xsd:gYear, not xsd:date —
+// a bare year is not a valid xsd:date lexical value.
+$check(($act['ric:isAssociatedWithDate']['ric:hasBeginningDate']['@type'] ?? null) === 'xsd:gYear',
+    'activity year-only date_start carries xsd:gYear @type');
+$check(($act['ric:isAssociatedWithDate']['ric:hasEndDate']['@type'] ?? null) === 'xsd:gYear',
+    'activity year-only date_end carries xsd:gYear @type');
+
+// Full ISO dates must still emit xsd:date (the year-only branch only
+// triggers on exactly four digits).
+$actIso = $builder->buildActivity([
+    'id' => 51, 'title' => 'Pranzo ufficiale', 'date_start' => '1789-07-14',
+]);
+$check(($actIso['ric:isAssociatedWithDate']['ric:hasBeginningDate']['@type'] ?? null) === 'xsd:date',
+    'activity full ISO date_start still carries xsd:date @type');
 
 $actOngoing = $builder->buildActivity([
     'id' => 7, 'title' => 'Ongoing function', 'is_ongoing' => 1,
@@ -557,6 +575,13 @@ $placeHist = $builder->buildPlace([
 ]);
 $check(($placeHist['ric:isAssociatedWithDate']['@type'] ?? null) === 'ric:DateRange',
     'historical place emits ric:DateRange');
+// CR2 second site: year-only inputs ("1816", "1861") on places must
+// emit xsd:gYear, not xsd:date — bare years are not valid xsd:date
+// lexical values.
+$check(($placeHist['ric:isAssociatedWithDate']['ric:hasBeginningDate']['@type'] ?? null) === 'xsd:gYear',
+    'place year-only date_start carries xsd:gYear @type');
+$check(($placeHist['ric:isAssociatedWithDate']['ric:hasEndDate']['@type'] ?? null) === 'xsd:gYear',
+    'place year-only date_end carries xsd:gYear @type');
 
 // placeIri helper.
 $check($builder->placeIri(42) === $base . '/archives/places/42',
@@ -648,6 +673,29 @@ $check($builder->buildRelationNode([
     'ric_predicate' => '',
 ]) === null,
     'empty predicate returns null');
+// CR3: rows without a usable primary key must not collide on
+// /archives/relations/0 — buildRelationNode must reject them.
+$check($builder->buildRelationNode([
+    'source_type' => 'archival_unit', 'source_id' => 1,
+    'target_type' => 'archive_place', 'target_id' => 1,
+    'ric_predicate' => 'ric:isOrWasLocatedAt',
+    // no 'id' key at all
+]) === null,
+    'missing row id returns null (prevents /archives/relations/0 collision)');
+$check($builder->buildRelationNode([
+    'id' => 0,
+    'source_type' => 'archival_unit', 'source_id' => 1,
+    'target_type' => 'archive_place', 'target_id' => 1,
+    'ric_predicate' => 'ric:isOrWasLocatedAt',
+]) === null,
+    'zero row id returns null (prevents /archives/relations/0 collision)');
+$check($builder->buildRelationNode([
+    'id' => -1,
+    'source_type' => 'archival_unit', 'source_id' => 1,
+    'target_type' => 'archive_place', 'target_id' => 1,
+    'ric_predicate' => 'ric:isOrWasLocatedAt',
+]) === null,
+    'negative row id returns null');
 
 // ─────────────────────────────────────────────────────────────────────
 // Phase 6 — RDF/XML serializer (OAI-PMH metadataPrefix=ric-o)
