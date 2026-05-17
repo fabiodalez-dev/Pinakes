@@ -781,6 +781,15 @@ class OaiPmhServerPlugin
         $xw->startElement('ListMetadataFormats');
 
         foreach ($this->metadataFormats() as $fmt) {
+            // Global gate: ric-o is only advertised when the archives
+            // set is exposed. Applies regardless of identifier — a
+            // closed gate must never leak the format on discovery,
+            // even for an archival_unit identifier (the GetRecord /
+            // ListRecords paths would otherwise respond
+            // cannotDisseminateFormat after announcing it here).
+            if ($fmt['prefix'] === 'ric-o' && !$ricExposed) {
+                continue;
+            }
             // archival_unit records support oai_dc and (when archives is
             // active) ric-o. All other formats are book-only.
             if ($entityType === 'archival_unit'
@@ -790,11 +799,6 @@ class OaiPmhServerPlugin
             }
             // Inverse: book identifiers MUST NOT advertise ric-o.
             if ($entityType === 'book' && $fmt['prefix'] === 'ric-o') {
-                continue;
-            }
-            // No identifier filter: hide ric-o globally when archives
-            // plugin is inactive (avoid advertising a deadlock format).
-            if ($entityType === null && $fmt['prefix'] === 'ric-o' && !$ricExposed) {
                 continue;
             }
             $xw->startElement('metadataFormat');

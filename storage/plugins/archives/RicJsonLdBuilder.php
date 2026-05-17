@@ -419,12 +419,10 @@ final class RicJsonLdBuilder
         if ($start !== '' || $end !== '') {
             $dateNode = ['@type' => 'ric:DateRange'];
             if ($start !== '') {
-                $dt = preg_match('/^\d{4}$/', $start) === 1 ? 'xsd:gYear' : 'xsd:date';
-                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => $dt];
+                $dateNode['ric:hasBeginningDate'] = self::dateLiteral($start);
             }
             if ($end !== '') {
-                $dt = preg_match('/^\d{4}$/', $end) === 1 ? 'xsd:gYear' : 'xsd:date';
-                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => $dt];
+                $dateNode['ric:hasEndDate'] = self::dateLiteral($end);
             }
             $doc['ric:isAssociatedWithDate'] = $dateNode;
         }
@@ -552,10 +550,10 @@ final class RicJsonLdBuilder
         $birth = $this->str($auth, 'birth_date');
         $death = $this->str($auth, 'death_date');
         if ($birth !== '') {
-            $doc['ric:beginningDate'] = ['@value' => $birth, '@type' => 'xsd:date'];
+            $doc['ric:beginningDate'] = self::dateLiteral($birth);
         }
         if ($death !== '') {
-            $doc['ric:endDate'] = ['@value' => $death, '@type' => 'xsd:date'];
+            $doc['ric:endDate'] = self::dateLiteral($death);
         }
         $existence = $this->str($auth, 'dates_of_existence');
         if ($existence !== '' && $birth === '' && $death === '') {
@@ -703,10 +701,10 @@ final class RicJsonLdBuilder
                 if ($start !== '' || $end !== '') {
                     $dateNode = ['@type' => 'ric:DateRange'];
                     if ($start !== '') {
-                        $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => 'xsd:date'];
+                        $dateNode['ric:hasBeginningDate'] = self::dateLiteral($start);
                     }
                     if ($end !== '') {
-                        $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => 'xsd:date'];
+                        $dateNode['ric:hasEndDate'] = self::dateLiteral($end);
                     }
                     $relNode['ric:isAssociatedWithDate'] = $dateNode;
                 }
@@ -865,12 +863,10 @@ final class RicJsonLdBuilder
         if ($start !== '' || $end !== '') {
             $dateNode = ['@type' => 'ric:DateRange'];
             if ($start !== '') {
-                $dt = preg_match('/^\d{4}$/', $start) === 1 ? 'xsd:gYear' : 'xsd:date';
-                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => $dt];
+                $dateNode['ric:hasBeginningDate'] = self::dateLiteral($start);
             }
             if ($end !== '') {
-                $dt = preg_match('/^\d{4}$/', $end) === 1 ? 'xsd:gYear' : 'xsd:date';
-                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => $dt];
+                $dateNode['ric:hasEndDate'] = self::dateLiteral($end);
             }
             $doc['ric:isAssociatedWithDate'] = $dateNode;
         }
@@ -937,10 +933,10 @@ final class RicJsonLdBuilder
         if ($start !== '' || $end !== '') {
             $dateNode = ['@type' => 'ric:DateRange'];
             if ($start !== '') {
-                $dateNode['ric:hasBeginningDate'] = ['@value' => $start, '@type' => 'xsd:date'];
+                $dateNode['ric:hasBeginningDate'] = self::dateLiteral($start);
             }
             if ($end !== '') {
-                $dateNode['ric:hasEndDate'] = ['@value' => $end, '@type' => 'xsd:date'];
+                $dateNode['ric:hasEndDate'] = self::dateLiteral($end);
             }
             $node['ric:isAssociatedWithDate'] = $dateNode;
         }
@@ -1064,6 +1060,30 @@ final class RicJsonLdBuilder
             return '-' . sprintf('%04d', abs($year));
         }
         return sprintf('%04d', $year);
+    }
+
+    /**
+     * Type a date-like VARCHAR(20) value for RDF emission.
+     *
+     * RiC-CM date fields accept both bare years ("1789", "850", "-44")
+     * and full ISO dates ("1789-07-14"). xsd:date (XSD 1.0) requires
+     * the lexical form YYYY-MM-DD, so any value that is not a full ISO
+     * date must be typed as xsd:gYear instead. We accept any signed
+     * integer to cover historical dates with fewer than four digits
+     * and BCE notation; for these we round-trip through formatGYear()
+     * so the literal is always zero-padded to ≥4 digits.
+     *
+     * @return array{'@value': string, '@type': string}
+     */
+    private static function dateLiteral(string $value): array
+    {
+        if (preg_match('/^-?\d+$/', $value) === 1) {
+            return [
+                '@value' => self::formatGYear((int) $value),
+                '@type'  => 'xsd:gYear',
+            ];
+        }
+        return ['@value' => $value, '@type' => 'xsd:date'];
     }
 
     /**

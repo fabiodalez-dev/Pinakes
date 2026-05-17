@@ -98,7 +98,11 @@ test.describe.serial('Archives Phase 6 — OAI-PMH metadataPrefix=ric-o', () => 
             const isActive = dbQuery("SELECT is_active FROM plugins WHERE name = 'archives'");
             if (isActive !== '1' && ADMIN_EMAIL && ADMIN_PASS) {
                 await page.goto(`${BASE}/admin/plugins`);
-                const activateBtn = page.locator('button[onclick^="activatePlugin("]').first();
+                // Scope to the archives plugin card explicitly; .first()
+                // would target whichever plugin happens to render first.
+                const activateBtn = page.locator(
+                    'button[onclick*="activatePlugin(\'archives\')"], button[onclick*="activatePlugin(\\"archives\\")"]'
+                );
                 if (await activateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
                     await activateBtn.click();
                     const swal = page.locator('.swal2-confirm').first();
