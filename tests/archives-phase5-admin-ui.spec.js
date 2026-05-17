@@ -117,7 +117,13 @@ test.describe.serial('Archives Phase 5 — admin UI for activities/places/relati
             // the schema for Phase 2/3/4 tables is created via ensureSchema()
             // on plugin activation.
             await page.goto(`${BASE}/admin/plugins`);
-            const activateBtn = page.locator('button[onclick^="activatePlugin("]').first();
+            // Scope the click to the *archives* card explicitly — using
+            // .first() against the global selector would activate
+            // whichever plugin happens to render first in the list and
+            // make the bootstrap non-deterministic.
+            const activateBtn = page.locator(
+                'button[onclick*="activatePlugin(\'archives\')"], button[onclick*="activatePlugin(\\"archives\\")"]'
+            );
             if (await activateBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
                 await activateBtn.click();
                 const swalConfirm = page.locator('.swal2-confirm').first();

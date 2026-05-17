@@ -195,7 +195,6 @@ $gyear = static function (?int $start, ?int $end) use ($builder, $buildDateRange
     return [
         $node['ric:hasBeginningDate']['@value'] ?? null,
         $node['ric:hasEndDate']['@value'] ?? null,
-        $node === null ? null : true,
     ];
 };
 
