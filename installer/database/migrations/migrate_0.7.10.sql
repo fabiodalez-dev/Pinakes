@@ -42,84 +42,67 @@
 -- compact while the application layer enforces the integrity that
 -- the schema can't (MySQL can't FK to "one of two tables").
 
-CREATE TABLE IF NOT EXISTS archive_places (
-    id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    name         VARCHAR(500) NOT NULL,
-    place_type   ENUM(
-        'country',
-        'region',
-        'province',
-        'municipality',
-        'locality',
-        'building',
-        'room',
-        'geographic_feature',
-        'other'
-    ) NOT NULL DEFAULT 'locality',
-    parent_id    BIGINT UNSIGNED NULL,
-    latitude     DECIMAL(10,7) NULL,
-    longitude    DECIMAL(10,7) NULL,
-    geonames_id  VARCHAR(20)   NULL,
-    wikidata_id  VARCHAR(20)   NULL,
-    tgn_id       VARCHAR(20)   NULL,  -- Getty Thesaurus of Geographic Names
-    description  TEXT          NULL,
-    date_start   VARCHAR(20)   NULL,  -- for historical places (e.g. "Kingdom of Naples")
-    date_end     VARCHAR(20)   NULL,
-    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    deleted_at   TIMESTAMP NULL,
-    PRIMARY KEY (id),
-    KEY idx_parent (parent_id),
-    KEY idx_place_type (place_type),
-    KEY idx_geonames (geonames_id),
-    KEY idx_wikidata (wikidata_id),
-    KEY idx_deleted (deleted_at),
-    FULLTEXT KEY ft_place_search (name, description),
-    CONSTRAINT fk_place_parent FOREIGN KEY (parent_id)
-        REFERENCES archive_places(id) ON DELETE SET NULL
-    -- Self-parent / deeper cycle guards live in the application layer
-    -- (MySQL forbids CHECK on a column that's part of an
-    -- ON DELETE SET NULL FK action — see the same note on
-    -- archive_activities).
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Guard: skip when archives plugin not yet activated (base tables
+-- archival_units / authority_records absent → plugin's ensureSchema()
+-- creates everything Phase 4 needs on first onActivate).
+SET @archives_present = (
+    SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = DATABASE()
+      AND TABLE_NAME IN ('archival_units', 'authority_records')
+);
 
-CREATE TABLE IF NOT EXISTS archive_relations (
-    id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    source_type   ENUM('archival_unit','authority_record','archive_activity','archive_place') NOT NULL,
-    source_id     BIGINT UNSIGNED NOT NULL,
-    target_type   ENUM('archival_unit','authority_record','archive_activity','archive_place') NOT NULL,
-    target_id     BIGINT UNSIGNED NOT NULL,
-    ric_predicate VARCHAR(128) NOT NULL,
-    -- Open vocabulary by design — see ArchivesPlugin's RIC_PREDICATE_VALIDATOR
-    -- (Phase 5) for the admin-form allow-list. Common values:
-    --   ric:isOrWasLocatedAt        (any entity → Place)
-    --   ric:isOrWasResidentAt       (Agent → Place)
-    --   ric:isOrWasPerformedAt      (Activity → Place)
-    --   ric:isOrWasIncludedIn       (Record → RecordSet, beyond parent_id)
-    --   ric:isOrWasRelatedTo        (catch-all)
-    --   ric:isOrWasCreatedAt        (any entity → Place, creation site)
-    qualifier     VARCHAR(500) NULL,
-    certainty     ENUM('certain','probable','uncertain') NOT NULL DEFAULT 'certain',
-    date_start    VARCHAR(20)  NULL,
-    date_end      VARCHAR(20)  NULL,
-    source_ref    VARCHAR(500) NULL,
-    created_by    BIGINT UNSIGNED NULL,  -- FK to utenti.id when known
-    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    -- Unique per (source, target, predicate) — same pair can carry
-    -- multiple distinct predicates, but not the same predicate twice.
-    UNIQUE KEY uq_relation (source_type, source_id, target_type, target_id, ric_predicate),
-    KEY idx_source (source_type, source_id),
-    KEY idx_target (target_type, target_id),
-    KEY idx_predicate (ric_predicate)
-    -- No FK on source_id/target_id: MySQL can't reference "one of
-    -- several tables". Integrity is enforced by the application
-    -- layer (ArchivesPlugin::validateRelationEndpoints) and by
-    -- cascading deletes on the per-type owner tables — when a row
-    -- in archival_units / authority_records / archive_activities /
-    -- archive_places is hard-deleted, the application sweep clears
-    -- the matching archive_relations rows.
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+SET @sql = IF(@archives_present = 2,
+    "CREATE TABLE IF NOT EXISTS archive_places (
+        id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        name         VARCHAR(500) NOT NULL,
+        place_type   ENUM('country','region','province','municipality','locality','building','room','geographic_feature','other') NOT NULL DEFAULT 'locality',
+        parent_id    BIGINT UNSIGNED NULL,
+        latitude     DECIMAL(10,7) NULL,
+        longitude    DECIMAL(10,7) NULL,
+        geonames_id  VARCHAR(20)   NULL,
+        wikidata_id  VARCHAR(20)   NULL,
+        tgn_id       VARCHAR(20)   NULL,
+        description  TEXT          NULL,
+        date_start   VARCHAR(20)   NULL,
+        date_end     VARCHAR(20)   NULL,
+        created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        deleted_at   TIMESTAMP NULL,
+        PRIMARY KEY (id),
+        KEY idx_parent (parent_id),
+        KEY idx_place_type (place_type),
+        KEY idx_geonames (geonames_id),
+        KEY idx_wikidata (wikidata_id),
+        KEY idx_deleted (deleted_at),
+        FULLTEXT KEY ft_place_search (name, description),
+        CONSTRAINT fk_place_parent FOREIGN KEY (parent_id) REFERENCES archive_places(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    'SELECT 1');
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+SET @sql = IF(@archives_present = 2,
+    "CREATE TABLE IF NOT EXISTS archive_relations (
+        id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        source_type   ENUM('archival_unit','authority_record','archive_activity','archive_place') NOT NULL,
+        source_id     BIGINT UNSIGNED NOT NULL,
+        target_type   ENUM('archival_unit','authority_record','archive_activity','archive_place') NOT NULL,
+        target_id     BIGINT UNSIGNED NOT NULL,
+        ric_predicate VARCHAR(128) NOT NULL,
+        qualifier     VARCHAR(500) NULL,
+        certainty     ENUM('certain','probable','uncertain') NOT NULL DEFAULT 'certain',
+        date_start    VARCHAR(20)  NULL,
+        date_end      VARCHAR(20)  NULL,
+        source_ref    VARCHAR(500) NULL,
+        created_by    BIGINT UNSIGNED NULL,
+        created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uq_relation (source_type, source_id, target_type, target_id, ric_predicate),
+        KEY idx_source (source_type, source_id),
+        KEY idx_target (target_type, target_id),
+        KEY idx_predicate (ric_predicate)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    'SELECT 1');
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 
 SELECT 'RiC-CM Phase 4 schema applied (archive_places + archive_relations polymorphic)' AS migration_note;
