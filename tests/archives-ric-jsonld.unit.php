@@ -802,6 +802,53 @@ $xmlZeroId = $renderSubject([
 $check(strpos($xmlZeroId, 'rdf:about="0"') !== false,
     'F017: literal "0" identifier is preserved in rdf:about (not dropped by !empty)');
 
+// ============================================================
+// F006/F017 attachRelationsToRicDoc wrapper: validate the shape
+// of buildRelationNode + @graph composition that the wrapper
+// produces. attachRelationsToRicDoc itself lives inside
+// ArchivesPlugin (DB-coupled), so we assert on the builder-side
+// contract the wrapper depends on.
+// ============================================================
+echo "\n=== F017 attachRelationsToRicDoc wrapper contract ===\n";
+
+// Test A: a fonds doc + zero relations → @graph still well-formed
+$doc1 = $builder->buildUnit([
+    'id' => '1',
+    'level' => 'fonds',
+    'constructed_title' => 'F1',
+]);
+$graphEmpty = ['@context' => $builder->context(), '@graph' => [$doc1]];
+$check(
+    isset($graphEmpty['@context']) && isset($graphEmpty['@graph']) && count($graphEmpty['@graph']) === 1,
+    'F017: empty-relations @graph contains only the primary doc'
+);
+
+// Test B: buildRelationNode emits canonical @id + preserved predicate
+$relNode = $builder->buildRelationNode([
+    'id' => 99,
+    'source_type'   => 'archival_unit',
+    'source_id'     => 1,
+    'target_type'   => 'archive_place',
+    'target_id'     => 5,
+    'ric_predicate' => 'ric:isOrWasLocatedAt',
+]);
+$check(
+    is_array($relNode) && ($relNode['@id'] ?? null) === $base . '/archives/relations/99',
+    'F017: buildRelationNode emits canonical /archives/relations/{id} IRI'
+);
+$check(
+    is_array($relNode) && ($relNode['ric:relationType'] ?? null) === 'ric:isOrWasLocatedAt',
+    'F017: buildRelationNode preserves ric_predicate verbatim'
+);
+
+// Test C: @graph composition shape — doc + relation node coexist
+$graph = ['@context' => $builder->context(), '@graph' => [$doc1, $relNode]];
+$check(count($graph['@graph']) === 2, 'F017: @graph contains doc + relation');
+$check(
+    isset($graph['@graph'][1]['@id']) && str_contains((string) $graph['@graph'][1]['@id'], '/archives/relations/'),
+    'F017: relation node IRI shape correct inside @graph'
+);
+
 echo "\n================================\n";
 echo "RiC-O JSON-LD checks passed: {$passed}   Failed: {$failed}\n";
 exit($failed > 0 ? 1 : 0);

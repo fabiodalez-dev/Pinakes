@@ -131,12 +131,16 @@ $type = (string) ($row['place_type'] ?? '');
                     $tType = (string) ($rel['target_type'] ?? '');
                     $tId   = (int) ($rel['target_id'] ?? 0);
                 ?>
+                    <?php $relDetachId = 'archivesDetachRel_' . $relId; ?>
                     <li class="flex items-center gap-2">
                         <code class="text-xs text-gray-500 bg-gray-50 px-1 py-0.5 rounded"><?= $e($pred) ?></code>
                         <span><?= $e($tType) ?> #<?= $tId ?></span>
-                        <form method="POST" action="<?= $e(url('/admin/archives/relations/' . $relId . '/detach')) ?>" class="inline">
+                        <form id="<?= $e($relDetachId) ?>" method="POST" action="<?= $e(url('/admin/archives/relations/' . $relId . '/detach')) ?>" class="inline">
                             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
-                            <button type="submit" onclick="return confirm('<?= $e(__('Scollegare questa relazione?')) ?>')" class="text-red-600 text-xs hover:underline">
+                            <input type="hidden" name="_return_to" value="<?= $e('/admin/archives/places/' . $id) ?>">
+                            <button type="button"
+                                    onclick="archivesSwalConfirm(<?= $jsAttr($relDetachId) ?>, <?= $jsAttr(__('Scollegare questa relazione?')) ?>, <?= $jsAttr(__('scollega')) ?>)"
+                                    class="text-red-600 text-xs hover:underline">
                                 <?= __('scollega') ?>
                             </button>
                         </form>
@@ -145,18 +149,29 @@ $type = (string) ($row['place_type'] ?? '');
             </ul>
         <?php endif; ?>
 
-        <form method="POST" action="<?= $e(url('/admin/archives/relations/attach')) ?>" class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm">
+        <form method="POST" action="<?= $e(url('/admin/archives/relations/attach')) ?>"
+              class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm"
+              data-archives-relation-attach>
             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
             <input type="hidden" name="source_type" value="archive_place">
             <input type="hidden" name="source_id" value="<?= $id ?>">
-            <select name="target_type" required class="rounded-md border-gray-300">
+            <input type="hidden" name="_return_to" value="<?= $e('/admin/archives/places/' . $id) ?>">
+            <select name="target_type" id="rel_target_type" required class="rounded-md border-gray-300">
                 <option value=""><?= __('Tipo entità') ?></option>
                 <option value="archival_unit"><?= __('Unità archivistica') ?></option>
                 <option value="authority_record"><?= __('Agente') ?></option>
                 <option value="archive_activity"><?= __('Attività') ?></option>
                 <option value="archive_place"><?= __('Luogo') ?></option>
             </select>
-            <input type="number" name="target_id" required placeholder="<?= $e(__('ID target')) ?>" class="rounded-md border-gray-300">
+            <div class="relative">
+                <input type="text" id="rel_target_search" autocomplete="off"
+                       data-typeahead-input data-typeahead-target="rel_target_id"
+                       placeholder="<?= $e(__('Cerca per nome o ID...')) ?>"
+                       class="rounded-md border-gray-300 w-full">
+                <input type="hidden" id="rel_target_id" name="target_id" required>
+                <div data-typeahead-results
+                     class="absolute z-10 w-full bg-white border border-gray-200 rounded mt-1 shadow-lg hidden max-h-60 overflow-y-auto"></div>
+            </div>
             <input type="text" name="ric_predicate" required placeholder="ric:isOrWasRelatedTo" class="rounded-md border-gray-300">
             <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm font-semibold"><?= __('Collega') ?></button>
         </form>
@@ -170,6 +185,105 @@ $type = (string) ($row['place_type'] ?? '');
         </a>
     </p>
 </div>
+
+<?php /* Relation-attach typeahead — fetches /api/archives/entities?type=&q=
+         and populates the visible/hidden input pair. Pattern mirrors
+         storage/plugins/archives/views/show.php (data-typeahead-*). */ ?>
+<script>
+(function () {
+    var form = document.querySelector('form[data-archives-relation-attach]');
+    if (!form) return;
+    var input   = form.querySelector('[data-typeahead-input]');
+    var results = form.querySelector('[data-typeahead-results]');
+    var hidden  = document.getElementById(input.dataset.typeaheadTarget);
+    var typeSel = form.querySelector('select[name="target_type"]');
+    if (!input || !results || !hidden || !typeSel) return;
+    var searchUrl = <?= json_encode(url('/api/archives/entities'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    var noResultsMsg = <?= json_encode(__('Nessun risultato'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+    var debounceTimer = null;
+    var lastQuery = '';
+
+    function clearResults() { while (results.firstChild) results.removeChild(results.firstChild); }
+    function hideResults() { results.classList.add('hidden'); clearResults(); }
+
+    function renderResults(rows) {
+        clearResults();
+        if (!rows.length) {
+            var empty = document.createElement('div');
+            empty.className = 'px-3 py-2 text-gray-500 italic text-sm';
+            empty.textContent = noResultsMsg;
+            results.appendChild(empty);
+            results.classList.remove('hidden');
+            return;
+        }
+        for (var i = 0; i < rows.length; i++) {
+            var r = rows[i];
+            var div = document.createElement('div');
+            div.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm';
+            div.dataset.id = String(r.id);
+            var label = r.label || ('#' + r.id);
+            if (r.extra) { label += ' (' + r.extra + ')'; }
+            div.dataset.label = label;
+            div.textContent = label;
+            results.appendChild(div);
+        }
+        results.classList.remove('hidden');
+    }
+
+    function search(q, type) {
+        if (!type) { hideResults(); return; }
+        if (q.length < 2) { lastQuery = ''; hideResults(); return; }
+        var key = type + '|' + q;
+        if (key === lastQuery) return;
+        lastQuery = key;
+        var snapshot = key;
+        fetch(searchUrl + '?type=' + encodeURIComponent(type) + '&q=' + encodeURIComponent(q), { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : { results: [] }; })
+            .then(function (data) {
+                if ((typeSel.value + '|' + input.value.trim()) !== snapshot) return;
+                renderResults(data.results || []);
+            })
+            .catch(function () {
+                if ((typeSel.value + '|' + input.value.trim()) === snapshot) hideResults();
+            });
+    }
+
+    input.addEventListener('input', function () {
+        clearTimeout(debounceTimer);
+        var q = input.value.trim();
+        hidden.value = '';
+        debounceTimer = setTimeout(function () { search(q, typeSel.value); }, 200);
+    });
+
+    typeSel.addEventListener('change', function () {
+        hidden.value = '';
+        input.value = '';
+        lastQuery = '';
+        hideResults();
+    });
+
+    results.addEventListener('click', function (ev) {
+        var div = ev.target.closest('[data-id]');
+        if (!div) return;
+        hidden.value = div.dataset.id;
+        input.value = div.dataset.label;
+        hideResults();
+    });
+
+    document.addEventListener('click', function (ev) {
+        if (!form.contains(ev.target)) hideResults();
+    });
+
+    form.addEventListener('submit', function (ev) {
+        if (!hidden.value) {
+            ev.preventDefault();
+            input.focus();
+            input.classList.add('border-red-400');
+            setTimeout(function () { input.classList.remove('border-red-400'); }, 1500);
+        }
+    });
+})();
+</script>
 
 <?php /* SweetAlert2 confirm helper — matches the pattern used in
           storage/plugins/archives/views/show.php. Idempotency guard so

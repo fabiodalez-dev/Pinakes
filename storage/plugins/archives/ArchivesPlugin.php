@@ -1727,42 +1727,68 @@ class ArchivesPlugin
         ResponseInterface $response,
         int $id
     ): ResponseInterface {
-        $stmt = $this->db->prepare(
-            'UPDATE archival_units SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
-        );
-        if ($stmt === false) {
-            SecureLogger::error('[Archives] delete prepare failed: ' . $this->db->error, ['id' => $id]);
-            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F032 */)->withStatus(303);
+        // F010: wrap soft-delete + Phase 4 / Phase 3 sweeps in a single
+        // transaction so the row state and the dependent edge tables are
+        // mutated atomically. Without this, a failure between UPDATE and
+        // DELETE would leave dangling polymorphic edges pointing at a
+        // soft-deleted unit.
+        $db = $this->db;
+        $wasInTransaction = false;
+        $acRes = $db->query('SELECT @@autocommit AS ac');
+        if ($acRes instanceof \mysqli_result) {
+            $acRow = $acRes->fetch_assoc();
+            $acRes->free();
+            $wasInTransaction = ((int) ($acRow['ac'] ?? 1) === 0);
         }
-        $stmt->bind_param('i', $id);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[Archives] destroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+        if (!$wasInTransaction) { $db->begin_transaction(); }
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE archival_units SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($stmt === false) {
+                SecureLogger::error('[Archives] delete prepare failed: ' . $this->db->error, ['id' => $id]);
+                if (!$wasInTransaction) { $db->rollback(); }
+                return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F032 */)->withStatus(303);
+            }
+            $stmt->bind_param('i', $id);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[Archives] destroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+                $stmt->close();
+                if (!$wasInTransaction) { $db->rollback(); }
+                return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F032 */)
+                    ->withStatus(303);
+            }
             $stmt->close();
-            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F032 */)
-                ->withStatus(303);
-        }
-        $stmt->close();
 
-        // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
-        // Hard-delete relations whose endpoint is this soft-deleted entity, in
-        // both source and target positions.
-        $relSweep = $this->db->prepare(
-            'DELETE FROM archive_relations
-               WHERE (source_type = ? AND source_id = ?)
-                  OR (target_type = ? AND target_id = ?)'
-        );
-        if ($relSweep !== false) {
-            $entType = 'archival_unit';
-            $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
-            $relSweep->execute();
-            $relSweep->close();
-        }
-        // Also sweep archive_unit_activities link rows for this archival_unit.
-        $auaSweep = $this->db->prepare('DELETE FROM archive_unit_activities WHERE archival_unit_id = ?');
-        if ($auaSweep !== false) {
-            $auaSweep->bind_param('i', $id);
-            $auaSweep->execute();
-            $auaSweep->close();
+            // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+            // Hard-delete relations whose endpoint is this soft-deleted entity, in
+            // both source and target positions.
+            $relSweep = $this->db->prepare(
+                'DELETE FROM archive_relations
+                   WHERE (source_type = ? AND source_id = ?)
+                      OR (target_type = ? AND target_id = ?)'
+            );
+            if ($relSweep !== false) {
+                $entType = 'archival_unit';
+                $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+                $relSweep->execute();
+                $relSweep->close();
+            }
+            // Also sweep archive_unit_activities link rows for this archival_unit.
+            // F001 (re-review): column is `unit_id` per migrate_0.7.9.sql / ddlArchiveUnitActivities,
+            // NOT `archival_unit_id` — the wrong name failed silently with MySQL 1054.
+            $auaSweep = $this->db->prepare('DELETE FROM archive_unit_activities WHERE unit_id = ?');
+            if ($auaSweep !== false) {
+                $auaSweep->bind_param('i', $id);
+                $auaSweep->execute();
+                $auaSweep->close();
+            }
+
+            if (!$wasInTransaction) { $db->commit(); }
+        } catch (\Throwable $e) {
+            if (!$wasInTransaction) { $db->rollback(); }
+            SecureLogger::error('[Archives] destroyAction transaction failed: ' . $e->getMessage(), ['id' => $id]);
+            // continue degraded — soft-delete + sweep both rolled back together
         }
 
         return $response->withHeader('Location', url('/admin/archives') /* FIX F032 */)->withStatus(303);
@@ -2442,35 +2468,68 @@ class ArchivesPlugin
         ResponseInterface $response,
         int $id
     ): ResponseInterface {
-        $stmt = $this->db->prepare(
-            'UPDATE authority_records SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
-        );
-        if ($stmt === false) {
-            SecureLogger::error('[Archives] authority delete prepare failed: ' . $this->db->error, ['id' => $id]);
-            return $response->withHeader('Location', url('/admin/archives/authorities/' . $id) /* FIX F032 */)->withStatus(303);
+        // F010: wrap soft-delete + Phase 4 / Phase 2 sweeps in a single
+        // transaction so dangling polymorphic / agent-to-agent edges cannot
+        // survive a partial failure mid-sweep.
+        $db = $this->db;
+        $wasInTransaction = false;
+        $acRes = $db->query('SELECT @@autocommit AS ac');
+        if ($acRes instanceof \mysqli_result) {
+            $acRow = $acRes->fetch_assoc();
+            $acRes->free();
+            $wasInTransaction = ((int) ($acRow['ac'] ?? 1) === 0);
         }
-        $stmt->bind_param('i', $id);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[Archives] authorityDestroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+        if (!$wasInTransaction) { $db->begin_transaction(); }
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE authority_records SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($stmt === false) {
+                SecureLogger::error('[Archives] authority delete prepare failed: ' . $this->db->error, ['id' => $id]);
+                if (!$wasInTransaction) { $db->rollback(); }
+                return $response->withHeader('Location', url('/admin/archives/authorities/' . $id) /* FIX F032 */)->withStatus(303);
+            }
+            $stmt->bind_param('i', $id);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[Archives] authorityDestroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+                $stmt->close();
+                if (!$wasInTransaction) { $db->rollback(); }
+                return $response->withHeader('Location', url('/admin/archives/authorities/' . $id) /* FIX F032 */)
+                    ->withStatus(303);
+            }
             $stmt->close();
-            return $response->withHeader('Location', url('/admin/archives/authorities/' . $id) /* FIX F032 */)
-                ->withStatus(303);
-        }
-        $stmt->close();
 
-        // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
-        // Hard-delete relations whose endpoint is this soft-deleted entity, in
-        // both source and target positions.
-        $relSweep = $this->db->prepare(
-            'DELETE FROM archive_relations
-               WHERE (source_type = ? AND source_id = ?)
-                  OR (target_type = ? AND target_id = ?)'
-        );
-        if ($relSweep !== false) {
-            $entType = 'authority_record';
-            $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
-            $relSweep->execute();
-            $relSweep->close();
+            // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+            // Hard-delete relations whose endpoint is this soft-deleted entity, in
+            // both source and target positions.
+            $relSweep = $this->db->prepare(
+                'DELETE FROM archive_relations
+                   WHERE (source_type = ? AND source_id = ?)
+                      OR (target_type = ? AND target_id = ?)'
+            );
+            if ($relSweep !== false) {
+                $entType = 'authority_record';
+                $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+                $relSweep->execute();
+                $relSweep->close();
+            }
+
+            // F002 (re-review): Phase 2 archive_agent_relations sweep — when an authority is soft-deleted,
+            // its agent↔agent edges (where it appears as agent_id OR related_id) must be cleared too.
+            $agentRelSweep = $this->db->prepare(
+                'DELETE FROM archive_agent_relations WHERE agent_id = ? OR related_id = ?'
+            );
+            if ($agentRelSweep !== false) {
+                $agentRelSweep->bind_param('ii', $id, $id);
+                $agentRelSweep->execute();
+                $agentRelSweep->close();
+            }
+
+            if (!$wasInTransaction) { $db->commit(); }
+        } catch (\Throwable $e) {
+            if (!$wasInTransaction) { $db->rollback(); }
+            SecureLogger::error('[Archives] authorityDestroyAction transaction failed: ' . $e->getMessage(), ['id' => $id]);
+            // continue degraded — soft-delete + sweep both rolled back together
         }
 
         return $response->withHeader('Location', url('/admin/archives/authorities') /* FIX F032 */)->withStatus(303);
@@ -6933,12 +6992,20 @@ class ArchivesPlugin
             }
         }
 
+        try {
+            $relations = $this->fetchRelationsForEntity('archive_activity', $id);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Archives] activityShowAction fetchRelationsForEntity failed: ' . $e->getMessage());
+            $relations = [];
+        }
+
         return $this->renderView($response, 'activities/show', [
             'row'          => $row,
             'linkedUnits'  => $linkedUnits,
             'agent_label'  => $agentLabel,
             'parent_label' => $parentLabel,
             'types'        => array_keys(self::ACTIVITY_TYPES),
+            'relations'    => $relations,
             'headLinks'    => [
                 ['rel' => 'alternate', 'type' => 'application/ld+json',
                  'title' => 'RiC-O (Records in Contexts)',
@@ -7019,36 +7086,56 @@ class ArchivesPlugin
         ResponseInterface $response,
         int $id
     ): ResponseInterface {
-        // Soft-delete — mirrors the libri / archival_units convention.
-        $stmt = $this->db->prepare(
-            'UPDATE archive_activities SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
-        );
-        if ($stmt !== false) {
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            $stmt->close();
+        // F010: wrap soft-delete + Phase 4 / Phase 3 sweeps in a single
+        // transaction so the activity row and its mirrored link rows are
+        // mutated atomically.
+        $db = $this->db;
+        $wasInTransaction = false;
+        $acRes = $db->query('SELECT @@autocommit AS ac');
+        if ($acRes instanceof \mysqli_result) {
+            $acRow = $acRes->fetch_assoc();
+            $acRes->free();
+            $wasInTransaction = ((int) ($acRow['ac'] ?? 1) === 0);
         }
+        if (!$wasInTransaction) { $db->begin_transaction(); }
+        try {
+            // Soft-delete — mirrors the libri / archival_units convention.
+            $stmt = $this->db->prepare(
+                'UPDATE archive_activities SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $stmt->close();
+            }
 
-        // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
-        // Hard-delete relations whose endpoint is this soft-deleted entity, in
-        // both source and target positions.
-        $relSweep = $this->db->prepare(
-            'DELETE FROM archive_relations
-               WHERE (source_type = ? AND source_id = ?)
-                  OR (target_type = ? AND target_id = ?)'
-        );
-        if ($relSweep !== false) {
-            $entType = 'archive_activity';
-            $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
-            $relSweep->execute();
-            $relSweep->close();
-        }
-        // Also sweep archive_unit_activities link rows for this activity.
-        $auaSweep = $this->db->prepare('DELETE FROM archive_unit_activities WHERE activity_id = ?');
-        if ($auaSweep !== false) {
-            $auaSweep->bind_param('i', $id);
-            $auaSweep->execute();
-            $auaSweep->close();
+            // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+            // Hard-delete relations whose endpoint is this soft-deleted entity, in
+            // both source and target positions.
+            $relSweep = $this->db->prepare(
+                'DELETE FROM archive_relations
+                   WHERE (source_type = ? AND source_id = ?)
+                      OR (target_type = ? AND target_id = ?)'
+            );
+            if ($relSweep !== false) {
+                $entType = 'archive_activity';
+                $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+                $relSweep->execute();
+                $relSweep->close();
+            }
+            // Also sweep archive_unit_activities link rows for this activity.
+            $auaSweep = $this->db->prepare('DELETE FROM archive_unit_activities WHERE activity_id = ?');
+            if ($auaSweep !== false) {
+                $auaSweep->bind_param('i', $id);
+                $auaSweep->execute();
+                $auaSweep->close();
+            }
+
+            if (!$wasInTransaction) { $db->commit(); }
+        } catch (\Throwable $e) {
+            if (!$wasInTransaction) { $db->rollback(); }
+            SecureLogger::error('[Archives] activityDestroyAction transaction failed: ' . $e->getMessage(), ['id' => $id]);
+            // continue degraded — soft-delete + sweep both rolled back together
         }
 
         return $response
@@ -7344,8 +7431,15 @@ class ArchivesPlugin
     ): ResponseInterface {
         $row = $this->findPlaceRow($id);
         if ($row === null) { return $this->renderNotFound($response, $id); }
+        try {
+            $relations = $this->fetchRelationsForEntity('archive_place', $id);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Archives] placeShowAction fetchRelationsForEntity failed: ' . $e->getMessage());
+            $relations = [];
+        }
         return $this->renderView($response, 'places/show', [
             'row' => $row,
+            'relations' => $relations,
             'headLinks' => [
                 ['rel' => 'alternate', 'type' => 'application/ld+json',
                  'title' => 'RiC-O (Records in Contexts)',
@@ -7407,28 +7501,48 @@ class ArchivesPlugin
     public function placeDestroyAction(
         ServerRequestInterface $request, ResponseInterface $response, int $id
     ): ResponseInterface {
-        $stmt = $this->db->prepare(
-            'UPDATE archive_places SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
-        );
-        if ($stmt !== false) {
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            $stmt->close();
+        // F010: wrap soft-delete + Phase 4 sweep in a single transaction so
+        // a partial failure between UPDATE and DELETE cannot leave dangling
+        // polymorphic edges pointing at a soft-deleted place.
+        $db = $this->db;
+        $wasInTransaction = false;
+        $acRes = $db->query('SELECT @@autocommit AS ac');
+        if ($acRes instanceof \mysqli_result) {
+            $acRow = $acRes->fetch_assoc();
+            $acRes->free();
+            $wasInTransaction = ((int) ($acRow['ac'] ?? 1) === 0);
         }
+        if (!$wasInTransaction) { $db->begin_transaction(); }
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE archive_places SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $stmt->close();
+            }
 
-        // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
-        // Hard-delete relations whose endpoint is this soft-deleted entity, in
-        // both source and target positions.
-        $relSweep = $this->db->prepare(
-            'DELETE FROM archive_relations
-               WHERE (source_type = ? AND source_id = ?)
-                  OR (target_type = ? AND target_id = ?)'
-        );
-        if ($relSweep !== false) {
-            $entType = 'archive_place';
-            $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
-            $relSweep->execute();
-            $relSweep->close();
+            // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+            // Hard-delete relations whose endpoint is this soft-deleted entity, in
+            // both source and target positions.
+            $relSweep = $this->db->prepare(
+                'DELETE FROM archive_relations
+                   WHERE (source_type = ? AND source_id = ?)
+                      OR (target_type = ? AND target_id = ?)'
+            );
+            if ($relSweep !== false) {
+                $entType = 'archive_place';
+                $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+                $relSweep->execute();
+                $relSweep->close();
+            }
+
+            if (!$wasInTransaction) { $db->commit(); }
+        } catch (\Throwable $e) {
+            if (!$wasInTransaction) { $db->rollback(); }
+            SecureLogger::error('[Archives] placeDestroyAction transaction failed: ' . $e->getMessage(), ['id' => $id]);
+            // continue degraded — soft-delete + sweep both rolled back together
         }
 
         return $response
@@ -7537,39 +7651,39 @@ class ArchivesPlugin
      * Phase 5: ancestor walk to reject cycles in the place tree.
      * Mirrors activityWouldCreateCycle / parentWouldCreateCycle pattern —
      * MySQL can't enforce this since the FK uses ON DELETE SET NULL.
+     *
+     * F015: prepare the SELECT once and reuse across iterations instead of
+     * re-preparing per loop. Mirrors activityWouldCreateCycle's pattern and
+     * cuts prepare/parse overhead on deep trees.
+     *
+     * F016: intentionally NOT filtering on deleted_at — integrity checks
+     * must see the full topology of the tree, not just rows still visible
+     * to the UI. If the chain crosses a soft-deleted ancestor, filtering
+     * would silently truncate the walk and let a path through a deleted
+     * node go undetected. The visibility/integrity distinction belongs to
+     * render code, not here.
      */
     private function placeWouldCreateCycle(int $childId, int $proposedParentId): bool
     {
+        $stmt = $this->db->prepare(
+            'SELECT parent_id FROM archive_places WHERE id = ? LIMIT 1'
+        );
+        if ($stmt === false) { return true; }
         $current = $proposedParentId;
         $visited = [];
         $iterations = 0;
         while ($current > 0 && $iterations++ < 100) {
-            if ($current === $childId) {
-                return true;
-            }
-            if (isset($visited[$current])) {
-                break;
-            }
+            if ($current === $childId) { $stmt->close(); return true; }
+            if (isset($visited[$current])) { break; }
             $visited[$current] = true;
-            $stmt = $this->db->prepare(
-                'SELECT parent_id FROM archive_places WHERE id = ? AND deleted_at IS NULL'
-            );
-            if ($stmt === false) {
-                return false;
-            }
             $stmt->bind_param('i', $current);
-            if (!$stmt->execute()) {
-                $stmt->close();
-                return false;
-            }
+            if (!$stmt->execute()) { $stmt->close(); return false; }
             $res = $stmt->get_result();
             $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
-            $stmt->close();
-            if ($row === null || empty($row['parent_id'])) {
-                break;
-            }
+            if (!is_array($row) || empty($row['parent_id'])) { break; }
             $current = (int) $row['parent_id'];
         }
+        $stmt->close();
         return false;
     }
 
@@ -7658,10 +7772,28 @@ class ArchivesPlugin
             // table so existing readers (fetchActivitiesForUnit /
             // fetchUnitsForActivity) see the edge. Without this mirror the
             // archive_unit_activities table would be write-orphaned.
+            //
+            // F011 (re-review): predicate direction is preserved verbatim
+            // from the polymorphic row, but archive_unit_activities is
+            // conventionally unit-side (unit → activity). When the source
+            // of the original relation is archive_activity (activity-side),
+            // callers reading the mirror may see inverted-direction
+            // predicates. We do NOT silently invert here because the
+            // canonical RiC-O inverse term list is not yet wired up — a
+            // wrong inversion would corrupt semantics worse than a
+            // direction-mismatched predicate. Tracking gap for v0.7.13.
             if (($srcType === 'archival_unit' && $tgtType === 'archive_activity')
              || ($srcType === 'archive_activity' && $tgtType === 'archival_unit')) {
                 $unitId  = $srcType === 'archival_unit'    ? $srcId : $tgtId;
                 $actId   = $srcType === 'archive_activity' ? $srcId : $tgtId;
+                if ($srcType === 'archive_activity') {
+                    // Log the activity-side direction so the v0.7.13
+                    // canonical-inversion follow-up has a corpus to study.
+                    SecureLogger::error(
+                        '[Archives] F011 activity-side predicate mirrored verbatim (direction may be inverted vs unit-side convention)',
+                        ['unit_id' => $unitId, 'activity_id' => $actId, 'predicate' => $predicate]
+                    );
+                }
                 $linkStmt = $this->db->prepare(
                     'INSERT IGNORE INTO archive_unit_activities (unit_id, activity_id, ric_predicate)
                      VALUES (?, ?, ?)'
@@ -9510,7 +9642,9 @@ class ArchivesPlugin
             date_end      VARCHAR(20) NULL,
             is_ongoing    TINYINT(1) NOT NULL DEFAULT 0,
             agent_id      BIGINT UNSIGNED NULL,
-            place_id      BIGINT UNSIGNED NULL,
+            -- F003 (re-review): place_id removed to match migrate_0.7.12.sql which DROPs the
+            -- reserved-but-unused column. Fresh installs must NOT recreate it; both paths
+            -- (fresh install via ensureSchema + upgraded install via migration) now agree.
             source_ref    VARCHAR(500) NULL,
             created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

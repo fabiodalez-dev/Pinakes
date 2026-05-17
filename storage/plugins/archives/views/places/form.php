@@ -128,19 +128,28 @@ $typeLabel = [
                 <label for="geonames_id" class="form-label"><?= __('Identificativo GeoNames') ?></label>
                 <input type="text" id="geonames_id" name="geonames_id" value="<?= $val('geonames_id') ?>"
                        placeholder="2525068"
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                       class="mt-1 block w-full rounded-md <?= $err('geonames_id') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <?php if ($err('geonames_id')): ?>
+                    <p class="mt-1 text-sm text-red-600"><?= $e($err('geonames_id')) ?></p>
+                <?php endif; ?>
             </div>
             <div>
                 <label for="wikidata_id" class="form-label"><?= __('Identificativo Wikidata') ?></label>
                 <input type="text" id="wikidata_id" name="wikidata_id" value="<?= $val('wikidata_id') ?>"
                        placeholder="Q40218"
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                       class="mt-1 block w-full rounded-md <?= $err('wikidata_id') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <?php if ($err('wikidata_id')): ?>
+                    <p class="mt-1 text-sm text-red-600"><?= $e($err('wikidata_id')) ?></p>
+                <?php endif; ?>
             </div>
             <div>
                 <label for="tgn_id" class="form-label"><?= __('Identificativo Getty TGN') ?></label>
                 <input type="text" id="tgn_id" name="tgn_id" value="<?= $val('tgn_id') ?>"
                        placeholder="7004329"
-                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                       class="mt-1 block w-full rounded-md <?= $err('tgn_id') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <?php if ($err('tgn_id')): ?>
+                    <p class="mt-1 text-sm text-red-600"><?= $e($err('tgn_id')) ?></p>
+                <?php endif; ?>
             </div>
         </div>
 
