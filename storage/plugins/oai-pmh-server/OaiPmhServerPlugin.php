@@ -1223,6 +1223,15 @@ class OaiPmhServerPlugin
             $this->writeMetadata($xw, $rec, $metadataPrefix, $host);
             $xw->endElement(); // metadata
         } catch (CannotDisseminateFormatException $e) {
+            // FIX (CR full review): close the still-open <metadata>,
+            // <record> and <GetRecord> elements before emitting the
+            // top-level <error>. Without this the response is not
+            // well-formed XML when CannotDisseminateFormatException
+            // fires after startElement('metadata') has already opened
+            // the inner subtree.
+            try { $xw->endElement(); } catch (\Throwable $ignored) {} // metadata
+            try { $xw->endElement(); } catch (\Throwable $ignored) {} // record
+            try { $xw->endElement(); } catch (\Throwable $ignored) {} // GetRecord
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The requested metadataPrefix is not supported for this record type.');
             return;

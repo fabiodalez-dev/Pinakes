@@ -664,7 +664,7 @@ Shipped as the bundled **Archives** plugin (opt-in; activate from Admin → Plug
 - **Public** (`/archivio?q=…&level=…&date_from=…&date_to=…`): same text + level filters plus date-range overlap (`date_from` / `date_to`). In search mode all hierarchy levels are returned (not just root fonds), so a user can search directly for a series or fascicolo by reference code. Theme-aware CSS.
 
 **OAI-PMH 2.0 data provider**
-- `GET /archives/oai` exposes archival units for harvesting: `Identify`, `ListMetadataFormats` (oai_dc + marc21 + ead3), `ListSets` (per ISAD level), `ListRecords`/`GetRecord` with resumption tokens, selective harvesting by set + date range.
+- `GET /oai` (exposed by the OAI-PMH server plugin) advertises archival units alongside book records via `set=archives`: `Identify`, `ListMetadataFormats` (oai_dc + marc21 + ead3 + ric-o for archival_unit), `ListSets` (per ISAD level), `ListRecords`/`GetRecord` with resumption tokens, selective harvesting by set + date range.
 
 **Plugin integration**
 - Self-contained at `storage/plugins/archives/`. Wires up through two `plugin_hooks` rows (`app.routes.register`, `admin.menu.render`) on activation; deactivation removes the route + sidebar entry without touching DB data.

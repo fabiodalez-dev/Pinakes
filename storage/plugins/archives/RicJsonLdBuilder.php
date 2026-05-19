@@ -832,13 +832,21 @@ final class RicJsonLdBuilder
         // Lat/lng as a WGS84 geometry node — non-standard RiC-O but a
         // common LD pattern; consumers that don't know the wkt
         // namespace ignore it safely.
-        $lat = $place['latitude']  ?? null;
-        $lng = $place['longitude'] ?? null;
-        if ($lat !== null && $lng !== null) {
+        // FIX (CR full review): the previous guard only rejected null,
+        // so empty strings or non-numeric junk cast to 0.0 and produced
+        // a bogus 0,0 coordinate in the public JSON-LD. Trim string
+        // inputs and require both endpoints numeric before emitting.
+        $rawLat = $place['latitude']  ?? '';
+        $rawLng = $place['longitude'] ?? '';
+        if (is_string($rawLat)) { $rawLat = trim($rawLat); }
+        if (is_string($rawLng)) { $rawLng = trim($rawLng); }
+        if ($rawLat !== '' && $rawLng !== ''
+            && is_numeric($rawLat) && is_numeric($rawLng)
+        ) {
             $doc['ric:hasOrHadCoordinate'] = [
                 '@type' => 'ric:CoordinateLocation',
-                'ric:latitude'  => (float) $lat,
-                'ric:longitude' => (float) $lng,
+                'ric:latitude'  => (float) $rawLat,
+                'ric:longitude' => (float) $rawLng,
             ];
         }
 

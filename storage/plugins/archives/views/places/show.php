@@ -318,13 +318,68 @@ $relationTargetLabels = [
         hideResults();
     });
 
-    results.addEventListener('click', function (ev) {
-        var div = ev.target.closest('[data-id]');
+    // FIX (CR full review): keyboard a11y on the typeahead listbox —
+    // ArrowDown/ArrowUp move the active option, Enter selects, Escape
+    // closes. Mirrors activities/show.php's keyboard implementation.
+    function selectOption(div) {
         if (!div) return;
         hidden.value = div.dataset.id;
         input.value = div.dataset.label;
         hideResults();
+        input.focus();
+    }
+    function getOptions() {
+        return Array.prototype.slice.call(results.querySelectorAll('[data-id]'));
+    }
+    function setActive(idx, opts) {
+        opts = opts || getOptions();
+        opts.forEach(function (o) {
+            o.classList.remove('bg-blue-100');
+            o.removeAttribute('aria-selected');
+            if (!o.id) o.id = 'archives-typeahead-place-opt-' + Math.random().toString(36).slice(2, 8);
+        });
+        if (idx < 0 || idx >= opts.length) {
+            input.removeAttribute('aria-activedescendant');
+            return -1;
+        }
+        var el = opts[idx];
+        el.classList.add('bg-blue-100');
+        el.setAttribute('aria-selected', 'true');
+        input.setAttribute('aria-activedescendant', el.id);
+        if (el.scrollIntoView) {
+            el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+        }
+        return idx;
+    }
+    var activeIdx = -1;
+    results.addEventListener('click', function (ev) {
+        var div = ev.target.closest('[data-id]');
+        if (!div) return;
+        selectOption(div);
     });
+    input.addEventListener('keydown', function (ev) {
+        var opts = getOptions();
+        if (results.classList.contains('hidden') || opts.length === 0) {
+            if (ev.key === 'Escape') hideResults();
+            return;
+        }
+        if (ev.key === 'ArrowDown') {
+            ev.preventDefault();
+            activeIdx = setActive((activeIdx + 1) % opts.length, opts);
+        } else if (ev.key === 'ArrowUp') {
+            ev.preventDefault();
+            activeIdx = setActive(activeIdx <= 0 ? opts.length - 1 : activeIdx - 1, opts);
+        } else if (ev.key === 'Enter') {
+            if (activeIdx >= 0 && activeIdx < opts.length) {
+                ev.preventDefault();
+                selectOption(opts[activeIdx]);
+            }
+        } else if (ev.key === 'Escape') {
+            ev.preventDefault();
+            hideResults();
+        }
+    });
+    input.addEventListener('input', function () { activeIdx = -1; });
 
     document.addEventListener('click', function (ev) {
         if (!form.contains(ev.target)) hideResults();
