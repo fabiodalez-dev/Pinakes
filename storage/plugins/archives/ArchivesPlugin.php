@@ -60,6 +60,17 @@ class ArchivesPlugin
         if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {
             return '/admin/archives';
         }
+        // FIX F014: restrict to /admin/archives/* allow-list. A
+        // referer-controlled _return_to could otherwise redirect to any
+        // admin route (confused-deputy across plugin boundaries). The
+        // attacker would still need admin auth to land there, but the
+        // tightening removes the redirect surface entirely. Accepts
+        // exactly '/admin/archives' and any path under '/admin/archives/'.
+        if ($candidate !== '/admin/archives'
+            && !str_starts_with($candidate, '/admin/archives/')
+        ) {
+            return '/admin/archives';
+        }
         return $candidate;
     }
 
@@ -275,8 +286,9 @@ class ArchivesPlugin
      * Execute the DDL for archival_units, authority_records, and the
      * M:N link table. CREATE TABLE failures are logged and reported
      * via the returned 'failed' list without throwing. However, the
-     * subsequent migrateImageColumns() and migrateArchivalUnitFilesFK()
-     * calls throw RuntimeException on failure, which aborts activation.
+     * subsequent migrateImageColumns(), migrateArchivalUnitFilesFK(),
+     * and migrateAuthorityRecordsRicColumns() (FIX F019) calls throw
+     * RuntimeException on failure, which aborts activation.
      *
      * @return array{created: list<string>, failed: list<string>}
      * @throws \RuntimeException If a schema migration step fails.
@@ -968,9 +980,12 @@ class ArchivesPlugin
         });
 
         // ── RiC-O (Records in Contexts Ontology) JSON-LD ────────────────────
-        // Phase 1 of issue #122 — three public, read-only endpoints that
-        // expose the existing ISAD(G) tree as RiC-CM entities for harvesting
-        // by Europeana, ArchivesPortalEurope and the ICA aggregator.
+        // RiC-CM (issue #122) — public, read-only endpoints that expose
+        // the ISAD(G) tree as RiC-CM entities for harvesting by Europeana,
+        // ArchivesPortalEurope and the ICA aggregator. The set has grown
+        // from Phase 1's original three (collection/unit/agents) to also
+        // include Phase 3 (activities + list) and Phase 4 (places + list).
+        // (FIX F026: prior wording undercounted as "three".)
         // No DB changes: the data is the same as MARCXML/EAD3, only the
         // serialisation vocabulary differs.
 
@@ -1034,7 +1049,7 @@ class ArchivesPlugin
             return $plugin->ricPlacesListAction($request, $response);
         });
 
-        // ── RiC-CM Phase 5 (target v0.8.0 — issue #122) — Admin UI ───
+        // ── RiC-CM Phase 5 (v0.7.12 — issue #122) — Admin UI ─── (FIX F023)
         // CRUD for archive_activities, archive_places, and the
         // polymorphic archive_relations + the cross-entity autocomplete
         // helper. All routes behind AdminAuthMiddleware; writes also
@@ -2038,7 +2053,10 @@ class ArchivesPlugin
             ]);
             return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
-        $basename = $id . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
+        // FIX F015: 64-bit entropy (was 32-bit / random_bytes(4)) so the
+        // basename remains collision-resistant even at scale within a
+        // single archival_unit's upload set.
+        $basename = $id . '-' . bin2hex(random_bytes(8)) . '.' . $ext;
         try {
             $upload->moveTo($targetDirFs . '/' . $basename);
         } catch (\Throwable $e) {
@@ -5987,8 +6005,10 @@ class ArchivesPlugin
     {
         // F044 (Phase 8): enumerate the columns RicJsonLdBuilder::buildActivity
         // actually reads instead of SELECT * — see findUnitForRic for the
-        // rationale. agent_id / parent_id / place_id stay because the
-        // builder emits them as relation IRIs.
+        // rationale. agent_id and parent_id stay because the builder
+        // emits them as relation IRIs. (FIX F021: prior wording also
+        // mentioned place_id, but that column was dropped by
+        // migrate_0.7.12.sql and is no longer in the SELECT below.)
         $stmt = $this->db->prepare(
             'SELECT id, title, description, activity_type, parent_id,
                     date_start, date_end, is_ongoing, agent_id, source_ref

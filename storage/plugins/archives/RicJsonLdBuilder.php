@@ -9,11 +9,14 @@ namespace App\Plugins\Archives;
  * of archival units and authority records by mapping the existing
  * ISAD(G) / ISAAR(CPF) data model onto the equivalent RiC-CM entities.
  *
- * Phase 1 of issue #122 — read-only translator. No new tables are
- * introduced; existing rows in `archival_units` and `authority_records`
- * are simply re-serialised using the RiC-O vocabulary so external
- * consumers (Europeana, ArchivesPortalEurope, ICA harvester) can ingest
- * Pinakes archives as a graph rather than a tree.
+ * Issue #122 — RiC-CM translator. Phase 1 (v0.7.7) introduced the
+ * read-only Record/RecordSet/Agent serialiser; Phases 2–6 added
+ * Activity (archive_activities), Place (archive_places), polymorphic
+ * Relations (archive_relations), and OAI-PMH ric-o emission. The
+ * builder now serves rows from all five domain tables so external
+ * consumers (Europeana, ArchivesPortalEurope, ICA harvester) can
+ * ingest Pinakes archives as a graph rather than a tree. (FIX F025:
+ * prior wording said "Phase 1 ... No new tables are introduced.")
  *
  * RiC-O reference: https://www.ica.org/standards/RiC/ontology
  * RiC-CM reference: https://www.ica.org/standards/RiC/RiC-CM-1.0.html
@@ -1240,7 +1243,9 @@ final class RicJsonLdBuilder
      * canonical RDF/XML on the provided XMLWriter. Caller is responsible
      * for opening the surrounding `<rdf:RDF>` element + namespace
      * declarations and for closing it afterwards — this method emits
-     * one or more `<rico:Foo rdf:about="...">…</rico:Foo>` subjects.
+     * one or more `<ric:Foo rdf:about="...">…</ric:Foo>` subjects (FIX F020:
+     * the @context maps the `ric` prefix to NS_RIC; prior wording cited
+     * a non-existent `rico` prefix).
      *
      * Mapping rules:
      *   - top-level `@graph` ⇒ emit one subject per array entry

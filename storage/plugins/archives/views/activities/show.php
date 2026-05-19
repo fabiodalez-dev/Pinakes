@@ -301,6 +301,21 @@ $typeLabel = [
         if (input) input.setAttribute('aria-expanded', 'true');
     }
 
+    function showLoading() {
+        // FIX F039: visible "Caricamento…" indicator while the fetch is in
+        // flight. Without it the input goes silent for slow networks and
+        // the user re-types thinking nothing is happening.
+        clearResults();
+        var loading = document.createElement('div');
+        loading.className = 'px-3 py-2 text-gray-500 italic text-sm';
+        loading.setAttribute('role', 'status');
+        loading.setAttribute('aria-live', 'polite');
+        loading.textContent = '…';
+        results.appendChild(loading);
+        results.classList.remove('hidden');
+        if (input) input.setAttribute('aria-expanded', 'true');
+    }
+
     function search(q, type) {
         if (!type) { hideResults(); return; }
         if (q.length < 2) { lastQuery = ''; hideResults(); return; }
@@ -308,6 +323,7 @@ $typeLabel = [
         if (key === lastQuery) return;
         lastQuery = key;
         var snapshot = key;
+        showLoading();  // FIX F039
         fetch(searchUrl + '?type=' + encodeURIComponent(type) + '&q=' + encodeURIComponent(q), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : { results: [] }; })
             .then(function (data) {

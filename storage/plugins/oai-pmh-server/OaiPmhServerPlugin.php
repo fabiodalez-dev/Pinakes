@@ -852,7 +852,7 @@ class OaiPmhServerPlugin
                 'schema'    => self::SCHEMA_MARCXCHANGE,
                 'namespace' => self::NS_MARCXCHANGE,
             ],
-            // Phase 6 (v0.8.0): RiC-O is exposed as a metadataPrefix for
+            // Phase 6 (v0.7.12): RiC-O is exposed as a metadataPrefix for
             // archival_unit records. The schema URL is the ICA-hosted
             // OWL ontology document; clients perform shape validation
             // out-of-band since RDF/XML is not XSD-validatable.
@@ -2041,8 +2041,12 @@ class OaiPmhServerPlugin
      */
     private function writeArchivalUnitMetadata(\XMLWriter $xw, array $rec, string $metadataPrefix, string $host = 'localhost'): void
     {
-        // For archival units, we produce minimal DC output.
-        // The archives plugin's own /archives/oai endpoint handles richer formats.
+        // For archival units, we produce minimal DC output here AND, since
+        // v0.7.12, full RiC-O RDF/XML via the writeArchivalUnitRicO()
+        // branch below when metadataPrefix=ric-o. (FIX F024: prior comment
+        // suggested only the archives plugin's own /archives/oai endpoint
+        // exposed richer formats; that is now also true of this one for
+        // ric-o.)
         if ($metadataPrefix === 'oai_dc') {
             $xw->startElementNs('oai_dc', 'dc', 'http://www.openarchives.org/OAI/2.0/oai_dc/');
             $xw->writeAttributeNs('xmlns', 'dc', null, 'http://purl.org/dc/elements/1.1/');
@@ -2066,7 +2070,7 @@ class OaiPmhServerPlugin
             return;
         }
 
-        // Phase 6 (v0.8.0): RiC-O as RDF/XML for archival units.
+        // Phase 6 (v0.7.12): RiC-O as RDF/XML for archival units.
         if ($metadataPrefix === 'ric-o') {
             $this->writeArchivalUnitRicO($xw, $rec, $host);
             return;
