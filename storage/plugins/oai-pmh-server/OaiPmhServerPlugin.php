@@ -43,6 +43,16 @@ class OaiPmhServerPlugin
     /** Cached result of the archival_units table existence check. */
     private ?bool $archivalUnitsTableExists = null;
 
+    /**
+     * FIX F009: per-request memoization of isArchivesSetExposed() result.
+     * PluginManager construction + INFORMATION_SCHEMA query are non-trivial;
+     * ListMetadataFormats + GetRecord + ListRecords each call this gate, so
+     * a typical OAI request fires the same check ≥3 times. The cache is
+     * implicitly reset between HTTP requests because a fresh plugin
+     * instance is constructed per request.
+     */
+    private ?bool $ricExposedCache = null;
+
     /** Page size for ListRecords / ListIdentifiers */
     private const PAGE_SIZE = 100;
 
@@ -893,6 +903,15 @@ class OaiPmhServerPlugin
      */
     private function isArchivesSetExposed(): bool
     {
+        // FIX F009: per-request memoization. ListMetadataFormats +
+        // GetRecord + ListRecords all call this gate within a single
+        // OAI request; without caching that's ≥3 PluginManager
+        // constructions + ≥3 I_S queries per request. Cache is reset
+        // by virtue of new plugin instance per HTTP request.
+        if ($this->ricExposedCache !== null) {
+            return $this->ricExposedCache;
+        }
+
         $pluginActive = null;
         try {
             $pm = new \App\Support\PluginManager($this->db, $this->hookManager);
@@ -917,9 +936,11 @@ class OaiPmhServerPlugin
 
         // If we couldn't read plugin state, defer to legacy behavior (table-only).
         if ($pluginActive === null) {
+            $this->ricExposedCache = $tableExists;
             return $tableExists;
         }
-        return $pluginActive && $tableExists;
+        $this->ricExposedCache = $pluginActive && $tableExists;
+        return $this->ricExposedCache;
     }
 
     // ── ListRecords / ListIdentifiers ─────────────────────────────────────────

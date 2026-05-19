@@ -136,6 +136,16 @@ class ArchivesPlugin
     ];
 
     /**
+     * FIX F013: cap on parent-walk iterations in the four cycle-detection
+     * helpers (activityWouldCreateCycle, activityAncestorChainHasCycle,
+     * placeWouldCreateCycle, parentWouldCreateCycle). Raised from 100 to
+     * 1000 so a pathological tree wider than 100 levels (still extremely
+     * unlikely in real archival hierarchies, which top out around 20)
+     * doesn't silently mask a real cycle as a false negative.
+     */
+    private const MAX_HIERARCHY_DEPTH = 1000;
+
+    /**
      * PluginManager::runPluginMethod() instantiates every plugin with
      * ($this->db, $this->hookManager) — see PluginManager.php:878. The plugin
      * must match this signature even if the hooks aren't wired yet.
@@ -4942,7 +4952,7 @@ class ArchivesPlugin
         }
         $current = $proposedParentId;
         $visited = [];
-        for ($i = 0; $i < 100; $i++) {
+        for ($i = 0; $i < self::MAX_HIERARCHY_DEPTH; $i++) /* FIX F013 */ {
             if ($current === $childId) {
                 $stmt->close();
                 return true;
@@ -7305,7 +7315,7 @@ class ArchivesPlugin
         if ($stmt === false) { return true; }
         $current = $proposedParentId;
         $visited = [];
-        for ($i = 0; $i < 100; $i++) {
+        for ($i = 0; $i < self::MAX_HIERARCHY_DEPTH; $i++) /* FIX F013 */ {
             if ($current === $childId) { $stmt->close(); return true; }
             if (isset($visited[$current])) { break; }
             $visited[$current] = true;
@@ -7339,7 +7349,7 @@ class ArchivesPlugin
         if ($stmt === false) { return false; }
         $current = $startId;
         $visited = [];
-        for ($i = 0; $i < 100; $i++) {
+        for ($i = 0; $i < self::MAX_HIERARCHY_DEPTH; $i++) /* FIX F013 */ {
             if (isset($visited[$current])) { $stmt->close(); return true; }
             $visited[$current] = true;
             $stmt->bind_param('i', $current);
@@ -7522,10 +7532,34 @@ class ArchivesPlugin
             SecureLogger::error('[Archives] placeShowAction fetchRelationsForEntity failed: ' . $e->getMessage());
             $relations = [];
         }
+        // FIX F038: count incoming/outgoing relations so the delete-confirm
+        // SweetAlert can declare blast radius. Mirrors activities/show.php's
+        // dynamic relation count in the destructive-action prompt.
+        $relationCount = 0;
+        try {
+            $rcStmt = $this->db->prepare(
+                'SELECT COUNT(*) AS c FROM archive_relations
+                  WHERE (source_type = \'archive_place\' AND source_id = ?)
+                     OR (target_type = \'archive_place\' AND target_id = ?)'
+            );
+            if ($rcStmt !== false) {
+                $rcStmt->bind_param('ii', $id, $id);
+                $rcStmt->execute();
+                $rcRes = $rcStmt->get_result();
+                $rc = $rcRes instanceof \mysqli_result ? $rcRes->fetch_assoc() : null;
+                $rcStmt->close();
+                if (is_array($rc)) {
+                    $relationCount = (int) ($rc['c'] ?? 0);
+                }
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[Archives] placeShow relation count fetch failed: ' . $e->getMessage());
+        }
         return $this->renderView($response, 'places/show', [
             'row' => $row,
             'parent_label' => $parentLabel,
             'relations' => $relations,
+            'relation_count' => $relationCount,
             'headLinks' => [
                 ['rel' => 'alternate', 'type' => 'application/ld+json',
                  'title' => 'RiC-O (Records in Contexts)',
@@ -7832,7 +7866,24 @@ class ArchivesPlugin
         // state + flash messaging) and is intentionally not touched here.
         $predicateFormatOk = $predicate !== ''
             && preg_match('/^[a-z]{2,10}:[A-Za-z][A-Za-z0-9]{1,80}$/', $predicate) === 1;
-        if (!$predicateFormatOk || !$this->validateRelationEndpoints($srcType, $srcId, $tgtType, $tgtId)) {
+
+        // FIX F045: format validation on date_start/date_end (ISO 8601-ish:
+        // bare year YYYY or full YYYY-MM-DD, optional leading minus for BCE)
+        // and length cap on source_ref (DDL is VARCHAR(500); reject upstream
+        // so the failure surfaces here rather than as a truncated string in
+        // the public RiC-O JSON-LD output).
+        $dateFormatOk = true;
+        if ($dateStart !== '' && preg_match('/^-?[0-9]{4}(-[0-9]{2}-[0-9]{2})?$/', $dateStart) !== 1) {
+            $dateFormatOk = false;
+        }
+        if ($dateEnd !== '' && preg_match('/^-?[0-9]{4}(-[0-9]{2}-[0-9]{2})?$/', $dateEnd) !== 1) {
+            $dateFormatOk = false;
+        }
+        $sourceRefLenOk = mb_strlen($sourceRef, 'UTF-8') <= 500;
+
+        if (!$predicateFormatOk || !$dateFormatOk || !$sourceRefLenOk
+            || !$this->validateRelationEndpoints($srcType, $srcId, $tgtType, $tgtId)
+        ) {
             // Bail to the referrer with a query-flagged error — the
             // form view should render the message on next load.
             return $response
@@ -7885,9 +7936,14 @@ class ArchivesPlugin
                         ['unit_id' => $unitId, 'activity_id' => $actId, 'predicate' => $predicate]
                     );
                 }
+                // FIX F016: UPSERT keeps the activities-side mirror in sync
+                // when the same unit↔activity pair is re-attached with a
+                // changed predicate. INSERT IGNORE would silently leave the
+                // old predicate row, causing the two tables to drift.
                 $linkStmt = $this->db->prepare(
-                    'INSERT IGNORE INTO archive_unit_activities (unit_id, activity_id, ric_predicate)
-                     VALUES (?, ?, ?)'
+                    'INSERT INTO archive_unit_activities (unit_id, activity_id, ric_predicate)
+                     VALUES (?, ?, ?)
+                     ON DUPLICATE KEY UPDATE ric_predicate = VALUES(ric_predicate)'
                 );
                 if ($linkStmt !== false) {
                     $linkStmt->bind_param('iis', $unitId, $actId, $predicate);
@@ -7900,9 +7956,11 @@ class ArchivesPlugin
             // authority_records, also populate archive_agent_relations so
             // the dedicated agent-to-agent readers see the edge.
             if ($srcType === 'authority_record' && $tgtType === 'authority_record') {
+                // FIX F016: same UPSERT pattern as above — keep predicate in sync.
                 $linkStmt = $this->db->prepare(
-                    'INSERT IGNORE INTO archive_agent_relations (agent_id, related_id, ric_predicate)
-                     VALUES (?, ?, ?)'
+                    'INSERT INTO archive_agent_relations (agent_id, related_id, ric_predicate)
+                     VALUES (?, ?, ?)
+                     ON DUPLICATE KEY UPDATE ric_predicate = VALUES(ric_predicate)'
                 );
                 if ($linkStmt !== false) {
                     $linkStmt->bind_param('iis', $srcId, $tgtId, $predicate);

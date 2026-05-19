@@ -71,12 +71,22 @@ $relationTargetLabels = [
                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-semibold shadow-sm">
                     <?= __('Modifica') ?>
                 </a>
+                <?php
+                /* FIX F038: dynamic relation-count blast-radius message,
+                   mirroring activities/show.php. Static "Eliminare questo
+                   luogo?" gave no signal that descendants/relations would
+                   become orphaned. */
+                $relCount = (int) ($relation_count ?? 0);
+                $archivesDeletePlaceMessage = $relCount > 0
+                    ? sprintf(__('Eliminare questo luogo? È collegato a %d relazione/i; le relazioni saranno orfane.'), $relCount)
+                    : __('Eliminare questo luogo?');
+                ?>
                 <form id="<?= $e($archivesDeletePlaceId) ?>"
                       method="POST" action="<?= $e(url('/admin/archives/places/' . $id . '/delete')) ?>"
                       class="inline">
                     <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                     <button type="button"
-                            onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeletePlaceId) ?>, <?= $jsAttr(__('Eliminare questo luogo?')) ?>, <?= $jsAttr(__('Elimina')) ?>)"
+                            onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeletePlaceId) ?>, <?= $jsAttr($archivesDeletePlaceMessage) ?>, <?= $jsAttr(__('Elimina')) ?>)"
                             class="bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded text-sm font-semibold">
                         <?= __('Elimina') ?>
                     </button>
@@ -174,15 +184,27 @@ $relationTargetLabels = [
                 <option value="archive_place"><?= __('Luogo') ?></option>
             </select>
             <div class="relative">
+                <?php /* FIX F036: ARIA combobox/listbox/option attrs — see
+                         activities/show.php for the matching pattern. */ ?>
                 <input type="text" id="rel_target_search" autocomplete="off"
                        data-typeahead-input data-typeahead-target="rel_target_id"
                        placeholder="<?= $e(__('Cerca per nome o ID...')) ?>"
+                       role="combobox"
+                       aria-autocomplete="list"
+                       aria-expanded="false"
+                       aria-controls="rel_target_results"
+                       aria-label="<?= $e(__('Cerca entità da collegare')) ?>"
                        class="rounded-md border-gray-300 w-full">
                 <input type="hidden" id="rel_target_id" name="target_id" required>
-                <div data-typeahead-results
+                <div id="rel_target_results"
+                     data-typeahead-results
+                     role="listbox"
                      class="absolute z-10 w-full bg-white border border-gray-200 rounded mt-1 shadow-lg hidden max-h-60 overflow-y-auto"></div>
             </div>
-            <input type="text" name="ric_predicate" required placeholder="ric:isOrWasRelatedTo" class="rounded-md border-gray-300">
+            <input type="text" name="ric_predicate" required
+                   placeholder="ric:isOrWasRelatedTo"
+                   aria-label="<?= $e(__('Predicato RiC-O')) ?>"
+                   class="rounded-md border-gray-300">
             <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm font-semibold"><?= __('Collega') ?></button>
         </form>
     </div>
@@ -214,7 +236,12 @@ $relationTargetLabels = [
     var lastQuery = '';
 
     function clearResults() { while (results.firstChild) results.removeChild(results.firstChild); }
-    function hideResults() { results.classList.add('hidden'); clearResults(); }
+    function hideResults() {
+        results.classList.add('hidden');
+        clearResults();
+        // FIX F036: keep aria-expanded in sync with the visible state.
+        if (input) input.setAttribute('aria-expanded', 'false');
+    }
 
     function renderResults(rows) {
         clearResults();
@@ -231,6 +258,9 @@ $relationTargetLabels = [
             var div = document.createElement('div');
             div.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50 text-sm';
             div.dataset.id = String(r.id);
+            // FIX F036: role=option on each result so listbox semantics
+            // are screen-reader navigable.
+            div.setAttribute('role', 'option');
             var label = r.label || ('#' + r.id);
             if (r.extra) { label += ' (' + r.extra + ')'; }
             div.dataset.label = label;
@@ -238,6 +268,8 @@ $relationTargetLabels = [
             results.appendChild(div);
         }
         results.classList.remove('hidden');
+        // FIX F036: aria-expanded mirrors the visible state of the listbox.
+        if (input) input.setAttribute('aria-expanded', 'true');
     }
 
     function search(q, type) {
