@@ -177,7 +177,7 @@ $check(
 // ── EAD3 daoset multi-dao ─────────────────────────────────────────────────────
 echo "\n23. writeEad3Document() multi-dao:\n";
 $check(
-    str_contains($src, '$filesToEmit = !empty($unitFiles) ? $unitFiles : $this->fetchUnitFiles($unitId)') &&
+    str_contains($src, '$filesToEmit = $unitFiles ?? $this->fetchUnitFiles($unitId)') &&
     str_contains($src, 'foreach ($filesToEmit as $uf)'),
     '23. writeEad3Document() loops archival_unit_files to emit one <dao> per file (with pre-fetch fallback)'
 );

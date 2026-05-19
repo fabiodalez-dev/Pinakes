@@ -1,8 +1,9 @@
 {
   "name": "oai-pmh-server",
   "display_name": "OAI-PMH Server (libri + archivi)",
-  "description": "Server OAI-PMH 2.0 completo per esposizione del catalogo libri e archivi a harvester nazionali (Internet Culturale / ICCU, Europeana, DPLA). Supporta oai_dc, MARCXML, MODS, MAG 2.0.1 e UNIMARC. Endpoint GET/POST /oai con deletedRecord=persistent e resumption token DB-backed.",
-  "version": "1.0.0",
+  "description": "Server OAI-PMH 2.0 completo per esposizione del catalogo libri e archivi a harvester nazionali (Internet Culturale / ICCU, Europeana, DPLA). Supporta oai_dc, MARCXML, MODS, MAG 2.0.1, UNIMARC e RiC-O (RDF/XML, archivi). Endpoint GET/POST /oai con deletedRecord=persistent e resumption token DB-backed.",
+  "version": "1.1.0",
+  "changelog": "v1.1.0 (Pinakes 0.7.12): aggiunta metadataPrefix=ric-o (RDF/XML serializzato da RicJsonLdBuilder) per archival_unit; il formato viene esposto in ListMetadataFormats solo quando il plugin archives è attivo e la tabella archival_units esiste. Per set=books e per identifier book il prefisso ric-o restituisce cannotDisseminateFormat.",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://www.openarchives.org/pmh/",
@@ -23,6 +24,8 @@
       "mods",
       "mag",
       "unimarc",
+      "ric-o",
+      "rdf-xml",
       "dublin-core",
       "books",
       "archives",
@@ -34,7 +37,7 @@
       "Endpoint unificato GET/POST /oai per libri e unità archivistiche",
       "deletedRecord=persistent con tabella oai_deleted_records + trigger MySQL",
       "Resumption token DB-backed con TTL 24h e pulizia automatica",
-      "Formati: oai_dc (Dublin Core), marcxml (MARC21), mods (MODS 3.7), mag (MAG 2.0.1 ICCU), unimarc (UNIMARC XML)",
+      "Formati: oai_dc (Dublin Core), marcxml (MARC21), mods (MODS 3.7), mag (MAG 2.0.1 ICCU), unimarc (UNIMARC XML), ric-o (RDF/XML — Records in Contexts Ontology, ICA 2023, solo archival_unit)",
       "Set hierarchy: books, archives (se plugin archives attivo)",
       "MAG 2.0.1 con configurazione progetto per Internet Culturale / ICCU",
       "UNIMARC XML e ISO2709 per singolo record da endpoint admin",
@@ -51,15 +54,16 @@
       "marcxml - MARC21 XML (Library of Congress)",
       "mods - Metadata Object Description Schema 3.7 (LoC)",
       "mag - MAG 2.0.1 (ICCU / Internet Culturale)",
-      "unimarc - UNIMARC XML"
+      "unimarc - UNIMARC XML",
+      "ric-o - Records in Contexts Ontology (RDF/XML, archival_unit-only)"
     ],
     "optional": true,
     "status": "stable",
     "references": [
       "https://www.openarchives.org/pmh/",
       "https://www.loc.gov/standards/mods/",
-      "http://www.iccu.sbn.it/opencms/opencms/it/main/standard/metadati/pagina_267.html"
+      "http://www.iccu.sbn.it/opencms/opencms/it/main/standard/metadati/pagina_267.html",
+      "https://www.ica.org/standards/RiC/ontology"
     ]
-  },
-  "max_app_version": "0.7.9"
+  }
 }

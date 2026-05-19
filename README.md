@@ -24,6 +24,103 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.12
+
+### Archives: RiC-CM Phases 5 & 6 — admin UI + OAI-PMH `ric-o` ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+v0.7.12 closes the six-phase RiC-CM roadmap. Phases 1-4 (shipped progressively in 0.7.7 → 0.7.10) modelled the four RiC-CM entity types (Record/RecordSet, Agent, Activity, Place) and the polymorphic relations graph. Phases 5 and 6 expose them to curators and to harvesters.
+
+**Phase 5 — native admin UI for activities, places and relations.**
+
+- `GET/POST /admin/archives/activities` + `/new` + `/{id}` + `/{id}/edit` + `/{id}/delete` — CRUD over ISDF activities (Function/Activity/Transaction/Task/Mandate). Hierarchical parent/child with cycle detection on the application layer (the `parent_id` FK uses `ON DELETE SET NULL`, which is incompatible with a MySQL `CHECK` constraint, so the cycle guard is enforced in PHP before INSERT/UPDATE).
+- `GET/POST /admin/archives/places` + `/new` + `/{id}` + `/{id}/edit` + `/{id}/delete` — CRUD over places (country/region/province/municipality/locality/building/room/geographic_feature/other) with optional latitude/longitude and GeoNames / Wikidata / Getty TGN identifiers for Linked Data linkage.
+- `POST /admin/archives/relations/attach` + `POST /admin/archives/relations/{id}/detach` — manage the polymorphic relations graph from the unit/agent/activity/place detail pages.
+- `GET /api/archives/entities?type=&q=` — typeahead backend for Choices.js-style autocomplete in the relation forms. Returns the four entity types validated against the ENUM definitions of `archive_relations.source_type` / `target_type`.
+
+The chrome mirrors the existing books/archives admin views (Tailwind `p-6 max-w-4xl mx-auto`, `bg-white shadow rounded-lg p-6 space-y-5` form containers, `form-label` field labels, breadcrumb navigation, indigo-600 primary actions, red-50/red-700 destructive buttons). All 60+ user-facing strings are Italian-source `__()` wrappers with full translations added to `locale/en_US.json`, `locale/fr_FR.json`, `locale/de_DE.json`.
+
+**Phase 6 — OAI-PMH `metadataPrefix=ric-o`.**
+
+- The `oai-pmh-server` plugin now exposes `ric-o` (canonical RDF/XML serialisation of the same RiC-O graph emitted on `/archives/{id}/ric.json`) as a metadataPrefix for the `archives` set. `ListMetadataFormats` advertises it conditionally — only when the `archives` plugin is active AND the `archival_units` table exists.
+- `GetRecord?identifier=oai:…:archival_unit:{id}&metadataPrefix=ric-o` serialises one archival unit as `<rdf:RDF>` with `ric:RecordSet` / `ric:Record` root, `rdfs:label` carrying `xml:lang`, `ric:DateRange` with `xsd:gYear` typed literals, embedded `ric:Relation` subjects for agent links, and `rdf:resource` references for parent/children. `ListRecords?set=archives&metadataPrefix=ric-o` streams the whole archival graph.
+- Symmetric validation: `metadataPrefix=ric-o` on `set=books` or on a book identifier returns `cannotDisseminateFormat`; `metadataPrefix=oai_dc` keeps working on both sets unchanged.
+- Re-uses `RicJsonLdBuilder::serializeToRdfXml()` (new in this release) which translates the JSON-LD compact document to canonical RDF/XML — `@id`→`rdf:about`/`rdf:resource`, `@type`→tag name (CURIE expanded against the document `@context`), language tags via `xml:lang`, typed literals via `rdf:datatype`, nested blank nodes for inline objects. 159/159 unit assertions passing on the round-trip.
+
+The full RiC-CM journey: v0.7.7 read-only JSON-LD → v0.7.8 agents → v0.7.9 activities → v0.7.10 places + polymorphic relations → v0.7.12 admin UI + OAI-PMH RDF/XML. The application's `version.json` bumps from 0.7.10 to 0.7.12 once, at the end of the chain.
+
+**Cleanup — dead schema column dropped (review F015).** The `archive_activities.place_id` column was introduced in 0.7.9 as a placeholder reserved for the Phase 4 `archive_places` FK, but Phase 4 (0.7.10) chose the polymorphic `archive_relations` graph instead and no application code ever read or wrote the column. Migration `migrate_0.7.12.sql` drops it with `ALTER TABLE archive_activities DROP COLUMN place_id;` so the schema reflects what the code actually uses.
+
+---
+
+## What's New in v0.7.10
+
+### Archives: RiC-CM Phase 4 — Places + polymorphic Relations graph ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+Fourth phase of the RiC-CM roadmap. With Phases 1-3 we modelled three of the five RiC-CM entity types (Record/RecordSet, Agent, Activity). Phase 4 introduces the fourth — **Place** — and the **generic polymorphic Relations** backbone that lets any pair of entities carry a typed RiC-O predicate. The model is now complete on the entity side.
+
+- **New table `archive_places`** — first-class Place entity (RiC-CM §3.5). `name` + `place_type` ENUM (country / region / province / municipality / locality / building / room / geographic_feature / other), self-referential `parent_id` for the place hierarchy (Catania → Sicilia → Italia), optional `latitude` / `longitude` for map display, optional `geonames_id` / `wikidata_id` / `tgn_id` for external Linked Data identifiers, optional `date_start` / `date_end` for historical places (e.g. "Regno delle Due Sicilie", 1816-1861). Full-text index on `name + description`.
+- **New table `archive_relations`** — **polymorphic** N:M relations between any two RiC-CM entities. Both endpoints (`source_type`+`source_id` and `target_type`+`target_id`) reference one of four entity types: `archival_unit`, `authority_record`, `archive_activity`, `archive_place`. The `ric_predicate` column is VARCHAR so RiC-O's open vocabulary can grow without migrations. Common predicates: `ric:isOrWasLocatedAt`, `ric:isOrWasResidentAt`, `ric:isOrWasPerformedAt`, `ric:isOrWasIncludedIn`. Each row carries optional `qualifier`, `certainty` (certain/probable/uncertain), `date_start`/`date_end` for temporal validity, `source_ref` for the documentary citation, and `created_by` to track curatorial provenance.
+- **Why polymorphic, not 16 specialised link tables** — RiC-O has dozens of inter-entity predicates. One link table per (source, target, predicate) triple would explode the schema and add a migration on every new predicate. Polymorphic source/target keeps the schema compact; the application-layer validator (`validateRelationEndpoints`) checks both endpoints exist and are not soft-deleted before INSERT.
+- **Two new public endpoints**:
+  - `GET /archives/places/{id}/ric.json` — RiC-O JSON-LD for one place. Emits `ric:Place`, `ric:CoordinateLocation` from lat/lng, `owl:sameAs` to GeoNames / Wikidata / Getty TGN, `ric:isOrWasIncludedIn` to the parent place, and `ric:isAssociatedWithDate` for historical date ranges.
+  - `GET /archives/places/ric.json` — synthetic `ric:RecordSet` listing every top-level place (those with `parent_id IS NULL`), suitable for harvesting alongside the existing collection / agents / activities endpoints.
+- **`RicJsonLdBuilder::buildRelationNode()`** — new method that renders any `archive_relations` row as a `ric:Relation` JSON-LD node with deterministic `@id` (`/archives/relations/{row.id}`), `ric:relationHasSource` and `ric:relationHasTarget` resolved via the central `iriForEntity()` switch. Returns `null` on malformed input — no exception — so callers can drop bad rows from the output without crashing the whole response.
+- **`validateRelationEndpoints(sourceType, sourceId, targetType, targetId)`** — application-layer integrity check used by the admin form before inserting into `archive_relations`. Verifies both endpoints exist and are not soft-deleted; the polymorphic column shape makes a SQL FK impossible.
+- **Migration `migrate_0.7.10.sql`** — idempotent. `archive_places.parent_id` self-cycle guards live in the application layer (MySQL forbids CHECK on a column that's part of an `ON DELETE SET NULL` FK action, same constraint encountered in Phase 3).
+
+## What's New in v0.7.9
+
+### Archives: RiC-CM Phase 3 — Activities as first-class entities ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+Third milestone of the RiC-CM roadmap. Introduces the ISDF-aligned **Activity** entity — any human or organisational activity that produced, used, or managed archival material. Phase 1 + Phase 2 already gave us records, record sets, and agents; Phase 3 closes the "what happened" side of the RiC-CM triangle.
+
+- **New table `archive_activities`** — first-class Activity entity. Columns: `title`, `description`, `activity_type` (`function` / `activity` / `transaction` / `task` / `mandate` per ISDF terminology), self-referential `parent_id` (so a function can contain activities, an activity can contain transactions), `date_start` / `date_end` / `is_ongoing`, optional `agent_id` FK to `authority_records` (the agent that performed the activity), `place_id` reserved for Phase 4, `source_ref` for the legal/normative citation (e.g. "RD 9 ottobre 1861 n. 250"), full-text index on title + description.
+- **New table `archive_unit_activities`** — M:N link between archival units and activities. The `ric_predicate` column captures the semantics of each link as a RiC-O predicate: `ric:resultsOrResultedFrom` (the unit was produced by the activity, default), `ric:isOrWasUsedBy` (the unit was used during the activity), `ric:isSubjectOf` (the activity is about this unit). Column is VARCHAR so new predicates can be added without a migration.
+- **Two new public endpoints**:
+  - `GET /archives/activities/{id}/ric.json` — RiC-O JSON-LD for one activity, with `ric:Activity` type, `ric:isOrWasPerformedBy` → agent, `ric:hasOrHadPartOf` → parent activity, `ric:isAssociatedWithDate` as `ric:DateRange` (`xsd:date`), and `ric:isOrWasRelatedTo` listing every unit the activity produced / used.
+  - `GET /archives/activities/ric.json` — synthetic `ric:RecordSet` listing every top-level activity (those with `parent_id IS NULL`), suitable for ICA / Europeana harvesting alongside the existing collection.ric.json and agents endpoints.
+- **`/archives/{id}/ric.json` now embeds activity links** — `RicJsonLdBuilder::buildUnit()` accepts a new `$activities` parameter so the unit-side serialisation lists every activity it's connected to. The relation IRI is shared between the unit side and the activity side (`/archives/unit-activity-relations/{unitId}-{activityId}-{predicate-slug}`) so a graph-merge consumer collapses both emissions into a single RDF node.
+- **Migration `migrate_0.7.9.sql`** — idempotent. The CHECK constraint guarding `parent_id <> id` is intentionally absent because MySQL rejects CHECK on a column that's part of a FK referential action (`ON DELETE SET NULL`); the application-layer cycle guard in `activityWouldCreateCycle()` provides the equivalent protection.
+
+## What's New in v0.7.8
+
+### Archives: RiC-CM Phase 2 — Agents as first-class entities ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+Phase 2 of the 6-phase RiC-CM roadmap. Phase 1 (v0.7.7) was schema-free; this is the first migration in the chain that touches the DB.
+
+- **`authority_records` extended** — four new columns:
+  - `ric_type` (`ENUM('Person','CorporateBody','Family','Position','Group')`) — RiC-CM canonical type, broader than the legacy ISAAR `type` enum. The migration backfills it from existing `type` values; `Position` and `Group` are RiC-CM-only types ISAAR doesn't model.
+  - `birth_date` / `death_date` — structured begin/end-of-existence dates (`xsd:date`). The RiC-O JSON-LD output now emits `ric:beginningDate` and `ric:endDate` as typed literals instead of the free-text `dates_of_existence` blob (which is preserved for back-compat and surfaces as `ric:descriptiveNote` on pre-Phase-2 rows).
+  - `place_of_origin` — birthplace / founding place. Phase 4 will swap this literal for a FK to a dedicated `archive_places` table.
+- **New table `archive_agent_identifiers`** — multi-scheme identifier ledger for archive authorities (VIAF, ISNI, Wikidata, GND, BNF, LCNAF, Getty ULAN, ARK, local). Each row carries scheme + value + optional precomputed URI + an `is_preferred` flag. `collectSameAsForAuthority` now merges these into `owl:sameAs` alongside the existing `viaf-authority` plugin's data; rows without a precomputed URI are synthesised from the scheme's canonical prefix (e.g. `viaf:29539` → `https://viaf.org/viaf/29539`).
+- **New table `archive_agent_relations`** — Agent ↔ Agent edges typed with a RiC-O predicate (`ric:isParentOf`, `ric:isMemberOf`, `ric:isSuccessorOf`, `ric:isMarriedTo`, ...). Captures organisational hierarchies, corporate successions, and family ties that ISAAR's flat table cannot express. Each row becomes a `ric:Relation` node in the RiC-O JSON-LD output with a deterministic `@id` of the form `{base}/archives/agent-relations/{agentId}-{relatedId}-{predicate-slug}`. The schema rejects self-loops via a `CHECK` constraint (MySQL 8.0.16+).
+- **Migration `migrate_0.7.8.sql`** — fully idempotent (INFORMATION_SCHEMA guards on every ALTER, `CREATE TABLE IF NOT EXISTS` on every CREATE). Re-running the migration is safe; the ric_type backfill UPDATE narrows on rows still at the default value so curator overrides survive.
+
+## What's New in v0.7.7
+
+### Archives: RiC-O JSON-LD export — Records in Contexts Phase 1 ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
+
+Pinakes now exposes archival units and authority records as **RiC-O** (Records in Contexts Ontology, [ICA 2023](https://www.ica.org/standards/RiC/ontology)) JSON-LD — the linked-data successor to the four ICA standards (ISAD(G), ISAAR(CPF), ISDIAH, ISDF). This is **Phase 1 of 6** in the RiC-CM roadmap: read-only translation of the existing tree-shaped ISAD(G) data into RiC-CM's graph vocabulary. **Zero database changes** — the same rows that drive Dublin Core, EAD3, METS, and OAI-PMH outputs are simply re-serialised with the RiC-O namespace.
+
+- **Three new public endpoints** (no auth — meant for harvesters like Europeana, ArchivesPortalEurope, and the ICA aggregator):
+  - `GET /archives/{id}/ric.json` — RiC-O JSON-LD for one archival unit (`ric:Record` or `ric:RecordSet` depending on `level`).
+  - `GET /archives/collection.ric.json` — synthetic top-level `ric:RecordSet` aggregating all fonds.
+  - `GET /archives/agents/{id}/ric.json` — RiC-O JSON-LD for one authority record (`ric:Person`, `ric:CorporateBody`, or `ric:Family`).
+- **Predicates** map ISAD(G)/ISAAR roles onto the RiC-O vocabulary: `creator` → `ric:isCreatorOf`, `subject` → `ric:isSubjectOf`, `custodian` → `ric:isOrWasCustodianOf`, `recipient` → `ric:isAddresseeOf`, `associated` → `ric:isAssociatedWith`. `ric:Relation` nodes carry a deterministic `@id` so the unit-side and agent-side serialisations of the same relation converge on a single RDF node when consumers merge the two documents.
+- **Linked-data cross-references** — `owl:sameAs` for agents is collected transparently from the `viaf-authority` plugin's tables (`autori.viaf_uri`, `autori.isni_uri`, `author_authority_alternates`); installations with VIAF/ISNI control get the URIs in the output for free. URIs are filtered through a strict scheme allow-list (`http(s)`, `urn`, `ark`, `info`, `doi`) before emission so non-Linked-Data schemes cannot leak into the public output.
+- **Cross-format discovery** — RiC-O is added to the `seeAlso` block of the existing IIIF Presentation 3.0 manifest, and `<link rel="alternate" type="application/ld+json">` tags appear in the `<head>` of both the admin and public archive detail pages. HTTP `Link: <…>; rel="canonical"` and `Cache-Control: public, max-age=300` headers are emitted on every RiC response.
+- **`xsd:gYear` literals** are zero-padded to 4 digits with proper BCE support (`-YYYY`) — older or medieval material is now serialised in valid RDF rather than being dropped by the previous `year > 0` gate.
+
+### Compatibility
+
+All existing serialisations (Dublin Core, MARCXML, EAD3, METS, OAI-PMH 2.0, IIIF 3.0, SRU 1.2) are **byte-for-byte unchanged** — RiC-O is strictly additive. Phase 2 of the RiC-CM roadmap (next release) will introduce the optional `archive_agent_identifiers` and `archive_agent_relations` tables for first-class agent entities; Phase 1 introduces zero schema changes.
+
+### Migration
+
+`migrate_0.7.7.sql` is intentionally a documented no-op — Phase 1 is schema-free. The file exists so the updater can record the 0.7.6 → 0.7.7 version jump.
+
+---
+
 ## What's New in v0.7.6
 
 ### French locale (fr_FR) and BNF scraping
@@ -542,10 +639,36 @@ Shipped as the bundled **Archives** plugin (opt-in; activate from Admin → Plug
 - `specific_material` ENUM with 15 ABA codes: text (bf), photograph (hf), poster (hp), postcard (hm), drawing (hd), map (hk), picture (hb), 3D object/realia (ho), audio recording (lm), motion-picture film (lf), video (vm), microform (bm), electronic/born-digital (le), mixed materials (zz), other.
 - Dedicated columns for colour mode (bw / colour / mixed), dimensions, photographer, publisher, collection name, local classification — matching the MARC 300/337/338 content/media/carrier vocabulary.
 
-**MARCXML import/export + SRU endpoint**
-- **Export**: `GET /admin/archives/{id}/export.xml` and `GET /admin/archives/export.xml?ids=…` emit ABA-crosswalk MARCXML via XMLWriter. Authorities exported as 100/110/600/610/700/710 tags depending on `(type, role)`.
+**Per-document digital assets** (v0.7.6+)
+- Each archival unit can hold a cover image plus multiple downloadable digitised files (PDF / ePub / audio / video). Files are stored under `public/storage/archives/{unit_id}/` with original filename, MIME type, and display order. Drag-and-drop upload from the admin form; per-file delete with admin confirmation.
+
+**Multi-format export — MARCXML, EAD3, METS, UNIMARC, Dublin Core**
+- **MARCXML** (Library of Congress MARC21 Slim): `GET /admin/archives/{id}/export.xml` and `GET /admin/archives/export.xml?ids=…` emit ABA-crosswalk MARCXML via XMLWriter. Authorities exported as 100/110/600/610/700/710 tags depending on `(type, role)`.
+- **EAD3** (archivists.org Encoded Archival Description): `GET /admin/archives/export.ead3` emits a full EAD3 finding aid. Mirrors what AtoM, ArchivesSpace, and the national portals consume.
+- **METS** (Library of Congress Metadata Encoding & Transmission): `GET /archives/{id}/mets.xml` packages descriptive metadata + IIIF manifest link + digitised assets into a single METS document for OAI-PMH MAG harvesting (Internet Culturale / ICCU).
+- **UNIMARC** (IFLA): exposed via SRU/OAI-PMH for federation with BNF and Italian SBN partners.
+- **Dublin Core** (oai_dc): `GET /archives/{id}/dc.xml` and via OAI-PMH below.
 - **Import**: `POST /admin/archives/import` parses MARCXML (SimpleXML) with optional XSD validation against the Library of Congress MARC21 Slim v1.1 schema. UPSERT on `(institution_code, reference_code)` — re-importing the same file is idempotent. Dry-run preview available.
-- **SRU 1.2 read-only endpoint**: `GET /api/archives/sru` — supports `explain`, `searchRetrieve` (CQL subset: `title`, `reference`, `level`, `anywhere`, joined with `AND`), and `scan` stub. External catalogues (Reindex, Koha, ARKIS) can federate-search the archive using MARCXML records.
+
+**SRU 1.2 read-only endpoint**
+- `GET /api/archives/sru` — supports `explain`, `searchRetrieve` (CQL subset: `title`, `reference`, `level`, `anywhere`, joined with `AND`), and `scan` stub. External catalogues (Reindex, Koha, ARKIS, BNF) can federate-search the archive using MARCXML records.
+
+**IIIF Presentation 3.0** ([#123](https://github.com/fabiodalez-dev/Pinakes/issues/123), v0.7.6+)
+- `GET /archives/{id}/manifest.json` returns a standards-compliant IIIF Presentation 3.0 manifest for every archival unit, exposing attached digitised documents as `Canvas` items with painting `Annotation`s. Works out of the box with **Universal Viewer**, **Mirador**, and any other IIIF-compatible viewer.
+- `GET /archives/collection.json` and `GET /archives/{id}/collection.json` emit IIIF Collection documents for the root fonds list and per-unit sub-collections.
+- The manifest's `seeAlso` block points to every alternative serialisation (Dublin Core, EAD3, METS, RiC-O, OAI-PMH record, ARK identifier) so an IIIF-aware client can discover the full graph of metadata representations with no second discovery round-trip.
+
+**RiC-O JSON-LD** (Records in Contexts Ontology, ICA 2023 — [#122](https://github.com/fabiodalez-dev/Pinakes/issues/122), v0.7.7+)
+- `GET /archives/{id}/ric.json` and `GET /archives/agents/{id}/ric.json` emit RiC-O JSON-LD for archival units and authority records — the linked-data successor to ISAD(G)/ISAAR. Each role on `archival_unit_authority` maps to a typed predicate (`ric:isCreatorOf`, `ric:isOrWasCustodianOf`, `ric:isSubjectOf`, `ric:isAddresseeOf`, `ric:isAssociatedWith`).
+- `GET /archives/collection.ric.json` emits a synthetic `ric:RecordSet` aggregating all top-level fonds, suitable for harvesting by Europeana, ArchivesPortalEurope, and the ICA aggregator.
+- `owl:sameAs` URIs are gathered transparently from the `viaf-authority` plugin's authority links and filtered through a strict scheme allow-list (`http(s)`, `urn`, `ark`, `info`, `doi`) before emission.
+
+**AtoM ISAD(G) area labels** ([#121](https://github.com/fabiodalez-dev/Pinakes/issues/121), v0.7.6+)
+- The admin UI and public display now use the canonical ISAD(G) area names (`Identity area`, `Context area`, `Content and structure area`, `Conditions of access and use area`, `Allied materials area`, `Notes area`), so records are immediately recognisable to users coming from AtoM or other archival catalogue software.
+
+**ARK persistent identifiers + rightsstatements.org** (v0.7.x)
+- Each archival unit can carry an ARK identifier (Archival Resource Key) — emitted as `https://n2t.net/{ark}` in the IIIF `seeAlso` and the RiC-O `rdfs:seeAlso` blocks.
+- Rights are expressed via a `rightsstatements.org` URI (e.g., `https://rightsstatements.org/vocab/InC/1.0/`) — mapped to `ric:Rule` + `owl:sameAs` in the RiC-O output.
 
 **Unified cross-entity search**
 - `/admin/archives/search` hits three sources in a single query: `archival_units` (FULLTEXT on title + scope + archival_history), `authority_records` (FULLTEXT on authorised_form + history + functions), and `autori` rows reconciled to an authority.
@@ -555,7 +678,7 @@ Shipped as the bundled **Archives** plugin (opt-in; activate from Admin → Plug
 - **Public** (`/archivio?q=…&level=…&date_from=…&date_to=…`): same text + level filters plus date-range overlap (`date_from` / `date_to`). In search mode all hierarchy levels are returned (not just root fonds), so a user can search directly for a series or fascicolo by reference code. Theme-aware CSS.
 
 **OAI-PMH 2.0 data provider**
-- `GET /archives/oai` exposes archival units for harvesting: `Identify`, `ListMetadataFormats` (oai_dc + marc21), `ListSets` (per ISAD level), `ListRecords`/`GetRecord` with resumption tokens, selective harvesting by set + date range.
+- `GET /archives/oai` exposes archival units for harvesting: `Identify`, `ListMetadataFormats` (oai_dc + marc21 + ead3), `ListSets` (per ISAD level), `ListRecords`/`GetRecord` with resumption tokens, selective harvesting by set + date range.
 
 **Plugin integration**
 - Self-contained at `storage/plugins/archives/`. Wires up through two `plugin_hooks` rows (`app.routes.register`, `admin.menu.render`) on activation; deactivation removes the route + sidebar entry without touching DB data.
@@ -571,13 +694,27 @@ Extend without modifying core files. Plugins can implement:
 
 Plugins support encrypted secrets and isolated configuration. Install via ZIP upload in admin panel.
 
-**Pre-installed plugins** (6 included):
-- **Open Library** — Metadata scraping from Open Library + Google Books API
-- **Z39 Server** — SRU 1.2 API + SBN client for Italian library metadata with Dewey extraction
-- **API Book Scraper** — External ISBN enrichment via custom APIs
-- **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with streaming player
-- **Dewey Editor** — Visual editor for Dewey classification data with import/export and validation
-- **Archives** — ISAD(G) hierarchical archival records + ISAAR(CPF) authority records with MARCXML import/export, SRU 1.2 endpoint, OAI-PMH 2.0 data provider, full-text + reference-code search bar (admin + public with date-range filter), photographic material support (ABA billedmarc), and unified cross-entity search bridging books + archives. Opt-in (`is_active=0` on install)
+**Pre-installed plugins** (16 included — every one opt-in via Admin → Plugins; the only one auto-active is Open Library):
+
+*Metadata scraping & enrichment*
+- **Open Library** — Metadata scraping from Open Library + Google Books API; the default scraper
+- **API Book Scraper** — External ISBN enrichment via configurable REST endpoints
+- **Discogs / MusicBrainz / Deezer** — Music scrapers for CDs, LPs, vinyls, cassettes (barcode + title lookup, Cover Art Archive HD jackets, tracklists, label info)
+- **GoodLib** — One-click cross-search badges on the book detail page (Anna's Archive, Z-Library, Project Gutenberg)
+- **VIAF Authority Control** — Links authors to VIAF/ISNI authority records with confidence scoring + W3C reconciliation API
+
+*Interoperability protocols*
+- **Z39 Server** — SRU 1.2 API + Z39.50/SRU client for Italian SBN, French **BNF** (UNIMARC), and any standard library catalogue with Dewey extraction (v0.7.6+)
+- **OAI-PMH Server** — OAI-PMH 2.0 data provider for books + archives, harvestable by Internet Culturale (ICCU), Europeana, DPLA. Formats: `oai_dc`, `marc21`, `mods`, `mag` (2.0.1), `unimarc`, `ric-o` (RDF/XML, archival units)
+- **NCIP 2.0 Server** — NISO Circulation Interchange Protocol for self-service kiosks, partner ILS, and library networks
+- **BIBFRAME 2.0 Linked Data** — Exposes the book catalogue as BIBFRAME 2.0 JSON-LD / Turtle with content negotiation (Library of Congress transition path from MARC)
+- **OpenURL Resolver** — Z39.88-2004 resolver + COinS metadata embedded in book pages; works with Zotero, Mendeley, EndNote
+- **ResourceSync** — ANSI/NISO Z39.99-2014 dataset synchronisation for harvester partners
+
+*Cataloging & specialised collections*
+- **Dewey Editor** — Visual tree editor for Dewey classification data with JSON import/export and auto-population from SBN/SRU scraping
+- **Digital Library** — eBook (PDF, ePub) and audiobook (MP3, M4A, OGG) management with HTML5 streaming player
+- **Archives** — ISAD(G) hierarchical archival records + ISAAR(CPF) authority records. MARCXML / EAD3 / METS / UNIMARC / Dublin Core export, SRU 1.2 endpoint, OAI-PMH 2.0 data provider, **IIIF Presentation 3.0** manifests (v0.7.6), **RiC-O JSON-LD** export (v0.7.7), AtoM ISAD(G) area labels, ARK persistent identifiers, full-text + reference-code search bar (admin + public with date-range filter), photographic-material support (ABA billedmarc 15 codes), per-document cover + downloadable file uploads, and unified cross-entity search bridging books + archives
 
 ### CMS and Customization
 - **Homepage editor** with drag-and-drop blocks (hero banner, featured shelves, events, testimonials)
@@ -639,14 +776,18 @@ Implements the **SRU (Search/Retrieve via URL)** protocol, the HTTP-based succes
 **Client Mode** (import from external catalogs):
 - **Copy cataloging** from Z39.50/SRU servers (Library of Congress, OCLC, K10plus, SUDOC, national libraries)
 - **SBN Italia client** — Automatic metadata retrieval from Italian national library catalog
+- **BNF (Bibliothèque nationale de France) client** (v0.7.6+) — UNIMARC scraping from the BNF SRU endpoint with field mapping to Pinakes metadata (title, authors, publisher, ISBN, Dewey, subjects). Enable Z39 Server and add `sru.bnf.fr` as a source to start importing French bibliographic records.
+- **UNIMARC parser** — Handles UNIMARC field codes (200, 210, 215, 700/701/702, 676 for Dewey) in addition to MARC21, so French + Italian + Swiss + Belgian + Quebecois catalogues are all consumable
 - **Dewey classification extraction**:
   - SBN: Parses Dewey codes from `classificazioneDewey` field (format: `335.4092 (19.) SISTEMI MARXIANI`)
   - SRU/MARCXML: Extracts from MARC field 082 (Dewey Decimal Classification Number)
+  - UNIMARC: Extracts from field 676 (BNF Dewey representation)
   - Dublin Core: Parses from `dc:subject` (DDC scheme) and `dc:coverage` fields
 - **Federated search** across multiple configured servers
 - **Automatic retry** with exponential backoff (100ms, 200ms, 400ms)
 - **TLS certificate validation** for secure connections
-- **MARCXML and Dublin Core parsing** with author extraction (MARC 100/700 fields)
+- **MARCXML, UNIMARC, and Dublin Core parsing** with author extraction (MARC 100/700, UNIMARC 700/701/702 fields)
+- **CQL injection hardening** (v0.7.6+) — search terms containing `"` or `\` are properly escaped per the CQL specification before being embedded into queries sent to external SRU endpoints
 
 **Example queries**:
 ```bash
@@ -708,6 +849,102 @@ Complete Dewey Decimal Classification management system with multilingual suppor
 - **Hierarchical navigation** — Optional collapsible "Browse categories" for discovering codes
 - **Breadcrumb display** — Shows full classification path (e.g., "500 → 590 → 599 → 599.9")
 - **Frontend validation** — Real-time format validation before submission
+
+### 6. Archives (`archives`)
+
+ISAD(G) / ISAAR(CPF) hierarchical archival records — see [Archival Records](#archival-records--isadg--isaarcpf) in Core Features for the full feature breakdown (IIIF 3.0 manifests, RiC-O JSON-LD export, MARCXML / EAD3 / METS / UNIMARC / Dublin Core, SRU 1.2, OAI-PMH 2.0, AtoM area labels, ARK identifiers, photographic-material support).
+
+### 7. VIAF Authority Control (`viaf-authority`)
+
+Bibliographic authority control linking authors to the **Virtual International Authority File** (VIAF, OCLC) and **ISNI** (ISO 27729).
+
+- **Authority enrichment** — Adds `viaf_id` / `viaf_uri` / `isni_id` / `isni_uri` columns to the `autori` table; `authority_source` (manual / viaf / isni / sbn / wikidata) records where each binding came from
+- **Confidence scoring** — Each authority binding carries an `authority_confidence` (exact / probable / candidate / rejected) so curators can review weak matches
+- **VIAF AutoSuggest** — Type-ahead search in the author edit form queries the VIAF AutoSuggest API directly
+- **W3C Reconciliation API** — `/api/viaf/reconcile` endpoint compatible with OpenRefine and other reconciliation clients
+- **ISNI check-digit validation** — Rejects malformed 16-character ISNI strings before they reach the DB
+- **Authority alternates** — `author_authority_alternates` table holds additional identifier candidates (Wikidata, BNF, GND, etc.) for future scheme expansion
+- **Used by**: the Archives plugin's RiC-O JSON-LD output pulls `owl:sameAs` URIs from these tables so books and archives surface the same persons under a unified Linked-Data identity
+
+### 8. OAI-PMH Server (`oai-pmh-server`)
+
+OAI-PMH 2.0 data provider exposing the **book catalogue + archives** to national and international harvesters (Internet Culturale / ICCU, Europeana, DPLA).
+
+- **Endpoint**: `GET/POST /oai` — supports all six required verbs (`Identify`, `ListMetadataFormats`, `ListSets`, `ListIdentifiers`, `ListRecords`, `GetRecord`)
+- **Formats**: `oai_dc` (Dublin Core), `marc21` (MARCXML), `mods`, `mag` (MAG 2.0.1 — the ICCU national format), `unimarc`, `ric-o` (Records in Contexts Ontology, RDF/XML — archival units only)
+- **Sets**: separates books, archives, and per-archival-level subsets (`fonds`, `series`, `file`, `item`) so harvesters can selectively ingest
+- **Resumption tokens**: DB-backed (`oai_pmh_resumption_tokens` table) so cursor-paginated `ListRecords` calls survive across requests with a stable token
+- **Selective harvesting**: `from` / `until` date filters + `deletedRecord=persistent` so harvesters get tombstones for soft-deleted rows
+- **Compliance**: validated against the OAI Validator and the Europeana harvester
+
+### 9. NCIP 2.0 Server (`ncip-server`)
+
+**NISO Circulation Interchange Protocol** 2.0 — enables interlibrary loan exchange, self-service kiosks, and partner-ILS integration.
+
+- **Endpoint**: `POST /ncip` (Content-Type: `application/xml`)
+- **Services supported**: `LookupItem`, `LookupUser`, `CheckOutItem`, `CheckInItem`, `RenewItem`, `RequestItem`, `CancelRequestItem`
+- **Authentication**: NCIP `InitiationHeader` with `FromAgencyAuthentication` shared-secret model
+- **Use cases**: self-service borrowing kiosks (3M / Bibliotheca SelfCheck), library-network reciprocal lending, partner ILS bridging
+
+### 10. BIBFRAME 2.0 Linked Data (`bibframe-linked-data`)
+
+Exposes the book catalogue as **BIBFRAME 2.0** Linked Data per the Library of Congress transition path from MARC.
+
+- **Content negotiation** — `Accept: application/ld+json` returns BIBFRAME JSON-LD; `Accept: text/turtle` returns Turtle
+- **Stable resource URIs** — `/bibframe/works/{id}`, `/bibframe/instances/{id}`, `/bibframe/items/{id}`
+- **Authority links** — When the `viaf-authority` plugin is also enabled, agents carry `owl:sameAs` to VIAF/ISNI
+- **Suitable for**: Linked-Data discovery, library-of-the-future pilots, reconciliation workflows
+
+### 11. OpenURL Resolver (`openurl-resolver`)
+
+**Z39.88-2004 OpenURL** resolver — bridges Pinakes to bibliographic reference managers.
+
+- **Endpoint**: `GET /openurl?rft.isbn=…` accepts standard OpenURL ContextObjects and redirects to the matching book page (or returns 404 if no match)
+- **COinS metadata** — Every public book page embeds a `<span class="Z3988" title="ctx_ver=Z39.88-2004…">` so reference managers can capture the citation with one click
+- **Compatible with**: Zotero, Mendeley, EndNote, RefWorks, and any OpenURL-aware tool
+- **Hardening** (v0.7.6+) — `absoluteUrl()` is used for all redirect URL construction, so host-header spoofing cannot trick the resolver into open-redirecting to an attacker-controlled domain
+
+### 12. ResourceSync (`resource-sync`)
+
+**ANSI/NISO Z39.99-2014 ResourceSync** — large-scale dataset synchronisation for harvester partners.
+
+- **Endpoints**: `/.well-known/resourcesync`, `/resourcesync/capabilitylist.xml`, `/resourcesync/resourcelist.xml`, `/resourcesync/changelist.xml`
+- **Use cases**: bulk-mirror Pinakes catalogue to a partner system, periodic differential sync, large-scale Linked-Data harvesting
+- **Pairs with**: OAI-PMH (record-level) and SRU (query-time) for a three-layer interop stack
+
+### 13. Music Scraper (`discogs`)
+
+Multi-source music metadata scraping for CDs, LPs, vinyls, cassettes, and other physical music media.
+
+- **Sources**: Discogs (barcode + title lookup), MusicBrainz + Cover Art Archive (fallback by barcode), Deezer (HD jackets)
+- **Catalog-number support** — Accepts Cat# identifiers (e.g. `DGG 477 8761`) in addition to barcodes ([#101](https://github.com/fabiodalez-dev/Pinakes/issues/101))
+- **Rich metadata**: artist, album, label, year, tracklist with durations, genre, country of pressing
+- **Bulk enrichment** — Re-scrape all music records in one click from Admin → Books → Music
+
+### 14. MusicBrainz + Cover Art Archive (`musicbrainz`)
+
+Open-data music metadata source — no API token required.
+
+- **Search by barcode** — Direct MBID lookup via barcode
+- **Cover Art Archive** integration for HD album art
+- **Tracklist, label, year, country** extraction
+
+### 15. Deezer Music Search (`deezer`)
+
+Lightweight music search backed by the Deezer API — no token required.
+
+- **Search by title/artist** — Best for completing metadata when barcode lookup fails
+- **HD covers** — High-resolution album artwork
+- **Tracklist with durations** and genre tags
+
+### 16. GoodLib (`goodlib`)
+
+Adds one-click cross-search badges to the public book detail page.
+
+- **Targets**: Anna's Archive, Z-Library, Project Gutenberg
+- **Use case**: when a library wants to point patrons at legitimate open-access full-text sources alongside its own catalogue
+- **Inspired by**: the GoodLib browser extension
+- **Activation**: opt-in — disabled by default since not every library wants to surface third-party shadow-library links
 
 ---
 

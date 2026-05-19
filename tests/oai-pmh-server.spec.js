@@ -243,6 +243,8 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
         expect(text).toContain('<metadataPrefix>mods</metadataPrefix>');
         expect(text).toContain('<metadataPrefix>mag</metadataPrefix>');
         expect(text).toContain('<metadataPrefix>unimarc</metadataPrefix>');
+        expect(text).toContain('<schema>http://www.loc.gov/standards/iso25577/marcxchange-2-0.xsd</schema>');
+        expect(text).toContain('<metadataNamespace>info:lc/xmlns/marcxchange-v2</metadataNamespace>');
     });
 
     test('6. /oai?verb=ListSets → books and archives sets', async () => {
@@ -324,8 +326,9 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
         expect(text).toContain('tag="200"');
         // UNIMARC field 801 (originating source — 'IT', 'Pinakes')
         expect(text).toContain('tag="801"');
-        // Uses MARC21slim XML namespace
-        expect(text).toContain('http://www.loc.gov/MARC21/slim');
+        // Uses MARCXchange XML namespace for UNIMARC
+        expect(text).toContain('info:lc/xmlns/marcxchange-v2');
+        expect(text).toContain('type="Bibliographic"');
     });
 
     // ── Tests 12-13: GetRecord (active + deleted) ─────────────────────────────

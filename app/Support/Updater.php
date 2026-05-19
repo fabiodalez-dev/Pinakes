@@ -2683,7 +2683,18 @@ class Updater
             }
 
             $files = glob($migrationsPath . '/migrate_*.sql') ?: [];
-            sort($files);
+            // Sort by semantic version, not lexicographically — string sort
+            // of '0.7.10' / '0.7.7' / '0.7.9' places '0.7.10' BEFORE the others
+            // because '1' < '7' in lex order. version_compare orders by the
+            // numeric segments so migrate_0.7.10.sql correctly runs AFTER
+            // migrate_0.7.9.sql (and any future 0.7.12 / 0.8.0 land last).
+            usort($files, static function (string $a, string $b): int {
+                $extract = static function (string $path): string {
+                    return preg_match('/migrate_(.+)\.sql$/', basename($path), $m) === 1
+                        ? (string) $m[1] : '';
+                };
+                return version_compare($extract($a), $extract($b));
+            });
 
             $this->debugLog('DEBUG', 'File migrazioni trovati', [
                 'count' => count($files),

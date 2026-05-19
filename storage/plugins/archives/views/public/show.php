@@ -73,7 +73,7 @@ if (!empty($row['date_start'])) {
 
 // Optional per-document assets.
 $coverUrl   = !empty($row['cover_image_path']) ? url((string) $row['cover_image_path']) : '';
-/** @var list<array{id:int,file_path:string,file_mime:string,original_filename:string,sort_order:int}> $unit_files */
+/** @var list<array{id:int,file_path:string,file_mime:string,original_filename:string,sort_order:int,file_size?:int|string|null}> $unit_files */
 $unit_files = $unit_files ?? [];
 // Backwards-compat: expose first file as legacy $docUrl for schema.org etc.
 $firstFile  = !empty($unit_files) ? $unit_files[0] : null;
