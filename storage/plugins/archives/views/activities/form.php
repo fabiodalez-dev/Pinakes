@@ -114,13 +114,13 @@ $typeLabel = [
             <div>
                 <label for="date_start" class="form-label"><?= __('Data di inizio') ?></label>
                 <input type="text" id="date_start" name="date_start" value="<?= $val('date_start') ?>"
-                       placeholder="AAAA o AAAA-MM-GG"
+                       placeholder="<?= $e(__('AAAA o AAAA-MM-GG')) ?>"
                        class="mt-1 block w-full rounded-md <?= $err('date_start') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div>
                 <label for="date_end" class="form-label"><?= __('Data di fine') ?></label>
                 <input type="text" id="date_end" name="date_end" value="<?= $val('date_end') ?>"
-                       placeholder="AAAA o AAAA-MM-GG"
+                       placeholder="<?= $e(__('AAAA o AAAA-MM-GG')) ?>"
                        class="mt-1 block w-full rounded-md <?= $err('date_end') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div class="flex items-end">

@@ -2449,8 +2449,18 @@ class OaiPmhServerPlugin
         ));
         if (!empty($auIds) && $auExists) {
             $ph  = implode(',', array_fill(0, count($auIds), '?'));
-            $sql = "SELECT id, reference_code, constructed_title, formal_title,
-                           scope_content, language_codes, created_at, updated_at
+            // Explicit column list (more reviewable than SELECT *) covering
+            // every field RicJsonLdBuilder::buildUnit() reads. Missing any of
+            // these columns would silently degrade the RiC-O JSON-LD output
+            // for OAI-PMH ListRecords pages (e.g. empty extent, history,
+            // dates, locations, rights, ARK).
+            $sql = "SELECT id, level, parent_id,
+                           reference_code, constructed_title, formal_title,
+                           scope_content, archival_history, extent,
+                           date_start, date_end,
+                           physical_location, language_codes,
+                           rights_statement_url, ark_identifier,
+                           created_at, updated_at
                       FROM archival_units WHERE deleted_at IS NULL AND id IN ($ph)";
             $stmt = $this->db->prepare($sql);
             if ($stmt !== false) {
