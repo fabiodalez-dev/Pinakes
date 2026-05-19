@@ -4,13 +4,15 @@
  *
  * @var array<string, mixed>|null       $row
  * @var list<array<string, mixed>>|null $relations
+ * @var string|null                     $parent_label
  */
 declare(strict_types=1);
 
-$e         = static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
-$row       = $row       ?? [];
-$relations = $relations ?? [];
-$id        = (int) ($row['id'] ?? 0);
+$e            = static fn (mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
+$row          = $row          ?? [];
+$relations    = $relations    ?? [];
+$parent_label = $parent_label ?? null;
+$id           = (int) ($row['id'] ?? 0);
 
 /**
  * Safely serialise a PHP value as a JS literal for use INSIDE an HTML
@@ -38,6 +40,14 @@ $typeLabel = [
     'other'              => __('Altro'),
 ];
 $type = (string) ($row['place_type'] ?? '');
+
+/** @var array<string, string> $relationTargetLabels */
+$relationTargetLabels = [
+    'archive_activity' => __('Attività'),
+    'archival_unit'    => __('Unità archivistica'),
+    'authority_record' => __('Autorità'),
+    'archive_place'    => __('Luogo'),
+];
 ?>
 <div class="p-6 max-w-4xl mx-auto">
     <div class="mb-6">
@@ -106,7 +116,7 @@ $type = (string) ($row['place_type'] ?? '');
                 <dt class="font-semibold text-gray-700"><?= __('Luogo padre') ?></dt>
                 <dd>
                     <a class="text-blue-600 hover:underline"
-                       href="<?= $e(url('/admin/archives/places/' . (int) $row['parent_id'])) ?>">#<?= (int) $row['parent_id'] ?></a>
+                       href="<?= $e(url('/admin/archives/places/' . (int) $row['parent_id'])) ?>"><?= $parent_label ? $e($parent_label) : '#' . (int) $row['parent_id'] ?></a>
                 </dd>
             <?php endif; ?>
             <?php if (!empty($row['date_start']) || !empty($row['date_end'])): ?>
@@ -134,7 +144,7 @@ $type = (string) ($row['place_type'] ?? '');
                     <?php $relDetachId = 'archivesDetachRel_' . $relId; ?>
                     <li class="flex items-center gap-2">
                         <code class="text-xs text-gray-500 bg-gray-50 px-1 py-0.5 rounded"><?= $e($pred) ?></code>
-                        <span><?= $e($tType) ?> #<?= $tId ?></span>
+                        <span><?= $e($relationTargetLabels[$tType] ?? $tType) ?> #<?= $tId ?></span>
                         <form id="<?= $e($relDetachId) ?>" method="POST" action="<?= $e(url('/admin/archives/relations/' . $relId . '/detach')) ?>" class="inline">
                             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                             <input type="hidden" name="_return_to" value="<?= $e('/admin/archives/places/' . $id) ?>">

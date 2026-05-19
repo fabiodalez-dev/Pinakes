@@ -1934,14 +1934,14 @@ class ArchivesPlugin
         $key = $kind === 'cover' ? 'cover' : 'document';
         $upload = $files[$key] ?? null;
         if (!($upload instanceof \Psr\Http\Message\UploadedFileInterface)) {
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
         if ($upload->getError() !== UPLOAD_ERR_OK) {
             SecureLogger::warning('[Archives] upload error', ['kind' => $kind, 'err' => $upload->getError()]);
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
         if ($upload->getSize() !== null && $upload->getSize() > $maxBytes) {
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
 
         // Detect mime via finfo — the browser-provided Content-Type is
@@ -1979,7 +1979,7 @@ class ArchivesPlugin
             SecureLogger::warning('[Archives] upload rejected — mime not in allow-list', [
                 'kind' => $kind, 'mime' => $mime,
             ]);
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
         $ext = $mimeToExt[$mime];
 
@@ -2011,7 +2011,7 @@ class ArchivesPlugin
                 'kind' => $kind,
                 'dir'  => $targetDirFs,
             ]);
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
         $basename = $id . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
         try {
@@ -2022,7 +2022,7 @@ class ArchivesPlugin
                 'dest' => $targetDirFs . '/' . $basename,
                 'err'  => $e->getMessage(),
             ]);
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
         $relPath = $targetDirRel . '/' . $basename;
 
@@ -2082,7 +2082,7 @@ class ArchivesPlugin
                 }
             }
         }
-        return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
     }
 
     /**
@@ -2600,7 +2600,7 @@ class ArchivesPlugin
             $stmt->close();
         }
         return $response
-            ->withHeader('Location', '/admin/archives/' . $archivalUnitId)
+            ->withHeader('Location', url('/admin/archives/' . $archivalUnitId) /* FIX F010 */)
             ->withStatus(303);
     }
 
@@ -3502,9 +3502,12 @@ class ArchivesPlugin
         if (!isset($columnMap[$index])) {
             return null;
         }
+        // FIX F006: escape LIKE wildcards (% _ \) in user-supplied CQL term
+        // so a query like `title="%"` cannot enumerate the entire fonds.
+        // Mirrors the addcslashes pattern in entitiesAutocompleteAction.
         return [
             'sql'    => $columnMap[$index] . ' LIKE ?',
-            'params' => ['%' . $value . '%'],
+            'params' => ['%' . addcslashes($value, '%_\\') . '%'],
         ];
     }
 
@@ -4671,7 +4674,9 @@ class ArchivesPlugin
         // Pass 1 — LIKE on reference_code. Short codes ("IT-MI-001", "1943")
         // are below MySQL's ft_min_word_len threshold and would never surface
         // in a FULLTEXT query, so we always probe reference_code with LIKE first.
-        $pattern = '%' . $q . '%';
+        // FIX F006: escape LIKE wildcards in user input to prevent
+        // wildcard-injection enumeration (q=% returning everything).
+        $pattern = '%' . addcslashes($q, '%_\\') . '%';
         $stmt = $this->db->prepare(
             'SELECT id, reference_code, level, constructed_title, formal_title,
                     date_start, date_end, extent
@@ -5878,11 +5883,15 @@ class ArchivesPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
+        // FIX F042: cap unbounded scan on public unauthenticated endpoint.
+        // 500 fits the published RiC-O collection ceiling and prevents a
+        // single request from materialising the entire activities table.
         $result = $this->db->query(
             'SELECT id, title, activity_type
                FROM archive_activities
               WHERE parent_id IS NULL AND deleted_at IS NULL
-              ORDER BY activity_type, title'
+              ORDER BY activity_type, title
+              LIMIT 500'
         );
         if (!($result instanceof \mysqli_result)) {
             // archive_activities table may legitimately not exist on
@@ -6069,10 +6078,14 @@ class ArchivesPlugin
         ServerRequestInterface $request,
         ResponseInterface $response
     ): ResponseInterface {
+        // FIX F042: cap unbounded scan on public unauthenticated endpoint.
+        // 500 matches the cap on ricActivitiesListAction and prevents a
+        // single request from materialising the entire places table.
         $result = $this->db->query(
             'SELECT id, name, place_type FROM archive_places
               WHERE parent_id IS NULL AND deleted_at IS NULL
-              ORDER BY place_type, name'
+              ORDER BY place_type, name
+              LIMIT 500'
         );
         if (!($result instanceof \mysqli_result)) {
             if ($this->db->errno === 1146) {
@@ -7080,8 +7093,35 @@ class ArchivesPlugin
             $parentId, $values['date_start'], $values['date_end'],
             $isOngoing, $agentId, $values['source_ref'], $id
         );
-        $stmt->execute();
+        // FIX F002: surface persistence failures instead of silently 302'ing
+        // to the show page (which would imply success). On execute failure or
+        // zero rows touched (race/soft-delete since findActivityRow), re-render
+        // the edit form with a flash error and HTTP 422 so the user knows.
+        $execOk     = $stmt->execute();
+        $affected   = $stmt->affected_rows;
+        $execErr    = $stmt->error;
         $stmt->close();
+        if (!$execOk || $affected < 1) {
+            SecureLogger::error('[Archives] activityUpdateAction execute failed or no rows', [
+                'id'       => $id,
+                'execOk'   => $execOk,
+                'affected' => $affected,
+                'error'    => $execErr,
+            ]);
+            return $this->renderView(
+                $response->withStatus(422),
+                'activities/form',
+                [
+                    'mode'       => 'edit',
+                    'id'         => $id,
+                    'types'      => array_keys(self::ACTIVITY_TYPES),
+                    'parentOpts' => $this->listActivityOptions($id),
+                    'agentOpts'  => $this->listAuthorityOptions(),
+                    'values'     => $values,
+                    'errors'     => ['_global' => __('Unable to save activity. Please retry.')],
+                ]
+            );
+        }
         return $response
             ->withHeader('Location', url('/admin/archives/activities/' . $id))
             ->withStatus(302);
@@ -7437,6 +7477,30 @@ class ArchivesPlugin
     ): ResponseInterface {
         $row = $this->findPlaceRow($id);
         if ($row === null) { return $this->renderNotFound($response, $id); }
+        // Resolve human-readable label for parent_id so the detail view can
+        // render the parent place name instead of just a numeric ID (F033).
+        $parentLabel = null;
+        if (!empty($row['parent_id'])) {
+            try {
+                $pStmt = $this->db->prepare(
+                    'SELECT name FROM archive_places
+                      WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+                );
+                if ($pStmt !== false) {
+                    $parentId = (int) $row['parent_id'];
+                    $pStmt->bind_param('i', $parentId);
+                    $pStmt->execute();
+                    $pRes = $pStmt->get_result();
+                    $p = $pRes instanceof \mysqli_result ? $pRes->fetch_assoc() : null;
+                    $pStmt->close();
+                    if (is_array($p) && !empty($p['name'])) {
+                        $parentLabel = (string) $p['name'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[Archives] placeShow parent label fetch failed: ' . $e->getMessage());
+            }
+        }
         try {
             $relations = $this->fetchRelationsForEntity('archive_place', $id);
         } catch (\Throwable $e) {
@@ -7445,6 +7509,7 @@ class ArchivesPlugin
         }
         return $this->renderView($response, 'places/show', [
             'row' => $row,
+            'parent_label' => $parentLabel,
             'relations' => $relations,
             'headLinks' => [
                 ['rel' => 'alternate', 'type' => 'application/ld+json',
@@ -7488,17 +7553,22 @@ class ArchivesPlugin
                     date_start = ?, date_end = ?
               WHERE id = ? AND deleted_at IS NULL'
         );
-        if ($stmt !== false) {
-            $parent = $values['parent_id']; $lat = $values['latitude']; $lng = $values['longitude'];
-            $stmt->bind_param(
-                'ssiddssssssi',
-                $values['name'], $values['place_type'], $parent, $lat, $lng,
-                $values['geonames_id'], $values['wikidata_id'], $values['tgn_id'],
-                $values['description'], $values['date_start'], $values['date_end'], $id
-            );
-            $stmt->execute();
-            $stmt->close();
+        // FIX F003: bail early on prepare failure instead of silently 302'ing
+        // to the show page — mirrors activityUpdateAction's prepare-failure
+        // branch so persistence errors surface as 404 rather than a fake success.
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] placeUpdateAction prepare failed: ' . $this->db->error);
+            return $this->renderNotFound($response, $id);
         }
+        $parent = $values['parent_id']; $lat = $values['latitude']; $lng = $values['longitude'];
+        $stmt->bind_param(
+            'ssiddssssssi',
+            $values['name'], $values['place_type'], $parent, $lat, $lng,
+            $values['geonames_id'], $values['wikidata_id'], $values['tgn_id'],
+            $values['description'], $values['date_start'], $values['date_end'], $id
+        );
+        $stmt->execute();
+        $stmt->close();
         return $response
             ->withHeader('Location', url('/admin/archives/places/' . $id))
             ->withStatus(302);

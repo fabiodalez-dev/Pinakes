@@ -22,6 +22,14 @@ $type        = (string) ($row['activity_type'] ?? '');
 $agentLabel  = (isset($agent_label)  && $agent_label  !== '') ? $agent_label  : null;
 $parentLabel = (isset($parent_label) && $parent_label !== '') ? $parent_label : null;
 
+/** @var array<string, string> $relationTargetLabels */
+$relationTargetLabels = [
+    'archive_activity' => __('Attività'),
+    'archival_unit'    => __('Unità archivistica'),
+    'authority_record' => __('Autorità'),
+    'archive_place'    => __('Luogo'),
+];
+
 /**
  * Safely serialise a PHP value as a JS literal for use INSIDE an HTML
  * attribute delimited with double quotes (e.g. `onclick="..."`).
@@ -174,7 +182,7 @@ $typeLabel = [
                     <?php $relDetachId = 'archivesDetachRel_' . $relId; ?>
                     <li class="flex items-center gap-2">
                         <code class="text-xs text-gray-500 bg-gray-50 px-1 py-0.5 rounded"><?= $e($pred) ?></code>
-                        <span><?= $e($tType) ?> #<?= $tId ?></span>
+                        <span><?= $e($relationTargetLabels[$tType] ?? $tType) ?> #<?= $tId ?></span>
                         <form id="<?= $e($relDetachId) ?>" method="POST" action="<?= $e(url('/admin/archives/relations/' . $relId . '/detach')) ?>" class="inline">
                             <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                             <input type="hidden" name="_return_to" value="<?= $e('/admin/archives/activities/' . $id) ?>">
