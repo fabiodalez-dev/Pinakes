@@ -7139,18 +7139,19 @@ class ArchivesPlugin
             $isOngoing, $agentId, $values['source_ref'], $id
         );
         // FIX F002: surface persistence failures instead of silently 302'ing
-        // to the show page (which would imply success). On execute failure or
-        // zero rows touched (race/soft-delete since findActivityRow), re-render
-        // the edit form with a flash error and HTTP 422 so the user knows.
+        // to the show page. On execute failure, re-render the edit form with
+        // a flash error and HTTP 422 so the user knows.
+        // FIX L1-F2 follow-up: do NOT gate on affected_rows < 1. MySQL
+        // returns 0 changed rows by default when the submitted values
+        // match the stored row exactly (no CLIENT_FOUND_ROWS), so a
+        // genuine no-op resubmit would have falsely triggered the
+        // "save failed" branch and shown a 422 + flash error.
         $execOk     = $stmt->execute();
-        $affected   = $stmt->affected_rows;
         $execErr    = $stmt->error;
         $stmt->close();
-        if (!$execOk || $affected < 1) {
-            SecureLogger::error('[Archives] activityUpdateAction execute failed or no rows', [
+        if (!$execOk) {
+            SecureLogger::error('[Archives] activityUpdateAction execute failed', [
                 'id'       => $id,
-                'execOk'   => $execOk,
-                'affected' => $affected,
                 'error'    => $execErr,
             ]);
             return $this->renderView(
@@ -7163,7 +7164,7 @@ class ArchivesPlugin
                     'parentOpts' => $this->listActivityOptions($id),
                     'agentOpts'  => $this->listAuthorityOptions(),
                     'values'     => $values,
-                    'errors'     => ['_global' => __('Unable to save activity. Please retry.')],
+                    'errors'     => ['_global' => __('Impossibile salvare l\'attività. Riprovare.')],
                 ]
             );
         }
@@ -7312,6 +7313,24 @@ class ArchivesPlugin
         }
         if ($values['agent_id'] !== null && $this->findAuthorityById((int) $values['agent_id']) === null) {
             $errors['agent_id'] = __('Agente selezionato inesistente.');
+        }
+        // FIX (sibling of F045): validate date_start/date_end shape and
+        // source_ref length so malformed data never reaches the public
+        // RiC-O JSON-LD output. archive_activities columns mirror the
+        // archive_relations DDL (date_start/end VARCHAR(20), source_ref
+        // VARCHAR(500)).
+        $dateRe = '/^-?[0-9]{4}(-[0-9]{2}-[0-9]{2})?$/';
+        $ds = (string) ($values['date_start'] ?? '');
+        if ($ds !== '' && preg_match($dateRe, $ds) !== 1) {
+            $errors['date_start'] = __('Formato non valido: usa AAAA o AAAA-MM-GG.');
+        }
+        $de = (string) ($values['date_end'] ?? '');
+        if ($de !== '' && preg_match($dateRe, $de) !== 1) {
+            $errors['date_end'] = __('Formato non valido: usa AAAA o AAAA-MM-GG.');
+        }
+        $sr = (string) ($values['source_ref'] ?? '');
+        if (mb_strlen($sr, 'UTF-8') > 500) {
+            $errors['source_ref'] = __('Massimo 500 caratteri.');
         }
         return $errors;
     }
@@ -7636,8 +7655,22 @@ class ArchivesPlugin
             $values['geonames_id'], $values['wikidata_id'], $values['tgn_id'],
             $values['description'], $values['date_start'], $values['date_end'], $id
         );
-        $stmt->execute();
+        // FIX (sibling of F002): check execute() return so a deadlock /
+        // constraint violation surfaces as 422 with a flash error instead
+        // of a silent 302 implying success.
+        $execOk  = $stmt->execute();
+        $execErr = $stmt->error;
         $stmt->close();
+        if (!$execOk) {
+            SecureLogger::error('[Archives] placeUpdateAction execute failed: ' . $execErr);
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'edit', 'id' => $id,
+                'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions($id),
+                'values' => $values,
+                'errors' => ['_global' => __('Impossibile salvare il luogo. Riprovare.')],
+            ])->withStatus(422);
+        }
         return $response
             ->withHeader('Location', url('/admin/archives/places/' . $id))
             ->withStatus(302);
@@ -7789,6 +7822,18 @@ class ArchivesPlugin
         if ($tgn !== '' && !preg_match('/^\d+$/', $tgn)) {
             $errors['tgn_id'] = __('Getty TGN ID deve essere un numero (es. 7000874).');
         }
+        // FIX (sibling of F045): same date_start/date_end shape + length
+        // cap as validateActivity / relationAttachAction; archive_places
+        // DDL has the same VARCHAR(20) / VARCHAR(500) columns.
+        $dateRe = '/^-?[0-9]{4}(-[0-9]{2}-[0-9]{2})?$/';
+        $ds = (string) ($values['date_start'] ?? '');
+        if ($ds !== '' && preg_match($dateRe, $ds) !== 1) {
+            $errors['date_start'] = __('Formato non valido: usa AAAA o AAAA-MM-GG.');
+        }
+        $de = (string) ($values['date_end'] ?? '');
+        if ($de !== '' && preg_match($dateRe, $de) !== 1) {
+            $errors['date_end'] = __('Formato non valido: usa AAAA o AAAA-MM-GG.');
+        }
         return $errors;
     }
 
@@ -7817,7 +7862,7 @@ class ArchivesPlugin
         $current = $proposedParentId;
         $visited = [];
         $iterations = 0;
-        while ($current > 0 && $iterations++ < 100) {
+        while ($current > 0 && $iterations++ < self::MAX_HIERARCHY_DEPTH) { /* FIX F013-followup */
             if ($current === $childId) { $stmt->close(); return true; }
             if (isset($visited[$current])) { break; }
             $visited[$current] = true;

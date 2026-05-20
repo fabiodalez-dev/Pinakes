@@ -5,6 +5,7 @@
  * @var array<string, mixed>|null       $row
  * @var list<array<string, mixed>>|null $relations
  * @var string|null                     $parent_label
+ * @var int|null                        $relation_count
  */
 declare(strict_types=1);
 
