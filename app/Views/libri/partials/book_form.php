@@ -1467,41 +1467,79 @@ function initializeChoicesJS() {
             createAuthorFromInputWithValue(rawValue);
         };
 
-        // Handle Enter key for new author creation using public DOM events.
-        // Uses capture-phase keydown on the wrapper so it fires before Choices.js
-        // internal handlers, without relying on private _onEnterKey API.
-        const handleAuthorEnter = (event) => {
-            if (event.key !== 'Enter' || !internalInput) return;
-            const inputValue = internalInput.value.trim();
-            if (!inputValue) return;
+        // Regression fix for issue #74 (reopened 2026-05-20).
+        //
+        // Choices.js v11 registers its own keydown handler in capture phase
+        // on the outer wrapper BEFORE our code runs, and calls
+        // stopImmediatePropagation() on Enter when there's a highlighted
+        // item — so any wrapper.addEventListener('keydown', …, true) we
+        // register after `new Choices(…)` never sees the event.
+        //
+        // The previous "cleaner" capture-phase approach (introduced by the
+        // CodeRabbit round-11 review) regressed this bug because of the
+        // above. The only reliable interception point is the library's
+        // own keypress dispatcher; monkey-patch _onEnterKey on the
+        // instance. The override is per-instance and does not modify the
+        // Choices.js prototype, so other Choices instances on the page
+        // (publisher, genre, etc.) keep stock behavior.
+        if (typeof authorsChoice._onEnterKey === 'function') {
+            const originalOnEnterKey = authorsChoice._onEnterKey.bind(authorsChoice);
+            authorsChoice._onEnterKey = function (event, hasActiveDropdown) {
+                if (!internalInput) {
+                    return originalOnEnterKey(event, hasActiveDropdown);
+                }
+                const inputValue = internalInput.value.trim();
+                if (!inputValue) {
+                    return originalOnEnterKey(event, hasActiveDropdown);
+                }
 
-            const dd = wrapper ? wrapper.querySelector('.choices__list--dropdown') : null;
-            const highlighted = dd ? dd.querySelector('.choices__item--selectable.is-highlighted') : null;
+                const dd = wrapper ? wrapper.querySelector('.choices__list--dropdown') : null;
+                const highlighted = dd ? dd.querySelector('.choices__item--selectable.is-highlighted') : null;
 
-            if (!highlighted) {
-                // No highlighted item — create new author directly
+                if (!highlighted) {
+                    // No highlighted match — create the typed name as a new author.
+                    event.preventDefault();
+                    createAuthorFromInputWithValue(inputValue);
+                    return;
+                }
+
+                // There IS a highlighted item — only delegate to Choices.js
+                // when the typed text matches it (case insensitive). If the
+                // user typed "Norbert Wex" while "Norbert Bauer" was the
+                // top match, we MUST NOT let Choices.js auto-select it.
+                const nameEl = highlighted.querySelector('.choices__item-text') || highlighted.childNodes[0];
+                const highlightedText = (nameEl ? nameEl.textContent : highlighted.textContent).trim().toLowerCase();
+                const currentText = inputValue.toLowerCase();
+
+                if (highlightedText === currentText) {
+                    // Exact match — pick the existing author.
+                    return originalOnEnterKey(event, hasActiveDropdown);
+                }
+
+                // Highlighted is a different name — create new author from typed input.
                 event.preventDefault();
-                event.stopPropagation();
                 createAuthorFromInputWithValue(inputValue);
-                return;
+            };
+        } else {
+            // Defensive fallback for a future Choices.js without _onEnterKey:
+            // capture-phase listener (known to be unreliable but better than
+            // nothing — at least new-author creation works when the dropdown
+            // has no highlighted item).
+            const handleAuthorEnter = (event) => {
+                if (event.key !== 'Enter' || !internalInput) return;
+                const inputValue = internalInput.value.trim();
+                if (!inputValue) return;
+                const dd = wrapper ? wrapper.querySelector('.choices__list--dropdown') : null;
+                const highlighted = dd ? dd.querySelector('.choices__item--selectable.is-highlighted') : null;
+                if (!highlighted) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    createAuthorFromInputWithValue(inputValue);
+                }
+            };
+            if (wrapper) {
+                wrapper.addEventListener('keydown', handleAuthorEnter, true);
             }
-
-            // There IS a highlighted item — check if it matches what was typed
-            const nameEl = highlighted.querySelector('.choices__item-text') || highlighted.childNodes[0];
-            const highlightedText = (nameEl ? nameEl.textContent : highlighted.textContent).trim().toLowerCase();
-            const currentText = inputValue.toLowerCase();
-
-            if (highlightedText !== currentText && !highlightedText.startsWith(currentText)) {
-                // Input doesn't match highlighted item — create new author
-                event.preventDefault();
-                event.stopPropagation();
-                createAuthorFromInputWithValue(inputValue);
-            }
-            // Highlighted text matches input — let Choices.js handle the selection
-        };
-
-        if (wrapper) {
-            wrapper.addEventListener('keydown', handleAuthorEnter, true);
         }
 
         element.addEventListener('addItem', function(event) {
