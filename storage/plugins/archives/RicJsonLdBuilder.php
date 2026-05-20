@@ -1102,7 +1102,15 @@ final class RicJsonLdBuilder
      */
     private static function dateLiteral(string $value): array
     {
-        if (preg_match('/^-?\d+$/', $value) === 1) {
+        // FIX (L1-F6 / L2-F12): clamp year-only values to PHP_INT range
+        // before casting. preg_match accepts unbounded digits, so
+        // '9999999999999999999' would otherwise int-overflow into
+        // PHP_INT_MAX/MIN silently. Reject (fall through to xsd:date,
+        // which itself will fail validation downstream — but at least
+        // the bug is not hidden by truncation).
+        if (preg_match('/^-?\d+$/', $value) === 1
+            && $value === (string) (int) $value
+        ) {
             return [
                 '@value' => self::formatGYear((int) $value),
                 '@type'  => 'xsd:gYear',

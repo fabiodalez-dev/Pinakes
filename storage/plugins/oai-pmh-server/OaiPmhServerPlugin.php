@@ -1235,6 +1235,27 @@ class OaiPmhServerPlugin
             $this->oaiError($xw, 'cannotDisseminateFormat',
                 'The requested metadataPrefix is not supported for this record type.');
             return;
+        } catch (\Throwable $e) {
+            // FIX (L1-F5 / OAI sibling): symmetrical generic-Throwable
+            // catch matching oaiListRecords (line ~1108). Any unexpected
+            // error inside writeMetadata (UTF-8 XMLWriter error,
+            // RuntimeException from RicJsonLdBuilder, etc.) would
+            // otherwise propagate with <metadata>/<record>/<GetRecord>
+            // half-open, breaking the response. Mirror the close sequence
+            // and surface as cannotDisseminateFormat so the harvester
+            // can recover.
+            \App\Support\SecureLogger::warning('OAI-PMH GetRecord writeMetadata threw', [
+                'metadataPrefix' => $metadataPrefix,
+                'entity'         => $rec['_entity'] ?? null,
+                'id'             => $rec['id'] ?? null,
+                'error'          => $e->getMessage(),
+            ]);
+            try { $xw->endElement(); } catch (\Throwable $ignored) {} // metadata
+            try { $xw->endElement(); } catch (\Throwable $ignored) {} // record
+            try { $xw->endElement(); } catch (\Throwable $ignored) {} // GetRecord
+            $this->oaiError($xw, 'cannotDisseminateFormat',
+                'Internal error rendering metadata for this record.');
+            return;
         }
 
         $xw->endElement(); // record

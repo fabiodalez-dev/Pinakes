@@ -60,6 +60,15 @@ class ArchivesPlugin
         if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {
             return '/admin/archives';
         }
+        // FIX (L2-F11): reject path-traversal segments anywhere in the
+        // returnTo. The /admin/archives/ allow-list below is a byte-prefix
+        // check; without dot-segment rejection a value like
+        // /admin/archives/../admin/users would pass the prefix gate and
+        // the browser would then normalise the Location header to escape
+        // the intended allow-list.
+        if (preg_match('#(^|/)\.\.?(/|$)#', $candidate) === 1) {
+            return '/admin/archives';
+        }
         // FIX F014: restrict to /admin/archives/* allow-list. A
         // referer-controlled _return_to could otherwise redirect to any
         // admin route (confused-deputy across plugin boundaries). The
@@ -2034,10 +2043,24 @@ class ArchivesPlugin
         $existingPathField = $kind === 'cover' ? 'cover_image_path' : 'document_path';
         $existingPath = (string) ($row[$existingPathField] ?? '');
         if ($kind === 'cover' && $existingPath !== '') {
-            $oldFs = __DIR__ . '/../../../public' . $existingPath;
-            if (is_file($oldFs)) {
-                @unlink($oldFs);
+            // FIX (L6-F1): realpath containment check before unlink, matching
+            // removeAssetAction's F007 fix. The path comes from the DB row;
+            // a future bypass that seeds a row with /uploads/archives/covers/../../etc
+            // would pass the path-prefix check yet resolve to an arbitrary file.
+            // Reject anything that doesn't resolve under the allowed root.
+            $allowedRealRoot = realpath(__DIR__ . '/../../../public/uploads/archives/covers');
+            $oldFs           = __DIR__ . '/../../../public' . $existingPath;
+            $resolvedOldFs   = realpath($oldFs);
+            if ($allowedRealRoot !== false
+                && $resolvedOldFs !== false
+                && str_starts_with($resolvedOldFs, $allowedRealRoot . DIRECTORY_SEPARATOR)
+                && is_file($resolvedOldFs)
+            ) {
+                @unlink($resolvedOldFs);
             }
+            // Note: missing-file (realpath()==false) silently skips — that's
+            // the legitimate "file already gone" case, not a containment
+            // failure worth logging.
         }
 
         $targetDirRel = $kind === 'cover'
@@ -2106,10 +2129,18 @@ class ArchivesPlugin
                     // committed and the legacy columns are cleared, the old
                     // file on disk is orphaned and safe to unlink. Done last
                     // so an earlier failure leaves the legacy file intact.
+                    // FIX (L6-F1 sibling): realpath containment as in
+                    // removeAssetAction (F007) and the cover predecessor unlink.
                     if ($existingPath !== '') {
-                        $oldFs = __DIR__ . '/../../../public' . $existingPath;
-                        if (is_file($oldFs)) {
-                            @unlink($oldFs);
+                        $allowedDocRoot = realpath(__DIR__ . '/../../../public/uploads/archives/documents');
+                        $oldFs          = __DIR__ . '/../../../public' . $existingPath;
+                        $resolvedOldFs  = realpath($oldFs);
+                        if ($allowedDocRoot !== false
+                            && $resolvedOldFs !== false
+                            && str_starts_with($resolvedOldFs, $allowedDocRoot . DIRECTORY_SEPARATOR)
+                            && is_file($resolvedOldFs)
+                        ) {
+                            @unlink($resolvedOldFs);
                         }
                     }
                 } else {
@@ -2778,7 +2809,12 @@ class ArchivesPlugin
             }
             return $rows;
         }
-        $like = '%' . $q . '%';
+        // FIX (L2-F6): escape LIKE wildcards `%`/`_`/`\\` in user input so a
+        // raw `%` or `_` cannot enumerate the whole `autori` table by
+        // collapsing the predicate to `LIKE '%%%'` or matching any
+        // single-char name. Mirrors the addcslashes pattern applied at
+        // CQL parser (3510) and searchArchivalUnits (4679).
+        $like = '%' . addcslashes($q, '%_\\') . '%';
         $stmt = $this->db->prepare('SELECT id, nome FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT ?');
         if ($stmt === false) {
             return $rows;
