@@ -855,9 +855,21 @@ final class RicJsonLdBuilder
         $gn  = $this->str($place, 'geonames_id');
         $wd  = $this->str($place, 'wikidata_id');
         $tgn = $this->str($place, 'tgn_id');
-        if ($gn  !== '') { $sameAs[] = ['@id' => 'https://www.geonames.org/' . $gn]; }
-        if ($wd  !== '') { $sameAs[] = ['@id' => 'https://www.wikidata.org/entity/' . $wd]; }
-        if ($tgn !== '') { $sameAs[] = ['@id' => 'http://vocab.getty.edu/page/tgn/' . $tgn]; }
+        // FIX (CR confirm): defence-in-depth on the read path. Write-path
+        // validation rejects malformed inputs, but DB rows seeded via
+        // migration or external import could bypass it. Reject anything
+        // not matching the canonical id shapes so a crafted value (path
+        // traversal, query string, control chars) cannot leak into the
+        // public owl:sameAs URIs.
+        if ($gn  !== '' && preg_match('/^\d+$/', $gn)  === 1) {
+            $sameAs[] = ['@id' => 'https://www.geonames.org/' . $gn];
+        }
+        if ($wd  !== '' && preg_match('/^Q\d+$/i', $wd) === 1) {
+            $sameAs[] = ['@id' => 'https://www.wikidata.org/entity/' . $wd];
+        }
+        if ($tgn !== '' && preg_match('/^\d+$/', $tgn) === 1) {
+            $sameAs[] = ['@id' => 'http://vocab.getty.edu/page/tgn/' . $tgn];
+        }
         if (!empty($sameAs)) {
             $doc['owl:sameAs'] = count($sameAs) === 1 ? $sameAs[0] : $sameAs;
         }

@@ -691,7 +691,7 @@ Plugins support encrypted secrets and isolated configuration. Install via ZIP up
 
 *Interoperability protocols*
 - **Z39 Server** — SRU 1.2 API + Z39.50/SRU client for Italian SBN, French **BNF** (UNIMARC), and any standard library catalogue with Dewey extraction (v0.7.6+)
-- **OAI-PMH Server** — OAI-PMH 2.0 data provider for books + archives, harvestable by Internet Culturale (ICCU), Europeana, DPLA. Formats: `oai_dc`, `marc21`, `mods`, `mag` (2.0.1), `unimarc`, `ric-o` (RDF/XML, archival units)
+- **OAI-PMH Server** — OAI-PMH 2.0 data provider for books + archives, harvestable by Internet Culturale (ICCU), Europeana, DPLA. Formats: `oai_dc`, `marc21`, `mods`, `mag` (2.0.1), `unimarc`, `ead3`, `ric-o` (RDF/XML, archival units)
 - **NCIP 2.0 Server** — NISO Circulation Interchange Protocol for self-service kiosks, partner ILS, and library networks
 - **BIBFRAME 2.0 Linked Data** — Exposes the book catalogue as BIBFRAME 2.0 JSON-LD / Turtle with content negotiation (Library of Congress transition path from MARC)
 - **OpenURL Resolver** — Z39.88-2004 resolver + COinS metadata embedded in book pages; works with Zotero, Mendeley, EndNote

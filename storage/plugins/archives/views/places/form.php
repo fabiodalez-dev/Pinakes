@@ -165,12 +165,22 @@ $typeLabel = [
                 <input type="text" id="date_start" name="date_start" value="<?= $val('date_start') ?>"
                        placeholder="<?= $e(__('AAAA o AAAA-MM-GG')) ?>"
                        class="mt-1 block w-full rounded-md <?= $err('date_start') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <?php /* FIX (CR confirm): surface the validation message
+                          so the user sees the expected format, not only
+                          a red border. Mirrors other field error blocks
+                          in this form. */ ?>
+                <?php if ($err('date_start')): ?>
+                    <p class="mt-1 text-sm text-red-600"><?= $e($err('date_start')) ?></p>
+                <?php endif; ?>
             </div>
             <div>
                 <label for="date_end" class="form-label"><?= __('Esistente fino al') ?></label>
                 <input type="text" id="date_end" name="date_end" value="<?= $val('date_end') ?>"
                        placeholder="<?= $e(__('AAAA o AAAA-MM-GG')) ?>"
                        class="mt-1 block w-full rounded-md <?= $err('date_end') ? 'border-red-500' : 'border-gray-300' ?> shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <?php if ($err('date_end')): ?>
+                    <p class="mt-1 text-sm text-red-600"><?= $e($err('date_end')) ?></p>
+                <?php endif; ?>
             </div>
         </div>
 

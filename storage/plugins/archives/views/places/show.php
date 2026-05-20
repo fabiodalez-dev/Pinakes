@@ -251,6 +251,9 @@ $relationTargetLabels = [
             empty.textContent = noResultsMsg;
             results.appendChild(empty);
             results.classList.remove('hidden');
+            // FIX (CR confirm): aria-expanded must mirror the visible
+            // listbox state even when the listbox shows "no results".
+            if (input) input.setAttribute('aria-expanded', 'true');
             return;
         }
         for (var i = 0; i < rows.length; i++) {

@@ -1585,6 +1585,14 @@ class OaiPmhServerPlugin
         ?array $genre
     ): void {
         $xw->startElementNs(null, 'record', self::NS_MARCXCHANGE);
+        // FIX (CR confirm): declare the `xsi` namespace before using
+        // `xsi:schemaLocation`. In the OAI dissemination path the
+        // OAI envelope already declares xmlns:xsi on <OAI-PMH>, but
+        // the standalone /admin/books/{id}/unimarc.xml download
+        // emits <record> as the document root, so without this
+        // attribute the xsi:schemaLocation prefix is unbound.
+        $xw->writeAttributeNs('xmlns', 'xsi', null,
+            'http://www.w3.org/2001/XMLSchema-instance');
         $xw->writeAttribute('type', 'Bibliographic');
         $xw->writeAttributeNs('xsi', 'schemaLocation', null,
             self::NS_MARCXCHANGE . ' ' . self::SCHEMA_MARCXCHANGE);
