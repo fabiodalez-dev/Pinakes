@@ -174,6 +174,7 @@ $additional_css = "
         overflow: hidden;
         margin-bottom: 2rem;
         border: 1px solid #f1f5f9;
+        background: #f8fafc;
     }
 
     .event-cover img {
@@ -182,16 +183,20 @@ $additional_css = "
     }
 
     /* Layout variants (issue #137): admin-configurable rendering for the
-       event hero image. Defaults remain visually equivalent to the
-       previous behaviour for narrow images. */
+       event hero image. The four variants — full / banner / contained
+       (default) / thumb — give the librarian a predictable result no
+       matter what image they upload. */
+
+    /* full: passthrough — preserve the historical 100%-width no-crop
+       look for users who depended on it. */
     .event-cover--full img {
-        /* Original: preserve historical full-width-no-constraint. */
-        max-height: none;
-        object-fit: initial;
+        height: auto;
     }
+
+    /* banner: 16:9 cinematic crop. Ideal for poster-like horizontal
+       images that look good as a hero. */
     .event-cover--banner {
         aspect-ratio: 16 / 9;
-        background: #f8fafc;
     }
     .event-cover--banner img {
         width: 100%;
@@ -199,27 +204,57 @@ $additional_css = "
         object-fit: cover;
         object-position: center;
     }
-    .event-cover--contained img {
-        max-height: clamp(280px, 50vw, 480px);
-        object-fit: contain;
-        object-position: center;
-        background: #f8fafc;
+
+    /* contained: 3:2 photographic crop. The default — gives the same
+       balanced silhouette regardless of source dimensions. Replaces
+       the earlier arbitrary 480px max-height which produced uneven
+       results across uploads. */
+    .event-cover--contained {
+        aspect-ratio: 3 / 2;
     }
+    .event-cover--contained img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+    }
+
+    /* thumb: side-by-side layout. Driven by a modifier class on the
+       parent .event-card so the cover lives in its own grid cell and
+       cannot overflow into the footer the way a CSS float would when
+       the body text is short. Mobile collapses to a vertical stack. */
     .event-cover--thumb {
-        float: right;
-        width: clamp(180px, 32%, 260px);
-        margin: 0 0 1.25rem 1.5rem;
-        border-radius: 16px;
+        margin-bottom: 0;
+        aspect-ratio: 3 / 4;
     }
     .event-cover--thumb img {
-        aspect-ratio: 3 / 4;
+        width: 100%;
+        height: 100%;
         object-fit: cover;
+        object-position: center;
     }
-    @media (max-width: 640px) {
+    @media (min-width: 768px) {
+        .event-card--thumb-layout {
+            display: grid;
+            grid-template-columns: minmax(200px, 260px) 1fr;
+            gap: clamp(1.5rem, 3vw, 2.5rem);
+            align-items: start;
+        }
+        .event-card--thumb-layout > .event-cover--thumb {
+            grid-column: 1;
+            grid-row: 1 / span 2;
+            position: sticky;
+            top: 7rem;
+            margin: 0;
+        }
+        .event-card--thumb-layout > .event-body,
+        .event-card--thumb-layout > .event-back {
+            grid-column: 2;
+        }
+    }
+    @media (max-width: 767px) {
         .event-cover--thumb {
-            float: none;
-            width: 100%;
-            margin: 0 0 1.5rem 0;
+            margin-bottom: 1.5rem;
         }
     }
 
@@ -398,19 +433,25 @@ ob_start();
     </div>
 </section>
 
+<?php
+    // $eventImageLayout is set by the controller and re-validated there
+    // against the allow-list; we re-narrow here as defense in depth so
+    // a future controller refactor cannot leak an unknown value into
+    // the DOM. Computed before the markup so the parent .event-card
+    // can opt into the side-by-side grid via .event-card--thumb-layout.
+    $coverAllowed   = ['full', 'banner', 'contained', 'thumb'];
+    $coverLayout    = in_array($eventImageLayout, $coverAllowed, true) ? $eventImageLayout : 'contained';
+    $hasCoverImage  = !empty($event['featured_image']);
+    $cardClasses    = ['event-card'];
+    if ($hasCoverImage && $coverLayout === 'thumb') {
+        $cardClasses[] = 'event-card--thumb-layout';
+    }
+?>
 <section class="event-section">
     <div class="container">
-        <article class="event-card">
-            <?php if (!empty($event['featured_image'])):
-                // $eventImageLayout is set by the controller and re-validated
-                // there against the allow-list; we re-narrow here as a
-                // defense in depth so a future controller refactor cannot
-                // leak an unknown layout into the CSS class name.
-                $coverAllowed = ['full', 'banner', 'contained', 'thumb'];
-                $coverLayout = in_array($eventImageLayout, $coverAllowed, true) ? $eventImageLayout : 'contained';
-                $coverClass = 'event-cover event-cover--' . $coverLayout;
-            ?>
-                <figure class="<?= HtmlHelper::e($coverClass) ?>" data-event-cover-layout="<?= HtmlHelper::e($coverLayout) ?>">
+        <article class="<?= HtmlHelper::e(implode(' ', $cardClasses)) ?>">
+            <?php if ($hasCoverImage): ?>
+                <figure class="event-cover event-cover--<?= HtmlHelper::e($coverLayout) ?>" data-event-cover-layout="<?= HtmlHelper::e($coverLayout) ?>">
                     <img src="<?= HtmlHelper::e(url($event['featured_image'])) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
                 </figure>
             <?php endif; ?>

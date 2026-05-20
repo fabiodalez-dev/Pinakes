@@ -157,4 +157,51 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
         setLayout('thumb');
         await expectLayout(page, 'thumb');
     });
+
+    // ────────────────────────────────────────────────────────────────────
+    // Containment regression — guards against the float-overflow bug
+    // reported during initial review: when content is short, a floated
+    // .event-cover--thumb escapes its parent .event-card and ends up
+    // visually on top of the page footer.
+    //
+    // The grid-based refactor places the figure in its own row/column,
+    // so geometrically the figure can never extend below its parent
+    // article. The test asserts that invariant at desktop width.
+    // ────────────────────────────────────────────────────────────────────
+    test('thumb layout: short-body event keeps the figure inside its article (no float overflow)', async ({ page }) => {
+        setLayout('thumb');
+
+        // Shrink the event content so a CSS float would expose the bug.
+        const shortContent = '<p>Breve.</p>';
+        const sqlSafe = shortContent.replace(/'/g, "\\'");
+        dbExec(`UPDATE events SET content='${sqlSafe}' WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
+
+        // Desktop viewport — the grid kicks in at >=768px.
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await page.goto(`${BASE}/eventi/${EVENT_SLUG}`, { waitUntil: 'domcontentloaded' });
+
+        const card = page.locator('article.event-card').first();
+        const fig  = page.locator('figure.event-cover--thumb').first();
+        await expect(card).toBeVisible();
+        await expect(fig).toBeVisible();
+
+        // Card must carry the modifier that activates the grid layout.
+        await expect(card).toHaveClass(/event-card--thumb-layout/);
+
+        // Bounding-box invariant: figure.bottom MUST be <= card.bottom.
+        // If the float regression returns, figure.bottom escapes the
+        // parent and this assertion fails loudly.
+        const cardBox = await card.boundingBox();
+        const figBox  = await fig.boundingBox();
+        expect(cardBox, 'event-card must have a bounding box').not.toBeNull();
+        expect(figBox, 'event-cover--thumb must have a bounding box').not.toBeNull();
+        if (cardBox && figBox) {
+            const cardBottom = cardBox.y + cardBox.height;
+            const figBottom  = figBox.y  + figBox.height;
+            expect(
+                figBottom,
+                `figure bottom (${figBottom}) must stay within card bottom (${cardBottom}) — the float-overflow regression has returned`
+            ).toBeLessThanOrEqual(cardBottom + 1);
+        }
+    });
 });

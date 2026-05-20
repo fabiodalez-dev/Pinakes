@@ -5006,10 +5006,10 @@
     "Il valore deve essere un intero non negativo.": "La valeur doit être un entier non négatif.",
     "Layout immagine evento": "Mise en page de l'image de l'événement",
     "Definisce come viene visualizzata l'immagine di copertina nella pagina di dettaglio dell'evento.": "Définit comment l'image de couverture est affichée sur la page de détail de l'événement.",
-    "Adattato (max 480px) — consigliato": "Contenue (max 480px) — recommandée",
-    "Banner 16:9 (ritagliato)": "Bannière 16:9 (recadrée)",
     "Larghezza piena (originale)": "Pleine largeur (originale)",
     "Miniatura affiancata": "Vignette latérale",
     "Salva impostazioni eventi": "Enregistrer les paramètres des événements",
-    "Impostazioni eventi aggiornate.": "Paramètres des événements mis à jour."
+    "Impostazioni eventi aggiornate.": "Paramètres des événements mis à jour.",
+    "Foto 3:2 (consigliato)": "Photo 3:2 (recommandé)",
+    "Banner 16:9": "Bannière 16:9"
 }

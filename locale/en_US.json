@@ -4680,10 +4680,10 @@
     "Il valore deve essere un intero non negativo.": "Value must be a non-negative integer.",
     "Layout immagine evento": "Event image layout",
     "Definisce come viene visualizzata l'immagine di copertina nella pagina di dettaglio dell'evento.": "Controls how the cover image is rendered on the event detail page.",
-    "Adattato (max 480px) — consigliato": "Contained (max 480px) — recommended",
-    "Banner 16:9 (ritagliato)": "Banner 16:9 (cropped)",
     "Larghezza piena (originale)": "Full width (original)",
     "Miniatura affiancata": "Side thumbnail",
     "Salva impostazioni eventi": "Save event settings",
-    "Impostazioni eventi aggiornate.": "Event settings updated."
+    "Impostazioni eventi aggiornate.": "Event settings updated.",
+    "Foto 3:2 (consigliato)": "Photo 3:2 (recommended)",
+    "Banner 16:9": "Banner 16:9"
 }
