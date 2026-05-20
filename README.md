@@ -24,6 +24,17 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.7
+
+### Regression hotfix for author autocomplete ([#74](https://github.com/fabiodalez-dev/Pinakes/issues/74))
+
+- **Issue #74 regression fix** — typing a new author name in the book form and pressing Enter was once again selecting the first highlighted dropdown match (e.g. typing "Norbert Wex" picked the existing "Norbert Bauer") instead of creating the new author. The original fix in v0.4.9.4 monkey-patched `authorsChoice._onEnterKey` on the Choices.js instance; a later "cleaner" refactor (commit `e976cb1e`) replaced it with a capture-phase keydown listener, which Choices.js v11 silently bypasses via `stopImmediatePropagation()` on its own pre-registered capture-phase handler. Restored the monkey-patch with a defensive capture-phase fallback for any future Choices.js version that removes `_onEnterKey`. The override is per-instance, so publisher / genre / etc. Choices instances on the same page keep stock behaviour.
+
+This is a patch-only release. No schema migrations, no plugin changes,
+no config changes required. Drop-in upgrade from v0.7.6.
+
+---
+
 ## What's New in v0.7.6
 
 ### French locale (fr_FR) and BNF scraping
