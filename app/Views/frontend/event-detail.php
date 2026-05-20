@@ -1,6 +1,7 @@
 <?php
 /** @var \mysqli $db */
 /** @var array $event */
+/** @var string $eventImageLayout One of: full | banner | contained | thumb (default: contained) */
 
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
@@ -178,6 +179,48 @@ $additional_css = "
     .event-cover img {
         width: 100%;
         display: block;
+    }
+
+    /* Layout variants (issue #137): admin-configurable rendering for the
+       event hero image. Defaults remain visually equivalent to the
+       previous behaviour for narrow images. */
+    .event-cover--full img {
+        /* Original: preserve historical full-width-no-constraint. */
+        max-height: none;
+        object-fit: initial;
+    }
+    .event-cover--banner {
+        aspect-ratio: 16 / 9;
+        background: #f8fafc;
+    }
+    .event-cover--banner img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        object-position: center;
+    }
+    .event-cover--contained img {
+        max-height: clamp(280px, 50vw, 480px);
+        object-fit: contain;
+        object-position: center;
+        background: #f8fafc;
+    }
+    .event-cover--thumb {
+        float: right;
+        width: clamp(180px, 32%, 260px);
+        margin: 0 0 1.25rem 1.5rem;
+        border-radius: 16px;
+    }
+    .event-cover--thumb img {
+        aspect-ratio: 3 / 4;
+        object-fit: cover;
+    }
+    @media (max-width: 640px) {
+        .event-cover--thumb {
+            float: none;
+            width: 100%;
+            margin: 0 0 1.5rem 0;
+        }
     }
 
     .event-body {
@@ -358,8 +401,16 @@ ob_start();
 <section class="event-section">
     <div class="container">
         <article class="event-card">
-            <?php if (!empty($event['featured_image'])): ?>
-                <figure class="event-cover">
+            <?php if (!empty($event['featured_image'])):
+                // $eventImageLayout is set by the controller and re-validated
+                // there against the allow-list; we re-narrow here as a
+                // defense in depth so a future controller refactor cannot
+                // leak an unknown layout into the CSS class name.
+                $coverAllowed = ['full', 'banner', 'contained', 'thumb'];
+                $coverLayout = in_array($eventImageLayout, $coverAllowed, true) ? $eventImageLayout : 'contained';
+                $coverClass = 'event-cover event-cover--' . $coverLayout;
+            ?>
+                <figure class="<?= HtmlHelper::e($coverClass) ?>" data-event-cover-layout="<?= HtmlHelper::e($coverLayout) ?>">
                     <img src="<?= HtmlHelper::e(url($event['featured_image'])) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
                 </figure>
             <?php endif; ?>

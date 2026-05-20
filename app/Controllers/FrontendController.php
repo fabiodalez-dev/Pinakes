@@ -2078,6 +2078,16 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             return $response->withStatus(404);
         }
 
+        // Featured-image layout (issue #137): admin-controlled rendering
+        // strategy for the event hero image. Validated against the same
+        // allow-list used by SettingsController to defend against legacy/
+        // corrupted DB values.
+        $eventImageLayoutAllowed = ['full', 'banner', 'contained', 'thumb'];
+        $eventImageLayout = strtolower((string) $repository->get('cms', 'event_image_layout', 'contained'));
+        if (!in_array($eventImageLayout, $eventImageLayoutAllowed, true)) {
+            $eventImageLayout = 'contained';
+        }
+
         // Get event by slug
         $stmt = $db->prepare("
             SELECT id, title, slug, content, event_date, event_time, featured_image,

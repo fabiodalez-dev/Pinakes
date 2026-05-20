@@ -508,5 +508,13 @@
   "URL non valido.": "URL non valido.",
   "MD5 non valido (32 caratteri esadecimali).": "MD5 non valido (32 caratteri esadecimali).",
   "Il valore deve essere un intero non negativo.": "Il valore deve essere un intero non negativo.",
-  "Language %s has been activated automatically": "La lingua %s è stata attivata automaticamente"
+  "Language %s has been activated automatically": "La lingua %s è stata attivata automaticamente",
+  "Layout immagine evento": "Layout immagine evento",
+  "Definisce come viene visualizzata l'immagine di copertina nella pagina di dettaglio dell'evento.": "Definisce come viene visualizzata l'immagine di copertina nella pagina di dettaglio dell'evento.",
+  "Adattato (max 480px) — consigliato": "Adattato (max 480px) — consigliato",
+  "Banner 16:9 (ritagliato)": "Banner 16:9 (ritagliato)",
+  "Larghezza piena (originale)": "Larghezza piena (originale)",
+  "Miniatura affiancata": "Miniatura affiancata",
+  "Salva impostazioni eventi": "Salva impostazioni eventi",
+  "Impostazioni eventi aggiornate.": "Impostazioni eventi aggiornate."
 }

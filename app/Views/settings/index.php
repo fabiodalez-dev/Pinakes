@@ -459,6 +459,47 @@ $activeTab = $activeTab ?? 'general';
                   <?= __("Gestisci Eventi") ?>
                 </a>
               </div>
+
+              <?php
+              /** @var array{image_layout: string} $eventSettings */
+              $eventImageLayout = $eventSettings['image_layout'];
+              $eventImageLayoutChoices = [
+                  'contained' => __('Adattato (max 480px) — consigliato'),
+                  'banner'    => __('Banner 16:9 (ritagliato)'),
+                  'full'      => __('Larghezza piena (originale)'),
+                  'thumb'     => __('Miniatura affiancata'),
+              ];
+              ?>
+              <div class="mt-5 pt-5 border-t border-gray-200">
+                <form action="<?= htmlspecialchars(url('/admin/settings/events'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-3">
+                  <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e(Csrf::ensureToken()) ?>">
+                  <div>
+                    <label for="event_image_layout" class="block text-sm font-semibold text-gray-900 mb-1">
+                      <?= __("Layout immagine evento") ?>
+                    </label>
+                    <p class="text-xs text-gray-500 mb-2"><?= __("Definisce come viene visualizzata l'immagine di copertina nella pagina di dettaglio dell'evento.") ?></p>
+                    <select
+                      id="event_image_layout"
+                      name="event_image_layout"
+                      class="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900"
+                    >
+                      <?php foreach ($eventImageLayoutChoices as $value => $label): ?>
+                        <option
+                          value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>"
+                          <?= $eventImageLayout === $value ? 'selected' : '' ?>
+                        ><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <button
+                    type="submit"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 transition-colors w-full justify-center"
+                  >
+                    <i class="fas fa-save"></i>
+                    <?= __("Salva impostazioni eventi") ?>
+                  </button>
+                </form>
+              </div>
             </div>
           </div>
 

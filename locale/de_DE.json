@@ -4677,5 +4677,13 @@
     "Eliminare questa copia digitalizzata?": "Diese digitalisierte Kopie löschen?",
     "Errore di rete.": "Netzwerkfehler.",
     "MD5 non valido (32 caratteri esadecimali).": "Ungültige MD5 (32 hexadezimale Zeichen).",
-    "Il valore deve essere un intero non negativo.": "Der Wert muss eine nicht negative Ganzzahl sein."
+    "Il valore deve essere un intero non negativo.": "Der Wert muss eine nicht negative Ganzzahl sein.",
+    "Layout immagine evento": "Bild-Layout für Veranstaltung",
+    "Definisce come viene visualizzata l'immagine di copertina nella pagina di dettaglio dell'evento.": "Legt fest, wie das Titelbild auf der Detailseite der Veranstaltung angezeigt wird.",
+    "Adattato (max 480px) — consigliato": "Angepasst (max. 480px) — empfohlen",
+    "Banner 16:9 (ritagliato)": "Banner 16:9 (zugeschnitten)",
+    "Larghezza piena (originale)": "Volle Breite (original)",
+    "Miniatura affiancata": "Miniaturbild seitlich",
+    "Salva impostazioni eventi": "Veranstaltungseinstellungen speichern",
+    "Impostazioni eventi aggiornate.": "Veranstaltungseinstellungen aktualisiert."
 }

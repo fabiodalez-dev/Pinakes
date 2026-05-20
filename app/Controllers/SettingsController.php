@@ -30,6 +30,7 @@ class SettingsController
         $contactSettings = $this->resolveContactSettings($repository);
         $privacySettings = $this->resolvePrivacySettings($repository);
         $labelSettings = $this->resolveLabelSettings($repository);
+        $eventSettings = $this->resolveEventSettings($repository);
         $advancedSettings = $this->resolveAdvancedSettings($repository);
         $contactMessages = $this->loadContactMessages($db);
         $cookieBannerTexts = $this->resolveCookieBannerTexts($repository);
@@ -45,6 +46,7 @@ class SettingsController
             'contactSettings',
             'privacySettings',
             'labelSettings',
+            'eventSettings',
             'advancedSettings',
             'contactMessages',
             'activeTab',
@@ -701,6 +703,21 @@ class SettingsController
         ];
     }
 
+    /**
+     * @return array{image_layout: string}
+     */
+    private function resolveEventSettings(SettingsRepository $repository): array
+    {
+        $allowed = ['full', 'banner', 'contained', 'thumb'];
+        $layout = strtolower((string) $repository->get('cms', 'event_image_layout', 'contained'));
+        if (!in_array($layout, $allowed, true)) {
+            $layout = 'contained';
+        }
+        return [
+            'image_layout' => $layout,
+        ];
+    }
+
     public function updateLabels(Request $request, Response $response, mysqli $db): Response
     {
         $data = (array) $request->getParsedBody();
@@ -923,6 +940,33 @@ class SettingsController
 
         $_SESSION['success_message'] = __('Impostazioni di condivisione aggiornate.');
         return $this->redirect($response, '/admin/settings?tab=sharing');
+    }
+
+    /**
+     * Update per-section settings for the public Events page (issue #137).
+     *
+     * Currently exposes a single knob: the layout of the featured image on
+     * the event detail page. Defaults to 'contained' which preserves the
+     * historical 100%-width rendering for narrow images while preventing
+     * tall/wide outliers from dominating the viewport.
+     */
+    public function updateEventSettings(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+
+        $allowed = ['full', 'banner', 'contained', 'thumb'];
+        $submitted = strtolower(trim((string) ($data['event_image_layout'] ?? 'contained')));
+        $layout = in_array($submitted, $allowed, true) ? $submitted : 'contained';
+
+        $repository->set('cms', 'event_image_layout', $layout);
+        ConfigStore::set('cms.event_image_layout', $layout);
+
+        $_SESSION['success_message'] = __('Impostazioni eventi aggiornate.');
+        return $this->redirect($response, '/admin/settings?tab=cms');
     }
 
     private function redirect(Response $response, string $location): Response
