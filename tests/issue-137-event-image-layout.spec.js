@@ -159,6 +159,82 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
     });
 
     // ────────────────────────────────────────────────────────────────────
+    // Effective-size regression (issue #137 user feedback): the four
+    // presets must actually render at DIFFERENT, progressively smaller
+    // dimensions. An earlier iteration of this feature shipped four
+    // visually-equivalent "full width" variants, defeating the purpose
+    // of the setting (the user explicitly asked for a smaller image).
+    //
+    // We assert:
+    //   contained  → figure narrower than the article (small centred)
+    //   thumb      → figure narrower than the article (side thumbnail)
+    //   banner     → figure at full article width, capped to ~220px tall
+    //   full       → figure at full article width, no height cap
+    //
+    // Using rendered bounding boxes (NOT computed CSS) catches the
+    // historical mistake where `width: 100%` was applied to all four
+    // variants but only the class name differed.
+    // ────────────────────────────────────────────────────────────────────
+    test('effective size — each preset renders at a distinct, smaller dimension', async ({ page }) => {
+        // Reset content to a long enough body so 'banner' / 'contained'
+        // have something below them to measure against.
+        const longContent = '<p>' + 'Test event description. '.repeat(40) + '</p>';
+        const sqlSafeLong = longContent.replace(/'/g, "\\'");
+        dbExec(`UPDATE events SET content='${sqlSafeLong}' WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
+
+        await page.setViewportSize({ width: 1280, height: 900 });
+
+        async function measure(layout) {
+            setLayout(layout);
+            await page.goto(`${BASE}/eventi/${EVENT_SLUG}`, { waitUntil: 'domcontentloaded' });
+            const card = page.locator('article.event-card').first();
+            const fig  = page.locator('figure.event-cover').first();
+            await expect(card).toBeVisible();
+            await expect(fig).toBeVisible();
+            const cardBox = await card.boundingBox();
+            const figBox  = await fig.boundingBox();
+            return { cardWidth: cardBox.width, figWidth: figBox.width, figHeight: figBox.height };
+        }
+
+        const full      = await measure('full');
+        const banner    = await measure('banner');
+        const contained = await measure('contained');
+        const thumb     = await measure('thumb');
+
+        // full: figure width equals the inner card width (within padding tolerance)
+        expect(
+            full.figWidth,
+            `full layout: figure should fill the card width (got ${full.figWidth}px, card ${full.cardWidth}px)`
+        ).toBeGreaterThan(full.cardWidth * 0.85);
+
+        // banner: width like full, height ~ 220px (within ±5px CSS rendering tolerance)
+        expect(
+            banner.figWidth,
+            `banner layout: figure should be full-width (got ${banner.figWidth}px, card ${banner.cardWidth}px)`
+        ).toBeGreaterThan(banner.cardWidth * 0.85);
+        expect(
+            banner.figHeight,
+            `banner layout: figure height must be capped to ~220px (got ${banner.figHeight}px)`
+        ).toBeLessThanOrEqual(225);
+
+        // contained: max-width 420px, NARROWER than the card
+        expect(
+            contained.figWidth,
+            `contained layout: figure must be ≤ 420px wide (got ${contained.figWidth}px) — the whole point of the default preset`
+        ).toBeLessThanOrEqual(420);
+        expect(
+            contained.figWidth,
+            `contained layout: figure must be visibly narrower than the card (got ${contained.figWidth}px vs card ${contained.cardWidth}px)`
+        ).toBeLessThan(contained.cardWidth * 0.7);
+
+        // thumb: ~240px wide (grid column), NARROWER than the card
+        expect(
+            thumb.figWidth,
+            `thumb layout: figure must be ≤ 240px wide (got ${thumb.figWidth}px)`
+        ).toBeLessThanOrEqual(245);
+    });
+
+    // ────────────────────────────────────────────────────────────────────
     // Containment regression — guards against the float-overflow bug
     // reported during initial review: when content is short, a floated
     // .event-cover--thumb escapes its parent .event-card and ends up

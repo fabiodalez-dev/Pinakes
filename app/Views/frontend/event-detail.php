@@ -182,61 +182,71 @@ $additional_css = "
         display: block;
     }
 
-    /* Layout variants (issue #137): admin-configurable rendering for the
-       event hero image. The four variants — full / banner / contained
-       (default) / thumb — give the librarian a predictable result no
-       matter what image they upload. */
+    /* Layout variants (issue #137): admin-configurable SIZE for the
+       event hero image. The four variants give the librarian
+       progressively smaller / less invasive renderings, so a
+       sproportioned upload (e.g. a 1791×927 book cover) doesn't
+       dominate the event page.
 
-    /* full: passthrough — preserve the historical 100%-width no-crop
-       look for users who depended on it. */
+       Effective sizes on desktop:
+         full       → 100% × auto         (legacy: enormous)
+         banner     → 100% × 220px max    (low-profile decorative strip)
+         contained  → 420px × auto, centred (default: small poster)
+         thumb      → 240px wide, side-by-side with body text          */
+
+    /* full: passthrough — for users who actually want a giant image. */
     .event-cover--full img {
         height: auto;
     }
 
-    /* banner: 16:9 cinematic crop. Ideal for poster-like horizontal
-       images that look good as a hero. */
+    /* banner: full-width but capped at a low decorative strip so it
+       cannot eat the viewport vertically. */
     .event-cover--banner {
-        aspect-ratio: 16 / 9;
+        max-height: 220px;
     }
     .event-cover--banner img {
         width: 100%;
-        height: 100%;
+        height: 220px;
         object-fit: cover;
         object-position: center;
     }
 
-    /* contained: 3:2 photographic crop. The default — gives the same
-       balanced silhouette regardless of source dimensions. Replaces
-       the earlier arbitrary 480px max-height which produced uneven
-       results across uploads. */
+    /* contained (DEFAULT): centred poster, never wider than 420px.
+       Solves the original complaint where a wide image rendered at
+       full container width. Aspect ratio of the source file is
+       preserved — no crop, no forced shape, just a sensible cap. */
     .event-cover--contained {
-        aspect-ratio: 3 / 2;
+        max-width: 420px;
+        margin-left: auto;
+        margin-right: auto;
+        background: transparent;
+        border: none;
     }
     .event-cover--contained img {
         width: 100%;
-        height: 100%;
-        object-fit: cover;
-        object-position: center;
+        height: auto;
+        max-height: 320px;
+        object-fit: contain;
     }
 
-    /* thumb: side-by-side layout. Driven by a modifier class on the
-       parent .event-card so the cover lives in its own grid cell and
-       cannot overflow into the footer the way a CSS float would when
-       the body text is short. Mobile collapses to a vertical stack. */
+    /* thumb: side-by-side layout — the small modifier already in the
+       previous iteration. Driven by .event-card--thumb-layout on the
+       parent so the figure lives in its own grid cell, geometrically
+       constrained inside the card. Collapses to a stack < 768px. */
     .event-cover--thumb {
         margin-bottom: 0;
-        aspect-ratio: 3 / 4;
+        max-width: 240px;
     }
     .event-cover--thumb img {
         width: 100%;
-        height: 100%;
+        height: auto;
+        aspect-ratio: 3 / 4;
         object-fit: cover;
-        object-position: center;
     }
     @media (min-width: 768px) {
         .event-card--thumb-layout {
             display: grid;
-            grid-template-columns: minmax(200px, 260px) 1fr;
+            grid-template-columns: 240px 1fr;
             gap: clamp(1.5rem, 3vw, 2.5rem);
             align-items: start;
         }
@@ -254,7 +264,7 @@ $additional_css = "
     }
     @media (max-width: 767px) {
         .event-cover--thumb {
-            margin-bottom: 1.5rem;
+            margin: 0 auto 1.5rem auto;
         }
     }
 

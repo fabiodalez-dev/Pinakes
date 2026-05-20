@@ -4680,10 +4680,10 @@
     "Il valore deve essere un intero non negativo.": "Der Wert muss eine nicht negative Ganzzahl sein.",
     "Layout immagine evento": "Bild-Layout für Veranstaltung",
     "Definisce come viene visualizzata l'immagine di copertina nella pagina di dettaglio dell'evento.": "Legt fest, wie das Titelbild auf der Detailseite der Veranstaltung angezeigt wird.",
-    "Larghezza piena (originale)": "Volle Breite (original)",
-    "Miniatura affiancata": "Miniaturbild seitlich",
     "Salva impostazioni eventi": "Veranstaltungseinstellungen speichern",
     "Impostazioni eventi aggiornate.": "Veranstaltungseinstellungen aktualisiert.",
-    "Foto 3:2 (consigliato)": "Foto 3:2 (empfohlen)",
-    "Banner 16:9": "Banner 16:9"
+    "Piccola centrata (max 420px) — consigliato": "Klein zentriert (max. 420px) — empfohlen",
+    "Miniatura affiancata al testo (240px)": "Miniaturbild neben dem Text (240px)",
+    "Banner basso a tutta larghezza (max altezza 220px)": "Niedriges Banner über die volle Breite (max. Höhe 220px)",
+    "Originale a tutta larghezza (grande)": "Original in voller Breite (groß)"
 }

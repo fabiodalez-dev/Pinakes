@@ -511,10 +511,10 @@
   "Language %s has been activated automatically": "La lingua %s è stata attivata automaticamente",
   "Layout immagine evento": "Layout immagine evento",
   "Definisce come viene visualizzata l'immagine di copertina nella pagina di dettaglio dell'evento.": "Definisce come viene visualizzata l'immagine di copertina nella pagina di dettaglio dell'evento.",
-  "Larghezza piena (originale)": "Larghezza piena (originale)",
-  "Miniatura affiancata": "Miniatura affiancata",
   "Salva impostazioni eventi": "Salva impostazioni eventi",
   "Impostazioni eventi aggiornate.": "Impostazioni eventi aggiornate.",
-  "Foto 3:2 (consigliato)": "Foto 3:2 (consigliato)",
-  "Banner 16:9": "Banner 16:9"
+  "Piccola centrata (max 420px) — consigliato": "Piccola centrata (max 420px) — consigliato",
+  "Miniatura affiancata al testo (240px)": "Miniatura affiancata al testo (240px)",
+  "Banner basso a tutta larghezza (max altezza 220px)": "Banner basso a tutta larghezza (max altezza 220px)",
+  "Originale a tutta larghezza (grande)": "Originale a tutta larghezza (grande)"
 }
