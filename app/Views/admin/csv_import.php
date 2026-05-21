@@ -549,9 +549,13 @@ document.addEventListener('DOMContentLoaded', function() {
                             confirmButtonText: <?= json_encode(__("OK"), JSON_HEX_TAG) ?>
                         }).then(() => window.location.reload());
                     } else {
-                        // Swal not loaded — defensive native fallback before reloading.
-                        window.alert(message.replace(/<[^>]*>/g, ''));
-                        window.location.reload();
+                        // Swal absent — go through SwalApp.info which has
+                        // its own window.alert fallback internally. Keeps
+                        // the bus the single entry point.
+                        window.SwalApp.info(
+                            <?= json_encode(__("Import Completato"), JSON_HEX_TAG) ?>,
+                            message.replace(/<[^>]*>/g, '')
+                        ).then(() => window.location.reload());
                     }
                 }, 500);
                 return;

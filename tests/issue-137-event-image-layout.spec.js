@@ -188,16 +188,29 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
             `SELECT featured_image FROM events WHERE slug='${sqlEscape(EVENT_SLUG)}'`
         );
         if (currentImage && currentImage.startsWith('/uploads/events/')) {
-            const absPath = path.join(__dirname, '..', 'public', currentImage);
-            try {
-                fs.unlinkSync(absPath);
-            } catch (e) {
-                // ENOENT (already gone) is acceptable — the controller's
-                // own cleanup may have unlinked it on the success path.
-                // Any other error we surface to the test log but do not
-                // fail the teardown — the suite has finished otherwise.
-                if (e && e.code !== 'ENOENT') {
-                    console.warn(`teardown: could not unlink ${absPath}: ${e.message}`);
+            // Defense in depth: even with a sanitizing controller, the
+            // teardown reads from the DB and a crafted path containing
+            // '..' segments would let fs.unlinkSync escape public/uploads/events
+            // when joined with path.join. Resolve from the uploads-events
+            // root and verify the final absolute path stays inside it
+            // before unlinking. (CodeRabbit #141.)
+            const uploadsRoot = path.resolve(__dirname, '..', 'public', 'uploads', 'events');
+            const relative    = currentImage.slice('/uploads/events/'.length);
+            const absPath     = path.resolve(uploadsRoot, relative);
+            const escaped     = path.relative(uploadsRoot, absPath);
+            if (escaped.startsWith('..') || path.isAbsolute(escaped)) {
+                console.warn(`teardown: refusing to unlink path outside uploads root: ${currentImage}`);
+            } else {
+                try {
+                    fs.unlinkSync(absPath);
+                } catch (e) {
+                    // ENOENT (already gone) is acceptable — the controller's
+                    // own cleanup may have unlinked it on the success path.
+                    // Any other error we surface to the test log but do not
+                    // fail the teardown — the suite has finished otherwise.
+                    if (e && e.code !== 'ENOENT') {
+                        console.warn(`teardown: could not unlink ${absPath}: ${e.message}`);
+                    }
                 }
             }
         }
@@ -299,7 +312,9 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
         // Reset content to a long enough body so 'banner' / 'contained'
         // have something below them to measure against.
         const longContent = '<p>' + 'Test event description. '.repeat(40) + '</p>';
-        const sqlSafeLong = longContent.replace(/'/g, "\\'");
+        // Use the suite's sqlEscape() so backslashes get handled too
+        // (CodeQL flagged the previous inline replace as incomplete).
+        const sqlSafeLong = sqlEscape(longContent);
         dbExec(`UPDATE events SET content='${sqlSafeLong}' WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
 
         await page.setViewportSize({ width: 1280, height: 900 });
@@ -468,7 +483,7 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
 
         // Shrink the event content so a CSS float would expose the bug.
         const shortContent = '<p>Breve.</p>';
-        const sqlSafe = shortContent.replace(/'/g, "\\'");
+        const sqlSafe = sqlEscape(shortContent);
         dbExec(`UPDATE events SET content='${sqlSafe}' WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
 
         // Desktop viewport — the grid kicks in at >=768px.

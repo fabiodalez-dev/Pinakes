@@ -281,6 +281,14 @@ const i18nTranslations = <?= json_encode([
     'Esportazione di tutti i %d utenti' => __("Exporting all %d users"),
     'Totale utenti:' => __("Total users:"),
     'Scorri a destra per vedere tutte le colonne' => __("Scorri a destra per vedere tutte le colonne"),
+    // Keys consumed by the deleteUser flow (#140 SwalApp refactor).
+    'Sei sicuro?' => __("Sei sicuro?"),
+    'Questa azione non può essere annullata!' => __("Questa azione non può essere annullata!"),
+    'Sì, elimina!' => __("Sì, elimina!"),
+    'Eliminato!' => __("Eliminato!"),
+    "L'utente è stato eliminato." => __("L'utente è stato eliminato."),
+    "Non è stato possibile eliminare l'utente. Controlla la console." => __("Non è stato possibile eliminare l'utente. Controlla la console."),
+    'Si è verificato un errore: %s' => __("Si è verificato un errore: %s"),
 ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>;
 
 // Global translation function for JavaScript

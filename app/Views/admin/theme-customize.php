@@ -377,6 +377,10 @@ function resetToDefaults() {
 
             if (data.success) window.location.reload();
             else window.SwalApp.error(undefined, data.message);
+        })
+        .catch((err) => {
+            console.error('Theme reset network error:', err);
+            window.SwalApp.error(undefined, <?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>);
         });
     });
 }

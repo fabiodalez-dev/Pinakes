@@ -199,7 +199,9 @@ window.SwalApp = {
     const def   = options.defaultValue || '';
     if (!_hasSwal()) {
       const v = window.prompt(text ? title + '\n\n' + text : title, def);
-      return _fakeResult(v !== null && v !== '', v || '');
+      // Only `null` is "cancel"; an empty string is a valid confirmed
+      // value (matches Swal's semantics where the user can submit "").
+      return _fakeResult(v !== null, v === null ? '' : v);
     }
     return Swal.fire({
       title: title,

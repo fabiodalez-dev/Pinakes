@@ -191,12 +191,13 @@ test.describe.serial('Issue #140 — SweetAlert2 popup unification', () => {
 
             // Override THIS form's submit() so we track the programmatic
             // call from the Swal handler (not every submit event).
+            // We do NOT call the original HTMLFormElement.prototype.submit
+            // — that would navigate even with action='javascript:void(0)'
+            // in some browsers; the test only needs to know that the
+            // confirm handler invoked it.
             window.__swalTestSubmitted = false;
-            const origSubmit = HTMLFormElement.prototype.submit;
             form.submit = function() {
                 window.__swalTestSubmitted = true;
-                // Do NOT call origSubmit — that would navigate even with
-                // action='javascript:void(0)' in some browsers.
             };
         });
 
