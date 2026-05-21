@@ -78,8 +78,12 @@ window.SwalApp = {
     const text  = options.text  || __swal('Questa azione non può essere annullata!');
     if (!_hasSwal()) {
       // Native fallback: combine title + text on two lines so the user
-      // sees the same information as the SweetAlert dialog.
-      return _fakeResult(window.confirm(title + '\n\n' + text));
+      // sees the same information as the SweetAlert dialog. Guard
+      // against `text` being missing — title || default keeps `text`
+      // potentially undefined when both options.text and the default
+      // resolve to empty.
+      const msg = text ? title + '\n\n' + text : title;
+      return _fakeResult(window.confirm(msg));
     }
     return Swal.fire({
       title: title,
@@ -263,22 +267,38 @@ window.SwalApp = {
       if (form.dataset.swalAttached === '1') return;
       form.dataset.swalAttached = '1';
       form.addEventListener('submit', function(event) {
-        // If a previous handler already cleared `data-swal-confirm`
-        // (e.g. the form was confirmed and re-submitted programmatically),
-        // let the submit proceed without re-prompting.
-        if (!form.dataset.swalConfirm) return;
+        // If this submit is the programmatic one we ourselves fire
+        // after Swal confirm (see below), let it through. Using a
+        // separate flag avoids the previous trick of CLEARING
+        // data-swal-confirm — if form.submit() failed or got blocked
+        // elsewhere, the cleared attribute permanently bypassed the
+        // dialog on every later click.
+        if (form.dataset.swalProceed === '1') {
+          // Reset for any future submit so the dialog gates the next click.
+          form.dataset.swalProceed = '';
+          return;
+        }
         event.preventDefault();
         const text  = form.dataset.swalConfirm;
         const title = form.dataset.swalConfirmTitle || __swal('Sei sicuro?');
         const confirmText = form.dataset.swalConfirmButton || __swal('Elimina');
-        window.SwalApp.confirmDelete({
+        // Pick a kind-appropriate helper: forms with
+        // data-swal-confirm-kind="action" use the neutral (gray)
+        // confirm dialog; everything else defaults to confirmDelete
+        // (red destructive button). Lets non-destructive flows
+        // (activate user, set default language, reset colours, …)
+        // opt out of the red-button look.
+        const kind = form.dataset.swalConfirmKind === 'action'
+          ? window.SwalApp.confirm
+          : window.SwalApp.confirmDelete;
+        kind.call(window.SwalApp, {
           title: title,
           text:  text,
           confirmText: confirmText
         }).then((r) => {
           if (r.isConfirmed) {
-            // Clear the marker so the second submit goes through.
-            form.dataset.swalConfirm = '';
+            // Mark the next submit as the proceed one and re-fire.
+            form.dataset.swalProceed = '1';
             form.submit();
           }
         });

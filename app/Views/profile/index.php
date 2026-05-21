@@ -625,7 +625,13 @@
   window.revokeSession = async function(sessionId) {
     const r = await window.SwalApp.confirmDelete({
       text: translations.confirmRevoke,
-      confirmText: translations.confirmRevokeButton || undefined
+      // Pass the button label only when it's a non-empty string;
+      // `|| undefined` silently discarded an explicit empty translation
+      // and fell back to the helper's default. Treat empty same as
+      // missing so the default kicks in cleanly.
+      confirmText: (typeof translations.confirmRevokeButton === 'string' && translations.confirmRevokeButton.length > 0)
+        ? translations.confirmRevokeButton
+        : undefined
     });
     if (!r.isConfirmed) return;
 
