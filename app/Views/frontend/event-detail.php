@@ -191,7 +191,7 @@ $additional_css = "
        Effective sizes on desktop:
          full       → 100% × auto         (legacy: enormous)
          banner     → 100% × 220px max    (low-profile decorative strip)
-         contained  → 420px × auto, centred (default: small poster)
+         contained  → 420px × auto, left-aligned (default: small poster)
          thumb      → 240px wide, side-by-side with body text          */
 
     /* full: passthrough — for users who actually want a giant image. */

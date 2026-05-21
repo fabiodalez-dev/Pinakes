@@ -359,6 +359,16 @@ class EventsController
         }
 
         if (!empty($errors)) {
+            // Cleanup orphan upload on validation-error short-circuit:
+            // handleImageUpload() has already moved the new file to its
+            // final path before non-image validation ran. Since we are
+            // bailing out without writing the DB row, the file would
+            // become an orphan on disk. Unlink it here so the disk
+            // state matches the DB state (which still references the
+            // old image, if any).
+            if ($updateImage && $featuredImagePath !== null) {
+                $this->deleteUploadedImageFile($featuredImagePath);
+            }
             $_SESSION['error_message'] = implode('<br>', $errors);
             return $response->withHeader('Location', '/admin/cms/events/edit/' . $id)->withStatus(302);
         }
@@ -411,6 +421,13 @@ class EventsController
             }
         } else {
             $_SESSION['error_message'] = __('Errore durante l\'aggiornamento dell\'evento.');
+            // Symmetric cleanup on UPDATE failure: the new file made it
+            // to disk via handleImageUpload(), but the DB row still
+            // references the OLD path. Unlink the freshly-uploaded
+            // file to avoid leaving an unreferenced orphan behind.
+            if ($updateImage && $featuredImagePath !== null) {
+                $this->deleteUploadedImageFile($featuredImagePath);
+            }
         }
         $stmt->close();
 
@@ -423,6 +440,19 @@ class EventsController
      * relative path is rejected unless it points inside the events
      * upload directory (matches the safety contract of
      * handleImageUpload()).
+     *
+     * Callsites (keep the four in sync — they implement the
+     * "file on disk must never outlive the DB reference" invariant):
+     *   1. update() success branch with image replacement — unlinks the
+     *      OLD path after the UPDATE commits.
+     *   2. update() failure branch — unlinks the NEWLY-uploaded path
+     *      because the UPDATE rolled back and the DB still points to
+     *      the old file.
+     *   3. update() validation-error short-circuit — unlinks the
+     *      NEWLY-uploaded path because we redirect before writing the
+     *      DB row.
+     *   4. delete() success branch — unlinks the path captured BEFORE
+     *      the DELETE, now that the row is gone.
      */
     private function deleteUploadedImageFile(?string $relativePath): void
     {
@@ -460,12 +490,33 @@ class EventsController
 
         $id = (int)($args['id'] ?? 0);
 
+        // Capture the featured_image path BEFORE the DELETE so we can
+        // unlink it after the row is gone. Mirrors the update() lifecycle:
+        // the file on disk must never outlive the DB reference.
+        $oldImagePath = null;
+        $lookupStmt = $db->prepare("SELECT featured_image FROM events WHERE id = ?");
+        if ($lookupStmt !== false) {
+            $lookupStmt->bind_param('i', $id);
+            $lookupStmt->execute();
+            $lookupResult = $lookupStmt->get_result();
+            $lookupRow = $lookupResult ? $lookupResult->fetch_assoc() : null;
+            $lookupStmt->close();
+            if (is_array($lookupRow) && !empty($lookupRow['featured_image'])) {
+                $oldImagePath = (string) $lookupRow['featured_image'];
+            }
+        }
+
         // Delete event
         $stmt = $db->prepare("DELETE FROM events WHERE id = ?");
         $stmt->bind_param('i', $id);
 
         if ($stmt->execute()) {
             $_SESSION['success_message'] = __('Evento eliminato con successo!');
+            // Row is gone — unlink the now-orphaned image. Uses the
+            // same path-traversal-safe helper as update().
+            if ($oldImagePath !== null) {
+                $this->deleteUploadedImageFile($oldImagePath);
+            }
         } else {
             $_SESSION['error_message'] = __('Errore durante l\'eliminazione dell\'evento.');
         }

@@ -946,9 +946,9 @@ class SettingsController
      * Update per-section settings for the public Events page (issue #137).
      *
      * Currently exposes a single knob: the layout of the featured image on
-     * the event detail page. Defaults to 'contained' which preserves the
-     * historical 100%-width rendering for narrow images while preventing
-     * tall/wide outliers from dominating the viewport.
+     * the event detail page. Defaults to 'contained' which prevents wide/tall
+     * outliers from dominating the viewport. Users who want the legacy
+     * 100%-width rendering should pick the 'full' preset.
      */
     public function updateEventSettings(Request $request, Response $response, mysqli $db): Response
     {

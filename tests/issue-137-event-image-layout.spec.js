@@ -6,9 +6,9 @@
 // Coverage (5 cases):
 //   1. Default fallback ('contained') when the setting row is missing
 //   2. Explicit layout = 'full'         (legacy full-width-no-constraint)
-//   3. Explicit layout = 'banner'       (16:9 cropped)
-//   4. Explicit layout = 'contained'    (max-height: 480px, object-fit: contain)
-//   5. Explicit layout = 'thumb'        (right-floated 3:4 thumbnail)
+//   3. Explicit layout = 'banner'       (low banner, capped at 220px height with object-fit:cover)
+//   4. Explicit layout = 'contained'    (max-width 420px left-aligned, max-height 320px, object-fit: contain)
+//   5. Explicit layout = 'thumb'        (side thumbnail via CSS grid + .event-card--thumb-layout, 3:4 portrait)
 //
 // Each case sets `cms.event_image_layout` directly in the KV store
 // (`system_settings`), navigates to the event detail page, and asserts:
@@ -72,9 +72,56 @@ function setLayout(layout) {
     `);
 }
 
+// Locale-aware events URL prefix. Captured in beforeAll so cross-locale
+// installs (en_US, de_DE) don't silently 404 against a hardcoded
+// Italian /eventi/ prefix. Defaults to /eventi (the Italian path) when
+// the locale row is absent so existing IT installs behave unchanged.
+const EVENT_URL_PREFIX_BY_LOCALE = {
+    it_IT: '/eventi',
+    en_US: '/events',
+    de_DE: '/events',
+};
+let EVENT_URL_PREFIX = '/eventi';
+
+// Snapshot for events_page_enabled so afterAll can restore the original
+// admin choice rather than leave the test seed (=1) behind.
+//   null   → the row was absent before the test ran (DELETE on restore)
+//   string → original setting_value (UPDATE back on restore)
+let originalEventsPageEnabled = null;
+let eventsPageEnabledWasAbsent = false;
+
 test.describe.serial('Issue #137 — admin-configurable event image layout', () => {
 
     test.beforeAll(async () => {
+        // Resolve locale-aware events URL prefix once. Falls back to
+        // /eventi when the locale row is missing (matches installer
+        // default and keeps legacy IT installs working).
+        let locale = 'it_IT';
+        try {
+            const localeRow = dbQuery(
+                `SELECT setting_value FROM system_settings WHERE category='app' AND setting_key='locale'`
+            );
+            if (localeRow) {
+                locale = localeRow;
+            }
+        } catch (e) {
+            // Best-effort — keep the IT default.
+        }
+        EVENT_URL_PREFIX = EVENT_URL_PREFIX_BY_LOCALE[locale] || '/eventi';
+
+        // Snapshot the events_page_enabled setting so we can restore
+        // it in afterAll (test pollution guard).
+        const existing = dbQuery(
+            `SELECT setting_value FROM system_settings WHERE category='cms' AND setting_key='events_page_enabled'`
+        );
+        if (existing === '' || existing === null) {
+            eventsPageEnabledWasAbsent = true;
+            originalEventsPageEnabled = null;
+        } else {
+            eventsPageEnabledWasAbsent = false;
+            originalEventsPageEnabled = existing;
+        }
+
         // Make sure the events page is enabled (the frontend controller
         // 404s otherwise).
         dbExec(`
@@ -103,6 +150,18 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
         // Cleanup: delete test event + reset layout setting to default.
         dbExec(`DELETE FROM events WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
         dbExec(`DELETE FROM system_settings WHERE category='cms' AND setting_key='event_image_layout'`);
+
+        // Restore events_page_enabled to its pre-test value so we do
+        // not leave permanent test-state pollution behind.
+        if (eventsPageEnabledWasAbsent) {
+            dbExec(`DELETE FROM system_settings WHERE category='cms' AND setting_key='events_page_enabled'`);
+        } else {
+            dbExec(`
+                UPDATE system_settings
+                   SET setting_value='${sqlEscape(originalEventsPageEnabled)}'
+                 WHERE category='cms' AND setting_key='events_page_enabled'
+            `);
+        }
     });
 
     /**
@@ -111,7 +170,7 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
      * one cover figure (no duplicate rendering from a stale partial).
      */
     async function expectLayout(page, expected) {
-        const url = `${BASE}/eventi/${EVENT_SLUG}`;
+        const url = `${BASE}${EVENT_URL_PREFIX}/${EVENT_SLUG}`;
         const response = await page.goto(url, { waitUntil: 'domcontentloaded' });
         expect(response, `GET ${url} must succeed`).not.toBeNull();
         // Defense in depth — some Apache setups normalise 200 → 200 but
@@ -186,7 +245,7 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
 
         async function measure(layout) {
             setLayout(layout);
-            await page.goto(`${BASE}/eventi/${EVENT_SLUG}`, { waitUntil: 'domcontentloaded' });
+            await page.goto(`${BASE}${EVENT_URL_PREFIX}/${EVENT_SLUG}`, { waitUntil: 'domcontentloaded' });
             const card = page.locator('article.event-card').first();
             const fig  = page.locator('figure.event-cover').first();
             await expect(card).toBeVisible();
@@ -353,7 +412,7 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
 
         // Desktop viewport — the grid kicks in at >=768px.
         await page.setViewportSize({ width: 1280, height: 900 });
-        await page.goto(`${BASE}/eventi/${EVENT_SLUG}`, { waitUntil: 'domcontentloaded' });
+        await page.goto(`${BASE}${EVENT_URL_PREFIX}/${EVENT_SLUG}`, { waitUntil: 'domcontentloaded' });
 
         const card = page.locator('article.event-card').first();
         const fig  = page.locator('figure.event-cover--thumb').first();
