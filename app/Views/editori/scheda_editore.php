@@ -73,11 +73,12 @@ $sitoWeb = trim((string)($editore['sito_web'] ?? ''));
                 <?= __("Non eliminabile") ?>
               </button>
             <?php else: ?>
-              <form method="post" action="<?= htmlspecialchars(url('/admin/editori/delete/' . (int)($editore['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex">
+              <form method="post" action="<?= htmlspecialchars(url('/admin/editori/delete/' . (int)($editore['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="inline-flex"
+                    data-swal-confirm="<?= htmlspecialchars(__("Confermi l'eliminazione dell'editore?"), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                 <button type="submit"
-                        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors"
-                        onclick="return confirm(<?= htmlspecialchars(json_encode(__("Confermi l'eliminazione dell'editore?"), JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>);">
+                        class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors">
                   <i class="fas fa-trash"></i>
                   <?= __("Elimina") ?>
                 </button>

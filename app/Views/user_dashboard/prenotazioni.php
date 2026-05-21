@@ -626,7 +626,9 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
                   <span><?= $deadline ? format_date($deadline, false, '/') : __('Non specificata') ?></span>
                 </div>
               </div>
-              <form method="post" action="<?= htmlspecialchars(url('/reservation/cancel'), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__('Annullare questa prenotazione?'), JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>);">
+              <form method="post" action="<?= htmlspecialchars(url('/reservation/cancel'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm="<?= htmlspecialchars(__('Annullare questa prenotazione?'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm-button="<?= htmlspecialchars(__('Annulla prenotazione'), ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
                 <input type="hidden" name="reservation_id" value="<?= (int)$reservation['id']; ?>">
                 <button type="submit" class="btn-cancel">

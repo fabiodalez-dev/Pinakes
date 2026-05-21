@@ -975,17 +975,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 : window.location.origin + rawUrl;
 
             const showSuccess = function() {
-                if (window.Swal) {
-                    Swal.fire({
-                        icon: 'success',
-                        title: <?= json_encode(__("Link copiato!"), JSON_HEX_TAG) ?>,
-                        text: <?= json_encode(__("L'URL del calendario è stato copiato negli appunti."), JSON_HEX_TAG) ?>,
-                        timer: 2000,
-                        showConfirmButton: false
-                    });
-                } else {
-                    alert(<?= json_encode(__("Link copiato!"), JSON_HEX_TAG) ?>);
-                }
+                // Use a toast so the "copied" notice doesn't require a click.
+                window.SwalApp.toast({
+                    icon: 'success',
+                    title: <?= json_encode(__("Link copiato!"), JSON_HEX_TAG) ?>,
+                    timer: 2000
+                });
             };
 
             const fallbackCopy = function() {

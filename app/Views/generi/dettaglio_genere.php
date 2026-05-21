@@ -229,7 +229,9 @@ $genereName = $genere['nome'] ?? 'Genere';
             <?= __("Elimina genere") ?>
           </h2>
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-4"><?= __("Questa azione elimina il genere in modo permanente. Possibile solo se non ha sottogeneri e non è usato da nessun libro.") ?></p>
-          <form method="post" action="<?= htmlspecialchars(url("/admin/generi/{$genereId}/elimina"), ENT_QUOTES, 'UTF-8') ?>" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__('Sei sicuro di voler eliminare questo genere?')), ENT_QUOTES, 'UTF-8') ?>);">
+          <form method="post" action="<?= htmlspecialchars(url("/admin/generi/{$genereId}/elimina"), ENT_QUOTES, 'UTF-8') ?>"
+                data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questo genere?'), ENT_QUOTES, 'UTF-8') ?>"
+                data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
             <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
               <i class="fas fa-trash-alt mr-1"></i><?= __("Elimina") ?>
@@ -264,13 +266,23 @@ document.addEventListener('DOMContentLoaded', function() {
   var mergeForm = document.getElementById('merge-genre-form');
   if (mergeForm) {
     mergeForm.addEventListener('submit', function(e) {
+      if (mergeForm.dataset.swalConfirmed === '1') return; // re-submit dopo conferma
+      e.preventDefault();
       var target = document.getElementById('merge_target_id');
       var targetName = target.options[target.selectedIndex].textContent.trim();
       var msgPrefix = <?= json_encode(__("Sei sicuro di voler unire questo genere con"), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
       var msgSuffix = <?= json_encode(__("Questa azione è irreversibile."), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-      if (!confirm(msgPrefix + ' "' + targetName + '"? ' + msgSuffix)) {
-        e.preventDefault();
-      }
+      window.SwalApp.confirm({
+        title: msgPrefix + ' "' + targetName + '"?',
+        text:  msgSuffix,
+        icon:  'warning',
+        confirmText: <?= json_encode(__('Unisci'), JSON_HEX_TAG) ?>
+      }).then((r) => {
+        if (r.isConfirmed) {
+          mergeForm.dataset.swalConfirmed = '1';
+          mergeForm.submit();
+        }
+      });
     });
   }
 });

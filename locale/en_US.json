@@ -4685,5 +4685,10 @@
     "Miniatura affiancata al testo (240px)": "Thumbnail next to text (240px)",
     "Banner basso a tutta larghezza (max altezza 220px)": "Low full-width banner (max height 220px)",
     "Originale a tutta larghezza (grande)": "Original full width (large)",
-    "Piccola a sinistra (max 420px) — consigliato": "Small left-aligned (max 420px) — recommended"
+    "Piccola a sinistra (max 420px) — consigliato": "Small left-aligned (max 420px) — recommended",
+    "Conferma attivazione": "Confirm activation",
+    "Attiva utente": "Activate user",
+    "Elimina tutto": "Delete everything",
+    "Conferma?": "Confirm?",
+    "Inserisci un valore": "Enter a value"
 }

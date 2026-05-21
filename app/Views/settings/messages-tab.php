@@ -195,23 +195,26 @@ function closeMessageModal() {
 }
 
 function deleteMessage(id) {
-  if (confirm(<?= json_encode(__('Sei sicuro di voler eliminare questo messaggio?'), JSON_HEX_TAG) ?>)) {
+  window.SwalApp.confirmDelete({
+    text: <?= json_encode(__('Sei sicuro di voler eliminare questo messaggio?'), JSON_HEX_TAG) ?>
+  }).then((r) => {
+    if (!r.isConfirmed) return;
     csrfFetch(`${window.BASE_PATH}/admin/messages/${id}`, { method: 'DELETE' })
       .then(r => { if (!r.ok) throw new Error('delete failed'); location.reload(); })
-      .catch(() => alert(<?= json_encode(__('Errore durante l\'eliminazione del messaggio.'), JSON_HEX_TAG) ?>));
-  }
+      .catch(() => window.SwalApp.error(undefined, <?= json_encode(__('Errore durante l\'eliminazione del messaggio.'), JSON_HEX_TAG) ?>));
+  });
 }
 
 function archiveMessage(id) {
   csrfFetch(`${window.BASE_PATH}/admin/messages/${id}/archive`, { method: 'POST' })
     .then(r => { if (!r.ok) throw new Error('archive failed'); closeMessageModal(); location.reload(); })
-    .catch(() => alert(<?= json_encode(__('Errore durante l\'archiviazione del messaggio.'), JSON_HEX_TAG) ?>));
+    .catch(() => window.SwalApp.error(undefined, <?= json_encode(__('Errore durante l\'archiviazione del messaggio.'), JSON_HEX_TAG) ?>));
 }
 
 function markAllAsRead() {
   csrfFetch(`${window.BASE_PATH}/admin/messages/mark-all-read`, { method: 'POST' })
     .then(r => { if (!r.ok) throw new Error('mark-all-read failed'); location.reload(); })
-    .catch(() => alert(<?= json_encode(__('Errore durante l\'aggiornamento dei messaggi.'), JSON_HEX_TAG) ?>));
+    .catch(() => window.SwalApp.error(undefined, <?= json_encode(__('Errore durante l\'aggiornamento dei messaggi.'), JSON_HEX_TAG) ?>));
 }
 
 function replyToMessage(email) {

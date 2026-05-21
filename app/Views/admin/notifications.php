@@ -173,7 +173,10 @@ function markAllAsRead() {
 }
 
 function deleteNotification(id) {
-  if (confirm(<?= json_encode(__("Sei sicuro di voler eliminare questa notifica?"), JSON_HEX_TAG) ?>)) {
+  window.SwalApp.confirmDelete({
+    text: <?= json_encode(__("Sei sicuro di voler eliminare questa notifica?"), JSON_HEX_TAG) ?>
+  }).then((r) => {
+    if (!r.isConfirmed) return;
     csrfFetch(`${window.BASE_PATH}/admin/notifications/${id}`, { method: 'DELETE' })
       .then(response => response.json())
       .then(data => {
@@ -182,6 +185,6 @@ function deleteNotification(id) {
         }
       })
       .catch(error => console.error('Error:', error));
-  }
+  });
 }
 </script>

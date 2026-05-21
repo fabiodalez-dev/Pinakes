@@ -147,79 +147,52 @@ function initializeFormValidation() {
         // Validate required fields
         const nome = form.querySelector('input[name="nome"]').value.trim();
         if (!nome) {
-            if (window.Swal) {
-                Swal.fire({
-                    icon: 'error',
-                    title: <?= json_encode(__("Campo Obbligatorio"), JSON_HEX_TAG) ?>,
-                    text: <?= json_encode(__("Il nome dell'editore è obbligatorio."), JSON_HEX_TAG) ?>
-                });
-            } else {
-                alert(<?= json_encode(__("Il nome dell'editore è obbligatorio."), JSON_HEX_TAG) ?>);
-            }
+            window.SwalApp.error(
+                <?= json_encode(__("Campo Obbligatorio"), JSON_HEX_TAG) ?>,
+                <?= json_encode(__("Il nome dell'editore è obbligatorio."), JSON_HEX_TAG) ?>
+            );
             return;
         }
-        
+
         // Validate URL if provided
         const sitoWeb = form.querySelector('input[name="sito_web"]').value.trim();
         if (sitoWeb && !isValidURL(sitoWeb)) {
-            if (window.Swal) {
-                Swal.fire({
-                    icon: 'error',
-                    title: <?= json_encode(__("URL Non Valido"), JSON_HEX_TAG) ?>,
-                    text: <?= json_encode(__("Il sito web deve essere un URL valido (es. https://www.esempio.com)."), JSON_HEX_TAG) ?>
-                });
-            } else {
-                alert(<?= json_encode(__("Il sito web deve essere un URL valido."), JSON_HEX_TAG) ?>);
-            }
+            window.SwalApp.error(
+                <?= json_encode(__("URL Non Valido"), JSON_HEX_TAG) ?>,
+                <?= json_encode(__("Il sito web deve essere un URL valido (es. https://www.esempio.com)."), JSON_HEX_TAG) ?>
+            );
             return;
         }
-        
+
         // Validate email if provided
         const email = form.querySelector('input[name="email"]').value.trim();
         if (email && !isValidEmail(email)) {
-            if (window.Swal) {
-                Swal.fire({
-                    icon: 'error',
-                    title: <?= json_encode(__("Email Non Valida"), JSON_HEX_TAG) ?>,
-                    text: <?= json_encode(__("L'indirizzo email deve essere valido."), JSON_HEX_TAG) ?>
-                });
-            } else {
-                alert(<?= json_encode(__("L'indirizzo email deve essere valido."), JSON_HEX_TAG) ?>);
-            }
+            window.SwalApp.error(
+                <?= json_encode(__("Email Non Valida"), JSON_HEX_TAG) ?>,
+                <?= json_encode(__("L'indirizzo email deve essere valido."), JSON_HEX_TAG) ?>
+            );
             return;
         }
 
-        // Show confirmation dialog
-        if (window.Swal) {
-            const result = await Swal.fire({
-                title: <?= json_encode(__("Conferma Salvataggio"), JSON_HEX_TAG) ?>,
-                text: <?= json_encode(__("Sei sicuro di voler salvare l'editore \"%s\"?"), JSON_HEX_TAG) ?>.replace('%s', nome),
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: <?= json_encode(__("Sì, Salva"), JSON_HEX_TAG) ?>,
-                cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
-                reverseButtons: true
-            });
+        // Confirmation dialog — SwalApp.confirm has its own native fallback.
+        const result = await window.SwalApp.confirm({
+            title: <?= json_encode(__("Conferma Salvataggio"), JSON_HEX_TAG) ?>,
+            text: <?= json_encode(__("Sei sicuro di voler salvare l'editore \"%s\"?"), JSON_HEX_TAG) ?>.replace('%s', nome),
+            confirmText: <?= json_encode(__("Sì, Salva"), JSON_HEX_TAG) ?>
+        });
 
-            if (result.isConfirmed) {
-                // Show loading
+        if (result.isConfirmed) {
+            // Optional loading state when Swal is present.
+            if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     title: <?= json_encode(__("Salvataggio in corso..."), JSON_HEX_TAG) ?>,
                     text: <?= json_encode(__("Attendere prego"), JSON_HEX_TAG) ?>,
                     allowOutsideClick: false,
                     showConfirmButton: false,
-                    willOpen: () => {
-                        Swal.showLoading();
-                    }
+                    willOpen: () => { Swal.showLoading(); }
                 });
-
-                // Submit the form
-                form.submit();
             }
-        } else {
-            if (confirm(<?= json_encode(__("Sei sicuro di voler salvare l'editore \"%s\"?"), JSON_HEX_TAG) ?>.replace('%s', nome))) {
-                form.submit();
-            }
+            form.submit();
         }
     });
 }

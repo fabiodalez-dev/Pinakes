@@ -184,14 +184,14 @@ document.getElementById('toggle-enrichment').addEventListener('click', async fun
                 label.classList.add('text-gray-500');
             }
         } else {
-            alert(data.error || <?= json_encode(__("Errore durante il salvataggio"), JSON_HEX_TAG) ?>);
+            window.SwalApp.error(undefined, data.error || <?= json_encode(__("Errore durante il salvataggio"), JSON_HEX_TAG) ?>);
         }
     } catch (err) {
-        alert(<?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>);
+        window.SwalApp.error(undefined, <?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>);
     }
 });
 
-// Manual enrichment
+// Manual enrichment — second alert pair below uses the same SwalApp.error pattern.
 document.getElementById('btn-enrich-now').addEventListener('click', async function () {
     const btn = this;
     const icon = document.getElementById('enrich-icon');
@@ -218,10 +218,10 @@ document.getElementById('btn-enrich-now').addEventListener('click', async functi
         if (data.success && data.results) {
             showResults(data.results);
         } else {
-            alert(data.error || <?= json_encode(__("Errore durante l'arricchimento"), JSON_HEX_TAG) ?>);
+            window.SwalApp.error(undefined, data.error || <?= json_encode(__("Errore durante l'arricchimento"), JSON_HEX_TAG) ?>);
         }
     } catch (err) {
-        alert(<?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>);
+        window.SwalApp.error(undefined, <?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>);
     } finally {
         btn.disabled = false;
         icon.classList.remove('fa-spinner', 'fa-spin');

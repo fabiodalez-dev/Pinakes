@@ -456,15 +456,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyLt.on('restriction-failed', (file, error) => {
             console.error('Upload restriction failed:', error);
-            if (typeof Swal !== 'undefined') {
-                Swal.fire({
-                    icon: 'error',
-                    title: <?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>,
-                    text: error.message
-                });
-            } else {
-                alert(<?= json_encode(__("Errore:"), JSON_HEX_TAG) ?> + ' ' + error.message);
-            }
+            window.SwalApp.error(<?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>, error.message);
         });
 
     } catch (error) {
@@ -604,15 +596,7 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.disabled = false;
         submitBtn.textContent = <?= json_encode(__("Importa Libri"), JSON_HEX_TAG) ?>;
 
-        if (window.Swal) {
-            Swal.fire({
-                icon: 'error',
-                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
-                text: message
-            });
-        } else {
-            alert(message);
-        }
+        window.SwalApp.error(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, message);
 
         document.getElementById('import-progress-container').classList.add('hidden');
     }

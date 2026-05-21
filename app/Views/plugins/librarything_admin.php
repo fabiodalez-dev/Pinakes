@@ -286,12 +286,25 @@ document.getElementById('confirm-uninstall')?.addEventListener('change', functio
     document.getElementById('uninstall-btn').disabled = !this.checked;
 });
 
-// Confirmation dialog for uninstall
-document.getElementById('uninstall-form')?.addEventListener('submit', function(e) {
-    if (!confirm(<?= json_encode(__("Sei assolutamente sicuro? Tutti i dati LibraryThing verranno eliminati!"), JSON_HEX_TAG) ?>)) {
+// Confirmation dialog for uninstall — switch to SwalApp so the dialog
+// matches the rest of the admin chrome instead of a native confirm.
+(function() {
+    const form = document.getElementById('uninstall-form');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+        if (form.dataset.swalConfirmed === '1') return; // re-submit after confirm
         e.preventDefault();
-    }
-});
+        window.SwalApp.confirmDelete({
+            text: <?= json_encode(__("Sei assolutamente sicuro? Tutti i dati LibraryThing verranno eliminati!"), JSON_HEX_TAG) ?>,
+            confirmText: <?= json_encode(__("Elimina tutto"), JSON_HEX_TAG) ?>
+        }).then((r) => {
+            if (r.isConfirmed) {
+                form.dataset.swalConfirmed = '1';
+                form.submit();
+            }
+        });
+    });
+})();
 </script>
 
 <?php

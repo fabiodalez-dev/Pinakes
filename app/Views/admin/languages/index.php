@@ -202,12 +202,14 @@ use App\Support\HtmlHelper;
 
                                                 <!-- Set as Default -->
                                                 <?php if (!$lang['is_default']): ?>
-                                                    <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/set-default'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
+                                                    <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/set-default'), ENT_QUOTES, 'UTF-8') ?>" class="inline"
+                                                          data-swal-confirm="<?= htmlspecialchars(__("Impostare questa lingua come predefinita? Questa diventerà la lingua dell'intera applicazione per tutti gli utenti."), ENT_QUOTES, 'UTF-8') ?>"
+                                                          data-swal-confirm-title="<?= htmlspecialchars(__('Imposta come Predefinita'), ENT_QUOTES, 'UTF-8') ?>"
+                                                          data-swal-confirm-button="<?= htmlspecialchars(__('Conferma'), ENT_QUOTES, 'UTF-8') ?>">
                                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                                                         <button type="submit"
                                                                 class="text-yellow-600 hover:text-yellow-900"
-                                                                title="<?= __("Imposta come Predefinita") ?>"
-                                                                onclick="return confirm(<?= htmlspecialchars(json_encode(__("Impostare questa lingua come predefinita?\n\nQuesta diventerà la lingua dell'intera applicazione per tutti gli utenti."), JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>)">
+                                                                title="<?= __("Imposta come Predefinita") ?>">
                                                             <i class="fas fa-star"></i>
                                                         </button>
                                                     </form>
@@ -225,12 +227,13 @@ use App\Support\HtmlHelper;
 
                                                 <!-- Delete -->
                                                 <?php if (!$lang['is_default']): ?>
-                                                    <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline">
+                                                    <form method="POST" action="<?= htmlspecialchars(url('/admin/languages/' . rawurlencode($lang['code']) . '/delete'), ENT_QUOTES, 'UTF-8') ?>" class="inline"
+                                                          data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questa lingua? Questa azione non può essere annullata.'), ENT_QUOTES, 'UTF-8') ?>"
+                                                          data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
                                                         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                                                         <button type="submit"
                                                                 class="text-red-600 hover:text-red-900"
-                                                                title="<?= __("Elimina") ?>"
-                                                                onclick="return confirm(<?= htmlspecialchars(json_encode(__("Sei sicuro di voler eliminare questa lingua? Questa azione non può essere annullata."), JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>)">
+                                                                title="<?= __("Elimina") ?>">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
                                                     </form>

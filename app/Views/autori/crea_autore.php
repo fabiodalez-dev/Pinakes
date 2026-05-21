@@ -137,68 +137,43 @@ function initializeFormValidation() {
         // Validate required fields
         const nome = form.querySelector('input[name="nome"]').value.trim();
         if (!nome) {
-            if (window.Swal) {
-                Swal.fire({
-                    icon: 'error',
-                    title: <?= json_encode(__("Campo Obbligatorio"), JSON_HEX_TAG) ?>,
-                    text: <?= json_encode(__("Il nome dell'autore è obbligatorio."), JSON_HEX_TAG) ?>
-                });
-            } else {
-                alert(<?= json_encode(__("Il nome dell'autore è obbligatorio."), JSON_HEX_TAG) ?>);
-            }
+            window.SwalApp.error(
+                <?= json_encode(__("Campo Obbligatorio"), JSON_HEX_TAG) ?>,
+                <?= json_encode(__("Il nome dell'autore è obbligatorio."), JSON_HEX_TAG) ?>
+            );
             return;
         }
-        
-        // Validate dates if provided
+
         const dataNascita = form.querySelector('input[name="data_nascita"]').value;
         const dataMorte = form.querySelector('input[name="data_morte"]').value;
-        
+
         if (dataNascita && dataMorte) {
             if (new Date(dataNascita) >= new Date(dataMorte)) {
-                if (window.Swal) {
-                    Swal.fire({
-                        icon: 'error',
-                        title: <?= json_encode(__("Date Non Valide"), JSON_HEX_TAG) ?>,
-                        text: <?= json_encode(__("La data di nascita deve essere precedente alla data di morte."), JSON_HEX_TAG) ?>
-                    });
-                } else {
-                    alert(<?= json_encode(__("La data di nascita deve essere precedente alla data di morte."), JSON_HEX_TAG) ?>);
-                }
+                window.SwalApp.error(
+                    <?= json_encode(__("Date Non Valide"), JSON_HEX_TAG) ?>,
+                    <?= json_encode(__("La data di nascita deve essere precedente alla data di morte."), JSON_HEX_TAG) ?>
+                );
                 return;
             }
         }
-        
-        // Show confirmation dialog
-        if (window.Swal) {
-            const result = await Swal.fire({
-                title: <?= json_encode(__("Conferma Salvataggio"), JSON_HEX_TAG) ?>,
-                text: <?= json_encode(__("Sei sicuro di voler salvare l'autore \"%s\"?"), JSON_HEX_TAG) ?>.replace('%s', nome),
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: <?= json_encode(__("Sì, Salva"), JSON_HEX_TAG) ?>,
-                cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
-                reverseButtons: true
-            });
 
-            if (result.isConfirmed) {
-                // Show loading
+        const result = await window.SwalApp.confirm({
+            title: <?= json_encode(__("Conferma Salvataggio"), JSON_HEX_TAG) ?>,
+            text: <?= json_encode(__("Sei sicuro di voler salvare l'autore \"%s\"?"), JSON_HEX_TAG) ?>.replace('%s', nome),
+            confirmText: <?= json_encode(__("Sì, Salva"), JSON_HEX_TAG) ?>
+        });
+
+        if (result.isConfirmed) {
+            if (typeof Swal !== 'undefined') {
                 Swal.fire({
                     title: <?= json_encode(__("Salvataggio in corso..."), JSON_HEX_TAG) ?>,
                     text: <?= json_encode(__("Attendere prego"), JSON_HEX_TAG) ?>,
                     allowOutsideClick: false,
                     showConfirmButton: false,
-                    willOpen: () => {
-                        Swal.showLoading();
-                    }
+                    willOpen: () => { Swal.showLoading(); }
                 });
-
-                // Submit the form
-                form.submit();
             }
-        } else {
-            if (confirm(<?= json_encode(__("Sei sicuro di voler salvare l'autore \"%s\"?"), JSON_HEX_TAG) ?>.replace('%s', nome))) {
-                form.submit();
-            }
+            form.submit();
         }
     });
 }

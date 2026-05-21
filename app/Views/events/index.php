@@ -352,8 +352,12 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
 
 <script>
   function confirmDelete(eventId, eventTitle) {
-    if (confirm(<?= json_encode(__("Sei sicuro di voler eliminare l'evento"), JSON_HEX_TAG) ?> + ' "' + eventTitle + '"?\n\n' + <?= json_encode(__("Questa azione non può essere annullata."), JSON_HEX_TAG) ?>)) {
-      // Usa form POST per operazioni di eliminazione (sicurezza OWASP)
+    window.SwalApp.confirmDelete({
+      title: <?= json_encode(__("Sei sicuro di voler eliminare l'evento"), JSON_HEX_TAG) ?> + ' "' + eventTitle + '"?',
+      text:  <?= json_encode(__("Questa azione non può essere annullata."), JSON_HEX_TAG) ?>
+    }).then((r) => {
+      if (!r.isConfirmed) return;
+      // POST form per operazioni di eliminazione (sicurezza OWASP)
       const form = document.createElement('form');
       form.method = 'POST';
       form.action = window.BASE_PATH + '/admin/cms/events/delete/' + parseInt(eventId, 10);
@@ -366,6 +370,6 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
 
       document.body.appendChild(form);
       form.submit();
-    }
+    });
   }
 </script>

@@ -755,15 +755,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyHero.on('restriction-failed', (file, error) => {
             console.error('Upload restriction failed:', error);
-            if (typeof Swal !== 'undefined') {
-                Swal.fire({
-                    icon: 'error',
-                    title: <?= json_encode(__('Errore Upload'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
-                    text: error.message
-                });
-            } else {
-                alert(<?= json_encode(__('Errore'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + ': ' + error.message);
-            }
+            window.SwalApp.error(
+                <?= json_encode(__('Errore Upload'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+                error.message
+            );
         });
 
     } catch (error) {

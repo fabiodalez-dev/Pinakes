@@ -299,7 +299,7 @@ function checkContrast() {
     .then(data => {
         // Check for CSRF/session errors
         if (data.error || data.code) {
-            alert(data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG) ?>);
+            window.SwalApp.error(undefined, data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG) ?>);
             if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
                 setTimeout(() => window.location.reload(), 2000);
             }
@@ -351,29 +351,33 @@ function hexToRgb(hex) {
 }
 
 function resetToDefaults() {
-    if (!confirm(<?= json_encode(__("Ripristinare i colori?"), JSON_HEX_TAG) ?>)) return;
-
-    fetch(window.BASE_PATH + '/admin/themes/<?= (int)$theme['id'] ?>/reset', {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': csrfToken
-        }
-    })
-    .then(r => r.json())
-    .then(data => {
-        // Check for CSRF/session errors
-        if (data.error || data.code) {
-            alert(data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG) ?>);
-            if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
-                setTimeout(() => window.location.reload(), 2000);
+    window.SwalApp.confirm({
+        title: <?= json_encode(__("Ripristinare i colori?"), JSON_HEX_TAG) ?>,
+        confirmText: <?= json_encode(__("Ripristina"), JSON_HEX_TAG) ?>
+    }).then((r) => {
+        if (!r.isConfirmed) return;
+        fetch(window.BASE_PATH + '/admin/themes/<?= (int)$theme['id'] ?>/reset', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': csrfToken
             }
-            return;
-        }
+        })
+        .then(r => r.json())
+        .then(data => {
+            // Check for CSRF/session errors
+            if (data.error || data.code) {
+                window.SwalApp.error(undefined, data.error || <?= json_encode(__("Errore di sicurezza"), JSON_HEX_TAG) ?>);
+                if (data.code === 'SESSION_EXPIRED' || data.code === 'CSRF_INVALID') {
+                    setTimeout(() => window.location.reload(), 2000);
+                }
+                return;
+            }
 
-        if (data.success) window.location.reload();
-        else alert(data.message);
+            if (data.success) window.location.reload();
+            else window.SwalApp.error(undefined, data.message);
+        });
     });
 }
 

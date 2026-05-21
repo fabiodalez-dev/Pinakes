@@ -507,14 +507,14 @@ document.getElementById('template-form').addEventListener('submit', async functi
     });
 
     if (response.ok) {
-      alert(<?= json_encode(__("Template aggiornato con successo!"), JSON_HEX_TAG) ?>);
+      window.SwalApp.success(undefined, <?= json_encode(__("Template aggiornato con successo!"), JSON_HEX_TAG) ?>);
       closeTemplateEditor();
     } else {
-      alert(<?= json_encode(__("Errore nell'aggiornamento del template"), JSON_HEX_TAG) ?>);
+      window.SwalApp.error(undefined, <?= json_encode(__("Errore nell'aggiornamento del template"), JSON_HEX_TAG) ?>);
     }
   } catch (error) {
     console.error('Error:', error);
-    alert(<?= json_encode(__("Errore: "), JSON_HEX_TAG) ?> + error.message);
+    window.SwalApp.error(undefined, error.message);
   }
 });
 

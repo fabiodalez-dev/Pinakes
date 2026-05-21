@@ -121,7 +121,10 @@
                     <span><?= __("Invia Email") ?></span>
                   </button>
                 </form>
-                <form method="POST" action="<?= htmlspecialchars(url('/admin/utenti/' . (int)$user['id'] . '/activate-directly'), ENT_QUOTES, 'UTF-8') ?>" class="flex-1" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__('Confermi di voler attivare direttamente questo utente?'), JSON_HEX_TAG), ENT_QUOTES, 'UTF-8') ?>)">
+                <form method="POST" action="<?= htmlspecialchars(url('/admin/utenti/' . (int)$user['id'] . '/activate-directly'), ENT_QUOTES, 'UTF-8') ?>" class="flex-1"
+                      data-swal-confirm="<?= htmlspecialchars(__('Confermi di voler attivare direttamente questo utente?'), ENT_QUOTES, 'UTF-8') ?>"
+                      data-swal-confirm-title="<?= htmlspecialchars(__('Conferma attivazione'), ENT_QUOTES, 'UTF-8') ?>"
+                      data-swal-confirm-button="<?= htmlspecialchars(__('Attiva utente'), ENT_QUOTES, 'UTF-8') ?>">
                   <input type="hidden" name="csrf_token" value="<?= \App\Support\Csrf::ensureToken() ?>">
                   <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
                     <i class="fas fa-user-check"></i>
@@ -544,60 +547,40 @@ document.addEventListener('DOMContentLoaded', function() {
     });
   }
 
-  // Delete user function
+  // Delete user function — SwalApp.confirmDelete has its own native
+  // fallback, so this single branch covers both the Swal-loaded and
+  // the Swal-missing cases.
   window.deleteUser = function(userId) {
-    if (window.Swal) {
-      Swal.fire({
-        title: __('Sei sicuro?'),
-        text: __('Questa azione non può essere annullata!'),
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#d33',
-        cancelButtonColor: '#3085d6',
-        confirmButtonText: __('Sì, elimina!'),
-        cancelButtonText: __('Annulla')
-      }).then((result) => {
-        if (result.isConfirmed) {
-          // Make DELETE request
-          const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-          fetch(`${window.BASE_PATH || ''}/admin/utenti/delete/${userId}`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}`
-          })
-          .then(response => {
-            if (response.ok || response.redirected) {
-              table.ajax.reload(null, false);
-              Swal.fire(__('Eliminato!'), __('L\'utente è stato eliminato.'), 'success');
-            } else {
-              return response.text().then(text => {
-                console.error('Delete failed - Status:', response.status, 'Body:', text);
-                Swal.fire(__('Errore!'), __('Non è stato possibile eliminare l\'utente. Controlla la console.'), 'error');
-              });
-            }
-          })
-          .catch(error => {
-            console.error('Delete error:', error);
-            Swal.fire(__('Errore!'), __('Si è verificato un errore: %s').replace('%s', error.message), 'error');
+    window.SwalApp.confirmDelete({
+      title: __('Sei sicuro?'),
+      text: __('Questa azione non può essere annullata!'),
+      confirmText: __('Sì, elimina!')
+    }).then((result) => {
+      if (!result.isConfirmed) return;
+      const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+      fetch(`${window.BASE_PATH || ''}/admin/utenti/delete/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `csrf_token=${encodeURIComponent(csrfToken)}`
+      })
+      .then(response => {
+        if (response.ok || response.redirected) {
+          table.ajax.reload(null, false);
+          window.SwalApp.success(__('Eliminato!'), __('L\'utente è stato eliminato.'));
+        } else {
+          return response.text().then(text => {
+            console.error('Delete failed - Status:', response.status, 'Body:', text);
+            window.SwalApp.error(undefined, __('Non è stato possibile eliminare l\'utente. Controlla la console.'));
           });
         }
+      })
+      .catch(error => {
+        console.error('Delete error:', error);
+        window.SwalApp.error(undefined, __('Si è verificato un errore: %s').replace('%s', error.message));
       });
-    } else {
-      if (confirm(__('Sei sicuro di voler eliminare questo utente?'))) {
-        const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
-        fetch(`${window.BASE_PATH || ''}/admin/utenti/delete/${userId}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: `csrf_token=${encodeURIComponent(csrfToken)}`
-        })
-        .then(() => table.ajax.reload(null, false))
-        .catch(error => console.error('Delete error:', error));
-      }
-    }
+    });
   };
 
   // Utility function

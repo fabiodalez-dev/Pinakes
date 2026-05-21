@@ -510,7 +510,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       uppyEvent.on('restriction-failed', (file, error) => {
         console.error('Upload restriction failed:', error);
-        alert(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?> + ': ' + error.message);
+        window.SwalApp.error(<?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>, error.message);
       });
     }
   } catch (error) {

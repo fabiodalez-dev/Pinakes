@@ -251,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Check starts with /
             if (!value.startsWith('/')) {
-                alert(<?= json_encode(__("Tutte le route devono iniziare con") . ' "/"', JSON_HEX_TAG) ?>);
+                window.SwalApp.error(undefined, <?= json_encode(__("Tutte le route devono iniziare con") . ' "/"', JSON_HEX_TAG) ?>);
                 input.focus();
                 e.preventDefault();
                 hasErrors = true;
@@ -260,7 +260,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Check no spaces
             if (/\s/.test(value)) {
-                alert(<?= json_encode(__("Le route non possono contenere spazi") . ": ", JSON_HEX_TAG) ?> + value);
+                window.SwalApp.error(undefined, <?= json_encode(__("Le route non possono contenere spazi") . ": ", JSON_HEX_TAG) ?> + value);
                 input.focus();
                 e.preventDefault();
                 hasErrors = true;

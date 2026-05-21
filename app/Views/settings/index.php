@@ -993,15 +993,10 @@ $activeTab = $activeTab ?? 'general';
         });
 
         uppyLogo.on('restriction-failed', (file, error) => {
-          if (typeof Swal !== 'undefined') {
-            Swal.fire({
-              icon: 'error',
-              title: <?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>,
-              text: error.message
-            });
-          } else {
-            alert(<?= json_encode(__("Errore: "), JSON_HEX_TAG) ?> + error.message);
-          }
+          window.SwalApp.error(
+            <?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>,
+            error.message
+          );
         });
       } catch (error) {
         console.error('Error initializing Uppy for logo:', error);

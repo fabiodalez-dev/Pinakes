@@ -339,14 +339,14 @@ document.addEventListener('DOMContentLoaded', function() {
     form.addEventListener('submit', function(e) {
       if (password.value !== confirmPassword.value) {
         e.preventDefault();
-        alert(<?= json_encode(__("Le password non coincidono!"), JSON_HEX_TAG) ?>);
+        window.SwalApp.error(undefined, <?= json_encode(__("Le password non coincidono!"), JSON_HEX_TAG) ?>);
         confirmPassword.focus();
         return false;
       }
 
       if (password.value.length < 8) {
         e.preventDefault();
-        alert(<?= json_encode(__("La password deve essere lunga almeno 8 caratteri!"), JSON_HEX_TAG) ?>);
+        window.SwalApp.error(undefined, <?= json_encode(__("La password deve essere lunga almeno 8 caratteri!"), JSON_HEX_TAG) ?>);
         password.focus();
         return false;
       }

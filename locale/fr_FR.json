@@ -5011,5 +5011,10 @@
     "Miniatura affiancata al testo (240px)": "Vignette à côté du texte (240px)",
     "Banner basso a tutta larghezza (max altezza 220px)": "Bannière basse pleine largeur (hauteur max 220px)",
     "Originale a tutta larghezza (grande)": "Original pleine largeur (grand)",
-    "Piccola a sinistra (max 420px) — consigliato": "Petite alignée à gauche (max 420px) — recommandée"
+    "Piccola a sinistra (max 420px) — consigliato": "Petite alignée à gauche (max 420px) — recommandée",
+    "Conferma attivazione": "Confirmer l'activation",
+    "Attiva utente": "Activer l'utilisateur",
+    "Elimina tutto": "Tout supprimer",
+    "Conferma?": "Confirmer ?",
+    "Inserisci un valore": "Saisissez une valeur"
 }

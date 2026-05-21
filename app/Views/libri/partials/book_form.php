@@ -1260,10 +1260,12 @@ function clearImagePreview() {
 }
 
 // Remove cover image
-function removeCoverImage() {
-    if (!confirm(__('Sei sicuro di voler rimuovere la copertina?'))) {
-        return;
-    }
+async function removeCoverImage() {
+    const result = await window.SwalApp.confirmDelete({
+        text: __('Sei sicuro di voler rimuovere la copertina?'),
+        confirmText: __('Rimuovi')
+    });
+    if (!result.isConfirmed) return;
 
     // Set hidden field to signal removal
     document.getElementById('remove_cover').value = '1';

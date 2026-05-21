@@ -2442,7 +2442,7 @@ document.addEventListener('DOMContentLoaded', function() {
       const data = await res.json();
       setFavUI(!!data.favorite);
     } catch (e) {
-      alert(<?= json_encode(__("Errore nell'aggiornare i preferiti."), JSON_HEX_TAG) ?>);
+      window.SwalApp.error(undefined, <?= json_encode(__("Errore nell'aggiornare i preferiti."), JSON_HEX_TAG) ?>);
     }
   });
 });
@@ -2479,27 +2479,14 @@ document.addEventListener('DOMContentLoaded', function() {
     requestBtn.addEventListener('click', async function(){
       // Check if user is logged in
       if (!isLogged) {
-        if (window.Swal) {
-          Swal.fire({
-            icon: 'warning',
-            title: __('Accesso Richiesto'),
-            html: '<p class="mb-3">' + __('Per richiedere un prestito devi effettuare il login.') + '</p>',
-            confirmButtonText: __('Vai al Login'),
-            cancelButtonText: __('Annulla'),
-            showCancelButton: true,
-            customClass: {
-              confirmButton: 'btn btn-dark',
-              cancelButton: 'btn btn-outline-dark'
-            }
-          }).then((result) => {
-            if (result.isConfirmed) {
-              window.location.href = <?= json_encode($loginRoute, JSON_HEX_TAG) ?> + '?redirect=' + encodeURIComponent(window.location.pathname);
-            }
-          });
-        } else {
-          if (confirm(__('Per richiedere un prestito devi effettuare il login. Vuoi andare alla pagina di login?'))) {
-            window.location.href = <?= json_encode($loginRoute, JSON_HEX_TAG) ?> + '?redirect=' + encodeURIComponent(window.location.pathname);
-          }
+        const result = await window.SwalApp.confirm({
+          title: __('Accesso Richiesto'),
+          text:  __('Per richiedere un prestito devi effettuare il login. Vuoi andare alla pagina di login?'),
+          icon:  'warning',
+          confirmText: __('Vai al Login')
+        });
+        if (result.isConfirmed) {
+          window.location.href = <?= json_encode($loginRoute, JSON_HEX_TAG) ?> + '?redirect=' + encodeURIComponent(window.location.pathname);
         }
         return;
       }
@@ -2755,12 +2742,12 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = await res.json();
             if (res.ok && result.success) {
               await updateReservationsBadge();
-              alert(<?= json_encode(__("Prenotazione effettuata per "), JSON_HEX_TAG) ?> + date);
+              window.SwalApp.success(undefined, <?= json_encode(__("Prenotazione effettuata per "), JSON_HEX_TAG) ?> + date);
             } else {
-              alert(<?= json_encode(__("Errore: "), JSON_HEX_TAG) ?> + (result.message || <?= json_encode(__("Impossibile creare la prenotazione"), JSON_HEX_TAG) ?>));
+              window.SwalApp.error(undefined, (result.message || <?= json_encode(__("Impossibile creare la prenotazione"), JSON_HEX_TAG) ?>));
             }
           } catch(_) {
-            alert(<?= json_encode(__("Errore nella prenotazione"), JSON_HEX_TAG) ?>);
+            window.SwalApp.error(undefined, <?= json_encode(__("Errore nella prenotazione"), JSON_HEX_TAG) ?>);
           }
         }
       }

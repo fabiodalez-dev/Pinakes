@@ -418,15 +418,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyCsv.on('restriction-failed', (file, error) => {
             console.error('Upload restriction failed:', error);
-            if (typeof Swal !== 'undefined') {
-                Swal.fire({
-                    icon: 'error',
-                    title: <?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>,
-                    text: error.message
-                });
-            } else {
-                alert(<?= json_encode(__("Errore:") . " ", JSON_HEX_TAG) ?> + error.message);
-            }
+            window.SwalApp.error(
+                <?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>,
+                error.message
+            );
         });
 
     } catch (error) {
@@ -554,7 +549,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             confirmButtonText: <?= json_encode(__("OK"), JSON_HEX_TAG) ?>
                         }).then(() => window.location.reload());
                     } else {
-                        alert(message.replace(/<[^>]*>/g, ''));
+                        // Swal not loaded — defensive native fallback before reloading.
+                        window.alert(message.replace(/<[^>]*>/g, ''));
                         window.location.reload();
                     }
                 }, 500);
@@ -645,15 +641,7 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="fas fa-cloud-upload-alt mr-2"></i>' + <?= json_encode(__("Importa"), JSON_HEX_TAG) ?>;
 
-        if (window.Swal) {
-            Swal.fire({
-                icon: 'error',
-                title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>,
-                text: message
-            });
-        } else {
-            alert(<?= json_encode(__("Errore:") . " ", JSON_HEX_TAG) ?> + message);
-        }
+        window.SwalApp.error(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, message);
 
         document.getElementById('import-progress-container').classList.add('hidden');
     }

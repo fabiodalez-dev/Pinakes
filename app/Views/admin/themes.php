@@ -152,30 +152,32 @@ $pageTitle = __('Gestione Temi');
 
 <script>
 function activateTheme(themeId) {
-    if (!confirm(<?= json_encode(__("Attivare questo tema?"), JSON_HEX_TAG) ?>)) {
-        return;
-    }
-
-    const basePath = window.BASE_PATH || '';
-    fetch(`${basePath}/admin/themes/${parseInt(themeId, 10)}/activate`, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRF-Token': <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>
-        }
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            window.location.reload();
-        } else {
-            alert(data.message || <?= json_encode(__("Errore durante l'attivazione"), JSON_HEX_TAG) ?>);
-        }
-    })
-    .catch(err => {
-        console.error(err);
-        alert(<?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>);
+    window.SwalApp.confirm({
+        title: <?= json_encode(__("Attivare questo tema?"), JSON_HEX_TAG) ?>,
+        confirmText: <?= json_encode(__("Attiva"), JSON_HEX_TAG) ?>
+    }).then((r) => {
+        if (!r.isConfirmed) return;
+        const basePath = window.BASE_PATH || '';
+        fetch(`${basePath}/admin/themes/${parseInt(themeId, 10)}/activate`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                window.SwalApp.error(undefined, data.message || <?= json_encode(__("Errore durante l'attivazione"), JSON_HEX_TAG) ?>);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            window.SwalApp.error(undefined, <?= json_encode(__("Errore di rete"), JSON_HEX_TAG) ?>);
+        });
     });
 }
 </script>

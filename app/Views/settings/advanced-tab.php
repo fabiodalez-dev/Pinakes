@@ -732,7 +732,9 @@ use App\Support\HtmlHelper;
                       <i class="fas <?php echo $key['is_active'] ? 'fa-pause' : 'fa-play'; ?>"></i>
                     </button>
                   </form>
-                  <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/' . (int)$key['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline" onsubmit="return confirm(<?= htmlspecialchars(json_encode(__('Sei sicuro di voler eliminare questa API key? Questa azione è irreversibile.')), ENT_QUOTES, 'UTF-8') ?>)">
+                  <form action="<?= htmlspecialchars(url('/admin/settings/api/keys/' . (int)$key['id'] . '/delete'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="inline"
+                        data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questa API key? Questa azione è irreversibile.'), ENT_QUOTES, 'UTF-8') ?>"
+                        data-swal-confirm-button="<?= htmlspecialchars(__('Elimina'), ENT_QUOTES, 'UTF-8') ?>">
                     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
                     <button type="submit"
                             class="p-2 rounded-lg bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
@@ -930,7 +932,7 @@ function copyToClipboard(text, button) {
       button.innerHTML = originalHTML;
     }, 2000);
   }).catch(err => {
-    alert(<?= json_encode(__("Errore nella copia:"), JSON_HEX_TAG) ?> + ' ' + err);
+    window.SwalApp.error(undefined, <?= json_encode(__("Errore nella copia:"), JSON_HEX_TAG) ?> + ' ' + err);
   });
 }
 
