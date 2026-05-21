@@ -339,10 +339,12 @@ class EventsController
             $featuredImagePath = null;
         }
 
-        // Look up the previous featured_image so we can unlink the
-        // orphaned file after the UPDATE succeeds. We do this BEFORE
-        // the error short-circuit below so $oldImagePath is always
-        // populated when $updateImage is true.
+        // Snapshot the previous featured_image before the UPDATE so we can
+        // unlink the orphan file in the success branch. The validation-error
+        // and UPDATE-fail branches unlink the freshly-uploaded
+        // $featuredImagePath instead; this lookup is only consumed by the
+        // post-commit success path. Capturing it here keeps the snapshot
+        // adjacent to its use site.
         $oldImagePath = null;
         if ($updateImage) {
             $oldStmt = $db->prepare("SELECT featured_image FROM events WHERE id = ?");

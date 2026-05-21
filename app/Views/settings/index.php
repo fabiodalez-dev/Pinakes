@@ -493,7 +493,7 @@ $activeTab = $activeTab ?? 'general';
                   </div>
                   <button
                     type="submit"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 transition-colors w-full justify-center"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors w-full justify-center"
                   >
                     <i class="fas fa-save"></i>
                     <?= __("Salva impostazioni eventi") ?>

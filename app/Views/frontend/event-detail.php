@@ -221,6 +221,7 @@ $additional_css = "
         max-width: 420px;
         margin-left: 0;
         margin-right: auto;
+        /* No border/background here: contained is a small left-aligned poster; the 420px-wide image floating next to body text reads better without the grey card frame the other variants use to fill the wider hero slot. Keep this asymmetry intentional. */
         background: transparent;
         border: none;
     }
@@ -258,6 +259,8 @@ $additional_css = "
             position: sticky;
             top: 7rem;
             margin: 0;
+            max-height: calc(100vh - 9rem);
+            overflow: hidden;
         }
         .event-card--thumb-layout > .event-body,
         .event-card--thumb-layout > .event-back {
