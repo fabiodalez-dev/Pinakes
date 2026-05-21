@@ -90,6 +90,14 @@ let EVENT_URL_PREFIX = '/eventi';
 let originalEventsPageEnabled = null;
 let eventsPageEnabledWasAbsent = false;
 
+// Same shape, but for event_image_layout. Per-test setLayout() rewrites
+// this row, and the original afterAll unconditionally DELETEd it — which
+// destroyed an admin's pre-existing custom layout choice on every run.
+// Snapshot once at startup and restore the original value (or DELETE if
+// absent) at teardown. Matches the events_page_enabled pattern above.
+let originalEventImageLayout = null;
+let eventImageLayoutWasAbsent = false;
+
 test.describe.serial('Issue #137 — admin-configurable event image layout', () => {
 
     test.beforeAll(async () => {
@@ -122,6 +130,20 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
             originalEventsPageEnabled = existing;
         }
 
+        // Snapshot event_image_layout too — setLayout() rewrites it in
+        // every test, and the original DELETE-on-teardown destroyed any
+        // pre-existing custom choice the admin had configured.
+        const existingLayout = dbQuery(
+            `SELECT setting_value FROM system_settings WHERE category='cms' AND setting_key='event_image_layout'`
+        );
+        if (existingLayout === '' || existingLayout === null) {
+            eventImageLayoutWasAbsent = true;
+            originalEventImageLayout = null;
+        } else {
+            eventImageLayoutWasAbsent = false;
+            originalEventImageLayout = existingLayout;
+        }
+
         // Make sure the events page is enabled (the frontend controller
         // 404s otherwise).
         dbExec(`
@@ -147,9 +169,19 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
     });
 
     test.afterAll(async () => {
-        // Cleanup: delete test event + reset layout setting to default.
+        // Cleanup: delete test event + restore the original
+        // event_image_layout (DELETE if it was absent before the suite,
+        // else UPDATE back to the captured original value).
         dbExec(`DELETE FROM events WHERE slug='${sqlEscape(EVENT_SLUG)}'`);
-        dbExec(`DELETE FROM system_settings WHERE category='cms' AND setting_key='event_image_layout'`);
+        if (eventImageLayoutWasAbsent) {
+            dbExec(`DELETE FROM system_settings WHERE category='cms' AND setting_key='event_image_layout'`);
+        } else {
+            dbExec(`
+                INSERT INTO system_settings (category, setting_key, setting_value)
+                VALUES ('cms', 'event_image_layout', '${sqlEscape(originalEventImageLayout)}')
+                ON DUPLICATE KEY UPDATE setting_value=VALUES(setting_value)
+            `);
+        }
 
         // Restore events_page_enabled to its pre-test value so we do
         // not leave permanent test-state pollution behind.

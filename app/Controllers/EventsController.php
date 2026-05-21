@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Support\ContentSanitizer;
 use App\Support\HtmlHelper;
+use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -479,7 +480,19 @@ class EventsController
         if (strpos($realCandidate, $baseDir . DIRECTORY_SEPARATOR) !== 0) {
             return;
         }
-        @unlink($realCandidate);
+        // Check the unlink result instead of suppressing — silent failures
+        // here mean orphan files accumulating on disk with no operator
+        // signal. SecureLogger redacts secrets/paths the way error_log
+        // does not. error_get_last() captures the underlying errno
+        // message (permission denied, etc.) right after the failed call.
+        if (!unlink($realCandidate)) {
+            $err = error_get_last();
+            SecureLogger::error('EventsController::deleteUploadedImageFile unlink failed', [
+                'path' => $realCandidate,
+                'errno' => $err['type'] ?? null,
+                'message' => $err['message'] ?? 'unknown',
+            ]);
+        }
     }
 
     /**
