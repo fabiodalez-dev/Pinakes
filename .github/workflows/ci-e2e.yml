@@ -217,7 +217,18 @@ jobs:
             --workers=1
 
       - name: "[12/13] archives-upload-assets.spec.js — cover/document upload pipeline"
+        # The upload-assets spec picks 3 archival_units from the
+        # `E2E_SEED_*` batch — it doesn't seed them itself. The seed
+        # lives in archives-seed-50.spec.js (50 rows, all 4 levels,
+        # full option matrix). On a fresh CI install no E2E_SEED_* row
+        # exists yet, so the upload spec's beforeAll fails with
+        # "no seeded row available for PDF test". Seed-then-upload
+        # in the same step keeps the dependency local — no test-order
+        # coupling with other steps, no separate seed step to renumber.
         run: |
+          npx playwright test tests/archives-seed-50.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
           npx playwright test tests/archives-upload-assets.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
