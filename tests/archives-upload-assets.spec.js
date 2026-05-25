@@ -134,7 +134,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
     test('1. Upload cover image (JPEG) — row #1 (PDF candidate)', async () => {
         await submitUpload(ids.pdf, 'form[action*="/upload-cover"]', 'cover', TEST_COVER);
         const row = dbQuery(`SELECT cover_image_path FROM archival_units WHERE id = ${ids.pdf}`);
-        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{8}\.jpg$/);
+        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{16}\.jpg$/);
         expect(fs.existsSync(path.join(PUBLIC_DIR, row)), 'cover file on disk').toBe(true);
     });
 
@@ -147,7 +147,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
               ORDER BY id DESC LIMIT 1`
         );
         const [docPath, mime, filename] = row.split('|');
-        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{8}\.pdf$/);
+        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{16}\.pdf$/);
         expect(mime).toBe('application/pdf');
         expect(filename).toBe('archive-test.pdf');
         expect(fs.existsSync(path.join(PUBLIC_DIR, docPath)), 'PDF file on disk').toBe(true);
@@ -159,7 +159,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
     test('3. Upload cover image (JPEG) — row #2 (audio candidate)', async () => {
         await submitUpload(ids.audio, 'form[action*="/upload-cover"]', 'cover', TEST_COVER);
         const row = dbQuery(`SELECT cover_image_path FROM archival_units WHERE id = ${ids.audio}`);
-        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{8}\.jpg$/);
+        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{16}\.jpg$/);
     });
 
     test('4. Upload audio (WAV) — row #2, should trigger player in frontend', async () => {
@@ -171,7 +171,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
               ORDER BY id DESC LIMIT 1`
         );
         const [docPath, mime, filename] = row.split('|');
-        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{8}\.wav$/);
+        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{16}\.wav$/);
         expect(['audio/wav', 'audio/x-wav']).toContain(mime);
         expect(filename).toBe('archive-test-audio.wav');
         expect(fs.existsSync(path.join(PUBLIC_DIR, docPath)), 'audio file on disk').toBe(true);
@@ -180,7 +180,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
     test('5. Upload cover only — row #3', async () => {
         await submitUpload(ids.coverOnly, 'form[action*="/upload-cover"]', 'cover', TEST_COVER);
         const row = dbQuery(`SELECT cover_image_path FROM archival_units WHERE id = ${ids.coverOnly}`);
-        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{8}\.jpg$/);
+        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{16}\.jpg$/);
     });
 
     test('6. Public frontend: PDF row renders download button', async () => {
@@ -190,7 +190,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
         const resp = await page.request.get(`${BASE}/archivio/${ids.pdf}`);
         const body = await resp.text();
         expect(body).toContain('archive-test.pdf');
-        expect(body).toMatch(/\/uploads\/archives\/documents\/\d+-[a-f0-9]{8}\.pdf/);
+        expect(body).toMatch(/\/uploads\/archives\/documents\/\d+-[a-f0-9]{16}\.pdf/);
     });
 
     test('7. Public frontend: audio row renders <audio> + green-audio-player', async () => {
