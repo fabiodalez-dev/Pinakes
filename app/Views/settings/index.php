@@ -480,7 +480,7 @@ $activeTab = $activeTab ?? 'general';
               ?>
               <div class="mt-5 pt-5 border-t border-gray-200">
                 <form action="<?= htmlspecialchars(url('/admin/settings/events'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-3">
-                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
                   <div>
                     <label for="event_image_layout" class="block text-sm font-semibold text-gray-900 mb-1">
                       <?= __("Layout immagine evento") ?>

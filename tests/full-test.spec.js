@@ -3110,11 +3110,15 @@ test.describe.serial('Phase 21: Language Switch', () => {
     // Wait for the redirect BEFORE removing the dialog handler — on
     // some browsers the navigation completes asynchronously and an
     // in-flight `beforeunload` / re-fire of the native confirm can
-    // land after waitForURL returns. Keeping the handler alive across
-    // the navigation prevents a "Dialog: Confirmed" hang on the
-    // next test's first goto.
-    await page.waitForURL(/admin\/languages/, { timeout: 10000 });
-    page.removeListener('dialog', dialogHandler);
+    // land after waitForURL returns. The try/finally guarantees the
+    // listener is detached even on a waitForURL timeout, so a
+    // failing test doesn't leak the handler into the next test and
+    // accidentally intercept ITS dialogs.
+    try {
+      await page.waitForURL(/admin\/languages/, { timeout: 10000 });
+    } finally {
+      page.removeListener('dialog', dialogHandler);
+    }
     return { nativeDialogFired };
   }
 

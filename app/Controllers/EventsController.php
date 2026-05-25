@@ -279,6 +279,13 @@ class EventsController
         // id is bogus or already soft-deleted), and the orphan-cleanup
         // callsites only fire when $stmt->execute() returned false —
         // 0-affected-rows with a successful execute is the silent gap.
+        //
+        // Failure modes treated as "event not found" (defensive fail-
+        // closed): id <= 0, $db->prepare() returns false, the SELECT
+        // returns no row. Each path 302-redirects to the listing.
+        // prepare() returning false was previously silently ignored,
+        // letting the upload proceed unguarded.
+        $eventFound = false;
         if ($id > 0) {
             $existsStmt = $db->prepare("SELECT id FROM events WHERE id = ? LIMIT 1");
             if ($existsStmt instanceof \mysqli_stmt) {
@@ -287,12 +294,18 @@ class EventsController
                 $existsResult = $existsStmt->get_result();
                 $existsRow = $existsResult ? $existsResult->fetch_assoc() : null;
                 $existsStmt->close();
-                if (!is_array($existsRow)) {
-                    $_SESSION['error_message'] = __('Evento non trovato.');
-                    return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
-                }
+                $eventFound = is_array($existsRow);
+            } else {
+                // prepare() failed (DB error / closed connection / bad
+                // schema). Log + treat as not-found so we don't fall
+                // through and write a file with no DB anchor.
+                SecureLogger::error('EventsController::update existence-check prepare() failed', [
+                    'id'    => $id,
+                    'error' => $db->error,
+                ]);
             }
-        } else {
+        }
+        if (!$eventFound) {
             $_SESSION['error_message'] = __('Evento non trovato.');
             return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
         }
