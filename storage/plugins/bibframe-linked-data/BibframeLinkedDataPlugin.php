@@ -717,7 +717,7 @@ class BibframeLinkedDataPlugin
     private function writeRdfXmlProperties(\XMLWriter $xw, array $node): void
     {
         foreach ($node as $predicate => $value) {
-            if (!is_string($predicate) || $predicate === '@id' || $predicate === '@type' || !str_contains($predicate, ':')) {
+            if ($predicate === '@id' || $predicate === '@type' || !str_contains($predicate, ':')) {
                 continue;
             }
             if (is_array($value) && array_is_list($value)) {

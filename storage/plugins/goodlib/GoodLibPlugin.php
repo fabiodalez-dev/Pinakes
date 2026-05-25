@@ -40,9 +40,6 @@ class GoodLibPlugin
         ],
     ];
 
-    /**
-     * @phpstan-ignore constructor.unusedParameter
-     */
     public function __construct(?\mysqli $db = null, ?object $hookManager = null)
     {
         $this->db = $db;
@@ -86,17 +83,11 @@ class GoodLibPlugin
         }
     }
 
-    /**
-     * @phpstan-ignore method.unused
-     */
     public function onInstall(): void
     {
         // No DB schema needed
     }
 
-    /**
-     * @phpstan-ignore method.unused
-     */
     public function onUninstall(): void
     {
         if (!$this->db || $this->pluginId === 0) {

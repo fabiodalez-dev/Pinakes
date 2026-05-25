@@ -25,7 +25,6 @@ class DiscogsPlugin
     private const USER_AGENT = 'Pinakes/1.0 +https://github.com/fabiodalez-dev/Pinakes';
 
     private ?\mysqli $db = null;
-    /** @phpstan-ignore-next-line Property kept for PluginManager interface compatibility */
     private ?object $hookManager = null;
     private ?int $pluginId = null;
     private ?\App\Support\PluginManager $pluginManager = null;
