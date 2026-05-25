@@ -328,12 +328,18 @@ test.describe.serial('Issue #137 — admin-configurable event image layout', () 
             await expect(fig).toBeVisible();
             const cardBox = await card.boundingBox();
             const figBox  = await fig.boundingBox();
+            // boundingBox() returns null when the element gets detached
+            // mid-measurement (e.g. a layout shift during initial paint).
+            // Assert non-null first so a future flake surfaces as a clear
+            // assertion failure instead of a TypeError reading .x on null.
+            expect(cardBox, `event-card boundingBox missing for layout=${layout}`).not.toBeNull();
+            expect(figBox,  `event-cover boundingBox missing for layout=${layout}`).not.toBeNull();
             return {
-                cardX: cardBox.x,
-                cardWidth: cardBox.width,
-                figX: figBox.x,
-                figWidth: figBox.width,
-                figHeight: figBox.height,
+                cardX:     cardBox ? cardBox.x     : 0,
+                cardWidth: cardBox ? cardBox.width : 0,
+                figX:      figBox  ? figBox.x      : 0,
+                figWidth:  figBox  ? figBox.width  : 0,
+                figHeight: figBox  ? figBox.height : 0,
             };
         }
 

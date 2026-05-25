@@ -101,13 +101,17 @@ test.describe('[STATIC] PR #139 controller + assets contract', () => {
                 report[`${lang}::${k.substring(0, 30)}`] = blob.includes(k);
             }
         }
-        const fails = Object.entries(report).filter(([k, v]) => !v && !k.startsWith('it_IT::'));
-        if (fails.length > 0) {
-            console.log('Missing locale entries:', fails.map(([k]) => k));
-        }
-        // it_IT is the source language: keys MUST appear there.
-        const itFails = Object.entries(report).filter(([k, v]) => !v && k.startsWith('it_IT::'));
-        expect(itFails).toEqual([]);
+        // The keys checked here are Italian SOURCE strings that the
+        // i18n catalog uses as map keys (value is the locale-translated
+        // form, key stays in Italian). Every locale JSON must therefore
+        // contain the same key set — a missing en_US/de_DE/fr_FR key is
+        // a real translation gap, not a translator-style preference.
+        // Fail loudly on any locale's miss so CI catches the regression.
+        const fails = Object.entries(report).filter(([, v]) => !v);
+        expect(
+            fails,
+            `Missing locale entries: ${fails.map(([k]) => k).join(', ')}`
+        ).toEqual([]);
     });
 
     // S5 — settings/index.php exposes the 4 layout choices

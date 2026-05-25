@@ -273,6 +273,30 @@ class EventsController
 
         $id = (int)($args['id'] ?? 0);
 
+        // Guard: verify the event row exists BEFORE processing the
+        // upload. Otherwise handleImageUpload() saves the file to disk
+        // first, the UPDATE …WHERE id=$id affects 0 rows (because the
+        // id is bogus or already soft-deleted), and the orphan-cleanup
+        // callsites only fire when $stmt->execute() returned false —
+        // 0-affected-rows with a successful execute is the silent gap.
+        if ($id > 0) {
+            $existsStmt = $db->prepare("SELECT id FROM events WHERE id = ? LIMIT 1");
+            if ($existsStmt instanceof \mysqli_stmt) {
+                $existsStmt->bind_param('i', $id);
+                $existsStmt->execute();
+                $existsResult = $existsStmt->get_result();
+                $existsRow = $existsResult ? $existsResult->fetch_assoc() : null;
+                $existsStmt->close();
+                if (!is_array($existsRow)) {
+                    $_SESSION['error_message'] = __('Evento non trovato.');
+                    return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
+                }
+            }
+        } else {
+            $_SESSION['error_message'] = __('Evento non trovato.');
+            return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
+        }
+
         $errors = [];
 
         // SECURITY: Sanitize plain text fields (strip all HTML tags)

@@ -376,7 +376,10 @@ function resetToDefaults() {
             }
 
             if (data.success) window.location.reload();
-            else window.SwalApp.error(undefined, data.message);
+            else window.SwalApp.error(
+                undefined,
+                data.message || <?= json_encode(__("Errore durante il ripristino"), JSON_HEX_TAG) ?>
+            );
         })
         .catch((err) => {
             console.error('Theme reset network error:', err);

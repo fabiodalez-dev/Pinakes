@@ -397,6 +397,18 @@ $csrfToken = Csrf::ensureToken();
 </div>
 
 <script>
+// Defensive error toast helper — when the SwalApp bus didn't land
+// (CDN failure, CSP, race during bundle load) we still want the user
+// to see the failure. Plain alert is ugly but better than a silent
+// promise rejection.
+function showSwalError(title, text) {
+    if (window.SwalApp && typeof window.SwalApp.error === 'function') {
+        window.SwalApp.error(title, text);
+        return;
+    }
+    alert(title + '\n\n' + text);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
 
     if (typeof Uppy === 'undefined') {
@@ -456,7 +468,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         uppyLt.on('restriction-failed', (file, error) => {
             console.error('Upload restriction failed:', error);
-            window.SwalApp.error(<?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>, error.message);
+            showSwalError(<?= json_encode(__("Errore Upload"), JSON_HEX_TAG) ?>, error.message);
         });
 
     } catch (error) {
@@ -596,7 +608,7 @@ document.addEventListener('DOMContentLoaded', function() {
         submitBtn.disabled = false;
         submitBtn.textContent = <?= json_encode(__("Importa Libri"), JSON_HEX_TAG) ?>;
 
-        window.SwalApp.error(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, message);
+        showSwalError(<?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, message);
 
         document.getElementById('import-progress-container').classList.add('hidden');
     }

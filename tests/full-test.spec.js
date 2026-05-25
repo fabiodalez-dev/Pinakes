@@ -3092,20 +3092,29 @@ test.describe.serial('Phase 21: Language Switch', () => {
 
     await page.locator(`form[action*="/${localeCode}/set-default"] button[type="submit"]`).click();
 
-    // Wait briefly to see if a SwalApp modal lands — if it does, click
-    // its confirm button to release the form. If only a native dialog
-    // fires, the handler above already accepted it.
+    // Wait for the SwalApp modal to land — if it does, click its confirm
+    // button to release the form. If only a native dialog fires, the
+    // handler above already accepted it. The 5 s window is the same
+    // budget we give other Swal-driven steps in this suite (e.g. genre
+    // delete) — 1.5 s flakes on a loaded CI runner where the modal
+    // takes >1 s to attach + paint.
     const swalConfirm = page.locator('.swal2-confirm');
     try {
-      await swalConfirm.waitFor({ state: 'visible', timeout: 1500 });
+      await swalConfirm.waitFor({ state: 'visible', timeout: 5000 });
       await swalConfirm.click();
     } catch {
       // No Swal modal — the native dialog handler above must have run
       // (or the form was submitted directly without any confirmation).
     }
-    page.removeListener('dialog', dialogHandler);
 
+    // Wait for the redirect BEFORE removing the dialog handler — on
+    // some browsers the navigation completes asynchronously and an
+    // in-flight `beforeunload` / re-fire of the native confirm can
+    // land after waitForURL returns. Keeping the handler alive across
+    // the navigation prevents a "Dialog: Confirmed" hang on the
+    // next test's first goto.
     await page.waitForURL(/admin\/languages/, { timeout: 10000 });
+    page.removeListener('dialog', dialogHandler);
     return { nativeDialogFired };
   }
 

@@ -242,30 +242,37 @@ test.describe('[ATTRIBUTE] data-swal-confirm auto-wire', () => {
     });
 
     test('B2: attachSwalConfirm is idempotent (re-run = no-op)', async ({ page }) => {
-        await loadHarness(page, { forms: FORM });
-        // Inject a tracer that counts how many listeners get added the
-        // second time. attachSwalConfirm guards via data-swal-attached.
-        const submits = await page.evaluate(() => {
-            window.SwalApp.attachSwalConfirm(); // re-run
-            window.SwalApp.attachSwalConfirm(); // and again
-            // If non-idempotent, multiple listeners fire and form.submit
-            // is called multiple times after one confirm click. We
-            // simulate the gate path manually:
-            const f = document.getElementById('f');
-            let submitCount = 0;
-            f.submit = function() { submitCount++; };
-            // Mark proceed so the listener path lets the submit through
-            f.dataset.swalProceed = '1';
-            f.requestSubmit ? f.requestSubmit() : f.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
-            // After one synthetic submit, swalProceed branch resets it
-            // and returns. submitCount should still be 0 because the
-            // listener body returns; if multiple listeners attached,
-            // each one fires the same return path — still 0 either way.
-            // The strictest signal is data-swal-attached === '1' (set
-            // once) and the listener body not double-running.
-            return { attached: f.dataset.swalAttached, submitCount };
+        await loadHarness(page, { swal: 'cancel', forms: FORM });
+        // Re-run attachSwalConfirm twice on top of the DOMContentLoaded
+        // call. If the helper is NOT idempotent, the listener stack
+        // grows on every re-attach — clicking the submit once would
+        // then trigger Swal.fire() multiple times.
+        //
+        // The strictest signal isn't `data-swal-attached === '1'`
+        // (which a buggy non-idempotent helper might still set), but
+        // the observable count of Swal.fire invocations after a real
+        // submit click. The harness installs a Swal stub that records
+        // every call into `window.__swalCalls`; one click on a single
+        // form must produce exactly ONE entry.
+        await page.evaluate(() => {
+            window.SwalApp.attachSwalConfirm();
+            window.SwalApp.attachSwalConfirm();
+            window.__swalCalls.length = 0;
         });
-        expect(submits.attached).toBe('1');
+        // Real user click — exercises the actual installed submit
+        // listener(s), not a synthetic event.
+        await page.click('#b');
+        await page.waitForTimeout(120);
+        const result = await page.evaluate(() => ({
+            attached: document.getElementById('f').dataset.swalAttached,
+            fireCount: window.__swalCalls.length,
+        }));
+        expect(result.attached).toBe('1');
+        // The crucial assertion: no listener duplication. If
+        // attachSwalConfirm registered two listeners, Swal.fire would
+        // have been called twice (each listener races to preventDefault
+        // + dispatch its own Swal modal).
+        expect(result.fireCount, 'Swal.fire must be called exactly once per submit (no duplicate listeners)').toBe(1);
     });
 
     test('B3: cancel keeps form untouched (no submit)', async ({ page }) => {

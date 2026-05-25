@@ -48,7 +48,14 @@ async function tryLoginAsAdmin(page) {
     await page.fill('input[name="password"]', ADMIN_PASS);
     await page.click('button[type="submit"]');
     try {
-        await page.waitForURL(/\/(admin|profilo)/, { timeout: 10000 });
+        // Strict admin-only match: /admin/* (with slash or end-of-path).
+        // The previous /\/(admin|profilo)/ pattern accepted /profilo
+        // too, which is the redirect target for SUCCESSFULLY logged-in
+        // non-admin users — meaning the suite's E-block tests would
+        // run on a non-admin session, hit 302/403 on /admin/*, and
+        // fail in confusing ways. Now non-admin credentials cleanly
+        // time out here and the caller falls back to `test.skip()`.
+        await page.waitForURL(/\/admin(?:\/|$)/, { timeout: 10000 });
         return true;
     } catch {
         return false;

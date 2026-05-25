@@ -16,6 +16,12 @@ $linkedUnits = $linkedUnits ?? [];
 $relations   = $relations   ?? [];
 $id          = (int) ($row['id'] ?? 0);
 $title       = (string) ($row['title'] ?? '');
+// Resolve the CSRF token ONCE per render. ensureToken() can rotate the
+// token if the session hasn't seen one yet — calling it from multiple
+// `<input value="...">` sites can hand out forms with tokens that are
+// already invalidated by a sibling form's call on the same page, and
+// those forms silently 419 on submit.
+$csrfToken   = \App\Support\Csrf::ensureToken();
 $type        = (string) ($row['activity_type'] ?? '');
 // PHPDoc declares $agent_label/$parent_label as string|null — isset+!=='' is
 // the only test we need; is_string() is redundant under the declared type.
@@ -91,7 +97,7 @@ $typeLabel = [
                 <form id="<?= $e($archivesDeleteActivityId) ?>"
                       method="POST" action="<?= $e(url('/admin/archives/activities/' . $id . '/delete')) ?>"
                       class="inline">
-                    <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                    <input type="hidden" name="csrf_token" value="<?= $e($csrfToken) ?>">
                     <button type="button"
                             onclick="archivesSwalConfirm(<?= $jsAttr($archivesDeleteActivityId) ?>, <?= $jsAttr($archivesDeleteMsg) ?>, <?= $jsAttr(__('Elimina')) ?>)"
                             class="bg-red-50 hover:bg-red-100 text-red-700 px-4 py-2 rounded text-sm font-semibold">
@@ -184,7 +190,7 @@ $typeLabel = [
                         <code class="text-xs text-gray-500 bg-gray-50 px-1 py-0.5 rounded"><?= $e($pred) ?></code>
                         <span><?= $e($relationTargetLabels[$tType] ?? $tType) ?> #<?= $tId ?></span>
                         <form id="<?= $e($relDetachId) ?>" method="POST" action="<?= $e(url('/admin/archives/relations/' . $relId . '/detach')) ?>" class="inline">
-                            <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+                            <input type="hidden" name="csrf_token" value="<?= $e($csrfToken) ?>">
                             <input type="hidden" name="_return_to" value="<?= $e('/admin/archives/activities/' . $id) ?>">
                             <button type="button"
                                     onclick="archivesSwalConfirm(<?= $jsAttr($relDetachId) ?>, <?= $jsAttr(__('Scollegare questa relazione?')) ?>, <?= $jsAttr(__('scollega')) ?>)"
@@ -200,7 +206,7 @@ $typeLabel = [
         <form method="POST" action="<?= $e(url('/admin/archives/relations/attach')) ?>"
               class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-2 text-sm"
               data-archives-relation-attach>
-            <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
+            <input type="hidden" name="csrf_token" value="<?= $e($csrfToken) ?>">
             <input type="hidden" name="source_type" value="archive_activity">
             <input type="hidden" name="source_id" value="<?= $id ?>">
             <input type="hidden" name="_return_to" value="<?= $e('/admin/archives/activities/' . $id) ?>">

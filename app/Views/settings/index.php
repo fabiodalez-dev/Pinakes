@@ -461,18 +461,26 @@ $activeTab = $activeTab ?? 'general';
               </div>
 
               <?php
-              /** @var array{image_layout: string} $eventSettings */
-              $eventImageLayout = $eventSettings['image_layout'];
+              /** @var array{image_layout?: string} $eventSettings */
               $eventImageLayoutChoices = [
                   'contained' => __('Piccola a sinistra (max 420px) — consigliato'),
                   'thumb'     => __('Miniatura affiancata al testo (240px)'),
                   'banner'    => __('Banner basso a tutta larghezza (max altezza 220px)'),
                   'full'      => __('Originale a tutta larghezza (grande)'),
               ];
+              // Null-safe read: a fresh install or a settings table that
+              // hasn't been seeded with the row yet would otherwise raise
+              // "Undefined array key 'image_layout'". Coalesce to the
+              // default preset, then validate against the allow-list so
+              // a stale/typo'd setting also falls back gracefully.
+              $eventImageLayout = (string)($eventSettings['image_layout'] ?? 'contained');
+              if (!isset($eventImageLayoutChoices[$eventImageLayout])) {
+                  $eventImageLayout = 'contained';
+              }
               ?>
               <div class="mt-5 pt-5 border-t border-gray-200">
                 <form action="<?= htmlspecialchars(url('/admin/settings/events'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-3">
-                  <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e(Csrf::ensureToken()) ?>">
+                  <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
                   <div>
                     <label for="event_image_layout" class="block text-sm font-semibold text-gray-900 mb-1">
                       <?= __("Layout immagine evento") ?>

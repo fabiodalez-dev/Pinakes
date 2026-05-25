@@ -1,7 +1,7 @@
 <?php
 /** @var \mysqli $db */
 /** @var array $event */
-/** @var string $eventImageLayout One of: full | banner | contained | thumb (default: contained) */
+/** @var string|null $eventImageLayout One of: full | banner | contained | thumb (default: contained); may be null on defensive-fallback rendering paths */
 
 use App\Support\ConfigStore;
 use App\Support\HtmlHelper;
@@ -454,8 +454,12 @@ ob_start();
     // a future controller refactor cannot leak an unknown value into
     // the DOM. Computed before the markup so the parent .event-card
     // can opt into the side-by-side grid via .event-card--thumb-layout.
-    $coverAllowed   = ['full', 'banner', 'contained', 'thumb'];
-    $coverLayout    = in_array($eventImageLayout, $coverAllowed, true) ? $eventImageLayout : 'contained';
+    $coverAllowed     = ['full', 'banner', 'contained', 'thumb'];
+    // Defense-in-depth: the controller normally injects $eventImageLayout,
+    // but null-safe-coalesce the read so a future controller refactor that
+    // skips the variable doesn't trigger an "undefined variable" notice.
+    $requestedLayout  = (string)($eventImageLayout ?? 'contained');
+    $coverLayout      = in_array($requestedLayout, $coverAllowed, true) ? $requestedLayout : 'contained';
     $hasCoverImage  = !empty($event['featured_image']);
     $cardClasses    = ['event-card'];
     if ($hasCoverImage && $coverLayout === 'thumb') {
@@ -464,10 +468,10 @@ ob_start();
 ?>
 <section class="event-section">
     <div class="container">
-        <article class="<?= HtmlHelper::e(implode(' ', $cardClasses)) ?>">
+        <article class="<?= htmlspecialchars(implode(' ', $cardClasses), ENT_QUOTES, 'UTF-8') ?>">
             <?php if ($hasCoverImage): ?>
-                <figure class="event-cover event-cover--<?= HtmlHelper::e($coverLayout) ?>" data-event-cover-layout="<?= HtmlHelper::e($coverLayout) ?>">
-                    <img src="<?= HtmlHelper::e(url($event['featured_image'])) ?>" alt="<?= HtmlHelper::e($event['title']) ?>">
+                <figure class="event-cover event-cover--<?= htmlspecialchars($coverLayout, ENT_QUOTES, 'UTF-8') ?>" data-event-cover-layout="<?= htmlspecialchars($coverLayout, ENT_QUOTES, 'UTF-8') ?>">
+                    <img src="<?= htmlspecialchars(url($event['featured_image']), ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($event['title'], ENT_QUOTES, 'UTF-8') ?>">
                 </figure>
             <?php endif; ?>
 
@@ -476,7 +480,7 @@ ob_start();
             </div>
 
             <div class="event-back">
-                <a href="<?= HtmlHelper::e(route_path('events')) ?>">
+                <a href="<?= htmlspecialchars(route_path('events'), ENT_QUOTES, 'UTF-8') ?>">
                     <i class="fas fa-arrow-left"></i>
                     <?= __("Torna alla panoramica eventi") ?>
                 </a>
