@@ -234,7 +234,16 @@ jobs:
             --workers=1
 
       - name: "[13/13] archives-pr-extended.spec.js — extended CRUD + CSRF regression"
+        # The pr-extended spec creates stub files directly via
+        # fs.writeFileSync under public/uploads/archives/documents/ to
+        # drive the IIIF rendering[] assertions. The previous step
+        # ([12/13] upload-assets) ran real uploads through Apache,
+        # which created subdirectories owned by www-data — the runner
+        # process can no longer write into them, so the test EACCES'es
+        # before the first assertion. Re-chmod the uploads tree right
+        # before this step (idempotent, no-op when already 777).
         run: |
+          sudo chmod -R 777 "${GITHUB_WORKSPACE}/public/uploads" || true
           npx playwright test tests/archives-pr-extended.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
