@@ -29,27 +29,42 @@ const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
+const DB_HOST = process.env.E2E_DB_HOST || '';
+const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
-// Build mysql CLI args safely — passing bare `-p` (when DB_PASS is empty)
-// triggers an interactive password prompt that hangs the test until timeout.
-// Only append `-p${DB_PASS}` when a password is actually set. When `sql`
-// is the empty string the `-e` flag is omitted so callers can pipe SQL
-// via stdin.
+// Build mysql CLI args safely. Connection precedence:
+//   1. TCP via -h/-P (GitHub Actions / Docker setups expose MySQL over TCP)
+//   2. Unix socket (-S) for local dev where the socket is faster than TCP
+//   3. mysql client defaults (last resort)
+// Bare `-p` (with empty DB_PASS) triggers an interactive password prompt that
+// hangs the test until timeout, so we pass the password via the MYSQL_PWD
+// environment variable instead — same approach used by archives-pr-extended,
+// archives-phase5-admin-ui, archives-phase6-oai-ric-o, archives-ric-jsonld.
 function mysqlArgs(sql, batch = false) {
-    const args = ['-u', DB_USER];
-    if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
-    if (DB_SOCKET) args.push('-S', DB_SOCKET);
-    args.push(DB_NAME);
+    const args = [];
+    if (DB_HOST) {
+        args.push('-h', DB_HOST);
+        if (DB_PORT) args.push('-P', DB_PORT);
+    } else if (DB_SOCKET) {
+        args.push('-S', DB_SOCKET);
+    }
+    args.push('-u', DB_USER, DB_NAME);
     if (batch) args.push('-N', '-B');
     if (sql !== '') args.push('-e', sql);
     return args;
 }
 function dbQuery(sql) {
-    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
+    return execFileSync('mysql', mysqlArgs(sql, true), {
+        encoding: 'utf-8', timeout: 10000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+    }).trim();
 }
 function dbExec(sql) {
-    execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000 });
+    execFileSync('mysql', mysqlArgs(sql), {
+        encoding: 'utf-8', timeout: 10000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+    });
 }
 // FK-safe cleanup — self-referencing parent_id would reject a single DELETE
 // if rows happen to be processed parent-before-child. Delete children first,
