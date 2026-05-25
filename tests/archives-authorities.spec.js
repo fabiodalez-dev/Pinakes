@@ -25,27 +25,41 @@ const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
+const DB_HOST = process.env.E2E_DB_HOST || '';
+const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
-// Build mysql CLI args safely — passing bare `-p` (when DB_PASS is empty)
-// triggers an interactive password prompt that hangs the test until timeout.
-// Only append `-p${DB_PASS}` when a password is actually set. When `sql`
-// is the empty string the `-e` flag is omitted so callers can pipe SQL
-// via stdin.
+// Build mysql CLI args safely. Connection precedence: TCP via -h/-P (CI
+// runs MySQL in a Docker container — TCP is the only reachable surface),
+// then Unix socket for local dev, then mysql client defaults. Password
+// passed via MYSQL_PWD env to avoid interactive prompts when DB_PASS is
+// empty AND keep secrets out of argv. Same pattern as the working
+// archives-pr-extended / archives-phase5-admin-ui / archives-phase6-oai
+// / archives-ric-jsonld specs.
 function mysqlArgs(sql, batch = false) {
-    const args = ['-u', DB_USER];
-    if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
-    if (DB_SOCKET) args.push('-S', DB_SOCKET);
-    args.push(DB_NAME);
+    const args = [];
+    if (DB_HOST) {
+        args.push('-h', DB_HOST);
+        if (DB_PORT) args.push('-P', DB_PORT);
+    } else if (DB_SOCKET) {
+        args.push('-S', DB_SOCKET);
+    }
+    args.push('-u', DB_USER, DB_NAME);
     if (batch) args.push('-N', '-B');
     if (sql !== '') args.push('-e', sql);
     return args;
 }
 function dbQuery(sql) {
-    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
+    return execFileSync('mysql', mysqlArgs(sql, true), {
+        encoding: 'utf-8', timeout: 10000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+    }).trim();
 }
 function dbExec(sql) {
-    execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000 });
+    execFileSync('mysql', mysqlArgs(sql), {
+        encoding: 'utf-8', timeout: 10000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+    });
 }
 
 const TAG = 'E2E_ARCHAUTH_' + Date.now();

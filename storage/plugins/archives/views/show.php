@@ -443,13 +443,22 @@ $id = (int) $row['id'];
                 <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
                 <div class="flex items-center gap-2">
                     <div class="flex-1 relative">
+                        <?php /* FIX (L2-F5): ARIA combobox/listbox/option pattern,
+                                  matching activities/show.php + places/show.php typeaheads. */ ?>
                         <input type="text" id="archives-auth-input-<?= (int) $id ?>"
                                data-typeahead-input
                                placeholder="<?= $e(__("Cerca un authority record…")) ?>"
                                autocomplete="off"
+                               role="combobox"
+                               aria-autocomplete="list"
+                               aria-expanded="false"
+                               aria-controls="archives-auth-results-<?= (int) $id ?>"
+                               aria-label="<?= $e(__('Cerca un authority record…')) ?>"
                                class="block w-full rounded-md border-gray-300 shadow-sm text-sm focus:border-blue-500 focus:ring-blue-500">
                         <input type="hidden" name="authority_id" id="archives-auth-id-<?= (int) $id ?>" required>
-                        <ul data-typeahead-results
+                        <ul id="archives-auth-results-<?= (int) $id ?>"
+                            data-typeahead-results
+                            role="listbox"
                             class="hidden absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto text-sm">
                         </ul>
                     </div>
@@ -498,6 +507,21 @@ $id = (int) $row['id'];
                 function hideResults() {
                     results.classList.add('hidden');
                     clearResults();
+                    // FIX (L2-F5): aria-expanded mirrors visible state.
+                    if (input) input.setAttribute('aria-expanded', 'false');
+                }
+
+                function showLoading() {
+                    // FIX (L2-F5): visible loading row while fetch is in flight.
+                    clearResults();
+                    var loading = document.createElement('li');
+                    loading.className = 'px-3 py-2 text-gray-500 italic';
+                    loading.setAttribute('role', 'status');
+                    loading.setAttribute('aria-live', 'polite');
+                    loading.textContent = '…';
+                    results.appendChild(loading);
+                    results.classList.remove('hidden');
+                    if (input) input.setAttribute('aria-expanded', 'true');
                 }
 
                 function renderResults(rows) {
@@ -508,6 +532,8 @@ $id = (int) $row['id'];
                         empty.textContent = noResultsMsg;
                         results.appendChild(empty);
                         results.classList.remove('hidden');
+                        // FIX (L2-F5): aria-expanded=true even on empty listbox.
+                        if (input) input.setAttribute('aria-expanded', 'true');
                         return;
                     }
                     for (var i = 0; i < rows.length; i++) {
@@ -515,6 +541,8 @@ $id = (int) $row['id'];
                         var li = document.createElement('li');
                         li.className = 'px-3 py-2 cursor-pointer hover:bg-blue-50';
                         li.dataset.id = String(r.id);
+                        // FIX (L2-F5): role=option on each result for screen readers.
+                        li.setAttribute('role', 'option');
                         var label = '[' + r.type + '] ' + r.authorised_form;
                         if (r.dates_of_existence) { label += ' (' + r.dates_of_existence + ')'; }
                         li.dataset.label = label;
@@ -522,6 +550,8 @@ $id = (int) $row['id'];
                         results.appendChild(li);
                     }
                     results.classList.remove('hidden');
+                    // FIX (L2-F5): aria-expanded mirror.
+                    if (input) input.setAttribute('aria-expanded', 'true');
                 }
 
                 function search(q) {
@@ -532,6 +562,7 @@ $id = (int) $row['id'];
                     // keeps typing, out-of-order responses to older queries
                     // get discarded instead of overwriting fresher results.
                     var snapshot = q;
+                    showLoading();  // FIX (L2-F5): visible spinner row.
                     fetch(searchUrl + '?q=' + encodeURIComponent(q), { credentials: 'same-origin' })
                         .then(function (r) { return r.ok ? r.json() : { results: [] }; })
                         .then(function (data) {
@@ -550,13 +581,69 @@ $id = (int) $row['id'];
                     debounceTimer = setTimeout(function () { search(q); }, 200);
                 });
 
-                results.addEventListener('click', function (ev) {
-                    var li = ev.target.closest('li[data-id]');
+                // FIX (L2-F5): keyboard a11y on the listbox.
+                // Mirrors activities/show.php + places/show.php pattern.
+                function selectOption(li) {
                     if (!li) return;
                     hidden.value = li.dataset.id;
                     input.value = li.dataset.label;
                     hideResults();
+                    input.focus();
+                }
+                function getOptions() {
+                    return Array.prototype.slice.call(results.querySelectorAll('li[data-id]'));
+                }
+                function setActive(idx, opts) {
+                    opts = opts || getOptions();
+                    opts.forEach(function (o) {
+                        o.classList.remove('bg-blue-100');
+                        o.removeAttribute('aria-selected');
+                        if (!o.id) o.id = 'archives-auth-opt-' + Math.random().toString(36).slice(2, 8);
+                    });
+                    if (idx < 0 || idx >= opts.length) {
+                        input.removeAttribute('aria-activedescendant');
+                        return -1;
+                    }
+                    var el = opts[idx];
+                    el.classList.add('bg-blue-100');
+                    el.setAttribute('aria-selected', 'true');
+                    input.setAttribute('aria-activedescendant', el.id);
+                    if (el.scrollIntoView) {
+                        el.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+                    }
+                    return idx;
+                }
+                var activeIdx = -1;
+
+                results.addEventListener('click', function (ev) {
+                    var li = ev.target.closest('li[data-id]');
+                    if (!li) return;
+                    selectOption(li);
                 });
+
+                input.addEventListener('keydown', function (ev) {
+                    var opts = getOptions();
+                    if (results.classList.contains('hidden') || opts.length === 0) {
+                        if (ev.key === 'Escape') hideResults();
+                        return;
+                    }
+                    if (ev.key === 'ArrowDown') {
+                        ev.preventDefault();
+                        activeIdx = setActive((activeIdx + 1) % opts.length, opts);
+                    } else if (ev.key === 'ArrowUp') {
+                        ev.preventDefault();
+                        activeIdx = setActive(activeIdx <= 0 ? opts.length - 1 : activeIdx - 1, opts);
+                    } else if (ev.key === 'Enter') {
+                        if (activeIdx >= 0 && activeIdx < opts.length) {
+                            ev.preventDefault();
+                            selectOption(opts[activeIdx]);
+                        }
+                    } else if (ev.key === 'Escape') {
+                        ev.preventDefault();
+                        hideResults();
+                    }
+                });
+                input.addEventListener('input', function () { activeIdx = -1; });
 
                 document.addEventListener('click', function (ev) {
                     if (!form.contains(ev.target)) hideResults();

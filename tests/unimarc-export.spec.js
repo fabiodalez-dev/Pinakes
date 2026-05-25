@@ -3,16 +3,16 @@
  * E2E — UNIMARC direct download endpoints (v0.7.4)
  *
  * Covers:
- *  1. GET /admin/books/{id}/unimarc.xml without auth → 403
+ *  1. GET /admin/books/{id}/unimarc.xml without auth → 401
  *  2. GET /admin/books/{id}/unimarc.xml → 200 with application/xml Content-Type
  *  3. Response body contains XML declaration
- *  4. Response contains MARC21slim namespace
+ *  4. Response contains MARCXchange namespace
  *  5. Response contains <leader> element
  *  6. Response contains UNIMARC field 001 (record ID)
  *  7. Response contains UNIMARC field 200 (title)
  *  8. Response contains UNIMARC field 801 (originating source = Pinakes)
  *  9. Content-Disposition header is attachment with .xml filename
- * 10. GET /admin/books/{id}/unimarc.mrc without auth → 403
+ * 10. GET /admin/books/{id}/unimarc.mrc without auth → 401
  * 11. GET /admin/books/{id}/unimarc.mrc → 200 with application/marc Content-Type
  * 12. ISO 2709 binary: record starts with 5-digit length
  * 13. ISO 2709 binary: record ends with 0x1D (Record Terminator)
@@ -78,10 +78,10 @@ test.describe.serial('UNIMARC direct download — v0.7.4 (17 tests)', () => {
 
     // ── Tests 1-9: UNIMARC/XML ───────────────────────────────────────────────
 
-    test('1. GET /admin/books/{id}/unimarc.xml without auth → 403', async ({ request }) => {
+    test('1. GET /admin/books/{id}/unimarc.xml without auth → 401', async ({ request }) => {
         test.skip(testBookId === 0, 'No book in DB');
         const res = await request.get(`${BASE}/admin/books/${testBookId}/unimarc.xml`);
-        expect(res.status()).toBe(403);
+        expect(res.status()).toBe(401);
     });
 
     test('2. GET /admin/books/{id}/unimarc.xml → 200 application/xml', async ({ request }) => {
@@ -105,14 +105,15 @@ test.describe.serial('UNIMARC direct download — v0.7.4 (17 tests)', () => {
         expect(body).toContain('<?xml');
     });
 
-    test('4. Response contains MARC21slim namespace', async ({ request }) => {
+    test('4. Response contains MARCXchange namespace', async ({ request }) => {
         test.skip(!ADMIN_EMAIL || !ADMIN_PASS, 'Missing admin credentials');
         test.skip(testBookId === 0, 'No book in DB');
         const res = await request.get(`${BASE}/admin/books/${testBookId}/unimarc.xml`, {
             headers: { 'Authorization': basicAuth(ADMIN_EMAIL, ADMIN_PASS) },
         });
         const body = await res.text();
-        expect(body).toContain('loc.gov/MARC21/slim');
+        expect(body).toContain('info:lc/xmlns/marcxchange-v2');
+        expect(body).toContain('type="Bibliographic"');
     });
 
     test('5. Response contains <leader> element', async ({ request }) => {
@@ -170,10 +171,10 @@ test.describe.serial('UNIMARC direct download — v0.7.4 (17 tests)', () => {
 
     // ── Tests 10-15: ISO 2709 binary ─────────────────────────────────────────
 
-    test('10. GET /admin/books/{id}/unimarc.mrc without auth → 403', async ({ request }) => {
+    test('10. GET /admin/books/{id}/unimarc.mrc without auth → 401', async ({ request }) => {
         test.skip(testBookId === 0, 'No book in DB');
         const res = await request.get(`${BASE}/admin/books/${testBookId}/unimarc.mrc`);
-        expect(res.status()).toBe(403);
+        expect(res.status()).toBe(401);
     });
 
     test('11. GET /admin/books/{id}/unimarc.mrc → 200 application/marc', async ({ request }) => {

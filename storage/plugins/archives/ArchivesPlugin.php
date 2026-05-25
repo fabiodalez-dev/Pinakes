@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 namespace App\Plugins\Archives;
 
+// Phase 1 of issue #122 (RiC-CM): pure helper class for JSON-LD output.
+// Loaded eagerly because the plugin file is included via require_once from
+// wrapper.php and there is no PSR-4 autoloader scope for plugin classes.
+require_once __DIR__ . '/RicJsonLdBuilder.php';
+
 use App\Support\HookManager;
 use App\Support\SecureLogger;
 use mysqli;
@@ -34,6 +39,48 @@ class ArchivesPlugin
     public function setPluginId(int $pluginId): void
     {
         $this->pluginId = $pluginId;
+    }
+
+    /**
+     * Validate a `_return_to` candidate against open-redirect abuse.
+     *
+     * Accepts only absolute paths starting with a single '/' (e.g.
+     * '/admin/archives/edit/42'). Rejects empty values, anything not
+     * starting with '/', and protocol-relative URLs starting with '//'
+     * (which would let an attacker redirect to '//evil.com'). The
+     * helper `url()` in app/helpers.php passes such values through
+     * unchanged, so we filter here before composing the Location header.
+     */
+    private static function safeReturnTo(?string $candidate): string
+    {
+        if (!is_string($candidate) || $candidate === '') {
+            return '/admin/archives';
+        }
+        // Must be an absolute path starting with single '/', not '//'.
+        if (!str_starts_with($candidate, '/') || str_starts_with($candidate, '//')) {
+            return '/admin/archives';
+        }
+        // FIX (L2-F11): reject path-traversal segments anywhere in the
+        // returnTo. The /admin/archives/ allow-list below is a byte-prefix
+        // check; without dot-segment rejection a value like
+        // /admin/archives/../admin/users would pass the prefix gate and
+        // the browser would then normalise the Location header to escape
+        // the intended allow-list.
+        if (preg_match('#(^|/)\.\.?(/|$)#', $candidate) === 1) {
+            return '/admin/archives';
+        }
+        // FIX F014: restrict to /admin/archives/* allow-list. A
+        // referer-controlled _return_to could otherwise redirect to any
+        // admin route (confused-deputy across plugin boundaries). The
+        // attacker would still need admin auth to land there, but the
+        // tightening removes the redirect surface entirely. Accepts
+        // exactly '/admin/archives' and any path under '/admin/archives/'.
+        if ($candidate !== '/admin/archives'
+            && !str_starts_with($candidate, '/admin/archives/')
+        ) {
+            return '/admin/archives';
+        }
+        return $candidate;
     }
 
     /**
@@ -107,6 +154,16 @@ class ArchivesPlugin
         'custodian'  => 'Custodian (conservatore)',
         'associated' => 'Associated (correlato)',
     ];
+
+    /**
+     * FIX F013: cap on parent-walk iterations in the four cycle-detection
+     * helpers (activityWouldCreateCycle, activityAncestorChainHasCycle,
+     * placeWouldCreateCycle, parentWouldCreateCycle). Raised from 100 to
+     * 1000 so a pathological tree wider than 100 levels (still extremely
+     * unlikely in real archival hierarchies, which top out around 20)
+     * doesn't silently mask a real cycle as a false negative.
+     */
+    private const MAX_HIERARCHY_DEPTH = 1000;
 
     /**
      * PluginManager::runPluginMethod() instantiates every plugin with
@@ -238,8 +295,9 @@ class ArchivesPlugin
      * Execute the DDL for archival_units, authority_records, and the
      * M:N link table. CREATE TABLE failures are logged and reported
      * via the returned 'failed' list without throwing. However, the
-     * subsequent migrateImageColumns() and migrateArchivalUnitFilesFK()
-     * calls throw RuntimeException on failure, which aborts activation.
+     * subsequent migrateImageColumns(), migrateArchivalUnitFilesFK(),
+     * and migrateAuthorityRecordsRicColumns() (FIX F019) calls throw
+     * RuntimeException on failure, which aborts activation.
      *
      * @return array{created: list<string>, failed: list<string>}
      * @throws \RuntimeException If a schema migration step fails.
@@ -247,11 +305,20 @@ class ArchivesPlugin
     public function ensureSchema(): array
     {
         $steps = [
-            'archival_units'          => self::ddlArchivalUnits(),
-            'authority_records'       => self::ddlAuthorityRecords(),
-            'archival_unit_authority' => self::ddlArchivalAuthorityLinks(),
-            'autori_authority_link'   => self::ddlAutoriAuthorityLink(),
-            'archival_unit_files'     => self::ddlArchivalUnitFiles(),
+            'archival_units'             => self::ddlArchivalUnits(),
+            'authority_records'          => self::ddlAuthorityRecords(),
+            'archival_unit_authority'    => self::ddlArchivalAuthorityLinks(),
+            'autori_authority_link'      => self::ddlAutoriAuthorityLink(),
+            'archival_unit_files'        => self::ddlArchivalUnitFiles(),
+            // RiC-CM Phase 2 (v0.7.8 — issue #122) — agents as first-class entities.
+            'archive_agent_identifiers'  => self::ddlAgentIdentifiers(),
+            'archive_agent_relations'    => self::ddlAgentRelations(),
+            // RiC-CM Phase 3 (v0.7.9 — issue #122) — Activity entities + M:N to units.
+            'archive_activities'         => self::ddlArchiveActivities(),
+            'archive_unit_activities'    => self::ddlArchiveUnitActivities(),
+            // RiC-CM Phase 4 (v0.7.10 — issue #122) — Place + polymorphic relations.
+            'archive_places'             => self::ddlArchivePlaces(),
+            'archive_relations'          => self::ddlArchiveRelations(),
         ];
         $created = [];
         $failed = [];
@@ -282,6 +349,13 @@ class ArchivesPlugin
         // If archival_unit_files was created by migrate_0.7.4 without the FK
         // (because archival_units didn't exist yet), add the FK now.
         $this->migrateArchivalUnitFilesFK();
+
+        // RiC-CM Phase 2 (v0.7.8): backfill ric_type / birth_date /
+        // death_date / place_of_origin on installs that activated the
+        // plugin pre-0.7.8 (the DDL above only fires CREATE TABLE IF
+        // NOT EXISTS, so a pre-existing authority_records table needs
+        // separate ALTER passes).
+        $this->migrateAuthorityRecordsRicColumns();
 
         return ['created' => $created, 'failed' => $failed];
     }
@@ -431,6 +505,91 @@ class ArchivesPlugin
         if ($failures !== []) {
             throw new \RuntimeException(
                 '[Archives] migrateImageColumns failed: ' . implode('; ', $failures)
+            );
+        }
+    }
+
+    /**
+     * RiC-CM Phase 2 (v0.7.8): add ric_type / birth_date / death_date /
+     * place_of_origin columns to authority_records on in-place upgrades.
+     *
+     * ddlAuthorityRecords() uses CREATE TABLE IF NOT EXISTS, so an
+     * installation that activated the plugin pre-0.7.8 already has the
+     * table without these columns; this method walks the existing
+     * schema and ALTERs each missing column individually. Idempotent:
+     * pre-checking via INFORMATION_SCHEMA skips columns already present
+     * so the migration can re-run after a partial failure.
+     *
+     * @throws \RuntimeException If any ALTER fails — callers should let
+     *                           it propagate so activation aborts.
+     */
+    private function migrateAuthorityRecordsRicColumns(): void
+    {
+        // Each entry: column name → MySQL DDL fragment (without the
+        // ALTER TABLE … ADD COLUMN prefix). The order matters: the
+        // backfill UPDATE on `type` runs only after `ric_type` exists.
+        $columns = [
+            'ric_type'        => "ENUM('Person','CorporateBody','Family','Position','Group') NOT NULL DEFAULT 'Person' AFTER type",
+            'birth_date'      => 'VARCHAR(20) NULL AFTER dates_of_existence',
+            'death_date'      => 'VARCHAR(20) NULL AFTER birth_date',
+            'place_of_origin' => 'VARCHAR(255) NULL AFTER death_date',
+        ];
+
+        // Snapshot existing columns so we issue at most one ALTER per
+        // missing one. Bail silently if the parent table doesn't exist
+        // yet — that's the fresh-install path where the CREATE TABLE
+        // step above already produced the full Phase-2 shape.
+        $existing = [];
+        $result = $this->db->query(
+            "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'authority_records'"
+        );
+        if (!($result instanceof \mysqli_result)) {
+            return;
+        }
+        while ($row = $result->fetch_assoc()) {
+            $existing[(string) $row['COLUMN_NAME']] = true;
+        }
+        $result->free();
+
+        $failures = [];
+        foreach ($columns as $col => $definition) {
+            if (isset($existing[$col])) {
+                continue;
+            }
+            $sql = 'ALTER TABLE authority_records ADD COLUMN ' . $col . ' ' . $definition;
+            try {
+                if ($this->db->query($sql) === false) {
+                    $failures[] = $col . ': ' . $this->db->error;
+                }
+            } catch (\Throwable $e) {
+                $failures[] = $col . ': ' . $e->getMessage();
+            }
+        }
+        if ($failures !== []) {
+            throw new \RuntimeException(
+                '[Archives] migrateAuthorityRecordsRicColumns failed: ' . implode('; ', $failures)
+            );
+        }
+
+        // Backfill ric_type from the ISAAR `type` column. Only touches
+        // rows still on the default 'Person' so a curator override
+        // (Position / Group) is preserved across re-runs.
+        try {
+            $this->db->query(
+                "UPDATE authority_records
+                    SET ric_type = CASE type
+                        WHEN 'person'    THEN 'Person'
+                        WHEN 'corporate' THEN 'CorporateBody'
+                        WHEN 'family'    THEN 'Family'
+                        ELSE 'Person'
+                    END
+                  WHERE ric_type = 'Person'
+                    AND type IN ('corporate', 'family')"
+            );
+        } catch (\Throwable $e) {
+            SecureLogger::warning(
+                '[Archives] migrateAuthorityRecordsRicColumns backfill failed: ' . $e->getMessage()
             );
         }
     }
@@ -828,6 +987,188 @@ class ArchivesPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->iiifCollectionAction($request, $response, (int) $args['id']);
         });
+
+        // ── RiC-O (Records in Contexts Ontology) JSON-LD ────────────────────
+        // RiC-CM (issue #122) — public, read-only endpoints that expose
+        // the ISAD(G) tree as RiC-CM entities for harvesting by Europeana,
+        // ArchivesPortalEurope and the ICA aggregator. The set has grown
+        // from Phase 1's original three (collection/unit/agents) to also
+        // include Phase 3 (activities + list) and Phase 4 (places + list).
+        // (FIX F026: prior wording undercounted as "three".)
+        // No DB changes: the data is the same as MARCXML/EAD3, only the
+        // serialisation vocabulary differs.
+
+        $app->get('/archives/collection.ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricCollectionAction($request, $response);
+        });
+
+        $app->get('/archives/{id:[0-9]+}/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricUnitAction($request, $response, (int) $args['id']);
+        });
+
+        $app->get('/archives/agents/{id:[0-9]+}/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricAgentAction($request, $response, (int) $args['id']);
+        });
+
+        // RiC-CM Phase 3 (v0.7.9 — issue #122) — Activity entities.
+        // Public, no auth: harvested by Europeana / ICA aggregators
+        // alongside the unit + agent endpoints.
+
+        $app->get('/archives/activities/{id:[0-9]+}/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricActivityAction($request, $response, (int) $args['id']);
+        });
+
+        $app->get('/archives/activities/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricActivitiesListAction($request, $response);
+        });
+
+        // RiC-CM Phase 4 (v0.7.10 — issue #122) — Place entities +
+        // polymorphic relations graph.
+
+        $app->get('/archives/places/{id:[0-9]+}/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricPlaceAction($request, $response, (int) $args['id']);
+        });
+
+        $app->get('/archives/places/ric.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->ricPlacesListAction($request, $response);
+        });
+
+        // ── RiC-CM Phase 5 (v0.7.12 — issue #122) — Admin UI ─── (FIX F023)
+        // CRUD for archive_activities, archive_places, and the
+        // polymorphic archive_relations + the cross-entity autocomplete
+        // helper. All routes behind AdminAuthMiddleware; writes also
+        // protected by CsrfMiddleware.
+
+        // Activities CRUD.
+        $app->get('/admin/archives/activities', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityIndexAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/activities/new', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityNewAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/activities/new', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityStoreAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->get('/admin/archives/activities/{id:[0-9]+}', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityShowAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/activities/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityEditAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/activities/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityUpdateAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post('/admin/archives/activities/{id:[0-9]+}/delete', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->activityDestroyAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // Places CRUD.
+        $app->get('/admin/archives/places', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeIndexAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/places/new', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeNewAction($request, $response);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/places/new', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeStoreAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->get('/admin/archives/places/{id:[0-9]+}', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeShowAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->get('/admin/archives/places/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeEditAction($request, $response, (int) $args['id']);
+        })->add($adminMiddleware);
+
+        $app->post('/admin/archives/places/{id:[0-9]+}/edit', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeUpdateAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post('/admin/archives/places/{id:[0-9]+}/delete', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->placeDestroyAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // Polymorphic relations attach/detach.
+        $app->post('/admin/archives/relations/attach', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->relationAttachAction($request, $response);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        $app->post('/admin/archives/relations/{id:[0-9]+}/detach', function (
+            ServerRequestInterface $request, ResponseInterface $response, array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->relationDetachAction($request, $response, (int) $args['id']);
+        })->add($csrfMiddleware)->add($adminMiddleware);
+
+        // Cross-entity autocomplete (used by the predicate-picker JS).
+        $app->get('/api/archives/entities', function (
+            ServerRequestInterface $request, ResponseInterface $response
+        ) use ($plugin): ResponseInterface {
+            return $plugin->entitiesAutocompleteAction($request, $response);
+        })->add($adminMiddleware);
 
         // Import form (GET) + submit (POST multipart/form-data)
         $app->get('/admin/archives/import', function (
@@ -1284,6 +1625,9 @@ class ArchivesPlugin
                 ['rel' => 'alternate', 'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
                  'title' => 'IIIF Manifest',
                  'href' => absoluteUrl('/archives/' . $id . '/manifest.json')],
+                ['rel' => 'alternate', 'type' => 'application/ld+json',
+                 'title' => 'RiC-O (Records in Contexts)',
+                 'href' => absoluteUrl('/archives/' . $id . '/ric.json')],
             ],
         ]);
     }
@@ -1417,21 +1761,70 @@ class ArchivesPlugin
         ResponseInterface $response,
         int $id
     ): ResponseInterface {
-        $stmt = $this->db->prepare(
-            'UPDATE archival_units SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
-        );
-        if ($stmt === false) {
-            SecureLogger::error('[Archives] delete prepare failed: ' . $this->db->error, ['id' => $id]);
-            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F032 */)->withStatus(303);
+        // F010: wrap soft-delete + Phase 4 / Phase 3 sweeps in a single
+        // transaction so the row state and the dependent edge tables are
+        // mutated atomically. Without this, a failure between UPDATE and
+        // DELETE would leave dangling polymorphic edges pointing at a
+        // soft-deleted unit.
+        $db = $this->db;
+        $wasInTransaction = false;
+        $acRes = $db->query('SELECT @@autocommit AS ac');
+        if ($acRes instanceof \mysqli_result) {
+            $acRow = $acRes->fetch_assoc();
+            $acRes->free();
+            $wasInTransaction = ((int) ($acRow['ac'] ?? 1) === 0);
         }
-        $stmt->bind_param('i', $id);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[Archives] destroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+        if (!$wasInTransaction) { $db->begin_transaction(); }
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE archival_units SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($stmt === false) {
+                SecureLogger::error('[Archives] delete prepare failed: ' . $this->db->error, ['id' => $id]);
+                if (!$wasInTransaction) { $db->rollback(); }
+                return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F032 */)->withStatus(303);
+            }
+            $stmt->bind_param('i', $id);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[Archives] destroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+                $stmt->close();
+                if (!$wasInTransaction) { $db->rollback(); }
+                return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F032 */)
+                    ->withStatus(303);
+            }
             $stmt->close();
-            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F032 */)
-                ->withStatus(303);
+
+            // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+            // Hard-delete relations whose endpoint is this soft-deleted entity, in
+            // both source and target positions.
+            $relSweep = $this->db->prepare(
+                'DELETE FROM archive_relations
+                   WHERE (source_type = ? AND source_id = ?)
+                      OR (target_type = ? AND target_id = ?)'
+            );
+            if ($relSweep !== false) {
+                $entType = 'archival_unit';
+                $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+                $relSweep->execute();
+                $relSweep->close();
+            }
+            // Also sweep archive_unit_activities link rows for this archival_unit.
+            // F001 (re-review): column is `unit_id` per migrate_0.7.9.sql / ddlArchiveUnitActivities,
+            // NOT `archival_unit_id` — the wrong name failed silently with MySQL 1054.
+            $auaSweep = $this->db->prepare('DELETE FROM archive_unit_activities WHERE unit_id = ?');
+            if ($auaSweep !== false) {
+                $auaSweep->bind_param('i', $id);
+                $auaSweep->execute();
+                $auaSweep->close();
+            }
+
+            if (!$wasInTransaction) { $db->commit(); }
+        } catch (\Throwable $e) {
+            if (!$wasInTransaction) { $db->rollback(); }
+            SecureLogger::error('[Archives] destroyAction transaction failed: ' . $e->getMessage(), ['id' => $id]);
+            // continue degraded — soft-delete + sweep both rolled back together
         }
-        $stmt->close();
+
         return $response->withHeader('Location', url('/admin/archives') /* FIX F032 */)->withStatus(303);
     }
 
@@ -1530,8 +1923,23 @@ class ArchivesPlugin
                 : '/uploads/archives/documents/';
             if (str_starts_with($currentPath, $allowedPrefix)) {
                 $fsPath = __DIR__ . '/../../../public' . $currentPath;
-                if (is_file($fsPath)) {
-                    @unlink($fsPath);
+                /* FIX F007: realpath containment — defend against symlinks
+                 * or relative segments slipping past the str_starts_with
+                 * gate. Resolve both the allowed root and the candidate
+                 * file; only unlink if the resolved path still lies
+                 * strictly inside the allowed root. */
+                $allowedRealRoot = realpath(__DIR__ . '/../../../public' . rtrim($allowedPrefix, '/'));
+                $resolvedPath = realpath($fsPath);
+                if ($allowedRealRoot === false || $resolvedPath === false
+                    || !str_starts_with($resolvedPath, $allowedRealRoot . DIRECTORY_SEPARATOR)) {
+                    SecureLogger::error('[Archives] removeAssetAction: realpath containment failure /* FIX F007 */', [
+                        'type' => $type,
+                        'currentPath' => $currentPath,
+                        'resolved' => $resolvedPath !== false ? $resolvedPath : '(false)',
+                        'allowedRoot' => $allowedRealRoot !== false ? $allowedRealRoot : '(false)',
+                    ]);
+                } elseif (is_file($resolvedPath)) {
+                    @unlink($resolvedPath);
                 }
             } else {
                 SecureLogger::warning('[Archives] skip unlink — disallowed path prefix', [
@@ -1575,14 +1983,14 @@ class ArchivesPlugin
         $key = $kind === 'cover' ? 'cover' : 'document';
         $upload = $files[$key] ?? null;
         if (!($upload instanceof \Psr\Http\Message\UploadedFileInterface)) {
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
         if ($upload->getError() !== UPLOAD_ERR_OK) {
             SecureLogger::warning('[Archives] upload error', ['kind' => $kind, 'err' => $upload->getError()]);
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
         if ($upload->getSize() !== null && $upload->getSize() > $maxBytes) {
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
 
         // Detect mime via finfo — the browser-provided Content-Type is
@@ -1620,7 +2028,7 @@ class ArchivesPlugin
             SecureLogger::warning('[Archives] upload rejected — mime not in allow-list', [
                 'kind' => $kind, 'mime' => $mime,
             ]);
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
         $ext = $mimeToExt[$mime];
 
@@ -1635,10 +2043,24 @@ class ArchivesPlugin
         $existingPathField = $kind === 'cover' ? 'cover_image_path' : 'document_path';
         $existingPath = (string) ($row[$existingPathField] ?? '');
         if ($kind === 'cover' && $existingPath !== '') {
-            $oldFs = __DIR__ . '/../../../public' . $existingPath;
-            if (is_file($oldFs)) {
-                @unlink($oldFs);
+            // FIX (L6-F1): realpath containment check before unlink, matching
+            // removeAssetAction's F007 fix. The path comes from the DB row;
+            // a future bypass that seeds a row with /uploads/archives/covers/../../etc
+            // would pass the path-prefix check yet resolve to an arbitrary file.
+            // Reject anything that doesn't resolve under the allowed root.
+            $allowedRealRoot = realpath(__DIR__ . '/../../../public/uploads/archives/covers');
+            $oldFs           = __DIR__ . '/../../../public' . $existingPath;
+            $resolvedOldFs   = realpath($oldFs);
+            if ($allowedRealRoot !== false
+                && $resolvedOldFs !== false
+                && str_starts_with($resolvedOldFs, $allowedRealRoot . DIRECTORY_SEPARATOR)
+                && is_file($resolvedOldFs)
+            ) {
+                @unlink($resolvedOldFs);
             }
+            // Note: missing-file (realpath()==false) silently skips — that's
+            // the legitimate "file already gone" case, not a containment
+            // failure worth logging.
         }
 
         $targetDirRel = $kind === 'cover'
@@ -1652,9 +2074,12 @@ class ArchivesPlugin
                 'kind' => $kind,
                 'dir'  => $targetDirFs,
             ]);
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
-        $basename = $id . '-' . bin2hex(random_bytes(4)) . '.' . $ext;
+        // FIX F015: 64-bit entropy (was 32-bit / random_bytes(4)) so the
+        // basename remains collision-resistant even at scale within a
+        // single archival_unit's upload set.
+        $basename = $id . '-' . bin2hex(random_bytes(8)) . '.' . $ext;
         try {
             $upload->moveTo($targetDirFs . '/' . $basename);
         } catch (\Throwable $e) {
@@ -1663,7 +2088,7 @@ class ArchivesPlugin
                 'dest' => $targetDirFs . '/' . $basename,
                 'err'  => $e->getMessage(),
             ]);
-            return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+            return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
         }
         $relPath = $targetDirRel . '/' . $basename;
 
@@ -1704,10 +2129,18 @@ class ArchivesPlugin
                     // committed and the legacy columns are cleared, the old
                     // file on disk is orphaned and safe to unlink. Done last
                     // so an earlier failure leaves the legacy file intact.
+                    // FIX (L6-F1 sibling): realpath containment as in
+                    // removeAssetAction (F007) and the cover predecessor unlink.
                     if ($existingPath !== '') {
-                        $oldFs = __DIR__ . '/../../../public' . $existingPath;
-                        if (is_file($oldFs)) {
-                            @unlink($oldFs);
+                        $allowedDocRoot = realpath(__DIR__ . '/../../../public/uploads/archives/documents');
+                        $oldFs          = __DIR__ . '/../../../public' . $existingPath;
+                        $resolvedOldFs  = realpath($oldFs);
+                        if ($allowedDocRoot !== false
+                            && $resolvedOldFs !== false
+                            && str_starts_with($resolvedOldFs, $allowedDocRoot . DIRECTORY_SEPARATOR)
+                            && is_file($resolvedOldFs)
+                        ) {
+                            @unlink($resolvedOldFs);
                         }
                     }
                 } else {
@@ -1723,7 +2156,7 @@ class ArchivesPlugin
                 }
             }
         }
-        return $response->withHeader('Location', '/admin/archives/' . $id)->withStatus(303);
+        return $response->withHeader('Location', url('/admin/archives/' . $id) /* FIX F011 */)->withStatus(303);
     }
 
     /**
@@ -1987,6 +2420,11 @@ class ArchivesPlugin
             'links'           => $links,
             'linked_autori'   => $this->fetchAutoriForAuthority($id),
             'available_autori'=> $this->searchAutori('', 100),
+            'headLinks'       => [
+                ['rel' => 'alternate', 'type' => 'application/ld+json',
+                 'title' => 'RiC-O (Records in Contexts)',
+                 'href' => absoluteUrl('/archives/agents/' . $id . '/ric.json')],
+            ],
         ]);
     }
 
@@ -2104,21 +2542,70 @@ class ArchivesPlugin
         ResponseInterface $response,
         int $id
     ): ResponseInterface {
-        $stmt = $this->db->prepare(
-            'UPDATE authority_records SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
-        );
-        if ($stmt === false) {
-            SecureLogger::error('[Archives] authority delete prepare failed: ' . $this->db->error, ['id' => $id]);
-            return $response->withHeader('Location', url('/admin/archives/authorities/' . $id) /* FIX F032 */)->withStatus(303);
+        // F010: wrap soft-delete + Phase 4 / Phase 2 sweeps in a single
+        // transaction so dangling polymorphic / agent-to-agent edges cannot
+        // survive a partial failure mid-sweep.
+        $db = $this->db;
+        $wasInTransaction = false;
+        $acRes = $db->query('SELECT @@autocommit AS ac');
+        if ($acRes instanceof \mysqli_result) {
+            $acRow = $acRes->fetch_assoc();
+            $acRes->free();
+            $wasInTransaction = ((int) ($acRow['ac'] ?? 1) === 0);
         }
-        $stmt->bind_param('i', $id);
-        if (!$stmt->execute()) {
-            SecureLogger::error('[Archives] authorityDestroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+        if (!$wasInTransaction) { $db->begin_transaction(); }
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE authority_records SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($stmt === false) {
+                SecureLogger::error('[Archives] authority delete prepare failed: ' . $this->db->error, ['id' => $id]);
+                if (!$wasInTransaction) { $db->rollback(); }
+                return $response->withHeader('Location', url('/admin/archives/authorities/' . $id) /* FIX F032 */)->withStatus(303);
+            }
+            $stmt->bind_param('i', $id);
+            if (!$stmt->execute()) {
+                SecureLogger::error('[Archives] authorityDestroyAction execute failed: ' . $stmt->error, ['id' => $id]);
+                $stmt->close();
+                if (!$wasInTransaction) { $db->rollback(); }
+                return $response->withHeader('Location', url('/admin/archives/authorities/' . $id) /* FIX F032 */)
+                    ->withStatus(303);
+            }
             $stmt->close();
-            return $response->withHeader('Location', url('/admin/archives/authorities/' . $id) /* FIX F032 */)
-                ->withStatus(303);
+
+            // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+            // Hard-delete relations whose endpoint is this soft-deleted entity, in
+            // both source and target positions.
+            $relSweep = $this->db->prepare(
+                'DELETE FROM archive_relations
+                   WHERE (source_type = ? AND source_id = ?)
+                      OR (target_type = ? AND target_id = ?)'
+            );
+            if ($relSweep !== false) {
+                $entType = 'authority_record';
+                $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+                $relSweep->execute();
+                $relSweep->close();
+            }
+
+            // F002 (re-review): Phase 2 archive_agent_relations sweep — when an authority is soft-deleted,
+            // its agent↔agent edges (where it appears as agent_id OR related_id) must be cleared too.
+            $agentRelSweep = $this->db->prepare(
+                'DELETE FROM archive_agent_relations WHERE agent_id = ? OR related_id = ?'
+            );
+            if ($agentRelSweep !== false) {
+                $agentRelSweep->bind_param('ii', $id, $id);
+                $agentRelSweep->execute();
+                $agentRelSweep->close();
+            }
+
+            if (!$wasInTransaction) { $db->commit(); }
+        } catch (\Throwable $e) {
+            if (!$wasInTransaction) { $db->rollback(); }
+            SecureLogger::error('[Archives] authorityDestroyAction transaction failed: ' . $e->getMessage(), ['id' => $id]);
+            // continue degraded — soft-delete + sweep both rolled back together
         }
-        $stmt->close();
+
         return $response->withHeader('Location', url('/admin/archives/authorities') /* FIX F032 */)->withStatus(303);
     }
 
@@ -2187,7 +2674,7 @@ class ArchivesPlugin
             $stmt->close();
         }
         return $response
-            ->withHeader('Location', '/admin/archives/' . $archivalUnitId)
+            ->withHeader('Location', url('/admin/archives/' . $archivalUnitId) /* FIX F010 */)
             ->withStatus(303);
     }
 
@@ -2322,7 +2809,12 @@ class ArchivesPlugin
             }
             return $rows;
         }
-        $like = '%' . $q . '%';
+        // FIX (L2-F6): escape LIKE wildcards `%`/`_`/`\\` in user input so a
+        // raw `%` or `_` cannot enumerate the whole `autori` table by
+        // collapsing the predicate to `LIKE '%%%'` or matching any
+        // single-char name. Mirrors the addcslashes pattern applied at
+        // CQL parser (3510) and searchArchivalUnits (4679).
+        $like = '%' . addcslashes($q, '%_\\') . '%';
         $stmt = $this->db->prepare('SELECT id, nome FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT ?');
         if ($stmt === false) {
             return $rows;
@@ -2368,25 +2860,45 @@ class ArchivesPlugin
     private function fetchArchivalUnitsForAuthority(int $authorityId): array
     {
         $rows = [];
+        // adamsreview F002: formal_title is the fallback preferTitle() reads
+        // when constructed_title is empty — must be selected so the fallback
+        // is not dead code on units lacking a constructed title.
+        //
+        // CodeRabbit R4: shared helper — silent-degrade on DB error (the
+        // pre-RiC contract used by admin HTML views, MARCXML/EAD3/METS
+        // exporters, the OAI provider, and the IIIF manifest builder).
+        // The R2 strict-throw behaviour broke those non-RiC callers by
+        // surfacing raw exceptions to Slim's default error handler when
+        // each format had its own error-envelope semantics. RiC callers
+        // detect the failure via mysqli error state immediately after
+        // the call (see fetchSharedAuthoritiesForRic helpers below).
         $stmt = $this->db->prepare(
-            'SELECT au.id, au.reference_code, au.level, au.constructed_title, aua.role
+            'SELECT au.id, au.reference_code, au.level, au.constructed_title, au.formal_title, aua.role
                FROM archival_unit_authority aua
                JOIN archival_units au ON au.id = aua.archival_unit_id AND au.deleted_at IS NULL
               WHERE aua.authority_id = ?
               ORDER BY FIELD(au.level,\'fonds\',\'series\',\'file\',\'item\'), au.reference_code'
         );
         if ($stmt === false) {
+            SecureLogger::error('[Archives] fetchArchivalUnitsForAuthority prepare failed: ' . $this->db->error);
             return $rows;
         }
         $stmt->bind_param('i', $authorityId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result instanceof \mysqli_result) {
-            while ($row = $result->fetch_assoc()) {
-                $rows[] = $row;
-            }
-            $result->free();
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] fetchArchivalUnitsForAuthority execute failed: ' . $stmt->error);
+            $stmt->close();
+            return $rows;
         }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            SecureLogger::error('[Archives] fetchArchivalUnitsForAuthority get_result failed: ' . $this->db->error);
+            $stmt->close();
+            return $rows;
+        }
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $result->free();
         $stmt->close();
         return $rows;
     }
@@ -2399,25 +2911,38 @@ class ArchivesPlugin
     public function fetchAuthoritiesForArchivalUnit(int $archivalUnitId): array
     {
         $rows = [];
+        // CodeRabbit R4: shared helper — silent-degrade on DB error. See
+        // fetchArchivalUnitsForAuthority above for the rationale. The RiC
+        // endpoints use the *ForRic strict wrappers further down.
         $stmt = $this->db->prepare(
-            'SELECT ar.id, ar.type, ar.authorised_form, ar.dates_of_existence, aua.role
+            'SELECT ar.id, ar.type, ar.authorised_form, ar.dates_of_existence,
+                    ar.parallel_forms, ar.other_forms, ar.history, ar.functions,
+                    ar.places, aua.role
                FROM archival_unit_authority aua
                JOIN authority_records ar ON ar.id = aua.authority_id AND ar.deleted_at IS NULL
               WHERE aua.archival_unit_id = ?
               ORDER BY ar.authorised_form'
         );
         if ($stmt === false) {
+            SecureLogger::error('[Archives] fetchAuthoritiesForArchivalUnit prepare failed: ' . $this->db->error);
             return $rows;
         }
         $stmt->bind_param('i', $archivalUnitId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result instanceof \mysqli_result) {
-            while ($row = $result->fetch_assoc()) {
-                $rows[] = $row;
-            }
-            $result->free();
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] fetchAuthoritiesForArchivalUnit execute failed: ' . $stmt->error);
+            $stmt->close();
+            return $rows;
         }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            SecureLogger::error('[Archives] fetchAuthoritiesForArchivalUnit get_result failed: ' . $this->db->error);
+            $stmt->close();
+            return $rows;
+        }
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $result->free();
         $stmt->close();
         return $rows;
     }
@@ -2768,6 +3293,14 @@ class ArchivesPlugin
                             'type' => 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"',
                             'title' => 'IIIF Manifest',
                             'href' => absoluteUrl('/archives/' . $unitId . '/manifest.json')];
+            // CodeRabbit #1: the public archive page was missing the RiC-O
+            // alternate link that the admin detail page already exposes.
+            // Without it, an HTTP harvester crawling the public URL cannot
+            // discover the JSON-LD serialisation via <link> tags.
+            $headLinks[] = ['rel' => 'alternate',
+                            'type' => 'application/ld+json',
+                            'title' => 'RiC-O (Records in Contexts)',
+                            'href' => absoluteUrl('/archives/' . $unitId . '/ric.json')];
         }
 
         $layoutPath = __DIR__ . '/../../../app/Views/frontend/layout.php';
@@ -3048,9 +3581,12 @@ class ArchivesPlugin
         if (!isset($columnMap[$index])) {
             return null;
         }
+        // FIX F006: escape LIKE wildcards (% _ \) in user-supplied CQL term
+        // so a query like `title="%"` cannot enumerate the entire fonds.
+        // Mirrors the addcslashes pattern in entitiesAutocompleteAction.
         return [
             'sql'    => $columnMap[$index] . ' LIKE ?',
-            'params' => ['%' . $value . '%'],
+            'params' => ['%' . addcslashes($value, '%_\\') . '%'],
         ];
     }
 
@@ -4217,7 +4753,9 @@ class ArchivesPlugin
         // Pass 1 — LIKE on reference_code. Short codes ("IT-MI-001", "1943")
         // are below MySQL's ft_min_word_len threshold and would never surface
         // in a FULLTEXT query, so we always probe reference_code with LIKE first.
-        $pattern = '%' . $q . '%';
+        // FIX F006: escape LIKE wildcards in user input to prevent
+        // wildcard-injection enumeration (q=% returning everything).
+        $pattern = '%' . addcslashes($q, '%_\\') . '%';
         $stmt = $this->db->prepare(
             'SELECT id, reference_code, level, constructed_title, formal_title,
                     date_start, date_end, extent
@@ -4468,7 +5006,7 @@ class ArchivesPlugin
         }
         $current = $proposedParentId;
         $visited = [];
-        for ($i = 0; $i < 100; $i++) {
+        for ($i = 0; $i < self::MAX_HIERARCHY_DEPTH; $i++) /* FIX F013 */ {
             if ($current === $childId) {
                 $stmt->close();
                 return true;
@@ -4836,7 +5374,7 @@ class ArchivesPlugin
             ]];
         }
 
-        // seeAlso: other serialisations (DC, EAD3, METS, OAI-PMH, external IIIF)
+        // seeAlso: other serialisations (DC, EAD3, METS, OAI-PMH, RiC-O, external IIIF)
         $manifest['seeAlso'] = [
             ['id'     => $base . '/archives/' . $id . '/dc.xml',
              'type'   => 'Dataset', 'format' => 'application/xml',
@@ -4849,6 +5387,10 @@ class ArchivesPlugin
              'type'   => 'Dataset', 'format' => 'application/xml',
              'profile' => 'http://www.loc.gov/METS/',
              'label'  => ['en' => ['METS package']]],
+            ['id'     => $base . '/archives/' . $id . '/ric.json',
+             'type'   => 'Dataset', 'format' => 'application/ld+json',
+             'profile' => 'https://www.ica.org/standards/RiC/ontology',
+             'label'  => ['en' => ['RiC-O (Records in Contexts)']]],
             ['id'     => $base . '/archives/oai?verb=GetRecord&metadataPrefix=oai_dc&identifier=oai:pinakes:archival_unit:' . $id,
              'type'   => 'Dataset', 'format' => 'text/xml',
              'label'  => ['en' => ['OAI-PMH record']]],
@@ -5222,6 +5764,2460 @@ class ArchivesPlugin
         return $response
             ->withHeader('Content-Type', 'application/ld+json;profile="http://iiif.io/api/presentation/3/context.json"')
             ->withHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    // ── RiC-O (Records in Contexts Ontology) JSON-LD ────────────────────────
+    //
+    // Phase 1 of issue #122: read-only export of archival_units and
+    // authority_records as RiC-CM entities. No DB schema changes. The
+    // heavy lifting lives in RicJsonLdBuilder (pure, namespaced helper
+    // class) so this method stays small and PHPStan-friendly.
+    //
+    // RiC-O: https://www.ica.org/standards/RiC/ontology
+
+    /**
+     * GET /archives/{id}/ric.json — RiC-O JSON-LD for one archival_unit.
+     *
+     * Public route (no auth). Mirrors the visibility of /archives/{id}/dc.xml.
+     */
+    public function ricUnitAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        // CodeRabbit #2: distinguish "missing" from "DB error" — both yield
+        // null from findById() today, which would 404 a harvester that's
+        // actually hitting a database problem. Use the discriminated lookup.
+        $lookup = $this->findUnitForRic($id);
+        if ($lookup['status'] === 'error') {
+            SecureLogger::error('[Archives] ricUnitAction DB error: ' . $lookup['message']);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+        if ($lookup['status'] === 'missing') {
+            return $this->ricJsonError($response, 404, 'not_found',
+                'Archival unit ' . $id . ' does not exist or has been removed.');
+        }
+        $row = $lookup['row'];
+
+        // CodeRabbit R4: the shared helper fetchAuthoritiesForArchivalUnit
+        // silent-degrades on DB error (preserves non-RiC exporter
+        // contracts). For RiC we need to surface the failure as a
+        // proper 500 — check mysqli error state immediately after the
+        // call to detect it. The RiC-only fetchDirectChildren still
+        // throws because no non-RiC caller exists.
+        try {
+            $authorities = $this->fetchAuthoritiesForArchivalUnit($id);
+            if ($this->db->errno !== 0) {
+                throw new \RuntimeException(
+                    '[Archives] fetchAuthoritiesForArchivalUnit failed: ' . $this->db->error
+                );
+            }
+            $children   = $this->fetchDirectChildren($id);
+            // RiC-CM Phase 3 (v0.7.9): activities linked to this unit.
+            $activities = $this->fetchActivitiesForUnit($id);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[Archives] ricUnitAction secondary fetch failed: ' . $e->getMessage());
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildUnit($row, $authorities, $children, $activities);
+        $doc     = $this->attachRelationsToRicDoc($doc, 'archival_unit', $id, $builder);
+
+        return $this->ricJsonResponse($response, $doc, $builder->unitIri($id));
+    }
+
+    /**
+     * GET /archives/collection.ric.json — synthetic RecordSet that
+     * aggregates all top-level fonds. Public route.
+     */
+    public function ricCollectionAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        // CodeRabbit #3: an empty 200 on DB failure would look identical to
+        // a real "no fonds yet" response — harvesters cannot tell the two
+        // apart and would treat a transient outage as repository emptying.
+        // Bail with 500 the moment the query returns false.
+        $result = $this->db->query(
+            "SELECT id, level, constructed_title, formal_title
+               FROM archival_units
+              WHERE parent_id IS NULL AND deleted_at IS NULL AND level = 'fonds'
+              ORDER BY reference_code"
+        );
+        if (!($result instanceof \mysqli_result)) {
+            SecureLogger::error('[Archives] ricCollectionAction DB error: ' . $this->db->error);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+
+        $rootUnits = [];
+        while ($r = $result->fetch_assoc()) {
+            $rootUnits[] = $r;
+        }
+        $result->free();
+
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildCollection($rootUnits);
+
+        return $this->ricJsonResponse(
+            $response,
+            $doc,
+            rtrim(absoluteUrl(''), '/') . '/archives/collection.ric.json'
+        );
+    }
+
+    /**
+     * GET /archives/agents/{id}/ric.json — RiC-O JSON-LD for one
+     * authority_record (Agent). Public route.
+     */
+    public function ricAgentAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        // CodeRabbit #2: same as ricUnitAction — disambiguate missing vs DB error.
+        $lookup = $this->findAuthorityForRic($id);
+        if ($lookup['status'] === 'error') {
+            SecureLogger::error('[Archives] ricAgentAction DB error: ' . $lookup['message']);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+        if ($lookup['status'] === 'missing') {
+            return $this->ricJsonError($response, 404, 'not_found',
+                'Authority record ' . $id . ' does not exist or has been removed.');
+        }
+        $auth = $lookup['row'];
+
+        // CodeRabbit R4: fetchArchivalUnitsForAuthority silent-degrades
+        // (used also by authorityShowAction admin view) — check mysqli
+        // error state to translate failure into 500. collectSameAsForAuthority
+        // and fetchAgentRelations are RiC-only and throw directly.
+        try {
+            $linkedUnits = $this->fetchArchivalUnitsForAuthority($id);
+            if ($this->db->errno !== 0) {
+                throw new \RuntimeException(
+                    '[Archives] fetchArchivalUnitsForAuthority failed: ' . $this->db->error
+                );
+            }
+            $sameAs         = $this->collectSameAsForAuthority($id);
+            // RiC-CM Phase 2 (v0.7.8): Agent → Agent relations.
+            $agentRelations = $this->fetchAgentRelations($id);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[Archives] ricAgentAction secondary fetch failed: ' . $e->getMessage());
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildAuthority($auth, $linkedUnits, $sameAs, $agentRelations);
+        $doc     = $this->attachRelationsToRicDoc($doc, 'authority_record', $id, $builder);
+
+        return $this->ricJsonResponse($response, $doc, $builder->agentIri($id));
+    }
+
+    /**
+     * GET /archives/activities/{id}/ric.json — RiC-O JSON-LD for one
+     * `archive_activities` row (RiC-CM Phase 3 — v0.7.9). Public route.
+     */
+    public function ricActivityAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $lookup = $this->findActivityForRic($id);
+        if ($lookup['status'] === 'error') {
+            SecureLogger::error('[Archives] ricActivityAction DB error: ' . $lookup['message']);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+        if ($lookup['status'] === 'missing') {
+            return $this->ricJsonError($response, 404, 'not_found',
+                'Archive activity ' . $id . ' does not exist or has been removed.');
+        }
+        $row = $lookup['row'];
+
+        try {
+            $unitLinks = $this->fetchUnitsForActivity($id);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[Archives] ricActivityAction secondary fetch failed: ' . $e->getMessage());
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildActivity($row, $unitLinks);
+        $doc     = $this->attachRelationsToRicDoc($doc, 'archive_activity', $id, $builder);
+        return $this->ricJsonResponse($response, $doc, $builder->activityIri($id));
+    }
+
+    /**
+     * GET /archives/activities/ric.json — synthetic RiC-O collection
+     * listing all top-level activities (the ones with parent_id IS
+     * NULL). Phase 3 (v0.7.9). Public route.
+     */
+    public function ricActivitiesListAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        // FIX F042: cap unbounded scan on public unauthenticated endpoint.
+        // 500 fits the published RiC-O collection ceiling and prevents a
+        // single request from materialising the entire activities table.
+        $result = $this->db->query(
+            'SELECT id, title, activity_type
+               FROM archive_activities
+              WHERE parent_id IS NULL AND deleted_at IS NULL
+              ORDER BY activity_type, title
+              LIMIT 500'
+        );
+        if (!($result instanceof \mysqli_result)) {
+            // archive_activities table may legitimately not exist on
+            // installs that activated the plugin pre-0.7.9 and never
+            // re-ran ensureSchema. Treat as empty list (200) rather
+            // than 500 — the table will appear on the next plugin
+            // re-activation or auto-update.
+            if ($this->db->errno === 1146) {
+                $rows = [];
+            } else {
+                SecureLogger::error('[Archives] ricActivitiesListAction DB error: ' . $this->db->error);
+                return $this->ricJsonError($response, 500, 'persistence_error',
+                    'A persistence error prevented the request from being served.');
+            }
+        } else {
+            $rows = [];
+            while ($r = $result->fetch_assoc()) {
+                $rows[] = $r;
+            }
+            $result->free();
+        }
+
+        // Use the existing collection builder pattern via the helper —
+        // emit a ric:RecordSet-style aggregator pointing at each
+        // top-level activity. We avoid teaching the builder a separate
+        // method by hand-rolling the document here.
+        $builder = $this->makeRicBuilder();
+        $parts   = [];
+        foreach ($rows as $r) {
+            $aid = (int) ($r['id'] ?? 0);
+            if ($aid <= 0) {
+                continue;
+            }
+            $node = [
+                '@id'   => $builder->activityIri($aid),
+                '@type' => 'ric:Activity',
+            ];
+            $title = (string) ($r['title'] ?? '');
+            if ($title !== '') {
+                $node['rdfs:label'] = $title;
+            }
+            $aType = (string) ($r['activity_type'] ?? '');
+            if ($aType !== '') {
+                $node['ric:type'] = $aType;
+            }
+            $parts[] = $node;
+        }
+        $base = rtrim(absoluteUrl(''), '/');
+        $doc = [
+            '@context'         => $builder->context(),
+            '@id'              => $base . '/archives/activities/ric.json',
+            '@type'            => 'ric:RecordSet',
+            'rdfs:label'       => ['@value' => 'Archival activities', '@language' => 'en'],
+            'ric:title'        => 'Archival activities',
+            'ric:hasOrHadPart' => $parts,
+        ];
+        return $this->ricJsonResponse($response, $doc, $base . '/archives/activities/ric.json');
+    }
+
+    /**
+     * Look up an archive_activities row, disambiguating missing rows
+     * from DB persistence errors (CodeRabbit R2 pattern, applied to
+     * Phase 3 activity lookups).
+     *
+     * @return array{status:'found',row:array<string,mixed>}|array{status:'missing'}|array{status:'error',message:string}
+     */
+    private function findActivityForRic(int $id): array
+    {
+        // F044 (Phase 8): enumerate the columns RicJsonLdBuilder::buildActivity
+        // actually reads instead of SELECT * — see findUnitForRic for the
+        // rationale. agent_id and parent_id stay because the builder
+        // emits them as relation IRIs. (FIX F021: prior wording also
+        // mentioned place_id, but that column was dropped by
+        // migrate_0.7.12.sql and is no longer in the SELECT below.)
+        $stmt = $this->db->prepare(
+            'SELECT id, title, description, activity_type, parent_id,
+                    date_start, date_end, is_ongoing, agent_id, source_ref
+               FROM archive_activities
+              WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            // Table missing on pre-Phase-3 installs is a graceful
+            // "not found" — caller emits 404 the same way it would
+            // for a deleted row, since the activity catalogue is
+            // legitimately empty until ensureSchema() runs again.
+            if ($this->db->errno === 1146) {
+                return ['status' => 'missing'];
+            }
+            return ['status' => 'error', 'message' => $this->db->error];
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err];
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err !== '' ? $err : 'get_result returned false'];
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        $stmt->close();
+        return is_array($row)
+            ? ['status' => 'found', 'row' => $row]
+            : ['status' => 'missing'];
+    }
+
+    /**
+     * RiC-CM Phase 3 (v0.7.9): for one activity, fetch every linked
+     * archival unit with the relation's RiC predicate. Skips
+     * soft-deleted units at the JOIN. Throws \RuntimeException on
+     * persistence error so the caller can 500 cleanly; returns []
+     * when the link table is missing (pre-Phase-3 install).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchUnitsForActivity(int $activityId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT au.id AS unit_id, au.level, au.constructed_title, au.formal_title,
+                    aua.ric_predicate
+               FROM archive_unit_activities aua
+               JOIN archival_units au ON au.id = aua.unit_id AND au.deleted_at IS NULL
+              WHERE aua.activity_id = ?
+              ORDER BY aua.ric_predicate, au.reference_code'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $rows;
+            }
+            throw new \RuntimeException(
+                '[Archives] fetchUnitsForActivity prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('i', $activityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] fetchUnitsForActivity execute failed: ' . $err);
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * GET /archives/places/{id}/ric.json — RiC-O JSON-LD for one
+     * archive_places row (RiC-CM Phase 4 — v0.7.10). Public route.
+     */
+    public function ricPlaceAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $lookup = $this->findPlaceForRic($id);
+        if ($lookup['status'] === 'error') {
+            SecureLogger::error('[Archives] ricPlaceAction DB error: ' . $lookup['message']);
+            return $this->ricJsonError($response, 500, 'persistence_error',
+                'A persistence error prevented the request from being served.');
+        }
+        if ($lookup['status'] === 'missing') {
+            return $this->ricJsonError($response, 404, 'not_found',
+                'Archive place ' . $id . ' does not exist or has been removed.');
+        }
+        $builder = $this->makeRicBuilder();
+        $doc     = $builder->buildPlace($lookup['row']);
+        $doc     = $this->attachRelationsToRicDoc($doc, 'archive_place', $id, $builder);
+        return $this->ricJsonResponse($response, $doc, $builder->placeIri($id));
+    }
+
+    /**
+     * GET /archives/places/ric.json — synthetic ric:RecordSet listing
+     * every top-level place (parent_id IS NULL). Phase 4 (v0.7.10).
+     */
+    public function ricPlacesListAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        // FIX F042: cap unbounded scan on public unauthenticated endpoint.
+        // 500 matches the cap on ricActivitiesListAction and prevents a
+        // single request from materialising the entire places table.
+        $result = $this->db->query(
+            'SELECT id, name, place_type FROM archive_places
+              WHERE parent_id IS NULL AND deleted_at IS NULL
+              ORDER BY place_type, name
+              LIMIT 500'
+        );
+        if (!($result instanceof \mysqli_result)) {
+            if ($this->db->errno === 1146) {
+                $rows = [];
+            } else {
+                SecureLogger::error('[Archives] ricPlacesListAction DB error: ' . $this->db->error);
+                return $this->ricJsonError($response, 500, 'persistence_error',
+                    'A persistence error prevented the request from being served.');
+            }
+        } else {
+            $rows = [];
+            while ($r = $result->fetch_assoc()) {
+                $rows[] = $r;
+            }
+            $result->free();
+        }
+
+        $builder = $this->makeRicBuilder();
+        $parts   = [];
+        foreach ($rows as $r) {
+            $pid = (int) ($r['id'] ?? 0);
+            if ($pid <= 0) {
+                continue;
+            }
+            $node = ['@id' => $builder->placeIri($pid), '@type' => 'ric:Place'];
+            $name = (string) ($r['name'] ?? '');
+            if ($name !== '') { $node['rdfs:label'] = $name; }
+            $pt = (string) ($r['place_type'] ?? '');
+            if ($pt !== '')   { $node['ric:type']   = $pt; }
+            $parts[] = $node;
+        }
+        $base = rtrim(absoluteUrl(''), '/');
+        $doc = [
+            '@context'         => $builder->context(),
+            '@id'              => $base . '/archives/places/ric.json',
+            '@type'            => 'ric:RecordSet',
+            'rdfs:label'       => ['@value' => 'Archival places', '@language' => 'en'],
+            'ric:title'        => 'Archival places',
+            'ric:hasOrHadPart' => $parts,
+        ];
+        return $this->ricJsonResponse($response, $doc, $base . '/archives/places/ric.json');
+    }
+
+    /**
+     * Phase 4 (v0.7.10): place lookup with discriminated-union return
+     * for consistent 404/500 separation (CodeRabbit R2 pattern).
+     *
+     * @return array{status:'found',row:array<string,mixed>}|array{status:'missing'}|array{status:'error',message:string}
+     */
+    private function findPlaceForRic(int $id): array
+    {
+        // F044 (Phase 8): enumerate the columns RicJsonLdBuilder::buildPlace
+        // actually reads instead of SELECT * — same rationale as the other
+        // find*ForRic helpers.
+        $stmt = $this->db->prepare(
+            'SELECT id, name, place_type, parent_id, latitude, longitude,
+                    geonames_id, wikidata_id, tgn_id, description,
+                    date_start, date_end
+               FROM archive_places
+              WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return ['status' => 'missing'];  // table not yet created
+            }
+            return ['status' => 'error', 'message' => $this->db->error];
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err];
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err !== '' ? $err : 'get_result returned false'];
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        $stmt->close();
+        return is_array($row)
+            ? ['status' => 'found', 'row' => $row]
+            : ['status' => 'missing'];
+    }
+
+    /**
+     * Phase 4 (v0.7.10): polymorphic-relations referential integrity.
+     * Returns true when both endpoints (source and target) exist as
+     * non-deleted rows in their respective entity tables. Used by
+     * the admin form before INSERTing into archive_relations.
+     */
+    public function validateRelationEndpoints(
+        string $sourceType, int $sourceId,
+        string $targetType, int $targetId
+    ): bool {
+        $tableMap = [
+            'archival_unit'    => 'archival_units',
+            'authority_record' => 'authority_records',
+            'archive_activity' => 'archive_activities',
+            'archive_place'    => 'archive_places',
+        ];
+        foreach ([[$sourceType, $sourceId], [$targetType, $targetId]] as [$type, $id]) {
+            $table = $tableMap[$type] ?? null;
+            if ($table === null || $id <= 0) {
+                return false;
+            }
+            $stmt = $this->db->prepare(
+                "SELECT 1 FROM `{$table}` WHERE id = ? AND deleted_at IS NULL LIMIT 1"
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->bind_param('i', $id);
+            if (!$stmt->execute()) {
+                $stmt->close();
+                return false;
+            }
+            $result = $stmt->get_result();
+            $found  = ($result instanceof \mysqli_result) && $result->fetch_row() !== null;
+            if ($result instanceof \mysqli_result) {
+                $result->free();
+            }
+            $stmt->close();
+            if (!$found) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Phase 4 (v0.7.10): fetch every polymorphic relation where the
+     * given entity appears as either source or target. Returns rows
+     * directly usable by RicJsonLdBuilder::buildRelationNode. The
+     * caller passes the canonical entity_type string used in the
+     * archive_relations ENUM column.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function fetchRelationsForEntity(string $entityType, int $entityId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archive_relations
+              WHERE (source_type = ? AND source_id = ?)
+                 OR (target_type = ? AND target_id = ?)
+              ORDER BY id'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $rows;  // pre-Phase-4 install — degrade silently
+            }
+            throw new \RuntimeException(
+                '[Archives] fetchRelationsForEntity prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('sisi', $entityType, $entityId, $entityType, $entityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] fetchRelationsForEntity execute failed: ' . $err
+            );
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * RiC-CM Phase 3 (v0.7.9): for one archival unit, fetch every
+     * linked activity with its title + type so buildUnit can embed
+     * the ric:relationHasTarget label inline. Same silent-degrade /
+     * throw split as fetchUnitsForActivity.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchActivitiesForUnit(int $unitId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT aa.id AS activity_id, aa.title, aa.activity_type,
+                    aua.ric_predicate
+               FROM archive_unit_activities aua
+               JOIN archive_activities aa ON aa.id = aua.activity_id AND aa.deleted_at IS NULL
+              WHERE aua.unit_id = ?
+              ORDER BY aua.ric_predicate, aa.title'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $rows;
+            }
+            throw new \RuntimeException(
+                '[Archives] fetchActivitiesForUnit prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('i', $unitId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] fetchActivitiesForUnit execute failed: ' . $err);
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * Build a per-request RicJsonLdBuilder configured with the current
+     * canonical base URL and the INSTALLATION locale. Kept private so
+     * callers cannot bypass the canonical-URL resolution path.
+     *
+     * CodeRabbit #4: the RiC endpoints are public + cacheable on a fixed
+     * URL. Using the per-request locale (which can change with the user
+     * session) would make two clients see different bodies for the same
+     * URL, corrupting any shared HTTP cache. We pin to the installation
+     * locale so the response is byte-deterministic per URL. If a future
+     * change re-introduces per-request locale logic, ricJsonResponse()
+     * must also re-introduce `Vary: Accept-Language` in the same commit.
+     */
+    private function makeRicBuilder(): RicJsonLdBuilder
+    {
+        $base   = rtrim(absoluteUrl(''), '/');
+        $locale = (string) (\App\Support\I18n::getInstallationLocale() ?: 'en');
+        return new RicJsonLdBuilder($base, $locale);
+    }
+
+    /**
+     * Phase 4 (v0.7.10) — adamsreview F006: enrich a per-entity RiC-O
+     * JSON-LD document with the polymorphic `archive_relations` rows
+     * that have this entity on either side. The per-entity builders
+     * (buildUnit, buildAuthority, buildActivity, buildPlace) return a
+     * flat document keyed by `@context`/`@id`/`@type` — when extra
+     * relation nodes need to ride along we promote the document to a
+     * JSON-LD `@graph`, stripping the inner `@context` so it lives once
+     * at the envelope level.
+     *
+     * Failures from `fetchRelationsForEntity` are degraded silently
+     * (logged + empty) so a transient `archive_relations` outage cannot
+     * 500-out an otherwise valid per-entity export. Pre-Phase-4
+     * installs without the table simply emit no relation nodes (the
+     * fetcher returns []).
+     *
+     * @param array<string, mixed> $doc        Document returned by the per-entity builder.
+     * @param string               $entityType Canonical value from `archive_relations`
+     *                                         (`archival_unit`, `authority_record`,
+     *                                         `archive_activity`, `archive_place`).
+     * @return array<string, mixed>
+     */
+    private function attachRelationsToRicDoc(
+        array $doc,
+        string $entityType,
+        int $entityId,
+        RicJsonLdBuilder $builder
+    ): array {
+        try {
+            $relations = $this->fetchRelationsForEntity($entityType, $entityId);
+        } catch (\RuntimeException $e) {
+            SecureLogger::error('[Archives] attachRelationsToRicDoc fetch failed: ' . $e->getMessage());
+            return $doc;
+        }
+
+        $relationNodes = [];
+        foreach ($relations as $relRow) {
+            $node = $builder->buildRelationNode($relRow);
+            if ($node !== null) {
+                $relationNodes[] = $node;
+            }
+        }
+        if ($relationNodes === []) {
+            return $doc;
+        }
+
+        if (isset($doc['@graph']) && is_array($doc['@graph'])) {
+            $doc['@graph'] = array_merge($doc['@graph'], $relationNodes);
+            return $doc;
+        }
+
+        $context = $doc['@context'] ?? $builder->context();
+        $inner   = $doc;
+        unset($inner['@context']);
+        return [
+            '@context' => $context,
+            '@graph'   => array_merge([$inner], $relationNodes),
+        ];
+    }
+
+    /**
+     * Emit a JSON-LD response with the appropriate Content-Type,
+     * caching, and CORS headers for cross-domain harvesters.
+     *
+     * @param array<string, mixed> $doc
+     */
+    private function ricJsonResponse(
+        ResponseInterface $response,
+        array $doc,
+        string $canonicalUrl
+    ): ResponseInterface {
+        $json = json_encode(
+            $doc,
+            JSON_THROW_ON_ERROR | JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+        $response->getBody()->write($json);
+        // adamsreview F003: no Vary header. The body is pinned to the
+        // installation locale via I18n::getInstallationLocale() (see
+        // makeRicBuilder) and is therefore fully URL-deterministic — it
+        // never varies with the request's Accept-Language. Emitting
+        // `Vary: Accept-Language` would mis-signal cacheability and
+        // fragment shared caches per client language while every fragment
+        // stored byte-identical bodies, directly defeating
+        // `Cache-Control: public, max-age=300`. If a future change
+        // re-introduces per-request locale logic, also re-introduce Vary
+        // here in the same commit.
+        return $response
+            ->withHeader('Content-Type', 'application/ld+json; charset=utf-8')
+            ->withHeader('Link', '<' . $canonicalUrl . '>; rel="canonical"')
+            ->withHeader('Access-Control-Allow-Origin', '*')
+            ->withHeader('Cache-Control', 'public, max-age=300');
+    }
+
+    /**
+     * RFC 7807 problem-details error envelope for the RiC endpoints.
+     * Avoids mixing HTML 404 pages into a Content-Type the harvesters
+     * expect to parse as JSON.
+     *
+     * CodeRabbit R4: the previous Content-Type `application/ld+json`
+     * was misleading — the body `{"error":"...","message":"..."}` has
+     * no `@context` and therefore is NOT valid JSON-LD. RFC 7807
+     * defines `application/problem+json` for exactly this use case
+     * (machine-readable HTTP error envelopes). A JSON-LD client
+     * receiving a problem+json response can still parse it as plain
+     * JSON without mis-applying JSON-LD processing.
+     */
+    private function ricJsonError(
+        ResponseInterface $response,
+        int $status,
+        string $code,
+        string $message
+    ): ResponseInterface {
+        // RFC 7807 fields: type, title, status, detail. We keep `error`
+        // and `message` for backward compatibility with any consumer
+        // that started reading the previous payload shape.
+        $payload = json_encode(
+            [
+                'type'    => 'about:blank',
+                'title'   => $code,
+                'status'  => $status,
+                'detail'  => $message,
+                'error'   => $code,
+                'message' => $message,
+            ],
+            JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
+        $response->getBody()->write($payload);
+        return $response
+            ->withStatus($status)
+            ->withHeader('Content-Type', 'application/problem+json; charset=utf-8')
+            ->withHeader('Access-Control-Allow-Origin', '*');
+    }
+
+    /**
+     * Fetch direct children of an archival_unit (one level only — the
+     * full subtree is referenced lazily by clients via the @id of each
+     * child).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchDirectChildren(int $parentId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT id, level, constructed_title, formal_title
+               FROM archival_units
+              WHERE parent_id = ? AND deleted_at IS NULL
+              ORDER BY reference_code'
+        );
+        // adamsreview F006 + CodeRabbit R2: throw on DB failure rather
+        // than logging-and-degrading. RiC actions catch and return 500;
+        // a silent empty children list would publish an incomplete graph
+        // that harvesters mistake for a real structural change.
+        if ($stmt === false) {
+            throw new \RuntimeException('[Archives] fetchDirectChildren prepare failed: ' . $this->db->error);
+        }
+        $stmt->bind_param('i', $parentId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] fetchDirectChildren execute failed: ' . $err);
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] fetchDirectChildren get_result failed: '
+                . ($err !== '' ? $err : 'get_result returned false')
+            );
+        }
+        while ($row = $result->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $result->free();
+        $stmt->close();
+        return $rows;
+    }
+
+    /**
+     * Look up an archival_unit row by id, distinguishing "not found"
+     * from "DB error". Used by the RiC endpoints so harvesters can tell
+     * a real 404 from a transient persistence failure (CodeRabbit #2).
+     *
+     * @return array{status:'found',row:array<string,mixed>}|array{status:'missing'}|array{status:'error',message:string}
+     */
+    private function findUnitForRic(int $id): array
+    {
+        // F044 (Phase 8): enumerate the columns RicJsonLdBuilder::buildUnit
+        // actually reads instead of SELECT *. Any future column on
+        // archival_units (e.g. internal notes, donor PII, draft fields)
+        // would otherwise leak into the public ric.json / OAI ric-o
+        // payloads automatically. Keep this list in sync with the
+        // builder if it grows.
+        $stmt = $this->db->prepare(
+            'SELECT id, parent_id, reference_code, level, formal_title,
+                    constructed_title, date_start, date_end, extent,
+                    scope_content, archival_history, language_codes,
+                    physical_location, rights_statement_url, ark_identifier
+               FROM archival_units
+              WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            return ['status' => 'error', 'message' => $this->db->error];
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err];
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err !== '' ? $err : 'get_result returned false'];
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        $stmt->close();
+        return is_array($row)
+            ? ['status' => 'found', 'row' => $row]
+            : ['status' => 'missing'];
+    }
+
+    /**
+     * Same as findUnitForRic but for authority_records. See CodeRabbit #2.
+     *
+     * @return array{status:'found',row:array<string,mixed>}|array{status:'missing'}|array{status:'error',message:string}
+     */
+    private function findAuthorityForRic(int $id): array
+    {
+        // F044 (Phase 8): enumerate the columns RicJsonLdBuilder::buildAuthority
+        // actually reads instead of SELECT * — same rationale as findUnitForRic.
+        // Anything we don't list never reaches the public Agent JSON-LD.
+        $stmt = $this->db->prepare(
+            'SELECT id, type, ric_type, authorised_form, parallel_forms,
+                    other_forms, dates_of_existence, birth_date, death_date,
+                    place_of_origin, history, places, functions
+               FROM authority_records
+              WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            return ['status' => 'error', 'message' => $this->db->error];
+        }
+        $stmt->bind_param('i', $id);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err];
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            return ['status' => 'error', 'message' => $err !== '' ? $err : 'get_result returned false'];
+        }
+        $row = $result->fetch_assoc();
+        $result->free();
+        $stmt->close();
+        return is_array($row)
+            ? ['status' => 'found', 'row' => $row]
+            : ['status' => 'missing'];
+    }
+
+    /**
+     * Collect external authority URIs (VIAF, ISNI, Wikidata, ...) for
+     * one authority_record by walking the autori_authority_link table
+     * onto autori + author_authority_alternates. This is the Phase 1
+     * source of `owl:sameAs`; Phase 2 introduces a dedicated
+     * archive_agent_identifiers table.
+     *
+     * @return list<string>
+     */
+    private function collectSameAsForAuthority(int $authorityId): array
+    {
+        $uris = [];
+        // CodeRabbit #5: MySQL does NOT interpret `\x1f` inside a single-quoted
+        // string literal as the byte 0x1F — the backslash is silently dropped
+        // and the separator becomes the three-character string "x1f". Use the
+        // hex literal `0x1F` (the actual ASCII unit-separator byte) so the
+        // separator is unambiguous and matches the PHP explode("\x1f", …)
+        // below. CHAR(31) would also work and reads slightly clearer; we go
+        // with 0x1F for parity with the PHP escape sequence.
+        //
+        // adamsreview F004: GROUP_CONCAT inherits the server-wide
+        // group_concat_max_len (default 1024 bytes on MySQL/MariaDB). With
+        // a handful of alternate URIs we already get close to that, and
+        // the truncation is silent — the trailing token after the last
+        // 0x1F becomes a malformed URL in owl:sameAs. Raise the session
+        // limit before the query. 65535 is the maximum permitted as a
+        // SESSION value across MySQL 8.x and MariaDB 10.x without
+        // server-global tweaks; well above any plausible per-author URI
+        // fan-out.
+        if ($this->db->query('SET SESSION group_concat_max_len = 65535') === false) {
+            throw new \RuntimeException(
+                '[Archives] collectSameAsForAuthority group_concat_max_len failed: ' . $this->db->error
+            );
+        }
+        $stmt = $this->db->prepare(
+            "SELECT a.viaf_uri, a.isni_uri,
+                    GROUP_CONCAT(aaa.uri SEPARATOR 0x1F) AS alt_uris
+               FROM autori_authority_link aal
+               JOIN autori a ON a.id = aal.autori_id
+          LEFT JOIN author_authority_alternates aaa
+                 ON aaa.autore_id = a.id AND aaa.uri IS NOT NULL AND aaa.uri <> ''
+              WHERE aal.authority_id = ?
+              GROUP BY a.id"
+        );
+        if ($stmt === false) {
+            // CodeRabbit R2: distinguish "table missing" (legitimate
+            // degradation when the viaf-authority plugin has never been
+            // activated) from "real DB error" (must propagate).
+            // mysqli reports error code 1146 = ER_NO_SUCH_TABLE: in that
+            // case we keep the silent-degrade behaviour. Anything else
+            // is a real failure and must reach the RiC action's error
+            // envelope.
+            if ($this->db->errno === 1146) {
+                return $uris;
+            }
+            throw new \RuntimeException(
+                '[Archives] collectSameAsForAuthority prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('i', $authorityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] collectSameAsForAuthority execute failed: ' . $err);
+        }
+        $result = $stmt->get_result();
+        if (!($result instanceof \mysqli_result)) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] collectSameAsForAuthority get_result failed: '
+                . ($err !== '' ? $err : 'get_result returned false')
+            );
+        }
+        while ($row = $result->fetch_assoc()) {
+            foreach (['viaf_uri', 'isni_uri'] as $col) {
+                $v = $row[$col] ?? null;
+                if (is_string($v) && $v !== '') {
+                    $uris[] = $v;
+                }
+            }
+            $alt = $row['alt_uris'] ?? null;
+            if (is_string($alt) && $alt !== '') {
+                foreach (explode("\x1f", $alt) as $u) {
+                    $u = trim($u);
+                    if ($u !== '') {
+                        $uris[] = $u;
+                    }
+                }
+            }
+        }
+        $result->free();
+        $stmt->close();
+
+        // RiC-CM Phase 2 (v0.7.8): merge in the dedicated Agent
+        // identifier table. This source lives on the archive side
+        // (not the bibliographic autori side) so it works even on
+        // installs without the viaf-authority plugin.
+        foreach ($this->collectAgentIdentifierUris($authorityId) as $u) {
+            $uris[] = $u;
+        }
+        return $uris;
+    }
+
+    /**
+     * RiC-CM Phase 2 (v0.7.8): pull every URI tagged for this
+     * authority from `archive_agent_identifiers`. Returns the bare
+     * `uri` column when present; otherwise falls back to a synthetic
+     * representation built from `scheme` + `value` so authority IDs
+     * that don't ship with a precomputed URI still surface in the
+     * RiC-O output.
+     *
+     * Silently returns empty when the table doesn't exist (install
+     * predates Phase 2 and the migration hasn't run yet). Any other
+     * DB error is propagated so RiC actions can 500 cleanly.
+     *
+     * @return list<string>
+     */
+    private function collectAgentIdentifierUris(int $authorityId): array
+    {
+        $uris = [];
+        $stmt = $this->db->prepare(
+            'SELECT scheme, value, uri FROM archive_agent_identifiers WHERE authority_id = ?'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $uris;
+            }
+            throw new \RuntimeException(
+                '[Archives] collectAgentIdentifierUris prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('i', $authorityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException(
+                '[Archives] collectAgentIdentifierUris execute failed: ' . $err
+            );
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $uri = isset($row['uri']) ? trim((string) $row['uri']) : '';
+                if ($uri !== '') {
+                    $uris[] = $uri;
+                    continue;
+                }
+                // No precomputed URI — synthesise from scheme + value
+                // using the canonical Linked Data prefixes per
+                // scheme. Unknown schemes are skipped (the value
+                // alone isn't dereferenceable).
+                $scheme = isset($row['scheme']) ? (string) $row['scheme'] : '';
+                $value  = isset($row['value'])  ? trim((string) $row['value']) : '';
+                if ($value === '') {
+                    continue;
+                }
+                $synth = self::SCHEME_URI_PREFIX[$scheme] ?? null;
+                if ($synth !== null) {
+                    $uris[] = $synth . $value;
+                }
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $uris;
+    }
+
+    /**
+     * RiC-CM Phase 2 (v0.7.8): canonical URI prefix per identifier
+     * scheme. Used by collectAgentIdentifierUris() to synthesise a
+     * dereferenceable IRI when the row carries only scheme + value.
+     * `local` is excluded — local identifiers are not globally
+     * resolvable, so we'd rather omit them than emit a guess.
+     */
+    private const SCHEME_URI_PREFIX = [
+        'viaf'     => 'https://viaf.org/viaf/',
+        'isni'     => 'https://isni.org/isni/',
+        'wikidata' => 'https://www.wikidata.org/entity/',
+        'gnd'      => 'https://d-nb.info/gnd/',
+        'bnf'      => 'https://catalogue.bnf.fr/ark:/12148/cb',
+        'lcnaf'    => 'https://id.loc.gov/authorities/names/',
+        'ulan'     => 'https://vocab.getty.edu/page/ulan/',
+        'ark'      => 'https://n2t.net/',
+    ];
+
+    /**
+     * RiC-CM Phase 2 (v0.7.8): fetch Agent → Agent relations from
+     * `archive_agent_relations` for the given authority. Returns rows
+     * keyed by the columns RicJsonLdBuilder::buildAuthority expects
+     * (`related_id`, `ric_predicate`, `qualifier`, `date_start`,
+     * `date_end`). The target authority must be live (not soft-deleted)
+     * — the JOIN filters that.
+     *
+     * Silently returns empty when the table is missing (pre-Phase-2
+     * install). Any other DB error is propagated so RiC actions can
+     * 500 cleanly.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchAgentRelations(int $authorityId): array
+    {
+        $rows = [];
+        $stmt = $this->db->prepare(
+            'SELECT aar.related_id, aar.ric_predicate, aar.qualifier,
+                    aar.date_start, aar.date_end
+               FROM archive_agent_relations aar
+               JOIN authority_records ar ON ar.id = aar.related_id
+                                        AND ar.deleted_at IS NULL
+              WHERE aar.agent_id = ?
+              ORDER BY aar.ric_predicate, aar.related_id'
+        );
+        if ($stmt === false) {
+            if ($this->db->errno === 1146) {
+                return $rows;
+            }
+            throw new \RuntimeException(
+                '[Archives] fetchAgentRelations prepare failed: ' . $this->db->error
+            );
+        }
+        $stmt->bind_param('i', $authorityId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('[Archives] fetchAgentRelations execute failed: ' . $err);
+        }
+        $result = $stmt->get_result();
+        if ($result instanceof \mysqli_result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $result->free();
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    // ── RiC-CM Phase 5 — Activities admin CRUD ───────────────────────────────
+    //
+    // Mirrors the authority_records CRUD shape (extractAuthorityPayload /
+    // validateAuthority / authority{Index,New,Store,Show,Edit,Update,
+    // Destroy}Action). Soft-delete via `deleted_at` so a curator can
+    // restore by hand if needed.
+
+    private const ACTIVITY_TYPES = [
+        'function'    => 'Function (ISDF top-level)',
+        'activity'    => 'Activity',
+        'transaction' => 'Transaction',
+        'task'        => 'Task',
+        'mandate'     => 'Mandate',
+    ];
+
+    public function activityIndexAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, title, activity_type, agent_id, date_start, date_end, is_ongoing
+               FROM archive_activities
+              WHERE deleted_at IS NULL
+              ORDER BY activity_type, title ASC
+              LIMIT 500'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+            $result->free();
+        } elseif ($this->db->errno !== 1146) {
+            SecureLogger::warning('[Archives] activity index query failed: ' . $this->db->error);
+        }
+        return $this->renderView($response, 'activities/index', [
+            'rows'  => $rows,
+            'types' => array_keys(self::ACTIVITY_TYPES),
+        ]);
+    }
+
+    public function activityNewAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        return $this->renderView($response, 'activities/form', [
+            'mode'        => 'create',
+            'types'       => array_keys(self::ACTIVITY_TYPES),
+            'parentOpts'  => $this->listActivityOptions(null),
+            'agentOpts'   => $this->listAuthorityOptions(),
+            'values'      => [],
+            'errors'      => [],
+        ]);
+    }
+
+    public function activityStoreAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        $values = $this->extractActivityPayload($request);
+        $errors = $this->validateActivity($values, null);
+        if (!empty($errors)) {
+            return $this->renderView($response, 'activities/form', [
+                'mode'       => 'create',
+                'types'      => array_keys(self::ACTIVITY_TYPES),
+                'parentOpts' => $this->listActivityOptions(null),
+                'agentOpts'  => $this->listAuthorityOptions(),
+                'values'     => $values,
+                'errors'     => $errors,
+            ]);
+        }
+        $stmt = $this->db->prepare(
+            'INSERT INTO archive_activities
+                (title, description, activity_type, parent_id, date_start, date_end,
+                 is_ongoing, agent_id, source_ref)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] activity INSERT prepare failed: ' . $this->db->error);
+            $errors['_global'] = 'Database error. Check the log and retry.';
+            return $this->renderView($response, 'activities/form', [
+                'mode' => 'create', 'types' => array_keys(self::ACTIVITY_TYPES),
+                'parentOpts' => $this->listActivityOptions(null),
+                'agentOpts' => $this->listAuthorityOptions(),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $parentId = $values['parent_id'];
+        $agentId  = $values['agent_id'];
+        $isOngoing = (int) $values['is_ongoing'];
+        $stmt->bind_param(
+            'sssissiis',
+            $values['title'],
+            $values['description'],
+            $values['activity_type'],
+            $parentId,
+            $values['date_start'],
+            $values['date_end'],
+            $isOngoing,
+            $agentId,
+            $values['source_ref']
+        );
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] activity INSERT failed: ' . $stmt->error);
+            $errors['_global'] = 'Insert failed.';
+            $stmt->close();
+            return $this->renderView($response, 'activities/form', [
+                'mode' => 'create', 'types' => array_keys(self::ACTIVITY_TYPES),
+                'parentOpts' => $this->listActivityOptions(null),
+                'agentOpts' => $this->listAuthorityOptions(),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $newId = (int) $stmt->insert_id;
+        $stmt->close();
+        return $response
+            ->withHeader('Location', url('/admin/archives/activities/' . $newId))
+            ->withStatus(302);
+    }
+
+    public function activityShowAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findActivityRow($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        $linkedUnits = [];
+        try {
+            $linkedUnits = $this->fetchUnitsForActivity($id);
+        } catch (\RuntimeException $e) {
+            SecureLogger::warning('[Archives] activityShow units fetch failed: ' . $e->getMessage());
+        }
+
+        // Resolve human-readable labels for agent_id / parent_id so the
+        // detail view can render names instead of just numeric IDs (F036).
+        // Both queries respect soft-delete and fall back to null on miss.
+        $agentLabel  = null;
+        $parentLabel = null;
+        if (!empty($row['agent_id'])) {
+            try {
+                $stmt = $this->db->prepare(
+                    'SELECT authorised_form FROM authority_records
+                      WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+                );
+                if ($stmt !== false) {
+                    $agentId = (int) $row['agent_id'];
+                    $stmt->bind_param('i', $agentId);
+                    $stmt->execute();
+                    $r = $stmt->get_result();
+                    $a = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+                    $stmt->close();
+                    if (is_array($a) && !empty($a['authorised_form'])) {
+                        $agentLabel = (string) $a['authorised_form'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[Archives] activityShow agent label fetch failed: ' . $e->getMessage());
+            }
+        }
+        if (!empty($row['parent_id'])) {
+            try {
+                $stmt = $this->db->prepare(
+                    'SELECT title FROM archive_activities
+                      WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+                );
+                if ($stmt !== false) {
+                    $parentId = (int) $row['parent_id'];
+                    $stmt->bind_param('i', $parentId);
+                    $stmt->execute();
+                    $r = $stmt->get_result();
+                    $p = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+                    $stmt->close();
+                    if (is_array($p) && !empty($p['title'])) {
+                        $parentLabel = (string) $p['title'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[Archives] activityShow parent label fetch failed: ' . $e->getMessage());
+            }
+        }
+
+        try {
+            $relations = $this->fetchRelationsForEntity('archive_activity', $id);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Archives] activityShowAction fetchRelationsForEntity failed: ' . $e->getMessage());
+            $relations = [];
+        }
+
+        return $this->renderView($response, 'activities/show', [
+            'row'          => $row,
+            'linkedUnits'  => $linkedUnits,
+            'agent_label'  => $agentLabel,
+            'parent_label' => $parentLabel,
+            'types'        => array_keys(self::ACTIVITY_TYPES),
+            'relations'    => $relations,
+            'headLinks'    => [
+                ['rel' => 'alternate', 'type' => 'application/ld+json',
+                 'title' => 'RiC-O (Records in Contexts)',
+                 'href' => absoluteUrl('/archives/activities/' . $id . '/ric.json')],
+            ],
+        ]);
+    }
+
+    public function activityEditAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        $row = $this->findActivityRow($id);
+        if ($row === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        return $this->renderView($response, 'activities/form', [
+            'mode'       => 'edit',
+            'id'         => $id,
+            'types'      => array_keys(self::ACTIVITY_TYPES),
+            'parentOpts' => $this->listActivityOptions($id),
+            'agentOpts'  => $this->listAuthorityOptions(),
+            'values'     => $row,
+            'errors'     => [],
+        ]);
+    }
+
+    public function activityUpdateAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        if ($this->findActivityRow($id) === null) {
+            return $this->renderNotFound($response, $id);
+        }
+        $values = $this->extractActivityPayload($request);
+        $errors = $this->validateActivity($values, $id);
+        if (!empty($errors)) {
+            return $this->renderView($response, 'activities/form', [
+                'mode'       => 'edit',
+                'id'         => $id,
+                'types'      => array_keys(self::ACTIVITY_TYPES),
+                'parentOpts' => $this->listActivityOptions($id),
+                'agentOpts'  => $this->listAuthorityOptions(),
+                'values'     => $values,
+                'errors'     => $errors,
+            ]);
+        }
+        $stmt = $this->db->prepare(
+            'UPDATE archive_activities
+                SET title = ?, description = ?, activity_type = ?, parent_id = ?,
+                    date_start = ?, date_end = ?, is_ongoing = ?, agent_id = ?, source_ref = ?
+              WHERE id = ? AND deleted_at IS NULL'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] activity UPDATE prepare failed: ' . $this->db->error);
+            return $this->renderNotFound($response, $id);
+        }
+        $parentId  = $values['parent_id'];
+        $agentId   = $values['agent_id'];
+        $isOngoing = (int) $values['is_ongoing'];
+        $stmt->bind_param(
+            'sssissiisi',
+            $values['title'], $values['description'], $values['activity_type'],
+            $parentId, $values['date_start'], $values['date_end'],
+            $isOngoing, $agentId, $values['source_ref'], $id
+        );
+        // FIX F002: surface persistence failures instead of silently 302'ing
+        // to the show page. On execute failure, re-render the edit form with
+        // a flash error and HTTP 422 so the user knows.
+        // FIX L1-F2 follow-up: do NOT gate on affected_rows < 1. MySQL
+        // returns 0 changed rows by default when the submitted values
+        // match the stored row exactly (no CLIENT_FOUND_ROWS), so a
+        // genuine no-op resubmit would have falsely triggered the
+        // "save failed" branch and shown a 422 + flash error.
+        $execOk     = $stmt->execute();
+        $execErr    = $stmt->error;
+        $stmt->close();
+        if (!$execOk) {
+            SecureLogger::error('[Archives] activityUpdateAction execute failed', [
+                'id'       => $id,
+                'error'    => $execErr,
+            ]);
+            return $this->renderView(
+                $response->withStatus(422),
+                'activities/form',
+                [
+                    'mode'       => 'edit',
+                    'id'         => $id,
+                    'types'      => array_keys(self::ACTIVITY_TYPES),
+                    'parentOpts' => $this->listActivityOptions($id),
+                    'agentOpts'  => $this->listAuthorityOptions(),
+                    'values'     => $values,
+                    'errors'     => ['_global' => __('Impossibile salvare l\'attività. Riprovare.')],
+                ]
+            );
+        }
+        return $response
+            ->withHeader('Location', url('/admin/archives/activities/' . $id))
+            ->withStatus(302);
+    }
+
+    public function activityDestroyAction(
+        ServerRequestInterface $request,
+        ResponseInterface $response,
+        int $id
+    ): ResponseInterface {
+        // F010: wrap soft-delete + Phase 4 / Phase 3 sweeps in a single
+        // transaction so the activity row and its mirrored link rows are
+        // mutated atomically.
+        $db = $this->db;
+        $wasInTransaction = false;
+        $acRes = $db->query('SELECT @@autocommit AS ac');
+        if ($acRes instanceof \mysqli_result) {
+            $acRow = $acRes->fetch_assoc();
+            $acRes->free();
+            $wasInTransaction = ((int) ($acRow['ac'] ?? 1) === 0);
+        }
+        if (!$wasInTransaction) { $db->begin_transaction(); }
+        try {
+            // Soft-delete — mirrors the libri / archival_units convention.
+            $stmt = $this->db->prepare(
+                'UPDATE archive_activities SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+            // Hard-delete relations whose endpoint is this soft-deleted entity, in
+            // both source and target positions.
+            $relSweep = $this->db->prepare(
+                'DELETE FROM archive_relations
+                   WHERE (source_type = ? AND source_id = ?)
+                      OR (target_type = ? AND target_id = ?)'
+            );
+            if ($relSweep !== false) {
+                $entType = 'archive_activity';
+                $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+                $relSweep->execute();
+                $relSweep->close();
+            }
+            // Also sweep archive_unit_activities link rows for this activity.
+            $auaSweep = $this->db->prepare('DELETE FROM archive_unit_activities WHERE activity_id = ?');
+            if ($auaSweep !== false) {
+                $auaSweep->bind_param('i', $id);
+                $auaSweep->execute();
+                $auaSweep->close();
+            }
+
+            if (!$wasInTransaction) { $db->commit(); }
+        } catch (\Throwable $e) {
+            if (!$wasInTransaction) { $db->rollback(); }
+            SecureLogger::error('[Archives] activityDestroyAction transaction failed: ' . $e->getMessage(), ['id' => $id]);
+            // continue degraded — soft-delete + sweep both rolled back together
+        }
+
+        return $response
+            ->withHeader('Location', url('/admin/archives/activities'))
+            ->withStatus(302);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function findActivityRow(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archive_activities WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) {
+            return null;
+        }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        $row = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+        $stmt->close();
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function extractActivityPayload(ServerRequestInterface $request): array
+    {
+        $body = $request->getParsedBody() ?? [];
+        if (!is_array($body)) { $body = []; }
+        $get = static fn (string $k): string => is_string($body[$k] ?? null) ? trim((string) $body[$k]) : '';
+        $parent = $get('parent_id');
+        $agent  = $get('agent_id');
+        return [
+            'title'         => $get('title'),
+            'description'   => $get('description'),
+            'activity_type' => $get('activity_type') ?: 'activity',
+            'parent_id'     => $parent === '' ? null : (int) $parent,
+            'date_start'    => $get('date_start'),
+            'date_end'      => $get('date_end'),
+            'is_ongoing'    => !empty($body['is_ongoing']) ? 1 : 0,
+            'agent_id'      => $agent === '' ? null : (int) $agent,
+            'source_ref'    => $get('source_ref'),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, string>
+     */
+    private function validateActivity(array $values, ?int $editingId): array
+    {
+        $errors = [];
+        if (($values['title'] ?? '') === '') {
+            $errors['title'] = __('Obbligatorio.');
+        } elseif (mb_strlen((string) $values['title']) > 500) {
+            $errors['title'] = __('Massimo 500 caratteri.');
+        }
+        $type = (string) ($values['activity_type'] ?? '');
+        if (!isset(self::ACTIVITY_TYPES[$type])) {
+            $errors['activity_type'] = __('Tipo non valido.');
+        }
+        if ($values['parent_id'] !== null) {
+            if ($editingId !== null && $values['parent_id'] === $editingId) {
+                $errors['parent_id'] = __("Un'attività non può essere genitore di se stessa.");
+            } elseif ($editingId !== null && $this->activityWouldCreateCycle($editingId, (int) $values['parent_id'])) {
+                $errors['parent_id'] = __('Ciclo rilevato — scegli un genitore che non sia discendente.');
+            } elseif ($this->findActivityRow((int) $values['parent_id']) === null) {
+                $errors['parent_id'] = __('Attività padre inesistente.');
+            }
+            // F005: BOTH CREATE and UPDATE paths must guard against pre-existing
+            // cycles reachable from the proposed parent. The would-create-cycle
+            // helper above is necessary but not sufficient — it only catches the
+            // edge case of an edit looping back through descendants. On CREATE the
+            // proposed parent could already sit inside a corrupted cycle (e.g.
+            // imported offline). Any later ancestor walker would follow the loop.
+            elseif ($this->activityAncestorChainHasCycle((int) $values['parent_id'])) {
+                $errors['parent_id'] = __('La catena ascendente del genitore contiene un ciclo pre-esistente — correggi il dato a monte.');
+            }
+        }
+        if ($values['agent_id'] !== null && $this->findAuthorityById((int) $values['agent_id']) === null) {
+            $errors['agent_id'] = __('Agente selezionato inesistente.');
+        }
+        // FIX (sibling of F045): validate date_start/date_end shape and
+        // source_ref length so malformed data never reaches the public
+        // RiC-O JSON-LD output. archive_activities columns mirror the
+        // archive_relations DDL (date_start/end VARCHAR(20), source_ref
+        // VARCHAR(500)).
+        $dateRe = '/^-?[0-9]{4}(-[0-9]{2}-[0-9]{2})?$/';
+        $ds = (string) ($values['date_start'] ?? '');
+        if ($ds !== '' && preg_match($dateRe, $ds) !== 1) {
+            $errors['date_start'] = __('Formato non valido: usa AAAA o AAAA-MM-GG.');
+        }
+        $de = (string) ($values['date_end'] ?? '');
+        if ($de !== '' && preg_match($dateRe, $de) !== 1) {
+            $errors['date_end'] = __('Formato non valido: usa AAAA o AAAA-MM-GG.');
+        }
+        $sr = (string) ($values['source_ref'] ?? '');
+        if (mb_strlen($sr, 'UTF-8') > 500) {
+            $errors['source_ref'] = __('Massimo 500 caratteri.');
+        }
+        return $errors;
+    }
+
+    /**
+     * Phase 5: ancestor walk to reject cycles in the activity tree
+     * (MySQL can't enforce this since the FK uses ON DELETE SET NULL).
+     * Mirrors parentWouldCreateCycle for archival_units.
+     *
+     * F018: intentionally NOT filtering on deleted_at — integrity checks must
+     * see the full topology of the tree, not just rows still visible to UI.
+     * If the chain crosses a soft-deleted ancestor, filtering would silently
+     * truncate the walk and let a path through a deleted node go undetected.
+     * The visibility/integrity distinction belongs to render code, not here.
+     */
+    private function activityWouldCreateCycle(int $childId, int $proposedParentId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT parent_id FROM archive_activities WHERE id = ? LIMIT 1'
+        );
+        if ($stmt === false) { return true; }
+        $current = $proposedParentId;
+        $visited = [];
+        for ($i = 0; $i < self::MAX_HIERARCHY_DEPTH; $i++) /* FIX F013 */ {
+            if ($current === $childId) { $stmt->close(); return true; }
+            if (isset($visited[$current])) { break; }
+            $visited[$current] = true;
+            $stmt->bind_param('i', $current);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            $row = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+            if (!is_array($row) || $row['parent_id'] === null) {
+                break;
+            }
+            $current = (int) $row['parent_id'];
+        }
+        $stmt->close();
+        return false;
+    }
+
+    /**
+     * F005: detect a pre-existing cycle reachable from $startId by walking
+     * the parent chain upward. Unlike activityWouldCreateCycle this does not
+     * model a proposed edit — it simply asks "is the chain above this node
+     * already broken?". Used on CREATE (where there is no editingId to feed
+     * to the would-create-cycle form) and as a defense-in-depth check on
+     * UPDATE too. Same deleted_at policy as activityWouldCreateCycle: integrity
+     * walks see all rows, not just visible ones.
+     */
+    private function activityAncestorChainHasCycle(int $startId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT parent_id FROM archive_activities WHERE id = ? LIMIT 1'
+        );
+        if ($stmt === false) { return false; }
+        $current = $startId;
+        $visited = [];
+        for ($i = 0; $i < self::MAX_HIERARCHY_DEPTH; $i++) /* FIX F013 */ {
+            if (isset($visited[$current])) { $stmt->close(); return true; }
+            $visited[$current] = true;
+            $stmt->bind_param('i', $current);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            $row = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+            if (!is_array($row) || $row['parent_id'] === null) {
+                break;
+            }
+            $current = (int) $row['parent_id'];
+        }
+        $stmt->close();
+        return false;
+    }
+
+    /**
+     * @return list<array{id:int,title:string}>
+     */
+    private function listActivityOptions(?int $excludeId): array
+    {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, title FROM archive_activities WHERE deleted_at IS NULL ORDER BY title LIMIT 1000'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) {
+                $id = (int) $r['id'];
+                if ($excludeId !== null && $id === $excludeId) { continue; }
+                $rows[] = ['id' => $id, 'title' => (string) $r['title']];
+            }
+            $result->free();
+        }
+        return $rows;
+    }
+
+    /**
+     * @return list<array{id:int,label:string}>
+     */
+    private function listAuthorityOptions(): array
+    {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, authorised_form FROM authority_records WHERE deleted_at IS NULL ORDER BY authorised_form LIMIT 1000'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) {
+                $rows[] = ['id' => (int) $r['id'], 'label' => (string) $r['authorised_form']];
+            }
+            $result->free();
+        }
+        return $rows;
+    }
+
+    // ── RiC-CM Phase 5 — Places admin CRUD ───────────────────────────────────
+
+    private const PLACE_TYPES = [
+        'country' => 'Country', 'region' => 'Region', 'province' => 'Province',
+        'municipality' => 'Municipality', 'locality' => 'Locality',
+        'building' => 'Building', 'room' => 'Room',
+        'geographic_feature' => 'Geographic feature', 'other' => 'Other',
+    ];
+
+    public function placeIndexAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, name, place_type, parent_id, latitude, longitude
+               FROM archive_places WHERE deleted_at IS NULL
+              ORDER BY place_type, name ASC LIMIT 500'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) { $rows[] = $r; }
+            $result->free();
+        } elseif ($this->db->errno !== 1146) {
+            SecureLogger::warning('[Archives] place index query failed: ' . $this->db->error);
+        }
+        return $this->renderView($response, 'places/index', [
+            'rows' => $rows, 'types' => array_keys(self::PLACE_TYPES),
+        ]);
+    }
+
+    public function placeNewAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        return $this->renderView($response, 'places/form', [
+            'mode' => 'create', 'types' => array_keys(self::PLACE_TYPES),
+            'parentOpts' => $this->listPlaceOptions(null),
+            'values' => [], 'errors' => [],
+        ]);
+    }
+
+    public function placeStoreAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        $values = $this->extractPlacePayload($request);
+        $errors = $this->validatePlace($values, null);
+        if (!empty($errors)) {
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'create', 'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions(null),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $stmt = $this->db->prepare(
+            'INSERT INTO archive_places
+                (name, place_type, parent_id, latitude, longitude,
+                 geonames_id, wikidata_id, tgn_id, description, date_start, date_end)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] place INSERT prepare failed: ' . $this->db->error);
+            $errors['_global'] = 'Database error.';
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'create', 'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions(null),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $parent = $values['parent_id'];
+        $lat    = $values['latitude'];
+        $lng    = $values['longitude'];
+        // 11 placeholders → 11 type-chars (s name, s place_type, i parent,
+        // d latitude, d longitude, then 6×s for geonames/wikidata/tgn/desc/date_start/date_end).
+        $stmt->bind_param(
+            'ssiddssssss',
+            $values['name'], $values['place_type'], $parent, $lat, $lng,
+            $values['geonames_id'], $values['wikidata_id'], $values['tgn_id'],
+            $values['description'], $values['date_start'], $values['date_end']
+        );
+        if (!$stmt->execute()) {
+            SecureLogger::error('[Archives] place INSERT failed: ' . $stmt->error);
+            $errors['_global'] = 'Insert failed.';
+            $stmt->close();
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'create', 'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions(null),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $newId = (int) $stmt->insert_id;
+        $stmt->close();
+        return $response
+            ->withHeader('Location', url('/admin/archives/places/' . $newId))
+            ->withStatus(302);
+    }
+
+    public function placeShowAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        $row = $this->findPlaceRow($id);
+        if ($row === null) { return $this->renderNotFound($response, $id); }
+        // Resolve human-readable label for parent_id so the detail view can
+        // render the parent place name instead of just a numeric ID (F033).
+        $parentLabel = null;
+        if (!empty($row['parent_id'])) {
+            try {
+                $pStmt = $this->db->prepare(
+                    'SELECT name FROM archive_places
+                      WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+                );
+                if ($pStmt !== false) {
+                    $parentId = (int) $row['parent_id'];
+                    $pStmt->bind_param('i', $parentId);
+                    $pStmt->execute();
+                    $pRes = $pStmt->get_result();
+                    $p = $pRes instanceof \mysqli_result ? $pRes->fetch_assoc() : null;
+                    $pStmt->close();
+                    if (is_array($p) && !empty($p['name'])) {
+                        $parentLabel = (string) $p['name'];
+                    }
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[Archives] placeShow parent label fetch failed: ' . $e->getMessage());
+            }
+        }
+        try {
+            $relations = $this->fetchRelationsForEntity('archive_place', $id);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Archives] placeShowAction fetchRelationsForEntity failed: ' . $e->getMessage());
+            $relations = [];
+        }
+        // FIX F038: count incoming/outgoing relations so the delete-confirm
+        // SweetAlert can declare blast radius. Mirrors activities/show.php's
+        // dynamic relation count in the destructive-action prompt.
+        $relationCount = 0;
+        try {
+            $rcStmt = $this->db->prepare(
+                'SELECT COUNT(*) AS c FROM archive_relations
+                  WHERE (source_type = \'archive_place\' AND source_id = ?)
+                     OR (target_type = \'archive_place\' AND target_id = ?)'
+            );
+            if ($rcStmt !== false) {
+                $rcStmt->bind_param('ii', $id, $id);
+                $rcStmt->execute();
+                $rcRes = $rcStmt->get_result();
+                $rc = $rcRes instanceof \mysqli_result ? $rcRes->fetch_assoc() : null;
+                $rcStmt->close();
+                if (is_array($rc)) {
+                    $relationCount = (int) ($rc['c'] ?? 0);
+                }
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[Archives] placeShow relation count fetch failed: ' . $e->getMessage());
+        }
+        return $this->renderView($response, 'places/show', [
+            'row' => $row,
+            'parent_label' => $parentLabel,
+            'relations' => $relations,
+            'relation_count' => $relationCount,
+            'headLinks' => [
+                ['rel' => 'alternate', 'type' => 'application/ld+json',
+                 'title' => 'RiC-O (Records in Contexts)',
+                 'href' => absoluteUrl('/archives/places/' . $id . '/ric.json')],
+            ],
+        ]);
+    }
+
+    public function placeEditAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        $row = $this->findPlaceRow($id);
+        if ($row === null) { return $this->renderNotFound($response, $id); }
+        return $this->renderView($response, 'places/form', [
+            'mode' => 'edit', 'id' => $id,
+            'types' => array_keys(self::PLACE_TYPES),
+            'parentOpts' => $this->listPlaceOptions($id),
+            'values' => $row, 'errors' => [],
+        ]);
+    }
+
+    public function placeUpdateAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        if ($this->findPlaceRow($id) === null) { return $this->renderNotFound($response, $id); }
+        $values = $this->extractPlacePayload($request);
+        $errors = $this->validatePlace($values, $id);
+        if (!empty($errors)) {
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'edit', 'id' => $id,
+                'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions($id),
+                'values' => $values, 'errors' => $errors,
+            ]);
+        }
+        $stmt = $this->db->prepare(
+            'UPDATE archive_places
+                SET name = ?, place_type = ?, parent_id = ?, latitude = ?, longitude = ?,
+                    geonames_id = ?, wikidata_id = ?, tgn_id = ?, description = ?,
+                    date_start = ?, date_end = ?
+              WHERE id = ? AND deleted_at IS NULL'
+        );
+        // FIX F003: bail early on prepare failure instead of silently 302'ing
+        // to the show page — mirrors activityUpdateAction's prepare-failure
+        // branch so persistence errors surface as 404 rather than a fake success.
+        if ($stmt === false) {
+            SecureLogger::error('[Archives] placeUpdateAction prepare failed: ' . $this->db->error);
+            return $this->renderNotFound($response, $id);
+        }
+        $parent = $values['parent_id']; $lat = $values['latitude']; $lng = $values['longitude'];
+        $stmt->bind_param(
+            'ssiddssssssi',
+            $values['name'], $values['place_type'], $parent, $lat, $lng,
+            $values['geonames_id'], $values['wikidata_id'], $values['tgn_id'],
+            $values['description'], $values['date_start'], $values['date_end'], $id
+        );
+        // FIX (sibling of F002): check execute() return so a deadlock /
+        // constraint violation surfaces as 422 with a flash error instead
+        // of a silent 302 implying success.
+        $execOk  = $stmt->execute();
+        $execErr = $stmt->error;
+        $stmt->close();
+        if (!$execOk) {
+            SecureLogger::error('[Archives] placeUpdateAction execute failed: ' . $execErr);
+            return $this->renderView($response, 'places/form', [
+                'mode' => 'edit', 'id' => $id,
+                'types' => array_keys(self::PLACE_TYPES),
+                'parentOpts' => $this->listPlaceOptions($id),
+                'values' => $values,
+                'errors' => ['_global' => __('Impossibile salvare il luogo. Riprovare.')],
+            ])->withStatus(422);
+        }
+        return $response
+            ->withHeader('Location', url('/admin/archives/places/' . $id))
+            ->withStatus(302);
+    }
+
+    public function placeDestroyAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        // F010: wrap soft-delete + Phase 4 sweep in a single transaction so
+        // a partial failure between UPDATE and DELETE cannot leave dangling
+        // polymorphic edges pointing at a soft-deleted place.
+        $db = $this->db;
+        $wasInTransaction = false;
+        $acRes = $db->query('SELECT @@autocommit AS ac');
+        if ($acRes instanceof \mysqli_result) {
+            $acRow = $acRes->fetch_assoc();
+            $acRes->free();
+            $wasInTransaction = ((int) ($acRow['ac'] ?? 1) === 0);
+        }
+        if (!$wasInTransaction) { $db->begin_transaction(); }
+        try {
+            $stmt = $this->db->prepare(
+                'UPDATE archive_places SET deleted_at = NOW() WHERE id = ? AND deleted_at IS NULL'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('i', $id);
+                $stmt->execute();
+                $stmt->close();
+            }
+
+            // Phase 4 polymorphic relations sweep — see migrate_0.7.10.sql comment.
+            // Hard-delete relations whose endpoint is this soft-deleted entity, in
+            // both source and target positions.
+            $relSweep = $this->db->prepare(
+                'DELETE FROM archive_relations
+                   WHERE (source_type = ? AND source_id = ?)
+                      OR (target_type = ? AND target_id = ?)'
+            );
+            if ($relSweep !== false) {
+                $entType = 'archive_place';
+                $relSweep->bind_param('sisi', $entType, $id, $entType, $id);
+                $relSweep->execute();
+                $relSweep->close();
+            }
+
+            if (!$wasInTransaction) { $db->commit(); }
+        } catch (\Throwable $e) {
+            if (!$wasInTransaction) { $db->rollback(); }
+            SecureLogger::error('[Archives] placeDestroyAction transaction failed: ' . $e->getMessage(), ['id' => $id]);
+            // continue degraded — soft-delete + sweep both rolled back together
+        }
+
+        return $response
+            ->withHeader('Location', url('/admin/archives/places'))
+            ->withStatus(302);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function findPlaceRow(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT * FROM archive_places WHERE id = ? AND deleted_at IS NULL LIMIT 1'
+        );
+        if ($stmt === false) { return null; }
+        $stmt->bind_param('i', $id);
+        $stmt->execute();
+        $r = $stmt->get_result();
+        $row = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+        $stmt->close();
+        return is_array($row) ? $row : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function extractPlacePayload(ServerRequestInterface $request): array
+    {
+        $body = $request->getParsedBody() ?? [];
+        if (!is_array($body)) { $body = []; }
+        $get = static fn (string $k): string => is_string($body[$k] ?? null) ? trim((string) $body[$k]) : '';
+        $parent = $get('parent_id');
+        $lat    = $get('latitude');
+        $lng    = $get('longitude');
+        return [
+            'name'        => $get('name'),
+            'place_type'  => $get('place_type') ?: 'locality',
+            'parent_id'   => $parent === '' ? null : (int) $parent,
+            'latitude'    => $lat === '' ? null : (float) $lat,
+            'longitude'   => $lng === '' ? null : (float) $lng,
+            'geonames_id' => $get('geonames_id'),
+            'wikidata_id' => $get('wikidata_id'),
+            'tgn_id'      => $get('tgn_id'),
+            'description' => $get('description'),
+            'date_start'  => $get('date_start'),
+            'date_end'    => $get('date_end'),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $values
+     * @return array<string, string>
+     */
+    private function validatePlace(array $values, ?int $editingId): array
+    {
+        $errors = [];
+        if (($values['name'] ?? '') === '') {
+            $errors['name'] = __('Obbligatorio.');
+        } elseif (mb_strlen((string) $values['name']) > 500) {
+            $errors['name'] = __('Massimo 500 caratteri.');
+        }
+        if (!isset(self::PLACE_TYPES[(string) ($values['place_type'] ?? '')])) {
+            $errors['place_type'] = __('Tipo non valido.');
+        }
+        if ($values['parent_id'] !== null) {
+            if ($editingId !== null && $values['parent_id'] === $editingId) {
+                $errors['parent_id'] = __('Un luogo non può essere genitore di se stesso.');
+            } elseif ($editingId !== null && $this->placeWouldCreateCycle($editingId, (int) $values['parent_id'])) {
+                $errors['parent_id'] = __('Ciclo rilevato — scegli un genitore che non sia discendente.');
+            } elseif ($this->findPlaceRow((int) $values['parent_id']) === null) {
+                $errors['parent_id'] = __('Luogo padre inesistente.');
+            }
+        }
+        $lat = $values['latitude']; $lng = $values['longitude'];
+        if ($lat !== null && ($lat < -90 || $lat > 90)) {
+            $errors['latitude'] = sprintf(__('La latitudine deve essere compresa tra -90 e 90, ricevuto: %s'), (string) $lat);
+        }
+        if ($lng !== null && ($lng < -180 || $lng > 180)) {
+            $errors['longitude'] = sprintf(__('La longitudine deve essere compresa tra -180 e 180, ricevuto: %s'), (string) $lng);
+        }
+        // F041 (Phase 8): the place identifier columns flow directly into
+        // owl:sameAs IRIs in RicJsonLdBuilder::buildPlace (geonames.org/{id},
+        // wikidata.org/entity/{id}, vocab.getty.edu/page/tgn/{id}). Free-form
+        // input can yield path separators, unicode, whitespace or scheme
+        // characters that produce invalid Linked-Data IRIs the moment they
+        // hit the public ric.json. Enforce the canonical shape of each
+        // identifier here so the DB never stores something that would
+        // serialise into a malformed sameAs.
+        $gn = (string) ($values['geonames_id'] ?? '');
+        if ($gn !== '' && !preg_match('/^\d+$/', $gn)) {
+            $errors['geonames_id'] = __('GeoNames ID deve essere un numero (es. 3169070).');
+        }
+        $wd = (string) ($values['wikidata_id'] ?? '');
+        if ($wd !== '' && !preg_match('/^Q\d+$/', $wd)) {
+            $errors['wikidata_id'] = __('Wikidata ID deve essere nel formato Q seguito da numeri (es. Q220).');
+        }
+        $tgn = (string) ($values['tgn_id'] ?? '');
+        if ($tgn !== '' && !preg_match('/^\d+$/', $tgn)) {
+            $errors['tgn_id'] = __('Getty TGN ID deve essere un numero (es. 7000874).');
+        }
+        // FIX (sibling of F045): same date_start/date_end shape + length
+        // cap as validateActivity / relationAttachAction; archive_places
+        // DDL has the same VARCHAR(20) / VARCHAR(500) columns.
+        $dateRe = '/^-?[0-9]{4}(-[0-9]{2}-[0-9]{2})?$/';
+        $ds = (string) ($values['date_start'] ?? '');
+        if ($ds !== '' && preg_match($dateRe, $ds) !== 1) {
+            $errors['date_start'] = __('Formato non valido: usa AAAA o AAAA-MM-GG.');
+        }
+        $de = (string) ($values['date_end'] ?? '');
+        if ($de !== '' && preg_match($dateRe, $de) !== 1) {
+            $errors['date_end'] = __('Formato non valido: usa AAAA o AAAA-MM-GG.');
+        }
+        return $errors;
+    }
+
+    /**
+     * Phase 5: ancestor walk to reject cycles in the place tree.
+     * Mirrors activityWouldCreateCycle / parentWouldCreateCycle pattern —
+     * MySQL can't enforce this since the FK uses ON DELETE SET NULL.
+     *
+     * F015: prepare the SELECT once and reuse across iterations instead of
+     * re-preparing per loop. Mirrors activityWouldCreateCycle's pattern and
+     * cuts prepare/parse overhead on deep trees.
+     *
+     * F016: intentionally NOT filtering on deleted_at — integrity checks
+     * must see the full topology of the tree, not just rows still visible
+     * to the UI. If the chain crosses a soft-deleted ancestor, filtering
+     * would silently truncate the walk and let a path through a deleted
+     * node go undetected. The visibility/integrity distinction belongs to
+     * render code, not here.
+     */
+    private function placeWouldCreateCycle(int $childId, int $proposedParentId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT parent_id FROM archive_places WHERE id = ? LIMIT 1'
+        );
+        if ($stmt === false) { return true; }
+        $current = $proposedParentId;
+        $visited = [];
+        $iterations = 0;
+        while ($current > 0 && $iterations++ < self::MAX_HIERARCHY_DEPTH) { /* FIX F013-followup */
+            if ($current === $childId) { $stmt->close(); return true; }
+            if (isset($visited[$current])) { break; }
+            $visited[$current] = true;
+            $stmt->bind_param('i', $current);
+            if (!$stmt->execute()) { $stmt->close(); return false; }
+            $res = $stmt->get_result();
+            $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
+            if (!is_array($row) || empty($row['parent_id'])) { break; }
+            $current = (int) $row['parent_id'];
+        }
+        $stmt->close();
+        return false;
+    }
+
+    /**
+     * @return list<array{id:int,name:string,type:string}>
+     */
+    private function listPlaceOptions(?int $excludeId): array
+    {
+        $rows = [];
+        $result = $this->db->query(
+            'SELECT id, name, place_type FROM archive_places WHERE deleted_at IS NULL ORDER BY name LIMIT 1000'
+        );
+        if ($result instanceof \mysqli_result) {
+            while ($r = $result->fetch_assoc()) {
+                $id = (int) $r['id'];
+                if ($excludeId !== null && $id === $excludeId) { continue; }
+                $rows[] = ['id' => $id, 'name' => (string) $r['name'], 'type' => (string) $r['place_type']];
+            }
+            $result->free();
+        }
+        return $rows;
+    }
+
+    // ── RiC-CM Phase 5 — Polymorphic relations attach/detach ────────────────
+
+    public function relationAttachAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        $body = $request->getParsedBody() ?? [];
+        if (!is_array($body)) { $body = []; }
+        $srcType   = is_string($body['source_type']   ?? null) ? (string) $body['source_type']   : '';
+        $srcId     = (int) ($body['source_id']     ?? 0);
+        $tgtType   = is_string($body['target_type']   ?? null) ? (string) $body['target_type']   : '';
+        $tgtId     = (int) ($body['target_id']     ?? 0);
+        $predicate = is_string($body['ric_predicate'] ?? null) ? trim((string) $body['ric_predicate']) : '';
+        $qualifier = is_string($body['qualifier']     ?? null) ? trim((string) $body['qualifier']) : '';
+        $certainty = is_string($body['certainty']     ?? null) ? (string) $body['certainty']     : 'certain';
+        $dateStart = is_string($body['date_start']    ?? null) ? trim((string) $body['date_start']) : '';
+        $dateEnd   = is_string($body['date_end']      ?? null) ? trim((string) $body['date_end']) : '';
+        $sourceRef = is_string($body['source_ref']    ?? null) ? trim((string) $body['source_ref']) : '';
+
+        $allowedCertainty = ['certain', 'probable', 'uncertain'];
+        if (!in_array($certainty, $allowedCertainty, true)) {
+            $certainty = 'certain';
+        }
+        $returnTo = self::safeReturnTo(is_string($body['_return_to'] ?? null) ? (string) $body['_return_to'] : null);
+
+        // F013: format gate for ric_predicate. Migration comment promised a
+        // RIC_PREDICATE_VALIDATOR allowlist; this is the lightweight format
+        // check until the canonical RiC-O term list lands. Shape:
+        //   lowercase prefix [a-z]{2,10} ':' CamelCase local [A-Za-z][A-Za-z0-9]{1,80}
+        // Examples: ric:isPartOf, dcterms:relation, rdf:type.
+        // Deferred: deduplication UX — INSERT IGNORE still swallows duplicates
+        // silently, that is a separate cross-cutting change (caller-facing error
+        // state + flash messaging) and is intentionally not touched here.
+        $predicateFormatOk = $predicate !== ''
+            && preg_match('/^[a-z]{2,10}:[A-Za-z][A-Za-z0-9]{1,80}$/', $predicate) === 1;
+
+        // FIX F045: format validation on date_start/date_end (ISO 8601-ish:
+        // bare year YYYY or full YYYY-MM-DD, optional leading minus for BCE)
+        // and length cap on source_ref (DDL is VARCHAR(500); reject upstream
+        // so the failure surfaces here rather than as a truncated string in
+        // the public RiC-O JSON-LD output).
+        $dateFormatOk = true;
+        if ($dateStart !== '' && preg_match('/^-?[0-9]{4}(-[0-9]{2}-[0-9]{2})?$/', $dateStart) !== 1) {
+            $dateFormatOk = false;
+        }
+        if ($dateEnd !== '' && preg_match('/^-?[0-9]{4}(-[0-9]{2}-[0-9]{2})?$/', $dateEnd) !== 1) {
+            $dateFormatOk = false;
+        }
+        $sourceRefLenOk = mb_strlen($sourceRef, 'UTF-8') <= 500;
+
+        if (!$predicateFormatOk || !$dateFormatOk || !$sourceRefLenOk
+            || !$this->validateRelationEndpoints($srcType, $srcId, $tgtType, $tgtId)
+        ) {
+            // Bail to the referrer with a query-flagged error — the
+            // form view should render the message on next load.
+            return $response
+                ->withHeader('Location', url($returnTo . (str_contains($returnTo, '?') ? '&' : '?') . 'relation_error=1'))
+                ->withStatus(302);
+        }
+        $stmt = $this->db->prepare(
+            'INSERT IGNORE INTO archive_relations
+                (source_type, source_id, target_type, target_id, ric_predicate,
+                 qualifier, certainty, date_start, date_end, source_ref)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        if ($stmt !== false) {
+            $qNull = $qualifier === '' ? null : $qualifier;
+            $dsNull = $dateStart === '' ? null : $dateStart;
+            $deNull = $dateEnd === '' ? null : $dateEnd;
+            $srNull = $sourceRef === '' ? null : $sourceRef;
+            $stmt->bind_param(
+                'sisissssss',
+                $srcType, $srcId, $tgtType, $tgtId, $predicate,
+                $qNull, $certainty, $dsNull, $deNull, $srNull
+            );
+            $stmt->execute();
+            $stmt->close();
+
+            // Phase 4 → Phase 3 mirror: when the relation connects
+            // archival_unit ↔ archive_activity, also populate the M:N link
+            // table so existing readers (fetchActivitiesForUnit /
+            // fetchUnitsForActivity) see the edge. Without this mirror the
+            // archive_unit_activities table would be write-orphaned.
+            //
+            // F011 (re-review): predicate direction is preserved verbatim
+            // from the polymorphic row, but archive_unit_activities is
+            // conventionally unit-side (unit → activity). When the source
+            // of the original relation is archive_activity (activity-side),
+            // callers reading the mirror may see inverted-direction
+            // predicates. We do NOT silently invert here because the
+            // canonical RiC-O inverse term list is not yet wired up — a
+            // wrong inversion would corrupt semantics worse than a
+            // direction-mismatched predicate. Tracking gap for v0.7.13.
+            if (($srcType === 'archival_unit' && $tgtType === 'archive_activity')
+             || ($srcType === 'archive_activity' && $tgtType === 'archival_unit')) {
+                $unitId  = $srcType === 'archival_unit'    ? $srcId : $tgtId;
+                $actId   = $srcType === 'archive_activity' ? $srcId : $tgtId;
+                if ($srcType === 'archive_activity') {
+                    // Log the activity-side direction so the v0.7.13
+                    // canonical-inversion follow-up has a corpus to study.
+                    SecureLogger::error(
+                        '[Archives] F011 activity-side predicate mirrored verbatim (direction may be inverted vs unit-side convention)',
+                        ['unit_id' => $unitId, 'activity_id' => $actId, 'predicate' => $predicate]
+                    );
+                }
+                // FIX F016: UPSERT keeps the activities-side mirror in sync
+                // when the same unit↔activity pair is re-attached with a
+                // changed predicate. INSERT IGNORE would silently leave the
+                // old predicate row, causing the two tables to drift.
+                $linkStmt = $this->db->prepare(
+                    'INSERT INTO archive_unit_activities (unit_id, activity_id, ric_predicate)
+                     VALUES (?, ?, ?)
+                     ON DUPLICATE KEY UPDATE ric_predicate = VALUES(ric_predicate)'
+                );
+                if ($linkStmt !== false) {
+                    $linkStmt->bind_param('iis', $unitId, $actId, $predicate);
+                    $linkStmt->execute();
+                    $linkStmt->close();
+                }
+            }
+
+            // Phase 2 mirror: when the relation connects two
+            // authority_records, also populate archive_agent_relations so
+            // the dedicated agent-to-agent readers see the edge.
+            if ($srcType === 'authority_record' && $tgtType === 'authority_record') {
+                // FIX F016: same UPSERT pattern as above — keep predicate in sync.
+                $linkStmt = $this->db->prepare(
+                    'INSERT INTO archive_agent_relations (agent_id, related_id, ric_predicate)
+                     VALUES (?, ?, ?)
+                     ON DUPLICATE KEY UPDATE ric_predicate = VALUES(ric_predicate)'
+                );
+                if ($linkStmt !== false) {
+                    $linkStmt->bind_param('iis', $srcId, $tgtId, $predicate);
+                    $linkStmt->execute();
+                    $linkStmt->close();
+                }
+            }
+        }
+        return $response
+            ->withHeader('Location', url($returnTo))
+            ->withStatus(302);
+    }
+
+    public function relationDetachAction(
+        ServerRequestInterface $request, ResponseInterface $response, int $id
+    ): ResponseInterface {
+        $body = $request->getParsedBody() ?? [];
+        $candidateReturn = (is_array($body) && is_string($body['_return_to'] ?? null)) ? (string) $body['_return_to'] : null;
+        $returnTo = self::safeReturnTo($candidateReturn);
+
+        // Capture the row's polymorphic keys BEFORE deletion so we can sweep
+        // the mirrored Phase 2 / Phase 3 link tables (archive_agent_relations,
+        // archive_unit_activities). Without this lookup, detaching a relation
+        // would orphan the mirror row.
+        $mirror = null;
+        $sel = $this->db->prepare(
+            'SELECT source_type, source_id, target_type, target_id, ric_predicate
+             FROM archive_relations WHERE id = ?'
+        );
+        if ($sel !== false) {
+            $sel->bind_param('i', $id);
+            if ($sel->execute()) {
+                $res = $sel->get_result();
+                if ($res !== false) {
+                    $row = $res->fetch_assoc();
+                    if (is_array($row)) {
+                        $mirror = [
+                            'source_type'   => (string) ($row['source_type']   ?? ''),
+                            'source_id'     => (int)    ($row['source_id']     ?? 0),
+                            'target_type'   => (string) ($row['target_type']   ?? ''),
+                            'target_id'     => (int)    ($row['target_id']     ?? 0),
+                            'ric_predicate' => (string) ($row['ric_predicate'] ?? ''),
+                        ];
+                    }
+                    $res->free();
+                }
+            }
+            $sel->close();
+        }
+
+        $stmt = $this->db->prepare('DELETE FROM archive_relations WHERE id = ?');
+        if ($stmt !== false) {
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+
+        if (is_array($mirror) && $mirror['ric_predicate'] !== '') {
+            $sType = $mirror['source_type'];
+            $sId   = $mirror['source_id'];
+            $tType = $mirror['target_type'];
+            $tId   = $mirror['target_id'];
+            $pred  = $mirror['ric_predicate'];
+
+            if (($sType === 'archival_unit' && $tType === 'archive_activity')
+             || ($sType === 'archive_activity' && $tType === 'archival_unit')) {
+                $unitId  = $sType === 'archival_unit'    ? $sId : $tId;
+                $actId   = $sType === 'archive_activity' ? $sId : $tId;
+                $del = $this->db->prepare(
+                    'DELETE FROM archive_unit_activities
+                     WHERE unit_id = ? AND activity_id = ? AND ric_predicate = ?'
+                );
+                if ($del !== false) {
+                    $del->bind_param('iis', $unitId, $actId, $pred);
+                    $del->execute();
+                    $del->close();
+                }
+            }
+
+            if ($sType === 'authority_record' && $tType === 'authority_record') {
+                $del = $this->db->prepare(
+                    'DELETE FROM archive_agent_relations
+                     WHERE agent_id = ? AND related_id = ? AND ric_predicate = ?'
+                );
+                if ($del !== false) {
+                    $del->bind_param('iis', $sId, $tId, $pred);
+                    $del->execute();
+                    $del->close();
+                }
+            }
+        }
+
+        return $response
+            ->withHeader('Location', url($returnTo))
+            ->withStatus(302);
+    }
+
+    // ── RiC-CM Phase 5 — Cross-entity autocomplete ──────────────────────────
+
+    /**
+     * GET /api/archives/entities?type=archival_unit|authority_record|archive_activity|archive_place&q=…
+     *
+     * Returns up to 20 matching rows from the requested entity table,
+     * as a JSON array of `{id, type, label, ric_type}`. Used by the
+     * Phase-5 relation-add modal's typeahead.
+     */
+    public function entitiesAutocompleteAction(
+        ServerRequestInterface $request, ResponseInterface $response
+    ): ResponseInterface {
+        $params = $request->getQueryParams();
+        $type   = is_string($params['type'] ?? null) ? (string) $params['type'] : '';
+        $q      = is_string($params['q']    ?? null) ? trim((string) $params['q']) : '';
+
+        $tableMap = [
+            'archival_unit'    => ['table' => 'archival_units',     'label' => 'constructed_title', 'extra' => 'level'],
+            'authority_record' => ['table' => 'authority_records',  'label' => 'authorised_form',   'extra' => 'ric_type'],
+            'archive_activity' => ['table' => 'archive_activities', 'label' => 'title',             'extra' => 'activity_type'],
+            'archive_place'    => ['table' => 'archive_places',     'label' => 'name',              'extra' => 'place_type'],
+        ];
+        $spec = $tableMap[$type] ?? null;
+        $payload = ['results' => []];
+        if ($spec === null) {
+            $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR));
+            return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
+        }
+        // Escape LIKE wildcards (% _ \) in user input to prevent
+        // wildcard-injection enumeration (e.g. q=% returning everything).
+        $qEscaped = $q === '' ? '' : addcslashes($q, '%_\\');
+        $like = $q === '' ? '%' : '%' . $qEscaped . '%';
+        // Column names are from a static map — safe to interpolate.
+        $sql = "SELECT id, `{$spec['label']}` AS label, `{$spec['extra']}` AS extra
+                  FROM `{$spec['table']}`
+                 WHERE `{$spec['label']}` LIKE ? AND deleted_at IS NULL
+                 ORDER BY `{$spec['label']}` ASC
+                 LIMIT 20";
+        $stmt = $this->db->prepare($sql);
+        if ($stmt !== false) {
+            $stmt->bind_param('s', $like);
+            if ($stmt->execute()) {
+                $r = $stmt->get_result();
+                if ($r instanceof \mysqli_result) {
+                    while ($row = $r->fetch_assoc()) {
+                        $payload['results'][] = [
+                            'id'    => (int) $row['id'],
+                            'type'  => $type,
+                            'label' => (string) ($row['label'] ?? ''),
+                            'extra' => (string) ($row['extra'] ?? ''),
+                        ];
+                    }
+                    $r->free();
+                }
+            }
+            $stmt->close();
+        }
+        $response->getBody()->write(json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE));
+        return $response->withHeader('Content-Type', 'application/json; charset=utf-8');
     }
 
     // ── Dublin Core XML ──────────────────────────────────────────────────────
@@ -6698,15 +9694,23 @@ class ArchivesPlugin
      */
     public static function ddlAuthorityRecords(): string
     {
+        // Phase 2 (v0.7.8 — issue #122) added ric_type / birth_date /
+        // death_date / place_of_origin. Fresh installs get the full
+        // shape from this DDL; in-place upgrades pick up the new
+        // columns via migrateAuthorityRecordsRicColumns().
         return <<<'SQL'
         CREATE TABLE IF NOT EXISTS authority_records (
             id                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             type               ENUM('person','corporate','family') NOT NULL,
+            ric_type           ENUM('Person','CorporateBody','Family','Position','Group') NOT NULL DEFAULT 'Person',
             authorised_form    VARCHAR(500) NOT NULL,
             parallel_forms     TEXT NULL,
             other_forms        TEXT NULL,
             identifiers        VARCHAR(500) NULL,
             dates_of_existence VARCHAR(255) NULL,
+            birth_date         VARCHAR(20)  NULL,
+            death_date         VARCHAR(20)  NULL,
+            place_of_origin    VARCHAR(255) NULL,
             history            TEXT NULL,
             places             TEXT NULL,
             legal_status       VARCHAR(255) NULL,
@@ -6721,6 +9725,7 @@ class ArchivesPlugin
             deleted_at         TIMESTAMP NULL,
             PRIMARY KEY (id),
             KEY idx_type (type),
+            KEY idx_ric_type (ric_type),
             KEY idx_deleted (deleted_at),
             FULLTEXT KEY ft_search (authorised_form, parallel_forms, history, functions)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -6790,6 +9795,233 @@ class ArchivesPlugin
             KEY idx_unit_id (unit_id),
             CONSTRAINT fk_archival_unit_files_unit
                 FOREIGN KEY (unit_id) REFERENCES archival_units(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_agent_identifiers` (RiC-CM Phase 2 — v0.7.8).
+     *
+     * Multi-scheme identifier ledger for archive authorities. An
+     * authority can carry a VIAF id, an ISNI id, AND a Wikidata id at
+     * the same time; the legacy `authority_records.identifiers` blob
+     * could only hold one. New rows are added by the admin form or
+     * imported from VIAF / ISNI lookup tools; the RiC-O JSON-LD output
+     * emits each entry under `owl:sameAs`.
+     */
+    public static function ddlAgentIdentifiers(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_agent_identifiers (
+            id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            authority_id BIGINT UNSIGNED NOT NULL,
+            scheme       ENUM('viaf','isni','wikidata','gnd','bnf','lcnaf','ulan','ark','local') NOT NULL,
+            value        VARCHAR(255) NOT NULL,
+            uri          VARCHAR(500) NULL,
+            is_preferred TINYINT(1) NOT NULL DEFAULT 0,
+            created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_authority_id (authority_id),
+            KEY idx_scheme_value (scheme, value(64)),
+            UNIQUE KEY uq_authority_scheme_value (authority_id, scheme, value(128)),
+            CONSTRAINT fk_aai_authority FOREIGN KEY (authority_id)
+                REFERENCES authority_records(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_agent_relations` (RiC-CM Phase 2 — v0.7.8).
+     *
+     * Agent ↔ Agent edges typed with a RiC-O predicate. Captures
+     * organisational hierarchies (ric:isMemberOf), corporate
+     * successions (ric:isSuccessorOf), family ties (ric:isParentOf,
+     * ric:isSiblingOf, ric:isMarriedTo), and arbitrary associations
+     * (ric:isAssociatedWith). The predicate column is VARCHAR rather
+     * than ENUM because RiC-O's agent-to-agent vocabulary is open;
+     * validation lives in the application layer.
+     *
+     * The CHECK constraint rejects self-loops at the schema layer on
+     * MySQL 8.0.16+. Older versions parse but don't enforce CHECKs —
+     * the application validator covers the fallback.
+     */
+    public static function ddlAgentRelations(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_agent_relations (
+            id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            agent_id      BIGINT UNSIGNED NOT NULL,
+            related_id    BIGINT UNSIGNED NOT NULL,
+            ric_predicate VARCHAR(128) NOT NULL,
+            qualifier     VARCHAR(255) NULL,
+            date_start    VARCHAR(20)  NULL,
+            date_end      VARCHAR(20)  NULL,
+            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_agent (agent_id),
+            KEY idx_related (related_id),
+            KEY idx_predicate (ric_predicate),
+            UNIQUE KEY uq_agent_related_predicate (agent_id, related_id, ric_predicate),
+            CONSTRAINT fk_aar_agent
+                FOREIGN KEY (agent_id)   REFERENCES authority_records(id) ON DELETE CASCADE,
+            CONSTRAINT fk_aar_related
+                FOREIGN KEY (related_id) REFERENCES authority_records(id) ON DELETE CASCADE,
+            CONSTRAINT chk_aar_no_self_loop CHECK (agent_id <> related_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_activities` (RiC-CM Phase 3 — v0.7.9).
+     *
+     * First-class Activity entity corresponding to ISDF. Captures any
+     * human or organisational activity that produced, used, or
+     * managed archival material. Self-referential parent_id supports
+     * the ISDF function → activity → transaction hierarchy.
+     */
+    public static function ddlArchiveActivities(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_activities (
+            id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            title         VARCHAR(500) NOT NULL,
+            description   TEXT NULL,
+            activity_type ENUM('function','activity','transaction','task','mandate') NOT NULL DEFAULT 'activity',
+            parent_id     BIGINT UNSIGNED NULL,
+            date_start    VARCHAR(20) NULL,
+            date_end      VARCHAR(20) NULL,
+            is_ongoing    TINYINT(1) NOT NULL DEFAULT 0,
+            agent_id      BIGINT UNSIGNED NULL,
+            -- F003 (re-review): place_id removed to match migrate_0.7.12.sql which DROPs the
+            -- reserved-but-unused column. Fresh installs must NOT recreate it; both paths
+            -- (fresh install via ensureSchema + upgraded install via migration) now agree.
+            source_ref    VARCHAR(500) NULL,
+            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            deleted_at    TIMESTAMP NULL,
+            PRIMARY KEY (id),
+            KEY idx_parent (parent_id),
+            KEY idx_agent (agent_id),
+            KEY idx_type (activity_type),
+            KEY idx_deleted (deleted_at),
+            FULLTEXT KEY ft_activity_search (title, description),
+            CONSTRAINT fk_activity_parent FOREIGN KEY (parent_id)
+                REFERENCES archive_activities(id) ON DELETE SET NULL,
+            CONSTRAINT fk_activity_agent  FOREIGN KEY (agent_id)
+                REFERENCES authority_records(id) ON DELETE SET NULL
+            -- Self-parent and deeper-cycle guards live in
+            -- ArchivesPlugin::activityWouldCreateCycle() (application
+            -- layer) because MySQL rejects a CHECK constraint on a
+            -- column that's also part of a FK referential action
+            -- (ON DELETE SET NULL).
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_unit_activities` (RiC-CM Phase 3 — v0.7.9).
+     *
+     * M:N link between archival units and activities. The
+     * `ric_predicate` column captures the nature of the link in
+     * RiC-O terms — `ric:resultsOrResultedFrom`, `ric:isOrWasUsedBy`,
+     * `ric:isSubjectOf`. The column is VARCHAR (open vocabulary)
+     * rather than ENUM because the RiC-O predicate set is open and
+     * the admin form validates against a known allow-list.
+     */
+    public static function ddlArchiveUnitActivities(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_unit_activities (
+            id             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            unit_id        BIGINT UNSIGNED NOT NULL,
+            activity_id    BIGINT UNSIGNED NOT NULL,
+            ric_predicate  VARCHAR(128) NOT NULL DEFAULT 'ric:resultsOrResultedFrom',
+            created_at     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_unit_activity_predicate (unit_id, activity_id, ric_predicate),
+            KEY idx_unit (unit_id),
+            KEY idx_activity (activity_id),
+            KEY idx_predicate (ric_predicate),
+            CONSTRAINT fk_ua_unit
+                FOREIGN KEY (unit_id)     REFERENCES archival_units(id)     ON DELETE CASCADE,
+            CONSTRAINT fk_ua_activity
+                FOREIGN KEY (activity_id) REFERENCES archive_activities(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_places` (RiC-CM Phase 4 — v0.7.10).
+     *
+     * First-class Place entity (RiC-CM §3.5). Lat/lng for map display,
+     * GeoNames / Wikidata / Getty TGN identifiers for external linking,
+     * self-referential parent_id for the place hierarchy
+     * (Catania → Sicilia → Italia).
+     */
+    public static function ddlArchivePlaces(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_places (
+            id           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name         VARCHAR(500) NOT NULL,
+            place_type   ENUM('country','region','province','municipality','locality','building','room','geographic_feature','other') NOT NULL DEFAULT 'locality',
+            parent_id    BIGINT UNSIGNED NULL,
+            latitude     DECIMAL(10,7) NULL,
+            longitude    DECIMAL(10,7) NULL,
+            geonames_id  VARCHAR(20)   NULL,
+            wikidata_id  VARCHAR(20)   NULL,
+            tgn_id       VARCHAR(20)   NULL,
+            description  TEXT          NULL,
+            date_start   VARCHAR(20)   NULL,
+            date_end     VARCHAR(20)   NULL,
+            created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            deleted_at   TIMESTAMP NULL,
+            PRIMARY KEY (id),
+            KEY idx_parent (parent_id),
+            KEY idx_place_type (place_type),
+            KEY idx_geonames (geonames_id),
+            KEY idx_wikidata (wikidata_id),
+            KEY idx_deleted (deleted_at),
+            FULLTEXT KEY ft_place_search (name, description),
+            CONSTRAINT fk_place_parent FOREIGN KEY (parent_id)
+                REFERENCES archive_places(id) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        SQL;
+    }
+
+    /**
+     * DDL for `archive_relations` (RiC-CM Phase 4 — v0.7.10).
+     *
+     * Polymorphic N:M relations between any two RiC-CM entities. No
+     * FK on source_id/target_id because MySQL can't reference "one of
+     * several tables" — referential integrity is enforced by the
+     * application layer (validateRelationEndpoints) and by the
+     * archive_relations sweep on hard-deletes.
+     */
+    public static function ddlArchiveRelations(): string
+    {
+        return <<<'SQL'
+        CREATE TABLE IF NOT EXISTS archive_relations (
+            id            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            source_type   ENUM('archival_unit','authority_record','archive_activity','archive_place') NOT NULL,
+            source_id     BIGINT UNSIGNED NOT NULL,
+            target_type   ENUM('archival_unit','authority_record','archive_activity','archive_place') NOT NULL,
+            target_id     BIGINT UNSIGNED NOT NULL,
+            ric_predicate VARCHAR(128) NOT NULL,
+            qualifier     VARCHAR(500) NULL,
+            certainty     ENUM('certain','probable','uncertain') NOT NULL DEFAULT 'certain',
+            date_start    VARCHAR(20)  NULL,
+            date_end      VARCHAR(20)  NULL,
+            source_ref    VARCHAR(500) NULL,
+            created_by    BIGINT UNSIGNED NULL,
+            created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_relation (source_type, source_id, target_type, target_id, ric_predicate),
+            KEY idx_source (source_type, source_id),
+            KEY idx_target (target_type, target_id),
+            KEY idx_predicate (ric_predicate)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         SQL;
     }

@@ -23,19 +23,33 @@ const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 const DB_USER = process.env.E2E_DB_USER || '';
 const DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_NAME = process.env.E2E_DB_NAME || '';
+const DB_HOST = process.env.E2E_DB_HOST || '';
+const DB_PORT = process.env.E2E_DB_PORT || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
 
+// Build mysql CLI args safely. Connection precedence: TCP via -h/-P first
+// (CI runs MySQL in a Docker container, TCP-only), Unix socket for local
+// dev, then mysql client defaults. Password via MYSQL_PWD env (no argv
+// leak; no interactive prompt on empty DB_PASS). Mirrors the pattern in
+// archives-pr-extended / archives-phase5-admin-ui specs.
 function mysqlArgs(sql, batch = false) {
-    const args = ['-u', DB_USER];
-    if (DB_PASS !== '') args.push(`-p${DB_PASS}`);
-    if (DB_SOCKET) args.push('-S', DB_SOCKET);
-    args.push(DB_NAME);
+    const args = [];
+    if (DB_HOST) {
+        args.push('-h', DB_HOST);
+        if (DB_PORT) args.push('-P', DB_PORT);
+    } else if (DB_SOCKET) {
+        args.push('-S', DB_SOCKET);
+    }
+    args.push('-u', DB_USER, DB_NAME);
     if (batch) args.push('-N', '-B');
     if (sql !== '') args.push('-e', sql);
     return args;
 }
 function dbQuery(sql) {
-    return execFileSync('mysql', mysqlArgs(sql, true), { encoding: 'utf-8', timeout: 10000 }).trim();
+    return execFileSync('mysql', mysqlArgs(sql, true), {
+        encoding: 'utf-8', timeout: 10000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+    }).trim();
 }
 
 test.skip(
@@ -49,7 +63,7 @@ const FIXTURES_DIR = path.join(__dirname, 'fixtures');
 
 const TEST_COVER = path.join(FIXTURES_DIR, 'archive-test-cover.jpg');
 const TEST_PDF   = path.join(FIXTURES_DIR, 'archive-test.pdf');
-const TEST_AUDIO = path.join(FIXTURES_DIR, 'archive-test-audio.mp3');
+const TEST_AUDIO = path.join(FIXTURES_DIR, 'archive-test-audio.wav');
 
 test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () => {
     /** @type {import('@playwright/test').BrowserContext} */
@@ -120,7 +134,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
     test('1. Upload cover image (JPEG) — row #1 (PDF candidate)', async () => {
         await submitUpload(ids.pdf, 'form[action*="/upload-cover"]', 'cover', TEST_COVER);
         const row = dbQuery(`SELECT cover_image_path FROM archival_units WHERE id = ${ids.pdf}`);
-        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{8}\.jpg$/);
+        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{16}\.jpg$/);
         expect(fs.existsSync(path.join(PUBLIC_DIR, row)), 'cover file on disk').toBe(true);
     });
 
@@ -133,7 +147,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
               ORDER BY id DESC LIMIT 1`
         );
         const [docPath, mime, filename] = row.split('|');
-        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{8}\.pdf$/);
+        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{16}\.pdf$/);
         expect(mime).toBe('application/pdf');
         expect(filename).toBe('archive-test.pdf');
         expect(fs.existsSync(path.join(PUBLIC_DIR, docPath)), 'PDF file on disk').toBe(true);
@@ -145,7 +159,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
     test('3. Upload cover image (JPEG) — row #2 (audio candidate)', async () => {
         await submitUpload(ids.audio, 'form[action*="/upload-cover"]', 'cover', TEST_COVER);
         const row = dbQuery(`SELECT cover_image_path FROM archival_units WHERE id = ${ids.audio}`);
-        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{8}\.jpg$/);
+        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{16}\.jpg$/);
     });
 
     test('4. Upload audio (WAV) — row #2, should trigger player in frontend', async () => {
@@ -157,7 +171,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
               ORDER BY id DESC LIMIT 1`
         );
         const [docPath, mime, filename] = row.split('|');
-        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{8}\.wav$/);
+        expect(docPath).toMatch(/^\/uploads\/archives\/documents\/\d+-[a-f0-9]{16}\.wav$/);
         expect(['audio/wav', 'audio/x-wav']).toContain(mime);
         expect(filename).toBe('archive-test-audio.wav');
         expect(fs.existsSync(path.join(PUBLIC_DIR, docPath)), 'audio file on disk').toBe(true);
@@ -166,7 +180,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
     test('5. Upload cover only — row #3', async () => {
         await submitUpload(ids.coverOnly, 'form[action*="/upload-cover"]', 'cover', TEST_COVER);
         const row = dbQuery(`SELECT cover_image_path FROM archival_units WHERE id = ${ids.coverOnly}`);
-        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{8}\.jpg$/);
+        expect(row).toMatch(/^\/uploads\/archives\/covers\/\d+-[a-f0-9]{16}\.jpg$/);
     });
 
     test('6. Public frontend: PDF row renders download button', async () => {
@@ -176,7 +190,7 @@ test.describe.serial('Archives — upload cover / PDF / audio end-to-end', () =>
         const resp = await page.request.get(`${BASE}/archivio/${ids.pdf}`);
         const body = await resp.text();
         expect(body).toContain('archive-test.pdf');
-        expect(body).toMatch(/\/uploads\/archives\/documents\/\d+-[a-f0-9]{8}\.pdf/);
+        expect(body).toMatch(/\/uploads\/archives\/documents\/\d+-[a-f0-9]{16}\.pdf/);
     });
 
     test('7. Public frontend: audio row renders <audio> + green-audio-player', async () => {

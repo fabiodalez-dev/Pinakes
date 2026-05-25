@@ -150,39 +150,101 @@ jobs:
 
       # ── Test suite ───────────────────────────────────────────────────────────
 
-      - name: "[1/6] full-test.spec.js — complete application lifecycle"
+      - name: "[1/13] full-test.spec.js — complete application lifecycle"
         run: |
           npx playwright test tests/full-test.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
 
-      - name: "[2/6] schema-integrity.spec.js — post-install table verification"
+      - name: "[2/13] schema-integrity.spec.js — post-install table verification"
         run: |
           npx playwright test tests/schema-integrity.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
 
-      - name: "[3/6] plugin-integrity.spec.js — plugin registration regression"
+      - name: "[3/13] plugin-integrity.spec.js — plugin registration regression"
         run: |
           npx playwright test tests/plugin-integrity.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
 
-      - name: "[4/6] mag-validation.spec.js — OAI-PMH MAG 2.0.1 metadata"
+      - name: "[4/13] mag-validation.spec.js — OAI-PMH MAG 2.0.1 metadata"
         run: |
           npx playwright test tests/mag-validation.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
 
-      - name: "[5/6] archives-search.spec.js — ricerca archivi admin + pubblica"
+      - name: "[5/13] archives-search.spec.js — ricerca archivi admin + pubblica"
         run: |
           npx playwright test tests/archives-search.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
 
-      - name: "[6/6] ncip-server.spec.js — NCIP 2.0 endpoints v0.7.4"
+      - name: "[6/13] ncip-server.spec.js — NCIP 2.0 endpoints v0.7.4"
         run: |
           npx playwright test tests/ncip-server.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      - name: "[7/13] archives-phase5-admin-ui.spec.js — RiC-CM Phase 5 admin UI v0.7.12"
+        run: |
+          npx playwright test tests/archives-phase5-admin-ui.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      - name: "[8/13] archives-phase6-oai-ric-o.spec.js — OAI-PMH metadataPrefix=ric-o v0.7.12"
+        run: |
+          npx playwright test tests/archives-phase6-oai-ric-o.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      - name: "[9/13] archives-ric-jsonld.spec.js — RiC-O JSON-LD endpoints (Phase 1-4)"
+        run: |
+          npx playwright test tests/archives-ric-jsonld.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      - name: "[10/13] archives-crud.spec.js — archival_units CRUD (#103)"
+        run: |
+          npx playwright test tests/archives-crud.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      - name: "[11/13] archives-authorities.spec.js — authority_records CRUD"
+        run: |
+          npx playwright test tests/archives-authorities.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      - name: "[12/13] archives-upload-assets.spec.js — cover/document upload pipeline"
+        # The upload-assets spec picks 3 archival_units from the
+        # `E2E_SEED_*` batch — it doesn't seed them itself. The seed
+        # lives in archives-seed-50.spec.js (50 rows, all 4 levels,
+        # full option matrix). On a fresh CI install no E2E_SEED_* row
+        # exists yet, so the upload spec's beforeAll fails with
+        # "no seeded row available for PDF test". Seed-then-upload
+        # in the same step keeps the dependency local — no test-order
+        # coupling with other steps, no separate seed step to renumber.
+        run: |
+          npx playwright test tests/archives-seed-50.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+          npx playwright test tests/archives-upload-assets.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
+
+      - name: "[13/13] archives-pr-extended.spec.js — extended CRUD + CSRF regression"
+        # The pr-extended spec creates stub files directly via
+        # fs.writeFileSync under public/uploads/archives/documents/ to
+        # drive the IIIF rendering[] assertions. The previous step
+        # ([12/13] upload-assets) ran real uploads through Apache,
+        # which created subdirectories owned by www-data — the runner
+        # process can no longer write into them, so the test EACCES'es
+        # before the first assertion. Re-chmod the uploads tree right
+        # before this step (idempotent, no-op when already 777).
+        run: |
+          sudo chmod -R 777 "${GITHUB_WORKSPACE}/public/uploads" || true
+          npx playwright test tests/archives-pr-extended.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
 
