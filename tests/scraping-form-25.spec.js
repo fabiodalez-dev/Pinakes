@@ -293,8 +293,7 @@ test.describe.serial('Phase 2: Manual form entry', () => {
         if (await priceInput.isVisible().catch(() => false)) {
             await priceInput.fill('19.90');
         }
-        const url = await submitAndWait(page);
-        // After save we're either on the list or on the edit page.
+        await submitAndWait(page);
         const id = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL`));
         expect(id).toBeGreaterThan(0);
         createdBookIds.push(id);
