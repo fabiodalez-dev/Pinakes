@@ -52,13 +52,21 @@ function getStatusBadge($status) {
       </ol>
     </nav>
     <!-- Success Messages -->
+    <?php
+    // Resolve the PDF id to a clean integer ONCE so both the
+    // success-banner link and the inline <script> auto-download below
+    // share the same value. Casting to int also silences the semgrep
+    // `taint-unsafe-echo-tag` pattern-match (the inline echo no longer
+    // references $_GET[...] directly).
+    $pdfIdForDownload = (int)($_GET['pdf'] ?? 0);
+    ?>
     <?php if(isset($_GET['created']) && $_GET['created'] == '1'): ?>
       <div class="mb-6 p-4 bg-green-50 text-green-800 rounded-lg border border-green-200 slide-in-up" role="alert">
         <div class="flex items-center gap-2">
           <i class="fas fa-check-circle"></i>
           <span><?= __("Prestito creato con successo!") ?></span>
-          <?php if(isset($_GET['pdf'])): ?>
-            <a href="<?= htmlspecialchars(url('/admin/prestiti/' . (int)$_GET['pdf'] . '/pdf'), ENT_QUOTES, 'UTF-8') ?>" class="ml-auto inline-flex items-center px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors">
+          <?php if($pdfIdForDownload > 0): ?>
+            <a href="<?= htmlspecialchars(url('/admin/prestiti/' . $pdfIdForDownload . '/pdf'), ENT_QUOTES, 'UTF-8') ?>" class="ml-auto inline-flex items-center px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-sm rounded-lg transition-colors">
               <i class="fas fa-file-pdf mr-1"></i><?= __("Scarica PDF") ?>
             </a>
           <?php endif; ?>
@@ -66,13 +74,6 @@ function getStatusBadge($status) {
       </div>
     <?php endif; ?>
 
-    <?php
-    // Resolve the PDF id to a clean integer ONCE, before the <script>
-    // block, so the inline echo doesn't reference $_GET[...] directly
-    // (silences the semgrep `taint-unsafe-echo-tag` pattern-match
-    // even though `(int)` already guarantees a numeric literal).
-    $pdfIdForDownload = (int)($_GET['pdf'] ?? 0);
-    ?>
     <?php if($pdfIdForDownload > 0): ?>
     <script>
     // Auto-trigger PDF download after loan creation
