@@ -95,7 +95,12 @@ test.describe('F003 — SRU errorResponse elements in SRU namespace', () => {
         // Easiest check: the <diagnostic> or <diagnostics> element must appear
         // within a document that has the SRU namespace declared.
         expect(body).toMatch(/<diagnostics[\s>]/);
-        expect(body).toMatch(/<uri>/);
+        // `<uri>` is now emitted with an explicit xmlns attribute
+        // (`<uri xmlns="info:srw/diagnostic/1/">…</uri>`) — the previous
+        // strict `<uri>` match-only-bare-tag claim no longer holds after
+        // the createElementNS migration. Accept any open-tag form so the
+        // regression guard still fires on a removal but stays correct.
+        expect(body).toMatch(/<uri[\s>]/);
         expect(body).toContain('info:srw/diagnostic/1/');
     });
 

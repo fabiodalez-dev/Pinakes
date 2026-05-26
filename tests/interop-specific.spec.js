@@ -183,17 +183,27 @@ test.describe.serial('Interop specific — 15 persistent tests (v0.7.4)', () => 
         expect(turtle).toContain('viaf.org/viaf/');
     });
 
-    // ── Test 5: BIBFRAME JSON-LD no owl:sameAs on bf:Work ─────────────────────
+    // ── Test 5: BIBFRAME JSON-LD bf:Work owl:sameAs follows F045 ──────────────
 
-    test('5. BIBFRAME JSON-LD: bf:Work node has no owl:sameAs', async ({ request }) => {
+    test('5. BIBFRAME JSON-LD: bf:Work owl:sameAs reflects Work-level VIAF (F045)', async ({ request }) => {
         test.skip(viafBookId === 0, 'E2E_INTEROP_VIAF_Book not found');
         const res = await request.get(`${BASE}/api/bibframe/book/${viafBookId}/work`);
         expect(res.status()).toBe(200);
         const body = await res.json();
         const graph = body['@graph'] ?? [];
         const workNode = graph.find((/** @type {any} */ n) => n['@type'] === 'bf:Work');
-        if (workNode) {
-            expect(workNode['owl:sameAs']).toBeUndefined();
+        expect(workNode, 'bf:Work node must be present in the @graph').toBeDefined();
+        // F045 (BibframeLinkedDataPlugin.php:368) adds owl:sameAs on bf:Work
+        // when the libro row carries a Work-level VIAF identifier — mirroring
+        // the per-author bf:agent owl:sameAs pattern. The legacy test claim
+        // "Work has no owl:sameAs" predates F045 and is no longer correct:
+        // a viaf-enabled Work should expose its VIAF URI on the Work node.
+        // If the row has no viaf_id, the helper omits the field entirely
+        // (i.e. undefined) — both branches are legitimate, neither is a bug.
+        if (workNode['owl:sameAs'] !== undefined) {
+            const sameAs = workNode['owl:sameAs'];
+            const id = Array.isArray(sameAs) ? sameAs[0]['@id'] : sameAs['@id'];
+            expect(id, 'Work-level owl:sameAs must point at a VIAF URI').toMatch(/^https:\/\/viaf\.org\/viaf\//);
         }
     });
 

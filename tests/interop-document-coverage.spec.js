@@ -163,19 +163,24 @@ test.describe.serial('Interop document coverage - 50 tests', () => {
   });
 
   test('20. 0.7.0 migration adds the complete VIAF/ISNI schema', async () => {
-    const migration = read('installer/database/migrations/migrate_0.7.0.sql');
+    // PR #136 renamed migrate_0.7.0.sql → migrate_0.7.00.sql so the
+    // Updater's new version_compare-based usort (vs the old lex sort)
+    // orders this migration before 0.7.04/05/06/etc consistently across
+    // semver-aware vs lexicographic readers.
+    const migration = read('installer/database/migrations/migrate_0.7.00.sql');
     expect(migration).toContain('isni_id');
     expect(migration).toContain('author_authority_alternates');
   });
 
   test('21. 0.7.4 migration carries NCIP schema fallback, not only plugin metadata', async () => {
-    const migration = read('installer/database/migrations/migrate_0.7.4.sql');
+    // PR #136 renamed migrate_0.7.4.sql → migrate_0.7.04.sql (see #20).
+    const migration = read('installer/database/migrations/migrate_0.7.04.sql');
     expect(migration).toContain('CREATE TABLE IF NOT EXISTS ncip_partners');
     expect(migration).toContain('ncip_request_id');
   });
 
   test('22. 0.7.4 migration guards NCIP partner column upgrades', async () => {
-    const migration = read('installer/database/migrations/migrate_0.7.4.sql');
+    const migration = read('installer/database/migrations/migrate_0.7.04.sql');
     expect(migration).toContain('INFORMATION_SCHEMA.COLUMNS');
     expect(migration).toMatch(/COLUMN_NAME\s*=\s*'isil'/);
   });
