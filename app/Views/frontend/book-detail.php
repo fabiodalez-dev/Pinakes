@@ -1753,7 +1753,19 @@ ob_start();
                                   'past_date' => __('La data non può essere nel passato.'),
                                   'not_available' => __('Nessuna copia disponibile per il periodo richiesto.')
                               ];
-                              echo $reserveErrorMessages[$_GET['reserve_error']] ?? __('Errore nella prenotazione.');
+                              // Defense-in-depth: the values are __() translations from
+                              // the i18n catalog (app-controlled), and unknown keys fall
+                              // back to a static literal — but escape on output anyway so
+                              // a future contributor adding a free-form message to the map
+                              // (or a translation containing markup) can't break HTML
+                              // context here. Cast key to string to silence PHP warnings
+                              // if $_GET['reserve_error'] arrives as an array.
+                              $reserveErrorKey = (string)($_GET['reserve_error'] ?? '');
+                              echo htmlspecialchars(
+                                  $reserveErrorMessages[$reserveErrorKey] ?? __('Errore nella prenotazione.'),
+                                  ENT_QUOTES,
+                                  'UTF-8'
+                              );
                             ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
                         </div>

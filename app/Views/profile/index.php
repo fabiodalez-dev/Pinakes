@@ -329,7 +329,18 @@
             'server' => __('Errore del server. Riprova più tardi.'),
             'password_weak' => __('La password deve contenere maiuscole, minuscole e numeri.')
           ];
-          echo $errors[$_GET['error']] ?? __('Si è verificato un errore.');
+          // Defense-in-depth: map values are __() translations (app-
+          // controlled) and unknown keys fall back to a static literal,
+          // but escape on output so a future contributor adding a
+          // free-form message — or a translation that includes markup
+          // — can't break HTML context here. Cast key to string to
+          // silence PHP warnings if $_GET['error'] arrives as an array.
+          $errorKey = (string)($_GET['error'] ?? '');
+          echo htmlspecialchars(
+              $errors[$errorKey] ?? __('Si è verificato un errore.'),
+              ENT_QUOTES,
+              'UTF-8'
+          );
         ?>
       </span>
     </div>

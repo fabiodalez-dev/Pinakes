@@ -66,11 +66,22 @@ function getStatusBadge($status) {
       </div>
     <?php endif; ?>
 
-    <?php if(isset($_GET['pdf'])): ?>
+    <?php
+    // Resolve the PDF id to a clean integer ONCE, before the <script>
+    // block, so the inline echo doesn't reference $_GET[...] directly
+    // (silences the semgrep `taint-unsafe-echo-tag` pattern-match
+    // even though `(int)` already guarantees a numeric literal).
+    $pdfIdForDownload = (int)($_GET['pdf'] ?? 0);
+    ?>
+    <?php if($pdfIdForDownload > 0): ?>
     <script>
     // Auto-trigger PDF download after loan creation
     (function() {
-      var pdfId = <?= json_encode((int)$_GET['pdf']) ?>;
+      // $pdfIdForDownload is an `int` cast — JSON_HEX_TAG is paranoid
+      // defense for the same reason htmlspecialchars guards string
+      // contexts: protects against `</script>` if a future refactor
+      // ever lets a non-numeric value through.
+      var pdfId = <?= json_encode($pdfIdForDownload, JSON_HEX_TAG) ?>;
       if (pdfId > 0) {
         var iframe = document.createElement('iframe');
         iframe.style.display = 'none';
