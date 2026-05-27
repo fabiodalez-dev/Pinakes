@@ -272,7 +272,14 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
         const normalizedRouteSources = normalizedPhpSources.replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
         let m;
         while ((m = DOC_RE.exec(readme)) !== null) {
-            const search = m[1].replace(/\/$/, '').replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+            // Strip the query string + hash before matching against the PHP
+            // route sources. README docs often append `?rft.isbn=…` to
+            // illustrate query parameters, but routes are registered on the
+            // path alone (e.g. $app->get('/openurl', …)). Also drop any
+            // trailing slash and normalise `{name:regex}` placeholders to
+            // `{}` to align with the PHP-side normalisation above.
+            const pathOnly = m[1].split('?')[0].split('#')[0];
+            const search = pathOnly.replace(/\/$/, '').replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
             if (!normalizedRouteSources.includes(search)) violations.push(m[1]);
         }
         expect(violations,

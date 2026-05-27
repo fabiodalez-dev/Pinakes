@@ -7830,6 +7830,16 @@ class ArchivesPlugin
             } elseif ($this->findPlaceRow((int) $values['parent_id']) === null) {
                 $errors['parent_id'] = __('Luogo padre inesistente.');
             }
+            // Parity with validateActivity (F005): BOTH CREATE and UPDATE paths
+            // must guard against pre-existing cycles reachable from the proposed
+            // parent. placeWouldCreateCycle above only catches edit-loops back
+            // through descendants — it cannot see a cycle the proposed parent
+            // already sits inside (e.g. corrupted import or pre-FK schema
+            // legacy). Without this, RiC-O serialisation and breadcrumb walks
+            // can follow the loop indefinitely.
+            elseif ($this->placeAncestorChainHasCycle((int) $values['parent_id'])) {
+                $errors['parent_id'] = __('La catena ascendente del genitore contiene un ciclo pre-esistente — correggi il dato a monte.');
+            }
         }
         $lat = $values['latitude']; $lng = $values['longitude'];
         if ($lat !== null && ($lat < -90 || $lat > 90)) {
@@ -7907,6 +7917,44 @@ class ArchivesPlugin
             $res = $stmt->get_result();
             $row = $res instanceof \mysqli_result ? $res->fetch_assoc() : null;
             if (!is_array($row) || empty($row['parent_id'])) { break; }
+            $current = (int) $row['parent_id'];
+        }
+        $stmt->close();
+        return false;
+    }
+
+    /**
+     * Detect a pre-existing cycle in the ancestor chain of a place row.
+     *
+     * Counterpart of {@see activityAncestorChainHasCycle()}. placeWouldCreateCycle
+     * only catches the edge case of an edit looping back through its own
+     * descendants — it cannot see a cycle that the proposed parent already
+     * sits inside (e.g. imported from a corrupt source, or surviving from
+     * a pre-FK schema). Without this guard a CREATE under a corrupted
+     * parent passes validation and any later ancestor walker (RiC-O
+     * serialiser, breadcrumb builder, isPartOf chain renderer) would
+     * follow the loop. Same deleted_at policy as the activity counterpart:
+     * integrity walks see all rows, not just visible ones, because a
+     * deleted node still pollutes the parent chain it sits on.
+     */
+    private function placeAncestorChainHasCycle(int $startId): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT parent_id FROM archive_places WHERE id = ? LIMIT 1'
+        );
+        if ($stmt === false) { return false; }
+        $current = $startId;
+        $visited = [];
+        for ($i = 0; $i < self::MAX_HIERARCHY_DEPTH; $i++) /* FIX F013 */ {
+            if (isset($visited[$current])) { $stmt->close(); return true; }
+            $visited[$current] = true;
+            $stmt->bind_param('i', $current);
+            $stmt->execute();
+            $r = $stmt->get_result();
+            $row = $r instanceof \mysqli_result ? $r->fetch_assoc() : null;
+            if (!is_array($row) || $row['parent_id'] === null) {
+                break;
+            }
             $current = (int) $row['parent_id'];
         }
         $stmt->close();

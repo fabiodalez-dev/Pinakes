@@ -118,7 +118,7 @@ no config changes required. Drop-in upgrade from v0.7.6.
 
 ### Archives: IIIF Presentation 3.0 and AtoM alignment ([#123](https://github.com/fabiodalez-dev/Pinakes/issues/123), [#121](https://github.com/fabiodalez-dev/Pinakes/issues/121))
 
-- **IIIF Presentation 3.0 manifests** — `GET /archives/{id}/iiif/manifest` returns a standards-compliant IIIF 3.0 manifest for each archival unit, exposing attached digitised documents as `Canvas` items with painting `Annotation`s. Works out of the box with Universal Viewer, Mirador, and other IIIF viewers.
+- **IIIF Presentation 3.0 manifests** — `GET /archives/{id}/manifest.json` returns a standards-compliant IIIF 3.0 manifest for each archival unit, exposing attached digitised documents as `Canvas` items with painting `Annotation`s. Works out of the box with Universal Viewer, Mirador, and other IIIF viewers.
 - **AtoM ISAD(G) area labels** — the Archives admin UI and public display now use canonical ISAD(G) area names (`Identity area`, `Context area`, `Content and structure area`, `Conditions of access and use area`, `Allied materials area`, `Notes area`) so records are immediately recognisable to users coming from AtoM or other archival systems.
 - **Multi-document uploads** — archival units now support multiple attached digitised files (PDF, JPEG, TIFF). Each file is stored with its original name, MIME type, and display order.
 
