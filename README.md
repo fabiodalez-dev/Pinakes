@@ -24,6 +24,20 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.14
+
+### Installer fix: wizard no longer wedges at step 6 (Configurazione Email)
+
+Hot-fix for an install-blocking bug discovered immediately after v0.7.13: every new install on a host **without a TLD** (`localhost`, an IP literal, or any intranet hostname such as `pinakes-vm`) got stuck at step 6 of the install wizard. The default `From Email` was derived from `$_SERVER['HTTP_HOST']` and accepted when the host passed `FILTER_VALIDATE_DOMAIN` — which `localhost` does. The same value was then re-validated at submit time with `FILTER_VALIDATE_EMAIL`, which is stricter (requires a TLD), so `no-reply@localhost` was silently rejected. The form posted, the controller flagged the validation failure, the same page re-rendered, and the install never progressed.
+
+`installer/steps/step6.php` now validates the host the same way `FILTER_VALIDATE_EMAIL` will: it only adopts the live `HTTP_HOST` if `no-reply@{host}` itself passes `FILTER_VALIDATE_EMAIL`. Otherwise the default falls back to `example.com` (RFC 2606 reserved, always a syntactically valid placeholder). The user can still override the field manually.
+
+Verified end-to-end with a fresh install from the v0.7.14 ZIP on localhost: the wizard now advances past step 6 with the default value untouched and reaches step 7 (Installazione Completata) cleanly.
+
+No schema migrations. No code changes outside the installer. Existing 0.7.13 installs are unaffected and don't need to re-install.
+
+---
+
 ## What's New in v0.7.13
 
 ### Performance: HTTP compression + long-term cache for static assets
