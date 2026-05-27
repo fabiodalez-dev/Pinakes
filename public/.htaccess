@@ -62,7 +62,6 @@
     ExpiresByType font/woff2              "access plus 1 year"
     ExpiresByType font/woff               "access plus 1 year"
     ExpiresByType font/ttf                "access plus 1 year"
-    ExpiresByType application/font-woff   "access plus 1 year"
     ExpiresByType image/x-icon            "access plus 1 year"
     # 1 month for content images (book covers, uploaded media)
     ExpiresByType image/jpeg              "access plus 1 month"
