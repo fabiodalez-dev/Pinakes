@@ -35,6 +35,36 @@ server {
     error_log /var/log/nginx/pinakes_error.log;
 
     # ========================================
+    # Performance: gzip compression
+    # ========================================
+    # Mirrors the public/.htaccess `# === Pinakes performance block ===` so
+    # Nginx- and Apache-hosted installs behave identically. Brotli requires
+    # the third-party ngx_brotli module — uncomment the gzip_static/brotli
+    # blocks below if you've built nginx with those modules.
+    gzip on;
+    gzip_vary on;
+    gzip_min_length 1024;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types
+        text/plain text/css text/xml text/javascript
+        application/javascript application/x-javascript
+        application/json application/ld+json
+        application/xml application/rss+xml application/atom+xml application/xhtml+xml
+        image/svg+xml font/ttf font/otf application/font-woff;
+
+    # If nginx was built with --with-http_gzip_static_module, serve precompressed
+    # .gz files when present (faster than runtime compression).
+    # gzip_static on;
+
+    # If ngx_brotli is installed (https://github.com/google/ngx_brotli):
+    # brotli on;
+    # brotli_comp_level 4;
+    # brotli_types text/plain text/css application/json application/javascript
+    #              text/xml application/xml application/xml+rss text/javascript
+    #              image/svg+xml font/ttf font/otf;
+
+    # ========================================
     # Security Headers
     # ========================================
     add_header X-Content-Type-Options "nosniff" always;
@@ -84,25 +114,37 @@ server {
     # here would waste a PHP-FPM worker per bot/scanner probe and fill
     # app logs with noise.
     #
-    # NOTE on caching: `immutable` would tell browsers never to revalidate for
-    # `expires`. Since Pinakes doesn't version-fingerprint core assets either,
-    # setting `immutable` + `1y` means asset updates stay invisible for up
-    # to a year. We use a conservative 1-month TTL with `must-revalidate`
-    # so browsers recheck on next hit after expiry.
-    location ~* \.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|mp3|mp4|webm|pdf|epub)$ {
-        # Disable the `expires` auto-emitted Cache-Control and write a single
-        # explicit header instead. `expires 1M` would synthesise its own
-        # `Cache-Control: max-age=2592000`, which stacked on top of our
-        # `add_header Cache-Control "..."` would send the browser two
-        # concatenated values and make the effective policy ambiguous.
+    # Caching strategy: Pinakes ships every CSS/JS/font reference with a
+    # ?v=X.Y.Z querystring busted at each release (see HtmlHelper::asset).
+    # Versioned assets are therefore safe to mark immutable+1y — the URL
+    # itself changes on every release, so stale caches never bite back.
+    # Content images (covers, uploaded media) are NOT versioned and get a
+    # conservative 1-month TTL without `immutable`.
+    #
+    # Why two locations: `immutable` is correct for fingerprinted assets
+    # but wrong for raw content. Two regexes split the responsibility cleanly.
+    location ~* \.(css|js|woff|woff2|ttf|otf|eot|ico)$ {
+        # Disable the auto-emitted Cache-Control from `expires` and write a
+        # single explicit header. `expires 1y` would synthesise its own
+        # `Cache-Control: max-age=31536000`; stacked on top of our
+        # add_header that would send two ambiguous values.
         expires off;
         # No `always` flag on Cache-Control: nginx then applies this header
         # only to 2xx/3xx responses. A transient 404 emitted by `try_files
-        # ... =404` below must NOT be cached for a month — the next deploy
+        # ... =404` below must NOT be cached for a year — the next deploy
         # or upload should let users recover. Security headers keep
         # `always` intentionally (they need to be present on error pages
         # too, defense-in-depth against MIME sniffing / clickjacking).
-        add_header Cache-Control "public, max-age=2592000, must-revalidate";
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+        try_files $uri =404;
+    }
+
+    location ~* \.(png|jpg|jpeg|gif|webp|svg|mp3|mp4|webm|pdf|epub)$ {
+        expires off;
+        add_header Cache-Control "public, max-age=2592000";
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "SAMEORIGIN" always;
         add_header Referrer-Policy "strict-origin-when-cross-origin" always;

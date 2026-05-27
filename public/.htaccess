@@ -29,6 +29,61 @@
     RewriteRule ^ index.php [QSA,L]
 </IfModule>
 
+# === Pinakes performance block (auto-managed by Pinakes 0.7.13+) ===
+# HTTP compression + long-term caching for static assets.
+# Asset URLs are version-busted via ?v=X.Y.Z (see HtmlHelper::asset), so
+# cache invalidation happens automatically at every release — immutable+1y
+# is safe for fingerprinted assets.
+# Every directive is gated by <IfModule ...> so the file stays valid on
+# hosts that don't ship mod_deflate / mod_expires / mod_headers / mod_brotli.
+
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml \
+        text/javascript application/javascript application/x-javascript \
+        application/json application/ld+json application/xml application/rss+xml \
+        application/atom+xml application/xhtml+xml \
+        image/svg+xml font/ttf font/otf application/font-woff
+    # Don't re-compress already-compressed payloads
+    SetEnvIfNoCase Request_URI \.(?:gif|jpe?g|png|webp|ico|woff2?|gz|zip|epub|mp4|webm|mp3|m4a|ogg)$ no-gzip dont-vary
+</IfModule>
+
+<IfModule mod_brotli.c>
+    AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/css \
+        text/javascript application/javascript application/json \
+        application/ld+json application/xml image/svg+xml font/ttf font/otf
+</IfModule>
+
+<IfModule mod_expires.c>
+    ExpiresActive On
+    # 1 year for versioned static assets
+    ExpiresByType text/css                "access plus 1 year"
+    ExpiresByType application/javascript  "access plus 1 year"
+    ExpiresByType text/javascript         "access plus 1 year"
+    ExpiresByType font/woff2              "access plus 1 year"
+    ExpiresByType font/woff               "access plus 1 year"
+    ExpiresByType font/ttf                "access plus 1 year"
+    ExpiresByType application/font-woff   "access plus 1 year"
+    ExpiresByType image/x-icon            "access plus 1 year"
+    # 1 month for content images (book covers, uploaded media)
+    ExpiresByType image/jpeg              "access plus 1 month"
+    ExpiresByType image/png               "access plus 1 month"
+    ExpiresByType image/webp              "access plus 1 month"
+    ExpiresByType image/gif               "access plus 1 month"
+    ExpiresByType image/svg+xml           "access plus 1 month"
+</IfModule>
+
+<IfModule mod_headers.c>
+    # Mark versioned assets as immutable — browsers skip revalidation until TTL.
+    # ?v= querystring busts the cache on every release, so this is safe.
+    <FilesMatch "\.(css|js|woff2?|ttf|otf|eot|ico)$">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </FilesMatch>
+    <FilesMatch "\.(jpe?g|png|webp|gif|svg)$">
+        Header set Cache-Control "public, max-age=2592000"
+    </FilesMatch>
+</IfModule>
+# === end Pinakes performance block ===
+
 # Security Headers
 <IfModule mod_headers.c>
     # Prevent MIME-type sniffing

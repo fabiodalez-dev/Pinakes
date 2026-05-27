@@ -2323,12 +2323,26 @@ class LibriController
         }
 
         // Check if already has a LOCAL cover (not placeholder, not remote URL)
+        // AND the file actually exists on disk. The DB column and the filesystem
+        // can drift (manual delete, failed partial restore, broken download): when
+        // the column points to a path that's gone, fall through to re-fetch
+        // instead of misreporting "already_has_cover" and leaving the book
+        // permanently uncovered.
         if (!empty($libro['copertina_url'])
             && strpos($libro['copertina_url'], 'placeholder.jpg') === false
             && !preg_match('#^https?://#i', $libro['copertina_url'])
         ) {
-            $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
-            return $response->withHeader('Content-Type', 'application/json');
+            $localPath = $this->getCoversUploadPath() . '/' . basename($libro['copertina_url']);
+            if (is_file($localPath)) {
+                $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
+                return $response->withHeader('Content-Type', 'application/json');
+            }
+            // File missing on disk → log and continue to re-download
+            \App\Support\SecureLogger::warning('[LibriController] fetchCover: cover_url in DB but file missing on disk, re-fetching', [
+                'book_id' => $id,
+                'db_url'  => $libro['copertina_url'],
+                'expected_path' => $localPath,
+            ]);
         }
 
         // Get ISBN for scraping
@@ -3307,19 +3321,34 @@ class LibriController
         $skipped = 0;
         $errors = 0;
 
-        // Find all books with ISBN but without LOCAL cover (missing, placeholder, or remote URL)
+        // Find all books with ISBN but without LOCAL cover (missing, placeholder, or remote URL).
+        // The SQL filter catches the obvious cases (NULL, empty, placeholder, http://...);
+        // an additional filesystem check below catches the trickier case of a DB
+        // column pointing to a local path whose file has been deleted/lost.
         $query = "SELECT id, isbn13, isbn10, titolo, copertina_url
                   FROM libri
                   WHERE (isbn13 IS NOT NULL AND isbn13 != '' OR isbn10 IS NOT NULL AND isbn10 != '')
-                    AND (copertina_url IS NULL OR copertina_url = '' OR copertina_url LIKE '%placeholder.jpg'
-                         OR copertina_url LIKE 'http://%' OR copertina_url LIKE 'https://%')
                     AND deleted_at IS NULL
                   ORDER BY id DESC";
 
         $result = $db->query($query);
         $books = [];
+        $coversDir = $this->getCoversUploadPath();
         while ($row = $result->fetch_assoc()) {
-            $books[] = $row;
+            $url = (string) ($row['copertina_url'] ?? '');
+            $needsCover = $url === ''
+                || strpos($url, 'placeholder.jpg') !== false
+                || preg_match('#^https?://#i', $url) === 1;
+            if (!$needsCover) {
+                // Has a local cover_url — verify the file actually exists
+                $localPath = $coversDir . '/' . basename($url);
+                if (!is_file($localPath)) {
+                    $needsCover = true;
+                }
+            }
+            if ($needsCover) {
+                $books[] = $row;
+            }
         }
 
         error_log("[Cover Sync] Found " . count($books) . " books without covers");
