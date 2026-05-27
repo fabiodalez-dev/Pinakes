@@ -1873,7 +1873,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                             '<div class="search-book-info">' +
                             '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: #000000;">' + bookTitle + '</div>' +
                             (book.author ? '<div class="search-book-author" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.125rem; text-align: left;">' + bookAuthor + '</div>' : '') +
-                            (book.year ? '<div class="search-book-year" style="font-size: 0.75rem; color: #9ca3af;">' + bookYear + '</div>' : '') +
+                            (book.year ? '<div class="search-book-year" style="font-size: 0.75rem; color: #9ca3af; text-align: left;">' + bookYear + '</div>' : '') +
                             '</div>' +
                             '</a>';
                     });
