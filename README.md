@@ -24,6 +24,35 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.13
+
+### Performance: HTTP compression + long-term cache for static assets
+
+Apache (`public/.htaccess`) and the nginx example (`.nginx.conf.example`) now ship a `# === Pinakes performance block ===` that turns on gzip/brotli compression and applies `Cache-Control: public, max-age=31536000, immutable` to versioned CSS/JS/font assets. Every directive is gated by `<IfModule …>` (Apache) or feature-tested (nginx) so the file stays valid on hosts where the optional modules aren't loaded. Measured locally on the home page: `vendor.bundle.js` 3.5 MB → ~800 KB gzip, `main.css` 192 KB → 30 KB gzip (−84%), HTML home 471 KB → 91 KB (−81%). Asset URLs are already version-busted with `?v=X.Y.Z`, so the 1-year `immutable` lifetime is safe — every release rotates the URL automatically.
+
+For nginx specifically, the `location ^~ /uploads/` block now adds a `Cache-Control: public, max-age=2592000` header (cover images, uploaded media) — without this explicit add_header, the prefix-priority of `^~ /uploads/` would short-circuit the regex location that previously set caching for static files, leaving uploads served with no cache headers at all. Apache wasn't affected because `mod_headers` applies `FilesMatch` globally.
+
+Existing installations upgrading via the in-admin updater pick this up through `post-install-patch.php`: an idempotent search/replace injects the same performance block into the live `.htaccess` for every install on `0.4.0`–`0.7.12`. The patch is gated by `<IfModule>` and uses a stable 4-line anchor (`RewriteRule ^ index.php [QSA,L]` … `# Security Headers`) verified to exist unchanged from v0.4.9.9 through v0.7.12.
+
+### Bulk "Scarica copertine" self-heals missing covers ([visible bug](https://github.com/fabiodalez-dev/Pinakes/pull/144))
+
+`LibriController::fetchCover()` and `syncCovers()` used to trust `libri.copertina_url` alone when deciding whether a book already had a cover, returning `reason: already_has_cover` even when the file behind that URL had been deleted on disk (a common state after manual cleanups, partial backup restores, or failed downloads). The bulk "Scarica copertine" action would then report `Completato. Già presenti: 1` and the book stayed permanently uncovered.
+
+Both methods now resolve the path with `realpath()` against `getCoversUploadPath()` and require the resolved file to live inside the covers directory (`str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)`) — a defence-in-depth tightening compared to the existing delete path. If the file is missing or unreachable, the controller logs a warning (`cover_url in DB but file missing/unreachable on disk, re-fetching`), re-runs the scrape, downloads a fresh cover, and updates the DB. Idempotent on subsequent calls.
+
+### Minor UI fixes
+
+- `.search-book-year` in the hero search dropdown is now explicitly left-aligned, matching the sibling `.search-book-author` line.
+- `.description-content .prose` in the book-detail page gets `max-w-none` so the description fills its column instead of being capped at Tailwind Typography's default 65ch (already constrained by the page grid).
+
+### Notes
+
+- No schema migrations — drop-in upgrade from `v0.7.12`.
+- No new bundled plugins, no breaking changes.
+- The companion `post-install-patch.php` is attached to the GitHub release and applied automatically by the in-admin updater; nothing for end users to do manually.
+
+---
+
 ## What's New in v0.7.12
 
 ### Archives: RiC-CM Phases 5 & 6 — admin UI + OAI-PMH `ric-o` ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122))
