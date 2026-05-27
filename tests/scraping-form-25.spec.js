@@ -326,33 +326,35 @@ test.describe.serial('Phase 2: Manual form entry', () => {
         const authorName = `${RUN_TAG}_Author_Manual`;
         await openCreateForm(page);
         await page.fill('input[name="titolo"]', title);
-        // Choices.js author dropdown — type and create a new entry.
+        // Choices.js author dropdown. Pinakes configures the widget with
+        // `addItems: true` + `noChoicesText: "premi Invio per aggiungerne
+        // uno nuovo"` — Enter is the canonical "add new author" action
+        // for typed-but-not-existing values, NOT clicking a dropdown
+        // suggestion (which only exists for matched existing authors).
         const wrap = page.locator('.choices').filter({ has: page.locator('#autori_select') }).first();
-        let tokenAdded = false;
-        if (await wrap.isVisible().catch(() => false)) {
-            await wrap.click();
-            const input = wrap.locator('input.choices__input').first();
-            await input.fill(authorName);
-            await page.waitForTimeout(500);
-            await input.press('Enter');
-            tokenAdded = await wrap.locator('.choices__list--multiple .choices__item')
-                .filter({ hasText: authorName }).isVisible({ timeout: 3000 }).catch(() => false);
-        }
+        await expect(wrap).toBeVisible({ timeout: 5000 });
+        await wrap.click();
+        const input = wrap.locator('input.choices__input').first();
+        await input.fill(authorName);
+        await page.waitForTimeout(500);
+        await input.press('Enter');
+        // Hard-assert the token landed in the multi-select chip area —
+        // if Choices.js failed to commit the new author, fail loudly here
+        // rather than reaching the DB query with a missing token.
+        await expect(
+            wrap.locator('.choices__list--multiple .choices__item').filter({ hasText: authorName })
+        ).toBeVisible({ timeout: 5000 });
         await submitAndWait(page);
         const bookId = Number(dbQuery(`SELECT id FROM libri WHERE titolo='${title}' AND deleted_at IS NULL`));
         expect(bookId).toBeGreaterThan(0);
         createdBookIds.push(bookId);
-        // If the Choices.js token was added in the UI, the backend MUST have
-        // linked the author — fail loudly. If the token wasn't added (e.g.
-        // the dropdown wasn't ready in time on a slow machine), the book
-        // saved without an author is still a valid form submission and the
-        // test passes the smoke check.
-        if (tokenAdded) {
-            const linkedAuthor = dbQuery(
-                `SELECT a.nome FROM autori a JOIN libri_autori la ON la.autore_id=a.id WHERE la.libro_id=${bookId} LIMIT 1`
-            );
-            expect(linkedAuthor).toBe(authorName);
-        }
+        // Deterministic DB assertion (no conditional): the author MUST be
+        // linked. A failure here means either Choices.js didn't post the
+        // value or the backend silently dropped the autori_select[] field.
+        const linkedAuthor = dbQuery(
+            `SELECT a.nome FROM autori a JOIN libri_autori la ON la.autore_id=a.id WHERE la.libro_id=${bookId} LIMIT 1`
+        );
+        expect(linkedAuthor).toBe(authorName);
     });
 });
 

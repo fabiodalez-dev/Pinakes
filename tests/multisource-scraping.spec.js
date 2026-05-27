@@ -128,6 +128,8 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
   let manualDiscId = 0;
   let importedDisc1Id = 0;
   let importedDisc2Id = 0;
+  /** @type {Record<string, number>} */
+  let previousPluginStates = {};
 
   test.beforeAll(async ({ browser }) => {
     test.skip(
@@ -147,7 +149,25 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     // by other suites), which only worked because Playwright's
     // alphabetical default happened to schedule them first. Activating
     // explicitly is the contract.
+    //
+    // Capture each plugin's prior is_active BEFORE the UPDATE so afterAll
+    // can restore the original state — without this teardown, subsequent
+    // suites inherit our forced-active plugins and a regression in their
+    // own "fresh-install activation" logic would be silently masked.
     try {
+      const rows = execFileSync('mysql', mysqlArgs(
+        "SELECT name, is_active FROM plugins WHERE name IN ('discogs','open-library','z39-server')",
+        true,
+      ), {
+        encoding: 'utf-8', timeout: 10000,
+        env: { ...process.env, MYSQL_PWD: DB_PASS },
+      });
+      previousPluginStates = Object.fromEntries(
+        rows.trim().split('\n').filter(Boolean).map(line => {
+          const [name, active] = line.split('\t');
+          return [name, Number(active)];
+        })
+      );
       execFileSync('mysql', mysqlArgs(
         "UPDATE plugins SET is_active = 1 WHERE name IN ('discogs','open-library','z39-server')"
       ), {
@@ -184,6 +204,19 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
       ), { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } });
     } catch (err) {
       errors.push(`RUN_TAG cleanup: ${err.message}`);
+    }
+    // Restore each plugin's is_active to its pre-suite value so subsequent
+    // suites see the environment they expect. Without this, a regression
+    // in another suite's "fresh-install activation" assumption would be
+    // silently masked by our forced-active plugins.
+    for (const [name, prevActive] of Object.entries(previousPluginStates)) {
+      try {
+        execFileSync('mysql', mysqlArgs(
+          `UPDATE plugins SET is_active = ${prevActive} WHERE name = '${name}'`
+        ), { encoding: 'utf-8', timeout: 10000, env: { ...process.env, MYSQL_PWD: DB_PASS } });
+      } catch (err) {
+        errors.push(`plugin restore ${name}: ${err.message}`);
+      }
     }
     if (errors.length > 0) {
       // Surface so CI notices teardown failures instead of swallowing
