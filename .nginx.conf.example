@@ -51,7 +51,7 @@ server {
         application/javascript application/x-javascript
         application/json application/ld+json
         application/xml application/rss+xml application/atom+xml application/xhtml+xml
-        image/svg+xml font/ttf font/otf application/font-woff;
+        image/svg+xml font/ttf font/otf font/woff;
 
     # If nginx was built with --with-http_gzip_static_module, serve precompressed
     # .gz files when present (faster than runtime compression).

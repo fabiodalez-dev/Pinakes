@@ -2328,20 +2328,39 @@ class LibriController
         // the column points to a path that's gone, fall through to re-fetch
         // instead of misreporting "already_has_cover" and leaving the book
         // permanently uncovered.
+        //
+        // Path-traversal hardening (CodeRabbit suggestion): two layers of defence.
+        // 1) basename() strips any directory components — `../../etc/passwd`
+        //    collapses to `passwd`, so the candidate path is always inside the
+        //    covers directory by construction.
+        // 2) realpath() containment check resolves symlinks and confirms the
+        //    final path still lives under $baseDir. If a malicious symlink
+        //    inside covers/ pointed elsewhere, realpath() would expose it and
+        //    str_starts_with() would catch it. Mirrors the pattern already
+        //    used in the delete path (L1384-1390) so future contributors find
+        //    a single consistent shape across read and write file ops.
         if (!empty($libro['copertina_url'])
             && strpos($libro['copertina_url'], 'placeholder.jpg') === false
             && !preg_match('#^https?://#i', $libro['copertina_url'])
         ) {
-            $localPath = $this->getCoversUploadPath() . '/' . basename($libro['copertina_url']);
-            if (is_file($localPath)) {
-                $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
-                return $response->withHeader('Content-Type', 'application/json');
+            $baseDir = realpath($this->getCoversUploadPath());
+            $candidate = null;
+            if ($baseDir !== false) {
+                $candidate = $baseDir . DIRECTORY_SEPARATOR . basename($libro['copertina_url']);
+                $resolved  = realpath($candidate);
+                if ($resolved !== false
+                    && str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)
+                    && is_file($resolved)
+                ) {
+                    $response->getBody()->write(json_encode(['success' => true, 'fetched' => false, 'reason' => 'already_has_cover']));
+                    return $response->withHeader('Content-Type', 'application/json');
+                }
             }
-            // File missing on disk → log and continue to re-download
-            \App\Support\SecureLogger::warning('[LibriController] fetchCover: cover_url in DB but file missing on disk, re-fetching', [
+            // File missing or outside covers dir → log and continue to re-download
+            \App\Support\SecureLogger::warning('[LibriController] fetchCover: cover_url in DB but file missing/unreachable on disk, re-fetching', [
                 'book_id' => $id,
                 'db_url'  => $libro['copertina_url'],
-                'expected_path' => $localPath,
+                'expected_path' => $candidate,
             ]);
         }
 
@@ -3333,17 +3352,33 @@ class LibriController
 
         $result = $db->query($query);
         $books = [];
-        $coversDir = $this->getCoversUploadPath();
+        // Resolve covers dir once. realpath() returns false if the directory
+        // doesn't exist yet (fresh install before any cover was downloaded);
+        // in that case any local cover_url is unreachable, so every book
+        // with a non-remote URL becomes a re-fetch candidate — exactly what
+        // we want on first sync.
+        $baseDir = realpath($this->getCoversUploadPath());
         while ($row = $result->fetch_assoc()) {
             $url = (string) ($row['copertina_url'] ?? '');
             $needsCover = $url === ''
                 || strpos($url, 'placeholder.jpg') !== false
                 || preg_match('#^https?://#i', $url) === 1;
             if (!$needsCover) {
-                // Has a local cover_url — verify the file actually exists
-                $localPath = $coversDir . '/' . basename($url);
-                if (!is_file($localPath)) {
-                    $needsCover = true;
+                // Has a local cover_url — verify the file actually exists AND
+                // resolves inside $baseDir (defence-in-depth: basename() already
+                // strips path components, realpath()+str_starts_with() catches
+                // any symlink that points outside the covers dir).
+                if ($baseDir === false) {
+                    $needsCover = true; // covers dir gone → treat all as missing
+                } else {
+                    $candidate = $baseDir . DIRECTORY_SEPARATOR . basename($url);
+                    $resolved  = realpath($candidate);
+                    if ($resolved === false
+                        || !str_starts_with($resolved, $baseDir . DIRECTORY_SEPARATOR)
+                        || !is_file($resolved)
+                    ) {
+                        $needsCover = true;
+                    }
                 }
             }
             if ($needsCover) {
