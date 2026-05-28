@@ -251,6 +251,12 @@ class BookRepository
         return $rows;
     }
 
+    /**
+     * Insert a book row and sync its authors and publishers (multi-publisher,
+     * issue #143) from the resolved id lists, returning the new book id.
+     *
+     * @param array<string, mixed> $data
+     */
     public function createBasic(array $data): int
     {
         $hasSottogenere = $this->hasColumn('sottogenere_id');
@@ -603,6 +609,12 @@ class BookRepository
         return $bookId;
     }
 
+    /**
+     * Update a book row and re-sync its authors and publishers (multi-publisher,
+     * issue #143) from the resolved id lists.
+     *
+     * @param array<string, mixed> $data
+     */
     public function updateBasic(int $id, array $data): bool
     {
         $hasSottogenere = $this->hasColumn('sottogenere_id');
