@@ -1,15 +1,15 @@
 {
   "name": "z39-server",
-  "display_name": "Z39.50/SRU Integration (Server & Client)",
-  "description": "Soluzione completa per l'interoperabilità bibliotecaria. Server SRU per esporre il catalogo e Client Z39.50/SRU per importazione (Copy Cataloging) e ricerca federata. Supporta MARC21, MARCXML, Dublin Core e MODS.",
-  "version": "1.2.3",
+  "display_name": "Z39.50/SRU + REICAT/SBN Integration",
+  "description": "Soluzione completa per l'interoperabilità bibliotecaria. Server SRU per esporre il catalogo e Client Z39.50/SRU per importazione (Copy Cataloging) e ricerca federata. Dalla v1.3.0 (issue #133) aggiunge il livello catalografico italiano REICAT/SBN: import UNIMARC da opac.sbn.it, authority control CCN con forme autorizzate REICAT 18.0 e qualificatori per omonimi, picker del Nuovo Soggettario BNCF, ed export/round-trip UNIMARC (MARCXchange ISO 25577). Supporta MARC21, MARCXML, UNIMARC, Dublin Core e MODS.",
+  "version": "1.3.0",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "https://www.loc.gov/standards/sru/",
   "main_file": "Z39ServerPlugin.php",
-  "requires_php": "7.4",
+  "requires_php": "8.1",
   "requires_app": "0.4.0",
-  "max_app_version": "0.5.9.6",
+  "max_app_version": "0.7.14",
   "settings": true,
   "metadata": {
     "category": "protocol",
@@ -18,6 +18,12 @@
       "sru",
       "marc",
       "marcxml",
+      "unimarc",
+      "reicat",
+      "sbn",
+      "iccu",
+      "authority-control",
+      "nuovo-soggettario",
       "dublin-core",
       "protocol",
       "interoperability",
@@ -32,7 +38,11 @@
       "Server SRU completo (Search/Retrieve via URL)",
       "Client SRU per importazione (Copy Cataloging)",
       "Ricerca Federata su cataloghi esterni",
-      "Supporto formati: MARC21, MARCXML, Dublin Core, MODS",
+      "Import UNIMARC da opac.sbn.it (REICAT/SBN)",
+      "Authority control CCN con forme autorizzate REICAT 18.0 e qualificatori per omonimi",
+      "Picker Nuovo Soggettario BNCF (thes.bncf.firenze.sbn.it)",
+      "Export e round-trip UNIMARC (MARCXchange ISO 25577)",
+      "Supporto formati: MARC21, MARCXML, UNIMARC, Dublin Core, MODS",
       "Operazioni: explain, searchRetrieve, scan",
       "Ricerca avanzata CQL (Contextual Query Language)",
       "Gestione server esterni configurabile",
@@ -40,7 +50,11 @@
     ],
     "endpoints": [
       "/api/sru - Endpoint principale SRU Server",
-      "/admin/z3950/search - Ricerca Federata"
+      "/api/sbn/search - Ricerca SBN (OPAC Nazionale)",
+      "/admin/libri/import-sbn - Import UNIMARC da SBN per ISBN/BID",
+      "/admin/libri/bulk-import-sbn - Import batch da CSV di ISBN",
+      "/admin/libri/{id}/export.unimarc.xml - Export UNIMARC del singolo libro",
+      "/admin/autori/{id}/lookup-ccn - Lookup authority CCN dell'autore"
     ],
     "supported_operations": [
       "explain - Informazioni sul server",
@@ -49,6 +63,7 @@
     ],
     "supported_formats": [
       "marcxml - MARC 21 XML",
+      "unimarcxml - UNIMARC in MARCXchange (ISO 25577)",
       "dc - Dublin Core",
       "mods - Metadata Object Description Schema",
       "oai_dc - OAI Dublin Core"

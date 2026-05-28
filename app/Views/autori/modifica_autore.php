@@ -107,6 +107,11 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
         </div>
       </div>
 
+      <?php
+      // Plugin hook: additional author fields (e.g. REICAT/SBN authority panel)
+      \App\Support\Hooks::do('author.form.fields', [$autore ?? null]);
+      ?>
+
       <!-- Submit Section -->
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
         <a href="<?= htmlspecialchars(url('/admin/autori'), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary order-2 sm:order-1 text-center">

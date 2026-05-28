@@ -167,6 +167,32 @@ class SbnClient
     }
 
     /**
+     * Raw search against the SBN mobile gateway, returning the decoded JSON
+     * untouched (no parsing into the book shape, no date-qualifier stripping).
+     *
+     * Used by SbnAuthorityClient to read the raw `autorePrincipale` / `nomi`
+     * forms — which carry the REICAT date qualifiers (e.g. "Marx, Karl
+     * <1818-1883>") that parseBriefRecord()/cleanAuthorName() deliberately
+     * remove for the cataloguing flow.
+     *
+     * @param string $field SBN query field (any, autore, titolo, isbn, ...)
+     * @param string $query Search term
+     * @param int    $rows  Max rows to request
+     * @return array<string,mixed>|null Decoded JSON or null on error
+     */
+    public function searchRaw(string $field, string $query, int $rows = 10): ?array
+    {
+        if (!$this->enabled || trim($query) === '') {
+            return null;
+        }
+        $rows = max(1, min(50, $rows));
+        $url = self::BASE_URL . self::SEARCH_ENDPOINT
+            . '?' . urlencode($field) . '=' . urlencode($query)
+            . '&rows=' . $rows;
+        return $this->makeRequest($url);
+    }
+
+    /**
      * Get multiple full records in parallel using curl_multi
      *
      * This eliminates the N+1 query problem by fetching all full records
