@@ -12,6 +12,7 @@
  */
 
 require_once __DIR__ . '/BibframeLinkedDataPlugin.php';
+require_once __DIR__ . '/RdaRegistryBuilder.php';
 
 if (!class_exists('BibframeLinkedDataPlugin', false)) {
     class BibframeLinkedDataPlugin

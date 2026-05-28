@@ -1,20 +1,22 @@
 {
   "name": "bibframe-linked-data",
-  "display_name": "BIBFRAME 2.0 Linked Data",
-  "description": "Espone il catalogo libri come Linked Data BIBFRAME 2.0 con content negotiation (JSON-LD, Turtle). Conforme alle linee guida Library of Congress per la transizione da MARC a BIBFRAME.",
-  "version": "1.0.0",
+  "display_name": "BIBFRAME 2.0 + RDA Registry Linked Data",
+  "description": "Espone il catalogo libri come Linked Data BIBFRAME 2.0 (Library of Congress) con content negotiation (JSON-LD, Turtle, RDF/XML). Dalla v1.1.0 aggiunge anche l'output RDA Registry (rdaregistry.info, EURIG): negoziazione via Accept: application/ld+json; profile=\"https://rdaregistry.info\" oppure URL .rda.json su libri/opere/espressioni. Quando il plugin frbr-lrm è attivo, l'output RDA collega Manifestation → Expression → Work con URI stabili.",
+  "version": "1.1.0",
+  "changelog": "v1.1.0 (Pinakes 0.7.14 — issue #135): output RDA Registry JSON-LD (rdam:/rdae:/rdaw:/rdaa:) come alternativa a BIBFRAME via content negotiation (Accept profile=rdaregistry.info) + URL convenience /libri/{id}.rda.json, /opere/{id}.rda.json, /espressioni/{id}.rda.json. Cross-link Work/Expression/Manifestation dalle tabelle frbr-lrm (#134) quando presenti, con degradazione a Manifestation-only se assenti. Output BIBFRAME invariato.",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "http://id.loc.gov/ontologies/bibframe/",
   "requires_php": "8.1",
   "requires_app": "0.7.1",
-  "max_app_version": "0.7.9",
+  "max_app_version": "0.7.14",
   "path": "bibframe-linked-data",
   "main_file": "wrapper.php",
   "metadata": {
     "category": "linkeddata",
-    "tags": ["bibframe", "linked-data", "rdf", "json-ld", "turtle", "lod"],
+    "tags": ["bibframe", "rda", "rda-registry", "linked-data", "rdf", "json-ld", "turtle", "lod", "eurig"],
     "optional": true,
-    "status": "stable"
+    "status": "stable",
+    "references": ["http://id.loc.gov/ontologies/bibframe/", "http://rdaregistry.info/"]
   }
 }

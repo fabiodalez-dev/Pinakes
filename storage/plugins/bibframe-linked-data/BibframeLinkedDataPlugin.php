@@ -180,6 +180,74 @@ class BibframeLinkedDataPlugin
         ) use ($plugin): ResponseInterface {
             return $plugin->handleItemRequest($request, $response, $args);
         });
+
+        // ── RDA Registry (rdaregistry.info) JSON-LD — issue #135 ──
+        // Convenience URLs; the same RDA output is also reachable on
+        // /api/bibframe/book/{id} via Accept: …;profile="https://rdaregistry.info".
+        $app->get('/libri/{id:[0-9]+}.rda.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->rdaManifestationAction($request, $response, $args);
+        });
+        $app->get('/opere/{id:[0-9]+}.rda.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->rdaWorkAction($request, $response, $args);
+        });
+        $app->get('/espressioni/{id:[0-9]+}.rda.json', function (
+            ServerRequestInterface $request,
+            ResponseInterface $response,
+            array $args
+        ) use ($plugin): ResponseInterface {
+            return $plugin->rdaExpressionAction($request, $response, $args);
+        });
+    }
+
+    /**
+     * True when the client asked for the RDA Registry profile via the Accept
+     * header, e.g. `application/ld+json; profile="https://rdaregistry.info"`.
+     */
+    private function wantsRdaProfile(string $accept): bool
+    {
+        return str_contains(strtolower($accept), 'rdaregistry.info');
+    }
+
+    /** @param array<string, mixed>|null $doc */
+    private function rdaJsonResponse(ResponseInterface $response, ?array $doc): ResponseInterface
+    {
+        if ($doc === null) {
+            return $this->notFound($response);
+        }
+        $response->getBody()->write((string) json_encode($doc, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return $response
+            ->withHeader('Content-Type', 'application/ld+json; charset=utf-8')
+            ->withHeader('Vary', 'Accept');
+    }
+
+    public function rdaManifestationAction(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        $book = $this->fetchBook((int) ($args['id'] ?? 0));
+        if ($book === null) {
+            return $this->notFound($response);
+        }
+        require_once __DIR__ . '/RdaRegistryBuilder.php';
+        return $this->rdaJsonResponse($response, (new RdaRegistryBuilder($this->db))->buildManifestation($book));
+    }
+
+    public function rdaWorkAction(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        require_once __DIR__ . '/RdaRegistryBuilder.php';
+        return $this->rdaJsonResponse($response, (new RdaRegistryBuilder($this->db))->buildWork((int) ($args['id'] ?? 0)));
+    }
+
+    public function rdaExpressionAction(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
+    {
+        require_once __DIR__ . '/RdaRegistryBuilder.php';
+        return $this->rdaJsonResponse($response, (new RdaRegistryBuilder($this->db))->buildExpression((int) ($args['id'] ?? 0)));
     }
 
     // ── Handlers ──────────────────────────────────────────────────────────────
@@ -192,6 +260,12 @@ class BibframeLinkedDataPlugin
         $book = $this->fetchBook((int) ($args['id'] ?? 0));
         if ($book === null) {
             return $this->notFound($response);
+        }
+        // Content negotiation (#135): RDA Registry profile → RDA JSON-LD,
+        // otherwise the default BIBFRAME 2.0 graph (unchanged behaviour).
+        if ($this->wantsRdaProfile($request->getHeaderLine('Accept'))) {
+            require_once __DIR__ . '/RdaRegistryBuilder.php';
+            return $this->rdaJsonResponse($response, (new RdaRegistryBuilder($this->db))->buildManifestation($book));
         }
         $graph    = $this->buildGraph($book);
         return $this->serializeResponse($request, $response, $graph);
