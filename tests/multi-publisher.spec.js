@@ -32,6 +32,11 @@ test.skip(
 );
 
 // ── DB helpers ───────────────────────────────────────────────────────────────
+/**
+ * Build the mysql CLI argument list for a query, honouring socket vs host/port.
+ * @param {string} sql
+ * @returns {string[]}
+ */
 function mysqlArgs(sql) {
   const args = ['-N', '-B', '-e', sql];
   if (DB_HOST && !DB_SOCKET) args.push('-h', DB_HOST);
@@ -42,24 +47,54 @@ function mysqlArgs(sql) {
   args.push(DB_NAME);
   return args;
 }
+/**
+ * Run a SQL query via the mysql CLI and return trimmed stdout ('' on error).
+ * @param {string} sql
+ * @returns {string}
+ */
 function dbQuery(sql) {
   try { return execFileSync('mysql', mysqlArgs(sql), { encoding: 'utf-8', timeout: 10000 }).trim(); }
   catch (_) { return ''; }
 }
+/**
+ * Escape a value for safe inlining into a single-quoted SQL literal (tests only).
+ * @param {string} s
+ * @returns {string}
+ */
 function sqlEsc(s) { return String(s).replace(/'/g, "''"); }
+/**
+ * Look up the most recent non-deleted book id by exact title.
+ * @param {string} title
+ * @returns {number} book id, or 0 if none
+ */
 function bookIdByTitle(title) {
   const r = dbQuery(`SELECT id FROM libri WHERE titolo='${sqlEsc(title)}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
   return parseInt(r, 10) || 0;
 }
+/**
+ * Return the ordered publisher names attached to a book via libri_editori.
+ * @param {number} bookId
+ * @returns {string[]}
+ */
 function publisherRows(bookId) {
   const r = dbQuery(`SELECT e.nome FROM libri_editori le JOIN editori e ON e.id=le.editore_id WHERE le.libro_id=${bookId} ORDER BY le.ordine`);
   return r ? r.split('\n').filter(Boolean) : [];
 }
+/**
+ * Return the primary publisher id (libri.editore_id) of a book.
+ * @param {number} bookId
+ * @returns {number}
+ */
 function primaryPublisherId(bookId) {
   return parseInt(dbQuery(`SELECT editore_id FROM libri WHERE id=${bookId}`), 10) || 0;
 }
 
 // ── Auth ─────────────────────────────────────────────────────────────────────
+/**
+ * Log in as the admin user, handling the locale-specific login slug.
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<void>}
+ */
 async function loginAsAdmin(page) {
   await page.goto(`${BASE}/admin`);
   if (page.url().includes('/admin') && !page.url().match(/login|accedi|anmelden/)) return;
@@ -76,12 +111,23 @@ async function loginAsAdmin(page) {
 }
 
 // ── Form helpers ─────────────────────────────────────────────────────────────
+/**
+ * Locate the publishers Choices.js wrapper and its cloned text input.
+ * @param {import('@playwright/test').Page} page
+ * @returns {{wrapper: import('@playwright/test').Locator, input: import('@playwright/test').Locator}}
+ */
 function publisherInput(page) {
   const wrapper = page.locator('#editori_select').locator('xpath=ancestor::*[contains(@class,"choices")]').first();
   return { wrapper, input: wrapper.locator('.choices__input--cloned') };
 }
 
-/** Add a NEW publisher by typing + Enter. */
+/**
+ * Add a NEW publisher by typing the name and pressing Enter (the deterministic
+ * create-new path for a `<select multiple>` Choices.js, via the _onEnterKey patch).
+ * @param {import('@playwright/test').Page} page
+ * @param {string} name
+ * @returns {Promise<void>}
+ */
 async function addNewPublisher(page, name) {
   const { input } = publisherInput(page);
   await input.click();
@@ -90,7 +136,12 @@ async function addNewPublisher(page, name) {
   await page.waitForTimeout(250);
 }
 
-/** Add an EXISTING publisher by typing + clicking the dropdown option. */
+/**
+ * Add an EXISTING publisher by typing and clicking the matching dropdown option.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} name
+ * @returns {Promise<void>}
+ */
 async function addExistingPublisher(page, name) {
   const { wrapper, input } = publisherInput(page);
   await input.click();
@@ -102,6 +153,12 @@ async function addExistingPublisher(page, name) {
   await page.waitForTimeout(250);
 }
 
+/**
+ * Submit the book form and settle: handle the SweetAlert confirm and wait for
+ * navigation/idle.
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<void>}
+ */
 async function submitBook(page) {
   await page.locator('#bookForm button[type="submit"], button[type="submit"]').first().click();
   await Promise.race([
@@ -116,7 +173,13 @@ async function submitBook(page) {
   await page.waitForTimeout(500);
 }
 
-/** Create a book with the given NEW publishers; returns the book id. */
+/**
+ * Create a book via the form with the given NEW publishers.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} title
+ * @param {string[]} publishers
+ * @returns {Promise<number>} the created book id
+ */
 async function createBook(page, title, publishers) {
   await page.goto(`${BASE}/admin/libri/crea`);
   await expect(page.locator('#titolo')).toBeVisible({ timeout: 10000 });
