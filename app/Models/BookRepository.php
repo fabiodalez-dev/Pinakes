@@ -45,6 +45,13 @@ class BookRepository
         return $rows;
     }
 
+    /**
+     * Fetch a single book with its joined relations: authors, publishers
+     * (ordered `editori` list — multi-publisher, issue #143), genre hierarchy
+     * and series memberships. Returns null when the book does not exist.
+     *
+     * @return array<string, mixed>|null
+     */
     public function getById(int $id): ?array
     {
         // Check if sottogenere_id column exists

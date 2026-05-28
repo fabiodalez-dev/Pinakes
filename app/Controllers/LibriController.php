@@ -635,6 +635,11 @@ class LibriController
         return $response;
     }
 
+    /**
+     * Create a book from the admin form: validates input, resolves authors and
+     * publishers (multi-publisher, issue #143), handles cover + scraping data,
+     * then persists via BookRepository.
+     */
     public function store(Request $request, Response $response, mysqli $db): Response
     {
         $data = $this->parseRequestBody($request);
@@ -1185,6 +1190,11 @@ class LibriController
         return $response;
     }
 
+    /**
+     * Update an existing book from the admin form: same validation and
+     * author/publisher resolution as store() (multi-publisher, issue #143),
+     * then persists the changes via BookRepository.
+     */
     public function update(Request $request, Response $response, mysqli $db, int $id): Response
     {
         $data = $this->parseRequestBody($request);

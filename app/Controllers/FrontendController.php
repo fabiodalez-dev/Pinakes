@@ -601,6 +601,10 @@ class FrontendController
         return $response->withHeader('Content-Type', 'application/json');
     }
 
+    /**
+     * Render the public book-detail page, loading the book with its authors,
+     * publishers (issue #143), series, reviews and related volumes.
+     */
     public function bookDetail(Request $request, Response $response, mysqli $db): Response
     {
         $params = $request->getQueryParams();
