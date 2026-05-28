@@ -3515,14 +3515,20 @@ class LibriController
      */
     private function resolvePublisherIds(\mysqli $db, array $data, ?int $primaryEditoreId): array
     {
-        $ids = [];
+        // Client-supplied existing ids are untrusted: validate them against the
+        // `editori` table before use (an unknown id would FK-fail the editore_id
+        // UPDATE in createBasic/updateBasic).
+        $clientIds = [];
         foreach ((array) ($data['editori_ids'] ?? []) as $rawId) {
             $id = (int) $rawId;
             if ($id > 0) {
-                $ids[] = $id;
+                $clientIds[] = $id;
             }
         }
+        $ids = $this->filterExistingPublisherIds($db, array_values(array_unique($clientIds)));
 
+        // Newly typed publishers are find-or-created here, so their ids are valid
+        // by construction.
         if (!empty($data['editori_new'])) {
             $pubRepo = new \App\Models\PublisherRepository($db);
             foreach ((array) $data['editori_new'] as $nome) {
@@ -3536,12 +3542,45 @@ class LibriController
         }
 
         // Back-compat: no multi-select used, but a single publisher was resolved
-        // (legacy editore_search field or scraping) → keep it as the sole publisher.
-        if ($ids === [] && $primaryEditoreId !== null && $primaryEditoreId > 0) {
+        // (legacy editore_search field or scraping) → keep it if it still exists.
+        if ($ids === [] && $primaryEditoreId !== null && $primaryEditoreId > 0
+            && $this->filterExistingPublisherIds($db, [$primaryEditoreId]) !== []) {
             $ids[] = $primaryEditoreId;
         }
 
         return array_values(array_unique(array_map('intval', $ids)));
+    }
+
+    /**
+     * Filter a list of publisher ids down to those that actually exist in
+     * `editori`, preserving the input order.
+     *
+     * @param list<int> $ids
+     * @return list<int>
+     */
+    private function filterExistingPublisherIds(\mysqli $db, array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $stmt = $db->prepare("SELECT id FROM editori WHERE id IN ($placeholders)");
+        if ($stmt === false) {
+            return [];
+        }
+        $stmt->bind_param(str_repeat('i', count($ids)), ...$ids);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $valid = [];
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_assoc()) {
+                $valid[] = (int) $row['id'];
+            }
+            $res->free();
+        }
+        $stmt->close();
+
+        return array_values(array_filter($ids, static fn(int $i): bool => in_array($i, $valid, true)));
     }
 
     /**

@@ -156,9 +156,12 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             // Multi-publisher (issue #143): list all publishers, fallback to the primary.
             $schedaPublishers = $libro['editori'] ?? [];
             if ($schedaPublishers !== []) {
-                echo implode(', ', array_map(static fn($p) => App\Support\HtmlHelper::e($p['nome'] ?? ''), $schedaPublishers));
+                echo implode(', ', array_map(
+                    static fn($p) => htmlspecialchars((string) ($p['nome'] ?? ''), ENT_QUOTES, 'UTF-8'),
+                    $schedaPublishers
+                ));
             } else {
-                echo App\Support\HtmlHelper::e($libro['editore_nome'] ?? __('Non specificato'));
+                echo htmlspecialchars((string) ($libro['editore_nome'] ?? __('Non specificato')), ENT_QUOTES, 'UTF-8');
             }
             ?>
           </div>

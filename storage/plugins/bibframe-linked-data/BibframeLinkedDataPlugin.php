@@ -877,6 +877,7 @@ class BibframeLinkedDataPlugin
             $result = $stmt->get_result();
             if ($result instanceof \mysqli_result) {
                 while ($r = $result->fetch_assoc()) { $out[] = $r; }
+                $result->free();
             }
             $stmt->close();
         }

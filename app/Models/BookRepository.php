@@ -997,33 +997,46 @@ class BookRepository
      */
     private function syncPublishers(int $bookId, array $publisherIds): void
     {
-        $stmt = $this->db->prepare('DELETE FROM libri_editori WHERE libro_id = ?');
-        if ($stmt) {
-            $stmt->bind_param('i', $bookId);
-            $stmt->execute();
-            $stmt->close();
-        } else {
-            error_log("Critical error: Unable to prepare statement for deleting book publishers for book_id: $bookId");
-            throw new \Exception("Database error: unable to delete book publishers");
-        }
-        if (!$publisherIds) {
+        // Backward-compat: skip on installs predating the multi-publisher
+        // migration (libri_editori absent) — otherwise the DELETE below errors.
+        if (!$this->hasColumnInTable('libri_editori', 'editore_id')) {
             return;
         }
 
-        $stmt = $this->db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, ?)');
-        if (!$stmt) {
+        // Prepare the INSERT BEFORE deleting, so a prepare failure can never
+        // leave the book with its publishers wiped (non-destructive on error).
+        $insert = null;
+        if ($publisherIds) {
+            $insert = $this->db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, ?)');
+            if ($insert === false) {
+                error_log("Critical error: Unable to prepare statement for inserting book publishers for book_id: $bookId");
+                throw new \Exception("Database error: unable to insert book publishers");
+            }
+        }
+
+        $del = $this->db->prepare('DELETE FROM libri_editori WHERE libro_id = ?');
+        if ($del === false) {
+            if ($insert !== null) { $insert->close(); }
+            error_log("Critical error: Unable to prepare statement for deleting book publishers for book_id: $bookId");
+            throw new \Exception("Database error: unable to delete book publishers");
+        }
+        $del->bind_param('i', $bookId);
+        $del->execute();
+        $del->close();
+
+        if ($insert === null) {
             return;
         }
         $ordine = 0;
         foreach ($publisherIds as $publisherData) {
             $publisherId = is_numeric($publisherData) ? (int) $publisherData : 0;
             if ($publisherId > 0) {
-                $stmt->bind_param('iii', $bookId, $publisherId, $ordine);
-                $stmt->execute();
+                $insert->bind_param('iii', $bookId, $publisherId, $ordine);
+                $insert->execute();
                 $ordine++;
             }
         }
-        $stmt->close();
+        $insert->close();
     }
 
     private function processAuthorId($authorData): int
