@@ -17,6 +17,18 @@ reviews:
   poem: false
   review_status: true
 
+  # ── Pre-merge checks ──────────────────────────────────────────────
+  # The docstring-coverage default (80%) is unrealistic for this legacy
+  # PHP/JS codebase, which documents with `//` line comments rather than
+  # docstrings. The check is measured across the whole changed files, so a PR
+  # touching the large controllers/plugins would need ~100 pre-existing,
+  # unrelated functions documented just to pass. A 60% threshold keeps the
+  # signal on new code without blocking otherwise-clean legacy PRs.
+  pre_merge_checks:
+    docstrings:
+      mode: warning
+      threshold: 60
+
   # ── File Filters ──────────────────────────────────────────────────
   path_filters:
     - "!vendor/**"
