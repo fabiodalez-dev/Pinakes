@@ -2113,11 +2113,15 @@ function initializeSweetAlert() {
     window.Toast = Toast;
 }
 
-// Initialize Enhanced Autocomplete for Publishers
-// Initialize Publishers multi-select (Choices.js) — issue #143.
-// Mirrors the authors data contract (editori_ids[] / editori_new[]) using the
-// stock Choices.js behaviour shared by the genre/collana selects. A
-// compatibility shim keeps the scraping + alternatives flows working.
+/**
+ * Initialize the Publishers multi-select (Choices.js) — issue #143.
+ *
+ * Mirrors the authors data contract (editori_ids[] / editori_new[]) using the
+ * stock Choices.js behaviour shared by the genre/collana selects. A
+ * compatibility shim keeps the scraping + alternatives flows working.
+ *
+ * @returns {void}
+ */
 function initializePublishersChoices() {
     try {
         const element = document.getElementById('editori_select');
@@ -2169,10 +2173,15 @@ function initializePublishersChoices() {
         const pubWrapper = element.closest('.choices');
         const pubInternalInput = pubWrapper ? pubWrapper.querySelector('.choices__input--cloned') : null;
 
-        // Create a NEW publisher from typed text. A <select multiple> Choices.js
-        // does not natively add free-text options, so (like the authors field)
-        // we assign a temporary `new_*` value; addPublisherHiddenInput() then
-        // records it under editori_new[] for the controller to find-or-create.
+        /**
+         * Create a NEW publisher from typed text. A <select multiple> Choices.js
+         * does not natively add free-text options, so (like the authors field)
+         * we assign a temporary `new_*` value; addPublisherHiddenInput() then
+         * records it under editori_new[] for the controller to find-or-create.
+         *
+         * @param {string} rawValue
+         * @returns {void}
+         */
         const createPublisherFromInputWithValue = (rawValue) => {
             const name = (rawValue || '').trim();
             if (!name || !publishersChoice) return;
@@ -2238,7 +2247,13 @@ function initializePublishersChoices() {
     }
 }
 
-// Load existing publishers into the Choices control and mark preselected ones.
+/**
+ * Load existing publishers into the Choices control and mark the preselected
+ * ones (used both on the create and the edit form).
+ *
+ * @param {Array<{id:(number|string), label?:string, nome?:string}>} preselected
+ * @returns {Promise<void>}
+ */
 async function loadPublishersData(preselected = []) {
     try {
         const response = await fetch(window.BASE_PATH + '/api/search/editori', { credentials: 'same-origin' });
@@ -2274,8 +2289,16 @@ async function loadPublishersData(preselected = []) {
     }
 }
 
-// Add a publisher to the Choices control: existing id (isNew=false) or a
-// newly typed name (isNew=true → value is the label itself).
+/**
+ * Add a publisher to the Choices control and select it: an existing publisher
+ * (isNew=false, value is its numeric id) or a newly typed one (isNew=true,
+ * value is the label itself).
+ *
+ * @param {string|number} value
+ * @param {string} label
+ * @param {boolean} [isNew=false]
+ * @returns {void}
+ */
 function addPublisherChoice(value, label, isNew = false) {
     if (!publishersChoice) return;
     const stringValue = String(value);
@@ -2291,8 +2314,15 @@ function addPublisherChoice(value, label, isNew = false) {
     publishersChoice.setChoiceByValue(stringValue);
 }
 
-// Maintain the hidden inputs the controller reads: editori_ids[] for existing
-// (numeric) publishers, editori_new[] for newly typed names.
+/**
+ * Maintain the hidden inputs the controller reads: editori_ids[] for existing
+ * (numeric) publishers, editori_new[] for newly typed names. De-duplicates by
+ * the Choices value.
+ *
+ * @param {string|number} value
+ * @param {string} label
+ * @returns {void}
+ */
 function addPublisherHiddenInput(value, label) {
     const container = document.getElementById('editori_hidden');
     if (!container) return;
@@ -2312,6 +2342,12 @@ function addPublisherHiddenInput(value, label) {
     container.appendChild(input);
 }
 
+/**
+ * Remove the hidden input(s) for the publisher identified by its Choices value.
+ *
+ * @param {string|number} value
+ * @returns {void}
+ */
 function removePublisherHiddenInput(value) {
     const container = document.getElementById('editori_hidden');
     if (!container) return;
