@@ -1280,19 +1280,21 @@ class OaiPmhServerPlugin
         $authors   = array_key_exists('_authors', $rec)
             ? (array) $rec['_authors']
             : $this->fetchAuthorsForBook($bookId);
-        $publisher = array_key_exists('_publisher', $rec)
-            ? (is_array($rec['_publisher']) ? $rec['_publisher'] : null)
-            : (!empty($rec['editore_id']) ? $this->fetchPublisher((int) $rec['editore_id']) : null);
+        // Multi-publisher (issue #143): a list of publishers, ordered. Falls back
+        // to the single primary publisher (editore_id) on pre-#143 data.
+        $publishers = array_key_exists('_publishers', $rec) && is_array($rec['_publishers'])
+            ? $rec['_publishers']
+            : $this->fetchPublishersForBook($bookId, !empty($rec['editore_id']) ? (int) $rec['editore_id'] : null);
         $genre     = array_key_exists('_genre', $rec)
             ? (is_array($rec['_genre']) ? $rec['_genre'] : null)
             : (!empty($rec['genere_id']) ? $this->fetchGenre((int) $rec['genere_id']) : null);
 
         match ($metadataPrefix) {
-            'oai_dc'  => $this->writeBookOaiDc($xw, $rec, $authors, $publisher, $genre, $host),
-            'marcxml' => $this->writeBookMarcXml($xw, $rec, $authors, $publisher, $genre),
-            'mods'    => $this->writeBookMods($xw, $rec, $authors, $publisher, $genre),
-            'mag'     => $this->writeBookMag($xw, $rec, $authors, $publisher, $genre),
-            'unimarc' => $this->writeBookUnimarc($xw, $rec, $authors, $publisher, $genre),
+            'oai_dc'  => $this->writeBookOaiDc($xw, $rec, $authors, $publishers, $genre, $host),
+            'marcxml' => $this->writeBookMarcXml($xw, $rec, $authors, $publishers, $genre),
+            'mods'    => $this->writeBookMods($xw, $rec, $authors, $publishers, $genre),
+            'mag'     => $this->writeBookMag($xw, $rec, $authors, $publishers, $genre),
+            'unimarc' => $this->writeBookUnimarc($xw, $rec, $authors, $publishers, $genre),
             default   => null,
         };
     }
@@ -1302,14 +1304,14 @@ class OaiPmhServerPlugin
     /**
      * @param array<string, mixed>             $row
      * @param list<array<string, mixed>>        $authors
-     * @param array<string, mixed>|null         $publisher
+     * @param list<array<string, mixed>>        $publishers
      * @param array<string, mixed>|null         $genre
      */
     private function writeBookOaiDc(
         \XMLWriter $xw,
         array $row,
         array $authors,
-        ?array $publisher,
+        array $publishers,
         ?array $genre,
         string $host = 'localhost'
     ): void {
@@ -1348,9 +1350,11 @@ class OaiPmhServerPlugin
             $xw->writeElementNs('dc', 'description', null, strip_tags((string) $desc));
         }
 
-        // dc:publisher
-        if ($publisher !== null && !empty($publisher['nome'])) {
-            $xw->writeElementNs('dc', 'publisher', null, (string) $publisher['nome']);
+        // dc:publisher — repeatable in Dublin Core (one element per publisher).
+        foreach ($publishers as $pub) {
+            if (!empty($pub['nome'])) {
+                $xw->writeElementNs('dc', 'publisher', null, (string) $pub['nome']);
+            }
         }
 
         // dc:contributor (translators, illustrators, curators)
@@ -1395,14 +1399,14 @@ class OaiPmhServerPlugin
     /**
      * @param array<string, mixed>             $row
      * @param list<array<string, mixed>>        $authors
-     * @param array<string, mixed>|null         $publisher
+     * @param list<array<string, mixed>>        $publishers
      * @param array<string, mixed>|null         $genre
      */
     private function writeBookMarcXml(
         \XMLWriter $xw,
         array $row,
         array $authors,
-        ?array $publisher,
+        array $publishers,
         ?array $genre
     ): void {
         $xw->startElementNs(null, 'record', 'http://www.loc.gov/MARC21/slim');
@@ -1496,10 +1500,13 @@ class OaiPmhServerPlugin
             $this->marcDataField($xw, '250', ' ', ' ', [['a', (string) $row['edizione']]]);
         }
 
-        // 264 — Production/Publication (RDA)
+        // 264 — Production/Publication (RDA). MARC21 $b (publisher name) is
+        // repeatable, so multiple publishers become repeated $b in one 264.
         $pubSubs = [];
-        if ($publisher !== null && !empty($publisher['nome'])) {
-            $pubSubs[] = ['b', (string) $publisher['nome']];
+        foreach ($publishers as $pub) {
+            if (!empty($pub['nome'])) {
+                $pubSubs[] = ['b', (string) $pub['nome']];
+            }
         }
         if (!empty($row['anno_pubblicazione'])) {
             $pubSubs[] = ['c', (string) $row['anno_pubblicazione']];
@@ -1595,14 +1602,14 @@ class OaiPmhServerPlugin
      *
      * @param array<string, mixed>             $row
      * @param list<array<string, mixed>>        $authors
-     * @param array<string, mixed>|null         $publisher
+     * @param list<array<string, mixed>>        $publishers
      * @param array<string, mixed>|null         $genre
      */
     private function writeBookUnimarc(
         \XMLWriter $xw,
         array $row,
         array $authors,
-        ?array $publisher,
+        array $publishers,
         ?array $genre
     ): void {
         $xw->startElementNs(null, 'record', self::NS_MARCXCHANGE);
@@ -1673,10 +1680,13 @@ class OaiPmhServerPlugin
             $this->marcDataField($xw, '205', ' ', ' ', [['a', (string) $row['edizione']]]);
         }
 
-        // 210 — Publication, distribution
+        // 210 — Publication, distribution. UNIMARC $c (publisher name) is
+        // repeatable, so multiple publishers become repeated $c in one 210.
         $subs210 = [];
-        if ($publisher !== null && !empty($publisher['nome'])) {
-            $subs210[] = ['c', (string) $publisher['nome']];
+        foreach ($publishers as $pub) {
+            if (!empty($pub['nome'])) {
+                $subs210[] = ['c', (string) $pub['nome']];
+            }
         }
         if (!empty($year)) {
             $subs210[] = ['d', $year];
@@ -1753,14 +1763,14 @@ class OaiPmhServerPlugin
     /**
      * @param array<string, mixed>             $row
      * @param list<array<string, mixed>>        $authors
-     * @param array<string, mixed>|null         $publisher
+     * @param list<array<string, mixed>>        $publishers
      * @param array<string, mixed>|null         $genre
      */
     private function writeBookMods(
         \XMLWriter $xw,
         array $row,
         array $authors,
-        ?array $publisher,
+        array $publishers,
         ?array $genre
     ): void {
         $xw->startElementNs(null, 'mods', 'http://www.loc.gov/mods/v3');
@@ -1819,10 +1829,12 @@ class OaiPmhServerPlugin
         // typeOfResource
         $xw->writeElement('typeOfResource', 'text');
 
-        // originInfo
+        // originInfo — MODS allows multiple <publisher> elements.
         $xw->startElement('originInfo');
-        if ($publisher !== null && !empty($publisher['nome'])) {
-            $xw->writeElement('publisher', (string) $publisher['nome']);
+        foreach ($publishers as $pub) {
+            if (!empty($pub['nome'])) {
+                $xw->writeElement('publisher', (string) $pub['nome']);
+            }
         }
         if (!empty($row['anno_pubblicazione'])) {
             $xw->startElement('dateIssued');
@@ -1931,14 +1943,14 @@ class OaiPmhServerPlugin
      *
      * @param array<string, mixed>             $row
      * @param list<array<string, mixed>>        $authors
-     * @param array<string, mixed>|null         $publisher
+     * @param list<array<string, mixed>>        $publishers
      * @param array<string, mixed>|null         $genre
      */
     private function writeBookMag(
         \XMLWriter $xw,
         array $row,
         array $authors,
-        ?array $publisher,
+        array $publishers,
         ?array $genre
     ): void {
         $magNs     = 'http://www.iccu.sbn.it/mag/';
@@ -2002,8 +2014,10 @@ class OaiPmhServerPlugin
             $xw->writeElementNs('dc', 'creator', null, (string) $a['nome']);
         }
 
-        if ($publisher !== null && !empty($publisher['nome'])) {
-            $xw->writeElementNs('dc', 'publisher', null, (string) $publisher['nome']);
+        foreach ($publishers as $pub) {
+            if (!empty($pub['nome'])) {
+                $xw->writeElementNs('dc', 'publisher', null, (string) $pub['nome']);
+            }
         }
 
         $xw->writeElementNs('dc', 'format', null, (string) ($row['formato'] ?? 'text'));
@@ -2565,6 +2579,7 @@ class OaiPmhServerPlugin
         // ── Batch-fetch related data for all book records on this page ─────────
         $authorsMap  = [];
         $publisherMap = [];
+        $publishersByBook = []; // issue #143: all publishers per book (ordered)
         $genreMap    = [];
 
         if (!empty($bookIds)) {
@@ -2612,6 +2627,27 @@ class OaiPmhServerPlugin
                     }
                     $stmtP->close();
                 }
+            }
+
+            // Batch ALL publishers per book (issue #143) from the junction.
+            // Guarded: prepare() returns false on installs predating libri_editori.
+            $stmtPB = $this->db->prepare(
+                "SELECT le.libro_id, e.id, e.nome
+                   FROM libri_editori le JOIN editori e ON e.id = le.editore_id
+                  WHERE le.libro_id IN ($ph)
+                  ORDER BY le.libro_id, le.ordine, e.nome"
+            );
+            if ($stmtPB !== false) {
+                $stmtPB->bind_param($types, ...$bookIds);
+                $stmtPB->execute();
+                $resPB = $stmtPB->get_result();
+                if ($resPB instanceof \mysqli_result) {
+                    while ($rowPB = $resPB->fetch_assoc()) {
+                        $publishersByBook[(int) $rowPB['libro_id']][] = ['id' => $rowPB['id'], 'nome' => $rowPB['nome']];
+                    }
+                    $resPB->free();
+                }
+                $stmtPB->close();
             }
 
             // Batch genres
@@ -2681,7 +2717,10 @@ class OaiPmhServerPlugin
                 $row['_datestamp'] = $row['updated_at'];
                 // Attach pre-fetched related data to avoid N+1 queries in writeMetadata().
                 $row['_authors']   = $authorsMap[$id] ?? [];
-                $row['_publisher'] = $publisherMap[(int) ($row['editore_id'] ?? 0)] ?? null;
+                $pbPrimary = $publisherMap[(int) ($row['editore_id'] ?? 0)] ?? null;
+                $row['_publisher'] = $pbPrimary; // kept for back-compat
+                $row['_publishers'] = $publishersByBook[$id]
+                    ?? ($pbPrimary !== null ? [$pbPrimary] : []);
                 $row['_genre']     = $genreMap[(int) ($row['genere_id'] ?? 0)] ?? null;
                 $row['_mag_config'] = $magConfig;
                 $row['_digital_asset'] = $assetMap[$id] ?? null;
@@ -2822,6 +2861,40 @@ class OaiPmhServerPlugin
     }
 
     /**
+     * All publishers for a book (issue #143), ordered. Falls back to the single
+     * primary publisher (editore_id) when the libri_editori junction is empty or
+     * absent (installs predating the multi-publisher migration).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchPublishersForBook(int $bookId, ?int $primaryEditoreId): array
+    {
+        $out = [];
+        $stmt = $this->db->prepare(
+            'SELECT e.id, e.nome
+               FROM libri_editori le
+               JOIN editori e ON e.id = le.editore_id
+              WHERE le.libro_id = ?
+              ORDER BY le.ordine, e.nome'
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('i', $bookId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            if ($res instanceof \mysqli_result) {
+                while ($r = $res->fetch_assoc()) { $out[] = $r; }
+                $res->free();
+            }
+            $stmt->close();
+        }
+        if ($out === [] && $primaryEditoreId !== null && $primaryEditoreId > 0) {
+            $single = $this->fetchPublisher($primaryEditoreId);
+            if ($single !== null) { $out[] = $single; }
+        }
+        return $out;
+    }
+
+    /**
      * @return array<string, mixed>|null
      */
     private function fetchGenre(int $genreId): ?array
@@ -2948,14 +3021,14 @@ class OaiPmhServerPlugin
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
 
-        $authors   = $this->fetchAuthorsForBook($id);
-        $publisher = !empty($row['editore_id']) ? $this->fetchPublisher((int) $row['editore_id']) : null;
-        $genre     = !empty($row['genere_id'])  ? $this->fetchGenre((int) $row['genere_id'])     : null;
+        $authors    = $this->fetchAuthorsForBook($id);
+        $publishers = $this->fetchPublishersForBook($id, !empty($row['editore_id']) ? (int) $row['editore_id'] : null);
+        $genre      = !empty($row['genere_id'])  ? $this->fetchGenre((int) $row['genere_id'])     : null;
 
         $xw = new \XMLWriter();
         $xw->openMemory();
         $xw->startDocument('1.0', 'UTF-8');
-        $this->writeBookUnimarc($xw, $row, $authors, $publisher, $genre);
+        $this->writeBookUnimarc($xw, $row, $authors, $publishers, $genre);
         $xw->endDocument();
         $xml = $xw->outputMemory();
 
@@ -2991,11 +3064,11 @@ class OaiPmhServerPlugin
             return $response->withStatus(404)->withHeader('Content-Type', 'application/json');
         }
 
-        $authors   = $this->fetchAuthorsForBook($id);
-        $publisher = !empty($row['editore_id']) ? $this->fetchPublisher((int) $row['editore_id']) : null;
-        $genre     = !empty($row['genere_id'])  ? $this->fetchGenre((int) $row['genere_id'])     : null;
+        $authors    = $this->fetchAuthorsForBook($id);
+        $publishers = $this->fetchPublishersForBook($id, !empty($row['editore_id']) ? (int) $row['editore_id'] : null);
+        $genre      = !empty($row['genere_id'])  ? $this->fetchGenre((int) $row['genere_id'])     : null;
 
-        $binary   = $this->bookToIso2709($row, $authors, $publisher, $genre);
+        $binary   = $this->bookToIso2709($row, $authors, $publishers, $genre);
         $filename = 'unimarc-' . $id . '.mrc';
 
         $response->getBody()->write($binary);
@@ -3088,13 +3161,13 @@ class OaiPmhServerPlugin
      *
      * @param array<string, mixed>             $row
      * @param list<array<string, mixed>>        $authors
-     * @param array<string, mixed>|null         $publisher
+     * @param list<array<string, mixed>>        $publishers
      * @param array<string, mixed>|null         $genre
      */
     private function bookToIso2709(
         array $row,
         array $authors,
-        ?array $publisher,
+        array $publishers,
         ?array $genre
     ): string {
         $FT = "\x1E"; // Field terminator
@@ -3136,8 +3209,10 @@ class OaiPmhServerPlugin
         }
 
         $d210 = '';
-        if ($publisher !== null && !empty($publisher['nome'])) {
-            $d210 .= $SF . 'c' . (string) $publisher['nome'];
+        foreach ($publishers as $pub) {
+            if (!empty($pub['nome'])) {
+                $d210 .= $SF . 'c' . (string) $pub['nome']; // $c repeatable
+            }
         }
         if ($year !== '') { $d210 .= $SF . 'd' . $year; }
         if ($d210 !== '') { $fields[] = ['210', ' ', ' ', $d210]; }

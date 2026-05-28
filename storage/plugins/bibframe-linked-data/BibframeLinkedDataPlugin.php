@@ -319,10 +319,10 @@ class BibframeLinkedDataPlugin
      */
     private function buildGraph(array $book): array
     {
-        $bookId  = (int) $book['id'];
-        $authors = $this->fetchAuthors($bookId);
-        $pub     = !empty($book['editore_id']) ? $this->fetchPublisher((int) $book['editore_id']) : null;
-        $genre   = !empty($book['genere_id'])  ? $this->fetchGenre((int) $book['genere_id'])     : null;
+        $bookId     = (int) $book['id'];
+        $authors    = $this->fetchAuthors($bookId);
+        $publishers = $this->fetchPublishersForBook($bookId, !empty($book['editore_id']) ? (int) $book['editore_id'] : null);
+        $genre      = !empty($book['genere_id'])  ? $this->fetchGenre((int) $book['genere_id'])     : null;
 
         $title    = (string) ($book['titolo'] ?? '');
         $subtitle = (string) ($book['sottotitolo'] ?? '');
@@ -455,16 +455,26 @@ class BibframeLinkedDataPlugin
             $instance['bf:identifiedBy'] = count($identifiers) === 1 ? $identifiers[0] : $identifiers;
         }
 
-        // Provision activity (publication)
-        $pubNode = ['@type' => 'bf:Publication'];
-        if ($year !== '') {
-            $pubNode['bf:date'] = ['@value' => $year, '@type' => 'xsd:gYear'];
+        // Provision activity (publication). BIBFRAME allows multiple
+        // bf:provisionActivity nodes — emit one bf:Publication per publisher
+        // (each carrying the publication date + agent), mirroring how authors
+        // map to multiple bf:contribution nodes.
+        $provisionNodes = [];
+        foreach ($publishers as $pub) {
+            if (empty($pub['nome'])) { continue; }
+            $node = ['@type' => 'bf:Publication'];
+            if ($year !== '') {
+                $node['bf:date'] = ['@value' => $year, '@type' => 'xsd:gYear'];
+            }
+            $node['bf:agent'] = ['@type' => 'bf:Agent', 'rdfs:label' => (string) $pub['nome']];
+            $provisionNodes[] = $node;
         }
-        if ($pub !== null && !empty($pub['nome'])) {
-            $pubNode['bf:agent'] = ['@type' => 'bf:Agent', 'rdfs:label' => (string) $pub['nome']];
+        if ($provisionNodes === [] && $year !== '') {
+            // No publisher, but the publication year is known.
+            $provisionNodes[] = ['@type' => 'bf:Publication', 'bf:date' => ['@value' => $year, '@type' => 'xsd:gYear']];
         }
-        if (count($pubNode) > 1) {
-            $instance['bf:provisionActivity'] = $pubNode;
+        if ($provisionNodes !== []) {
+            $instance['bf:provisionActivity'] = count($provisionNodes) === 1 ? $provisionNodes[0] : $provisionNodes;
         }
 
         // Extent (pages)
@@ -842,6 +852,39 @@ class BibframeLinkedDataPlugin
         $row    = ($result instanceof \mysqli_result) ? $result->fetch_assoc() : null;
         $stmt->close();
         return is_array($row) ? $row : null;
+    }
+
+    /**
+     * All publishers for a book (issue #143), ordered. Falls back to the single
+     * primary publisher (editore_id) when the libri_editori junction is empty or
+     * absent (installs predating the multi-publisher migration).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function fetchPublishersForBook(int $bookId, ?int $primaryEditoreId): array
+    {
+        $out = [];
+        $stmt = $this->db->prepare(
+            'SELECT e.id, e.nome
+               FROM libri_editori le
+               JOIN editori e ON e.id = le.editore_id
+              WHERE le.libro_id = ?
+              ORDER BY le.ordine, e.nome'
+        );
+        if ($stmt !== false) {
+            $stmt->bind_param('i', $bookId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($result instanceof \mysqli_result) {
+                while ($r = $result->fetch_assoc()) { $out[] = $r; }
+            }
+            $stmt->close();
+        }
+        if ($out === [] && $primaryEditoreId !== null && $primaryEditoreId > 0) {
+            $single = $this->fetchPublisher($primaryEditoreId);
+            if ($single !== null) { $out[] = $single; }
+        }
+        return $out;
     }
 
     /**
