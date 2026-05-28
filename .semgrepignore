@@ -1,0 +1,30 @@
+# Semgrep ignore — Pinakes
+# See issue #146 for the full triage of the 117 findings from
+# `semgrep scan --pro --config=auto` (all 0 real vulnerabilities).
+# This file keeps future scans focused on NEW signal by excluding
+# vendored/bundled/minified code and documentation placeholders.
+
+# --- Third-party / vendored code (not ours to fix) ---
+vendor/
+node_modules/
+public/assets/tinymce/
+public/assets/uppy/
+public/assets/sweetalert2/
+
+# --- Minified bundles (false positives from minified output:
+#     detect-non-literal-regexp on public/assets/661.bundle.js etc.) ---
+*.min.js
+*.min.css
+public/assets/*.bundle.js
+
+# --- Documentation with placeholder credentials ---
+# `sk_live_…` example keys in plugin docs trip the stripe/picatic
+# secret detectors (3+3 ERROR findings in #146) — they are illustrative,
+# not real keys.
+storage/plugins/api-book-scraper/README.md
+storage/plugins/*/SERVER_IMPLEMENTATION_GUIDE.md
+
+# --- Build-time tooling (no user input, runs only on `npm run build`) ---
+# path-join-resolve-traversal findings on copy-vendor-assets.js are FP:
+# the source/dest paths come from a hardcoded vendor list.
+scripts/copy-vendor-assets.js
