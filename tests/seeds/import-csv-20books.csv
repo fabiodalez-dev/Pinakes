@@ -1,0 +1,21 @@
+﻿id;isbn10;isbn13;ean;titolo;sottotitolo;autori;editore;anno_pubblicazione;lingua;edizione;numero_pagine;genere;descrizione;formato;prezzo;copie_totali;collana;numero_serie;traduttore;illustratore;parole_chiave;classificazione_dewey
+;;9788804707059;;Il nome della rosa;;Umberto Eco;Mondadori;1980;Italiano;;530;Narrativa;Giallo storico in un monastero medievale.;cartaceo;14.00;2;;;;;"medioevo, giallo";853.914
+;;9788806219357;;Se questo è un uomo;;Primo Levi;Einaudi;1947;Italiano;;220;Memorialistica;Testimonianza dalla deportazione.;cartaceo;12.50;1;;;;;"shoah, memoria";853.912
+;;9788807880579;;Il Gattopardo;;Giuseppe Tomasi di Lampedusa;Feltrinelli;1958;Italiano;;299;Narrativa;Il declino dell aristocrazia siciliana.;cartaceo;11.00;1;;;;;"sicilia, risorgimento";853.912
+;;9788804668237;;Le città invisibili;;Italo Calvino;Mondadori;1972;Italiano;;164;Narrativa;Marco Polo e le città immaginarie.;cartaceo;13.00;2;;;;;"fantastico, viaggio";853.914
+;;9788811688742;;La coscienza di Zeno;;Italo Svevo;Garzanti;1923;Italiano;;468;Narrativa;Le memorie ironiche di Zeno Cosini.;cartaceo;10.50;1;;;;;"psicoanalisi, trieste";853.912
+;;9788858781814;;La Divina Commedia;Inferno Purgatorio Paradiso;Dante Alighieri;Garzanti;1321;Italiano;Integrale;912;Classici;Il viaggio ultraterreno.;cartaceo;18.00;3;;;;;"poesia, medioevo";851.1
+;;9788807900228;;Cristo si è fermato a Eboli;;Carlo Levi;Einaudi;1945;Italiano;;272;Narrativa;Il confino in Lucania.;cartaceo;12.00;1;;;;;"meridione, confino";853.912
+;;9788845278655;;La storia;;Elsa Morante;Mondadori;1974;Italiano;;661;Narrativa;Roma durante la guerra.;cartaceo;15.00;1;;;;;"guerra, roma";853.912
+;;9788806207601;;Il barone rampante;;Italo Calvino;Einaudi;1957;Italiano;;280;Narrativa;Cosimo vive sugli alberi.;cartaceo;12.00;2;I nostri antenati;2;;;avventura;853.914
+;;9788817106672;;"Uno, nessuno e centomila";;Luigi Pirandello;Rizzoli;1926;Italiano;;180;Narrativa;La crisi dell identità.;cartaceo;9.90;1;;;;;identità;853.912
+;;9780141182636;;Ulysses;;James Joyce;Penguin;1922;Inglese;;736;Narrativa;Una giornata a Dublino.;cartaceo;16.00;1;;;;;modernismo;823.912
+;;9780451524935;;Nineteen Eighty-Four;;George Orwell;Penguin;1949;Inglese;;328;Narrativa;Distopia totalitaria.;cartaceo;11.50;3;;;;;distopia;823.912
+;;9780486282114;;Pride and Prejudice;;Jane Austen;Dover;1813;Inglese;;272;Narrativa;Elizabeth e Darcy.;cartaceo;8.00;2;;;;;"romanzo, ottocento";823.7
+;;9782070360024;;Les Misérables;;Victor Hugo;Gallimard;1862;Francese;;1900;Narrativa;Jean Valjean e la redenzione.;cartaceo;17.00;1;;;;;"ottocento, francia";843.7
+;;9783596905099;;Faust;;Johann Wolfgang von Goethe;Fischer;1808;Tedesco;;600;Teatro;Il patto con Mefistofele.;cartaceo;14.00;1;;;;;tragedia;832.6
+;;9788804671664;;Pensieri;;Marco Aurelio;Mondadori;1980;Italiano;;280;Filosofia;Riflessioni stoiche.;cartaceo;10.00;2;;;;;stoicismo;188
+;;9788817035316;;Il Signore degli Anelli;;J.R.R. Tolkien;Bompiani;1954;Italiano;;1280;Fantasy;La guerra dell Anello.;cartaceo;29.00;2;;;;;"fantasy, epica";823.912
+;;9788804521488;;Cent anni di solitudine;;Gabriel García Márquez;Mondadori;1967;Italiano;;420;Narrativa;La saga dei Buendía a Macondo.;cartaceo;14.50;1;;;;;realismo magico;863.64
+;;9788807880896;;Il deserto dei Tartari;;Dino Buzzati;Mondadori;1940;Italiano;;230;Narrativa;L attesa alla Fortezza Bastiani.;cartaceo;12.00;1;;;;;attesa;853.912
+;;9788806228231;;Lessico famigliare;;Natalia Ginzburg;Einaudi;1963;Italiano;;220;Narrativa;La famiglia Levi a Torino.;cartaceo;12.00;1;;;;;"famiglia, torino";853.912
