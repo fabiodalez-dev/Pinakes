@@ -1355,6 +1355,13 @@ test.describe.serial('Phase 8: Publisher Management', () => {
     await page.goto(`${BASE}/admin/editori`);
     await page.waitForLoadState('domcontentloaded');
 
+    // The editori list is a server-paginated DataTable. With many publishers
+    // in the DB the two test rows may fall onto page 2+, so filter by the
+    // shared RUN_ID (present in both PubA_/PubB_ names) to bring both rows onto
+    // the first page before selecting their checkboxes.
+    await page.fill('#search_nome', RUN_ID);
+    await page.waitForTimeout(700); // debounced ajax.reload()
+
     await page.waitForSelector(`.row-select[data-id="${sourceId}"]`, { timeout: 10000 });
     await page.waitForSelector(`.row-select[data-id="${targetId}"]`, { timeout: 5000 });
 
