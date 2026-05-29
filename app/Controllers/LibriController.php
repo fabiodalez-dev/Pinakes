@@ -7,6 +7,7 @@ use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\SecureLogger;
+use App\Support\Csv;
 use App\Support\LibraryThingInstaller;
 use App\Models\SeriesRepository;
 use Slim\Exception\HttpNotFoundException;
@@ -3084,7 +3085,8 @@ class LibriController
             ];
         }
 
-        fwrite($stream, implode($delimiter, $headers) . "\n");
+        $writer = Csv::writerToStream($stream, $delimiter);
+        $writer->insertOne($headers);
 
         $rowCount = 0;
         foreach ($libri as $libro) {
@@ -3122,17 +3124,7 @@ class LibriController
                 ];
             }
 
-            // Escape fields for CSV
-            $escapedRow = array_map(function ($field) use ($delimiter) {
-                $field = str_replace('"', '""', (string) $field);
-                // Quote if contains delimiter, newline, or quotes
-                if (strpos($field, $delimiter) !== false || strpos($field, "\n") !== false || strpos($field, "\r") !== false || strpos($field, '"') !== false) {
-                    return '"' . $field . '"';
-                }
-                return $field;
-            }, $row);
-
-            fwrite($stream, implode($delimiter, $escapedRow) . "\n");
+            $writer->insertOne($row);
 
             // OPTIMIZATION: Garbage collection every 1000 rows to prevent memory buildup
             if (++$rowCount % 1000 === 0) {

@@ -6,6 +6,8 @@ namespace App\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\LibraryThingInstaller;
+use App\Support\Csv;
+use League\Csv\Statement;
 
 /**
  * LibraryThing Import/Export Plugin
@@ -212,31 +214,21 @@ class LibraryThingImportController
 
         // Validate format and count rows
         try {
-            $file = fopen($savedPath, 'r');
-            if (!$file) {
+            try {
+                $reader = Csv::readerFromPath($savedPath, "\t");
+            } catch (\Throwable $e) {
                 throw new \Exception(__('Impossibile aprire il file'));
             }
 
-            // Skip BOM
-            $bom = fread($file, 3);
-            if ($bom !== "\xEF\xBB\xBF") {
-                rewind($file);
-            }
-
-            // Read and validate headers
-            $headers = fgetcsv($file, 0, "\t", '"', "");
+            // Read and validate headers (league skips the input BOM automatically)
+            $headers = $reader->nth(0);
             if (!$headers || !$this->isLibraryThingFormat($headers)) {
-                fclose($file);
                 unlink($savedPath);
                 throw new \Exception(__('Il file non sembra essere in formato LibraryThing'));
             }
 
-            // Count rows
-            $totalRows = 0;
-            while (fgetcsv($file, 0, "\t", '"', "") !== false) {
-                $totalRows++;
-            }
-            fclose($file);
+            // Count rows (header excluded; trailing empty line is not counted)
+            $totalRows = max(0, count($reader) - 1);
 
             // Initialize session data
             $_SESSION['librarything_import'] = [
@@ -321,36 +313,25 @@ class LibraryThingImportController
 
 
         try {
-            $file = fopen($filePath, 'r');
-            if (!$file) {
+            try {
+                $reader = Csv::readerFromPath($filePath, "\t");
+            } catch (\Throwable $e) {
                 throw new \Exception(__('Impossibile aprire il file'));
             }
 
-            // Skip BOM
-            $bom = fread($file, 3);
-            if ($bom !== "\xEF\xBB\xBF") {
-                rewind($file);
-            }
-
-            // Read headers
-            $headers = fgetcsv($file, 0, "\t", '"', "");
+            // Read headers (first record; league skips the input BOM automatically)
+            $headers = $reader->nth(0);
             if (!$headers) {
-                fclose($file);
                 throw new \Exception(__('File vuoto o formato non valido'));
             }
 
-            // Skip to chunk start
-            for ($i = 0; $i < $chunkStart; $i++) {
-                if (fgetcsv($file, 0, "\t", '"', "") === false) {
-                    break;
-                }
-            }
-
-            // Process chunk
+            // Process chunk: window the data rows (offset 1 skips the header)
+            // with an offset/limit Statement so only the chunk is materialized.
             $processed = 0;
             $lineNumber = $chunkStart + 2; // +2 because of header and 1-indexed
 
-            while ($processed < $chunkSize && ($rawData = fgetcsv($file, 0, "\t", '"', "")) !== false) {
+            $chunkRecords = (new Statement())->offset(1 + $chunkStart)->limit($chunkSize)->process($reader);
+            foreach ($chunkRecords as $rawData) {
                 $parsedData = [];
                 try {
                     // Validate column count
@@ -472,8 +453,6 @@ class LibraryThingImportController
                 $processed++;
                 $lineNumber++;
             }
-
-            fclose($file);
 
             $importData['current_row'] = $chunkStart + $processed;
             $isComplete = $importData['current_row'] >= $importData['total_rows'];
@@ -1941,25 +1920,16 @@ class LibraryThingImportController
         // UTF-8 BOM
         fwrite($stream, "\xEF\xBB\xBF");
 
-        // LibraryThing headers (TSV format)
+        // LibraryThing headers (TSV format). Field encoding (RFC 4180 quoting
+        // of tab/newline/quote, doubled quotes) is handled by league/csv.
+        $writer = Csv::writerToStream($stream, "\t");
         $headers = $this->getLibraryThingHeaders();
-        fwrite($stream, implode("\t", $headers) . "\n");
+        $writer->insertOne($headers);
 
         $rowCount = 0;
         foreach ($libri as $libro) {
             $row = $this->formatLibraryThingRow($libro);
-
-            // Escape fields for TSV
-            $escapedRow = array_map(function ($field) {
-                $field = str_replace('"', '""', (string) $field);
-                // Quote if contains tab, newline, or quotes
-                if (strpos($field, "\t") !== false || strpos($field, "\n") !== false || strpos($field, '"') !== false) {
-                    return '"' . $field . '"';
-                }
-                return $field;
-            }, $row);
-
-            fwrite($stream, implode("\t", $escapedRow) . "\n");
+            $writer->insertOne($row);
 
             // Garbage collection every 1000 rows
             if (++$rowCount % 1000 === 0) {

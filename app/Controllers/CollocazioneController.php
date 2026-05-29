@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Support\Csv;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -404,9 +405,8 @@ class CollocazioneController
 
         // Generate CSV output
         $output = fopen('php://temp', 'r+');
-        foreach ($csv as $line) {
-            fputcsv($output, $line, ';');
-        }
+        $writer = Csv::writerToStream($output, ';');
+        $writer->insertAll($csv);
         rewind($output);
         $csvContent = stream_get_contents($output);
         fclose($output);

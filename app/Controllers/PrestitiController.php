@@ -6,6 +6,7 @@ namespace App\Controllers;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use App\Support\Csv;
 use App\Support\DataIntegrity;
 use App\Support\NotificationService;
 use App\Support\SecureLogger;
@@ -1105,8 +1106,12 @@ class PrestitiController
         // Generate CSV content
         $output = fopen('php://temp', 'r+');
 
+        // Formula-injection protection is handled by the writer (formulaPrefix "'"):
+        // fields starting with =, +, -, @ are prefixed to neutralise CSV injection.
+        $writer = Csv::writerToStream($output, ',', "'");
+
         // CSV header with i18n
-        fputcsv($output, [
+        $writer->insertOne([
             __('ID'),
             __('Libro'),
             __('Utente'),
@@ -1119,40 +1124,27 @@ class PrestitiController
             __('N. Inventario'),
             __('Elaborato da'),
             __('Note')
-        ], ',', '"', '');
+        ]);
 
         // Status translations (shared helper in helpers.php)
-
-        // Sanitize CSV values to prevent formula injection (CSV injection)
-        // Characters =, +, -, @, tab, carriage return can trigger formula execution in Excel/LibreOffice
-        $sanitizeCsv = function ($value): string {
-            if ($value === null || $value === '') {
-                return '';
-            }
-            $value = (string) $value;
-            if (preg_match('/^[=+\-@\t\r]/', $value)) {
-                return "'" . $value;
-            }
-            return $value;
-        };
 
         // CSV data rows
         foreach ($loans as $loan) {
             $stato = translate_loan_status($loan['stato']);
-            fputcsv($output, [
+            $writer->insertOne([
                 $loan['id'],
-                $sanitizeCsv($loan['libro_titolo'] ?? ''),
-                $sanitizeCsv($loan['utente_nome'] ?? ''),
-                $sanitizeCsv($loan['utente_email'] ?? ''),
+                $loan['libro_titolo'] ?? '',
+                $loan['utente_nome'] ?? '',
+                $loan['utente_email'] ?? '',
                 $loan['data_prestito'] ? format_date($loan['data_prestito'], false, '/') : '',
                 $loan['data_scadenza'] ? format_date($loan['data_scadenza'], false, '/') : '',
                 $loan['data_restituzione'] ? format_date($loan['data_restituzione'], false, '/') : '',
                 $stato,
                 $loan['renewals'] ?? 0,
-                $sanitizeCsv($loan['copia_inventario'] ?? ''),
-                $sanitizeCsv($loan['processed_by_name'] ?? ''),
-                $sanitizeCsv($loan['note'] ?? '')
-            ], ',', '"', '');
+                $loan['copia_inventario'] ?? '',
+                $loan['processed_by_name'] ?? '',
+                $loan['note'] ?? ''
+            ]);
         }
 
         // Get CSV content

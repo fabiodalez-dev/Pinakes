@@ -6,6 +6,8 @@ namespace App\Controllers;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Psr7\Stream;
+use App\Support\Csv;
+use League\Csv\Statement;
 
 class CsvImportController
 {
@@ -161,29 +163,18 @@ class CsvImportController
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
 
-        // Count total rows for chunked processing
-        $file = fopen($savedFilePath, 'r');
-        if ($file === false) {
+        // Count total rows for chunked processing (header excluded).
+        // league/csv skips the input BOM automatically and does not count a
+        // trailing empty line, so count(reader) - 1 matches the previous
+        // fgetcsv-based count exactly.
+        try {
+            $countReader = Csv::readerFromPath($savedFilePath, $delimiter);
+            $totalRows = max(0, count($countReader) - 1);
+        } catch (\Throwable $e) {
             @unlink($savedFilePath);
             $_SESSION['error'] = __('Impossibile aprire il file CSV salvato');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
-
-        // Skip BOM if present
-        $bom = fread($file, 3);
-        if ($bom !== "\xEF\xBB\xBF") {
-            rewind($file);
-        }
-
-        // Skip header
-        fgetcsv($file, 0, $delimiter, '"');
-
-        // Count rows
-        $totalRows = 0;
-        while (fgetcsv($file, 0, $delimiter, '"') !== false) {
-            $totalRows++;
-        }
-        fclose($file);
 
         // Store import metadata in session
         $_SESSION['csv_import_data'] = [
@@ -239,8 +230,9 @@ class CsvImportController
 
         $enableScraping = (bool) ($importData['enable_scraping'] ?? false);
 
-        $file = fopen($importData['file_path'], 'r');
-        if ($file === false) {
+        try {
+            $reader = Csv::readerFromPath($importData['file_path'], $importData['delimiter']);
+        } catch (\Throwable $e) {
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => __('Impossibile aprire il file CSV')
@@ -248,16 +240,9 @@ class CsvImportController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
 
-        // Skip BOM
-        $bom = fread($file, 3);
-        if ($bom !== "\xEF\xBB\xBF") {
-            rewind($file);
-        }
-
-        // Read headers
-        $headers = fgetcsv($file, 0, $importData['delimiter'], '"');
+        // Read headers (first record; league skips the input BOM automatically)
+        $headers = $reader->nth(0);
         if (!$headers) {
-            fclose($file);
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => __('File CSV vuoto o formato non valido')
@@ -268,18 +253,13 @@ class CsvImportController
         // Map headers
         $mappedHeaders = $this->mapColumnHeaders($headers);
 
-        // Skip to chunk start
-        for ($i = 0; $i < $chunkStart; $i++) {
-            if (fgetcsv($file, 0, $importData['delimiter'], '"') === false) {
-                break;
-            }
-        }
-
-        // Process chunk
+        // Process chunk: window the data rows (offset 1 skips the header) using
+        // an offset/limit Statement so only the chunk is materialized.
         $processed = 0;
         $lineNumber = $chunkStart + 2; // +2 for header and 1-indexed
 
-        while ($processed < $chunkSize && ($rawData = fgetcsv($file, 0, $importData['delimiter'], '"')) !== false) {
+        $chunkRecords = (new Statement())->offset(1 + $chunkStart)->limit($chunkSize)->process($reader);
+        foreach ($chunkRecords as $rawData) {
             $parsedData = []; // Initialize to avoid undefined variable in catch block
             try {
                 // Validate column count
@@ -422,8 +402,6 @@ class CsvImportController
             $processed++;
             $lineNumber++;
         }
-
-        fclose($file);
 
         // Update session data
         $_SESSION['csv_import_data'] = $importData;

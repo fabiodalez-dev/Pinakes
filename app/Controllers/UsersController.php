@@ -5,6 +5,7 @@ namespace App\Controllers;
 
 use mysqli;
 use App\Support\Csrf;
+use App\Support\Csv;
 use App\Support\NotificationService;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -850,8 +851,11 @@ class UsersController
             __('Updated At'),
         ];
 
-        $output = "\xEF\xBB\xBF"; // UTF-8 BOM
-        $output .= implode(';', $headers) . "\n";
+        $stream = fopen('php://temp', 'r+');
+        fwrite($stream, "\xEF\xBB\xBF"); // UTF-8 BOM
+
+        $writer = Csv::writerToStream($stream, ';');
+        $writer->insertOne($headers);
 
         foreach ($utenti as $utente) {
             $row = [
@@ -876,21 +880,9 @@ class UsersController
                 isset($utente['updated_at']) ? format_date($utente['updated_at'], true, '/') : ''
             ];
 
-            // Escape fields for CSV
-            $escapedRow = array_map(function ($field) {
-                $field = str_replace('"', '""', (string) $field);
-                // Only quote if contains semicolon, newline, or quotes
-                if (strpos($field, ';') !== false || strpos($field, "\n") !== false || strpos($field, '"') !== false) {
-                    return '"' . $field . '"';
-                }
-                return $field;
-            }, $row);
-
-            $output .= implode(';', $escapedRow) . "\n";
+            $writer->insertOne($row);
         }
 
-        $stream = fopen('php://temp', 'r+');
-        fwrite($stream, $output);
         rewind($stream);
 
         $filename = 'utenti_export_' . date('Y-m-d_His') . '.csv';

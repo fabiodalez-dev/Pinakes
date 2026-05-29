@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Support\Csv;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -124,11 +125,11 @@ class ImportHistoryController
 
         $errors = json_decode($row['errors_json'] ?? '[]', true) ?: [];
 
-        // CSV injection prevention: sanitize cells that start with formula characters
+        // CSV injection prevention: sanitize cells that start with formula characters.
+        // Enclosure/quote escaping is delegated to league/csv (Csv::writerToString),
+        // so this only trims and neutralizes leading formula characters.
         $sanitizeCsv = static function (string $value): string {
             $value = trim($value);
-            // Escape double quotes first
-            $value = str_replace('"', '""', $value);
             // Prefix with single quote if starts with formula character
             if ($value !== '' && preg_match('/^[=+\-@]/', $value)) {
                 $value = "'" . $value;
@@ -136,24 +137,26 @@ class ImportHistoryController
             return $value;
         };
 
-        // Generate CSV
-        $csv = "\xEF\xBB\xBF"; // UTF-8 BOM for Excel compatibility
-        $csv .= "Riga,Titolo,Tipo Errore,Messaggio\n";
+        // Generate CSV (delimiter = comma; league handles quoting). BOM prepended below.
+        $writer = Csv::writerToString(',');
+        $writer->insertOne(['Riga', 'Titolo', 'Tipo Errore', 'Messaggio']);
 
         foreach ($errors as $error) {
-            $csv .= sprintf(
-                '"%d","%s","%s","%s"' . "\n",
+            $writer->insertOne([
                 (int)($error['line'] ?? 0),
                 $sanitizeCsv((string)($error['title'] ?? '')),
                 $sanitizeCsv((string)($error['type'] ?? 'unknown')),
-                $sanitizeCsv((string)($error['message'] ?? ''))
-            );
+                $sanitizeCsv((string)($error['message'] ?? '')),
+            ]);
         }
 
         // If no errors, add a message
         if (empty($errors)) {
-            $csv .= "0,\"\",\"info\",\"Nessun errore registrato per questo import\"\n";
+            $writer->insertOne(['0', '', 'info', 'Nessun errore registrato per questo import']);
         }
+
+        // UTF-8 BOM for Excel compatibility, prepended to the league output.
+        $csv = "\xEF\xBB\xBF" . $writer->toString();
 
         $fileName = sprintf(
             'import_errors_%s_%s.csv',

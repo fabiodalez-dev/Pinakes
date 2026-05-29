@@ -1,0 +1,88 @@
+{
+    "name": "league/csv",
+    "type": "library",
+    "description" : "CSV data manipulation made easy in PHP",
+    "keywords": ["csv", "import", "export", "read", "write", "filter", "convert", "transform"],
+    "license": "MIT",
+    "homepage" : "https://csv.thephpleague.com",
+    "authors": [
+        {
+            "name" : "Ignace Nyamagana Butera",
+            "email" : "nyamsprod@gmail.com",
+            "homepage" : "https://github.com/nyamsprod/",
+            "role" : "Developer"
+        }
+    ],
+    "support": {
+        "docs": "https://csv.thephpleague.com",
+        "issues": "https://github.com/thephpleague/csv/issues",
+        "rss": "https://github.com/thephpleague/csv/releases.atom",
+        "source": "https://github.com/thephpleague/csv"
+    },
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/nyamsprod"
+        }
+    ],
+    "require": {
+        "php": "^8.1.2",
+        "ext-filter": "*"
+    },
+    "require-dev": {
+        "ext-dom": "*",
+        "ext-xdebug": "*",
+        "friendsofphp/php-cs-fixer": "^3.92.3",
+        "phpbench/phpbench": "^1.4.3",
+        "phpstan/phpstan": "^1.12.32",
+        "phpstan/phpstan-deprecation-rules": "^1.2.1",
+        "phpstan/phpstan-phpunit": "^1.4.2",
+        "phpstan/phpstan-strict-rules": "^1.6.2",
+        "phpunit/phpunit": "^10.5.16 || ^11.5.22 || ^12.5.4",
+        "symfony/var-dumper": "^6.4.8 || ^7.4.0 || ^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "League\\Csv\\": "src"
+        },
+        "files": ["src/functions_include.php"]
+    },
+    "scripts": {
+        "benchmark": "phpbench run src --report=default",
+        "phpcs": "php-cs-fixer fix -vvv --diff --dry-run --allow-risky=yes --ansi",
+        "phpcs:fix": "php-cs-fixer fix -vvv --allow-risky=yes --ansi",
+        "phpstan": "phpstan analyse -c phpstan.neon --ansi --memory-limit=256M",
+        "phpstan-build": "phpstan analyse -c phpstan-build.neon --ansi --memory-limit=256M",
+        "phpunit": "XDEBUG_MODE=coverage phpunit --coverage-text",
+        "phpunit:min": "phpunit --no-coverage",
+        "test": [
+            "@phpunit",
+            "@phpstan",
+            "@phpcs"
+        ]
+    },
+    "scripts-descriptions": {
+        "benchmark": "Runs benchmarks on writing and reader CSV documents",
+        "phpcs": "Runs coding style test suite",
+        "phpstan": "Runs complete codebase static analysis",
+        "phpunit": "Runs unit and functional testing",
+        "test": "Runs full test suite"
+    },
+    "suggest": {
+        "ext-dom" : "Required to use the XMLConverter and the HTMLConverter classes",
+        "ext-iconv" : "Needed to ease transcoding CSV using iconv stream filters",
+        "ext-mbstring": "Needed to ease transcoding CSV using mb stream filters",
+        "ext-pdo": "Required to use the package with the PDO extension",
+        "ext-sqlite3": "Required to use the package with the SQLite3 extension",
+        "ext-mysqli": "Requiered to use the package with the MySQLi extension",
+        "ext-pgsql": "Requiered to use the package with the PgSQL extension"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "9.x-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
