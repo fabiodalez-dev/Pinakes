@@ -888,7 +888,9 @@ CREATE TABLE `scaffali` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `ordine` int DEFAULT '0',
   PRIMARY KEY (`id`),
-  UNIQUE KEY `lettera` (`lettera`),
+  -- #153: `lettera` is NOT unique — bookcase codes are multi-character (L1, L2…)
+  -- and only `codice` identifies a bookcase. `lettera` is a derived helper.
+  KEY `lettera` (`lettera`),
   UNIQUE KEY `uniq_codice` (`codice`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;

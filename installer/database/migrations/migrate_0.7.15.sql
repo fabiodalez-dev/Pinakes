@@ -26,3 +26,19 @@ INSERT IGNORE INTO `libri_editori` (`libro_id`, `editore_id`, `ordine`)
 SELECT `id`, `editore_id`, 0
 FROM `libri`
 WHERE `editore_id` IS NOT NULL;
+
+-- #153: bookcase ("scaffali") codes are multi-character (e.g. "L1", "L2"),
+-- but the legacy single-letter `lettera` column carried a UNIQUE constraint
+-- that rejected any second bookcase sharing a first letter. Drop that index
+-- (idempotently). `codice` stays the unique identifier (uniq_codice);
+-- `lettera` remains only as a derived display/preference helper, not unique.
+SET @idx_lettera_exists = (SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS
+                           WHERE TABLE_SCHEMA = DATABASE()
+                             AND TABLE_NAME = 'scaffali'
+                             AND INDEX_NAME = 'lettera');
+SET @sql = IF(@idx_lettera_exists > 0,
+    'ALTER TABLE `scaffali` DROP INDEX `lettera`',
+    'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

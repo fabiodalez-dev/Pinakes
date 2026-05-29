@@ -161,14 +161,9 @@ class CollocationRepository
             throw new \RuntimeException(sprintf(__('Il codice scaffale "%s" esiste già. Usa un codice diverso.'), $codice));
         }
 
-        // Check duplicate by lettera
-        $chk = $this->db->prepare("SELECT id FROM scaffali WHERE lettera=? LIMIT 1");
-        $chk->bind_param('s', $lettera);
-        $chk->execute();
-        $exists = $chk->get_result()->fetch_assoc();
-        if ($exists) {
-            throw new \RuntimeException(sprintf(__('La lettera "%s" è già utilizzata da un altro scaffale. Usa un codice diverso.'), $lettera));
-        }
+        // #153: no uniqueness check on `lettera`. Codes are multi-char
+        // (e.g. "L1", "L2") and only `codice` is the unique identifier; the
+        // first letter is kept solely as a derived display/preference helper.
 
         $stmt = $this->db->prepare("INSERT INTO scaffali (codice, nome, lettera, ordine) VALUES (?, ?, ?, ?)");
         $stmt->bind_param('sssi', $codice, $nome, $lettera, $ordine);
