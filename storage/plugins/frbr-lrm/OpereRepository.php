@@ -10,7 +10,8 @@ use mysqli;
  * Data layer for FRBR/LRM Work (opere) records.
  *
  * All queries are soft-delete aware (`deleted_at IS NULL`) — mirroring the
- * project-wide rule applied to `libri`. Prepared statements throughout.
+ * project-wide rule applied to `libri`. Prepared statements throughout,
+ * except softDelete()'s integer-cast UPDATE.
  */
 class OpereRepository
 {
@@ -19,7 +20,7 @@ class OpereRepository
     }
 
     /**
-     * List non-deleted opere with edition counts, newest first.
+     * List non-deleted opere with edition counts, ordered alphabetically by uniform title.
      *
      * @return array<int, array<string, mixed>>
      */

@@ -8,7 +8,8 @@ use mysqli;
 
 /**
  * Data layer for FRBR/LRM Expression (espressioni) records.
- * Soft-delete aware, prepared statements throughout.
+ * Soft-delete aware. Prepared statements throughout,
+ * except softDelete()'s integer-cast UPDATE.
  */
 class EspressioniRepository
 {

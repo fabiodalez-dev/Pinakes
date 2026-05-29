@@ -5156,5 +5156,10 @@
   "💡 Non hai accesso SSH?": "💡 Sie haben keinen SSH-Zugang?",
   "📋 Importante: Devi elencare manualmente i cookie tracciati da questi script nella <a href=\"/cookies\" target=\"_blank\" class=\"underline font-semibold\">Pagina Cookie</a> per conformità GDPR.": "📋 Wichtig: Sie müssen die von diesen Skripten erfassten Cookies manuell auf der <a href=\"/cookies\" target=\"_blank\" class=\"underline font-semibold\">Cookie-Seite</a> auflisten, um die DSGVO-Konformität zu gewährleisten.",
   "📋 Istruzioni SSH (Click per espandere/chiudere)": "📋 SSH-Anleitung (Klicken zum Ein-/Ausklappen)",
-  "🔒 Sicurezza Importante": "🔒 Wichtiger Sicherheitshinweis"
+  "🔒 Sicurezza Importante": "🔒 Wichtiger Sicherheitshinweis",
+  "Rimuovi soggetto": "Schlagwort entfernen",
+  "Inserisci prima il nome dell'autore": "Bitte zuerst den Autorennamen eingeben",
+  "es. 24604287": "z.B. 24604287",
+  "VIAF Work ID": "VIAF Work ID",
+  "Wikidata ID": "Wikidata ID"
 }

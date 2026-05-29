@@ -531,8 +531,8 @@ class BibframeLinkedDataPlugin
 
         // Provision activity (publication). BIBFRAME allows multiple
         // bf:provisionActivity nodes — emit one bf:Publication per publisher
-        // (each carrying the publication date + agent), mirroring how authors
-        // map to multiple bf:contribution nodes.
+        // (each carrying the publication agent, plus the date when known),
+        // mirroring how authors map to multiple bf:contribution nodes.
         $provisionNodes = [];
         foreach ($publishers as $pub) {
             if (empty($pub['nome'])) { continue; }

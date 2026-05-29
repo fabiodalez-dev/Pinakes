@@ -129,6 +129,7 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
         notFound: <?= json_encode(__('Nessun record trovato su SBN.'), JSON_HEX_TAG) ?>,
         imported: <?= json_encode(__('Dati importati da SBN.'), JSON_HEX_TAG) ?>,
         error: <?= json_encode(__('Errore durante la richiesta.'), JSON_HEX_TAG) ?>,
+        removeSubject: <?= json_encode(__('Rimuovi soggetto'), JSON_HEX_TAG) ?>,
     };
 
     function clearEl(el) { while (el.firstChild) { el.removeChild(el.firstChild); } }
@@ -151,6 +152,7 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
             x.type = 'button';
             x.className = 'ml-1 font-bold hover:text-red-600';
             x.textContent = '×';
+            x.setAttribute('aria-label', T.removeSubject);
             x.addEventListener('click', function () { soggetti.splice(idx, 1); syncHidden(); renderChips(); });
             chip.appendChild(x);
             chipsBox.appendChild(chip);
@@ -200,9 +202,11 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
                 .catch(function () { hideResults(); });
         }, 280);
     });
-    // Enter adds a free-text subject when no controlled term is picked.
+    // Enter adds a free-text subject when no controlled term is picked; Escape closes results.
     sInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') {
+        if (e.key === 'Escape') {
+            hideResults();
+        } else if (e.key === 'Enter') {
             e.preventDefault();
             const q = sInput.value.trim();
             if (q) { addSubject({ termine: q, bncf_id: null, uri: null }); sInput.value = ''; hideResults(); }
@@ -244,6 +248,7 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
     })();
 
     document.getElementById('reicat-import-btn').addEventListener('click', function () {
+        const btn = this;
         let isbn = (document.getElementById('reicat_import_isbn').value || '').trim();
         if (!isbn) {
             const i13 = document.getElementById('isbn13'); const i10 = document.getElementById('isbn10');
@@ -252,6 +257,7 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
         isbn = isbn.replace(/[^0-9Xx]/g, '');
         if (!isbn) { status(T.noIsbn, 'err'); return; }
 
+        btn.disabled = true;
         status(T.importing, 'info');
         const fd = new URLSearchParams();
         fd.set('isbn', isbn);
@@ -279,7 +285,8 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
             if (d.sbn_polo) { setField('sbn_polo', d.sbn_polo); }
             status(T.imported + (b.author ? ' — ' + b.author : ''), 'ok');
         })
-        .catch(function () { status(T.error, 'err'); });
+        .catch(function () { status(T.error, 'err'); })
+        .finally(function () { btn.disabled = false; });
     });
 })();
 </script>

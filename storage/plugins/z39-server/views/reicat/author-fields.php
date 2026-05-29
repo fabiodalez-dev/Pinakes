@@ -91,6 +91,7 @@ use App\Support\HtmlHelper;
         error: <?= json_encode(__('Errore durante la richiesta.'), JSON_HEX_TAG) ?>,
         occ: <?= json_encode(__('occorrenze'), JSON_HEX_TAG) ?>,
         apply: <?= json_encode(__('Applica'), JSON_HEX_TAG) ?>,
+        emptyName: <?= json_encode(__('Inserisci prima il nome dell\'autore'), JSON_HEX_TAG) ?>,
     };
 
     function clearEl(el) { while (el.firstChild) { el.removeChild(el.firstChild); } }
@@ -155,8 +156,13 @@ use App\Support\HtmlHelper;
     }
 
     document.getElementById('reicat-lookup-btn').addEventListener('click', function () {
+        const btn = this;
         const nameEl = document.getElementById('nome');
         const name = nameEl ? nameEl.value.trim() : '';
+
+        if (!name) { statusEl.textContent = T.emptyName; return; }
+
+        btn.disabled = true;
         statusEl.textContent = T.searching;
 
         const fd = new URLSearchParams();
@@ -174,7 +180,8 @@ use App\Support\HtmlHelper;
             if (!d || !d.success) { statusEl.textContent = (d && d.error) ? d.error : T.error; return; }
             showCandidates(d.candidates || []);
         })
-        .catch(function () { statusEl.textContent = T.error; });
+        .catch(function () { statusEl.textContent = T.error; })
+        .finally(function () { btn.disabled = false; });
     });
 })();
 </script>

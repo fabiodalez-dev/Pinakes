@@ -267,7 +267,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
 
           <!-- Publishers with Choices.js (multi-value, issue #143) -->
           <div>
-            <label for="editori_select" class="form-label"><?= __("Editore") ?></label>
+            <label for="editori_select" class="form-label"><?= __("Editori") ?></label>
             <select id="editori_select" name="editori_select[]" multiple placeholder="<?= __('Cerca editori esistenti o aggiungine di nuovi...') ?>" data-initial-publishers="<?php echo $initialPublishersJson; ?>">
               <!-- Options populated dynamically -->
             </select>

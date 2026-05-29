@@ -73,14 +73,15 @@ $val = static function (string $key) use ($opera): string {
                    class="w-full border border-gray-300 rounded-lg px-3 py-2">
           </div>
           <div>
-            <label class="form-label block text-sm font-medium text-gray-700 mb-1">VIAF Work ID</label>
+            <label class="form-label block text-sm font-medium text-gray-700 mb-1"><?= __("VIAF Work ID") ?></label>
             <input type="text" name="viaf_work_id" value="<?= $val('viaf_work_id') ?>"
+                   placeholder="<?= __('es. 24604287') ?>"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2">
           </div>
         </div>
 
         <div>
-          <label class="form-label block text-sm font-medium text-gray-700 mb-1">Wikidata ID</label>
+          <label class="form-label block text-sm font-medium text-gray-700 mb-1"><?= __("Wikidata ID") ?></label>
           <input type="text" name="wikidata_id" value="<?= $val('wikidata_id') ?>" placeholder="Q..."
                  class="w-full border border-gray-300 rounded-lg px-3 py-2">
         </div>
