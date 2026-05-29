@@ -93,6 +93,11 @@ class CsvImportController
      */
     public function processImport(Request $request, Response $response, \mysqli $db): Response
     {
+        // JSON endpoint: keep PHP warnings/notices out of the response body
+        // (they would corrupt the JSON → client "Risposta non valida").
+        // Warnings still go to the PHP error log for diagnosis.
+        @ini_set('display_errors', '0');
+
         $data = (array) $request->getParsedBody();
 
         // CSRF validated by CsrfMiddleware
@@ -195,7 +200,9 @@ class CsvImportController
         $response->getBody()->write(json_encode([
             'success' => true,
             'total_rows' => $totalRows,
-            'chunk_size' => self::CHUNK_SIZE,
+            // With scraping every row does an external lookup; shrink the chunk
+            // to 1 so a single /chunk request can't exceed the timeout.
+            'chunk_size' => !empty($data['enable_scraping']) ? 1 : self::CHUNK_SIZE,
             'enable_scraping' => !empty($data['enable_scraping'])
         ]));
 
@@ -209,6 +216,10 @@ class CsvImportController
     {
         @set_time_limit(600);
         @ini_set('max_execution_time', '600');
+        // JSON endpoint: keep PHP warnings out of the response body so they
+        // can't corrupt the JSON (client "Risposta non valida"). They still
+        // reach the PHP error log.
+        @ini_set('display_errors', '0');
 
         $data = json_decode((string) $request->getBody(), true);
 
@@ -229,6 +240,12 @@ class CsvImportController
         $chunkSize = max(1, min($chunkSize, self::CHUNK_SIZE)); // Capped at CHUNK_SIZE
 
         $enableScraping = (bool) ($importData['enable_scraping'] ?? false);
+
+        // Scraping is slow (one external lookup per row): force a single row per
+        // chunk so the request stays well under the fetch/server timeout.
+        if ($enableScraping) {
+            $chunkSize = 1;
+        }
 
         try {
             $reader = Csv::readerFromPath($importData['file_path'], $importData['delimiter']);
@@ -1478,8 +1495,9 @@ class CsvImportController
      */
     private function scrapeBookData(string $isbn): array
     {
-        // Use centralized scraping service (same as LibraryThing: 3 attempts)
-        return \App\Support\ScrapingService::scrapeBookData($isbn, 3, 'CSV Import');
+        // Single attempt during bulk import: retries with exponential backoff
+        // (up to ~24s/book) are what pushed chunk requests past the timeout.
+        return \App\Support\ScrapingService::scrapeBookData($isbn, 1, 'CSV Import');
     }
 
     /**

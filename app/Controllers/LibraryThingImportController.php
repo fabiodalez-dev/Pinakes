@@ -169,6 +169,9 @@ class LibraryThingImportController
     {
         // Set timeout to 5 minutes for file upload and preparation
         set_time_limit(300);
+        // JSON endpoint: keep PHP warnings out of the response body (they would
+        // corrupt the JSON → client "Risposta non valida"). Errors still log.
+        @ini_set('display_errors', '0');
 
         $data = (array) $request->getParsedBody();
         $uploadedFiles = $request->getUploadedFiles();
@@ -250,7 +253,9 @@ class LibraryThingImportController
                 'success' => true,
                 'import_id' => $importId,
                 'total_rows' => $totalRows,
-                'chunk_size' => self::CHUNK_SIZE
+                // With scraping every row does an external lookup; shrink the
+                // chunk to 1 so a single /chunk request can't exceed the timeout.
+                'chunk_size' => !empty($data['enable_scraping']) ? 1 : self::CHUNK_SIZE
             ], JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json');
 
@@ -258,6 +263,13 @@ class LibraryThingImportController
             if (file_exists($savedPath)) {
                 unlink($savedPath);
             }
+            $this->log(sprintf(
+                '[LT][prepare] FATAL %s: %s @ %s:%d',
+                get_class($e),
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine()
+            ));
             $response->getBody()->write(json_encode([
                 'success' => false,
                 'error' => $e->getMessage()
@@ -276,6 +288,10 @@ class LibraryThingImportController
         // This ensures each chunk gets the full timeout, not cumulative
         @set_time_limit(600);
         @ini_set('max_execution_time', '600');
+        // JSON endpoint: keep PHP warnings out of the response body so they
+        // can't corrupt the JSON (client "Risposta non valida"). They still
+        // reach the PHP error log.
+        @ini_set('display_errors', '0');
 
         $data = json_decode((string) $request->getBody(), true);
 
@@ -310,6 +326,12 @@ class LibraryThingImportController
         $importData = &$_SESSION['librarything_import'];
         $filePath = $importData['file_path'];
         $enableScraping = $importData['enable_scraping'];
+
+        // Scraping is slow (one external lookup per row): force a single row per
+        // chunk so the request stays well under the fetch/server timeout.
+        if ($enableScraping) {
+            $chunkSize = 1;
+        }
 
 
         try {
@@ -1749,8 +1771,9 @@ class LibraryThingImportController
 
     private function scrapeBookData(string $isbn): array
     {
-        // Use centralized scraping service
-        return \App\Support\ScrapingService::scrapeBookData($isbn, 3, 'LibraryThing Import');
+        // Single attempt during bulk import: retries with exponential backoff
+        // (up to ~24s/book) are what pushed chunk requests past the timeout.
+        return \App\Support\ScrapingService::scrapeBookData($isbn, 1, 'LibraryThing Import');
     }
 
     /**
