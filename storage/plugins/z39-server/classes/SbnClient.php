@@ -78,6 +78,16 @@ class SbnClient
             if ($fullRecord) {
                 \App\Support\SecureLogger::debug('[SBN] Full record OK', ['isbn' => $isbn]);
                 $result = $this->parseFullRecord($fullRecord);
+                if ($result) {
+                    // Pin to the searched edition: SBN records may list several
+                    // ISBNs and extractIsbn() returns the first, which can be a
+                    // different edition than the one scanned.
+                    $result = $this->preferQueriedIsbn(
+                        $result,
+                        $isbn,
+                        $this->extractAllIsbns($fullRecord['numeri'] ?? [])
+                    );
+                }
                 return $result ? $this->sanitizeForJson($result) : null;
             } else {
                 \App\Support\SecureLogger::warning('[SBN] Full record failed, using brief', ['bid' => $bid]);
@@ -594,6 +604,70 @@ class SbnClient
             }
         }
         return null;
+    }
+
+    /**
+     * Collect every ISBN (normalized to digits/X, uppercased) from an SBN
+     * 'numeri' array. A single SBN bibliographic record routinely lists more
+     * than one ISBN (sibling editions / printings).
+     *
+     * @param array<int,mixed> $numeri
+     * @return list<string>
+     */
+    private function extractAllIsbns(array $numeri): array
+    {
+        $isbns = [];
+        foreach ($numeri as $num) {
+            $numStr = (string) $num;
+            if (str_contains(strtoupper($numStr), '[ISBN]')) {
+                $isbn = preg_replace('/[^0-9X]/i', '', $numStr);
+                if ($isbn !== null && $isbn !== '') {
+                    $isbns[] = strtoupper($isbn);
+                }
+            }
+        }
+        return $isbns;
+    }
+
+    /**
+     * Pin the result to the ISBN that was actually searched for.
+     *
+     * SBN records can carry several ISBNs and {@see self::extractIsbn()} returns
+     * the first one, which may belong to a different edition than the one the
+     * user scanned. When the queried ISBN is genuinely among the record's
+     * ISBNs, override isbn10/isbn13 so a scrape-by-ISBN echoes back the exact
+     * edition requested instead of a sibling edition. When the queried ISBN is
+     * NOT in the record (e.g. a looser match), the parsed values are kept.
+     *
+     * @param array<string,mixed> $result
+     * @param string              $queriedIsbn Normalized (digits/X) searched ISBN
+     * @param list<string>        $recordIsbns Normalized ISBNs present in the record
+     * @return array<string,mixed>
+     */
+    private function preferQueriedIsbn(array $result, string $queriedIsbn, array $recordIsbns): array
+    {
+        $queriedIsbn = strtoupper($queriedIsbn);
+        if ($queriedIsbn === '' || !in_array($queriedIsbn, $recordIsbns, true)) {
+            return $result;
+        }
+
+        if (strlen($queriedIsbn) === 13) {
+            $result['isbn13'] = $queriedIsbn;
+            $isbn10 = \App\Support\IsbnFormatter::isbn13ToIsbn10($queriedIsbn);
+            if ($isbn10 !== null) {
+                $result['isbn10'] = $isbn10;
+            } else {
+                unset($result['isbn10']); // 979-prefix editions have no ISBN-10
+            }
+        } else {
+            $result['isbn10'] = $queriedIsbn;
+            $isbn13 = \App\Support\IsbnFormatter::isbn10ToIsbn13($queriedIsbn);
+            if ($isbn13 !== null) {
+                $result['isbn13'] = $isbn13;
+            }
+        }
+
+        return $result;
     }
 
     /**

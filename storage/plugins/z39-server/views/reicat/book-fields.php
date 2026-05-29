@@ -224,6 +224,25 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
         box.classList.remove('hidden');
     }
 
+    // Pre-fill the SBN import field from the ISBN already entered or scraped in
+    // the main form, so the user does not have to retype it. Only fills while
+    // the field is empty, so a manual entry here is never clobbered.
+    (function prefillReicatIsbn() {
+        const target = document.getElementById('reicat_import_isbn');
+        if (!target) { return; }
+        const i13 = document.getElementById('isbn13');
+        const i10 = document.getElementById('isbn10');
+        const sync = function () {
+            if (target.value.trim() !== '') { return; }
+            const v = (i13 && i13.value.trim()) ? i13.value.trim()
+                    : ((i10 && i10.value.trim()) ? i10.value.trim() : '');
+            if (v) { target.value = v; }
+        };
+        sync();
+        if (i13) { i13.addEventListener('input', sync); }
+        if (i10) { i10.addEventListener('input', sync); }
+    })();
+
     document.getElementById('reicat-import-btn').addEventListener('click', function () {
         let isbn = (document.getElementById('reicat_import_isbn').value || '').trim();
         if (!isbn) {
