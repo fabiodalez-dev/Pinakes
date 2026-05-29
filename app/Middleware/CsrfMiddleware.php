@@ -60,6 +60,24 @@ class CsrfMiddleware implements MiddlewareInterface
             // Valida token con dettaglio del motivo
             $csrfValidation = Csrf::validateWithReason($token);
             if (!$csrfValidation['valid']) {
+                // Login con sessione scaduta/vuota: l'utente legittimo si sta
+                // ri-autenticando dopo che la sessione server-side è scaduta.
+                // Invece di saltare del tutto il CSRF (che esporrebbe a login-CSRF),
+                // si valida col pattern double-submit cookie: il token del form
+                // deve combaciare col cookie 'csrf_login' impostato quando la
+                // pagina di login è stata servita. Il cookie è SameSite=Lax, quindi
+                // una POST di login forgiata cross-site non lo trasporta → bloccata.
+                if ($csrfValidation['reason'] === 'session_expired' && $this->isLoginRequest($request)) {
+                    $cookieToken = $request->getCookieParams()['csrf_login'] ?? '';
+                    if (
+                        is_string($token) && $token !== ''
+                        && is_string($cookieToken) && $cookieToken !== ''
+                        && hash_equals($cookieToken, $token)
+                    ) {
+                        return $handler->handle($request);
+                    }
+                }
+
                 SecureLogger::warning('[CSRF] Validation failed. Reason: ' . $csrfValidation['reason']);
 
                 // Determina se è una richiesta AJAX o form tradizionale
@@ -99,6 +117,28 @@ class CsrfMiddleware implements MiddlewareInterface
 
         // Passa la request (potenzialmente modificata con parsedBody) al handler
         return $handler->handle($request);
+    }
+
+    /**
+     * Determina se la richiesta è il submit del form di login (rotta localizzata).
+     * Confronta il path della richiesta con la rotta 'login' tradotta, tollerando
+     * un eventuale base path (installazioni in sottocartella).
+     */
+    private function isLoginRequest(Request $request): bool
+    {
+        $path = $request->getUri()->getPath();
+
+        // Normalize against the configured base path (sub-folder installs) so we
+        // can require EXACT equality with the translated login route — an
+        // unanchored suffix match would also accept e.g. /something/accedi.
+        $basePath = rtrim(\App\Support\HtmlHelper::getBasePath(), '/');
+        if ($basePath !== '' && str_starts_with($path, $basePath)) {
+            $path = substr($path, strlen($basePath));
+        }
+        $path = '/' . trim($path, '/');
+        $loginRoute = '/' . trim(RouteTranslator::route('login'), '/');
+
+        return $loginRoute !== '/' && $path === $loginRoute;
     }
 
     /**

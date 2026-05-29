@@ -34,6 +34,16 @@ class AuthController
         $html = \App\Support\Hooks::apply('login.form.html', $html, [$request]);
 
         $response->getBody()->write($html);
+
+        // Double-submit cookie for CSRF on the login form. Mirrors the session
+        // CSRF token so a login submitted after the server-side session has
+        // expired can still be validated by CsrfMiddleware (the cookie persists
+        // when the session data does not). HttpOnly + SameSite=Lax keep it out
+        // of cross-site forged login POSTs.
+        $secure = (($_SERVER['HTTPS'] ?? '') !== '' && ($_SERVER['HTTPS'] ?? 'off') !== 'off');
+        $cookie = 'csrf_login=' . $token . '; Path=/; SameSite=Lax; HttpOnly' . ($secure ? '; Secure' : '');
+        $response = $response->withAddedHeader('Set-Cookie', $cookie);
+
         return $response;
     }
 
