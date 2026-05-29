@@ -91,6 +91,22 @@ class LibraryThingImportController
     }
 
     /**
+     * Delete a saved import temp file, but only when it really resolves inside
+     * the import temp directory. The paths here are server-generated (uniqid),
+     * but this realpath-containment guard makes path traversal impossible and
+     * documents the unlink target as confined to the import scratch area.
+     */
+    private function safeUnlinkImportTmp(string $path): void
+    {
+        $allowed = realpath(sys_get_temp_dir() . '/librarything_imports');
+        $real = realpath($path);
+        if ($allowed !== false && $real !== false && str_starts_with($real, $allowed . DIRECTORY_SEPARATOR)) {
+            // $real is realpath-confined to the import scratch dir above; path is server-generated (uniqid).
+            @unlink($real); // nosemgrep
+        }
+    }
+
+    /**
      * Show LibraryThing import page
      */
     public function showImportPage(Request $request, Response $response): Response
@@ -226,7 +242,7 @@ class LibraryThingImportController
             // Read and validate headers (league skips the input BOM automatically)
             $headers = $reader->nth(0);
             if (!$headers || !$this->isLibraryThingFormat($headers)) {
-                unlink($savedPath);
+                $this->safeUnlinkImportTmp($savedPath);
                 throw new \Exception(__('Il file non sembra essere in formato LibraryThing'));
             }
 
@@ -261,7 +277,7 @@ class LibraryThingImportController
 
         } catch (\Throwable $e) {
             if (file_exists($savedPath)) {
-                unlink($savedPath);
+                $this->safeUnlinkImportTmp($savedPath);
             }
             $this->log(sprintf(
                 '[LT][prepare] FATAL %s: %s @ %s:%d',
@@ -548,7 +564,7 @@ class LibraryThingImportController
 
                 // Cleanup file only after successful persistence
                 if ($persisted && file_exists($filePath)) {
-                    unlink($filePath);
+                    $this->safeUnlinkImportTmp($filePath);
                 }
             }
 
@@ -1006,13 +1022,24 @@ class LibraryThingImportController
             }
         }
 
-        // Dimensions → dimensioni (native field, combine height/thickness/length)
+        // Dimensions → dimensioni (native field, combine height/thickness/length).
+        // LibraryThing emits absurd precision (e.g. "8.267716527 inches"); round
+        // each number to 2 decimals for readability, then hard-cap the combined
+        // string to the column width (libri.dimensioni is varchar(50)) so an
+        // over-long value can never abort the whole row with "Data too long".
+        $roundDim = static function (string $v): string {
+            return trim((string) preg_replace_callback(
+                '/\d+\.\d+/',
+                static fn(array $m): string => (string) round((float) $m[0], 2),
+                $v
+            ));
+        };
         $dimensions = [];
-        if (!empty($data['Height'])) $dimensions[] = 'H: ' . trim($data['Height']);
-        if (!empty($data['Thickness'])) $dimensions[] = 'T: ' . trim($data['Thickness']);
-        if (!empty($data['Length'])) $dimensions[] = 'L: ' . trim($data['Length']);
+        if (!empty($data['Height'])) $dimensions[] = 'H: ' . $roundDim((string) $data['Height']);
+        if (!empty($data['Thickness'])) $dimensions[] = 'T: ' . $roundDim((string) $data['Thickness']);
+        if (!empty($data['Length'])) $dimensions[] = 'L: ' . $roundDim((string) $data['Length']);
         if (!empty($dimensions)) {
-            $result['dimensioni'] = implode(' × ', $dimensions);
+            $result['dimensioni'] = mb_substr(implode(' × ', $dimensions), 0, 50);
         }
 
         // Library Classifications

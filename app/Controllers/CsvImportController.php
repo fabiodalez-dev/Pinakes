@@ -54,6 +54,22 @@ class CsvImportController
     }
 
     /**
+     * Delete a saved import temp file, but only when it really resolves inside
+     * the import uploads directory. Paths here are server-generated
+     * (session_id + uniqid); this realpath-containment guard makes path
+     * traversal impossible and confines the unlink to the import scratch area.
+     */
+    private function safeUnlinkImportTmp(string $path): void
+    {
+        $allowed = realpath(__DIR__ . '/../../writable/uploads');
+        $real = realpath($path);
+        if ($allowed !== false && $real !== false && str_starts_with($real, $allowed . DIRECTORY_SEPARATOR)) {
+            // $real is realpath-confined to the import uploads dir; path is server-generated.
+            @unlink($real); // nosemgrep
+        }
+    }
+
+    /**
      * Mostra la pagina di import CSV
      */
     public function showImportPage(Request $request, Response $response): Response
@@ -176,7 +192,7 @@ class CsvImportController
             $countReader = Csv::readerFromPath($savedFilePath, $delimiter);
             $totalRows = max(0, count($countReader) - 1);
         } catch (\Throwable $e) {
-            @unlink($savedFilePath);
+            $this->safeUnlinkImportTmp($savedFilePath);
             $_SESSION['error'] = __('Impossibile aprire il file CSV salvato');
             return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
         }
@@ -493,7 +509,7 @@ class CsvImportController
 
             // Cleanup file only after successful persistence
             if ($persisted) {
-                @unlink($importData['file_path']);
+                $this->safeUnlinkImportTmp((string) $importData['file_path']);
             } else {
                 error_log("[CsvImportController] Orphaned import file (persistence failed): " . ($importData['file_path'] ?? 'unknown'));
             }
