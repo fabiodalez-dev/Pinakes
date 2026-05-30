@@ -19,7 +19,8 @@
     "league/csv": "^9.28",
     "illuminate/collections": "^11.0",
     "illuminate/support": "^11.0",
-    "guzzlehttp/guzzle": "^7.8"
+    "guzzlehttp/guzzle": "^7.8",
+    "symfony/html-sanitizer": "^6.4"
   },
   "autoload": {
     "psr-4": {

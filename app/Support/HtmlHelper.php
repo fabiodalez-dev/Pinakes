@@ -72,131 +72,46 @@ class HtmlHelper
             return '';
         }
 
-        // Tag HTML permessi (whitelist)
-        $allowedTags = [
-            'p', 'br', 'span', 'div',
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-            'strong', 'b', 'em', 'i', 'u', 's', 'mark',
-            'ul', 'ol', 'li',
-            'a', 'img',
-            'table', 'thead', 'tbody', 'tr', 'th', 'td',
-            'blockquote', 'pre', 'code',
-            'hr'
-        ];
+        // Robust, parser-based HTML sanitization via symfony/html-sanitizer,
+        // replacing the previous regex approach (regex cannot reliably parse
+        // HTML and was bypassable). Same tag/attribute allow-list as before;
+        // link schemes http/https/mailto + relative, media schemes
+        // http/https/data + relative, rel="noopener noreferrer" forced on links.
+        return self::htmlSanitizer()->sanitize($html);
+    }
 
-        // Attributi permessi per tag (whitelist)
-        $allowedAttributes = [
-            'a' => ['href', 'title', 'target', 'rel'],
-            'img' => ['src', 'alt', 'title', 'width', 'height'],
-            'td' => ['colspan', 'rowspan'],
-            'th' => ['colspan', 'rowspan'],
-            'div' => ['class'],
-            'span' => ['class'],
-            'p' => ['class'],
-            'h1' => ['class'],
-            'h2' => ['class'],
-            'h3' => ['class'],
-            'h4' => ['class'],
-            'h5' => ['class'],
-            'h6' => ['class'],
-        ];
+    private static ?\Symfony\Component\HtmlSanitizer\HtmlSanitizerInterface $htmlSanitizer = null;
 
-        // Rimuovi tag script, style e altri pericolosi
-        $html = preg_replace(
-            '#<(script|style|iframe|frame|frameset|object|embed|applet|meta|link|base|form|input|button|textarea|select)[^>]*?>.*?</\1>#is',
-            '',
-            $html
-        );
-
-        // Rimuovi tag pericolosi auto-chiusi
-        $html = preg_replace(
-            '#<(script|style|iframe|frame|object|embed|applet|meta|link|base|input|button)[^>]*?/?>#is',
-            '',
-            $html
-        );
-
-        // Rimuovi event handlers (onclick, onerror, etc.)
-        $html = preg_replace(
-            '#\s*on\w+\s*=\s*["\'][^"\']*["\']#is',
-            '',
-            $html
-        );
-        $html = preg_replace(
-            '#\s*on\w+\s*=\s*[^\s>]*#is',
-            '',
-            $html
-        );
-
-        // Rimuovi javascript: negli href e src
-        $html = preg_replace(
-            '#(href|src)\s*=\s*["\']?\s*javascript:#is',
-            '$1="#blocked"',
-            $html
-        );
-
-        // Rimuovi data: negli href (tranne data:image/ per immagini base64)
-        $html = preg_replace(
-            '#(href)\s*=\s*["\']?\s*data:(?!image/)[^"\'>\s]*#is',
-            '$1="#blocked"',
-            $html
-        );
-
-        // Strip tags non permessi mantenendo quelli sicuri
-        $allowedTagsStr = '<' . implode('><', $allowedTags) . '>';
-        $html = strip_tags($html, $allowedTagsStr);
-
-        // Sanitizza attributi
-        foreach ($allowedAttributes as $tag => $attrs) {
-            $pattern = '#<(' . preg_quote($tag, '#') . ')([^>]*)>#is';
-            $html = preg_replace_callback($pattern, function($matches) use ($attrs) {
-                $tag = $matches[1];
-                $attrString = $matches[2];
-
-                // Estrai attributi
-                preg_match_all('#(\w+)\s*=\s*["\']([^"\']*)["\']#', $attrString, $attrMatches, PREG_SET_ORDER);
-
-                $safeAttrs = [];
-                foreach ($attrMatches as $attr) {
-                    $attrName = strtolower($attr[1]);
-                    $attrValue = $attr[2];
-
-                    // Permetti solo attributi whitelisted
-                    if (in_array($attrName, $attrs, true)) {
-                        // Sanitizza il valore
-                        $attrValue = htmlspecialchars($attrValue, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-
-                        // Validazioni specifiche
-                        if ($attrName === 'href') {
-                            // Permetti solo http, https, mailto, e path relativi
-                            if (!preg_match('#^(https?://|mailto:|/|\#)#i', $attrValue)) {
-                                continue; // Salta questo attributo
-                            }
-                        }
-
-                        if ($attrName === 'src') {
-                            // Permetti solo http, https, data:image, e path relativi
-                            if (!preg_match('#^(https?://|data:image/|/)#i', $attrValue)) {
-                                continue;
-                            }
-                        }
-
-                        if ($attrName === 'target' && $attrValue === '_blank') {
-                            // Aggiungi rel="noopener noreferrer" per sicurezza
-                            $safeAttrs[] = 'target="_blank"';
-                            $safeAttrs[] = 'rel="noopener noreferrer"';
-                            continue;
-                        }
-
-                        $safeAttrs[] = $attrName . '="' . $attrValue . '"';
-                    }
-                }
-
-                $safeAttrString = empty($safeAttrs) ? '' : ' ' . implode(' ', $safeAttrs);
-                return '<' . $tag . $safeAttrString . '>';
-            }, $html);
+    private static function htmlSanitizer(): \Symfony\Component\HtmlSanitizer\HtmlSanitizerInterface
+    {
+        if (self::$htmlSanitizer !== null) {
+            return self::$htmlSanitizer;
         }
 
-        return $html;
+        $config = new \Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig();
+
+        // Inline/block elements allowed with no attributes.
+        foreach (['br', 'strong', 'b', 'em', 'i', 'u', 's', 'mark', 'ul', 'ol', 'li',
+                  'blockquote', 'pre', 'code', 'hr', 'table', 'thead', 'tbody', 'tr'] as $tag) {
+            $config = $config->allowElement($tag);
+        }
+        // Elements that may carry a class attribute.
+        foreach (['p', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'] as $tag) {
+            $config = $config->allowElement($tag, ['class']);
+        }
+        $config = $config
+            ->allowElement('a', ['href', 'title', 'target', 'rel'])
+            ->allowElement('img', ['src', 'alt', 'title', 'width', 'height'])
+            ->allowElement('td', ['colspan', 'rowspan'])
+            ->allowElement('th', ['colspan', 'rowspan'])
+            ->allowLinkSchemes(['http', 'https', 'mailto'])
+            ->allowRelativeLinks()
+            ->allowMediaSchemes(['http', 'https', 'data'])
+            ->allowRelativeMedias()
+            ->forceAttribute('a', 'rel', 'noopener noreferrer');
+
+        self::$htmlSanitizer = new \Symfony\Component\HtmlSanitizer\HtmlSanitizer($config);
+        return self::$htmlSanitizer;
     }
 
     /**
