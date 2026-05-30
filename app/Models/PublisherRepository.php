@@ -50,10 +50,13 @@ class PublisherRepository
                        ) AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
-                WHERE l.editore_id = ? AND l.deleted_at IS NULL
+                WHERE (l.editore_id = ?
+                       OR EXISTS (SELECT 1 FROM libri_editori le
+                                  WHERE le.libro_id = l.id AND le.editore_id = ?))
+                      AND l.deleted_at IS NULL
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param('i', $publisherId);
+        $stmt->bind_param('ii', $publisherId, $publisherId);
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = [];
@@ -224,6 +227,14 @@ class PublisherRepository
             return null;
         }
 
+        // The multi-publisher junction (issue #143) has a FK ON DELETE CASCADE
+        // to `editori`, so deleting a duplicate would silently wipe its
+        // libri_editori rows. Detect the table once so we can repoint those
+        // rows onto the primary BEFORE the cascade fires. Guarded for installs
+        // predating the migration (table absent → fall back to editore_id only).
+        $junctionRes = $this->db->query("SHOW TABLES LIKE 'libri_editori'");
+        $hasJunction = ($junctionRes instanceof \mysqli_result && $junctionRes->num_rows > 0);
+
         // Start transaction
         $this->db->begin_transaction();
 
@@ -239,6 +250,25 @@ class PublisherRepository
                     throw new \Exception("Failed to execute UPDATE libri: " . $stmt->error);
                 }
                 $stmt->close();
+
+                // Repoint the junction rows onto the primary publisher BEFORE
+                // the editori DELETE cascades them away. INSERT IGNORE keeps the
+                // existing (libro, primary) row when a book already lists both;
+                // the duplicate's leftover rows are then removed by the cascade.
+                if ($hasJunction) {
+                    $stmt = $this->db->prepare(
+                        "INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine)
+                         SELECT libro_id, ?, ordine FROM libri_editori WHERE editore_id = ?"
+                    );
+                    if ($stmt === false) {
+                        throw new \Exception("Failed to prepare repoint libri_editori: " . $this->db->error);
+                    }
+                    $stmt->bind_param('ii', $primaryId, $duplicateId);
+                    if (!$stmt->execute()) {
+                        throw new \Exception("Failed to execute repoint libri_editori: " . $stmt->error);
+                    }
+                    $stmt->close();
+                }
 
                 // Delete the duplicate publisher
                 $stmt = $this->db->prepare("DELETE FROM editori WHERE id = ?");

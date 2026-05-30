@@ -126,7 +126,7 @@ class Validator {
      */
     public function validateSystemRequirements() {
         $requirements = [
-            'php_version' => version_compare(PHP_VERSION, '8.1.0', '>='),
+            'php_version' => version_compare(PHP_VERSION, '8.2.0', '>='),
             'pdo' => extension_loaded('pdo'),
             'pdo_mysql' => extension_loaded('pdo_mysql'),
             'mysqli' => extension_loaded('mysqli'),

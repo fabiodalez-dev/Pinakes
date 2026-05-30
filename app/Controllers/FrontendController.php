@@ -1412,16 +1412,21 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         }
 
         $publisher = $publisherResult->fetch_assoc();
+        $publisherId = (int) $publisher['id'];
 
-        // Count total books
+        // Count total books — match the publisher whether it is the primary
+        // (libri.editore_id) or a secondary one in the multi-publisher junction
+        // (libri_editori, issue #143).
         $countQuery = "
             SELECT COUNT(l.id) as total
             FROM libri l
-            JOIN editori e ON l.editore_id = e.id
-            WHERE e.nome = ? AND l.deleted_at IS NULL
+            WHERE (l.editore_id = ?
+                   OR EXISTS (SELECT 1 FROM libri_editori le
+                              WHERE le.libro_id = l.id AND le.editore_id = ?))
+                  AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
-        $stmt->bind_param('s', $publisherName);
+        $stmt->bind_param('ii', $publisherId, $publisherId);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $totalBooks = $row['total'] ?? 0;
@@ -1435,15 +1440,18 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                    e.nome AS editore,
                    g.nome AS genere
             FROM libri l
-            JOIN editori e ON l.editore_id = e.id
+            LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE e.nome = ? AND l.deleted_at IS NULL
+            WHERE (l.editore_id = ?
+                   OR EXISTS (SELECT 1 FROM libri_editori le
+                              WHERE le.libro_id = l.id AND le.editore_id = ?))
+                  AND l.deleted_at IS NULL
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
 
         $stmt = $db->prepare($booksQuery);
-        $stmt->bind_param('sii', $publisherName, $limit, $offset);
+        $stmt->bind_param('iiii', $publisherId, $publisherId, $limit, $offset);
         $stmt->execute();
         $result = $stmt->get_result();
 

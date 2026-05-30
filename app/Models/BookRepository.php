@@ -237,11 +237,14 @@ class BookRepository
                 LEFT JOIN editori e ON l.editore_id = e.id
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
-                WHERE l.editore_id = ? AND l.deleted_at IS NULL
+                WHERE (l.editore_id = ?
+                       OR EXISTS (SELECT 1 FROM libri_editori le
+                                  WHERE le.libro_id = l.id AND le.editore_id = ?))
+                      AND l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, e.nome
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param('i', $publisherId);
+        $stmt->bind_param('ii', $publisherId, $publisherId);
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = [];

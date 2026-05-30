@@ -384,6 +384,7 @@ class LibriController
         $pattern = $dir . '/' . $basename . '.*';
         foreach (glob($pattern) as $oldLog) {
             if (filemtime($oldLog) < time() - $maxAge) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- glob() restricted to the app log directory; rotated-log names are app-generated, not user input
                 unlink($oldLog);
             }
         }
@@ -1403,6 +1404,7 @@ class LibriController
 
                     // Ensure resolved path is within allowed directory
                     if ($safePath && $baseDir && strpos($safePath, $baseDir) === 0 && file_exists($safePath)) {
+                        // nosemgrep: php.lang.security.unlink-use.unlink-use -- path confined by the realpath() containment check above (SECURITY FIX #2), not user input
                         unlink($safePath);
                         $this->logCoverDebug('cover.deleted', ['path' => $oldCoverPath]);
                     } else {
@@ -2969,10 +2971,12 @@ class LibriController
             $bindValues[] = $stato;
         }
 
-        // Editore filter
+        // Editore filter — match primary (libri.editore_id) or any secondary
+        // publisher in the multi-publisher junction (libri_editori, issue #143).
         if ($editoreId > 0) {
-            $whereClauses[] = "l.editore_id = ?";
-            $bindTypes .= 'i';
+            $whereClauses[] = "(l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?))";
+            $bindTypes .= 'ii';
+            $bindValues[] = $editoreId;
             $bindValues[] = $editoreId;
         }
 
