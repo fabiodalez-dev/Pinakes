@@ -40,7 +40,6 @@ final class TranslationPushCommand extends Command
         private array $transPaths = [],
         private array $enabledLocales = [],
     ) {
-        $this->enabledLocales = array_filter($enabledLocales);
         parent::__construct();
     }
 
@@ -173,6 +172,6 @@ final class TranslationPushCommand extends Command
             $domains = array_merge($domains, $catalogue->getDomains());
         }
 
-        return array_values(array_unique($domains));
+        return array_unique($domains);
     }
 }

@@ -9,8 +9,8 @@
  * file that was distributed with this source code.
  */
 
-if (\PHP_VERSION_ID >= 80000) {
-    return require __DIR__.'/bootstrap80.php';
+if (\PHP_VERSION_ID < 80300) {
+    class DateMalformedPeriodStringException extends DateException
+    {
+    }
 }
-
-return require __DIR__.'/bootstrap72.php';

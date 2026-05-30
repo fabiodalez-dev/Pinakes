@@ -145,7 +145,7 @@ function isTranslationCompleted(array $translationStatus): bool
     return $translationStatus['total'] === $translationStatus['translated'] && 0 === count($translationStatus['mismatches']);
 }
 
-function printTranslationStatus($originalFilePath, $translationStatus, $verboseOutput, $includeCompletedLanguages): void
+function printTranslationStatus($originalFilePath, $translationStatus, $verboseOutput, $includeCompletedLanguages)
 {
     printTitle($originalFilePath);
     printTable($translationStatus, $verboseOutput, $includeCompletedLanguages);
@@ -196,13 +196,13 @@ function findTransUnitMismatches(array $baseTranslationKeys, array $translatedKe
     return $mismatches;
 }
 
-function printTitle($title): void
+function printTitle($title)
 {
     echo $title.\PHP_EOL;
     echo str_repeat('=', strlen($title)).\PHP_EOL.\PHP_EOL;
 }
 
-function printTable($translations, $verboseOutput, bool $includeCompletedLanguages): void
+function printTable($translations, $verboseOutput, bool $includeCompletedLanguages)
 {
     if (0 === count($translations)) {
         echo 'No translations found';
@@ -258,17 +258,17 @@ function printTable($translations, $verboseOutput, bool $includeCompletedLanguag
     }
 }
 
-function textColorGreen(): void
+function textColorGreen()
 {
     echo "\033[32m";
 }
 
-function textColorRed(): void
+function textColorRed()
 {
     echo "\033[31m";
 }
 
-function textColorNormal(): void
+function textColorNormal()
 {
     echo "\033[0m";
 }

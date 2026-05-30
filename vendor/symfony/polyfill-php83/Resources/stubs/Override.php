@@ -9,8 +9,12 @@
  * file that was distributed with this source code.
  */
 
-if (\PHP_VERSION_ID >= 80000) {
-    return require __DIR__.'/bootstrap80.php';
+if (\PHP_VERSION_ID < 80300) {
+    #[Attribute(Attribute::TARGET_METHOD)]
+    final class Override
+    {
+        public function __construct()
+        {
+        }
+    }
 }
-
-return require __DIR__.'/bootstrap72.php';
