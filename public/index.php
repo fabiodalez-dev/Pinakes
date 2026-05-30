@@ -181,7 +181,13 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     // Configure secure session parameters
     ini_set('session.cookie_httponly', '1');
     ini_set('session.cookie_secure', $httpsDetected ? '1' : '0');
-    ini_set('session.cookie_samesite', 'Strict');
+    // SameSite=Lax (not Strict): Strict drops the session cookie on top-level
+    // cross-site navigations (following a link to the app from email/another
+    // tab, or after some redirects), which surfaced as "logged out for no
+    // reason". Lax still blocks cross-site POST/subresource requests, and the
+    // app has its own CSRF-token defense, so this does not weaken CSRF
+    // protection in practice.
+    ini_set('session.cookie_samesite', 'Lax');
     ini_set('session.use_only_cookies', '1');
     ini_set('session.use_strict_mode', '1'); // Previene session fixation
     ini_set('session.cookie_lifetime', '0'); // Session cookies only
@@ -198,11 +204,20 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 
     session_start();
 
-    // Regenera session ID periodicamente per prevenire session hijacking
+    // Regenera session ID periodicamente per prevenire session hijacking.
+    // delete_old_session = FALSE on purpose: with TRUE the previous session
+    // file is destroyed immediately, so concurrent in-flight AJAX requests
+    // (common on DataTable-heavy admin pages) that still carry the old ID are
+    // rejected by use_strict_mode and the user is bounced to login. Keeping the
+    // old session briefly (it is GC'd at gc_maxlifetime) lets those concurrent
+    // requests finish on the old ID while the browser switches to the new
+    // cookie. The security-critical regeneration still happens with TRUE at
+    // login (AuthController), which is what defends against fixation. Interval
+    // raised 5min -> 30min to keep the number of lingering rotated sessions low.
     if (!isset($_SESSION['last_regeneration'])) {
         $_SESSION['last_regeneration'] = time();
-    } elseif (time() - $_SESSION['last_regeneration'] > 300) { // Ogni 5 minuti
-        session_regenerate_id(true);
+    } elseif (time() - $_SESSION['last_regeneration'] > 1800) { // Ogni 30 minuti
+        session_regenerate_id(false);
         $_SESSION['last_regeneration'] = time();
     }
 }
