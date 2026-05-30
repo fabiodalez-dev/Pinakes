@@ -393,7 +393,11 @@ class ApiBookScraperPlugin
         $httpCode = $res['status'];
 
         if (!$res['ok']) {
-            throw new \Exception("Errore cURL: richiesta HTTP fallita");
+            // Transport failure (DNS / connection / TLS / timeout). The
+            // underlying detail is logged by HttpClient via SecureLogger; the
+            // request goes through Guzzle now, so the old "cURL" label was
+            // both stale and uninformative.
+            throw new \Exception('Richiesta HTTP fallita (timeout o errore di rete)');
         }
 
         if ($httpCode !== 200) {

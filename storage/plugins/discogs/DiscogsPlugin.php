@@ -978,6 +978,7 @@ class DiscogsPlugin
             'connect_timeout' => 5,
             'max_redirects'   => 5,
             'user_agent'      => self::USER_AGENT,
+            'https_only'      => true, // pin redirects to https: these endpoints are https-only and the Discogs call carries an auth token
         ]);
 
         if (!$res['ok']) {
@@ -1429,6 +1430,7 @@ class DiscogsPlugin
             'connect_timeout' => 5,
             'max_redirects'   => 5,
             'user_agent'      => self::USER_AGENT,
+            'https_only'      => true, // pin redirects to https: these endpoints are https-only and the Discogs call carries an auth token
         ]);
 
         if (!$res['ok']) {
@@ -1492,6 +1494,7 @@ class DiscogsPlugin
             'connect_timeout' => 5,
             'max_redirects'   => 5,
             'user_agent'      => self::USER_AGENT,
+            'https_only'      => true, // pin redirects to https: these endpoints are https-only and the Discogs call carries an auth token
         ]);
 
         if (!$res['ok']) {
@@ -1552,6 +1555,7 @@ class DiscogsPlugin
             'connect_timeout' => 5,
             'max_redirects'   => 5,
             'user_agent'      => self::USER_AGENT,
+            'https_only'      => true, // pin redirects to https: these endpoints are https-only and the Discogs call carries an auth token
         ]);
 
         if (!$res['ok']) {

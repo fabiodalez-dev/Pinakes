@@ -46,7 +46,7 @@ final class HttpClient
      * @param array<string,string> $headers Extra request headers
      * @param array<string,mixed>  $options Overrides: timeout, connect_timeout,
      *                                       user_agent, max_redirects, verify,
-     *                                       query (array)
+     *                                       query (array), https_only (bool)
      * @return array{ok:bool,status:int,body:string}
      */
     public static function get(string $url, array $headers = [], array $options = []): array
@@ -101,11 +101,19 @@ final class HttpClient
      */
     private static function request(string $method, string $url, array $headers, array $options): array
     {
-        // Pin the initial request scheme to http/https (the ALLOW_REDIRECTS
-        // protocol allow-list below only constrains *redirect* hops). This
-        // preserves the CURLOPT_PROTOCOLS hardening of the original curl calls.
+        // Pin the initial request scheme (the ALLOW_REDIRECTS protocol
+        // allow-list below only constrains *redirect* hops). This preserves
+        // the CURLOPT_PROTOCOLS hardening of the original curl calls. When a
+        // caller passes https_only=true, the allow-list narrows to https on
+        // BOTH the initial request and any redirect, so a 30x can never
+        // downgrade the scheme — important for requests that carry an
+        // Authorization token (e.g. the Discogs API), which must never travel
+        // over cleartext after a redirect.
+        $httpsOnly = (bool) ($options['https_only'] ?? false);
+        $allowedSchemes = $httpsOnly ? ['https'] : ['http', 'https'];
+
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
-        if ($scheme !== 'http' && $scheme !== 'https') {
+        if (!in_array($scheme, $allowedSchemes, true)) {
             return ['ok' => false, 'status' => 0, 'body' => ''];
         }
 
@@ -119,7 +127,7 @@ final class HttpClient
             RequestOptions::HTTP_ERRORS => false,
             RequestOptions::HEADERS => ['User-Agent' => $userAgent] + $headers,
             RequestOptions::ALLOW_REDIRECTS => $maxRedirects > 0
-                ? ['max' => $maxRedirects, 'protocols' => ['http', 'https'], 'strict' => false]
+                ? ['max' => $maxRedirects, 'protocols' => $allowedSchemes, 'strict' => false]
                 : false,
         ];
 

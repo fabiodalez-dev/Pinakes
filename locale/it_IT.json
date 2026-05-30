@@ -5161,5 +5161,8 @@
   "Inserisci prima il nome dell'autore": "Inserisci prima il nome dell'autore",
   "es. 24604287": "es. 24604287",
   "VIAF Work ID": "VIAF Work ID",
-  "Wikidata ID": "Wikidata ID"
+  "Wikidata ID": "Wikidata ID",
+  "Impossibile preparare il file LibraryThing": "Impossibile preparare il file LibraryThing",
+  "Errore di sistema durante l'importazione": "Errore di sistema durante l'importazione",
+  "es. Q12345": "es. Q12345"
 }

@@ -152,7 +152,7 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
             x.type = 'button';
             x.className = 'ml-1 font-bold hover:text-red-600';
             x.textContent = '×';
-            x.setAttribute('aria-label', T.removeSubject);
+            x.setAttribute('aria-label', T.removeSubject + ': ' + s.termine);
             x.addEventListener('click', function () { soggetti.splice(idx, 1); syncHidden(); renderChips(); });
             chip.appendChild(x);
             chipsBox.appendChild(chip);

@@ -3088,7 +3088,15 @@ class LibriController
         // formulaPrefix "'" neutralizes CSV injection: user-controlled fields
         // (titolo, autori, editore, parole_chiave…) starting with = + - @ are
         // prefixed so spreadsheet clients don't evaluate them as formulas.
-        $writer = Csv::writerToStream($stream, $delimiter, "'");
+        //
+        // The LibraryThing export is a machine round-trip format (TSV re-imported
+        // into LibraryThing/Pinakes), NOT a spreadsheet view: EscapeFormula would
+        // prepend "'" to legitimate values starting with -, @, = or a tab,
+        // corrupting the round-trip and diverging from the dedicated
+        // LibraryThingImportController::exportLibraryThing (which does not prefix).
+        // So the formula guard applies only to the human-facing standard CSV.
+        $formulaPrefix = $format === 'librarything' ? null : "'";
+        $writer = Csv::writerToStream($stream, $delimiter, $formulaPrefix);
         $writer->insertOne($headers);
 
         $rowCount = 0;

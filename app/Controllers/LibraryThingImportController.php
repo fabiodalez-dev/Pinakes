@@ -288,7 +288,10 @@ class LibraryThingImportController
             ));
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'error' => $e->getMessage()
+                // Generic client-facing message: the full exception (incl. any
+                // server file paths from Reader/filesystem errors) is logged
+                // above via $this->log(), never echoed to the client.
+                'error' => __('Impossibile preparare il file LibraryThing')
             ], JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
@@ -584,15 +587,25 @@ class LibraryThingImportController
             return $response->withHeader('Content-Type', 'application/json');
 
         } catch (\Throwable $e) {
+            // Log full detail server-side; keep the client-facing strings
+            // generic so server file paths from filesystem/DB exceptions are
+            // never disclosed in the import error report or JSON response.
+            $this->log(sprintf(
+                '[LT][processChunk] FATAL %s: %s @ %s:%d',
+                get_class($e),
+                $e->getMessage(),
+                $e->getFile(),
+                $e->getLine()
+            ));
             $importData['errors'][] = [
                 'line' => 0,
                 'title' => 'LibraryThing',
-                'message' => $e->getMessage(),
+                'message' => __('Errore di sistema durante l\'importazione'),
                 'type' => 'system',
             ];
             $response->getBody()->write(json_encode([
                 'success' => false,
-                'error' => $e->getMessage()
+                'error' => __('Errore di sistema durante l\'importazione')
             ], JSON_THROW_ON_ERROR));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
         }
