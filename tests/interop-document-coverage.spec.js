@@ -188,7 +188,13 @@ test.describe.serial('Interop document coverage - 50 tests', () => {
   test('23. OAI plugin metadata advertises UNIMARC and current app range', async () => {
     const manifest = JSON.parse(read('storage/plugins/oai-pmh-server/plugin.json'));
     expect(manifest.metadata.supported_formats.join(' ')).toContain('unimarc');
-    expect(manifest.max_app_version).toBe('0.7.9');
+    // The plugin advertises a minimum app version (requires_app) and is
+    // intentionally NOT capped with a max_app_version, so it keeps working as
+    // the app moves past 0.7.x. (Previously this asserted max_app_version
+    // === '0.7.9', which would have made the plugin incompatible with the
+    // current release.)
+    expect(manifest.requires_app).toBeTruthy();
+    expect(manifest.max_app_version).toBeUndefined();
   });
 
   test('24. NCIP plugin metadata advertises RequestItem lifecycle support', async () => {
