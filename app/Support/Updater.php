@@ -512,10 +512,70 @@ class Updater
     }
 
     /**
-     * Get latest release from GitHub API
+     * Whether the release-candidate / prerelease channel is enabled.
+     *
+     * Hidden from end users by default: RC packages are published on GitHub as
+     * *prereleases*, which the `/releases/latest` endpoint excludes natively, so
+     * a normal install never sees them. A developer opts into the RC channel
+     * via environment, with NO UI surface:
+     *
+     *   UPDATER_ALLOW_PRERELEASE=1        (1 / true / yes / on — case-insensitive)
+     *   # or, equivalently:
+     *   UPDATER_CHANNEL=rc                (any value other than "stable")
+     *
+     * When enabled, getLatestRelease() considers prereleases and getAllReleases()
+     * stops filtering them, so the existing check/download/install flow offers the
+     * newest RC. When disabled (the default), prereleases are invisible everywhere.
+     */
+    private function prereleaseChannelEnabled(): bool
+    {
+        $allow = $_ENV['UPDATER_ALLOW_PRERELEASE']
+            ?? (getenv('UPDATER_ALLOW_PRERELEASE') ?: null);
+        if (is_string($allow) && in_array(strtolower(trim($allow)), ['1', 'true', 'yes', 'on'], true)) {
+            return true;
+        }
+
+        $channel = $_ENV['UPDATER_CHANNEL']
+            ?? (getenv('UPDATER_CHANNEL') ?: null);
+        if (is_string($channel)) {
+            $channel = strtolower(trim($channel));
+            if ($channel !== '' && $channel !== 'stable') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Get latest release from GitHub API.
+     *
+     * Default (stable channel): the `/releases/latest` endpoint, which GitHub
+     * resolves to the newest published, non-prerelease, non-draft release — so
+     * RC packages are skipped without any client-side filtering.
+     *
+     * RC channel (see {@see self::prereleaseChannelEnabled()}): walk the full
+     * release list (newest first) and return the first non-draft entry, which
+     * may be a prerelease. This is what lets a developer install an RC.
      */
     private function getLatestRelease(): ?array
     {
+        if ($this->prereleaseChannelEnabled()) {
+            $this->debugLog('INFO', 'Canale RC attivo: ricerca ultima release incluse le prerelease');
+
+            $release = $this->selectNewestRelease($this->fetchReleasesRaw(15));
+            if ($release !== null) {
+                $this->debugLog('INFO', 'Release RC selezionata', [
+                    'tag_name' => $release['tag_name'],
+                    'prerelease' => $release['prerelease'] ?? false,
+                ]);
+                return $release;
+            }
+
+            $this->debugLog('WARNING', 'Canale RC attivo ma nessuna release idonea trovata');
+            return null;
+        }
+
         $url = "https://api.github.com/repos/{$this->repoOwner}/{$this->repoName}/releases/latest";
 
         $this->debugLog('INFO', 'Richiesta GitHub API - latest release', [
@@ -726,10 +786,68 @@ class Updater
     }
 
     /**
-     * Get all releases for display
+     * Get all releases for display.
+     *
+     * On the stable channel (default), prereleases and drafts are filtered out
+     * so RC packages never surface in the "what's new" changelog either. On the
+     * RC channel ({@see self::prereleaseChannelEnabled()}) the full list — including
+     * prereleases — is returned unchanged.
+     *
      * @return array<array>
      */
     public function getAllReleases(int $limit = 10): array
+    {
+        return $this->filterReleasesByChannel($this->fetchReleasesRaw($limit));
+    }
+
+    /**
+     * Apply the active channel policy to a raw release list (pure — no I/O, so
+     * it is unit-testable in isolation): on the stable channel drop prereleases
+     * and drafts; on the RC channel keep everything.
+     *
+     * @param array<array> $releases
+     * @return array<array>
+     */
+    private function filterReleasesByChannel(array $releases): array
+    {
+        if ($this->prereleaseChannelEnabled()) {
+            return array_values($releases);
+        }
+
+        return array_values(array_filter(
+            $releases,
+            static fn(array $r): bool => empty($r['prerelease']) && empty($r['draft'])
+        ));
+    }
+
+    /**
+     * Pick the newest installable release from a raw, newest-first list (pure —
+     * no I/O, unit-testable): the first non-draft entry with a tag, prerelease
+     * or not. Used by getLatestRelease() on the RC channel.
+     *
+     * @param array<array> $releases
+     * @return array<mixed>|null
+     */
+    private function selectNewestRelease(array $releases): ?array
+    {
+        foreach ($releases as $release) {
+            if (!empty($release['draft']) || !isset($release['tag_name'])) {
+                continue;
+            }
+            return $release;
+        }
+        return null;
+    }
+
+    /**
+     * Fetch the raw release list from the GitHub API (newest first), with no
+     * channel filtering. Callers that must see prereleases (the RC-aware
+     * getLatestRelease) use this directly; getAllReleases() wraps it with the
+     * stable-channel filter.
+     *
+     * @return array<array>
+     */
+    private function fetchReleasesRaw(int $limit = 10): array
     {
         $url = "https://api.github.com/repos/{$this->repoOwner}/{$this->repoName}/releases?per_page={$limit}";
 
