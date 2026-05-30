@@ -14,8 +14,19 @@ VERSION=$1
 
 if [ -z "$VERSION" ]; then
     echo "❌ ERROR: Version number required"
-    echo "Usage: ./scripts/create-release.sh 0.4.8"
+    echo "Usage: ./scripts/create-release.sh 0.4.8           (stable release)"
+    echo "       ./scripts/create-release.sh 0.7.15-rc.1     (release candidate / prerelease)"
     exit 1
+fi
+
+# Detect a release candidate / prerelease: any SemVer pre-release identifier,
+# i.e. a hyphen in the version (0.7.15-rc.1, 0.8.0-beta.2, …). RC packages are
+# published as GitHub *prereleases* so the /releases/latest endpoint skips them
+# and the in-app updater keeps them hidden unless a developer opts into the RC
+# channel via env (UPDATER_ALLOW_PRERELEASE=1 or UPDATER_CHANNEL=rc). See updater.md.
+IS_PRERELEASE=false
+if [[ "$VERSION" == *-* ]]; then
+    IS_PRERELEASE=true
 fi
 
 # Colors for output
@@ -35,7 +46,16 @@ echo ""
 echo -e "${YELLOW}[1/9] Verifying git status...${NC}"
 
 BRANCH=$(git branch --show-current)
-if [ "$BRANCH" != "main" ]; then
+if [ "$IS_PRERELEASE" = true ]; then
+    # RC/prerelease packages are routinely cut from a feature/release branch,
+    # never from main. The tag is created against this branch (see STEP 7), so
+    # the branch MUST already be pushed to origin.
+    echo -e "${YELLOW}⚠ Prerelease ${VERSION}: branch-must-be-main check relaxed (currently on: $BRANCH).${NC}"
+    if [ -z "$(git ls-remote --heads origin "$BRANCH" 2>/dev/null)" ]; then
+        echo -e "${RED}❌ ERROR: branch '$BRANCH' is not on origin. Push it first: git push -u origin $BRANCH${NC}"
+        exit 1
+    fi
+elif [ "$BRANCH" != "main" ]; then
     echo -e "${RED}❌ ERROR: Must be on main branch (currently on: $BRANCH)${NC}"
     exit 1
 fi
@@ -255,10 +275,21 @@ if gh release view "v${VERSION}" >/dev/null 2>&1; then
     gh release delete "v${VERSION}" --yes
 fi
 
-gh release create "v${VERSION}" \
-    --title "Pinakes v${VERSION}" \
-    --generate-notes \
-    --latest
+if [ "$IS_PRERELEASE" = true ]; then
+    # --prerelease (NOT --latest): GitHub excludes prereleases from
+    # /releases/latest, so the default updater never offers this package.
+    # --target pins the tag to this branch's tip (already verified on origin).
+    gh release create "v${VERSION}" \
+        --title "Pinakes v${VERSION} (Release Candidate)" \
+        --generate-notes \
+        --prerelease \
+        --target "$BRANCH"
+else
+    gh release create "v${VERSION}" \
+        --title "Pinakes v${VERSION}" \
+        --generate-notes \
+        --latest
+fi
 
 if [ $? -ne 0 ]; then
     echo -e "${RED}❌ ERROR: GitHub release creation failed${NC}"
@@ -416,8 +447,16 @@ echo -e "${GREEN}============================================${NC}"
 echo ""
 echo "Release URL: https://github.com/fabiodalez-dev/Pinakes/releases/tag/v${VERSION}"
 echo ""
-echo "Next steps:"
-echo "1. Edit release notes on GitHub if needed"
-echo "2. Test the update from admin panel"
-echo "3. Announce the release"
+if [ "$IS_PRERELEASE" = true ]; then
+    echo -e "${YELLOW}This is a PRERELEASE (Release Candidate).${NC}"
+    echo "- It is hidden from the in-app updater by default (GitHub /releases/latest skips it)."
+    echo "- To install/test it, enable the RC channel on the target install:"
+    echo "      UPDATER_ALLOW_PRERELEASE=1     (or UPDATER_CHANNEL=rc) in .env"
+    echo "  then the updater will offer v${VERSION}. Do NOT announce it to end users."
+else
+    echo "Next steps:"
+    echo "1. Edit release notes on GitHub if needed"
+    echo "2. Test the update from admin panel"
+    echo "3. Announce the release"
+fi
 echo ""
