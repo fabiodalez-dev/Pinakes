@@ -178,6 +178,14 @@ class LoanRepository
             throw $e;
         }
 
+        // P2: invia le notifiche reservation_book_available accodate durante la
+        // transazione esterna (eseguito solo sul percorso di successo, post-commit).
+        try {
+            $reservationManager->flushDeferredNotifications();
+        } catch (\Throwable $e) {
+            error_log('LoanRepository::close flush notifications warning: ' . $e->getMessage());
+        }
+
         // validateAndUpdateLoan has its own transaction, call it after main transaction completes
         try {
             $integrity = new DataIntegrity($this->db);

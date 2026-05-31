@@ -723,6 +723,12 @@ class PrestitiController
                 if (isset($reassignmentService)) {
                     $reassignmentService->flushDeferredNotifications();
                 }
+                // P2: la conversione di una prenotazione schedulata è avvenuta in
+                // transazione esterna → la notifica reservation_book_available è stata
+                // accodata e va inviata ora, dopo il commit.
+                if (isset($reservationManager)) {
+                    $reservationManager->flushDeferredNotifications();
+                }
             } catch (\Throwable $e) {
                 SecureLogger::warning('Flush deferred notifications failed', ['error' => $e->getMessage()]);
             }

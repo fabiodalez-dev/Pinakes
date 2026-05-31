@@ -35,6 +35,9 @@ class ReservationManager
     /** @var bool Set by the caller when a transaction is already open externally */
     private bool $externalTransaction = false;
 
+    /** @var array<int,array> Notifiche prenotazione da inviare dopo il commit esterno */
+    private array $deferredReservationNotifications = [];
+
     /**
      * Dichiara che il chiamante ha già aperto una transazione: in tal caso questo
      * manager NON aprirà una transazione propria (evita il commit implicito di una
@@ -43,6 +46,26 @@ class ReservationManager
     public function setExternalTransaction(bool $external): void
     {
         $this->externalTransaction = $external;
+    }
+
+    /**
+     * Invia le notifiche di prenotazione accodate durante una transazione esterna.
+     * Da chiamare dal proprietario della transazione DOPO il proprio commit (P2).
+     */
+    public function flushDeferredNotifications(): void
+    {
+        $pending = $this->deferredReservationNotifications;
+        $this->deferredReservationNotifications = [];
+        foreach ($pending as $reservation) {
+            try {
+                $this->sendReservationNotification($reservation);
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error('Invio notifica prenotazione differita fallito', [
+                    'prenotazione_id' => $reservation['id'] ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
     }
 
     /**
@@ -165,10 +188,15 @@ class ReservationManager
 
                     $this->commitIfOwned($ownTransaction);
 
-                    // Send notification ONLY if we own the transaction (committed above)
-                    // If external transaction, caller is responsible for notifications after their commit
+                    // Se possediamo la transazione (già committata sopra) inviamo subito.
+                    // Con una transazione ESTERNA non possiamo inviare ora (il commit del
+                    // chiamante non è ancora avvenuto): accodiamo e il chiamante invierà
+                    // dopo il proprio commit via flushDeferredNotifications(). Senza questo,
+                    // con setExternalTransaction(true) la notifica veniva persa (P2).
                     if ($ownTransaction) {
                         $this->sendReservationNotification($nextReservation);
+                    } else {
+                        $this->deferredReservationNotifications[] = $nextReservation;
                     }
 
                     return true;
@@ -648,17 +676,31 @@ class ReservationManager
      */
     private function reorderQueuePositions($bookId)
     {
-        // Use MySQL user variables to update all positions in a single query
-        // This avoids N+1 queries when there are many active reservations
-        $this->db->query("SET @pos := 0");
-        $stmt = $this->db->prepare("
-            UPDATE prenotazioni
-            SET queue_position = (@pos := @pos + 1)
+        // Ordinamento deterministico (P2): le user-variable MySQL in un
+        // UPDATE ... ORDER BY non garantiscono l'ordine di assegnazione su MySQL 8 /
+        // MariaDB 10.3+. Leggiamo le righe ordinate e riscriviamo queue_position con
+        // un loop esplicito (stesso pattern già usato in DataIntegrity).
+        $sel = $this->db->prepare("
+            SELECT id FROM prenotazioni
             WHERE libro_id = ? AND stato = 'attiva'
-            ORDER BY queue_position ASC
+            ORDER BY queue_position ASC, id ASC
         ");
-        $stmt->bind_param('i', $bookId);
-        $stmt->execute();
-        $stmt->close();
+        $sel->bind_param('i', $bookId);
+        $sel->execute();
+        $res = $sel->get_result();
+        $ids = [];
+        while ($r = $res->fetch_assoc()) {
+            $ids[] = (int) $r['id'];
+        }
+        $sel->close();
+
+        $pos = 0;
+        $upd = $this->db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
+        foreach ($ids as $id) {
+            $pos++;
+            $upd->bind_param('ii', $pos, $id);
+            $upd->execute();
+        }
+        $upd->close();
     }
 }

@@ -192,7 +192,16 @@ class LoanApprovalController
             $existingCopiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
             $dataPrestito = $loan['data_prestito'];
             $dataScadenza = $loan['data_scadenza'];
-            $today = date('Y-m-d');
+            // "Oggi" calcolato nel timezone configurato dell'applicazione, non in quello
+            // di default di PHP (spesso UTC in produzione): altrimenti, vicino alla
+            // mezzanotte, un prestito datato oggi (lato browser/Rome) verrebbe visto come
+            // futuro e finirebbe 'prenotato' invece di 'da_ritirare' (P1 timezone).
+            $appTz = \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome');
+            try {
+                $today = (new \DateTime('now', new \DateTimeZone($appTz)))->format('Y-m-d');
+            } catch (\Throwable $e) {
+                $today = date('Y-m-d');
+            }
 
             // CONC-03: serializza le approvazioni dello stesso libro con un lock sulla
             // riga `libri`, poi rifiuta se l'utente ha GIÀ un prestito attivo per questo
@@ -222,6 +231,27 @@ class LoanApprovalController
                     'message' => __('L\'utente ha già un prestito attivo per questo libro')
                 ]));
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            }
+
+            // Enforce max_active_loans_per_user anche in approvazione (P1): il limite era
+            // applicato solo alla creazione/richiesta, ma approvando più richieste pendenti
+            // su libri diversi un admin poteva superarlo. Conta i prestiti attivi escluso
+            // quello in approvazione; il lock sulla riga libro sopra serializza.
+            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
+            if ($maxLoans > 0) {
+                $cntStmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE utente_id = ? AND id != ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
+                $cntStmt->bind_param('ii', $utenteId, $loanId);
+                $cntStmt->execute();
+                $activeCount = (int) ($cntStmt->get_result()->fetch_assoc()['c'] ?? 0);
+                $cntStmt->close();
+                if ($activeCount >= $maxLoans) {
+                    $db->rollback();
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'message' => __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti')
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+                }
             }
 
             // Determine state: 'prenotato' if future loan, 'da_ritirare' if immediate

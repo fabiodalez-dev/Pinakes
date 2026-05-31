@@ -374,6 +374,14 @@ class MaintenanceService
                     $convertedCount++;
                     $processedBooks[$bookId] = true;
 
+                    // P2: invia la notifica reservation_book_available accodata durante la
+                    // transazione esterna, ora che il commit è avvenuto.
+                    try {
+                        $reservationManager->flushDeferredNotifications();
+                    } catch (\Throwable $e) {
+                        SecureLogger::warning('Flush notifica prenotazione fallito', ['libro_id' => $bookId, 'error' => $e->getMessage()]);
+                    }
+
                     SecureLogger::info(__('MaintenanceService prenotazione convertita in prestito'), [
                         'prenotazione_id' => $reservation['id'],
                         'libro_id' => $bookId
