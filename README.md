@@ -24,6 +24,30 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.16
+
+### Multi-publisher, hardened end to end (#143)
+
+Books can have more than one publisher (the `libri_editori` junction, introduced in 0.7.15). This release closes every gap in that model: publisher **filters, counts, exports, the public publisher archive, the catalog facet, search, the admin API and bulk operations** now all match a book whether the publisher is its primary one (`libri.editore_id`) or a secondary one in the junction. Merging two publishers re-points the junction onto the survivor **before** the cascade, so no association is lost; the publisher-delete guard counts secondary links too; and CSV / LibraryThing import and bulk-enrichment now keep the junction in sync so interop exporters (OAI-PMH, BIBFRAME) never lose a publisher.
+
+Every new junction query is **guarded for pre-migration installs** — on a database that predates the junction table the queries gracefully fall back to the primary publisher instead of erroring.
+
+### PHP 8.2 is now the floor
+
+The installer and the in-app updater now require **PHP 8.2+**, matching `composer.json` (`^8.2`) and the generated `platform_check.php`. Previously an 8.1 host could pass preflight and then die at the Composer bootstrap.
+
+### Other fixes
+
+- **Multi-character book-case codes** (#153): the legacy single-letter UNIQUE constraint on `scaffali.lettera` is dropped, so codes like `L1`, `L2` no longer collide.
+- **Edit form**: the "Import from ISBN" field is pre-filled with the book's ISBN/EAN when editing.
+- A reconciliation migration heals any `libri_editori` drift left by imports written before the sync landed.
+
+### Testing
+
+The comprehensive E2E suite grew to **132 tests**, adding a 20-test **Archives** phase (ISAD(G) CRUD, hierarchy, SQL seeding, authority records, and the JSON/XML APIs — RiC-O JSON-LD, IIIF, OAI-PMH, SRU, MARCXML/Dublin Core/EAD3/METS) and a 9-test **multi-publisher / multi-author** phase. Validated with a fresh-install + real-upgrade regression.
+
+---
+
 ## What's New in v0.7.14
 
 ### Installer fix: wizard no longer wedges at step 6 (Configurazione Email)

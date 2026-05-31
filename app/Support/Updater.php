@@ -291,7 +291,11 @@ class Updater
             $ciphertext = substr($payload, 28);
 
             $plain = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
-            return $plain !== false ? $plain : '';
+            if ($plain === false) {
+                // Authentication/decryption failed (wrong key or tampered tag) — fail closed.
+                return '';
+            }
+            return $plain;
         } catch (\Throwable $e) {
             SecureLogger::error('[Updater] Token decryption failed: ' . $e->getMessage());
             return '';
@@ -1311,6 +1315,7 @@ class Updater
                             $err['message'] ?? 'unknown'
                         ));
                     }
+                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                     @unlink($zipPath);
                 }
                 $zipPath = $newZipPath;
@@ -1336,6 +1341,7 @@ class Updater
                 if (is_dir($extractPath)) {
                     $this->deleteDirectory($extractPath);
                 }
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                 @unlink($zipPath);
                 throw new Exception(__('Estrazione del pacchetto fallita'));
             }
@@ -1533,10 +1539,12 @@ class Updater
                 error_log("[Updater DEBUG] FATAL ERROR during manual update: " . json_encode($error));
 
                 if (file_exists($maintenanceFile)) {
+                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                     @unlink($maintenanceFile);
                 }
 
                 if (file_exists($lockFile)) {
+                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                     @unlink($lockFile);
                 }
             }
@@ -1717,6 +1725,7 @@ class Updater
             }
 
             if (file_exists($lockFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                 @unlink($lockFile);
             }
         }
@@ -2082,6 +2091,7 @@ class Updater
             }
 
             if (file_exists($filepath)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                 @unlink($filepath);
             }
 
@@ -2643,6 +2653,7 @@ class Updater
                     throw new Exception(sprintf(__('Impossibile rimuovere directory: %s'), $item->getPathname()));
                 }
             } else {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                 if (!unlink($item->getPathname())) {
                     throw new Exception(sprintf(__('Impossibile rimuovere file: %s'), $item->getPathname()));
                 }
@@ -2698,6 +2709,7 @@ class Updater
                 if ($item->isDir()) {
                     @rmdir($item->getPathname());
                 } else {
+                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                     @unlink($item->getPathname());
                     $this->debugLog('DEBUG', 'Rimosso file orfano', ['path' => $fullRelativePath]);
                 }
@@ -3223,6 +3235,7 @@ class Updater
     {
         $maintenanceFile = $this->rootPath . '/storage/.maintenance';
         if (file_exists($maintenanceFile)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
             unlink($maintenanceFile);
         }
     }
@@ -3247,6 +3260,7 @@ class Updater
             if (is_dir($path)) {
                 $this->deleteDirectory($path);
             } else {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                 @unlink($path);
             }
         }
@@ -3343,10 +3357,14 @@ class Updater
         $allMet = true;
 
         $phpVersion = PHP_VERSION;
-        $phpMet = version_compare($phpVersion, '8.1.0', '>=');
+        // Must match composer.json's "php": "^8.2" — Composer's generated
+        // vendor/composer/platform_check.php fatally exits below 8.2, so a
+        // lower floor here would let an 8.1 host pass preflight, install the
+        // release, then die at the Composer bootstrap.
+        $phpMet = version_compare($phpVersion, '8.2.0', '>=');
         $requirements[] = [
             'name' => 'PHP',
-            'required' => '8.1+',
+            'required' => '8.2+',
             'current' => $phpVersion,
             'met' => $phpMet
         ];
@@ -3466,10 +3484,12 @@ class Updater
                 error_log("[Updater DEBUG] FATAL ERROR during update: " . json_encode($error));
 
                 if (file_exists($maintenanceFile)) {
+                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                     @unlink($maintenanceFile);
                 }
 
                 if (file_exists($lockFile)) {
+                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                     @unlink($lockFile);
                 }
             }
@@ -3606,6 +3626,7 @@ class Updater
             }
 
             if (file_exists($lockFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
                 @unlink($lockFile);
             }
         }
@@ -3727,6 +3748,7 @@ class Updater
 
             // Execute patch file to get patch definition
             $patchDefinition = require $tempPatchFile;
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
             @unlink($tempPatchFile);
 
             if (!is_array($patchDefinition)) {
@@ -4023,6 +4045,7 @@ class Updater
 
             // Execute patch file to get patch definition
             $patchDefinition = require $tempPatchFile;
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
             @unlink($tempPatchFile);
 
             if (!is_array($patchDefinition)) {
@@ -4156,6 +4179,7 @@ class Updater
         if (is_dir($realPath)) {
             $this->deleteDirectory($realPath);
         } else {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
             @unlink($realPath);
         }
 
@@ -4225,6 +4249,7 @@ class Updater
 
         $maxAge = 30 * 60;
         if ((time() - $data['time']) > $maxAge) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
             @unlink($maintenanceFile);
             if (class_exists(SecureLogger::class)) {
                 SecureLogger::warning(__('Modalità manutenzione rimossa automaticamente (scaduta)'), [

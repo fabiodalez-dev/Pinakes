@@ -460,9 +460,17 @@ class SearchController
             $types .= 's';
         }
 
+        // issue #143: count books where the publisher is primary OR a secondary
+        // one in the junction; gate the subquery on table existence so the count
+        // degrades to primary-only on pre-migration installs.
+        $exists = \App\Support\SchemaInfo::hasLibriEditori($db)
+            ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l2.id AND le.editore_id = e.id)"
+            : "";
         $sql = "
             SELECT e.id, e.nome, e.indirizzo,
-                   (SELECT COUNT(*) FROM libri l2 WHERE l2.editore_id = e.id AND l2.deleted_at IS NULL) as libro_count
+                   (SELECT COUNT(*) FROM libri l2
+                    WHERE (l2.editore_id = e.id{$exists})
+                          AND l2.deleted_at IS NULL) as libro_count
             FROM editori e
             WHERE " . implode(' AND ', $conditions) . "
             ORDER BY e.nome LIMIT 3

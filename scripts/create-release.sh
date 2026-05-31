@@ -164,6 +164,7 @@ BUNDLED_PLUGINS=(
     "dewey-editor"
     "digital-library"
     "discogs"
+    "frbr-lrm"
     "goodlib"
     "musicbrainz"
     "ncip-server"

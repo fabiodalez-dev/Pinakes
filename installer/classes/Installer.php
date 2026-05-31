@@ -1298,7 +1298,7 @@ HTACCESS;
                     1,
                     'open-library',
                     'wrapper.php',
-                    '8.1',
+                    '7.4',
                     '1.0.0',
                     '{}',
                     NOW()

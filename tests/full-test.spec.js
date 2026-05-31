@@ -3194,3 +3194,519 @@ test.describe.serial('Phase 21: Language Switch', () => {
     expect(dbCode).toBe('it_IT');
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════════
+// Helpers for Phase 22 (Archives) and Phase 23 (Multi-publisher / Multi-author)
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Ensure the bundled `archives` plugin is active (auto-registers on /admin/plugins). */
+async function ensureArchivesActive(page) {
+  await page.goto(`${BASE}/admin/plugins`);
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForSelector('[data-plugin-id]', { timeout: 10000 }).catch(() => {});
+  const dbId = Number(String(dbQuery(`SELECT id FROM plugins WHERE name='archives' LIMIT 1`)).trim() || '0');
+  if (!dbId) return false;
+  if (String(dbQuery(`SELECT is_active FROM plugins WHERE id=${dbId}`)).trim() === '1') return true;
+  const card = page.locator(`[data-plugin-id="${dbId}"]`).first();
+  const btn = card.locator('button:has-text("Attiva")');
+  if (await btn.isVisible({ timeout: 1500 }).catch(() => false)) {
+    await btn.click();
+    const confirm = page.locator('.swal2-confirm:visible');
+    if (await confirm.isVisible({ timeout: 3000 }).catch(() => false)) await confirm.click();
+    await page.waitForFunction(
+      () => document.querySelector('.swal2-popup .swal2-icon.swal2-success') !== null,
+      { timeout: 10000 },
+    ).catch(() => {});
+    await page.keyboard.press('Enter').catch(() => {});
+    await page.waitForLoadState('domcontentloaded');
+  }
+  return String(dbQuery(`SELECT is_active FROM plugins WHERE id=${dbId}`)).trim() === '1';
+}
+
+/** Create an archival unit via the admin form. Returns its DB id (0 on failure). */
+async function createArchiveUnit(page, fields) {
+  await page.goto(`${BASE}/admin/archives/new`);
+  await page.waitForLoadState('domcontentloaded');
+  await page.fill('input[name="reference_code"]', fields.reference_code);
+  // Set selects via the DOM (the form may enhance them with Choices.js, which
+  // hides the native <select> and makes selectOption() hang on actionability).
+  await page.evaluate((lvl) => {
+    const s = document.querySelector('select[name="level"]');
+    if (s) { s.value = lvl; s.dispatchEvent(new Event('change', { bubbles: true })); }
+  }, fields.level || 'fonds').catch(() => {});
+  await page.fill('[name="constructed_title"]', fields.constructed_title);
+  if (fields.parent_id) {
+    // parent_id is a plain number <input> in the archives form.
+    await page.fill('input[name="parent_id"]', String(fields.parent_id)).catch(() => {});
+  }
+  for (const [k, v] of Object.entries(fields.extra || {})) {
+    const loc = page.locator(`[name="${k}"]`).first();
+    if (await loc.isVisible({ timeout: 800 }).catch(() => false)) await loc.fill(String(v)).catch(() => {});
+  }
+  await page.locator('#archiveForm button[type="submit"], form button[type="submit"]').first()
+    .click({ timeout: 15000 }).catch(() => {});
+  await page.waitForLoadState('domcontentloaded').catch(() => {});
+  const ref = fields.reference_code.replace(/'/g, "''");
+  return Number(String(dbQuery(
+    `SELECT id FROM archival_units WHERE reference_code='${ref}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`
+  )).trim() || '0');
+}
+
+/** Add items to a Choices.js multi-select (authors/publishers) by typing + Enter. */
+async function addChoicesItems(page, selectId, hiddenId, names) {
+  const wrapper = page.locator(`#${selectId}`)
+    .locator('xpath=ancestor::*[contains(@class,"choices")]').first();
+  const input = wrapper.locator('.choices__input--cloned');
+  if (!await input.isVisible({ timeout: 3000 }).catch(() => false)) return;
+  for (const name of names) {
+    const before = await page.locator(`#${hiddenId} input`).count();
+    await input.click();
+    await input.fill(name);
+    await input.press('Enter');
+    await page.waitForFunction(
+      (args) => document.querySelectorAll(`#${args.hid} input`).length > args.before,
+      { hid: hiddenId, before },
+      { timeout: 5000 },
+    ).catch(() => {});
+  }
+}
+
+/** Create a book with the given authors/publishers via the form. Returns book id. */
+async function createBookWithRelations(page, { title, authors = [], publishers = [] }) {
+  await page.goto(`${BASE}/admin/libri/crea`);
+  await page.waitForLoadState('domcontentloaded');
+  await page.fill('#titolo', title);
+  if (authors.length) await addChoicesItems(page, 'autori_select', 'autori_hidden', authors);
+  if (publishers.length) await addChoicesItems(page, 'editori_select', 'editori_hidden', publishers);
+  const radiceSelect = page.locator('#radice_select');
+  if (await radiceSelect.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await page.waitForFunction(
+      () => { const s = document.querySelector('#radice_select'); return s && s.options.length > 1; },
+      { timeout: 8000 },
+    ).catch(() => {});
+    await radiceSelect.selectOption({ index: 1 }).catch(() => {});
+  }
+  await submitBookFormAndNavigate(page, /admin\/libri(?!.*crea)/, '/crea');
+  const t = title.replace(/'/g, "''");
+  const id = Number(String(dbQuery(
+    `SELECT id FROM libri WHERE titolo='${t}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`
+  )).trim() || '0');
+  if (id > 0) state.createdBookIds.push(id);
+  return id;
+}
+
+/** Publisher names in junction order for a book. */
+function bookPublishers(bookId) {
+  const r = dbQuery(`SELECT e.nome FROM libri_editori le JOIN editori e ON e.id=le.editore_id WHERE le.libro_id=${bookId} ORDER BY le.ordine`);
+  return r ? r.split('\n').filter(Boolean) : [];
+}
+/** Author names for a book. */
+function bookAuthors(bookId) {
+  const r = dbQuery(`SELECT a.nome FROM libri_autori la JOIN autori a ON a.id=la.autore_id WHERE la.libro_id=${bookId} ORDER BY la.autore_id`);
+  return r ? r.split('\n').filter(Boolean) : [];
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// Phase 22: Archives plugin — 20 tests (CRUD via form, API calls, seeding)
+// Covers: activation, schema, ISAD(G) CRUD + hierarchy, authority records +
+// linking, JSON/XML API endpoints (entities, typeahead, RiC-O JSON-LD, IIIF,
+// OAI-PMH, SRU), MARCXML/DC/EAD3/METS exports, validation, soft-delete.
+// ════════════════════════════════════════════════════════════════════════════
+test.describe.serial('Phase 22: Archives', () => {
+  /** @type {import('@playwright/test').BrowserContext} */
+  let context;
+  /** @type {import('@playwright/test').Page} */
+  let page;
+  let archivesReady = false;
+
+  const TAG = `E2EARC${RUN_ID}`;
+  const ids = { fonds: 0, series: 0, authority: 0, activity: 0, seeded: [] };
+
+  test.beforeAll(async ({ browser }) => {
+    clearRateLimits();
+    if (!appReady) return;
+    context = await browser.newContext();
+    page = await context.newPage();
+    await loginAsAdmin(page);
+    archivesReady = await ensureArchivesActive(page).catch(() => false);
+  });
+
+  test.afterAll(async () => {
+    // FK-safe cleanup of every archive row this phase created.
+    try { dbQuery(`DELETE FROM archival_unit_authority WHERE archival_unit_id IN (SELECT id FROM archival_units WHERE reference_code LIKE '${TAG}%')`); } catch {}
+    try { dbQuery(`DELETE FROM archival_unit_files WHERE unit_id IN (SELECT id FROM archival_units WHERE reference_code LIKE '${TAG}%')`); } catch {}
+    try { dbQuery(`DELETE FROM archive_unit_activities WHERE unit_id IN (SELECT id FROM archival_units WHERE reference_code LIKE '${TAG}%')`); } catch {}
+    try { dbQuery(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%' AND parent_id IS NOT NULL`); } catch {}
+    try { dbQuery(`DELETE FROM archival_units WHERE reference_code LIKE '${TAG}%'`); } catch {}
+    try { dbQuery(`DELETE FROM authority_records WHERE authorised_form LIKE '${TAG}%'`); } catch {}
+    try { dbQuery(`DELETE FROM archive_activities WHERE title LIKE '${TAG}%'`); } catch {}
+    await context?.close();
+  });
+
+  test.beforeEach(() => {
+    test.skip(!appReady, 'App not ready — Phase 1 did not complete');
+    test.skip(!archivesReady, 'Archives plugin not active');
+  });
+
+  test('22.1 Archives plugin is active with hooks registered', async () => {
+    const pid = Number(String(dbQuery(`SELECT id FROM plugins WHERE name='archives' LIMIT 1`)).trim() || '0');
+    expect(pid).toBeGreaterThan(0);
+    expect(String(dbQuery(`SELECT is_active FROM plugins WHERE id=${pid}`)).trim()).toBe('1');
+    const hooks = Number(String(dbQuery(`SELECT COUNT(*) FROM plugin_hooks WHERE plugin_id=${pid}`)).trim() || '0');
+    expect(hooks).toBeGreaterThan(0);
+  });
+
+  test('22.2 Schema: all archive tables exist', async () => {
+    const expected = [
+      'archival_units', 'authority_records', 'archival_unit_authority',
+      'autori_authority_link', 'archival_unit_files', 'archive_agent_identifiers',
+      'archive_agent_relations', 'archive_activities', 'archive_unit_activities',
+      'archive_places', 'archive_relations',
+    ];
+    for (const t of expected) {
+      const got = String(dbQuery(`SHOW TABLES LIKE '${t}'`)).trim();
+      expect(got, `table ${t} should exist`).toBe(t);
+    }
+  });
+
+  test('22.3 Create a fonds via the admin form', async () => {
+    ids.fonds = await createArchiveUnit(page, {
+      reference_code: `${TAG}-F1`,
+      level: 'fonds',
+      constructed_title: `${TAG} Fondo principale`,
+      extra: { date_start: '1888', date_end: '1942', scope_content: 'Fondo di prova E2E' },
+    });
+    expect(ids.fonds).toBeGreaterThan(0);
+    const lvl = String(dbQuery(`SELECT level FROM archival_units WHERE id=${ids.fonds}`)).trim();
+    expect(lvl).toBe('fonds');
+  });
+
+  test('22.4 Create a child series with parent_id (hierarchy)', async () => {
+    expect(ids.fonds).toBeGreaterThan(0);
+    ids.series = await createArchiveUnit(page, {
+      reference_code: `${TAG}-S1`,
+      level: 'series',
+      constructed_title: `${TAG} Serie figlia`,
+      parent_id: ids.fonds,
+    });
+    expect(ids.series).toBeGreaterThan(0);
+    const parent = String(dbQuery(`SELECT parent_id FROM archival_units WHERE id=${ids.series}`)).trim();
+    expect(parent).toBe(String(ids.fonds));
+  });
+
+  test('22.5 Seed: bulk-insert 5 archival units via SQL', async () => {
+    for (let i = 1; i <= 5; i++) {
+      dbQuery(
+        `INSERT INTO archival_units (reference_code, institution_code, level, constructed_title, material_status, specific_material, created_at, updated_at) ` +
+        `VALUES ('${TAG}-SEED-${i}', 'PINAKES', 'item', '${TAG} Seed item ${i}', 'unclassified', 'text', NOW(), NOW())`
+      );
+    }
+    const n = Number(String(dbQuery(`SELECT COUNT(*) FROM archival_units WHERE reference_code LIKE '${TAG}-SEED-%' AND deleted_at IS NULL`)).trim() || '0');
+    expect(n).toBe(5);
+  });
+
+  test('22.6 Seeded + created units appear on the admin list', async () => {
+    await page.goto(`${BASE}/admin/archives?q=${TAG}`);
+    await page.waitForLoadState('domcontentloaded');
+    const body = await page.locator('body').textContent();
+    expect(body).toContain(`${TAG} Fondo principale`);
+    expect(body).toContain('Seed item');
+  });
+
+  test('22.7 Edit the fonds via the form updates the DB', async () => {
+    await page.goto(`${BASE}/admin/archives/${ids.fonds}/edit`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.fill('[name="constructed_title"]', `${TAG} Fondo aggiornato`);
+    await page.locator('form button[type="submit"], button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    const title = String(dbQuery(`SELECT constructed_title FROM archival_units WHERE id=${ids.fonds}`)).trim();
+    expect(title).toBe(`${TAG} Fondo aggiornato`);
+  });
+
+  test('22.8 Duplicate reference_code is rejected (UNIQUE)', async () => {
+    const before = Number(String(dbQuery(`SELECT COUNT(*) FROM archival_units WHERE reference_code='${TAG}-F1'`)).trim() || '0');
+    await createArchiveUnit(page, { reference_code: `${TAG}-F1`, level: 'fonds', constructed_title: `${TAG} Duplicato` });
+    const after = Number(String(dbQuery(`SELECT COUNT(*) FROM archival_units WHERE reference_code='${TAG}-F1'`)).trim() || '0');
+    expect(after).toBe(before); // no new row
+  });
+
+  test('22.9 Validation: missing constructed_title is rejected', async () => {
+    await page.goto(`${BASE}/admin/archives/new`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.fill('input[name="reference_code"]', `${TAG}-INVALID`);
+    await page.selectOption('select[name="level"]', 'fonds').catch(() => {});
+    // leave constructed_title empty
+    await page.locator('form button[type="submit"], button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    const n = Number(String(dbQuery(`SELECT COUNT(*) FROM archival_units WHERE reference_code='${TAG}-INVALID'`)).trim() || '0');
+    expect(n).toBe(0); // not created
+  });
+
+  test('22.10 Create an authority record (person)', async () => {
+    await page.goto(`${BASE}/admin/archives/authorities/new`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.selectOption('select[name="type"]', 'person').catch(() => {});
+    await page.fill('[name="authorised_form"]', `${TAG} Thorvald Stauning`);
+    const dates = page.locator('[name="dates_of_existence"]').first();
+    if (await dates.isVisible({ timeout: 800 }).catch(() => false)) await dates.fill('1873–1942');
+    await page.locator('form button[type="submit"], button[type="submit"]').first().click();
+    await page.waitForLoadState('domcontentloaded').catch(() => {});
+    ids.authority = Number(String(dbQuery(
+      `SELECT id FROM authority_records WHERE authorised_form='${TAG} Thorvald Stauning' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`
+    )).trim() || '0');
+    expect(ids.authority).toBeGreaterThan(0);
+  });
+
+  test('22.11 Attach authority to the fonds (role=creator)', async () => {
+    expect(ids.authority).toBeGreaterThan(0);
+    await page.goto(`${BASE}/admin/archives/${ids.fonds}`);
+    await page.waitForLoadState('domcontentloaded');
+    const token = await getCsrfToken(page);
+    const res = await page.request.post(`${BASE}/admin/archives/${ids.fonds}/authorities/attach`, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      form: { csrf_token: token, authority_id: String(ids.authority), role: 'creator' },
+    });
+    expect([200, 302, 303]).toContain(res.status());
+    const n = Number(String(dbQuery(
+      `SELECT COUNT(*) FROM archival_unit_authority WHERE archival_unit_id=${ids.fonds} AND authority_id=${ids.authority} AND role='creator'`
+    )).trim() || '0');
+    expect(n).toBe(1);
+  });
+
+  test('22.12 API: /api/archives/entities returns JSON results', async () => {
+    const res = await page.request.get(`${BASE}/api/archives/entities?type=archival_unit&q=${TAG}`);
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(Array.isArray(json.results)).toBe(true);
+    const labels = json.results.map(r => String(r.label || ''));
+    expect(labels.some(l => l.includes(TAG))).toBe(true);
+  });
+
+  test('22.13 API: authority typeahead returns JSON', async () => {
+    const res = await page.request.get(`${BASE}/admin/archives/api/authorities/search?q=${TAG}`);
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    const rows = Array.isArray(json) ? json : (json.results || json.data || []);
+    expect(Array.isArray(rows)).toBe(true);
+    expect(rows.some(r => String(r.authorised_form || r.name || r.label || r.text || '').includes(TAG))).toBe(true);
+  });
+
+  test('22.14 API public: RiC-O JSON-LD for a unit', async () => {
+    const res = await page.request.get(`${BASE}/archives/${ids.fonds}/ric.json`);
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type'] || '').toContain('json');
+    const json = await res.json();
+    expect(json['@context'] || json['@type']).toBeTruthy();
+  });
+
+  test('22.15 API public: IIIF manifest for a unit', async () => {
+    const res = await page.request.get(`${BASE}/archives/${ids.fonds}/manifest.json`);
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    expect(json.type || json['@type'] || json['@context']).toBeTruthy();
+  });
+
+  test('22.16 API public: IIIF collection root', async () => {
+    const res = await page.request.get(`${BASE}/archives/collection.json`);
+    expect(res.status()).toBe(200);
+    expect((res.headers()['content-type'] || '')).toContain('json');
+  });
+
+  test('22.17 API public: OAI-PMH Identify (XML)', async () => {
+    const res = await page.request.get(`${BASE}/archives/oai?verb=Identify`);
+    expect(res.status()).toBe(200);
+    const xml = await res.text();
+    expect(xml).toMatch(/OAI-PMH|<Identify/);
+  });
+
+  test('22.18 API public: SRU explain (XML)', async () => {
+    const res = await page.request.get(`${BASE}/api/archives/sru?operation=explain&version=1.2`);
+    expect(res.status()).toBe(200);
+    const xml = await res.text();
+    expect(xml).toMatch(/explain|<zs:|sru/i);
+  });
+
+  test('22.19 Exports: MARCXML, Dublin Core, EAD3, METS', async () => {
+    const marc = await page.request.get(`${BASE}/admin/archives/${ids.fonds}/export.xml`);
+    expect(marc.status()).toBe(200);
+    expect(await marc.text()).toMatch(/<record|marc/i);
+    const dc = await page.request.get(`${BASE}/admin/archives/${ids.fonds}/dc.xml`);
+    expect(dc.status()).toBe(200);
+    expect(await dc.text()).toMatch(/dc:|dublin|<oai_dc|<metadata/i);
+    const ead = await page.request.get(`${BASE}/admin/archives/${ids.fonds}/ead.xml`);
+    expect(ead.status()).toBe(200);
+    expect(await ead.text()).toMatch(/<ead|archdesc/i);
+    const mets = await page.request.get(`${BASE}/admin/archives/${ids.fonds}/mets.xml`);
+    expect(mets.status()).toBe(200);
+    expect(await mets.text()).toMatch(/<mets|METS/i);
+  });
+
+  test('22.20 Soft-delete the child series hides it but keeps the row', async () => {
+    await page.goto(`${BASE}/admin/archives/${ids.series}`);
+    await page.waitForLoadState('domcontentloaded');
+    const token = await getCsrfToken(page);
+    const res = await page.request.post(`${BASE}/admin/archives/${ids.series}/delete`, {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      form: { csrf_token: token },
+    });
+    expect([200, 302, 303]).toContain(res.status());
+    const del = String(dbQuery(`SELECT deleted_at IS NOT NULL FROM archival_units WHERE id=${ids.series}`)).trim();
+    expect(del).toBe('1');
+    await page.goto(`${BASE}/admin/archives?q=${TAG}`);
+    await page.waitForLoadState('domcontentloaded');
+    const body = await page.locator('body').textContent();
+    expect(body).not.toContain(`${TAG} Serie figlia`);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// Phase 23: Multi-publisher & Multi-author — specific correctness tests (#143)
+// Verifies libri_editori / libri_autori junctions, primary mapping, edit
+// add/remove, and that a secondary publisher surfaces the book on its archive
+// page and in the catalog filter.
+// ════════════════════════════════════════════════════════════════════════════
+test.describe.serial('Phase 23: Multi-publisher & Multi-author', () => {
+  /** @type {import('@playwright/test').BrowserContext} */
+  let context;
+  /** @type {import('@playwright/test').Page} */
+  let page;
+
+  const TAG = `MR${RUN_ID}`;
+  const P1 = `${TAG} EditoreUno`;
+  const P2 = `${TAG} EditoreDue`;
+  const P3 = `${TAG} EditoreTre`;
+  const A1 = `${TAG} AutoreUno`;
+  const A2 = `${TAG} AutoreDue`;
+  const A3 = `${TAG} AutoreTre`;
+  let multiPubBook = 0;
+
+  test.beforeAll(async ({ browser }) => {
+    clearRateLimits();
+    if (!appReady) return;
+    context = await browser.newContext();
+    page = await context.newPage();
+    await loginAsAdmin(page);
+  });
+
+  test.afterAll(async () => {
+    try { dbQuery(`DELETE FROM libri_editori WHERE libro_id IN (SELECT id FROM libri WHERE titolo LIKE '${TAG}%')`); } catch {}
+    try { dbQuery(`DELETE FROM libri_autori WHERE libro_id IN (SELECT id FROM libri WHERE titolo LIKE '${TAG}%')`); } catch {}
+    try { dbQuery(`DELETE FROM copie WHERE libro_id IN (SELECT id FROM libri WHERE titolo LIKE '${TAG}%')`); } catch {}
+    try { dbQuery(`DELETE FROM libri WHERE titolo LIKE '${TAG}%'`); } catch {}
+    try { dbQuery(`DELETE FROM editori WHERE nome LIKE '${TAG}%'`); } catch {}
+    try { dbQuery(`DELETE FROM autori WHERE nome LIKE '${TAG}%'`); } catch {}
+    await context?.close();
+  });
+
+  test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
+
+  test('23.1 Create a book with TWO publishers → junction has 2 in order', async () => {
+    multiPubBook = await createBookWithRelations(page, {
+      title: `${TAG} Libro due editori`,
+      authors: [A1],
+      publishers: [P1, P2],
+    });
+    expect(multiPubBook).toBeGreaterThan(0);
+    const pubs = bookPublishers(multiPubBook);
+    expect(pubs.length).toBe(2);
+    expect(pubs[0]).toBe(P1);
+    expect(pubs[1]).toBe(P2);
+  });
+
+  test('23.2 Primary publisher equals libri.editore_id (junction ordine 0)', async () => {
+    const primaryId = String(dbQuery(`SELECT editore_id FROM libri WHERE id=${multiPubBook}`)).trim();
+    const ord0Id = String(dbQuery(`SELECT editore_id FROM libri_editori WHERE libro_id=${multiPubBook} AND ordine=0`)).trim();
+    expect(primaryId).toBe(ord0Id);
+    const p1Id = String(dbQuery(`SELECT id FROM editori WHERE nome='${P1}' ORDER BY id DESC LIMIT 1`)).trim();
+    expect(primaryId).toBe(p1Id);
+  });
+
+  test('23.3 Create a book with THREE authors → libri_autori has 3', async () => {
+    const id = await createBookWithRelations(page, {
+      title: `${TAG} Libro tre autori`,
+      authors: [A1, A2, A3],
+      publishers: [P1],
+    });
+    expect(id).toBeGreaterThan(0);
+    const authors = bookAuthors(id);
+    expect(authors.length).toBe(3);
+    const roles = dbQuery(`SELECT DISTINCT ruolo FROM libri_autori WHERE libro_id=${id}`);
+    expect(roles).toBe('principale');
+  });
+
+  test('23.4 One book with multiple authors AND publishers → both junctions correct', async () => {
+    const id = await createBookWithRelations(page, {
+      title: `${TAG} Libro misto`,
+      authors: [A1, A2],
+      publishers: [P1, P2],
+    });
+    expect(id).toBeGreaterThan(0);
+    expect(bookAuthors(id).length).toBe(2);
+    expect(bookPublishers(id).length).toBe(2);
+  });
+
+  test('23.5 Edit: add a third publisher → junction grows to 3', async () => {
+    await page.goto(`${BASE}/admin/libri/modifica/${multiPubBook}`);
+    await page.waitForLoadState('domcontentloaded');
+    // Wait for the 2 pre-populated publisher chips + hidden inputs to render —
+    // adding before they are synced would submit only the new publisher and
+    // silently drop the existing two.
+    await expect(page.locator('#editori_hidden input')).toHaveCount(2, { timeout: 8000 });
+    await addChoicesItems(page, 'editori_select', 'editori_hidden', [P3]);
+    await expect(page.locator('#editori_hidden input')).toHaveCount(3, { timeout: 5000 });
+    await submitBookFormAndNavigate(page, /admin\/libri(?!.*modifica)/, '/modifica');
+    const pubs = bookPublishers(multiPubBook);
+    expect(pubs.length).toBe(3);
+    expect(pubs).toContain(P3);
+  });
+
+  test('23.6 Edit: remove a publisher → junction shrinks, primary still valid', async () => {
+    await page.goto(`${BASE}/admin/libri/modifica/${multiPubBook}`);
+    await page.waitForLoadState('domcontentloaded');
+    // Wait for the 3 pre-populated chips before removing one.
+    await expect(page.locator('#editori_hidden input')).toHaveCount(3, { timeout: 8000 });
+    // Remove the first chip in the publisher Choices widget
+    const wrapper = page.locator('#editori_select')
+      .locator('xpath=ancestor::*[contains(@class,"choices")]').first();
+    const removeBtn = wrapper.locator('.choices__list--multiple .choices__button').first();
+    if (await removeBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await removeBtn.click();
+    }
+    await expect(page.locator('#editori_hidden input')).toHaveCount(2, { timeout: 5000 });
+    await submitBookFormAndNavigate(page, /admin\/libri(?!.*modifica)/, '/modifica');
+    const pubs = bookPublishers(multiPubBook);
+    expect(pubs.length).toBe(2);
+    // editore_id must point to a publisher that is still in the junction
+    const primaryId = String(dbQuery(`SELECT editore_id FROM libri WHERE id=${multiPubBook}`)).trim();
+    const stillLinked = String(dbQuery(`SELECT COUNT(*) FROM libri_editori WHERE libro_id=${multiPubBook} AND editore_id=${primaryId}`)).trim();
+    expect(stillLinked).toBe('1');
+  });
+
+  test('23.7 Secondary publisher surfaces the book on its archive page', async () => {
+    // After 23.6 the junction is [P2 (primary, ordine 0), P3 (secondary, ordine 1)].
+    // P3 is genuinely secondary: editore_id != P3, so /editore/P3 can only find
+    // the book via the EXISTS(libri_editori) path (the multi-publisher fix #143).
+    const p3Id = String(dbQuery(`SELECT id FROM editori WHERE nome='${P3}' ORDER BY id DESC LIMIT 1`)).trim();
+    const primaryId = String(dbQuery(`SELECT editore_id FROM libri WHERE id=${multiPubBook}`)).trim();
+    expect(primaryId).not.toBe(p3Id);          // P3 is NOT the primary
+    expect(bookPublishers(multiPubBook)).toContain(P3); // but is in the junction
+    const res = await page.request.get(`${BASE}/editore/${encodeURIComponent(P3)}`);
+    expect(res.status()).toBe(200);
+    expect(await res.text()).toContain(`${TAG} Libro due editori`);
+  });
+
+  test('23.8 Catalog filter by a secondary publisher includes the book', async () => {
+    const res = await page.request.get(`${BASE}/catalogo?editore=${encodeURIComponent(P3)}`);
+    expect(res.status()).toBe(200);
+    expect(await res.text()).toContain(`${TAG} Libro due editori`);
+  });
+
+  test('23.9 Admin libri API filtered by secondary publisher returns the book', async () => {
+    const p3Id = String(dbQuery(`SELECT id FROM editori WHERE nome='${P3}' ORDER BY id DESC LIMIT 1`)).trim();
+    const res = await page.request.get(`${BASE}/api/libri?editore_filter=${p3Id}&length=200&draw=1`);
+    expect(res.status()).toBe(200);
+    const json = await res.json();
+    const rows = json.data || json.rows || json.libri || [];
+    expect(JSON.stringify(rows)).toContain('Libro due editori');
+  });
+});

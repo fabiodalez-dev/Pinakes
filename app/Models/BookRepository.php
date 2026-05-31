@@ -230,6 +230,13 @@ class BookRepository
     {
         // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
         // Filtro soft delete: esclude libri cancellati
+        // issue #143: gate the junction subquery on table existence so the
+        // query degrades to primary-only on pre-migration installs instead of
+        // a fatal prepare()=false.
+        $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($this->db);
+        $exists = $hasJunction
+            ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?)"
+            : "";
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
                        GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ') AS autori
@@ -237,11 +244,16 @@ class BookRepository
                 LEFT JOIN editori e ON l.editore_id = e.id
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id
-                WHERE l.editore_id = ? AND l.deleted_at IS NULL
+                WHERE (l.editore_id = ?{$exists})
+                      AND l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, e.nome
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param('i', $publisherId);
+        if ($hasJunction) {
+            $stmt->bind_param('ii', $publisherId, $publisherId);
+        } else {
+            $stmt->bind_param('i', $publisherId);
+        }
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = [];

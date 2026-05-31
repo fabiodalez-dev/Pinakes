@@ -273,8 +273,12 @@ class ApiBookScraperPlugin
 
         // Decripta
         $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+        if ($decrypted === false) {
+            // Authentication/decryption failed — fall back to the raw value.
+            return $value;
+        }
 
-        return $decrypted !== false ? $decrypted : $value;
+        return $decrypted;
     }
 
     /**

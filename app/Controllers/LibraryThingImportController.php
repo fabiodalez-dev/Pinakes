@@ -1386,6 +1386,34 @@ class LibraryThingImportController
         }
     }
 
+    /**
+     * Keep libri_editori in sync with a book's primary publisher (issue #143).
+     *
+     * LibraryThing import writes libri.editore_id directly (not via
+     * BookRepository::syncPublishers()), which would otherwise leave the
+     * multi-publisher junction missing the primary row — so junction-only
+     * consumers (OAI-PMH, BIBFRAME) would export no publisher. Additive only
+     * (INSERT IGNORE at ordine 0): never removes co-publisher rows, idempotent,
+     * and a no-op on pre-migration installs.
+     */
+    private function syncPrimaryPublisherJunction(\mysqli $db, int $bookId, ?int $editoreId): void
+    {
+        $editoreId = (int) $editoreId;
+        if ($bookId <= 0 || $editoreId <= 0) {
+            return;
+        }
+        if (!\App\Support\SchemaInfo::hasLibriEditori($db)) {
+            return;
+        }
+        $stmt = $db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0)');
+        if ($stmt === false) {
+            return;
+        }
+        $stmt->bind_param('ii', $bookId, $editoreId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
     private function updateBook(\mysqli $db, int $bookId, array $data, ?int $editorId, ?int $genreId): void
     {
         // Check if LibraryThing plugin is installed
@@ -1536,6 +1564,7 @@ class LibraryThingImportController
         $stmt->execute();
         $affectedRows = $stmt->affected_rows;
         $stmt->close();
+        $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
 
         // affected_rows=0 can mean unchanged data OR soft-deleted row — check explicitly
         if ($affectedRows === 0) {
@@ -1741,6 +1770,7 @@ class LibraryThingImportController
 
         $stmt->execute();
         $bookId = $db->insert_id;
+        $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
 
         // Create physical copies
         $copyRepo = new \App\Models\CopyRepository($db);
@@ -1921,9 +1951,19 @@ class LibraryThingImportController
         }
 
         if ($editoreId > 0) {
-            $whereClauses[] = "l.editore_id = ?";
-            $bindTypes .= 'i';
-            $bindValues[] = $editoreId;
+            // Include books where the publisher is primary or a secondary one in
+            // the multi-publisher junction (issue #143); gate the junction
+            // subquery on table existence (pre-migration safety).
+            if (\App\Support\SchemaInfo::hasLibriEditori($db)) {
+                $whereClauses[] = "(l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?))";
+                $bindTypes .= 'ii';
+                $bindValues[] = $editoreId;
+                $bindValues[] = $editoreId;
+            } else {
+                $whereClauses[] = "l.editore_id = ?";
+                $bindTypes .= 'i';
+                $bindValues[] = $editoreId;
+            }
         }
 
         if ($genereId > 0) {

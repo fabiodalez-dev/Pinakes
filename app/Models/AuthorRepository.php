@@ -41,14 +41,23 @@ class AuthorRepository
 
     public function getByPublisherId(int $publisherId): array
     {
+        $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($this->db);
+        $exists = $hasJunction
+            ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?)"
+            : "";
         $sql = "SELECT DISTINCT a.id, a.nome, a.pseudonimo
                 FROM autori a
                 INNER JOIN libri_autori la ON a.id = la.autore_id
                 INNER JOIN libri l ON la.libro_id = l.id
-                WHERE l.editore_id = ? AND l.deleted_at IS NULL
+                WHERE (l.editore_id = ?{$exists})
+                      AND l.deleted_at IS NULL
                 ORDER BY a.nome ASC";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param('i', $publisherId);
+        if ($hasJunction) {
+            $stmt->bind_param('ii', $publisherId, $publisherId);
+        } else {
+            $stmt->bind_param('i', $publisherId);
+        }
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = [];

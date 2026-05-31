@@ -5,7 +5,7 @@
 
 // Check system requirements
 $requirements = [
-    'PHP Version >= 8.1' => version_compare(PHP_VERSION, '8.1.0', '>='),
+    'PHP Version >= 8.2' => version_compare(PHP_VERSION, '8.2.0', '>='),
     'PDO Extension' => extension_loaded('pdo'),
     'PDO MySQL Extension' => extension_loaded('pdo_mysql'),
     'MySQLi Extension' => extension_loaded('mysqli'),
