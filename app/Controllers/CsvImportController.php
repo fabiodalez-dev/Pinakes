@@ -1340,27 +1340,54 @@ class CsvImportController
      *
      * CSV import writes libri.editore_id directly (not via
      * BookRepository::syncPublishers()), which would otherwise leave the
-     * multi-publisher junction missing the primary row — so junction-only
-     * consumers (OAI-PMH, BIBFRAME) would export no publisher. Additive only
-     * (INSERT IGNORE at ordine 0): never removes co-publisher rows, idempotent,
-     * and a no-op on pre-migration installs.
+     * multi-publisher junction out of step with the primary column.
+     *
+     * Replaces the primary slot (ordine 0) so the junction never disagrees with
+     * libri.editore_id, while preserving co-publishers curated in the admin form
+     * (ordine > 0). The previous additive INSERT IGNORE left three drifts behind
+     * on an UPDATE: a changed publisher kept the old primary stale, a cleared
+     * publisher kept the old primary forever, and a publisher that already
+     * existed as a co-publisher was never promoted to ordine 0. Non-destructive
+     * on error (INSERT prepared before the DELETE) and a no-op on pre-migration
+     * installs.
      */
     private function syncPrimaryPublisherJunction(\mysqli $db, int $bookId, ?int $editoreId): void
     {
         $editoreId = (int) $editoreId;
-        if ($bookId <= 0 || $editoreId <= 0) {
+        if ($bookId <= 0) {
             return;
         }
         if (!\App\Support\SchemaInfo::hasLibriEditori($db)) {
             return;
         }
-        $stmt = $db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0)');
-        if ($stmt === false) {
+
+        // Prepare the upsert BEFORE the DELETE so a prepare failure can never
+        // leave the primary slot wiped (mirrors BookRepository::syncPublishers()).
+        $insert = null;
+        if ($editoreId > 0) {
+            $insert = $db->prepare('INSERT INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE ordine = 0');
+            if ($insert === false) {
+                return;
+            }
+        }
+
+        $del = $db->prepare('DELETE FROM libri_editori WHERE libro_id = ? AND ordine = 0');
+        if ($del === false) {
+            if ($insert !== null) {
+                $insert->close();
+            }
             return;
         }
-        $stmt->bind_param('ii', $bookId, $editoreId);
-        $stmt->execute();
-        $stmt->close();
+        $del->bind_param('i', $bookId);
+        $del->execute();
+        $del->close();
+
+        if ($insert === null) {
+            return; // publisher cleared — primary slot emptied, co-publishers kept
+        }
+        $insert->bind_param('ii', $bookId, $editoreId);
+        $insert->execute();
+        $insert->close();
     }
 
     private function syncImportedSeries(\mysqli $db, int $bookId, ?string $collana, ?string $numeroSerie): void

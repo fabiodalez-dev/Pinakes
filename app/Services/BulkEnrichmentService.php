@@ -443,6 +443,17 @@ class BulkEnrichmentService
      * Additive only (INSERT IGNORE at ordine 0): never removes co-publisher
      * rows, safe to call repeatedly, and a no-op on pre-migration installs.
      */
+    /**
+     * Keep libri_editori's primary slot (ordine 0) in step with libri.editore_id
+     * after bulk enrichment rewrites a book's publisher (issue #143).
+     *
+     * Enrichment always resolves a concrete publisher (it never clears one), so
+     * a non-positive id is a no-op that leaves the existing junction untouched.
+     * For a real publisher it replaces the primary slot: drop the old ordine-0
+     * row and force the resolved publisher to ordine 0 (promoting it if it was
+     * already a co-publisher). Co-publishers (ordine > 0) are preserved, and a
+     * failed prepare aborts before the DELETE so the rows are never wiped.
+     */
     private function syncPrimaryPublisherJunction(\mysqli $db, int $bookId, int $editoreId): void
     {
         if ($bookId <= 0 || $editoreId <= 0) {
@@ -451,13 +462,23 @@ class BulkEnrichmentService
         if (!\App\Support\SchemaInfo::hasLibriEditori($db)) {
             return;
         }
-        $stmt = $db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0)');
-        if ($stmt === false) {
+
+        $insert = $db->prepare('INSERT INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE ordine = 0');
+        if ($insert === false) {
             return;
         }
-        $stmt->bind_param('ii', $bookId, $editoreId);
-        $stmt->execute();
-        $stmt->close();
+        $del = $db->prepare('DELETE FROM libri_editori WHERE libro_id = ? AND ordine = 0');
+        if ($del === false) {
+            $insert->close();
+            return;
+        }
+        $del->bind_param('i', $bookId);
+        $del->execute();
+        $del->close();
+
+        $insert->bind_param('ii', $bookId, $editoreId);
+        $insert->execute();
+        $insert->close();
     }
 
     public function enrichBatch(int $limit = 20, ?callable $onProgress = null): array
