@@ -28,12 +28,34 @@ SELECT `id`, `editore_id`, 0
 FROM `libri`
 WHERE `editore_id` IS NOT NULL AND `deleted_at` IS NULL;
 
--- The INSERT IGNORE above is a no-op when the primary publisher already has a
--- junction row — but on a drifted install that row may sit at a non-zero
--- `ordine` (e.g. it was added as a co-publisher first, or an old importer wrote
--- it out of order). Junction-ordered consumers (OAI-PMH, BIBFRAME) would then
--- surface the wrong primary. Force each book's primary publisher to ordine 0,
--- leaving genuine co-publishers (a different editore_id) untouched.
+-- Step 1 — demote impostors. A drifted book can already hold a NON-primary
+-- publisher at ordine 0 (a real case: libro 94 had both 89:0 and 106:0 while
+-- libri.editore_id = 106). If we only promoted the primary, two rows would sit
+-- at ordine 0 and an order-sorted export/display could still pick the wrong
+-- one. Deleting the impostor would destroy a legitimate co-publisher, so push
+-- it just past the book's current highest ordine instead — it survives as a
+-- co-publisher and vacates the primary slot. MAX(ordine)+1 from a materialized
+-- derived table (no window functions — portable to MySQL 5.7).
+UPDATE `libri_editori` `le`
+JOIN `libri` `l`
+  ON `l`.`id` = `le`.`libro_id`
+ AND `l`.`deleted_at` IS NULL
+JOIN (
+  SELECT `libro_id`, MAX(`ordine`) AS `max_ord`
+  FROM `libri_editori`
+  GROUP BY `libro_id`
+) `m` ON `m`.`libro_id` = `le`.`libro_id`
+SET `le`.`ordine` = COALESCE(`m`.`max_ord`, 0) + 1
+WHERE `le`.`ordine` = 0
+  AND `l`.`editore_id` IS NOT NULL
+  AND `le`.`editore_id` <> `l`.`editore_id`;
+
+-- Step 2 — promote the primary. The INSERT IGNORE above is a no-op when the
+-- primary publisher already has a junction row, but on a drifted install that
+-- row may sit at a non-zero `ordine`. With the slot now cleared of impostors,
+-- force each book's primary publisher to ordine 0 so junction-ordered
+-- consumers (OAI-PMH, BIBFRAME) surface the right primary. Genuine
+-- co-publishers (a different editore_id) keep their order.
 UPDATE `libri_editori` `le`
 JOIN `libri` `l`
   ON `l`.`id` = `le`.`libro_id`
