@@ -32,20 +32,32 @@ class ReservationManager
     /** @var bool Internal flag tracking whether we own the current transaction */
     private bool $inTransaction = false;
 
+    /** @var bool Set by the caller when a transaction is already open externally */
+    private bool $externalTransaction = false;
+
+    /**
+     * Dichiara che il chiamante ha già aperto una transazione: in tal caso questo
+     * manager NON aprirà una transazione propria (evita il commit implicito di una
+     * begin_transaction() annidata). Da chiamare PRIMA di processBookAvailability().
+     */
+    public function setExternalTransaction(bool $external): void
+    {
+        $this->externalTransaction = $external;
+    }
+
     /**
      * Begin transaction only if not already in one.
      *
-     * Uses an internal flag instead of @@autocommit because
-     * begin_transaction()/START TRANSACTION does NOT change @@autocommit.
+     * Usa un flag esplicito invece di @@autocommit: begin_transaction()/START
+     * TRANSACTION NON modifica @@autocommit in mysqli/MySQL, quindi quel
+     * rilevamento era inaffidabile e poteva aprire una transazione annidata
+     * dentro quella del chiamante (commit implicito) — TXN-003.
      *
      * @return bool True if we started a new transaction, false if already in one
      */
     private function beginTransactionIfNeeded(): bool
     {
-        // Detect nested transaction via @@autocommit (0 = inside transaction)
-        $result = $this->db->query("SELECT @@autocommit as ac");
-        $inDbTransaction = $result instanceof \mysqli_result && (int) ($result->fetch_assoc()['ac'] ?? 1) === 0;
-        if ($this->inTransaction || $inDbTransaction) {
+        if ($this->inTransaction || $this->externalTransaction) {
             return false; // Already in transaction, don't start a new one
         }
         if (!$this->db->begin_transaction()) {

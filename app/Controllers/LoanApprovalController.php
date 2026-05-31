@@ -194,6 +194,36 @@ class LoanApprovalController
             $dataScadenza = $loan['data_scadenza'];
             $today = date('Y-m-d');
 
+            // CONC-03: serializza le approvazioni dello stesso libro con un lock sulla
+            // riga `libri`, poi rifiuta se l'utente ha GIÀ un prestito attivo per questo
+            // libro. Senza questo, due richieste pendenti dello stesso utente+libro
+            // (es. una da richiesta e una da prenotazione) potrebbero essere approvate
+            // in parallelo creando un doppio prestito.
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            $utenteId = (int) $loan['utente_id'];
+            $dupStmt = $db->prepare("
+                SELECT id FROM prestiti
+                WHERE libro_id = ? AND utente_id = ? AND id != ?
+                AND attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo')
+                LIMIT 1
+            ");
+            $dupStmt->bind_param('iii', $libroId, $utenteId, $loanId);
+            $dupStmt->execute();
+            $hasActiveDuplicate = $dupStmt->get_result()->num_rows > 0;
+            $dupStmt->close();
+            if ($hasActiveDuplicate) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('L\'utente ha già un prestito attivo per questo libro')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            }
+
             // Determine state: 'prenotato' if future loan, 'da_ritirare' if immediate
             // User must confirm pickup before loan becomes 'in_corso'
             $isFutureLoan = ($dataPrestito > $today);

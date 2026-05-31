@@ -687,6 +687,7 @@ class PrestitiController
 
                 // Processa prenotazioni attive per questo libro (Future/Scheduled reservations)
                 $reservationManager = new \App\Controllers\ReservationManager($db);
+                $reservationManager->setExternalTransaction(true); // TXN-003: siamo già in transazione
                 $reservationManager->processBookAvailability($libro_id);
             }
 

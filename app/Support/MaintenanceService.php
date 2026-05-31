@@ -366,6 +366,7 @@ class MaintenanceService
                 // processBookAvailability() will find the first date-eligible reservation in queue
                 // and convert it to a loan if a copy is available
                 $reservationManager = new \App\Controllers\ReservationManager($this->db);
+                $reservationManager->setExternalTransaction(true); // TXN-003: siamo già in transazione
                 $success = $reservationManager->processBookAvailability($bookId);
 
                 if ($success) {

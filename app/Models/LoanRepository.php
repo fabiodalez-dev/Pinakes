@@ -54,18 +54,23 @@ class LoanRepository
         return $res->fetch_assoc() ?: null;
     }
 
+    /**
+     * @deprecated Inserimento prestito senza copia_id/stato/data_scadenza né
+     * controllo di overlap/disponibilità: bypassa tutta la logica di prestito e
+     * può creare doppi prestiti sulla stessa copia (CONC-04). Usa invece
+     * PrestitiController::store() (creazione admin) o
+     * ReservationManager::createLoanFromReservation() (da prenotazione), che
+     * applicano lock, overlap check e selezione copia.
+     *
+     * @param array<string,mixed> $data
+     */
     public function create(array $data): int
     {
-        $sql = "INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_restituzione, processed_by, attivo)
-                VALUES (?, ?, ?, ?, ?, ?)";
-        $stmt = $this->db->prepare($sql);
-        $data_prestito = $data['data_prestito'] ?? date('Y-m-d');
-        $data_restituzione = $data['data_restituzione'] ?? null;
-        $processed_by = $data['processed_by'] ?? null;
-        $attivo = (int)($data['attivo'] ?? 1);
-        $stmt->bind_param('iissii', $data['libro_id'], $data['utente_id'], $data_prestito, $data_restituzione, $processed_by, $attivo);
-        $stmt->execute();
-        return (int)$this->db->insert_id;
+        throw new \LogicException(
+            'LoanRepository::create() è disabilitato (CONC-04): bypassa overlap e '
+            . 'selezione copia. Usa PrestitiController::store() o '
+            . 'ReservationManager::createLoanFromReservation().'
+        );
     }
 
     public function update(int $id, array $data): bool
@@ -159,6 +164,7 @@ class LoanRepository
             }
 
             $reservationManager = new ReservationManager($this->db);
+            $reservationManager->setExternalTransaction(true); // TXN-003: siamo già in transazione
             // Note: processBookAvailability returning false typically indicates no pending
             // reservation or a race condition - acceptable to continue, just log for observability
             if (!$reservationManager->processBookAvailability($bookId)) {
