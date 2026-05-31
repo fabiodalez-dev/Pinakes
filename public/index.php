@@ -75,6 +75,45 @@ php composer.phar install --no-dev --optimize-autoloader</pre>
     exit;
 }
 
+// PHP version floor — MUST run BEFORE require'ing the Composer autoloader.
+// vendor/composer/platform_check.php fatally exits ("Composer detected
+// platform requirements…") below the pinned floor with a bare PHP error.
+// A host still running an old (pre-0.7.16) in-app updater has no 8.2 preflight,
+// so it can install a 0.7.16 ZIP onto PHP 8.1 and then white-screen on the
+// very next request. Catch that here and render a clear, actionable page
+// instead of a fatal — regardless of how old the updater that installed us was.
+if (PHP_VERSION_ID < 80200) {
+    http_response_code(500);
+    header('Content-Type: text/html; charset=UTF-8');
+    echo '<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Versione PHP non supportata</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f7fafc; margin: 0; padding: 20px; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .container { background: white; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 600px; padding: 40px; }
+        h1 { color: #dc2626; margin-top: 0; }
+        .warning { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; border-radius: 4px; }
+        .info { color: #4b5563; line-height: 1.6; }
+        code { background: #e5e7eb; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚠️ Versione PHP non supportata</h1>
+        <p class="info">Questa versione dell\'applicazione richiede <strong>PHP 8.2 o superiore</strong>.</p>
+        <div class="warning">
+            <p style="margin:0">Versione PHP attiva: <code>' . htmlspecialchars(PHP_VERSION, ENT_QUOTES, 'UTF-8') . '</code> &mdash; richiesta: <code>8.2.0+</code></p>
+        </div>
+        <p class="info">Aggiorna PHP a 8.2+ dal pannello del tuo hosting (o nella configurazione del server) e ricarica la pagina. Se hai appena eseguito un aggiornamento, ripristina il backup creato prima dell\'aggiornamento finché PHP non sarà aggiornato.</p>
+    </div>
+</body>
+</html>';
+    exit;
+}
+
 require $vendorAutoload;
 
 // Load environment variables from .env file
