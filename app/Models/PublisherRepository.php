@@ -92,9 +92,10 @@ class PublisherRepository
     {
         // Count books where the publisher is primary (libri.editore_id) OR a
         // secondary one in the multi-publisher junction (issue #143). This is
-        // the guard EditorsController/bulk-delete relies on: a primary-only
-        // count would report 0 and let the editori DELETE cascade silently wipe
-        // the book's libri_editori rows.
+        // the guard EditorsController::delete() relies on (the bulk-delete in
+        // EditoriApiController applies the same primary-OR-junction check
+        // inline): a primary-only count would report 0 and let the editori
+        // DELETE cascade silently wipe the book's libri_editori rows.
         $stmt = $this->db->prepare(
             'SELECT COUNT(*) FROM libri l
              WHERE (l.editore_id = ?
@@ -294,6 +295,26 @@ class PublisherRepository
                     throw new \Exception("Failed to execute DELETE editori: " . $stmt->error);
                 }
                 $stmt->close();
+            }
+
+            // The INSERT IGNORE repoint above keeps the duplicate's `ordine`
+            // verbatim, so a book that already listed the primary as a
+            // secondary could end up with no ordine=0 row (primary marker
+            // lost). Re-assert ordine=0 for the surviving primary wherever it
+            // is the book's primary (libri.editore_id), keeping the junction's
+            // primary marker consistent with libri.editore_id (issue #143).
+            if ($hasJunction) {
+                $stmt = $this->db->prepare(
+                    "UPDATE libri_editori le
+                     JOIN libri l ON l.id = le.libro_id
+                     SET le.ordine = 0
+                     WHERE le.editore_id = ? AND l.editore_id = le.editore_id AND le.ordine <> 0"
+                );
+                if ($stmt !== false) {
+                    $stmt->bind_param('i', $primaryId);
+                    $stmt->execute();
+                    $stmt->close();
+                }
             }
 
             $this->db->commit();

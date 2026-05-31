@@ -1332,6 +1332,36 @@ class CsvImportController
         $stmt->close();
 
         $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
+        $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
+    }
+
+    /**
+     * Keep libri_editori in sync with a book's primary publisher (issue #143).
+     *
+     * CSV import writes libri.editore_id directly (not via
+     * BookRepository::syncPublishers()), which would otherwise leave the
+     * multi-publisher junction missing the primary row — so junction-only
+     * consumers (OAI-PMH, BIBFRAME) would export no publisher. Additive only
+     * (INSERT IGNORE at ordine 0): never removes co-publisher rows, idempotent,
+     * and a no-op on pre-migration installs.
+     */
+    private function syncPrimaryPublisherJunction(\mysqli $db, int $bookId, ?int $editoreId): void
+    {
+        $editoreId = (int) $editoreId;
+        if ($bookId <= 0 || $editoreId <= 0) {
+            return;
+        }
+        $check = $db->query("SHOW TABLES LIKE 'libri_editori'");
+        if (!($check instanceof \mysqli_result) || $check->num_rows === 0) {
+            return;
+        }
+        $stmt = $db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0)');
+        if ($stmt === false) {
+            return;
+        }
+        $stmt->bind_param('ii', $bookId, $editoreId);
+        $stmt->execute();
+        $stmt->close();
     }
 
     private function syncImportedSeries(\mysqli $db, int $bookId, ?string $collana, ?string $numeroSerie): void
@@ -1454,6 +1484,7 @@ class CsvImportController
         $bookId = $db->insert_id;
         $stmt->close();
         $this->syncImportedSeries($db, $bookId, $collana, $numeroSerie);
+        $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
 
         // Genera copie fisiche nella tabella copie
         $copyRepo = new \App\Models\CopyRepository($db);
@@ -1659,6 +1690,7 @@ class CsvImportController
             $stmt->bind_param('ii', $editorId, $bookId);
             $stmt->execute();
             $stmt->close();
+            $this->syncPrimaryPublisherJunction($db, $bookId, $editorId);
         }
     }
 }

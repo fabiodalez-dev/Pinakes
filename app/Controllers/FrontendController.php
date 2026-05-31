@@ -971,9 +971,14 @@ class FrontendController
         }
 
         if (!empty($filters['editore'])) {
-            $conditions[] = "e.nome = ?";
+            // Match the publisher whether it is the book's primary (the joined
+            // `e`) or a secondary one in the multi-publisher junction (issue
+            // #143), so the catalog filter results agree with the publisher
+            // facet count (which already counts secondaries).
+            $conditions[] = "(e.nome = ? OR EXISTS (SELECT 1 FROM libri_editori le2 JOIN editori e2 ON le2.editore_id = e2.id WHERE le2.libro_id = l.id AND e2.nome = ?))";
             $params[] = $filters['editore'];
-            $types .= 's';
+            $params[] = $filters['editore'];
+            $types .= 'ss';
         }
 
         if ($filters['disponibilita'] === 'disponibile') {

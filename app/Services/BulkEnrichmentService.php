@@ -383,6 +383,13 @@ class BulkEnrichmentService
                     );
                 }
 
+                // issue #143: mirror the primary publisher we just set into the
+                // multi-publisher junction so junction-only consumers (OAI-PMH,
+                // BIBFRAME) don't lose the publisher of enriched books.
+                if (in_array('editore_id', $fieldsUpdated, true) && isset($publisherId) && (int) $publisherId > 0) {
+                    $this->syncPrimaryPublisherJunction($this->db, $bookId, (int) $publisherId);
+                }
+
                 $this->db->commit();
             } catch (\Throwable $e) {
                 $this->db->rollback();
@@ -426,6 +433,34 @@ class BulkEnrichmentService
      * @param callable|null $onProgress Callback: function(int $current, int $total, array $result): void
      * @return array{processed: int, enriched: int, not_found: int, errors: int, details: list<array>}
      */
+    /**
+     * Keep libri_editori in sync with a book's primary publisher (issue #143).
+     *
+     * Import/enrichment paths write libri.editore_id directly without going
+     * through BookRepository::syncPublishers(), which would otherwise leave the
+     * multi-publisher junction missing the primary row — so junction-only
+     * consumers (OAI-PMH, BIBFRAME) would export no publisher for the book.
+     * Additive only (INSERT IGNORE at ordine 0): never removes co-publisher
+     * rows, safe to call repeatedly, and a no-op on pre-migration installs.
+     */
+    private function syncPrimaryPublisherJunction(\mysqli $db, int $bookId, int $editoreId): void
+    {
+        if ($bookId <= 0 || $editoreId <= 0) {
+            return;
+        }
+        $check = $db->query("SHOW TABLES LIKE 'libri_editori'");
+        if (!($check instanceof \mysqli_result) || $check->num_rows === 0) {
+            return;
+        }
+        $stmt = $db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0)');
+        if ($stmt === false) {
+            return;
+        }
+        $stmt->bind_param('ii', $bookId, $editoreId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
     public function enrichBatch(int $limit = 20, ?callable $onProgress = null): array
     {
         $summary = [
