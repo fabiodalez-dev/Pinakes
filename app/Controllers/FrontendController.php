@@ -974,11 +974,18 @@ class FrontendController
             // Match the publisher whether it is the book's primary (the joined
             // `e`) or a secondary one in the multi-publisher junction (issue
             // #143), so the catalog filter results agree with the publisher
-            // facet count (which already counts secondaries).
-            $conditions[] = "(e.nome = ? OR EXISTS (SELECT 1 FROM libri_editori le2 JOIN editori e2 ON le2.editore_id = e2.id WHERE le2.libro_id = l.id AND e2.nome = ?))";
-            $params[] = $filters['editore'];
-            $params[] = $filters['editore'];
-            $types .= 'ss';
+            // facet count (which already counts secondaries). Gate the junction
+            // subquery on table existence (pre-migration safety).
+            if (\App\Support\SchemaInfo::hasLibriEditori($db)) {
+                $conditions[] = "(e.nome = ? OR EXISTS (SELECT 1 FROM libri_editori le2 JOIN editori e2 ON le2.editore_id = e2.id WHERE le2.libro_id = l.id AND e2.nome = ?))";
+                $params[] = $filters['editore'];
+                $params[] = $filters['editore'];
+                $types .= 'ss';
+            } else {
+                $conditions[] = "e.nome = ?";
+                $params[] = $filters['editore'];
+                $types .= 's';
+            }
         }
 
         if ($filters['disponibilita'] === 'disponibile') {
@@ -1134,11 +1141,15 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $paramsEd = $whereEd['params'];
     $typesEd = $whereEd['types'];
 
+    // issue #143: also count books where the publisher is a secondary one in
+    // the junction; gate on table existence (pre-migration safety).
+    $facetExists = \App\Support\SchemaInfo::hasLibriEditori($db)
+        ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = e.id)"
+        : "";
     $queryEditori = "
         SELECT e.id, e.nome, COUNT(DISTINCT l.id) AS cnt
         FROM editori e
-        JOIN libri l ON (e.id = l.editore_id
-                         OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = e.id))
+        JOIN libri l ON (e.id = l.editore_id{$facetExists})
                         AND l.deleted_at IS NULL
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
@@ -1421,19 +1432,28 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $publisher = $publisherResult->fetch_assoc();
         $publisherId = (int) $publisher['id'];
 
-        // Count total books — match the publisher whether it is the primary
-        // (libri.editore_id) or a secondary one in the multi-publisher junction
-        // (libri_editori, issue #143).
+        // issue #143: match the publisher whether it is the primary
+        // (libri.editore_id) or a secondary one in the multi-publisher junction;
+        // gate the junction subquery on table existence so the public archive
+        // degrades to primary-only on pre-migration installs instead of a 500.
+        $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($db);
+        $exists = $hasJunction
+            ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?)"
+            : "";
+
+        // Count total books
         $countQuery = "
             SELECT COUNT(l.id) as total
             FROM libri l
-            WHERE (l.editore_id = ?
-                   OR EXISTS (SELECT 1 FROM libri_editori le
-                              WHERE le.libro_id = l.id AND le.editore_id = ?))
+            WHERE (l.editore_id = ?{$exists})
                   AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
-        $stmt->bind_param('ii', $publisherId, $publisherId);
+        if ($hasJunction) {
+            $stmt->bind_param('ii', $publisherId, $publisherId);
+        } else {
+            $stmt->bind_param('i', $publisherId);
+        }
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $totalBooks = $row['total'] ?? 0;
@@ -1449,16 +1469,18 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             FROM libri l
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE (l.editore_id = ?
-                   OR EXISTS (SELECT 1 FROM libri_editori le
-                              WHERE le.libro_id = l.id AND le.editore_id = ?))
+            WHERE (l.editore_id = ?{$exists})
                   AND l.deleted_at IS NULL
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
 
         $stmt = $db->prepare($booksQuery);
-        $stmt->bind_param('iiii', $publisherId, $publisherId, $limit, $offset);
+        if ($hasJunction) {
+            $stmt->bind_param('iiii', $publisherId, $publisherId, $limit, $offset);
+        } else {
+            $stmt->bind_param('iii', $publisherId, $limit, $offset);
+        }
         $stmt->execute();
         $result = $stmt->get_result();
 

@@ -1351,8 +1351,7 @@ class CsvImportController
         if ($bookId <= 0 || $editoreId <= 0) {
             return;
         }
-        $check = $db->query("SHOW TABLES LIKE 'libri_editori'");
-        if (!($check instanceof \mysqli_result) || $check->num_rows === 0) {
+        if (!\App\Support\SchemaInfo::hasLibriEditori($db)) {
             return;
         }
         $stmt = $db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0)');

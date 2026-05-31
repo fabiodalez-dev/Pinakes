@@ -40,6 +40,10 @@ class PublisherRepository
 
     public function getBooksByPublisherId(int $publisherId): array
     {
+        $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($this->db);
+        $exists = $hasJunction
+            ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?)"
+            : "";
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.data_acquisizione, l.stato, l.copertina_url,
                        e.nome AS editore_nome,
                        (
@@ -50,13 +54,15 @@ class PublisherRepository
                        ) AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
-                WHERE (l.editore_id = ?
-                       OR EXISTS (SELECT 1 FROM libri_editori le
-                                  WHERE le.libro_id = l.id AND le.editore_id = ?))
+                WHERE (l.editore_id = ?{$exists})
                       AND l.deleted_at IS NULL
                 ORDER BY l.titolo ASC";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param('ii', $publisherId, $publisherId);
+        if ($hasJunction) {
+            $stmt->bind_param('ii', $publisherId, $publisherId);
+        } else {
+            $stmt->bind_param('i', $publisherId);
+        }
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = [];
@@ -68,17 +74,23 @@ class PublisherRepository
 
     public function getAuthorsByPublisherId(int $publisherId): array
     {
+        $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($this->db);
+        $exists = $hasJunction
+            ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?)"
+            : "";
         $sql = "SELECT DISTINCT a.id, a.nome, a.pseudonimo
                 FROM autori a
                 INNER JOIN libri_autori la ON a.id = la.autore_id
                 INNER JOIN libri l ON la.libro_id = l.id
-                WHERE (l.editore_id = ?
-                       OR EXISTS (SELECT 1 FROM libri_editori le
-                                  WHERE le.libro_id = l.id AND le.editore_id = ?))
+                WHERE (l.editore_id = ?{$exists})
                       AND l.deleted_at IS NULL
                 ORDER BY a.nome ASC";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param('ii', $publisherId, $publisherId);
+        if ($hasJunction) {
+            $stmt->bind_param('ii', $publisherId, $publisherId);
+        } else {
+            $stmt->bind_param('i', $publisherId);
+        }
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = [];
@@ -96,14 +108,20 @@ class PublisherRepository
         // EditoriApiController applies the same primary-OR-junction check
         // inline): a primary-only count would report 0 and let the editori
         // DELETE cascade silently wipe the book's libri_editori rows.
+        $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($this->db);
+        $exists = $hasJunction
+            ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?)"
+            : "";
         $stmt = $this->db->prepare(
-            'SELECT COUNT(*) FROM libri l
-             WHERE (l.editore_id = ?
-                    OR EXISTS (SELECT 1 FROM libri_editori le
-                               WHERE le.libro_id = l.id AND le.editore_id = ?))
-                   AND l.deleted_at IS NULL'
+            "SELECT COUNT(*) FROM libri l
+             WHERE (l.editore_id = ?{$exists})
+                   AND l.deleted_at IS NULL"
         );
-        $stmt->bind_param('ii', $publisherId, $publisherId);
+        if ($hasJunction) {
+            $stmt->bind_param('ii', $publisherId, $publisherId);
+        } else {
+            $stmt->bind_param('i', $publisherId);
+        }
         $stmt->execute();
         $stmt->bind_result($count);
         $stmt->fetch();
@@ -297,18 +315,20 @@ class PublisherRepository
                 $stmt->close();
             }
 
-            // The INSERT IGNORE repoint above keeps the duplicate's `ordine`
-            // verbatim, so a book that already listed the primary as a
-            // secondary could end up with no ordine=0 row (primary marker
-            // lost). Re-assert ordine=0 for the surviving primary wherever it
-            // is the book's primary (libri.editore_id), keeping the junction's
-            // primary marker consistent with libri.editore_id (issue #143).
+            // The repoint uses INSERT IGNORE: when a book already lists the
+            // primary as a secondary, the incoming row is skipped and the
+            // primary keeps its existing (possibly non-zero) ordine, so the
+            // book may be left with no ordine=0 row (primary marker lost).
+            // Re-assert ordine=0 for the surviving primary wherever it is the
+            // book's primary (libri.editore_id), keeping the junction's primary
+            // marker consistent with libri.editore_id (issue #143).
             if ($hasJunction) {
                 $stmt = $this->db->prepare(
                     "UPDATE libri_editori le
                      JOIN libri l ON l.id = le.libro_id
                      SET le.ordine = 0
-                     WHERE le.editore_id = ? AND l.editore_id = le.editore_id AND le.ordine <> 0"
+                     WHERE le.editore_id = ? AND l.editore_id = le.editore_id
+                           AND l.deleted_at IS NULL AND le.ordine <> 0"
                 );
                 if ($stmt !== false) {
                     $stmt->bind_param('i', $primaryId);

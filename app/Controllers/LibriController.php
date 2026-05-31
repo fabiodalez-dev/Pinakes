@@ -2972,12 +2972,19 @@ class LibriController
         }
 
         // Editore filter — match primary (libri.editore_id) or any secondary
-        // publisher in the multi-publisher junction (libri_editori, issue #143).
+        // publisher in the multi-publisher junction (libri_editori, issue #143);
+        // gate the junction subquery on table existence (pre-migration safety).
         if ($editoreId > 0) {
-            $whereClauses[] = "(l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?))";
-            $bindTypes .= 'ii';
-            $bindValues[] = $editoreId;
-            $bindValues[] = $editoreId;
+            if (\App\Support\SchemaInfo::hasLibriEditori($db)) {
+                $whereClauses[] = "(l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?))";
+                $bindTypes .= 'ii';
+                $bindValues[] = $editoreId;
+                $bindValues[] = $editoreId;
+            } else {
+                $whereClauses[] = "l.editore_id = ?";
+                $bindTypes .= 'i';
+                $bindValues[] = $editoreId;
+            }
         }
 
         // Genere filter

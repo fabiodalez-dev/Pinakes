@@ -1402,8 +1402,7 @@ class LibraryThingImportController
         if ($bookId <= 0 || $editoreId <= 0) {
             return;
         }
-        $check = $db->query("SHOW TABLES LIKE 'libri_editori'");
-        if (!($check instanceof \mysqli_result) || $check->num_rows === 0) {
+        if (!\App\Support\SchemaInfo::hasLibriEditori($db)) {
             return;
         }
         $stmt = $db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, 0)');
@@ -1953,11 +1952,18 @@ class LibraryThingImportController
 
         if ($editoreId > 0) {
             // Include books where the publisher is primary or a secondary one in
-            // the multi-publisher junction (issue #143).
-            $whereClauses[] = "(l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?))";
-            $bindTypes .= 'ii';
-            $bindValues[] = $editoreId;
-            $bindValues[] = $editoreId;
+            // the multi-publisher junction (issue #143); gate the junction
+            // subquery on table existence (pre-migration safety).
+            if (\App\Support\SchemaInfo::hasLibriEditori($db)) {
+                $whereClauses[] = "(l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?))";
+                $bindTypes .= 'ii';
+                $bindValues[] = $editoreId;
+                $bindValues[] = $editoreId;
+            } else {
+                $whereClauses[] = "l.editore_id = ?";
+                $bindTypes .= 'i';
+                $bindValues[] = $editoreId;
+            }
         }
 
         if ($genereId > 0) {
