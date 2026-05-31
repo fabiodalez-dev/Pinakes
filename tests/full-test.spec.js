@@ -889,7 +889,18 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
   });
 
   test('5.3 Import book with scraping-pro (if active)', async () => {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    // 5.2's plugin activation reloads the plugins list asynchronously; let that
+    // navigation settle, then retry once so this goto isn't interrupted by it.
+    await page.waitForLoadState('load').catch(() => {});
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        await page.goto(`${BASE}/admin/libri/crea`);
+        break;
+      } catch (e) {
+        if (attempt === 1) throw e;
+        await page.waitForTimeout(500);
+      }
+    }
     await page.waitForLoadState('domcontentloaded');
 
     const importBtn = page.locator('#btnImportIsbn');
