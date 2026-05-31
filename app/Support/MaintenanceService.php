@@ -487,6 +487,15 @@ class MaintenanceService
                 // Invia notifiche differite DOPO il commit della transazione
                 $reassignmentService->flushDeferredNotifications();
 
+                // Notifica l'utente che la sua prenotazione è scaduta (GAP-2),
+                // stesso pattern di checkExpiredPickups (email fuori transazione).
+                try {
+                    $notificationService = new NotificationService($this->db);
+                    $notificationService->sendReservationExpiredNotification($id);
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Reservation expired notification failed', ['prestito_id' => $id, 'error' => $e->getMessage()]);
+                }
+
                 SecureLogger::info(__('MaintenanceService prenotazione scaduta'), [
                     'prestito_id' => $id,
                     'libro_id' => $libroId,

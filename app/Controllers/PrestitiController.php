@@ -706,6 +706,16 @@ class PrestitiController
             } catch (\Throwable $e) {
                 SecureLogger::warning('Flush deferred notifications failed', ['error' => $e->getMessage()]);
             }
+
+            // Conferma di restituzione all'utente (GAP-1) — solo per restituzioni
+            // effettive, non per copie segnate perse/danneggiate.
+            if (in_array($nuovo_stato, ['restituito', 'in_ritardo'], true)) {
+                try {
+                    (new NotificationService($db))->sendLoanReturnedNotification($id);
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Loan returned notification failed', ['loan_id' => $id, 'error' => $e->getMessage()]);
+                }
+            }
             $_SESSION['success_message'] = __('Prestito aggiornato correttamente.');
             $successUrl = $redirectTo ?? (url('/admin/prestiti') . '?updated=1');
             return $response->withHeader('Location', $successUrl)->withStatus(302);

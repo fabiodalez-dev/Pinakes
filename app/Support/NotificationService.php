@@ -556,15 +556,11 @@ class NotificationService {
                 'data_prestito' => $loan['data_prestito'],
             ];
 
-            $template = SettingsMailTemplates::get('loan_overdue_admin');
-            if (!$template) {
-                return;
-            }
-
-            $subject = $this->emailService->replaceVariables($template['subject'], $variables);
-            $body = $this->emailService->replaceVariables($template['body'], $variables);
-
-            $this->emailService->sendToAdmins($subject, $body);
+            // Usa sendToAdmins (template dal DB email_templates con fallback) come tutti
+            // gli altri invii: così la personalizzazione admin del template viene
+            // rispettata, a differenza del precedente SettingsMailTemplates::get() che
+            // leggeva solo il PHP hardcoded (GAP-4).
+            $this->sendToAdmins('loan_overdue_admin', $variables);
 
         } catch (\Throwable $e) {
             error_log('Failed to notify admins about overdue loan: ' . $e->getMessage());
@@ -1139,6 +1135,96 @@ class NotificationService {
      */
     public function sendReservationBookAvailable(string $email, array $variables): bool {
         return $this->emailService->sendTemplate($email, 'reservation_book_available', $variables);
+    }
+
+    /**
+     * Invia conferma di restituzione all'utente (GAP-1)
+     */
+    public function sendLoanReturnedNotification(int $loanId): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
+                return false;
+            }
+            $stmt->close();
+
+            if (empty($loan['utente_email'])) {
+                return false;
+            }
+
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? date('Y-m-d')),
+            ];
+
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_returned', $variables);
+        } catch (\Throwable $e) {
+            error_log("Failed to send loan returned notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Invia notifica di prenotazione scaduta all'utente (GAP-2).
+     * Il prestito schedulato (stato 'prenotato') è scaduto senza essere ritirato/convertito.
+     */
+    public function sendReservationExpiredNotification(int $loanId): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
+                return false;
+            }
+            $stmt->close();
+
+            if (empty($loan['utente_email'])) {
+                return false;
+            }
+
+            $scadenza = $loan['data_scadenza'] ?? ($loan['pickup_deadline'] ?? date('Y-m-d'));
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'data_scadenza' => $this->formatEmailDate($scadenza),
+            ];
+
+            return $this->emailService->sendTemplate($loan['utente_email'], 'reservation_expired', $variables);
+        } catch (\Throwable $e) {
+            error_log("Failed to send reservation expired notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Invia all'utente la notifica che la copia riservata non è più disponibile (GAP-3).
+     */
+    public function sendCopyUnavailableNotification(string $email, array $variables): bool {
+        if (empty($email)) {
+            return false;
+        }
+        return $this->emailService->sendTemplate($email, 'copy_unavailable_user', $variables);
     }
 
     /**

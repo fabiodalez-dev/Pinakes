@@ -919,6 +919,13 @@ class LoanApprovalController
                 \App\Support\SecureLogger::warning("[returnLoan] Wishlist notify error for book {$libroId}: " . $e->getMessage());
             }
 
+            // Conferma di restituzione all'utente (GAP-1), dopo il commit
+            try {
+                (new \App\Support\NotificationService($db))->sendLoanReturnedNotification($loanId);
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::warning("[returnLoan] Loan returned notify error for loan {$loanId}: " . $e->getMessage());
+            }
+
             $response->getBody()->write(json_encode([
                 'success' => true,
                 'message' => __('Libro restituito con successo')

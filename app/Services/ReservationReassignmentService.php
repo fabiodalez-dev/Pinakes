@@ -503,13 +503,29 @@ class ReservationReassignmentService
             return;
         }
 
-        // Crea notifica in-app per gli admin
         $reasonText = match ($reason) {
             'lost_copy' => __('La copia assegnata è stata segnalata come persa o danneggiata'),
             'expired' => __('La prenotazione è scaduta'),
             default => __('La copia non è più disponibile')
         };
 
+        // Email all'utente la cui copia è diventata indisponibile (GAP-3).
+        // Eseguito in modo differito (questo metodo è chiamato da
+        // flushDeferredNotifications dopo il commit), quindi nessuna I/O in transazione.
+        try {
+            $this->notificationService->sendCopyUnavailableNotification($data['email'], [
+                'utente_nome' => $data['utente_nome'],
+                'libro_titolo' => $data['libro_titolo'],
+                'motivo' => $reasonText,
+            ]);
+        } catch (\Throwable $e) {
+            SecureLogger::warning(__('Email copia non disponibile fallita'), [
+                'prestito_id' => $prestitoId,
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        // Crea notifica in-app per gli admin
         $this->notificationService->createNotification(
             'general',
             __('Prenotazione: copia non disponibile'),
@@ -519,7 +535,7 @@ class ReservationReassignmentService
                 $data['utente_nome'],
                 $reasonText
             ),
-            null,
+            '/admin/prestiti',
             $prestitoId
         );
 
