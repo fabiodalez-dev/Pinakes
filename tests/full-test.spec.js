@@ -273,11 +273,14 @@ async function requestLoanViaSwal(page, dateISO) {
 // so test runs can accumulate hits. Clear before each phase.
 // ════════════════════════════════════════════════════════════════════════════
 function clearRateLimits() {
-  // Use PHP to locate the actual sys_get_temp_dir() used by PHP-FPM (may differ from os.tmpdir())
+  // The rate-limit files live in sys_get_temp_dir()/pinakes_ratelimit, but the CLI
+  // php and the Apache PHP-FPM worker can resolve DIFFERENT temp dirs (e.g. the CLI
+  // sees /tmp/<x> from $TMPDIR while FPM uses /var/tmp). Clear every candidate dir so
+  // a long run can't accumulate login limits and flake later phases.
   try {
     require('child_process').execFileSync('php', [
       '-r',
-      'array_map("unlink", glob(sys_get_temp_dir()."/pinakes_ratelimit/*.json") ?: []);',
+      'foreach ([sys_get_temp_dir(), "/var/tmp", "/tmp"] as $d) { array_map("unlink", glob($d."/pinakes_ratelimit/*.json") ?: []); }',
     ], { encoding: 'utf-8', timeout: 5000 });
   } catch { /* ignore */ }
 }

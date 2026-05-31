@@ -101,6 +101,16 @@ async function requestLoanViaSwal(page, dateISO) {
   return succeeded;
 }
 
+// Collects any HTTP 5xx responses so the afterEach hook can fail the test.
+const pageServerErrors = [];
+function attachServerErrorGuard(page) {
+  page.on('response', (r) => {
+    if (r.status() >= 500) {
+      pageServerErrors.push(`${r.status()} ${r.request().method()} ${r.url()}`);
+    }
+  });
+}
+
 // ────────────────────────────────────────────────────────────────────────
 // Full loan/reservation lifecycle E2E (serial — session-dependent)
 // ────────────────────────────────────────────────────────────────────────
@@ -192,6 +202,17 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
     userPage = await userCtx.newPage();
     adminCtx = await browser.newContext();
     adminPage = await adminCtx.newPage();
+    attachServerErrorGuard(userPage);
+    attachServerErrorGuard(adminPage);
+  });
+
+  // Fail any test that triggered an HTTP 5xx — the loan lifecycle is the most
+  // critical flow and must never silently 500 (audit coverage gap #11).
+  test.afterEach(() => {
+    const errs = pageServerErrors.splice(0);
+    if (errs.length > 0) {
+      throw new Error(`HTTP 5xx response(s) during this test:\n${errs.join('\n')}`);
+    }
   });
 
   // ── Teardown ───────────────────────────────────────────────────────────
