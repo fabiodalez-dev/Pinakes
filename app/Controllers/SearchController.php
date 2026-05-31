@@ -462,7 +462,10 @@ class SearchController
 
         $sql = "
             SELECT e.id, e.nome, e.indirizzo,
-                   (SELECT COUNT(*) FROM libri l2 WHERE l2.editore_id = e.id AND l2.deleted_at IS NULL) as libro_count
+                   (SELECT COUNT(*) FROM libri l2
+                    WHERE (l2.editore_id = e.id
+                           OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l2.id AND le.editore_id = e.id))
+                          AND l2.deleted_at IS NULL) as libro_count
             FROM editori e
             WHERE " . implode(' AND ', $conditions) . "
             ORDER BY e.nome LIMIT 3

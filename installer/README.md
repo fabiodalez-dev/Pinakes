@@ -4,7 +4,7 @@ Automated web-based installer for Pinakes, a full-featured library management sy
 
 ## Requirements
 
-- **PHP 8.1** or higher
+- **PHP 8.2** or higher
 - **MySQL 5.7+** or **MariaDB 10.3+**
 - **Required PHP extensions**: PDO, PDO MySQL, MySQLi, Mbstring, JSON, GD, Fileinfo
 

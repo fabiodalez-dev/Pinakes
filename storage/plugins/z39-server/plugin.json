@@ -7,9 +7,9 @@
   "author_url": "",
   "plugin_url": "https://www.loc.gov/standards/sru/",
   "main_file": "Z39ServerPlugin.php",
-  "requires_php": "8.1",
+  "requires_php": "8.2",
   "requires_app": "0.4.0",
-  "max_app_version": "0.7.14",
+  "max_app_version": "0.7.15",
   "settings": true,
   "metadata": {
     "category": "protocol",

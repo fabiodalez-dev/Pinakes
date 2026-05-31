@@ -220,8 +220,12 @@ function decryptSettingValue(string $encrypted): ?string
         $ciphertext = substr($decoded, 28);
 
         $decrypted = openssl_decrypt($ciphertext, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
+        if ($decrypted === false) {
+            // Authentication/decryption failed (wrong key or tampered tag) — fail closed.
+            return null;
+        }
 
-        return $decrypted !== false ? $decrypted : null;
+        return $decrypted;
     } catch (\Throwable $e) {
         \App\Support\SecureLogger::error('[Z39 SRU Endpoint] Decryption error: ' . $e->getMessage());
         return null;

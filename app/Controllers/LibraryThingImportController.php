@@ -1921,8 +1921,11 @@ class LibraryThingImportController
         }
 
         if ($editoreId > 0) {
-            $whereClauses[] = "l.editore_id = ?";
-            $bindTypes .= 'i';
+            // Include books where the publisher is primary or a secondary one in
+            // the multi-publisher junction (issue #143).
+            $whereClauses[] = "(l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?))";
+            $bindTypes .= 'ii';
+            $bindValues[] = $editoreId;
             $bindValues[] = $editoreId;
         }
 

@@ -1132,7 +1132,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $queryEditori = "
         SELECT e.id, e.nome, COUNT(DISTINCT l.id) AS cnt
         FROM editori e
-        JOIN libri l ON e.id = l.editore_id AND l.deleted_at IS NULL
+        JOIN libri l ON (e.id = l.editore_id
+                         OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = e.id))
+                        AND l.deleted_at IS NULL
         LEFT JOIN generi g ON l.genere_id = g.id
         LEFT JOIN generi gp ON g.parent_id = gp.id
         LEFT JOIN generi gpp ON gp.parent_id = gpp.id

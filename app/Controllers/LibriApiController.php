@@ -80,9 +80,12 @@ class LibriApiController
             $types .= 'i';
         }
         if ($editore_id) {
-            $where .= ' AND l.editore_id = ?';
+            // Match books where the publisher is primary or a secondary one in
+            // the multi-publisher junction (issue #143).
+            $where .= ' AND (l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?))';
             $params[] = $editore_id;
-            $types .= 'i';
+            $params[] = $editore_id;
+            $types .= 'ii';
         }
         if ($stato !== '') {
             $where .= " AND l.stato = ?";
@@ -371,11 +374,14 @@ class LibriApiController
                 FROM libri l
                 INNER JOIN libri_autori la ON l.id = la.libro_id
                 INNER JOIN autori a ON la.autore_id = a.id
-                WHERE l.editore_id = ? AND l.deleted_at IS NULL
+                WHERE (l.editore_id = ?
+                       OR EXISTS (SELECT 1 FROM libri_editori le
+                                  WHERE le.libro_id = l.id AND le.editore_id = ?))
+                      AND l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato
                 ORDER BY l.titolo ASC";
         $stmt = $db->prepare($sql);
-        $stmt->bind_param('i', $publisherId);
+        $stmt->bind_param('ii', $publisherId, $publisherId);
         $stmt->execute();
         $res = $stmt->get_result();
         $data = [];

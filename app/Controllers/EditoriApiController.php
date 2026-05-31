@@ -141,7 +141,7 @@ class EditoriApiController
         // If we have a HAVING clause, we need to count from a subquery
         if ($having_clause !== '') {
             $count_sql = "SELECT COUNT(*) AS c FROM (
-                SELECT e.id, (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id AND l.deleted_at IS NULL) AS libri_count
+                SELECT e.id, (SELECT COUNT(*) FROM libri l WHERE (l.editore_id = e.id OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = e.id)) AND l.deleted_at IS NULL) AS libri_count
                 FROM editori e
                 $where_prepared
                 $having_clause
@@ -170,7 +170,7 @@ class EditoriApiController
         $subOrderColumn = str_replace('e.', '', $orderColumn); // Remove table alias for subquery
         if ($having_clause !== '') {
             $sql_prepared = "SELECT * FROM (
-                    SELECT e.*, (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id AND l.deleted_at IS NULL) AS libri_count
+                    SELECT e.*, (SELECT COUNT(*) FROM libri l WHERE (l.editore_id = e.id OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = e.id)) AND l.deleted_at IS NULL) AS libri_count
                     FROM editori e
                     $where_prepared
                     $having_clause
@@ -179,7 +179,7 @@ class EditoriApiController
                 LIMIT ?, ?";
         } else {
             $sql_prepared = "SELECT e.*, (
-                        SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id AND l.deleted_at IS NULL
+                        SELECT COUNT(*) FROM libri l WHERE (l.editore_id = e.id OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = e.id)) AND l.deleted_at IS NULL
                     ) AS libri_count
                     FROM editori e
                     $where_prepared
@@ -256,8 +256,17 @@ class EditoriApiController
         $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
         $types = str_repeat('i', count($cleanIds));
 
-        // Check if any publisher has books (only non-deleted books)
-        $checkSql = "SELECT id FROM libri WHERE editore_id IN ($placeholders) AND deleted_at IS NULL LIMIT 1";
+        // Check if any publisher has books (only non-deleted books) — match
+        // both the primary (libri.editore_id) and any secondary publisher in
+        // the multi-publisher junction (issue #143), otherwise the editori
+        // DELETE below would cascade-wipe libri_editori rows of books that
+        // reference these publishers only as secondary.
+        $checkSql = "SELECT l.id FROM libri l
+                     WHERE (l.editore_id IN ($placeholders)
+                            OR EXISTS (SELECT 1 FROM libri_editori le
+                                       WHERE le.libro_id = l.id AND le.editore_id IN ($placeholders)))
+                           AND l.deleted_at IS NULL
+                     LIMIT 1";
         $checkStmt = $db->prepare($checkSql);
         if (!$checkStmt) {
             AppLog::error('editori.bulk_delete.check_prepare_failed', ['error' => $db->error]);
@@ -268,7 +277,8 @@ class EditoriApiController
             return $response->withStatus(500)->withHeader('Content-Type', 'application/json');
         }
 
-        $checkStmt->bind_param($types, ...$cleanIds);
+        // Placeholders appear twice (primary IN + junction IN) → bind ids twice.
+        $checkStmt->bind_param($types . $types, ...$cleanIds, ...$cleanIds);
         if (!$checkStmt->execute()) {
             AppLog::error('editori.bulk_delete.check_execute_failed', ['error' => $checkStmt->error]);
             $checkStmt->close();
@@ -363,7 +373,7 @@ class EditoriApiController
         $types = str_repeat('i', count($cleanIds));
 
         $sql = "SELECT e.id, e.nome, e.sito_web, e.indirizzo, e.telefono, e.email,
-                       (SELECT COUNT(*) FROM libri l WHERE l.editore_id = e.id AND l.deleted_at IS NULL) AS libri_count
+                       (SELECT COUNT(*) FROM libri l WHERE (l.editore_id = e.id OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = e.id)) AND l.deleted_at IS NULL) AS libri_count
                 FROM editori e
                 WHERE e.id IN ($placeholders)
                 ORDER BY e.nome ASC";

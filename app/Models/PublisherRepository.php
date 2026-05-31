@@ -72,10 +72,13 @@ class PublisherRepository
                 FROM autori a
                 INNER JOIN libri_autori la ON a.id = la.autore_id
                 INNER JOIN libri l ON la.libro_id = l.id
-                WHERE l.editore_id = ? AND l.deleted_at IS NULL
+                WHERE (l.editore_id = ?
+                       OR EXISTS (SELECT 1 FROM libri_editori le
+                                  WHERE le.libro_id = l.id AND le.editore_id = ?))
+                      AND l.deleted_at IS NULL
                 ORDER BY a.nome ASC";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param('i', $publisherId);
+        $stmt->bind_param('ii', $publisherId, $publisherId);
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = [];
@@ -87,8 +90,19 @@ class PublisherRepository
 
     public function countBooks(int $publisherId): int
     {
-        $stmt = $this->db->prepare('SELECT COUNT(*) FROM libri WHERE editore_id = ? AND deleted_at IS NULL');
-        $stmt->bind_param('i', $publisherId);
+        // Count books where the publisher is primary (libri.editore_id) OR a
+        // secondary one in the multi-publisher junction (issue #143). This is
+        // the guard EditorsController/bulk-delete relies on: a primary-only
+        // count would report 0 and let the editori DELETE cascade silently wipe
+        // the book's libri_editori rows.
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) FROM libri l
+             WHERE (l.editore_id = ?
+                    OR EXISTS (SELECT 1 FROM libri_editori le
+                               WHERE le.libro_id = l.id AND le.editore_id = ?))
+                   AND l.deleted_at IS NULL'
+        );
+        $stmt->bind_param('ii', $publisherId, $publisherId);
         $stmt->execute();
         $stmt->bind_result($count);
         $stmt->fetch();

@@ -45,10 +45,13 @@ class AuthorRepository
                 FROM autori a
                 INNER JOIN libri_autori la ON a.id = la.autore_id
                 INNER JOIN libri l ON la.libro_id = l.id
-                WHERE l.editore_id = ? AND l.deleted_at IS NULL
+                WHERE (l.editore_id = ?
+                       OR EXISTS (SELECT 1 FROM libri_editori le
+                                  WHERE le.libro_id = l.id AND le.editore_id = ?))
+                      AND l.deleted_at IS NULL
                 ORDER BY a.nome ASC";
         $stmt = $this->db->prepare($sql);
-        $stmt->bind_param('i', $publisherId);
+        $stmt->bind_param('ii', $publisherId, $publisherId);
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = [];
