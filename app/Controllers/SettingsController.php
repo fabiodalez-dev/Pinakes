@@ -32,6 +32,7 @@ class SettingsController
         $labelSettings = $this->resolveLabelSettings($repository);
         $eventSettings = $this->resolveEventSettings($repository);
         $advancedSettings = $this->resolveAdvancedSettings($repository);
+        $loansSettings = $this->resolveLoansSettings($repository);
         $contactMessages = $this->loadContactMessages($db);
         $cookieBannerTexts = $this->resolveCookieBannerTexts($repository);
 
@@ -48,6 +49,7 @@ class SettingsController
             'labelSettings',
             'eventSettings',
             'advancedSettings',
+            'loansSettings',
             'contactMessages',
             'activeTab',
             'db',
@@ -979,6 +981,42 @@ class SettingsController
 
         $_SESSION['success_message'] = __('Impostazioni eventi aggiornate.');
         return $this->redirect($response, '/admin/settings?tab=cms');
+    }
+
+    /**
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int}
+     */
+    private function resolveLoansSettings(SettingsRepository $repository): array
+    {
+        return [
+            'loan_duration_days'       => (int) ($repository->get('loans', 'loan_duration_days', '30') ?? 30),
+            'pickup_expiry_days'       => (int) ($repository->get('loans', 'pickup_expiry_days', '3') ?? 3),
+            'max_renewals'             => (int) ($repository->get('loans', 'max_renewals', '3') ?? 3),
+            'max_active_loans_per_user' => (int) ($repository->get('loans', 'max_active_loans_per_user', '0') ?? 0),
+        ];
+    }
+
+    public function updateLoansSettings(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+
+        // Validate: loan_duration_days >= 1; pickup_expiry_days >= 1; max_renewals >= 0; max_active_loans_per_user >= 0
+        $loanDurationDays = max(1, (int) ($data['loan_duration_days'] ?? 30));
+        $pickupExpiryDays = max(1, (int) ($data['pickup_expiry_days'] ?? 3));
+        $maxRenewals = max(0, (int) ($data['max_renewals'] ?? 3));
+        $maxActiveLoans = max(0, (int) ($data['max_active_loans_per_user'] ?? 0));
+
+        $repository->set('loans', 'loan_duration_days', (string) $loanDurationDays);
+        $repository->set('loans', 'pickup_expiry_days', (string) $pickupExpiryDays);
+        $repository->set('loans', 'max_renewals', (string) $maxRenewals);
+        $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
+
+        $_SESSION['success_message'] = __('Impostazioni prestiti aggiornate correttamente.');
+        return $response->withHeader('Location', '/admin/settings?tab=loans')->withStatus(302);
     }
 
     private function redirect(Response $response, string $location): Response

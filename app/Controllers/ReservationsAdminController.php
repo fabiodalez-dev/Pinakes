@@ -194,6 +194,11 @@ class ReservationsAdminController
             }
         }
 
+        $defaultLoanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
+        if ($defaultLoanDays < 1) {
+            $defaultLoanDays = 30;
+        }
+
         ob_start();
         $title = "Crea Prenotazione - Admin";
         require __DIR__ . '/../Views/prenotazioni/crea_prenotazione.php';

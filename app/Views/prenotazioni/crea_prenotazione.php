@@ -171,7 +171,7 @@
                                 <div>
                                     <label for="data_scadenza" class="block text-lg font-bold text-gray-700 mb-4"><?= __("Data Scadenza") ?></label>
                                     <input type="date" name="data_scadenza" id="data_scadenza"
-                                           value="<?php echo date('Y-m-d', strtotime('+30 days')); ?>"
+                                           value="<?php echo date('Y-m-d', strtotime('+' . (int)($defaultLoanDays ?? 30) . ' days')); ?>"
                                            class="w-full px-6 py-5 text-xl border-2 border-gray-300 rounded-2xl focus:ring-4 focus:ring-purple-500 focus:border-purple-500 bg-white shadow-lg transition-all">
                                     <p class="text-lg text-gray-500 mt-3"><?= __("Data di scadenza della prenotazione (default: +30 giorni)") ?></p>
                                 </div>

@@ -240,11 +240,15 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // If no end date specified, set it to 1 month from start date
+        // If no end date specified, set it using the configured loan duration (fallback: 30 days)
         try {
             if (!$endDate) {
+                $loanDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
+                if ($loanDays < 1) {
+                    $loanDays = 30;
+                }
                 $endDateTime = new DateTime($startDate);
-                $endDateTime->add(new DateInterval('P1M'));
+                $endDateTime->modify("+{$loanDays} days");
                 $endDate = $endDateTime->format('Y-m-d');
             }
 
@@ -311,6 +315,22 @@ class ReservationsController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
             $dupStmt->close();
+
+            // Enforce max active loans per user (admin setting; 0 = no limit)
+            $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
+            if ($maxLoans > 0) {
+                $cntStmt = $this->db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
+                $cntStmt->bind_param('i', $userId);
+                $cntStmt->execute();
+                $cntResult = $cntStmt->get_result();
+                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
+                $cntStmt->close();
+                if ($activeCount >= $maxLoans) {
+                    $this->db->rollback();
+                    $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai raggiunto il numero massimo di prestiti attivi consentiti')]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+                }
+            }
 
             // Re-check availability after acquiring lock to avoid races
             $postLockAvailability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30, $userId);

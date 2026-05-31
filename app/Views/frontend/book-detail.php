@@ -1739,10 +1739,13 @@ ob_start();
                     <?php elseif (!empty($_GET['loan_error'])): ?>
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
                             <i class="fas fa-exclamation-triangle me-2"></i>
-                            <?php
-                              $e = $_GET['loan_error'];
-                              echo $e==='not_available' ? __('Nessuna copia disponibile per il periodo richiesto.') : __('Errore nella richiesta di prestito.');
-                            ?>
+                            <?php if ((string) $_GET['loan_error'] === 'not_available'): ?>
+                              <?= __('Nessuna copia disponibile per il periodo richiesto.') ?>
+                            <?php elseif ((string) $_GET['loan_error'] === 'max_loans_reached'): ?>
+                              <?= __('Hai raggiunto il numero massimo di prestiti attivi consentiti') ?>
+                            <?php else: ?>
+                              <?= __('Errore nella richiesta di prestito.') ?>
+                            <?php endif; ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php endif; ?>

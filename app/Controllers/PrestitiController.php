@@ -127,8 +127,12 @@ class PrestitiController
             $data_prestito = date('Y-m-d');
         }
         if (empty($data_scadenza)) {
-            // Default to 1 month after the loan start date (not from today)
-            $data_scadenza = date('Y-m-d', strtotime($data_prestito . ' +1 month'));
+            // Default loan duration read from admin settings (fallback: 30 days)
+            $loanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
+            if ($loanDays < 1) {
+                $loanDays = 30;
+            }
+            $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
         }
 
         if ($utente_id <= 0 || $libro_id <= 0) {
@@ -162,6 +166,21 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=duplicate_reservation')->withStatus(302);
             }
             $dupStmt->close();
+
+            // Enforce max active loans per user (admin setting; 0 = no limit)
+            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
+            if ($maxLoans > 0) {
+                $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
+                $cntStmt->bind_param('i', $utente_id);
+                $cntStmt->execute();
+                $cntResult = $cntStmt->get_result();
+                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
+                $cntStmt->close();
+                if ($activeCount >= $maxLoans) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=max_loans_reached')->withStatus(302);
+                }
+            }
 
             // Now lock the book record (after prestiti to maintain consistent lock order)
             $lockStmt = $db->prepare("SELECT id, stato, copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");

@@ -603,6 +603,12 @@ return function (App $app): void {
         return $controller->regenerateSitemap($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/settings/loans', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new SettingsController();
+        return $controller->updateLoansSettings($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // API Settings Routes
     $app->post('/admin/settings/api/toggle', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');

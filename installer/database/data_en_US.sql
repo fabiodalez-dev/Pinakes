@@ -195,6 +195,15 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Days to pick up an approved loan before it expires');
 
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'loan_duration_days', '30', 'Default loan duration in days');
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'max_active_loans_per_user', '0', 'Maximum active loans per user (0 = no limit)');
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'max_renewals', '3', 'Maximum number of renewals allowed per loan');
+
 -- ============================================================================
 -- System Settings - Complete default configuration
 -- These replace the old storage/settings.json file

@@ -414,7 +414,12 @@ class UserActionsController
 
         $utenteId = (int) $user['id'];
         $data_prestito = date('Y-m-d');
-        $data_scadenza = date('Y-m-d', strtotime('+14 days'));
+        // Read configured loan duration; fallback to 30 days
+        $loanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
+        if ($loanDays < 1) {
+            $loanDays = 30;
+        }
+        $data_scadenza = date('Y-m-d', strtotime("+{$loanDays} days"));
 
         // Use transaction + lock to prevent race conditions
         $db->begin_transaction();
@@ -454,6 +459,21 @@ class UserActionsController
                 return $this->back($response, ['loan_error' => 'duplicate']);
             }
             $dupStmt->close();
+
+            // Enforce max active loans per user (admin setting; 0 = no limit)
+            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
+            if ($maxLoans > 0) {
+                $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
+                $cntStmt->bind_param('i', $utenteId);
+                $cntStmt->execute();
+                $cntResult = $cntStmt->get_result();
+                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
+                $cntStmt->close();
+                if ($activeCount >= $maxLoans) {
+                    $db->rollback();
+                    return $this->back($response, ['loan_error' => 'max_loans_reached']);
+                }
+            }
 
             // Insert as 'pendente' - requires admin approval
             $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'pendente', 0)");
