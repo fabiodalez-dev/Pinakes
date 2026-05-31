@@ -9,7 +9,7 @@
   "plugin_url": "http://id.loc.gov/ontologies/bibframe/",
   "requires_php": "8.2",
   "requires_app": "0.7.1",
-  "max_app_version": "0.7.15",
+  "max_app_version": "0.7.16",
   "path": "bibframe-linked-data",
   "main_file": "wrapper.php",
   "metadata": {

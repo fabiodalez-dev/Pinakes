@@ -1418,42 +1418,50 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // URL decode publisher name
         $publisherName = urldecode($publisherName);
 
-        // Query per trovare l'editore
-        $publisherQuery = "SELECT id, nome, indirizzo, sito_web FROM editori WHERE nome = ? LIMIT 1";
+        // Find EVERY publisher with this name. Duplicates legitimately share a
+        // name (the merge feature exists because of that), so resolving a single
+        // id with LIMIT 1 would hide the books of the other same-named publishers.
+        $publisherQuery = "SELECT id, nome, indirizzo, sito_web FROM editori WHERE nome = ? ORDER BY id";
         $stmt = $db->prepare($publisherQuery);
         $stmt->bind_param('s', $publisherName);
         $stmt->execute();
         $publisherResult = $stmt->get_result();
 
-        if ($publisherResult->num_rows === 0) {
+        $publisher = null;
+        $publisherIds = [];
+        while ($prow = $publisherResult->fetch_assoc()) {
+            if ($publisher === null) {
+                $publisher = $prow;
+            }
+            $publisherIds[] = (int) $prow['id'];
+        }
+        if ($publisherIds === []) {
             return $this->render404($response);
         }
-
-        $publisher = $publisherResult->fetch_assoc();
-        $publisherId = (int) $publisher['id'];
+        $publisherId = $publisherIds[0];
 
         // issue #143: match the publisher whether it is the primary
         // (libri.editore_id) or a secondary one in the multi-publisher junction;
         // gate the junction subquery on table existence so the public archive
         // degrades to primary-only on pre-migration installs instead of a 500.
         $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($db);
+        $ph = implode(',', array_fill(0, count($publisherIds), '?'));
+        $idTypes = str_repeat('i', count($publisherIds));
         $exists = $hasJunction
-            ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?)"
+            ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id IN ($ph))"
             : "";
 
         // Count total books
         $countQuery = "
             SELECT COUNT(l.id) as total
             FROM libri l
-            WHERE (l.editore_id = ?{$exists})
+            WHERE (l.editore_id IN ($ph){$exists})
                   AND l.deleted_at IS NULL
         ";
         $stmt = $db->prepare($countQuery);
-        if ($hasJunction) {
-            $stmt->bind_param('ii', $publisherId, $publisherId);
-        } else {
-            $stmt->bind_param('i', $publisherId);
-        }
+        $countTypes = $hasJunction ? $idTypes . $idTypes : $idTypes;
+        $countArgs  = $hasJunction ? array_merge($publisherIds, $publisherIds) : $publisherIds;
+        $stmt->bind_param($countTypes, ...$countArgs);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         $totalBooks = $row['total'] ?? 0;
@@ -1469,18 +1477,18 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             FROM libri l
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            WHERE (l.editore_id = ?{$exists})
+            WHERE (l.editore_id IN ($ph){$exists})
                   AND l.deleted_at IS NULL
             ORDER BY l.created_at DESC
             LIMIT ? OFFSET ?
         ";
 
         $stmt = $db->prepare($booksQuery);
-        if ($hasJunction) {
-            $stmt->bind_param('iiii', $publisherId, $publisherId, $limit, $offset);
-        } else {
-            $stmt->bind_param('iii', $publisherId, $limit, $offset);
-        }
+        $booksTypes = ($hasJunction ? $idTypes . $idTypes : $idTypes) . 'ii';
+        $booksArgs  = $hasJunction
+            ? array_merge($publisherIds, $publisherIds, [$limit, $offset])
+            : array_merge($publisherIds, [$limit, $offset]);
+        $stmt->bind_param($booksTypes, ...$booksArgs);
         $stmt->execute();
         $result = $stmt->get_result();
 

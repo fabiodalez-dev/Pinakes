@@ -2971,11 +2971,14 @@ class LibriController
             $bindValues[] = $stato;
         }
 
+        // Whether the multi-publisher junction exists (pre-migration safety):
+        // gates both the editore filter and the editori_nomi SELECT column.
+        $hasJunction = \App\Support\SchemaInfo::hasLibriEditori($db);
+
         // Editore filter — match primary (libri.editore_id) or any secondary
-        // publisher in the multi-publisher junction (libri_editori, issue #143);
-        // gate the junction subquery on table existence (pre-migration safety).
+        // publisher in the multi-publisher junction (libri_editori, issue #143).
         if ($editoreId > 0) {
-            if (\App\Support\SchemaInfo::hasLibriEditori($db)) {
+            if ($hasJunction) {
                 $whereClauses[] = "(l.editore_id = ? OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?))";
                 $bindTypes .= 'ii';
                 $bindValues[] = $editoreId;
@@ -3007,9 +3010,11 @@ class LibriController
                 l.*,
                 GROUP_CONCAT(DISTINCT a.nome ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
                 e.nome as editore_nome,
-                (SELECT GROUP_CONCAT(e2.nome ORDER BY le.ordine, e2.nome SEPARATOR ';')
-                   FROM libri_editori le JOIN editori e2 ON e2.id = le.editore_id
-                  WHERE le.libro_id = l.id) as editori_nomi,
+                " . ($hasJunction
+                    ? "(SELECT GROUP_CONCAT(e2.nome ORDER BY le.ordine, e2.nome SEPARATOR ';')
+                          FROM libri_editori le JOIN editori e2 ON e2.id = le.editore_id
+                         WHERE le.libro_id = l.id)"
+                    : "e.nome") . " as editori_nomi,
                 g.nome as genere_nome
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id

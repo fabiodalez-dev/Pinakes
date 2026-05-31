@@ -129,7 +129,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <div class="form-grid-2">
             <div>
               <label class="form-label"><?= __("Codice ISBN o EAN") ?></label>
-              <input id="importIsbn" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo HtmlHelper::e($book['isbn13'] ?? ($book['ean'] ?? ($book['isbn10'] ?? ''))); ?>" />
+              <input id="importIsbn" type="text" class="form-input" placeholder="<?= __('es. 9788842935780') ?>" value="<?php echo htmlspecialchars((string)($book['isbn13'] ?? ($book['ean'] ?? ($book['isbn10'] ?? ''))), ENT_QUOTES, 'UTF-8'); ?>" />
             </div>
             <div class="flex items-end">
               <button type="button" id="btnImportIsbn" class="btn-primary w-full">

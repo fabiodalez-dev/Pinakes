@@ -28,9 +28,21 @@ final class SchemaInfo
     public static function hasTable(\mysqli $db, string $table): bool
     {
         if (!array_key_exists($table, self::$tableCache)) {
-            $escaped = $db->real_escape_string($table);
-            $res = $db->query("SHOW TABLES LIKE '{$escaped}'");
-            self::$tableCache[$table] = ($res instanceof \mysqli_result && $res->num_rows > 0);
+            // Exact match via INFORMATION_SCHEMA — `SHOW TABLES LIKE` would treat
+            // `_` / `%` in the table name as wildcards and risk a false positive.
+            $exists = false;
+            $stmt = $db->prepare(
+                'SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? LIMIT 1'
+            );
+            if ($stmt !== false) {
+                $stmt->bind_param('s', $table);
+                if ($stmt->execute()) {
+                    $stmt->store_result();
+                    $exists = $stmt->num_rows > 0;
+                }
+                $stmt->close();
+            }
+            self::$tableCache[$table] = $exists;
         }
 
         return self::$tableCache[$table];

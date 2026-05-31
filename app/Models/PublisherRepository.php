@@ -330,11 +330,19 @@ class PublisherRepository
                      WHERE le.editore_id = ? AND l.editore_id = le.editore_id
                            AND l.deleted_at IS NULL AND le.ordine <> 0"
                 );
-                if ($stmt !== false) {
-                    $stmt->bind_param('i', $primaryId);
-                    $stmt->execute();
-                    $stmt->close();
+                // Treat a failure here like the earlier steps: throw so the
+                // surrounding catch rolls the whole merge back instead of
+                // committing a junction with an inconsistent primary marker.
+                if ($stmt === false) {
+                    throw new \Exception("Failed to prepare ordine re-assert: " . $this->db->error);
                 }
+                $stmt->bind_param('i', $primaryId);
+                if (!$stmt->execute()) {
+                    $err = $stmt->error;
+                    $stmt->close();
+                    throw new \Exception("Failed to execute ordine re-assert: " . $err);
+                }
+                $stmt->close();
             }
 
             $this->db->commit();
