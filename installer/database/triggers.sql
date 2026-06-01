@@ -11,16 +11,16 @@ BEFORE INSERT ON `prestiti`
 FOR EACH ROW
 BEGIN
     IF (NEW.attivo = 1 AND NEW.copia_id IS NOT NULL) THEN
-        -- 1) La copia deve essere utilizzabile (non persa, danneggiata o in manutenzione)
+        -- 1) La copia deve essere utilizzabile (non persa, danneggiata, in manutenzione, restauro o trasferimento)
         -- Consente: disponibile (nuovi prestiti), prenotato (prestiti futuri non sovrapposti), prestato (prestiti futuri)
         IF NOT EXISTS (
             SELECT 1
             FROM copie c
             WHERE c.id = NEW.copia_id
-              AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+              AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
         ) THEN
             SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito (persa, danneggiata o in manutenzione).';
+                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito.';
         END IF;
 
         -- 2) Nessuna sovrapposizione di date con prestiti attivi della stessa copia
@@ -29,7 +29,7 @@ BEGIN
             FROM prestiti p
             WHERE p.copia_id = NEW.copia_id
               AND p.attivo = 1
-              AND p.stato IN ('in_corso','in_ritardo','prenotato','pendente')
+              AND p.stato IN ('in_corso','in_ritardo','prenotato','da_ritirare')
               AND p.data_prestito <= NEW.data_scadenza
               AND p.data_scadenza >= NEW.data_prestito
         ) THEN
@@ -50,16 +50,16 @@ FOR EACH ROW
 BEGIN
     -- Solo se si sta assegnando/cambiando una copia a un prestito attivo
     IF (NEW.attivo = 1 AND NEW.copia_id IS NOT NULL) THEN
-        -- 1) La copia deve essere utilizzabile (non persa, danneggiata o in manutenzione)
+        -- 1) La copia deve essere utilizzabile (non persa, danneggiata, in manutenzione, restauro o trasferimento)
         -- Nota: durante un update la copia può essere già in stato prestato/prenotato per QUESTO prestito
         IF NOT EXISTS (
             SELECT 1
             FROM copie c
             WHERE c.id = NEW.copia_id
-              AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+              AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
         ) THEN
             SIGNAL SQLSTATE '45000'
-                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito (persa, danneggiata o in manutenzione).';
+                SET MESSAGE_TEXT = 'La copia non è disponibile per il prestito.';
         END IF;
 
         -- 2) Nessuna sovrapposizione di date con ALTRI prestiti attivi della stessa copia
@@ -70,7 +70,7 @@ BEGIN
             WHERE p.copia_id = NEW.copia_id
               AND p.attivo = 1
               AND p.id <> NEW.id
-              AND p.stato IN ('in_corso','in_ritardo','prenotato','pendente')
+              AND p.stato IN ('in_corso','in_ritardo','prenotato','da_ritirare')
               AND p.data_prestito <= NEW.data_scadenza
               AND p.data_scadenza >= NEW.data_prestito
         ) THEN
@@ -105,5 +105,5 @@ DELIMITER ;
 
 SET foreign_key_checks = 1;
 -- Triggers updated: 2025-11-29
--- Fixed: stato check changed from 'disponibile' to NOT IN ('perso','danneggiato','manutenzione')
+-- Fixed: stato check changed from 'disponibile' to NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento')
 -- This allows creating loans for copies that are 'prenotato' (for non-overlapping future dates)

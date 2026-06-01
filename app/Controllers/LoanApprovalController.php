@@ -248,6 +248,26 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
             }
 
+            $dupReservationStmt = $db->prepare("
+                SELECT id
+                FROM prenotazioni
+                WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva'
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupReservationStmt->bind_param('ii', $libroId, $utenteId);
+            $dupReservationStmt->execute();
+            $hasActiveReservation = $dupReservationStmt->get_result()->num_rows > 0;
+            $dupReservationStmt->close();
+            if ($hasActiveReservation) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('L\'utente ha già una prenotazione attiva per questo libro')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            }
+
             // Enforce max_active_loans_per_user anche in approvazione (P1): il limite era
             // applicato solo alla creazione/richiesta, ma approvando più richieste pendenti
             // su libri diversi un admin poteva superarlo. Conta i prestiti attivi escluso
@@ -290,7 +310,7 @@ class LoanApprovalController
                 $existingCopyStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.id = ?
-                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
@@ -310,8 +330,8 @@ class LoanApprovalController
 
             // Step 2: If no valid pre-assigned copy, check global availability and find a new copy
             if (!$selectedCopy) {
-                // Step 2a: Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
-                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
+                // Step 2a: Count total lendable copies for this book
+                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')");
                 $totalCopiesStmt->bind_param('i', $libroId);
                 $totalCopiesStmt->execute();
                 $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -356,11 +376,11 @@ class LoanApprovalController
                 }
 
                 // Step 2d: Find a specific lendable copy without overlapping assigned loans for this period
-                // Exclude non-lendable copies (perso, danneggiato, manutenzione)
+                // Exclude non-lendable copies
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
-                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
@@ -430,7 +450,7 @@ class LoanApprovalController
             $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
             $copyCheckStmt->close();
 
-            $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+            $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
             if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
                 throw new \RuntimeException(__('Copia non disponibile per il prestito'));
             }
@@ -712,7 +732,7 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
                 if ($copyResult && !in_array($copyResult['stato'], $invalidStates)) {
                     $copyRepo = new \App\Models\CopyRepository($db);
                     $copyRepo->updateStatus($copiaId, 'prestato');
@@ -828,7 +848,7 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
                 if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
                     $copyRepo = new \App\Models\CopyRepository($db);
                     $copyRepo->updateStatus($copiaId, 'disponibile');
@@ -943,7 +963,7 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
                 if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
                     $copyRepo = new \App\Models\CopyRepository($db);
                     if (!$copyRepo->updateStatus($copiaId, 'disponibile')) {

@@ -316,6 +316,23 @@ class ReservationsController
             }
             $dupStmt->close();
 
+            $dupReservationStmt = $this->db->prepare("
+                SELECT id
+                FROM prenotazioni
+                WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva'
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupReservationStmt->bind_param('ii', $bookId, $userId);
+            $dupReservationStmt->execute();
+            if ($dupReservationStmt->get_result()->fetch_assoc()) {
+                $dupReservationStmt->close();
+                $this->db->rollback();
+                $response->getBody()->write(json_encode(['success' => false, 'message' => __('Hai già una prenotazione attiva per questo libro')]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+            $dupReservationStmt->close();
+
             // Enforce max active loans per user (admin setting; 0 = no limit)
             $maxLoans = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
@@ -450,13 +467,13 @@ class ReservationsController
         $totalCopiesExist = (int) ($row['total'] ?? 0);
 
         // If copies exist in copie table, count only loanable ones
-        // Exclude permanently unavailable copies: 'perso' (lost), 'danneggiato' (damaged), 'manutenzione' (maintenance)
+        // Exclude non-lendable copies.
         // Include 'disponibile' and 'prestato' (currently on loan but will return)
         if ($totalCopiesExist > 0) {
             $stmt = $this->db->prepare("
                 SELECT COUNT(*) as total FROM copie
                 WHERE libro_id = ?
-                AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
             ");
             $stmt->bind_param('i', $bookId);
             $stmt->execute();

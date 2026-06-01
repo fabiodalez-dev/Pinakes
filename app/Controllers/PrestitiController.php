@@ -182,6 +182,22 @@ class PrestitiController
             }
             $dupStmt->close();
 
+            $dupReservationStmt = $db->prepare("
+                SELECT id
+                FROM prenotazioni
+                WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva'
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupReservationStmt->bind_param('ii', $libro_id, $utente_id);
+            $dupReservationStmt->execute();
+            if ($dupReservationStmt->get_result()->num_rows > 0) {
+                $dupReservationStmt->close();
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=duplicate_reservation')->withStatus(302);
+            }
+            $dupReservationStmt->close();
+
             // Enforce max active loans per user (admin setting; 0 = no limit)
             $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
@@ -218,8 +234,8 @@ class PrestitiController
 
             if ($isImmediateLoan) {
                 // For immediate loans, verify book-level availability (including prenotazioni)
-                // Step 1: Count total lendable copies (exclude perso, danneggiato, manutenzione)
-                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
+                // Step 1: Count total lendable copies
+                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')");
                 $totalCopiesStmt->bind_param('i', $libro_id);
                 $totalCopiesStmt->execute();
                 $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -286,8 +302,8 @@ class PrestitiController
                 // For FUTURE loans, find a copy that has no overlapping active loans
                 // Also verify book-level availability (considering prenotazioni)
 
-                // Step 1: Count total lendable copies (exclude perso, danneggiato, manutenzione)
-                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
+                // Step 1: Count total lendable copies
+                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')");
                 $totalCopiesStmt->bind_param('i', $libro_id);
                 $totalCopiesStmt->execute();
                 $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -998,8 +1014,8 @@ class PrestitiController
             $overlappingReservations = (int) ($resConflictStmt->get_result()->fetch_assoc()['count'] ?? 0);
             $resConflictStmt->close();
 
-            // Count total lendable copies (exclude perso, danneggiato, manutenzione)
-            $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
+            // Count total lendable copies
+            $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')");
             $totalCopiesStmt->bind_param('i', $libroId);
             $totalCopiesStmt->execute();
             $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);

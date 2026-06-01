@@ -147,29 +147,102 @@ class ReservationsAdminController
         $startDt = $start . ' 00:00:00';
         $endDt = $end . ' 23:59:59';
 
-        // Get libro_id before update for availability recalculation
-        $libroStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ?");
-        $libroStmt->bind_param('i', $id);
-        $libroStmt->execute();
-        $libroResult = $libroStmt->get_result()->fetch_assoc();
-        $libroStmt->close();
-        $libroId = $libroResult ? (int) $libroResult['libro_id'] : 0;
+        if (!in_array($stato, ['attiva', 'completata', 'annullata'], true)) {
+            $stato = 'attiva';
+        }
 
-        $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=? WHERE id=?");
-        $stmt->bind_param('sssssi', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $id);
+        $lookupStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ?");
+        $lookupStmt->bind_param('i', $id);
+        $lookupStmt->execute();
+        $lookupResult = $lookupStmt->get_result()->fetch_assoc();
+        $lookupStmt->close();
+        if (!$lookupResult) {
+            return $response->withHeader('Location', '/admin/prenotazioni?error=not_found')->withStatus(302);
+        }
 
-        if ($stmt->execute()) {
-            $stmt->close();
+        $libroId = (int) $lookupResult['libro_id'];
 
-            // Recalculate book availability after reservation update
-            if ($libroId > 0) {
-                $integrity = new \App\Support\DataIntegrity($db);
-                $integrity->recalculateBookAvailability($libroId);
+        $db->begin_transaction();
+        try {
+            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $lockStmt->bind_param('i', $libroId);
+            $lockStmt->execute();
+            $bookExists = (bool) $lockStmt->get_result()->fetch_assoc();
+            $lockStmt->close();
+            if (!$bookExists) {
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prenotazioni?error=book_not_found')->withStatus(302);
             }
 
-            return $response->withHeader('Location', '/admin/prenotazioni?updated=1')->withStatus(302);
-        } else {
+            $libroStmt = $db->prepare("SELECT libro_id, utente_id, stato FROM prenotazioni WHERE id = ? FOR UPDATE");
+            $libroStmt->bind_param('i', $id);
+            $libroStmt->execute();
+            $libroResult = $libroStmt->get_result()->fetch_assoc();
+            $libroStmt->close();
+            if (!$libroResult || (int) $libroResult['libro_id'] !== $libroId) {
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prenotazioni?error=not_found')->withStatus(302);
+            }
+
+            $utenteId = (int) $libroResult['utente_id'];
+            $oldStato = (string) $libroResult['stato'];
+
+            if ($stato === 'attiva') {
+                $dupReservationStmt = $db->prepare("
+                    SELECT id
+                    FROM prenotazioni
+                    WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva' AND id != ?
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $dupReservationStmt->bind_param('iii', $libroId, $utenteId, $id);
+                $dupReservationStmt->execute();
+                if ($dupReservationStmt->get_result()->fetch_assoc()) {
+                    $dupReservationStmt->close();
+                    $db->rollback();
+                    return $response->withHeader('Location', '/admin/prenotazioni/modifica/' . $id . '?error=duplicate')->withStatus(302);
+                }
+                $dupReservationStmt->close();
+
+                $dupLoanStmt = $db->prepare("
+                    SELECT id
+                    FROM prestiti
+                    WHERE libro_id = ? AND utente_id = ? AND (
+                        (attivo = 0 AND stato = 'pendente')
+                        OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                    )
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $dupLoanStmt->bind_param('ii', $libroId, $utenteId);
+                $dupLoanStmt->execute();
+                if ($dupLoanStmt->get_result()->fetch_assoc()) {
+                    $dupLoanStmt->close();
+                    $db->rollback();
+                    return $response->withHeader('Location', '/admin/prenotazioni/modifica/' . $id . '?error=duplicate')->withStatus(302);
+                }
+                $dupLoanStmt->close();
+            }
+
+            $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=? WHERE id=?");
+            $stmt->bind_param('sssssi', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $id);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Reservation update failed');
+            }
             $stmt->close();
+
+            if ($oldStato === 'attiva' || $stato === 'attiva') {
+                $this->reorderQueuePositions($db, $libroId);
+            }
+
+            $integrity = new \App\Support\DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+
+            $db->commit();
+            return $response->withHeader('Location', '/admin/prenotazioni?updated=1')->withStatus(302);
+
+        } catch (\Throwable $e) {
+            $db->rollback();
             return $response->withHeader('Location', '/admin/prenotazioni/modifica/' . $id . '?error=update_failed')->withStatus(302);
         }
     }
@@ -279,32 +352,104 @@ class ReservationsAdminController
             $dataFineRichiesta = $dataInizioRichiesta;
         }
 
-        // Calculate queue position
-        $queuePosition = 1;
-        $stmt = $db->prepare("SELECT COUNT(*) + 1 as position FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
+        $db->begin_transaction();
+        try {
+            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $lockStmt->bind_param('i', $libroId);
+            $lockStmt->execute();
+            $bookExists = (bool) $lockStmt->get_result()->fetch_assoc();
+            $lockStmt->close();
+            if (!$bookExists) {
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prenotazioni/crea?error=book_not_found')->withStatus(302);
+            }
+
+            $dupReservationStmt = $db->prepare("
+                SELECT id
+                FROM prenotazioni
+                WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva'
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupReservationStmt->bind_param('ii', $libroId, $utenteId);
+            $dupReservationStmt->execute();
+            if ($dupReservationStmt->get_result()->fetch_assoc()) {
+                $dupReservationStmt->close();
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prenotazioni/crea?error=duplicate')->withStatus(302);
+            }
+            $dupReservationStmt->close();
+
+            $dupLoanStmt = $db->prepare("
+                SELECT id
+                FROM prestiti
+                WHERE libro_id = ? AND utente_id = ? AND (
+                    (attivo = 0 AND stato = 'pendente')
+                    OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                )
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupLoanStmt->bind_param('ii', $libroId, $utenteId);
+            $dupLoanStmt->execute();
+            if ($dupLoanStmt->get_result()->fetch_assoc()) {
+                $dupLoanStmt->close();
+                $db->rollback();
+                return $response->withHeader('Location', '/admin/prenotazioni/crea?error=duplicate')->withStatus(302);
+            }
+            $dupLoanStmt->close();
+
+            $stmt = $db->prepare("SELECT COALESCE(MAX(queue_position), 0) + 1 as position FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
+            $stmt->bind_param('i', $libroId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $queuePosition = (int) (($result->fetch_assoc()['position'] ?? 1));
+            $stmt->close();
+
+            $stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, data_prenotazione, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta, queue_position, stato) VALUES (?, ?, ?, ?, ?, ?, ?, 'attiva')");
+            $stmt->bind_param('iissssi', $libroId, $utenteId, $dataPrenotazione, $dataScadenza, $dataInizioRichiesta, $dataFineRichiesta, $queuePosition);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Reservation insert failed');
+            }
+            $stmt->close();
+
+            $integrity = new \App\Support\DataIntegrity($db);
+            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
+
+            $db->commit();
+            return $response->withHeader('Location', '/admin/prenotazioni?created=1')->withStatus(302);
+
+        } catch (\Throwable $e) {
+            $db->rollback();
+            return $response->withHeader('Location', '/admin/prenotazioni/crea?error=save_failed')->withStatus(302);
+        }
+    }
+
+    private function reorderQueuePositions(mysqli $db, int $libroId): void
+    {
+        $stmt = $db->prepare("
+            SELECT id
+            FROM prenotazioni
+            WHERE libro_id = ? AND stato = 'attiva'
+            ORDER BY queue_position ASC, id ASC
+        ");
         $stmt->bind_param('i', $libroId);
         $stmt->execute();
         $result = $stmt->get_result();
-        if ($row = $result->fetch_assoc()) {
-            $queuePosition = (int) $row['position'];
+
+        $ids = [];
+        while ($row = $result->fetch_assoc()) {
+            $ids[] = (int) $row['id'];
         }
         $stmt->close();
 
-        // Insert reservation with date range for availability calculations
-        $stmt = $db->prepare("INSERT INTO prenotazioni (libro_id, utente_id, data_prenotazione, data_scadenza_prenotazione, data_inizio_richiesta, data_fine_richiesta, queue_position, stato) VALUES (?, ?, ?, ?, ?, ?, ?, 'attiva')");
-        $stmt->bind_param('iissssi', $libroId, $utenteId, $dataPrenotazione, $dataScadenza, $dataInizioRichiesta, $dataFineRichiesta, $queuePosition);
-
-        if ($stmt->execute()) {
-            $stmt->close();
-
-            // Recalculate book availability after new reservation
-            $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
-
-            return $response->withHeader('Location', '/admin/prenotazioni?created=1')->withStatus(302);
-        } else {
-            $stmt->close();
-            return $response->withHeader('Location', '/admin/prenotazioni/crea?error=save_failed')->withStatus(302);
+        $position = 1;
+        $updateStmt = $db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
+        foreach ($ids as $reservationId) {
+            $updateStmt->bind_param('ii', $position, $reservationId);
+            $updateStmt->execute();
+            $position++;
         }
+        $updateStmt->close();
     }
 }

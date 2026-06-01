@@ -41,7 +41,7 @@ class MaintenanceService
      * Uses session-based caching to prevent duplicate runs.
      *
      * @param int $cooldownMinutes Minimum minutes between runs (default: 60)
-     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, ics_generated?: bool, errors?: array} Results or skip status
+     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, ics_generated?: bool, errors?: array} Results or skip status
      */
     public function runIfNeeded(int $cooldownMinutes = 60): array
     {
@@ -66,12 +66,13 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{scheduled_loans_activated: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, ics_generated: bool, errors: array} Results for each maintenance task
+     * @return array{scheduled_loans_activated: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, ics_generated: bool, errors: array} Results for each maintenance task
      */
     public function runAll(): array
     {
         $results = [
             'scheduled_loans_activated' => 0,
+            'expired_waitlist_reservations' => 0,
             'reservations_converted' => 0,
             'expired_reservations' => 0,
             'expired_pickups' => 0,
@@ -88,6 +89,14 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'activateScheduledLoans: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore attivazione prestiti'), ['error' => $e->getMessage()]);
+        }
+
+        try {
+            $reservationManager = new \App\Controllers\ReservationManager($this->db);
+            $results['expired_waitlist_reservations'] = $reservationManager->cancelExpiredReservations();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'cancelExpiredReservations: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore prenotazioni in coda scadute'), ['error' => $e->getMessage()]);
         }
 
         try {
@@ -608,8 +617,8 @@ class MaintenanceService
                     $checkCopy->close();
 
                     // Ensure copy is available (but don't resurrect non-restorable copies)
-                    // Skip if copy is in a permanent non-available state (perso, danneggiato, manutenzione)
-                    $nonRestorableStates = ['perso', 'danneggiato', 'manutenzione'];
+                    // Skip if copy is in a non-lendable operational state.
+                    $nonRestorableStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
                     if ($copyState && !in_array($copyState['stato'], $nonRestorableStates, true) && $copyState['stato'] !== 'disponibile') {
                         $updateCopy = $this->db->prepare("UPDATE copie SET stato = 'disponibile' WHERE id = ?");
                         $updateCopy->bind_param('i', $copiaId);

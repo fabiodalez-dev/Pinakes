@@ -124,6 +124,7 @@ try {
     // Log detailed results
     logMessage("Maintenance completed:");
     logMessage("- Scheduled loans activated (prenotato -> da_ritirare): " . ($results['scheduled_loans_activated'] ?? 0));
+    logMessage("- Expired waitlist reservations (prenotazioni -> annullata): " . ($results['expired_waitlist_reservations'] ?? 0));
     logMessage("- Scheduled reservations converted: " . ($results['reservations_converted'] ?? 0));
     logMessage("- Expired reservations (prenotato -> scaduto): " . ($results['expired_reservations'] ?? 0));
     logMessage("- Expired pickups (da_ritirare -> scaduto): " . ($results['expired_pickups'] ?? 0));

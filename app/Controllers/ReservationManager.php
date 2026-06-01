@@ -231,10 +231,10 @@ class ReservationManager
             return false;
         }
 
-        // Multi-copy aware: count only loanable copies (exclude lost/damaged/maintenance)
+        // Multi-copy aware: count only loanable copies.
         $totalStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM copie
-            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
         ");
         $totalStmt->bind_param('i', $bookId);
         $totalStmt->execute();
@@ -523,11 +523,10 @@ class ReservationManager
         $existStmt->close();
 
         if ($totalCopiesExist > 0) {
-            // Copies exist in copie table - count only loanable ones
-            // Exclude permanently unavailable: 'perso', 'danneggiato', 'manutenzione'
+            // Copies exist in copie table - count only loanable ones.
             $totalStmt = $this->db->prepare("
                 SELECT COUNT(*) as total FROM copie
-                WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
             ");
             $totalStmt->bind_param('i', $bookId);
             $totalStmt->execute();

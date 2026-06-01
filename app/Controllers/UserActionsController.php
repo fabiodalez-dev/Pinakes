@@ -460,6 +460,23 @@ class UserActionsController
             }
             $dupStmt->close();
 
+            $dupReservationStmt = $db->prepare("
+                SELECT id
+                FROM prenotazioni
+                WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva'
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupReservationStmt->bind_param('ii', $libroId, $utenteId);
+            $dupReservationStmt->execute();
+            $dupReservationResult = $dupReservationStmt->get_result();
+            if ($dupReservationResult->fetch_assoc()) {
+                $dupReservationStmt->close();
+                $db->rollback();
+                return $this->back($response, ['loan_error' => 'duplicate']);
+            }
+            $dupReservationStmt->close();
+
             // Enforce max active loans per user (admin setting; 0 = no limit)
             $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
@@ -557,6 +574,26 @@ class UserActionsController
                 return $this->back($response, ['reserve_error' => 'duplicate']);
             }
             $dupStmt->close();
+
+            $dupLoanStmt = $db->prepare("
+                SELECT id
+                FROM prestiti
+                WHERE libro_id = ? AND utente_id = ? AND (
+                    (attivo = 0 AND stato = 'pendente')
+                    OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                )
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupLoanStmt->bind_param('ii', $libroId, $utenteId);
+            $dupLoanStmt->execute();
+            $dupLoanResult = $dupLoanStmt->get_result();
+            if ($dupLoanResult->fetch_assoc()) {
+                $dupLoanStmt->close();
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => 'duplicate']);
+            }
+            $dupLoanStmt->close();
 
             // Check availability for the requested date range (excluding this user's existing reservations)
             $reservationsController = new ReservationsController($db);

@@ -734,11 +734,11 @@ class NotificationService {
     public function hasActualAvailableCopy(int $bookId): bool {
         $today = date('Y-m-d');
 
-        // Count total loanable copies (exclude perso, danneggiato, manutenzione)
+        // Count total loanable copies (exclude non-lendable states)
         // This matches the logic in ReservationManager and other availability checks
         $totalStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM copie
-            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
         ");
         $totalStmt->bind_param('i', $bookId);
         $totalStmt->execute();

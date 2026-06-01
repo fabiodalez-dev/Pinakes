@@ -153,7 +153,7 @@ class CopyRepository
             SELECT c.*
             FROM copie c
             WHERE c.libro_id = ?
-            AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+            AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
             AND NOT EXISTS (
                 SELECT 1 FROM prestiti p
                 WHERE p.copia_id = c.id
