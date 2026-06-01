@@ -147,8 +147,23 @@ class PrestitiController
         $db->begin_transaction();
 
         try {
+            // ORDINE DI LOCK CANONICO: la riga `libri` SEMPRE per prima, poi `prestiti`
+            // e `copie` (P3). Tutti gli entry point di creazione/richiesta prestito
+            // (store, createReservation, loan) usano questo stesso ordine per evitare
+            // deadlock da lock-order inversion.
+            $lockStmt = $db->prepare("SELECT id, stato, copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $lockStmt->bind_param('i', $libro_id);
+            $lockStmt->execute();
+            $bookResult = $lockStmt->get_result();
+            $book = $bookResult ? $bookResult->fetch_assoc() : null;
+            $lockStmt->close();
+
+            if (!$book) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=book_not_found')->withStatus(302);
+            }
+
             // Case 8: Prevent multiple active reservations/loans for the same book by the same user
-            // Lock prestiti FIRST to keep lock order consistent (prestiti -> libri) and prevent deadlocks
             // Note: 'pendente' has attivo=0, other active states have attivo=1
             $dupStmt = $db->prepare("
                 SELECT id FROM prestiti
@@ -182,23 +197,16 @@ class PrestitiController
                 }
             }
 
-            // Now lock the book record (after prestiti to maintain consistent lock order)
-            $lockStmt = $db->prepare("SELECT id, stato, copie_disponibili FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
-            $lockStmt->bind_param('i', $libro_id);
-            $lockStmt->execute();
-            $bookResult = $lockStmt->get_result();
-            $book = $bookResult ? $bookResult->fetch_assoc() : null;
-            $lockStmt->close();
-
-            if (!$book) {
-                $db->rollback();
-                return $response->withHeader('Location', url('/admin/prestiti/crea') . '?error=book_not_found')->withStatus(302);
+            // Check if loan starts today (immediate loan) or in the future (scheduled loan).
+            // "Oggi" nel timezone configurato dell'app, non nel default PHP (UTC in prod):
+            // altrimenti vicino a mezzanotte un prestito datato oggi verrebbe trattato come
+            // futuro (stesso bug timezone corretto in LoanApprovalController).
+            $appTz = \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome');
+            try {
+                $today = (new \DateTime('now', new \DateTimeZone($appTz)))->format('Y-m-d');
+            } catch (\Throwable $e) {
+                $today = date('Y-m-d');
             }
-
-            // Check if loan starts today (immediate loan) or in the future (scheduled loan)
-            // Normalize to date-only to handle potential datetime inputs safely
-            // Use date() consistently for server timezone
-            $today = date('Y-m-d');
             $loanStartDate = date('Y-m-d', strtotime($data_prestito));
             $isImmediateLoan = ($loanStartDate <= $today);
 
@@ -907,7 +915,15 @@ class PrestitiController
         $db->begin_transaction();
 
         try {
-            // Lock the loan row FIRST to prevent concurrent renewals and match LoanRepository lock order
+            // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima (come store e
+            // approveLoan), poi il prestito. $libroId proviene dalla lettura iniziale del
+            // prestito (il libro di un prestito non cambia mai).
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            // Lock the loan row to prevent concurrent renewals and re-validate under lock
             $lockLoanStmt = $db->prepare("
                 SELECT id, attivo, stato, renewals, data_scadenza, libro_id
                 FROM prestiti WHERE id = ? FOR UPDATE
@@ -947,14 +963,9 @@ class PrestitiController
             $currentDueDate = $lockedLoan['data_scadenza'];
             $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . ' +14 days'));
             $currentRenewals = (int) $lockedLoan['renewals'];
-            // Refresh libro_id from locked loan to ensure consistency
+            // Refresh libro_id from locked loan to ensure consistency (la riga `libri` è
+            // già stata lockata sopra con lo stesso id all'inizio della transazione).
             $libroId = (int) $lockedLoan['libro_id'];
-
-            // Now lock the book row
-            $lockStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
-            $lockStmt->bind_param('i', $libroId);
-            $lockStmt->execute();
-            $lockStmt->close();
 
             // Check if renewal conflicts with other reservations/loans
             // Extension is allowed if:

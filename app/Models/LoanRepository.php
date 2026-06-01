@@ -119,14 +119,31 @@ class LoanRepository
         $bookId = null;
 
         try {
-            // Recupera il libro associato e blocca la riga del prestito
-            $stmt = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=? FOR UPDATE');
+            // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
+            // lettura NON bloccante, poi blocca la riga `libri` PRIMA e infine quella del
+            // prestito — stesso ordine di store/approveLoan/renew per evitare deadlock.
+            $lookup = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=?');
+            $lookup->bind_param('i', $id);
+            $lookup->execute();
+            $lrow = $lookup->get_result()->fetch_assoc();
+            $lookup->close();
+            if (!$lrow) {
+                $this->db->rollback();
+                return false;
+            }
+            $bookId = (int) $lrow['libro_id'];
+
+            // Lock della riga `libri` per prima
+            $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id=? FOR UPDATE');
+            $lockBook->bind_param('i', $bookId);
+            $lockBook->execute();
+            $lockBook->close();
+
+            // Poi lock della riga del prestito
+            $stmt = $this->db->prepare('SELECT id FROM prestiti WHERE id=? FOR UPDATE');
             $stmt->bind_param('i', $id);
             $stmt->execute();
-            $result = $stmt->get_result();
-            if ($row = $result->fetch_assoc()) {
-                $bookId = (int)$row['libro_id'];
-            } else {
+            if (!$stmt->get_result()->fetch_assoc()) {
                 $stmt->close();
                 $this->db->rollback();
                 return false;

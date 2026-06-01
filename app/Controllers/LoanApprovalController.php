@@ -169,8 +169,34 @@ class LoanApprovalController
         try {
             $db->begin_transaction();
 
-            // Lock and verify loan is still pending (FOR UPDATE prevents concurrent approval)
-            // Include copia_id to check if a copy was already assigned (e.g., from reservation)
+            // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
+            // Determiniamo il libro del prestito con una lettura NON bloccante, poi
+            // acquisiamo i lock nell'ordine libri -> prestiti come tutti gli altri
+            // entry point, evitando deadlock da lock-order inversion.
+            $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
+            $bookLookup->bind_param('i', $loanId);
+            $bookLookup->execute();
+            $bookRow = $bookLookup->get_result()->fetch_assoc();
+            $bookLookup->close();
+            if (!$bookRow) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o già processato')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+            $libroId = (int) $bookRow['libro_id'];
+
+            // Lock della riga `libri` PRIMA — serializza anche le approvazioni dello
+            // stesso libro (CONC-03).
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            // Ora lock + ri-verifica del prestito pendente (FOR UPDATE impedisce
+            // approvazioni concorrenti dello stesso prestito).
             $stmt = $db->prepare("SELECT libro_id, utente_id, data_prestito, data_scadenza, copia_id FROM prestiti WHERE id = ? AND stato = 'pendente' FOR UPDATE");
             $stmt->bind_param('i', $loanId);
             $stmt->execute();
@@ -188,7 +214,6 @@ class LoanApprovalController
             $loan = $result->fetch_assoc();
             $stmt->close();
 
-            $libroId = (int) $loan['libro_id'];
             $existingCopiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
             $dataPrestito = $loan['data_prestito'];
             $dataScadenza = $loan['data_scadenza'];
@@ -202,16 +227,6 @@ class LoanApprovalController
             } catch (\Throwable $e) {
                 $today = date('Y-m-d');
             }
-
-            // CONC-03: serializza le approvazioni dello stesso libro con un lock sulla
-            // riga `libri`, poi rifiuta se l'utente ha GIÀ un prestito attivo per questo
-            // libro. Senza questo, due richieste pendenti dello stesso utente+libro
-            // (es. una da richiesta e una da prenotazione) potrebbero essere approvate
-            // in parallelo creando un doppio prestito.
-            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
-            $lockBookStmt->bind_param('i', $libroId);
-            $lockBookStmt->execute();
-            $lockBookStmt->close();
 
             $utenteId = (int) $loan['utente_id'];
             $dupStmt = $db->prepare("
