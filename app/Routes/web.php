@@ -498,25 +498,25 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // Admin review management routes
-    $app->get('/admin/recensioni', function ($request, $response) use ($app) {
+    $app->get('/admin/reviews', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\RecensioniAdminController();
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/recensioni/{id:\d+}/approve', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/reviews/{id:\d+}/approve', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\RecensioniAdminController();
         return $controller->approve($request, $response, $db, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/recensioni/{id:\d+}/reject', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/reviews/{id:\d+}/reject', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\RecensioniAdminController();
         return $controller->reject($request, $response, $db, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->delete('/admin/recensioni/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->delete('/admin/reviews/{id:\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\RecensioniAdminController();
         return $controller->delete($request, $response, $db, $args);
@@ -991,7 +991,7 @@ return function (App $app): void {
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // Statistics page
-    $app->get('/admin/statistiche', function ($request, $response) use ($app) {
+    $app->get('/admin/statistics', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\Admin\StatsController();
         return $controller->index($request, $response, $db);
@@ -1025,93 +1025,93 @@ return function (App $app): void {
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // Utenti (protected admin)
-    $app->get('/admin/utenti', function ($request, $response) use ($app) {
+    $app->get('/admin/users', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->get('/admin/utenti/crea', function ($request, $response) {
+    $app->get('/admin/users/create', function ($request, $response) {
         $controller = new \App\Controllers\UsersController();
         return $controller->createForm($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/utenti/store', function ($request, $response) use ($app) {
+    $app->post('/admin/users/store', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->get('/admin/utenti/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/users/edit/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/utenti/update/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/users/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->get('/admin/utenti/dettagli/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/users/details/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->details($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/utenti/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/users/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->post('/admin/utenti/{id:\d+}/approve-and-send-activation', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/users/{id:\d+}/approve-and-send-activation', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->approveAndSendActivation($request, $response, $db, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->post('/admin/utenti/{id:\d+}/activate-directly', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/users/{id:\d+}/activate-directly', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->activateDirectly($request, $response, $db, $args);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // CSV Export route for users
-    $app->get('/admin/utenti/export/csv', function ($request, $response) use ($app) {
+    $app->get('/admin/users/export/csv', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\UsersController();
         $db = $app->getContainer()->get('db');
         return $controller->exportCsv($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware()); // 15 requests per minute
 
     // Autori (protected admin)
-    $app->get('/admin/autori', function ($request, $response) use ($app) {
+    $app->get('/admin/authors', function ($request, $response) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
-    $app->get('/admin/autori/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/authors/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
-    $app->get('/admin/autori/crea', function ($request, $response) {
+    $app->get('/admin/authors/create', function ($request, $response) {
         $controller = new AutoriController();
         return $controller->createForm($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/autori/crea', function ($request, $response) use ($app) {
+    $app->post('/admin/authors/create', function ($request, $response) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->get('/admin/autori/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/authors/edit/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/autori/update/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/authors/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     // Fallback GET to avoid 405 if user navigates directly
-    $app->get('/admin/autori/update/{id:\d+}', function ($request, $response, $args) {
-        return $response->withHeader('Location', '/admin/autori/modifica/' . (int) $args['id'])->withStatus(302);
+    $app->get('/admin/authors/update/{id:\d+}', function ($request, $response, $args) {
+        return $response->withHeader('Location', '/admin/authors/edit/' . (int) $args['id'])->withStatus(302);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/autori/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/authors/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new AutoriController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
@@ -1132,7 +1132,7 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Prestiti (protected admin) - Disabled in catalogue mode
-    $app->get('/admin/prestiti', function ($request, $response) use ($app) {
+    $app->get('/admin/loans', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
@@ -1141,7 +1141,7 @@ return function (App $app): void {
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
-    $app->get('/admin/prestiti/export-csv', function ($request, $response) use ($app) {
+    $app->get('/admin/loans/export-csv', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
@@ -1150,7 +1150,7 @@ return function (App $app): void {
         return $controller->exportCsv($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(15, 60))->add(new AdminAuthMiddleware()); // 15 exports per minute
 
-    $app->get('/admin/prestiti/crea', function ($request, $response) use ($app) {
+    $app->get('/admin/loans/create', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
@@ -1159,7 +1159,7 @@ return function (App $app): void {
         return $controller->createForm($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/prestiti/crea', function ($request, $response) use ($app) {
+    $app->post('/admin/loans/create', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
@@ -1169,11 +1169,11 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Alias inglese
-    $app->get('/admin/prestiti/{id:\d+}/edit', function ($request, $response, $args) {
-        return $response->withHeader('Location', '/admin/prestiti/modifica/' . $args['id'])->withStatus(301);
+    $app->get('/admin/loans/{id:\d+}/edit', function ($request, $response, $args) {
+        return $response->withHeader('Location', '/admin/loans/edit/' . $args['id'])->withStatus(301);
     })->add(new AdminAuthMiddleware());
 
-    $app->get('/admin/prestiti/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/loans/edit/{id:\d+}', function ($request, $response, $args) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
@@ -1182,7 +1182,7 @@ return function (App $app): void {
         return $controller->editForm($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/prestiti/update/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/loans/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {
             return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
         }
@@ -1192,37 +1192,37 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Libri (protected admin)
-    $app->get('/admin/libri', function ($request, $response) use ($app) {
+    $app->get('/admin/books', function ($request, $response) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
-    $app->get('/admin/libri/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/books/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
-    $app->get('/admin/libri/crea', function ($request, $response) use ($app) {
+    $app->get('/admin/books/create', function ($request, $response) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->createForm($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
-    $app->post('/admin/libri/crea', function ($request, $response) use ($app) {
+    $app->post('/admin/books/create', function ($request, $response) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->get('/admin/libri/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/books/edit/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
-    $app->post('/admin/libri/update/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/books/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
@@ -1242,23 +1242,23 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute for bulk operations
 
     // CSV Import routes
-    $app->get('/admin/libri/import', function ($request, $response) {
+    $app->get('/admin/books/import', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();
         return $controller->showImportPage($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
-    $app->get('/admin/libri/import/example', function ($request, $response) {
+    $app->get('/admin/books/import/example', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();
         return $controller->downloadExample($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
-    $app->post('/admin/libri/import/upload', function ($request, $response) use ($app) {
+    $app->post('/admin/books/import/upload', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CsvImportController();
         $db = $app->getContainer()->get('db');
         return $controller->processImport($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->get('/admin/libri/import/progress', function ($request, $response) {
+    $app->get('/admin/books/import/progress', function ($request, $response) {
         $controller = new \App\Controllers\CsvImportController();
         return $controller->getProgress($request, $response);
     })->add(new AdminAuthMiddleware());
@@ -1269,7 +1269,7 @@ return function (App $app): void {
     // AdminAuthMiddleware + CsrfMiddleware as the primary defense.
 
     // CSV Import Chunk Processing (AJAX)
-    $app->post('/admin/libri/import/chunk', function ($request, $response) use ($app) {
+    $app->post('/admin/books/import/chunk', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CsvImportController();
         $db = $app->getContainer()->get('db');
         return $controller->processChunk($request, $response, $db);
@@ -1304,37 +1304,37 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Import/Export
-    $app->get('/admin/libri/import/librarything', function ($request, $response) {
+    $app->get('/admin/books/import/librarything', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->showImportPage($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware());
 
     // Chunked import endpoints (new)
-    $app->post('/admin/libri/import/librarything/prepare', function ($request, $response) {
+    $app->post('/admin/books/import/librarything/prepare', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->prepareImport($request, $response);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/libri/import/librarything/chunk', function ($request, $response) use ($app) {
+    $app->post('/admin/books/import/librarything/chunk', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->processChunk($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     // No RateLimitMiddleware: same rationale as CSV /import/chunk. See #113.
 
-    $app->get('/admin/libri/import/librarything/results', function ($request, $response) {
+    $app->get('/admin/books/import/librarything/results', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->getImportResults($request, $response);
     })->add(new AdminAuthMiddleware());
 
     // Legacy endpoint (backwards compatibility)
-    $app->post('/admin/libri/import/librarything/process', function ($request, $response) use ($app) {
+    $app->post('/admin/books/import/librarything/process', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->processImport($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->get('/admin/libri/import/librarything/progress', function ($request, $response) {
+    $app->get('/admin/books/import/librarything/progress', function ($request, $response) {
         $controller = new \App\Controllers\LibraryThingImportController();
         return $controller->getProgress($request, $response);
     })->add(new AdminAuthMiddleware());
@@ -1359,7 +1359,7 @@ return function (App $app): void {
         return $controller->deleteOldLogs($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->get('/admin/libri/export/librarything', function ($request, $response) use ($app) {
+    $app->get('/admin/books/export/librarything', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\LibraryThingImportController();
         $db = $app->getContainer()->get('db');
         return $controller->exportToLibraryThing($request, $response, $db);
@@ -1367,7 +1367,7 @@ return function (App $app): void {
       ->add(new AdminAuthMiddleware());
 
     // CSV Export route
-    $app->get('/admin/libri/export/csv', function ($request, $response) use ($app) {
+    $app->get('/admin/books/export/csv', function ($request, $response) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->exportCsv($request, $response, $db);
@@ -1378,7 +1378,7 @@ return function (App $app): void {
     // sure auth/CSRF rejections don't burn the rate-limit bucket (CR R7),
     // order added so RateLimit is the OUTERMOST and runs LAST: Auth → CSRF
     // → RateLimit. A 401 / 403 short-circuits before any quota is consumed.
-    $app->post('/admin/libri/sync-covers', function ($request, $response) use ($app) {
+    $app->post('/admin/books/sync-covers', function ($request, $response) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->syncCovers($request, $response, $db);
@@ -1388,7 +1388,7 @@ return function (App $app): void {
         ->add(new AdminAuthMiddleware());
 
     // Bulk enrichment routes
-    $app->get('/admin/libri/bulk-enrich', function ($request, $response) use ($app) {
+    $app->get('/admin/books/bulk-enrich', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\BulkEnrichController();
         return $controller->index($request, $response, $db);
@@ -1398,7 +1398,7 @@ return function (App $app): void {
     // prevents double-clicks + retries from overlapping batches and burning
     // upstream quota (Discogs / Google Books / Open Library have per-minute
     // limits). Same shape as sync-covers above.
-    $app->post('/admin/libri/bulk-enrich/start', function ($request, $response) use ($app) {
+    $app->post('/admin/books/bulk-enrich/start', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\BulkEnrichController();
         return $controller->start($request, $response, $db);
@@ -1406,92 +1406,92 @@ return function (App $app): void {
       ->add(new CsrfMiddleware())
       ->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/libri/bulk-enrich/toggle', function ($request, $response) use ($app) {
+    $app->post('/admin/books/bulk-enrich/toggle', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new \App\Controllers\BulkEnrichController();
         return $controller->toggle($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Fallback GET to avoid 405 if user navigates directly
-    $app->get('/admin/libri/update/{id:\d+}', function ($request, $response, $args) {
-        return $response->withHeader('Location', '/admin/libri/modifica/' . (int) $args['id'])->withStatus(302);
+    $app->get('/admin/books/update/{id:\d+}', function ($request, $response, $args) {
+        return $response->withHeader('Location', '/admin/books/edit/' . (int) $args['id'])->withStatus(302);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
-    $app->post('/admin/libri/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/books/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Copy management routes
-    $app->post('/admin/libri/copie/{id:\d+}/update', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/books/copies/{id:\d+}/update', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\CopyController();
         $db = $app->getContainer()->get('db');
         return $controller->updateCopy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/libri/copie/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/books/copies/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\CopyController();
         $db = $app->getContainer()->get('db');
         return $controller->deleteCopy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Collane (Series) management
-    $app->get('/admin/collane', function ($request, $response) use ($app) {
+    $app->get('/admin/series', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
-    $app->get('/admin/collane/dettaglio', function ($request, $response) use ($app) {
+    $app->get('/admin/series/detail', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/collane/crea', function ($request, $response) use ($app) {
+    $app->post('/admin/series/create', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->create($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/collane/elimina', function ($request, $response) use ($app) {
+    $app->post('/admin/series/delete', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/collane/descrizione', function ($request, $response) use ($app) {
+    $app->post('/admin/series/description', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->saveDescription($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/collane/rinomina', function ($request, $response) use ($app) {
+    $app->post('/admin/series/rename', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->rename($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/collane/unisci', function ($request, $response) use ($app) {
+    $app->post('/admin/series/merge', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->merge($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/collane/ordine', function ($request, $response) use ($app) {
+    $app->post('/admin/series/order', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->updateOrder($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/collane/rimuovi-libro', function ($request, $response) use ($app) {
+    $app->post('/admin/series/remove-book', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->removeBook($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/collane/crea-opera', function ($request, $response) use ($app) {
+    $app->post('/admin/series/create-opera', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->createParentWork($request, $response, $db);
@@ -1503,90 +1503,90 @@ return function (App $app): void {
         return $controller->searchApi($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/collane/bulk-assign', function ($request, $response) use ($app) {
+    $app->post('/admin/series/bulk-assign', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\CollaneController();
         $db = $app->getContainer()->get('db');
         return $controller->bulkAssign($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Multi-volume management routes
-    $app->post('/admin/libri/volumi/add', function ($request, $response) use ($app) {
+    $app->post('/admin/books/volumes/add', function ($request, $response) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->addVolume($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/libri/volumi/remove', function ($request, $response) use ($app) {
+    $app->post('/admin/books/volumes/remove', function ($request, $response) use ($app) {
         $controller = new LibriController();
         $db = $app->getContainer()->get('db');
         return $controller->removeVolume($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Generi (protected admin/staff only)
-    $app->get('/admin/generi', function ($request, $response) use ($app) {
+    $app->get('/admin/genres', function ($request, $response) use ($app) {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
-    $app->get('/admin/generi/crea', function ($request, $response) use ($app) {
+    $app->get('/admin/genres/create', function ($request, $response) use ($app) {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->createForm($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
-    $app->post('/admin/generi/crea', function ($request, $response) use ($app) {
+    $app->post('/admin/genres/create', function ($request, $response) use ($app) {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->get('/admin/generi/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/genres/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
-    $app->post('/admin/generi/{id:\d+}/modifica', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/genres/{id:\d+}/edit', function ($request, $response, $args) use ($app) {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/generi/{id:\d+}/unisci', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/genres/{id:\d+}/merge', function ($request, $response, $args) use ($app) {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->merge($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
-    $app->post('/admin/generi/{id:\d+}/elimina', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/genres/{id:\d+}/delete', function ($request, $response, $args) use ($app) {
         $controller = new GeneriController();
         $db = $app->getContainer()->get('db');
         return $controller->destroy($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Collocazione (protected admin)
-    $app->get('/admin/collocazione', function ($request, $response) use ($app) {
+    $app->get('/admin/placement', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/collocazione/scaffali', function ($request, $response) use ($app) {
+    $app->post('/admin/placement/shelving-units', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->createScaffale($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->post('/admin/collocazione/mensole', function ($request, $response) use ($app) {
+    $app->post('/admin/placement/shelves', function ($request, $response) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->createMensola($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->post('/admin/collocazione/scaffali/{id}/delete', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/placement/shelving-units/{id}/delete', function ($request, $response, $args) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->deleteScaffale($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->post('/admin/collocazione/mensole/{id}/delete', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/placement/shelves/{id}/delete', function ($request, $response, $args) use ($app) {
         $controller = new CollocazioneController();
         $db = $app->getContainer()->get('db');
         return $controller->deleteMensola($request, $response, $db, (int) $args['id']);
@@ -1787,29 +1787,29 @@ return function (App $app): void {
         return $controller->createMissingSystemTables($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin']));
 
-    $app->get('/admin/prestiti/restituito/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/loans/returned/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->returnForm($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/prestiti/restituito/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/loans/returned/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->processReturn($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->post('/admin/prestiti/rinnova/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/loans/renew/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->renew($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->get('/admin/prestiti/dettagli/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/loans/details/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->details($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // PDF prestito
-    $app->get('/admin/prestiti/{id:\d+}/pdf', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/loans/{id:\d+}/pdf', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->downloadPdf($request, $response, $db, (int) $args['id']);
@@ -1830,27 +1830,27 @@ return function (App $app): void {
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
     // Prenotazioni (admin)
-    $app->get('/admin/prenotazioni', function ($request, $response) use ($app) {
+    $app->get('/admin/reservations', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->index($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->get('/admin/prenotazioni/crea', function ($request, $response) use ($app) {
+    $app->get('/admin/reservations/create', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->createForm($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/prenotazioni/crea', function ($request, $response) use ($app) {
+    $app->post('/admin/reservations/create', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->store($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->get('/admin/prenotazioni/modifica/{id:\\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/reservations/edit/{id:\\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->editForm($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/prenotazioni/update/{id:\\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/reservations/update/{id:\\d+}', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new ReservationsAdminController();
         return $controller->update($request, $response, $db, (int) $args['id']);
@@ -1921,31 +1921,31 @@ return function (App $app): void {
     // Debug endpoint intentionally removed to avoid accidental exposure of sensitive data
 
     // Editori (protected)
-    $app->get('/admin/editori', function ($request, $response) use ($app) {
+    $app->get('/admin/publishers', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->index($request, $response, $db);
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
-    $app->get('/admin/editori/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/publishers/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->show($request, $response, $db, (int) $args['id']);
     })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
-    $app->get('/admin/editori/crea', function ($request, $response) {
+    $app->get('/admin/publishers/create', function ($request, $response) {
         $controller = new \App\Controllers\EditorsController();
         return $controller->createForm($request, $response);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/editori/crea', function ($request, $response) use ($app) {
+    $app->post('/admin/publishers/create', function ($request, $response) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->store($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
-    $app->get('/admin/editori/modifica/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->get('/admin/publishers/edit/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->editForm($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
-    $app->post('/admin/editori/update/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/publishers/update/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->update($request, $response, $db, (int) $args['id']);
@@ -2174,7 +2174,7 @@ return function (App $app): void {
 
 
     // Editori - Elimina
-    $app->post('/admin/editori/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
+    $app->post('/admin/publishers/delete/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\EditorsController();
         $db = $app->getContainer()->get('db');
         return $controller->delete($request, $response, $db, (int) $args['id']);
@@ -3087,5 +3087,82 @@ return function (App $app): void {
         $controller = new \App\Controllers\UpdateController();
         return $controller->installManualUpdate($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // ==========================================
+    // Legacy Italian admin-path redirects (301 permanent)
+    //
+    // Maps old Italian /admin/{segment}[/{rest}] paths to their new English
+    // equivalents. These fire BEFORE auth (no middleware added) so bookmarked
+    // or emailed links redirect cleanly without hitting a login wall first.
+    //
+    // Sub-segments (action words) in $rest are also translated so that e.g.
+    // /admin/libri/modifica/5 → /admin/books/edit/5 in a single round-trip.
+    // ==========================================
+
+    /** @var array<string,string> $adminSegmentMap Italian primary segment → English */
+    $adminSegmentMap = [
+        'libri'        => 'books',
+        'prestiti'     => 'loans',
+        'utenti'       => 'users',
+        'collane'      => 'series',
+        'autori'       => 'authors',
+        'generi'       => 'genres',
+        'editori'      => 'publishers',
+        'prenotazioni' => 'reservations',
+        'collocazione' => 'placement',
+        'recensioni'   => 'reviews',
+        'statistiche'  => 'statistics',
+    ];
+
+    /** @var array<string,string> $actionSegmentMap Italian action words → English */
+    $actionSegmentMap = [
+        'crea'          => 'create',
+        'modifica'      => 'edit',
+        'elimina'       => 'delete',
+        'dettagli'      => 'details',
+        'dettaglio'     => 'detail',
+        'restituito'    => 'returned',
+        'rinnova'       => 'renew',
+        'unisci'        => 'merge',
+        'rinomina'      => 'rename',
+        'rimuovi-libro' => 'remove-book',
+        'ordine'        => 'order',
+        'descrizione'   => 'description',
+        'mensole'       => 'shelves',
+        'scaffali'      => 'shelving-units',
+        'copie'         => 'copies',
+        'volumi'        => 'volumes',
+    ];
+
+    foreach ($adminSegmentMap as $itSegment => $enSegment) {
+        $app->map(
+            ['GET', 'POST'],
+            '/admin/' . $itSegment . '[/{rest:.*}]',
+            function ($request, $response, $args) use ($enSegment, $actionSegmentMap) {
+                $rest = isset($args['rest']) && $args['rest'] !== ''
+                    ? '/' . $args['rest']
+                    : '';
+
+                // Translate action sub-segments inside $rest.
+                // Split on '/', translate each segment, then rejoin.
+                if ($rest !== '') {
+                    $parts = explode('/', ltrim($rest, '/'));
+                    $parts = array_map(
+                        fn(string $part) => $actionSegmentMap[$part] ?? $part,
+                        $parts
+                    );
+                    $rest = '/' . implode('/', $parts);
+                }
+
+                $query = $request->getUri()->getQuery();
+                $location = '/admin/' . $enSegment . $rest . ($query !== '' ? '?' . $query : '');
+
+                return $response->withHeader('Location', $location)->withStatus(301);
+            }
+        );
+    }
+    // ==========================================
+    // End legacy Italian admin-path redirects
+    // ==========================================
 
 };
