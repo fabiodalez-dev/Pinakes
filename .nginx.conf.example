@@ -152,7 +152,19 @@ server {
     }
 
     # ========================================
-    # Uploads directory
+    # Private uploaded content (issue #160)
+    # ========================================
+    # Digital-library files, archive documents and generic storage must NOT be
+    # served straight from disk — they go through the app so PrivateModeMiddleware
+    # (and any future per-file auth) governs access. These `^~` prefixes are
+    # longer than `^~ /uploads/` below, so nginx matches them first.
+    # ProtectedUploadController streams the bytes (with Range support).
+    location ^~ /uploads/digital/            { rewrite ^ /index.php last; }
+    location ^~ /uploads/archives/documents/ { rewrite ^ /index.php last; }
+    location ^~ /uploads/storage/            { rewrite ^ /index.php last; }
+
+    # ========================================
+    # Uploads directory (PUBLIC only — covers, events, CMS, branding)
     # ========================================
     location ^~ /uploads/ {
         # Cache uploaded media (book covers, user uploads). The `^~ /uploads/`

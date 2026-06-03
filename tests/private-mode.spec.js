@@ -87,7 +87,43 @@ test.describe.serial('Private mode (issue #158)', () => {
     expect(page.url()).not.toContain('/accedi');
   });
 
-  test('7. Disabled again: home is public for everyone', async ({ page }) => {
+  test('7. Enabled: private uploaded content is NOT served while logged out (#160)', async ({ request }) => {
+    setPrivateMode(true);
+    // Digital-library files, archive documents and generic storage are routed
+    // through PHP (public/.htaccess) so private mode governs them. A logged-out
+    // request must be redirected to login, not served the bytes.
+    for (const path of [
+      '/uploads/digital/__e2e_nope__.pdf',
+      '/uploads/archives/documents/__e2e_nope__.pdf',
+      '/uploads/storage/__e2e_nope__.bin',
+    ]) {
+      const resp = await request.get(`${BASE}${path}`, { maxRedirects: 0 });
+      expect(resp.status(), `${path} must redirect to login`).toBe(302);
+      expect(resp.headers()['location'] || '').toMatch(/\/accedi/);
+    }
+  });
+
+  test('8. Enabled: PUBLIC uploads (covers, branding) are NOT login-walled (#160)', async ({ request }) => {
+    setPrivateMode(true);
+    // Public upload subtrees are still served straight from disk — a missing
+    // file yields a plain 404, never a redirect to the login page.
+    for (const path of ['/uploads/copertine/__e2e_nope__.jpg', '/uploads/settings/__e2e_nope__.png']) {
+      const resp = await request.get(`${BASE}${path}`, { maxRedirects: 0 });
+      expect(resp.status(), `${path} must not redirect`).not.toBe(302);
+    }
+  });
+
+  test('9. Enabled: an API-key-protected route is reached, not blanket-401\'d (#160)', async ({ request }) => {
+    setPrivateMode(true);
+    // /api/public/* gates itself with ApiKeyMiddleware. Private mode must defer
+    // to it instead of pre-empting with its own session 401 — so the response
+    // is the route's own (API key / feature-gate), never the private payload.
+    const resp = await request.get(`${BASE}/api/public/books/search?q=test`);
+    const body = await resp.text();
+    expect(body).not.toContain('Autenticazione richiesta');
+  });
+
+  test('10. Disabled again: home is public for everyone', async ({ page }) => {
     setPrivateMode(false);
     const resp = await page.goto(`${BASE}/`);
     expect(resp?.status()).toBe(200);

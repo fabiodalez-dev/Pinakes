@@ -34,11 +34,31 @@ class PrivateModeMiddleware implements MiddlewareInterface
     /** Locales whose route variants are all registered in web.php. */
     private const LOCALES = ['it_IT', 'en_US', 'de_DE', 'fr_FR'];
 
-    /** Path prefixes always allowed (assets, installer, infra endpoints). */
+    /**
+     * Path prefixes always allowed (assets, installer, infra endpoints).
+     *
+     * NOTE: `/uploads/` is deliberately NOT blanket-allowed. It also holds
+     * private library content — digital-library files (`/uploads/digital/`),
+     * archive documents (`/uploads/archives/documents/`) and generic storage
+     * (`/uploads/storage/`) — which must stay behind the login wall in private
+     * mode. Only `/uploads/settings/` (the admin-uploaded branding/logo shown
+     * on the login & register pages) is exposed.
+     */
     private const ALLOWED_PREFIXES = [
-        '/assets/', '/uploads/', '/css/', '/js/', '/img/', '/images/', '/fonts/',
+        '/assets/', '/css/', '/js/', '/img/', '/images/', '/fonts/',
+        '/uploads/settings/',
         '/installer', '/language/', '/health', '/favicon', '/robots.txt',
         '/sitemap', '/feed.xml', '/llms.txt', '/.well-known/',
+    ];
+
+    /**
+     * API prefixes whose routes enforce their OWN authentication (e.g. an API
+     * key validated by ApiKeyMiddleware). Private mode must not pre-empt them
+     * with a blanket 401 before that check runs — a missing/invalid key is
+     * still rejected downstream by the route's own middleware.
+     */
+    private const API_KEY_PROTECTED_PREFIXES = [
+        '/api/public/',
     ];
 
     public function process(Request $request, RequestHandler $handler): Response
@@ -85,6 +105,14 @@ class PrivateModeMiddleware implements MiddlewareInterface
 
     private function isAllowed(string $path): bool
     {
+        // API endpoints that gate themselves with an API key: defer to their
+        // own middleware instead of pre-empting with a session-based 401.
+        foreach (self::API_KEY_PROTECTED_PREFIXES as $prefix) {
+            if (str_starts_with($path, $prefix)) {
+                return true;
+            }
+        }
+
         // Locale-aware auth routes (all registered variants, any install locale).
         foreach (self::AUTH_ROUTE_KEYS as $key) {
             foreach (self::LOCALES as $locale) {
