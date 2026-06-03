@@ -51,10 +51,10 @@
     "endpoints": [
       "/api/sru - Endpoint principale SRU Server",
       "/api/sbn/search - Ricerca SBN (OPAC Nazionale)",
-      "/admin/libri/import-sbn - Import UNIMARC da SBN per ISBN/BID",
-      "/admin/libri/bulk-import-sbn - Import batch da CSV di ISBN",
-      "/admin/libri/{id}/export.unimarc.xml - Export UNIMARC del singolo libro",
-      "/admin/autori/{id}/lookup-ccn - Lookup authority CCN dell'autore"
+      "/admin/books/import-sbn - Import UNIMARC da SBN per ISBN/BID",
+      "/admin/books/bulk-import-sbn - Import batch da CSV di ISBN",
+      "/admin/books/{id}/export.unimarc.xml - Export UNIMARC del singolo libro",
+      "/admin/authors/{id}/lookup-ccn - Lookup authority CCN dell'autore"
     ],
     "supported_operations": [
       "explain - Informazioni sul server",
