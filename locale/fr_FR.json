@@ -5179,5 +5179,9 @@
   "Quanto tempo un utente resta connesso prima che la sessione scada per inattività.": "Durée pendant laquelle un utilisateur reste connecté avant l'expiration de la session pour inactivité.",
   "Aumenta questo valore se durante catalogazioni lunghe (ad esempio digitando un indice esteso nelle note) ricevi l'errore «sessione scaduta» al salvataggio e perdi i dati inseriti. Il valore predefinito è 3 ore.": "Augmentez cette valeur si, lors de longues sessions de catalogage (par exemple en saisissant une table des matières détaillée dans les notes), vous obtenez une erreur « session expirée » à l'enregistrement et perdez les données saisies. La valeur par défaut est de 3 heures.",
   "Modalità privata": "Mode privé",
-  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Limite l'accès à l'ensemble du site aux seuls utilisateurs enregistrés : les visiteurs non authentifiés sont redirigés vers la page de connexion"
+  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Limite l'accès à l'ensemble du site aux seuls utilisateurs enregistrés : les visiteurs non authentifiés sont redirigés vers la page de connexion",
+  "Questo sito è riservato agli utenti registrati. Accedi per continuare.": "Ce site est réservé aux utilisateurs enregistrés. Veuillez vous connecter pour continuer.",
+  "Accesso al sito": "Accès au site",
+  "Controlla chi può consultare il sito pubblico": "Contrôlez qui peut consulter le site public",
+  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "Lorsque le mode privé est activé, l'espace d'administration, la connexion, l'inscription et les ressources restent accessibles ; tout le reste nécessite une authentification."
 }

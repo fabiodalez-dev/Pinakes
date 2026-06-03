@@ -257,6 +257,37 @@ use App\Support\HtmlHelper;
             </div>
           </label>
         </div>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3">
+          <div class="text-xs text-gray-700 space-y-1">
+            <p><strong><?= __("Requisiti:") ?></strong></p>
+            <ul class="list-disc pl-5">
+              <li><?= __("Certificato SSL/TLS valido") ?></li>
+              <li><?= __("Tutte le risorse del sito devono essere HTTPS") ?></li>
+              <li><?= __("Sottodomini devono supportare HTTPS (se usati)") ?></li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Site Access Settings: private mode (issue #158) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <i class="fas fa-user-lock text-gray-500"></i>
+          <?= __("Accesso al sito") ?>
+        </h2>
+        <p class="text-sm text-gray-600"><?= __("Controlla chi può consultare il sito pubblico") ?></p>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+          <div class="flex items-start gap-2">
+            <i class="fas fa-info-circle text-gray-600 mt-0.5"></i>
+            <div class="text-xs text-gray-700">
+              <strong><?= __("Funzionamento:") ?></strong> <?= __("Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.") ?>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
         <div>
           <label class="inline-flex items-center gap-3 cursor-pointer">
             <input type="checkbox"
@@ -270,16 +301,6 @@ use App\Support\HtmlHelper;
               <p class="text-xs text-gray-600"><?= __("Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso") ?></p>
             </div>
           </label>
-        </div>
-        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3">
-          <div class="text-xs text-gray-700 space-y-1">
-            <p><strong><?= __("Requisiti:") ?></strong></p>
-            <ul class="list-disc pl-5">
-              <li><?= __("Certificato SSL/TLS valido") ?></li>
-              <li><?= __("Tutte le risorse del sito devono essere HTTPS") ?></li>
-              <li><?= __("Sottodomini devono supportare HTTPS (se usati)") ?></li>
-            </ul>
-          </div>
         </div>
       </div>
     </div>

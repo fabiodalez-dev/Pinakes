@@ -5179,5 +5179,9 @@
   "Quanto tempo un utente resta connesso prima che la sessione scada per inattività.": "How long a user stays signed in before the session expires due to inactivity.",
   "Aumenta questo valore se durante catalogazioni lunghe (ad esempio digitando un indice esteso nelle note) ricevi l'errore «sessione scaduta» al salvataggio e perdi i dati inseriti. Il valore predefinito è 3 ore.": "Increase this value if, during long cataloguing sessions (for example typing a lengthy table of contents in the notes), you get a “session expired” error on save and lose the data you entered. The default is 3 hours.",
   "Modalità privata": "Private mode",
-  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Restrict access to the entire site to registered users only: unauthenticated visitors are redirected to the login page"
+  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Restrict access to the entire site to registered users only: unauthenticated visitors are redirected to the login page",
+  "Questo sito è riservato agli utenti registrati. Accedi per continuare.": "This site is restricted to registered users. Please sign in to continue.",
+  "Accesso al sito": "Site access",
+  "Controlla chi può consultare il sito pubblico": "Control who can browse the public site",
+  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "With private mode on, the admin area, login, registration and assets stay reachable; everything else requires authentication."
 }

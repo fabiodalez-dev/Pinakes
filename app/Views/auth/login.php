@@ -91,6 +91,8 @@ $forgotPasswordRoute = route_path('forgot_password');
                   <?= __('Il link di verifica non è valido. Assicurati di aver copiato l\'intero link dall\'email.') ?>
                 <?php elseif ($_GET['error'] === 'auth_required'): ?>
                   <?= __('Sessione scaduta, ti preghiamo di rifare il login') ?>
+                <?php elseif ($_GET['error'] === 'private_mode'): ?>
+                  <?= __('Questo sito è riservato agli utenti registrati. Accedi per continuare.') ?>
                 <?php else: ?>
                   <?= __('Si è verificato un errore durante l\'accesso. Riprova') ?>
                 <?php endif; ?>

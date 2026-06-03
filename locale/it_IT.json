@@ -5179,5 +5179,9 @@
   "Quanto tempo un utente resta connesso prima che la sessione scada per inattività.": "Quanto tempo un utente resta connesso prima che la sessione scada per inattività.",
   "Aumenta questo valore se durante catalogazioni lunghe (ad esempio digitando un indice esteso nelle note) ricevi l'errore «sessione scaduta» al salvataggio e perdi i dati inseriti. Il valore predefinito è 3 ore.": "Aumenta questo valore se durante catalogazioni lunghe (ad esempio digitando un indice esteso nelle note) ricevi l'errore «sessione scaduta» al salvataggio e perdi i dati inseriti. Il valore predefinito è 3 ore.",
   "Modalità privata": "Modalità privata",
-  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso"
+  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso",
+  "Questo sito è riservato agli utenti registrati. Accedi per continuare.": "Questo sito è riservato agli utenti registrati. Accedi per continuare.",
+  "Accesso al sito": "Accesso al sito",
+  "Controlla chi può consultare il sito pubblico": "Controlla chi può consultare il sito pubblico",
+  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione."
 }
