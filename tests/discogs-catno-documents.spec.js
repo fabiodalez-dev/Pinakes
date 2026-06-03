@@ -147,7 +147,7 @@ test.describe.serial('Discogs Cat# persistent documents', () => {
         expect(ean).toBe(doc.canonical);
       }
 
-      await page.goto(`${BASE}/admin/libri/${id}`);
+      await page.goto(`${BASE}/admin/books/${id}`);
       await page.waitForLoadState('domcontentloaded');
       await expect(page.locator('body')).toContainText(doc.title);
       await expect(page.locator('body')).toContainText(doc.identifier);

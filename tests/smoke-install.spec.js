@@ -209,20 +209,20 @@ test.describe.serial('Smoke: clean install + core operations', () => {
 
   // ── Add a Genre ────────────────────────────────────────────────────
   test('Add genre: Narrativa', async () => {
-    await page.goto(`${BASE}/admin/generi/crea`);
+    await page.goto(`${BASE}/admin/genres/create`);
     await page.fill('#nome', 'Narrativa');
     await page.locator('button[type="submit"]').click();
 
     // Should redirect to genres list or detail
-    await page.waitForURL(/admin\/generi/, { timeout: 10000 });
+    await page.waitForURL(/admin\/genres/, { timeout: 10000 });
     // Verify genre exists in the list
-    await page.goto(`${BASE}/admin/generi`);
+    await page.goto(`${BASE}/admin/genres`);
     await expect(page.getByRole('heading', { name: 'Narrativa' })).toBeVisible({ timeout: 5000 });
   });
 
   // ── Add a Book ─────────────────────────────────────────────────────
   test('Add book with inline author creation', async () => {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('networkidle');
 
     // Fill title
@@ -250,7 +250,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
     await page.locator('.swal2-confirm').click();
 
     // Wait for navigation after fetch-based submit
-    await page.waitForURL(/admin\/libri(?!.*crea)/, { timeout: 15000 });
+    await page.waitForURL(/admin\/books(?!.*create)/, { timeout: 15000 });
 
     // Get the book ID from the API for later tests
     const listResp = await page.request.get(
@@ -264,7 +264,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
 
   // ── Simulate a Loan ────────────────────────────────────────────────
   test('Create a loan for the book', async () => {
-    await page.goto(`${BASE}/admin/prestiti/crea`);
+    await page.goto(`${BASE}/admin/loans/create`);
     await page.waitForLoadState('networkidle');
 
     // Search for user (admin is the only user)
@@ -281,14 +281,14 @@ test.describe.serial('Smoke: clean install + core operations', () => {
     await page.locator('button[type="submit"]').click();
 
     // Should redirect to loans list or detail
-    await page.waitForURL(/admin\/prestiti/, { timeout: 15000 });
+    await page.waitForURL(/admin\/loans/, { timeout: 15000 });
   });
 
   // ── Edit a Book ────────────────────────────────────────────────────
   test('Edit book: change title', async () => {
     expect(createdBookId).toBeGreaterThan(0);
 
-    await page.goto(`${BASE}/admin/libri/modifica/${createdBookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${createdBookId}`);
     await page.waitForLoadState('networkidle');
 
     // Change the title
@@ -298,7 +298,7 @@ test.describe.serial('Smoke: clean install + core operations', () => {
     await page.locator('#bookForm button[type="submit"]').click();
     await page.waitForSelector('.swal2-confirm', { timeout: 10000 });
     await page.locator('.swal2-confirm').click();
-    await page.waitForURL(/admin\/libri(?!.*modifica)/, { timeout: 15000 });
+    await page.waitForURL(/admin\/books(?!.*edit)/, { timeout: 15000 });
 
     // Verify the title was updated via API — search by RUN_ID so we only
     // match the record this run created (the DB may hold titles from prior runs).

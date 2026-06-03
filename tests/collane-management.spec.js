@@ -60,14 +60,14 @@ test.describe.serial('Collane Management', () => {
   });
 
   test('1. Collane page loads and shows series list', async () => {
-    await page.goto(`${BASE}/admin/collane`);
+    await page.goto(`${BASE}/admin/series`);
     await page.waitForLoadState('networkidle');
     const html = await page.content();
     expect(html).toContain('Gestione Collane');
   });
 
   test('2. Create new collana via button', async () => {
-    await page.goto(`${BASE}/admin/collane`);
+    await page.goto(`${BASE}/admin/series`);
     await page.waitForLoadState('networkidle');
 
     // Click "Nuova Collana" button
@@ -91,7 +91,7 @@ test.describe.serial('Collane Management', () => {
   });
 
   test('3. Save collana description', async () => {
-    await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(TEST_COLLANA)}`);
+    await page.goto(`${BASE}/admin/series/detailso?nome=${encodeURIComponent(TEST_COLLANA)}`);
     await page.waitForLoadState('networkidle');
 
     // Fill description textarea
@@ -108,7 +108,7 @@ test.describe.serial('Collane Management', () => {
   });
 
   test('4. Collane detail page shows description', async () => {
-    await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(TEST_COLLANA)}`);
+    await page.goto(`${BASE}/admin/series/detailso?nome=${encodeURIComponent(TEST_COLLANA)}`);
     await page.waitForLoadState('networkidle');
 
     const textarea = page.locator('textarea[name="descrizione"]');
@@ -124,7 +124,7 @@ test.describe.serial('Collane Management', () => {
     // Use the API directly (more reliable than UI checkbox interaction)
     const csrf = await page.evaluate(() => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
     const resp = await page.evaluate(async ({ base, bookId, collana, csrf }) => {
-      const r = await fetch(base + '/admin/collane/bulk-assign', {
+      const r = await fetch(base + '/admin/series/bulk-assign', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
@@ -147,7 +147,7 @@ test.describe.serial('Collane Management', () => {
     // First assign the collana to a book
     dbExec(`INSERT INTO libri (titolo, collana, copie_totali, created_at, updated_at) VALUES ('E2E Delete Test', '${TEST_COLLANA}', 1, NOW(), NOW())`);
 
-    await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(TEST_COLLANA)}`);
+    await page.goto(`${BASE}/admin/series/detailso?nome=${encodeURIComponent(TEST_COLLANA)}`);
     await page.waitForLoadState('networkidle');
 
     // Accept the confirm dialog
@@ -158,7 +158,7 @@ test.describe.serial('Collane Management', () => {
     await page.waitForLoadState('networkidle');
 
     // Should redirect to collane list
-    expect(page.url()).toContain('/admin/collane');
+    expect(page.url()).toContain('/admin/series');
 
     // Verify collana removed from books
     const count = dbQuery(`SELECT COUNT(*) FROM libri WHERE collana='${TEST_COLLANA}' AND deleted_at IS NULL`);

@@ -336,7 +336,7 @@ test.describe.serial('Admin User Management', () => {
   test('Test 9: Admin creates a user manually', async () => {
     const newEmail = `e2e-newuser-${RUN_ID}@test.local`;
 
-    await page.goto(`${BASE}/admin/utenti/crea`);
+    await page.goto(`${BASE}/admin/users/create`);
     await page.waitForLoadState('networkidle');
 
     await page.fill('input[name="nome"]', 'E2E');
@@ -360,7 +360,7 @@ test.describe.serial('Admin User Management', () => {
     await page.waitForLoadState('networkidle');
 
     // Verify redirect (not still on create page)
-    expect(page.url()).not.toContain('/crea');
+    expect(page.url()).not.toContain('/create');
 
     // DB verify
     try {
@@ -381,14 +381,14 @@ test.describe.serial('Admin User Management', () => {
 
     try {
       // Navigate to book list and trigger delete via API
-      await page.goto(`${BASE}/admin/libri`);
+      await page.goto(`${BASE}/admin/books`);
       await page.waitForLoadState('networkidle');
       const csrf = await getCsrfToken(page);
 
       // POST to delete endpoint
       // POST to delete endpoint (follows redirect automatically)
       const result = await page.evaluate(async ({ bookId, csrf, base }) => {
-        const resp = await fetch(`${base}/admin/libri/delete/${bookId}`, {
+        const resp = await fetch(`${base}/admin/books/delete/${bookId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ csrf_token: csrf }),
@@ -437,7 +437,7 @@ test.describe.serial('Book Management', () => {
     dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato, created_at) VALUES (${bookId}, CONCAT('E2E-', ${bookId}, '-', UNIX_TIMESTAMP()), 'disponibile', NOW())`);
 
     try {
-      await page.goto(`${BASE}/admin/libri`);
+      await page.goto(`${BASE}/admin/books`);
       await page.waitForLoadState('networkidle');
       const csrf = await getCsrfToken(page);
 
@@ -486,12 +486,12 @@ test.describe.serial('Book Management', () => {
     const loanId = dbQuery(`SELECT id FROM prestiti WHERE libro_id = ${bookId} AND utente_id = ${borrowerId} AND stato = 'in_corso' LIMIT 1`);
 
     try {
-      await page.goto(`${BASE}/admin/prestiti`);
+      await page.goto(`${BASE}/admin/loans`);
       await page.waitForLoadState('networkidle');
       const csrf = await getCsrfToken(page);
 
       const result = await page.evaluate(async ({ loanId, csrf, base }) => {
-        const resp = await fetch(`${base}/admin/prestiti/rinnova/${loanId}`, {
+        const resp = await fetch(`${base}/admin/loans/renew/${loanId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: new URLSearchParams({ csrf_token: csrf }),
@@ -548,7 +548,7 @@ test.describe.serial('Admin Events & Reviews', () => {
   test('Test 13: Admin creates an event', async () => {
     const eventTitle = `E2E Event Create ${RUN_ID}`;
 
-    await page.goto(`${BASE}/admin/cms/events/create`);
+    await page.goto(`${BASE}/admin/cms/events/createte`);
     await page.waitForLoadState('networkidle');
 
     await page.fill('#event_title', eventTitle);
@@ -687,7 +687,7 @@ test.describe.serial('Admin Events & Reviews', () => {
       // Admin approves the review
       const csrf = await getCsrfToken(page);
       const approveResult = await page.evaluate(async ({ reviewId, csrf, base }) => {
-        const resp = await fetch(`${base}/admin/recensioni/${reviewId}/approve`, {
+        const resp = await fetch(`${base}/admin/reviews/${reviewId}/approve`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
@@ -737,7 +737,7 @@ test.describe.serial('Infrastructure', () => {
   test('Test 16: Collocazione — create scaffale + mensola', async () => {
     const scaffaleCode = `E2E${RUN_ID}`.toUpperCase().slice(0, 20);
 
-    await page.goto(`${BASE}/admin/collocazione`);
+    await page.goto(`${BASE}/admin/placement`);
     await page.waitForLoadState('networkidle');
 
     // Create scaffale
@@ -754,7 +754,7 @@ test.describe.serial('Infrastructure', () => {
 
     try {
       // Create mensola — reload page to get updated scaffale dropdown
-      await page.goto(`${BASE}/admin/collocazione`);
+      await page.goto(`${BASE}/admin/placement`);
       await page.waitForLoadState('networkidle');
 
       const mensolaForm = page.locator('form[action*="mensole"]').first();
@@ -778,7 +778,7 @@ test.describe.serial('Infrastructure', () => {
   });
 
   test('Test 17: Admin statistics page loads', async () => {
-    const resp = await page.goto(`${BASE}/admin/statistiche`);
+    const resp = await page.goto(`${BASE}/admin/statistics`);
     await page.waitForLoadState('networkidle');
 
     // Verify HTTP 200 (not 500 error)

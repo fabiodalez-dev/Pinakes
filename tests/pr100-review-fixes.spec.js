@@ -248,7 +248,7 @@ test.describe.serial('PR #100 fixes — record lifecycle', () => {
   });
 
   test('9. Admin edit form renders music fields correctly', async () => {
-    await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
 
     // EAN field populated, isbn13 empty
@@ -298,7 +298,7 @@ test.describe.serial('PR #100 fixes — record lifecycle', () => {
   test('11. CSV export #77: quote-aware row counting works for music records', async () => {
     // Export only our test record. Body contains embedded \n in tracklist,
     // naive split('\n') would over-count.
-    const resp = await page.request.get(`${BASE}/admin/libri/export/csv?ids=${bookId}`);
+    const resp = await page.request.get(`${BASE}/admin/books/export/csv?ids=${bookId}`);
     expect(resp.status()).toBe(200);
     const body = await resp.text();
 

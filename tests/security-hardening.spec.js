@@ -59,7 +59,7 @@ test.describe('C-2: bulkDelete uses soft-delete', () => {
     await loginAsAdmin(page);
 
     // Create a test book via the form
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     const testTitle = `TestBulkDel_${Date.now()}`;
 
     await page.fill('input[name="titolo"]', testTitle);
@@ -68,7 +68,7 @@ test.describe('C-2: bulkDelete uses soft-delete', () => {
     await page.waitForSelector('.swal2-confirm', { timeout: 10000 });
     await page.locator('.swal2-confirm').click();
     // Wait for redirect to the book detail or book list
-    await page.waitForURL(/admin\/libri(?!.*crea)/, { timeout: 15000 });
+    await page.waitForURL(/admin\/books(?!.*create)/, { timeout: 15000 });
 
     // Get the book ID from the DataTables API — search in page context for proper auth
     const bookId = await page.evaluate(async (title) => {
@@ -82,7 +82,7 @@ test.describe('C-2: bulkDelete uses soft-delete', () => {
     expect(bookId).toBeGreaterThan(0);
 
     // Get a fresh CSRF token
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     const csrf = await getCsrfToken(page);
 
     // Bulk delete via API
@@ -119,7 +119,7 @@ test.describe('H-1: bulkStatus respects deleted_at', () => {
     expect(listData.data.length).toBeGreaterThan(0);
     const bookId = listData.data[0].id;
 
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     const csrf = await getCsrfToken(page);
 
     // Change status to 'disponibile'
@@ -183,11 +183,11 @@ test.describe('H-3: Error responses do not leak internal details', () => {
 
   test('invalid genre creation returns generic error', async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/generi/crea`);
+    await page.goto(`${BASE}/admin/genres/create`);
     const csrf = await getCsrfToken(page);
 
     // Submit empty name (should fail)
-    await page.goto(`${BASE}/admin/generi/crea`);
+    await page.goto(`${BASE}/admin/genres/create`);
     await page.fill('input[name="nome"]', '');
     await page.click('button[type="submit"]');
 
@@ -204,7 +204,7 @@ test.describe('H-3: Error responses do not leak internal details', () => {
 
   test('invalid bulk-status returns error without internals', async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     const csrf = await getCsrfToken(page);
 
     const resp = await page.request.post(`${BASE}/api/libri/bulk-status`, {
@@ -265,7 +265,7 @@ test.describe('H-4: XSS prevention in views', () => {
     const jsErrors = [];
     page.on('pageerror', error => jsErrors.push(error.message));
 
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     await page.waitForLoadState('networkidle');
 
     // DataTables should initialize without JS errors
@@ -283,7 +283,7 @@ test.describe('H-4: XSS prevention in views', () => {
     const jsErrors = [];
     page.on('pageerror', error => jsErrors.push(error.message));
 
-    await page.goto(`${BASE}/admin/autori`);
+    await page.goto(`${BASE}/admin/authors`);
     await page.waitForLoadState('networkidle');
 
     const criticalErrors = jsErrors.filter(e =>
@@ -297,7 +297,7 @@ test.describe('H-4: XSS prevention in views', () => {
     const jsErrors = [];
     page.on('pageerror', error => jsErrors.push(error.message));
 
-    await page.goto(`${BASE}/admin/editori`);
+    await page.goto(`${BASE}/admin/publishers`);
     await page.waitForLoadState('networkidle');
 
     const criticalErrors = jsErrors.filter(e =>
@@ -311,7 +311,7 @@ test.describe('H-4: XSS prevention in views', () => {
     const jsErrors = [];
     page.on('pageerror', error => jsErrors.push(error.message));
 
-    await page.goto(`${BASE}/admin/prestiti`);
+    await page.goto(`${BASE}/admin/loans`);
     await page.waitForLoadState('networkidle');
 
     const criticalErrors = jsErrors.filter(e =>
@@ -330,7 +330,7 @@ test.describe('H-4: XSS prevention in views', () => {
     const genres = await resp.json();
     expect(genres.length).toBeGreaterThan(0);
 
-    await page.goto(`${BASE}/admin/generi/${genres[0].id}`);
+    await page.goto(`${BASE}/admin/genres/${genres[0].id}`);
     await page.waitForLoadState('networkidle');
 
     const criticalErrors = jsErrors.filter(e =>
@@ -487,7 +487,7 @@ test.describe('M-5: Layout script blocks properly encoded', () => {
 
   test('layout page has no raw </script> in embedded JSON', async ({ page }) => {
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
 
     // Get the full HTML source
     const html = await page.content();

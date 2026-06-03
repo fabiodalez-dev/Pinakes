@@ -141,7 +141,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
   test('2. Import CD via barcode in book form', async () => {
     await mockDiscogsScrape(page);
 
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
 
     // Find the ISBN import field and button
@@ -223,10 +223,10 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     await swalConfirm.click();
 
     // Wait for navigation after save
-    await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
+    await page.waitForURL(/\/admin\/books\/\d+/, { timeout: 15000 });
     const finalUrl = page.url();
-    expect(/\/admin\/libri\/\d+/.test(finalUrl)).toBe(true);
-    const createdIdMatch = finalUrl.match(/\/admin\/libri\/(\d+)/);
+    expect(/\/admin\/books\/\d+/.test(finalUrl)).toBe(true);
+    const createdIdMatch = finalUrl.match(/\/admin\/books\/(\d+)/);
     expect(createdIdMatch, 'Could not resolve created record id from save redirect').not.toBeNull();
     createdId = createdIdMatch?.[1] ?? '';
   });
@@ -244,7 +244,7 @@ test.describe.serial('Discogs Import: full scraping flow', () => {
     const bookId = createdId;
     expect(bookId, 'CD not found for label check').not.toBe('');
 
-    await page.goto(`${BASE}/admin/libri/${bookId}`);
+    await page.goto(`${BASE}/admin/books/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     const content = await page.content();
 

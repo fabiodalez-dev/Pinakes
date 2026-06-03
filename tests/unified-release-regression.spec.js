@@ -155,8 +155,8 @@ test.describe('[U-SWAL] PR #141 popup unification', () => {
         });
 
         // H2 — data-swal-confirm forms are wired post-DOMContentLoaded
-        test('U-SWAL-H2: at least one data-swal-confirm form is wired on /admin/utenti', async () => {
-            await page.goto(`${BASE}/admin/utenti`);
+        test('U-SWAL-H2: at least one data-swal-confirm form is wired on /admin/users', async () => {
+            await page.goto(`${BASE}/admin/users`);
             await page.waitForLoadState('domcontentloaded');
             const wired = await page.locator('form[data-swal-confirm][data-swal-attached="1"]').count();
             // If no such form is present at all the page may render no pending

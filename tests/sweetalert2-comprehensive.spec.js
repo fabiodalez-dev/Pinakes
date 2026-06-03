@@ -496,9 +496,9 @@ test.describe('[REFACTORED] per-view attribute assertions', () => {
         if (context) await context.close();
     });
 
-    // E1: admin/utenti — activate-directly form uses kind=action
-    test('E1: admin/utenti activate-directly form has kind="action"', async () => {
-        await page.goto(`${BASE}/admin/utenti`);
+    // E1: admin/users — activate-directly form uses kind=action
+    test('E1: admin/users activate-directly form has kind="action"', async () => {
+        await page.goto(`${BASE}/admin/users`);
         await page.waitForLoadState('domcontentloaded');
         const forms = page.locator('form[action*="/activate-directly"]');
         const count = await forms.count();
@@ -507,11 +507,11 @@ test.describe('[REFACTORED] per-view attribute assertions', () => {
         expect(kind).toBe('action');
     });
 
-    // E2: admin/utenti/dettagli — activate-directly form uses kind=action
-    test('E2: admin/utenti/<id> activate-directly form has kind="action"', async () => {
+    // E2: admin/users/dettagli — activate-directly form uses kind=action
+    test('E2: admin/users/<id> activate-directly form has kind="action"', async () => {
         // Find a pending user via the index page first.
-        await page.goto(`${BASE}/admin/utenti`);
-        const detailLink = page.locator('a[href*="/admin/utenti/"][href*="/dettagli"], a[href^="/admin/utenti/"]:not([href="/admin/utenti"])').first();
+        await page.goto(`${BASE}/admin/users`);
+        const detailLink = page.locator('a[href*="/admin/users/"][href*="/details"], a[href^="/admin/users/"]:not([href="/admin/users"])').first();
         const linkCount = await detailLink.count();
         test.skip(linkCount === 0, 'No user-detail link present — seed a user');
         const href = await detailLink.getAttribute('href');
@@ -599,7 +599,7 @@ test.describe('[REFACTORED] per-view attribute assertions', () => {
         // button instead of the delete form. Pick a deletable author.
         const id = await firstDeletableId('/api/autori', 'libri_count');
         test.skip(!id, 'No deletable author on this install (every author has at least one associated book)');
-        await page.goto(`${BASE}/admin/autori/${id}`);
+        await page.goto(`${BASE}/admin/authors/${id}`);
         await page.waitForLoadState('domcontentloaded');
         const form = page.locator('form[data-swal-confirm]').first();
         await expect(form).toBeAttached();
@@ -611,7 +611,7 @@ test.describe('[REFACTORED] per-view attribute assertions', () => {
     test('E6: editori/scheda_editore delete-publisher form carries data-swal-confirm', async () => {
         const id = await firstDeletableId('/api/editori', 'libri_count');
         test.skip(!id, 'No deletable publisher on this install');
-        await page.goto(`${BASE}/admin/editori/${id}`);
+        await page.goto(`${BASE}/admin/publishers/${id}`);
         await page.waitForLoadState('domcontentloaded');
         const form = page.locator('form[data-swal-confirm]').first();
         await expect(form).toBeAttached();
@@ -629,7 +629,7 @@ test.describe('[REFACTORED] per-view attribute assertions', () => {
         // zero (same conservative rule the view applies).
         const id = await firstDeletableId('/api/generi', ['children_count', 'libri_count']);
         test.skip(!id, 'No deletable genre on this install (every genre has sub-genres or books)');
-        await page.goto(`${BASE}/admin/generi/${id}`);
+        await page.goto(`${BASE}/admin/genres/${id}`);
         await page.waitForLoadState('domcontentloaded');
         const form = page.locator('form[data-swal-confirm]').first();
         await expect(form).toBeAttached();
@@ -637,7 +637,7 @@ test.describe('[REFACTORED] per-view attribute assertions', () => {
 
     // E8: collocazione — delete-shelf and delete-position forms wired
     test('E8: collocazione admin page exposes data-swal-confirm forms for shelf/position deletion', async () => {
-        await page.goto(`${BASE}/admin/collocazione`);
+        await page.goto(`${BASE}/admin/placement`);
         await page.waitForLoadState('domcontentloaded');
         const forms = page.locator('form[data-swal-confirm]');
         const n = await forms.count();

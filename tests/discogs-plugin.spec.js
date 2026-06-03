@@ -153,7 +153,7 @@ test.describe.serial('Discogs Plugin (#87)', () => {
     expect(bookId).not.toBe('');
 
     // Visit the admin book detail page
-    await page.goto(`${BASE}/admin/libri/${bookId}`);
+    await page.goto(`${BASE}/admin/books/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     const adminContent = await page.content();
 
@@ -174,7 +174,7 @@ test.describe.serial('Discogs Plugin (#87)', () => {
       "SELECT id FROM libri WHERE titolo = 'E2E_DISCOGS_RegularBook' AND deleted_at IS NULL LIMIT 1"
     );
 
-    await page.goto(`${BASE}/admin/libri/${bookId}`);
+    await page.goto(`${BASE}/admin/books/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     const content = await page.content();
 
@@ -209,7 +209,7 @@ test.describe.serial('Discogs Plugin (#87)', () => {
   test('7. Discogs scraping via ISBN import (if plugin active)', async () => {
     test.skip(!pluginActivated, 'Discogs plugin not activated');
 
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
 
     const importBtn = page.locator('#btnImportIsbn');

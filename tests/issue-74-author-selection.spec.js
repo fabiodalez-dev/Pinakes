@@ -96,7 +96,7 @@ async function dismissAnySwals(page) {
 }
 
 async function openCreateForm(page) {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
     await dismissAnySwals(page);
     await page.locator('input[name="titolo"]').waitFor({ state: 'visible', timeout: 10000 });
@@ -112,8 +112,8 @@ async function submitAndWait(page) {
         await swalConfirm.click();
     }
     await page.waitForFunction(
-        () => !window.location.pathname.endsWith('/admin/libri/crea')
-              && !window.location.pathname.includes('/admin/libri/modifica/'),
+        () => !window.location.pathname.endsWith('/admin/books/create')
+              && !window.location.pathname.includes('/admin/books/edit/'),
         null,
         { timeout: 30000 }
     );

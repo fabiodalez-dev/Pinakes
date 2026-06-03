@@ -39,11 +39,11 @@ test.describe.serial('#153 multi-character bookcase codes', () => {
       await page.click('button[type="submit"]');
       await page.waitForURL(/.*(?:dashboard|admin).*/, { timeout: 15000 });
     }
-    await page.goto(`${BASE}/admin/collocazione`);
+    await page.goto(`${BASE}/admin/placement`);
     const csrf = await page.locator('input[name="csrf_token"]').first().inputValue();
 
     for (const code of CODES) {
-      const r = await page.request.post(`${BASE}/admin/collocazione/scaffali`, {
+      const r = await page.request.post(`${BASE}/admin/placement/shelving-units`, {
         form: { csrf_token: csrf, codice: code, nome: `Bookcase ${code}`, ordine: '0' },
       });
       // The handler redirects (302) on both success and validation error; the

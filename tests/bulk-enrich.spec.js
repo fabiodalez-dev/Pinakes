@@ -44,7 +44,7 @@ async function gotoBulkEnrich(page, attempts = 6) {
   let sawGatewayTimeout = false;
   for (let i = 0; i < attempts; i += 1) {
     try {
-      await page.goto(`${BASE}/admin/libri/bulk-enrich`, {
+      await page.goto(`${BASE}/admin/books/bulk-enrich`, {
         waitUntil: 'domcontentloaded',
         timeout: 30000,
       });
@@ -96,7 +96,7 @@ test.describe.serial('Bulk Enrichment', () => {
   /** Get CSRF token from the bulk-enrich page */
   async function getCsrf() {
     if (csrfToken) return csrfToken;
-    await page.goto(`${BASE}/admin/libri/bulk-enrich`);
+    await page.goto(`${BASE}/admin/books/bulk-enrich`);
     csrfToken = await page.evaluate(() => {
       for (const s of document.querySelectorAll('script')) {
         const m = s.textContent.match(/csrfToken\s*=\s*"([^"]+)"/);
@@ -200,7 +200,7 @@ test.describe.serial('Bulk Enrichment', () => {
   // ═══════════════════════════════════════════════════════════════════
 
   test('1. Stats page loads with correct counts', async () => {
-    const resp = await page.goto(`${BASE}/admin/libri/bulk-enrich`);
+    const resp = await page.goto(`${BASE}/admin/books/bulk-enrich`);
     if (resp && resp.status() === 404) {
       featureAvailable = false;
       test.skip(true, 'Bulk enrich route not yet implemented');
@@ -246,7 +246,7 @@ test.describe.serial('Bulk Enrichment', () => {
     dbExec(`UPDATE libri SET deleted_at = NOW(), isbn13 = NULL WHERE id = ${victimId}`);
 
     // Reload and check count decreased
-    await page.goto(`${BASE}/admin/libri/bulk-enrich`);
+    await page.goto(`${BASE}/admin/books/bulk-enrich`);
     const countAfter = parseInt(
       dbQuery(
         "SELECT COUNT(*) FROM libri " +
@@ -295,7 +295,7 @@ test.describe.serial('Bulk Enrichment', () => {
     );
     expect(noIsbnInPending).toBe('0');
 
-    await page.goto(`${BASE}/admin/libri/bulk-enrich`);
+    await page.goto(`${BASE}/admin/books/bulk-enrich`);
     const content = await page.content();
     expect(content).toContain(String(pendingCount));
   });
@@ -323,7 +323,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
   test('5. Toggle ON enables auto-enrichment', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
-    const resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/toggle`, {
+    const resp = await postWithCsrf(`${BASE}/admin/books/bulk-enrich/toggle`, {
       enabled: '1',
     });
     expect(resp.status()).toBe(200);
@@ -341,7 +341,7 @@ test.describe.serial('Bulk Enrichment', () => {
   test('6. Toggle OFF disables auto-enrichment', async () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
 
-    const resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/toggle`, {
+    const resp = await postWithCsrf(`${BASE}/admin/books/bulk-enrich/toggle`, {
       enabled: '0',
     });
     expect(resp.status()).toBe(200);
@@ -362,7 +362,7 @@ test.describe.serial('Bulk Enrichment', () => {
     const anonContext = await page.context().browser().newContext();
     try {
       const anonPage = await anonContext.newPage();
-      const resp = await anonPage.request.post(`${BASE}/admin/libri/bulk-enrich/toggle`, {
+      const resp = await anonPage.request.post(`${BASE}/admin/books/bulk-enrich/toggle`, {
         enabled: '1',
         maxRedirects: 0,
       });
@@ -384,12 +384,12 @@ test.describe.serial('Bulk Enrichment', () => {
     test.skip(!featureAvailable, 'Bulk enrich not available');
 
     // Set toggle ON
-    await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/toggle`, {
+    await postWithCsrf(`${BASE}/admin/books/bulk-enrich/toggle`, {
       enabled: '1',
     });
 
     // Reload the page
-    await page.goto(`${BASE}/admin/libri/bulk-enrich`);
+    await page.goto(`${BASE}/admin/books/bulk-enrich`);
     await page.waitForLoadState('domcontentloaded');
 
     // The view renders a button[role="switch"][aria-checked], NOT a native
@@ -401,7 +401,7 @@ test.describe.serial('Bulk Enrichment', () => {
     await expect(switchBtn).toHaveAttribute('aria-checked', 'true');
 
     // Reset to OFF for subsequent tests
-    await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/toggle`, {
+    await postWithCsrf(`${BASE}/admin/books/bulk-enrich/toggle`, {
       enabled: '0',
     });
   });
@@ -420,7 +420,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     let resp;
     try {
-      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
+      resp = await postWithCsrf(`${BASE}/admin/books/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       test.skip(true, 'Enrichment API unreachable or timed out');
       return;
@@ -455,7 +455,7 @@ test.describe.serial('Bulk Enrichment', () => {
     if (desc === '') {
       // Try another batch run
       try {
-        await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
+        await postWithCsrf(`${BASE}/admin/books/bulk-enrich/start`, {}, { timeout: 25000 });
       } catch {
         test.skip(true, 'Enrichment API unreachable or timed out');
         return;
@@ -486,7 +486,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
+      await postWithCsrf(`${BASE}/admin/books/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — cover should still be original
     }
@@ -510,7 +510,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
+      await postWithCsrf(`${BASE}/admin/books/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — description should still be original
     }
@@ -533,7 +533,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     let resp;
     try {
-      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
+      resp = await postWithCsrf(`${BASE}/admin/books/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       test.skip(true, 'Enrichment API unreachable or timed out');
       return;
@@ -555,7 +555,7 @@ test.describe.serial('Bulk Enrichment', () => {
 
     let resp;
     try {
-      resp = await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
+      resp = await postWithCsrf(`${BASE}/admin/books/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       test.skip(true, 'Enrichment API unreachable or timed out');
       return;
@@ -593,7 +593,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
+      await postWithCsrf(`${BASE}/admin/books/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — field should still be preserved
     }
@@ -611,7 +611,7 @@ test.describe.serial('Bulk Enrichment', () => {
     const isbn = dbQuery(`SELECT IFNULL(isbn13, '') FROM libri WHERE id = ${targetId}`);
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
+      await postWithCsrf(`${BASE}/admin/books/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — isbn13 should still be preserved
     }
@@ -635,7 +635,7 @@ test.describe.serial('Bulk Enrichment', () => {
     bookIds.push(parseInt(id, 10));
 
     try {
-      await postWithCsrf(`${BASE}/admin/libri/bulk-enrich/start`, {}, { timeout: 25000 });
+      await postWithCsrf(`${BASE}/admin/books/bulk-enrich/start`, {}, { timeout: 25000 });
     } catch {
       // API unreachable — ean should still be preserved
     }

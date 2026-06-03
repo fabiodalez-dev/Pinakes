@@ -22,7 +22,7 @@ test.describe.serial('LibraryThing TSV import (20 books)', () => {
   test('imports all 20 rows via the browser with no row errors', async ({ page }) => {
     test.setTimeout(180000);
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/libri/import/librarything`);
+    await page.goto(`${BASE}/admin/books/import/librarything`);
 
     const statuses = [];
     let lastChunk = null;

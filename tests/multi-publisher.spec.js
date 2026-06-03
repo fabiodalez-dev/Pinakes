@@ -163,7 +163,7 @@ async function submitBook(page) {
   await page.locator('#bookForm button[type="submit"], button[type="submit"]').first().click();
   await Promise.race([
     page.waitForSelector('.swal2-popup', { timeout: 12000 }),
-    page.waitForURL(/admin\/libri(?!.*crea)(?!.*modifica)/, { timeout: 12000 }),
+    page.waitForURL(/admin\/books(?!.*create)(?!.*edit)/, { timeout: 12000 }),
   ]).catch(() => {});
   const confirm = page.locator('.swal2-confirm');
   if (await confirm.isVisible({ timeout: 2500 }).catch(() => false)) {
@@ -181,7 +181,7 @@ async function submitBook(page) {
  * @returns {Promise<number>} the created book id
  */
 async function createBook(page, title, publishers) {
-  await page.goto(`${BASE}/admin/libri/crea`);
+  await page.goto(`${BASE}/admin/books/create`);
   await expect(page.locator('#titolo')).toBeVisible({ timeout: 10000 });
   await page.fill('#titolo', title);
   for (const p of publishers) {
@@ -245,18 +245,18 @@ test.describe.serial('Multi-publisher (issue #143)', () => {
   test('4. Create with an EXISTING publisher → linked by id, no duplicate editori row', async () => {
     const existing = `MP_${RUN_ID}_EXIST`;
     // Seed the publisher.
-    await page.goto(`${BASE}/admin/editori/crea`);
+    await page.goto(`${BASE}/admin/publishers/create`);
     await page.fill('input[name="nome"]', existing);
     await page.click('button[type="submit"]');
     const c = page.locator('.swal2-confirm').first();
     if (await c.isVisible({ timeout: 4000 }).catch(() => false)) {
-      await Promise.all([page.waitForURL(/admin\/editori/, { timeout: 10000 }), c.click()]).catch(() => {});
+      await Promise.all([page.waitForURL(/admin\/publishers/, { timeout: 10000 }), c.click()]).catch(() => {});
     }
     const seededId = parseInt(dbQuery(`SELECT id FROM editori WHERE nome='${existing}' LIMIT 1`), 10) || 0;
     expect(seededId).toBeGreaterThan(0);
 
     const title = `MP Book Existing ${RUN_ID}`;
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.fill('#titolo', title);
     await addExistingPublisher(page, existing);
     await addNewPublisher(page, `MP_${RUN_ID}_NEW1`);
@@ -275,7 +275,7 @@ test.describe.serial('Multi-publisher (issue #143)', () => {
 
   test('5. Typing the same publisher twice does not create duplicate junction rows', async () => {
     const title = `MP Book Dedup ${RUN_ID}`;
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.fill('#titolo', title);
     await addNewPublisher(page, `MP_${RUN_ID}_DUP`);
     await addNewPublisher(page, `MP_${RUN_ID}_DUP`); // duplicate
@@ -292,7 +292,7 @@ test.describe.serial('Multi-publisher (issue #143)', () => {
     created.push(id);
     expect(publisherRows(id).length).toBe(1);
 
-    await page.goto(`${BASE}/admin/libri/modifica/${id}`);
+    await page.goto(`${BASE}/admin/books/edit/${id}`);
     await expect(page.locator('#editori_select')).toHaveCount(1);
     await addNewPublisher(page, `MP_${RUN_ID}_I`);
     await submitBook(page);
@@ -308,7 +308,7 @@ test.describe.serial('Multi-publisher (issue #143)', () => {
     created.push(id);
     expect(publisherRows(id).length).toBe(2);
 
-    await page.goto(`${BASE}/admin/libri/modifica/${id}`);
+    await page.goto(`${BASE}/admin/books/edit/${id}`);
     const wrapper = page.locator('#editori_select').locator('xpath=ancestor::*[contains(@class,"choices")]').first();
     // Remove the first chip via its Choices remove button.
     const removeBtn = wrapper.locator('.choices__item .choices__button').first();
@@ -325,7 +325,7 @@ test.describe.serial('Multi-publisher (issue #143)', () => {
     const id = await createBook(page, title, [`MP_${RUN_ID}_L`, `MP_${RUN_ID}_M`]);
     created.push(id);
 
-    await page.goto(`${BASE}/admin/libri/modifica/${id}`);
+    await page.goto(`${BASE}/admin/books/edit/${id}`);
     const wrapper = page.locator('#editori_select').locator('xpath=ancestor::*[contains(@class,"choices")]').first();
     // Two selected chips rendered.
     await expect(wrapper.locator('.choices__list--multiple .choices__item')).toHaveCount(2, { timeout: 8000 });
@@ -338,7 +338,7 @@ test.describe.serial('Multi-publisher (issue #143)', () => {
     const id = await createBook(page, title, [`MP_${RUN_ID}_N`, `MP_${RUN_ID}_O`]);
     created.push(id);
 
-    await page.goto(`${BASE}/admin/libri/${id}`);
+    await page.goto(`${BASE}/admin/books/${id}`);
     const body = await page.locator('body').innerText();
     expect(body).toContain(`MP_${RUN_ID}_N`);
     expect(body).toContain(`MP_${RUN_ID}_O`);
@@ -350,7 +350,7 @@ test.describe.serial('Multi-publisher (issue #143)', () => {
     created.push(id);
 
     // Navigate to the frontend detail by id (controller redirects to slug URL).
-    await page.goto(`${BASE}/admin/libri/${id}`);
+    await page.goto(`${BASE}/admin/books/${id}`);
     const frontLink = page.locator('a[href*="/libro/"], a[href*="/book/"]').first();
     if (await frontLink.count() > 0) {
       const href = await frontLink.getAttribute('href');

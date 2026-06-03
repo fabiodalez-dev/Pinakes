@@ -581,7 +581,7 @@ test.describe.serial('Book Creation & ISBN Scraping', () => {
   });
 
   test('Book creation form loads with all fields', async () => {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('networkidle');
 
     await expect(page.locator('#titolo')).toBeVisible({ timeout: 10000 });
@@ -589,7 +589,7 @@ test.describe.serial('Book Creation & ISBN Scraping', () => {
   });
 
   test('ISBN scraping attempts fetch (graceful on failure)', async () => {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('networkidle');
 
     // Try ISBN scrape - this hits external API, may fail
@@ -612,7 +612,7 @@ test.describe.serial('Book Creation & ISBN Scraping', () => {
   });
 
   test('Manual book creation succeeds', async () => {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('networkidle');
 
     const bookTitle = `E2E Book ${RUN_ID}`;
@@ -643,7 +643,7 @@ test.describe.serial('Book Creation & ISBN Scraping', () => {
       await swalConfirm.click();
     }
 
-    await page.waitForURL(/admin\/libri(?!.*crea)/, { timeout: 15000 });
+    await page.waitForURL(/admin\/books(?!.*create)/, { timeout: 15000 });
 
     // Get created book ID
     const bookId = dbQuery(`SELECT id FROM libri WHERE titolo='${bookTitle}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
@@ -652,7 +652,7 @@ test.describe.serial('Book Creation & ISBN Scraping', () => {
   });
 
   test('Created book appears in admin list', async () => {
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     await page.waitForLoadState('networkidle');
 
     // Search for the book via API. The /api/libri search is fuzzy and
@@ -805,7 +805,7 @@ test.describe.serial('Collana (Series) Filter', () => {
   });
 
   test('Collana filter input exists on book list', async () => {
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     await page.waitForLoadState('networkidle');
 
     // The collana filter should be visible
@@ -828,7 +828,7 @@ test.describe.serial('Collana (Series) Filter', () => {
 
   test('Collana URL filter shows in book list', async () => {
     // Navigate with collana URL param
-    await page.goto(`${BASE}/admin/libri?collana=${encodeURIComponent(`SerieTest${RUN_ID}`)}`);
+    await page.goto(`${BASE}/admin/books?collana=${encodeURIComponent(`SerieTest${RUN_ID}`)}`);
     await page.waitForLoadState('networkidle');
 
     // Page should load without error
@@ -867,7 +867,7 @@ test.describe.serial('Author & Publisher CRUD', () => {
   });
 
   test('Create a new author', async () => {
-    await page.goto(`${BASE}/admin/autori/crea`);
+    await page.goto(`${BASE}/admin/authors/create`);
     await page.waitForLoadState('networkidle');
 
     await page.fill('#nome', `AuthorE2E ${RUN_ID}`);
@@ -880,7 +880,7 @@ test.describe.serial('Author & Publisher CRUD', () => {
       await swalConfirm.click();
     }
 
-    await page.waitForURL(/admin\/autori/, { timeout: 15000 });
+    await page.waitForURL(/admin\/authors/, { timeout: 15000 });
 
     // Verify in DB
     const id = dbQuery(`SELECT id FROM autori WHERE nome='AuthorE2E ${RUN_ID}' LIMIT 1`);
@@ -891,7 +891,7 @@ test.describe.serial('Author & Publisher CRUD', () => {
   test('Edit the author', async () => {
     expect(authorId).toBeGreaterThan(0);
 
-    await page.goto(`${BASE}/admin/autori/modifica/${authorId}`);
+    await page.goto(`${BASE}/admin/authors/edit/${authorId}`);
     await page.waitForLoadState('networkidle');
 
     await page.fill('#nome', `AuthEdited ${RUN_ID}`);
@@ -903,7 +903,7 @@ test.describe.serial('Author & Publisher CRUD', () => {
       await swalConfirm.click();
     }
 
-    await page.waitForURL(/admin\/autori/, { timeout: 15000 });
+    await page.waitForURL(/admin\/authors/, { timeout: 15000 });
 
     // Verify in DB
     const nome = dbQuery(`SELECT nome FROM autori WHERE id=${authorId}`);
@@ -911,7 +911,7 @@ test.describe.serial('Author & Publisher CRUD', () => {
   });
 
   test('Create a new publisher', async () => {
-    await page.goto(`${BASE}/admin/editori/crea`);
+    await page.goto(`${BASE}/admin/publishers/create`);
     await page.waitForLoadState('networkidle');
 
     await page.fill('#nome', `Publisher${RUN_ID}`);
@@ -924,7 +924,7 @@ test.describe.serial('Author & Publisher CRUD', () => {
       await swalConfirm.click();
     }
 
-    await page.waitForURL(/admin\/editori/, { timeout: 15000 });
+    await page.waitForURL(/admin\/publishers/, { timeout: 15000 });
 
     // Verify in DB
     const id = dbQuery(`SELECT id FROM editori WHERE nome='Publisher${RUN_ID}' LIMIT 1`);
@@ -935,7 +935,7 @@ test.describe.serial('Author & Publisher CRUD', () => {
   test('Edit the publisher', async () => {
     expect(publisherId).toBeGreaterThan(0);
 
-    await page.goto(`${BASE}/admin/editori/modifica/${publisherId}`);
+    await page.goto(`${BASE}/admin/publishers/edit/${publisherId}`);
     await page.waitForLoadState('networkidle');
 
     await page.fill('#nome', `PubEdited${RUN_ID}`);
@@ -947,7 +947,7 @@ test.describe.serial('Author & Publisher CRUD', () => {
       await swalConfirm.click();
     }
 
-    await page.waitForURL(/admin\/editori/, { timeout: 15000 });
+    await page.waitForURL(/admin\/publishers/, { timeout: 15000 });
 
     // Verify in DB
     const nome = dbQuery(`SELECT nome FROM editori WHERE id=${publisherId}`);
@@ -959,11 +959,11 @@ test.describe.serial('Author & Publisher CRUD', () => {
     const csrf = await getCsrfToken(page);
 
     if (authorId > 0) {
-      await page.goto(`${BASE}/admin/autori`);
+      await page.goto(`${BASE}/admin/authors`);
       await page.waitForLoadState('networkidle');
 
       const deleteResult = await page.evaluate(async (data) => {
-        const resp = await fetch(`${data.base}/admin/autori/delete/${data.id}`, {
+        const resp = await fetch(`${data.base}/admin/authors/delete/${data.id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `csrf_token=${encodeURIComponent(data.csrf)}`
@@ -979,7 +979,7 @@ test.describe.serial('Author & Publisher CRUD', () => {
 
     if (publisherId > 0) {
       const deleteResult2 = await page.evaluate(async (data) => {
-        const resp = await fetch(`${data.base}/admin/editori/delete/${data.id}`, {
+        const resp = await fetch(`${data.base}/admin/publishers/delete/${data.id}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: `csrf_token=${encodeURIComponent(data.csrf)}`

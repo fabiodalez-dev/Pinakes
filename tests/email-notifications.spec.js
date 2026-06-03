@@ -352,11 +352,11 @@ test.describe.serial('Email Notifications E2E', () => {
     // Use a fresh page to avoid stale admin dashboard state
     const page = await browserRef.newPage();
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/utenti`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}/admin/users`, { waitUntil: 'domcontentloaded' });
     const csrfToken = await getCsrfToken(page);
     expect(csrfToken).toBeTruthy();
 
-    const activateResponse = await page.request.post(`${BASE}/admin/utenti/${userId}/activate-directly`, {
+    const activateResponse = await page.request.post(`${BASE}/admin/users/${userId}/activate-directly`, {
       form: { csrf_token: csrfToken },
     });
     expect(activateResponse.status()).toBeLessThan(400);
@@ -382,12 +382,12 @@ test.describe.serial('Email Notifications E2E', () => {
     // Use a fresh page to avoid stale admin dashboard state
     const page = await browserRef.newPage();
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/utenti/crea`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${BASE}/admin/users/create`, { waitUntil: 'domcontentloaded' });
     const csrfToken = await getCsrfToken(page);
     expect(csrfToken).toBeTruthy();
 
     // Create user without password → triggers sendUserPasswordSetup()
-    const createRes = await page.request.post(`${BASE}/admin/utenti/store`, {
+    const createRes = await page.request.post(`${BASE}/admin/users/store`, {
       form: {
         csrf_token: csrfToken,
         nome: 'Setup',

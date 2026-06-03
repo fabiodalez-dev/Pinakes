@@ -8,7 +8,7 @@
 //   3. Exercises every fix landed in the recent rounds (CR R7/R8, DATA-1..5,
 //      RACE-1..3, SEC1, REG-1/2, PERF-1/2).
 //   4. Does NOT clean up the seed at the end — the user can browse to
-//      /admin/collane to see Fairy Tail / Aldebaran / Harry Potter etc.
+//      /admin/series to see Fairy Tail / Aldebaran / Harry Potter etc.
 //
 // Hierarchy seeded:
 //   Fairy Tail Universe (universo)
@@ -133,7 +133,7 @@ async function loginAsAdmin(page) {
 }
 
 async function postAdminForm(page, path, fields) {
-  await page.goto(`${BASE}/admin/collane`).catch(() => {});
+  await page.goto(`${BASE}/admin/series`).catch(() => {});
   const csrf = await getCsrf(page);
   const form = new URLSearchParams({ csrf_token: csrf, ...fields });
   return page.request.post(`${BASE}${path}`, {
@@ -239,8 +239,8 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
     expect(lines[2]).toContain('Antares');       expect(lines[2]).toMatch(/\b3$/);
   });
 
-  test('5. READ: /admin/collane lists the seed series', async () => {
-    const resp = await page.goto(`${BASE}/admin/collane`);
+  test('5. READ: /admin/series lists the seed series', async () => {
+    const resp = await page.goto(`${BASE}/admin/series`);
     expect(resp?.status()).toBe(200);
     const html = await page.content();
     expect(html).toContain(`${SEED_PREFIX}Harry Potter`);
@@ -248,7 +248,7 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
   });
 
   test('6. READ: dettaglio.php shows hierarchy + relatedCollane sections', async () => {
-    const resp = await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(`${SEED_PREFIX}Fairy Tail`)}`);
+    const resp = await page.goto(`${BASE}/admin/series/detailso?nome=${encodeURIComponent(`${SEED_PREFIX}Fairy Tail`)}`);
     expect(resp?.status()).toBe(200);
     const html = await page.content();
     expect(html).toContain(`${SEED_PREFIX}Fairy Tail`);
@@ -274,7 +274,7 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
   test('8. DATA-5: nullableCycleOrder accepts 0 (matches schema 0..65535)', async () => {
     const tmpName = `tmp_orderzero_${Date.now()}`;
     ensureSeries(tmpName, { tipo: 'ciclo' });
-    const resp = await postAdminForm(page, '/admin/collane/descrizione', {
+    const resp = await postAdminForm(page, '/admin/series/description', {
       nome: tmpName,
       descrizione: '',
       ordine_ciclo: '0',
@@ -296,7 +296,7 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
     const bId = ensureSeries(b, { tipo: 'serie', parentName: a });
     ensureSeries(c, { tipo: 'ciclo', parentName: b });
     // Delete B via repository semantics — we exercise the controller path
-    return postAdminForm(page, '/admin/collane/elimina', { nome: b }).then(() => {
+    return postAdminForm(page, '/admin/series/delete', { nome: b }).then(() => {
       const cParent = dbScalar(`SELECT parent_id FROM collane WHERE nome = '${escapeSqlString(c)}'`);
       // C should now point at A (re-parented up one level)
       expect(parseInt(cParent, 10)).toBe(aId);
@@ -348,7 +348,7 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
     const sId = ensureSeries(sName, { tipo: 'serie' });
     const bookId = ensureBook(bookTitle, sName, '1');
     linkBookToSeries(bookId, sId, '1', true);
-    await postAdminForm(page, '/admin/collane/elimina', { nome: sName });
+    await postAdminForm(page, '/admin/series/delete', { nome: sName });
     const collana = dbScalar(`SELECT collana FROM libri WHERE id = ${bookId}`);
     expect(['NULL', '']).toContain(collana);
     dbQuery(`UPDATE libri SET deleted_at = NOW() WHERE id = ${bookId}`);
@@ -364,7 +364,7 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
     const bookId = parseInt(dbScalar(`SELECT id FROM libri WHERE titolo = '${escapeSqlString(bookTitle)}' ORDER BY id DESC LIMIT 1`), 10);
     dbQuery(`INSERT INTO libri_collane (libro_id, collana_id, is_principale, tipo_appartenenza) VALUES (${bookId}, ${sId}, 1, 'principale')`);
     // Now createParentWork should NOT reject "Nessun libro nella collana"
-    const resp = await postAdminForm(page, '/admin/collane/crea-opera', {
+    const resp = await postAdminForm(page, '/admin/series/createte-opera', {
       collana: sName,
       parent_title: `Parent of ${sName}`,
     });
@@ -378,7 +378,7 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
   test('14. PERF-2 + i18n-2: SeriesLabels::label normalises legacy aliases', async () => {
     // The view should render a translated label for canonical AND legacy values.
     // We hit the index page and verify the page title labels match.
-    const resp = await page.goto(`${BASE}/admin/collane`);
+    const resp = await page.goto(`${BASE}/admin/series`);
     expect(resp?.status()).toBe(200);
     const html = await page.content();
     // At least one of the 8 labels must be present (translated form depends on locale)
@@ -389,11 +389,11 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
   test('15. UPDATE on seed: rename Antares → Antares + " (Cycle 3)" and back', async () => {
     const original = `${SEED_PREFIX}Antares`;
     const renamed = `${SEED_PREFIX}Antares (Cycle 3)`;
-    let resp = await postAdminForm(page, '/admin/collane/rinomina', { old_name: original, new_name: renamed });
+    let resp = await postAdminForm(page, '/admin/series/rename', { old_name: original, new_name: renamed });
     expect([200, 302, 303]).toContain(resp.status());
     expect(dbScalar(`SELECT COUNT(*) FROM collane WHERE nome = '${escapeSqlString(renamed)}'`)).toBe('1');
     // Restore
-    resp = await postAdminForm(page, '/admin/collane/rinomina', { old_name: renamed, new_name: original });
+    resp = await postAdminForm(page, '/admin/series/rename', { old_name: renamed, new_name: original });
     expect([200, 302, 303]).toContain(resp.status());
     expect(dbScalar(`SELECT COUNT(*) FROM collane WHERE nome = '${escapeSqlString(original)}'`)).toBe('1');
   });
@@ -417,7 +417,7 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
     const spinName = `${SEED_PREFIX}Fairy Tail Happy`;
     const mainId = parseInt(dbScalar(`SELECT id FROM collane WHERE nome = '${escapeSqlString(mainName)}'`), 10);
     const bookId = parseInt(dbScalar(`SELECT lc.libro_id FROM libri_collane lc WHERE lc.collana_id = ${mainId} LIMIT 1`), 10);
-    await postAdminForm(page, '/admin/collane/rimuovi-libro', {
+    await postAdminForm(page, '/admin/series/remove-book', {
       collana: spinName,
       book_id: String(bookId),
     });
@@ -447,6 +447,6 @@ test.describe.serial('persistent seed + CRUD on collane hierarchy', () => {
     console.log(`\n──── Persistent seed retained ────`);
     console.log(`  series: ${seriesCount}`);
     console.log(`  books:  ${bookCount}`);
-    console.log(`  Browse them at: ${BASE}/admin/collane`);
+    console.log(`  Browse them at: ${BASE}/admin/series`);
   });
 });

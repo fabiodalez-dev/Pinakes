@@ -116,7 +116,7 @@ test.describe.serial('Issue #81: Audiobook MP3 Player', () => {
     await page.waitForURL(/admin/, { timeout: 15000 });
 
     // Navigate to the book detail in admin
-    await page.goto(`${BASE}/admin/libri/${testBookId}`);
+    await page.goto(`${BASE}/admin/books/${testBookId}`);
     await page.waitForLoadState('networkidle');
 
     // No target="_blank" audio link

@@ -68,19 +68,19 @@ test.describe.serial('book_form.php — regression guards', () => {
         const trapPublisher = `MondadoriTest${RUN_ID}`;
 
         // Seed via the publishers UI
-        await page.goto(`${BASE}/admin/editori/crea`);
+        await page.goto(`${BASE}/admin/publishers/create`);
         await page.fill('input[name="nome"]', trapPublisher);
         await page.click('button[type="submit"]');
         const swalConfirm = page.locator('.swal2-confirm').first();
         if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
             await Promise.all([
-                page.waitForURL(/\/admin\/editori(\?|$)/, { timeout: 10000 }),
+                page.waitForURL(/\/admin\/publishers(\?|$)/, { timeout: 10000 }),
                 swalConfirm.click(),
             ]);
         }
 
         // Open the book form
-        await page.goto(`${BASE}/admin/libri/crea`);
+        await page.goto(`${BASE}/admin/books/create`);
         await page.waitForLoadState('domcontentloaded');
 
         // Publisher Choices.js field: type the trap name, wait for the
@@ -130,7 +130,7 @@ test.describe.serial('book_form.php — regression guards', () => {
     // the TinyMCE sync logic from the rest of the book-form validation.
     // ────────────────────────────────────────────────────────────────────
     test('Guard #2: TinyMCE description content syncs from iframe to textarea on submit', async () => {
-        await page.goto(`${BASE}/admin/libri/crea`);
+        await page.goto(`${BASE}/admin/books/create`);
         await page.waitForLoadState('domcontentloaded');
 
         const descText = `Regression guard ${RUN_ID}: TinyMCE iframe to textarea sync must work.`;
@@ -176,7 +176,7 @@ test.describe.serial('book_form.php — regression guards', () => {
     // resolve callback and the cascade silently went dead.
     // ────────────────────────────────────────────────────────────────────
     test('Guard #3: Genre cascade — selecting a radice repopulates the genre dropdown via AJAX', async () => {
-        await page.goto(`${BASE}/admin/libri/crea`);
+        await page.goto(`${BASE}/admin/books/create`);
         await page.waitForLoadState('domcontentloaded');
 
         const radiceSelect = page.locator('#radice_select');

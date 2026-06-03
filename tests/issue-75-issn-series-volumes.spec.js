@@ -105,7 +105,7 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
   // Test 1: ISSN field visible in book form (main section, not LT section)
   // ──────────────────────────────────────────────────────────────────────
   test('1. ISSN field is visible in the main book form section', async () => {
-    await page.goto(`${BASE}/admin/libri/modifica/${seriesBookIds[0]}`);
+    await page.goto(`${BASE}/admin/books/edit/${seriesBookIds[0]}`);
     await page.waitForLoadState('networkidle');
 
     const issnInput = page.locator('input[name="issn"]');
@@ -127,7 +127,7 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
   // Test 2: ISSN value persists after save
   // ──────────────────────────────────────────────────────────────────────
   test('2. ISSN value is saved and visible in admin book detail', async () => {
-    await page.goto(`${BASE}/admin/libri/${seriesBookIds[0]}`);
+    await page.goto(`${BASE}/admin/books/${seriesBookIds[0]}`);
     await page.waitForLoadState('networkidle');
 
     const pageContent = await page.content();
@@ -142,7 +142,7 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
     // Get book URL from sitemap or construct directly
     const bookId = seriesBookIds[0];
     // Use API to get the book path
-    const resp = await request.get(`${BASE}/admin/libri/${bookId}`);
+    const resp = await request.get(`${BASE}/admin/books/${bookId}`);
     expect(resp.status()).toBe(200);
 
     // Check frontend page via direct DB lookup for the path
@@ -160,7 +160,7 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
   // Test 4: ISSN validation rejects bad format
   // ──────────────────────────────────────────────────────────────────────
   test('4. ISSN validation rejects invalid format via HTML pattern', async () => {
-    await page.goto(`${BASE}/admin/libri/modifica/${seriesBookIds[1]}`);
+    await page.goto(`${BASE}/admin/books/edit/${seriesBookIds[1]}`);
     await page.waitForLoadState('networkidle');
 
     const issnInput = page.locator('input[name="issn"]');
@@ -263,7 +263,7 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
   // Test 8: Admin book detail shows volumes table for parent work
   // ──────────────────────────────────────────────────────────────────────
   test('8. Admin detail shows volumes table for parent work', async () => {
-    await page.goto(`${BASE}/admin/libri/${parentWorkId}`);
+    await page.goto(`${BASE}/admin/books/${parentWorkId}`);
     await page.waitForLoadState('networkidle');
 
     const pageContent = await page.content();
@@ -278,14 +278,14 @@ test.describe.serial('Issue #75: ISSN, Series & Multi-Volume', () => {
   // Test 9: Admin book detail shows parent work badge for child volume
   // ──────────────────────────────────────────────────────────────────────
   test('9. Admin detail shows parent work reference for child volume', async () => {
-    await page.goto(`${BASE}/admin/libri/${volumeIds[0]}`);
+    await page.goto(`${BASE}/admin/books/${volumeIds[0]}`);
     await page.waitForLoadState('networkidle');
 
     const pageContent = await page.content();
     // Should show reference to parent work
     expect(pageContent).toContain('E2E Complete Works');
     // Should have a link to the parent
-    const parentLink = page.locator(`a[href*="/admin/libri/${parentWorkId}"]`);
+    const parentLink = page.locator(`a[href*="/admin/books/${parentWorkId}"]`);
     await expect(parentLink).toBeAttached();
   });
 

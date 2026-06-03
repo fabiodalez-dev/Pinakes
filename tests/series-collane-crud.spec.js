@@ -3,7 +3,7 @@
 //
 // Coverage matrix:
 //   - DB seeds + supportsHierarchy() detection
-//   - Admin /admin/collane index + filters
+//   - Admin /admin/series index + filters
 //   - CRUD: create, read, update (rename, description, hierarchy meta), delete
 //   - Add a book to a series via book form
 //   - Add a book to multiple series (M:N libri_collane)
@@ -79,7 +79,7 @@ async function loginAsAdmin(page) {
 }
 
 async function postAdminForm(page, path, fields) {
-  await page.goto(`${BASE}/admin/collane`).catch(() => {});
+  await page.goto(`${BASE}/admin/series`).catch(() => {});
   const csrf = await getCsrf(page);
   const form = new URLSearchParams({ csrf_token: csrf, ...fields });
   return page.request.post(`${BASE}${path}`, {
@@ -186,15 +186,15 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
   });
 
   // ──────── 2) Admin UI: index + locale ────────
-  test('4. /admin/collane index loads (200) with hierarchy columns', async () => {
-    const resp = await page.goto(`${BASE}/admin/collane`);
+  test('4. /admin/series index loads (200) with hierarchy columns', async () => {
+    const resp = await page.goto(`${BASE}/admin/series`);
     expect(resp?.status()).toBe(200);
     const html = await page.content();
     expect(html).toMatch(/[Cc]ollane/);
   });
 
-  test('5. /admin/collane shows i18n-translated labels for series types', async () => {
-    await page.goto(`${BASE}/admin/collane`);
+  test('5. /admin/series shows i18n-translated labels for series types', async () => {
+    await page.goto(`${BASE}/admin/series`);
     const html = await page.content();
     // The page header label should be one of the locale-translated forms
     expect(html).toMatch(/Serie|Series|Reihe/);
@@ -235,7 +235,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     const order = parseInt(dbScalar(`SELECT ordine_ciclo FROM collane WHERE nome = '${escapeSqlString(name)}'`), 10);
     expect(order).toBe(5);
     // Verify nullableCycleOrder rejects negative via the controller path
-    const resp = await postAdminForm(page, '/admin/collane/descrizione', {
+    const resp = await postAdminForm(page, '/admin/series/description', {
       nome: name,
       descrizione: 'desc',
       ordine_ciclo: '-1',
@@ -251,7 +251,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
   test('10. READ: dettaglio.php loads for a known series', async () => {
     const name = tag('Test Read Detail');
     createSeriesViaDb(name, { tipo: 'serie', descrizione: 'desc' });
-    const resp = await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(name)}`);
+    const resp = await page.goto(`${BASE}/admin/series/detailso?nome=${encodeURIComponent(name)}`);
     expect(resp?.status()).toBe(200);
     const html = await page.content();
     expect(html).toContain(name);
@@ -260,7 +260,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
   test('11. READ: dettaglio shows hierarchy form fields when supportsHierarchy()', async () => {
     const name = tag('Test Read Hierarchy');
     createSeriesViaDb(name, { tipo: 'serie' });
-    await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(name)}`);
+    await page.goto(`${BASE}/admin/series/detailso?nome=${encodeURIComponent(name)}`);
     const groupField = await page.locator('#gruppo_serie').count();
     const cycleField = await page.locator('#ciclo').count();
     const orderField = await page.locator('#ordine_ciclo').count();
@@ -271,7 +271,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
   test('12. READ: SeriesRepository::supportsHierarchy via probe through view', async () => {
     const name = tag('Test SupportsHierarchy');
     createSeriesViaDb(name, { tipo: 'serie' });
-    await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(name)}`);
+    await page.goto(`${BASE}/admin/series/detailso?nome=${encodeURIComponent(name)}`);
     const html = await page.content();
     // If hierarchy is supported, the form references gruppo_serie input
     expect(html).toMatch(/gruppo_serie/);
@@ -281,7 +281,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
   test('13. UPDATE: saveDescription persists descrizione + tipo + gruppo_serie', async () => {
     const name = tag('Test Update Description');
     createSeriesViaDb(name, { tipo: 'serie' });
-    const resp = await postAdminForm(page, '/admin/collane/descrizione', {
+    const resp = await postAdminForm(page, '/admin/series/description', {
       nome: name,
       descrizione: 'A wonderful series',
       gruppo_serie: tag('Test Group'),
@@ -297,12 +297,12 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     expect(row).toContain('2');
   });
 
-  test('14. UPDATE: rename via /admin/collane/rinomina propagates to libri.collana', async () => {
+  test('14. UPDATE: rename via /admin/series/rename propagates to libri.collana', async () => {
     const oldName = tag('Test Old Name');
     const newName = tag('Test New Name');
     createSeriesViaDb(oldName, { tipo: 'serie' });
     const bookId = createBookViaDb(tag('Book In Renamed Series'), oldName);
-    const resp = await postAdminForm(page, '/admin/collane/rinomina', {
+    const resp = await postAdminForm(page, '/admin/series/rename', {
       old_name: oldName,
       new_name: newName,
     });
@@ -314,7 +314,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
   test('15. UPDATE: cycle-guard refuses parent = self', async () => {
     const name = tag('Test Cycle Guard Self');
     createSeriesViaDb(name, { tipo: 'serie' });
-    await postAdminForm(page, '/admin/collane/descrizione', {
+    await postAdminForm(page, '/admin/series/description', {
       nome: name,
       descrizione: '',
       serie_padre: name, // attempt self-parent
@@ -330,7 +330,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     createSeriesViaDb(a, { tipo: 'serie' });
     createSeriesViaDb(b, { tipo: 'ciclo', parentName: a }); // B's parent is A
     // Now try to set A's parent to B — would create A→B→A loop
-    await postAdminForm(page, '/admin/collane/descrizione', {
+    await postAdminForm(page, '/admin/series/description', {
       nome: a,
       descrizione: '',
       serie_padre: b,
@@ -377,7 +377,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     const seriesId = createSeriesViaDb(series, { tipo: 'serie' });
     const bookId = createBookViaDb(tag('Test Remove Book'), series);
     dbQuery(`INSERT INTO libri_collane (libro_id, collana_id, tipo_appartenenza, is_principale) VALUES (${bookId}, ${seriesId}, 'principale', 1)`);
-    const resp = await postAdminForm(page, '/admin/collane/rimuovi-libro', {
+    const resp = await postAdminForm(page, '/admin/series/remove-book', {
       collana: series,
       book_id: String(bookId),
     });
@@ -391,7 +391,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     const seriesId = createSeriesViaDb(series, { tipo: 'serie' });
     const bookId = createBookViaDb(tag('Test Delete Book'), series);
     dbQuery(`INSERT INTO libri_collane (libro_id, collana_id) VALUES (${bookId}, ${seriesId})`);
-    const resp = await postAdminForm(page, '/admin/collane/elimina', { nome: series });
+    const resp = await postAdminForm(page, '/admin/series/delete', { nome: series });
     expect([200, 302, 303]).toContain(resp.status());
     const seriesRow = dbScalar(`SELECT COUNT(*) FROM collane WHERE id = ${seriesId}`);
     expect(parseInt(seriesRow, 10)).toBe(0);
@@ -450,7 +450,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     const stored = dbScalar(`SELECT nome FROM collane WHERE nome = '${escapeSqlString(name)}'`);
     expect(stored).toBe(name);
     // And retrieve via the dettaglio endpoint to ensure no collation/encoding drift
-    const resp = await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(name)}`);
+    const resp = await page.goto(`${BASE}/admin/series/detailso?nome=${encodeURIComponent(name)}`);
     expect(resp?.status()).toBe(200);
     const html = await page.content();
     expect(html).toContain('🐉');
@@ -482,12 +482,12 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     const name = tag('Test XSS Desc');
     createSeriesViaDb(name, { tipo: 'serie' });
     const xss = '<script>window.__pwn=1;</script><img src=x onerror=alert(1)>';
-    await postAdminForm(page, '/admin/collane/descrizione', {
+    await postAdminForm(page, '/admin/series/description', {
       nome: name,
       descrizione: xss,
       tipo_collana: 'serie',
     });
-    await page.goto(`${BASE}/admin/collane/dettaglio?nome=${encodeURIComponent(name)}`);
+    await page.goto(`${BASE}/admin/series/detailso?nome=${encodeURIComponent(name)}`);
     // No script tag containing the payload may have been injected
     const pwn = await page.evaluate(() => window.__pwn ?? null);
     expect(pwn).toBeNull();
@@ -550,7 +550,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     const before = dbScalar(`SELECT COUNT(*) FROM collane WHERE nome = '${escapeSqlString(orphanName)}'`);
     expect(before).toBe('0');
     // Trigger ensureCollana via direct call through saveDescription
-    await postAdminForm(page, '/admin/collane/descrizione', {
+    await postAdminForm(page, '/admin/series/description', {
       nome: orphanName,
       descrizione: 'backfilled',
       tipo_collana: 'serie',
@@ -559,21 +559,21 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     expect(after).toBe('1');
   });
 
-  test('32. EDGE: tipo="altro" without parent surfaces in /admin/collane', async () => {
+  test('32. EDGE: tipo="altro" without parent surfaces in /admin/series', async () => {
     const name = tag('Test Altro Standalone');
     createSeriesViaDb(name, { tipo: 'altro' });
-    const resp = await page.goto(`${BASE}/admin/collane`);
+    const resp = await page.goto(`${BASE}/admin/series`);
     expect(resp?.status()).toBe(200);
     const html = await page.content();
     expect(html).toContain(name);
   });
 
-  test('33. EDGE: empty state — /admin/collane returns 200 with no series', async () => {
+  test('33. EDGE: empty state — /admin/series returns 200 with no series', async () => {
     // Wipe ONLY series tagged with the runId to avoid global pollution
     const safeTag = escapeSqlString(testRunId);
     dbQuery(`DELETE FROM libri_collane WHERE collana_id IN (SELECT id FROM (SELECT id FROM collane WHERE nome LIKE '%${safeTag}%') AS x)`);
     dbQuery(`DELETE FROM collane WHERE nome LIKE '%${safeTag}%'`);
-    const resp = await page.goto(`${BASE}/admin/collane`);
+    const resp = await page.goto(`${BASE}/admin/series`);
     expect(resp?.status()).toBe(200);
     // Page should not 500 even on a sparse table
     const html = await page.content();
@@ -612,7 +612,7 @@ test.describe.serial('series/collane — CRUD + hierarchy + i18n (issue #110)', 
     const bookB = createBookViaDb(tag('Test RM Book B'), b);
     dbQuery(`INSERT INTO libri_collane (libro_id, collana_id) VALUES (${bookB}, ${bId})`);
     // Rename A → B should merge
-    const resp = await postAdminForm(page, '/admin/collane/rinomina', {
+    const resp = await postAdminForm(page, '/admin/series/rename', {
       old_name: a,
       new_name: b,
     });

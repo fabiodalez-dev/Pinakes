@@ -17,7 +17,7 @@ const DB_USER = process.env.E2E_DB_USER   || '';
 const DB_PASS = process.env.E2E_DB_PASS   || '';
 const DB_NAME = process.env.E2E_DB_NAME   || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '';
-const CREATE_BOOK_URL = `${BASE}/admin/libri/crea`;
+const CREATE_BOOK_URL = `${BASE}/admin/books/create`;
 
 test.skip(
   !ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME,
@@ -220,7 +220,7 @@ test.describe.serial('book_form — comprehensive smoke + regressions', () => {
       () => dbQuery(`SELECT id, titolo FROM libri WHERE titolo = '${safeTitle}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`),
       { timeout: 30000 }
     ).toContain(safeTitle);
-    await page.waitForURL(/\/admin\/libri(?:\/\d+)?(?:\?.*)?$/, { timeout: 30000 });
+    await page.waitForURL(/\/admin\/books(?:\/\d+)?(?:\?.*)?$/, { timeout: 30000 });
     const row = dbQuery(`SELECT id, titolo FROM libri WHERE titolo = '${safeTitle}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`);
     expect(row, 'created book should exist in DB').toContain(safeTitle);
     const idStr = row.split('\t')[0];
@@ -230,7 +230,7 @@ test.describe.serial('book_form — comprehensive smoke + regressions', () => {
 
   test('14. Edit mode preloads existing values (uses book created in #13)', async () => {
     test.skip(createdBookId === 0, 'requires test 13 to have created a book');
-    await page.goto(`${BASE}/admin/libri/modifica/${createdBookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${createdBookId}`);
     await expect(page.locator('#bookForm')).toBeVisible({ timeout: 10000 });
     const titoloVal = await page.locator('#titolo').inputValue();
     expect(titoloVal).toContain('BookForm Test');

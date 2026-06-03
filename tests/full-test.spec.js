@@ -478,7 +478,7 @@ test.describe.serial('Phase 2: Login and Dashboard', () => {
     // Dashboard has quick action links and section headings
     // Note: networkidle is flaky here because background fetches (stats, updates, notifications)
     // may keep the network busy. We wait for the actual content instead.
-    const hasContent = await page.locator('a[href*="admin/libri"]').first().isVisible({ timeout: 10000 }).catch(() => false);
+    const hasContent = await page.locator('a[href*="admin/books"]').first().isVisible({ timeout: 10000 }).catch(() => false);
     expect(hasContent).toBeTruthy();
 
     const criticalErrors = jsErrors.filter(
@@ -525,14 +525,14 @@ test.describe.serial('Phase 3: Manual Book Creation', () => {
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('3.1 Navigate to create book form', async () => {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('#titolo')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#bookForm')).toBeVisible();
   });
 
   test('3.2 Fill basic fields', async () => {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
 
     const bookTitle = `E2E Manual Book ${RUN_ID}`;
@@ -698,7 +698,7 @@ test.describe.serial('Phase 3: Manual Book Creation', () => {
   });
 
   test('3.5 Save and verify book created', async () => {
-    await submitBookFormAndNavigate(page, /admin\/libri(?!.*crea)/, '/crea');
+    await submitBookFormAndNavigate(page, /admin\/books(?!.*create)/, '/create');
 
     // Get the book ID from DB
     const bookTitle = `E2E Manual Book ${RUN_ID}`;
@@ -729,7 +729,7 @@ test.describe.serial('Phase 4: ISBN Scraping', () => {
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('4.1 Enter ISBN and attempt import', async () => {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
 
     const importBtn = page.locator('#btnImportIsbn');
@@ -781,7 +781,7 @@ test.describe.serial('Phase 4: ISBN Scraping', () => {
       }
     }
 
-    const submitted = await submitBookFormAndNavigate(page, /admin\/libri(?!.*crea)/, '/crea');
+    const submitted = await submitBookFormAndNavigate(page, /admin\/books(?!.*create)/, '/create');
     if (!submitted) return; // Duplicate book
 
     // Store ID if created
@@ -894,7 +894,7 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
     await page.waitForLoadState('load').catch(() => {});
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await page.goto(`${BASE}/admin/libri/crea`);
+        await page.goto(`${BASE}/admin/books/create`);
         break;
       } catch (e) {
         if (attempt === 1) throw e;
@@ -942,7 +942,7 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
       }
     }
 
-    const submitted = await submitBookFormAndNavigate(page, /admin\/libri(?!.*crea)/, '/crea');
+    const submitted = await submitBookFormAndNavigate(page, /admin\/books(?!.*create)/, '/create');
     if (!submitted) return; // Duplicate book
 
     const finalTitle = titleValue || `E2E ScrapingPro Book ${RUN_ID}`;
@@ -979,7 +979,7 @@ test.describe.serial('Phase 6: Edit Book', () => {
     const bookId = state.createdBookIds[0];
     test.skip(!bookId, 'No book created in Phase 3');
 
-    await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('#titolo')).toBeVisible({ timeout: 10000 });
     // Wait for form to be fully hydrated (title field should have a value)
@@ -1125,7 +1125,7 @@ test.describe.serial('Phase 6: Edit Book', () => {
     // on the redirect target. pathname-based check fires as soon as the new
     // URL is committed, which is what this assertion actually cares about.
     await page.waitForFunction(
-      () => !window.location.pathname.includes('/modifica/'),
+      () => !window.location.pathname.includes('/edit/'),
       null,
       { timeout: 30000 },
     );
@@ -1174,7 +1174,7 @@ test.describe.serial('Phase 7: Author Management', () => {
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('7.1 Create author 1', async () => {
-    await page.goto(`${BASE}/admin/autori/crea`);
+    await page.goto(`${BASE}/admin/authors/create`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.fill('#nome', `AuthorA_${RUN_ID}`);
@@ -1184,7 +1184,7 @@ test.describe.serial('Phase 7: Author Management', () => {
     if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
       await swalConfirm.click();
     }
-    await page.waitForURL(/admin\/autori/, { timeout: 30000 });
+    await page.waitForURL(/admin\/authors/, { timeout: 30000 });
 
     const id = dbQuery(`SELECT id FROM autori WHERE nome='AuthorA_${RUN_ID}' LIMIT 1`);
     expect(Number(id)).toBeGreaterThan(0);
@@ -1192,7 +1192,7 @@ test.describe.serial('Phase 7: Author Management', () => {
   });
 
   test('7.2 Create author 2', async () => {
-    await page.goto(`${BASE}/admin/autori/crea`);
+    await page.goto(`${BASE}/admin/authors/create`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.fill('#nome', `AuthorB_${RUN_ID}`);
@@ -1202,7 +1202,7 @@ test.describe.serial('Phase 7: Author Management', () => {
     if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
       await swalConfirm.click();
     }
-    await page.waitForURL(/admin\/autori/, { timeout: 30000 });
+    await page.waitForURL(/admin\/authors/, { timeout: 30000 });
 
     const id = dbQuery(`SELECT id FROM autori WHERE nome='AuthorB_${RUN_ID}' LIMIT 1`);
     expect(Number(id)).toBeGreaterThan(0);
@@ -1210,7 +1210,7 @@ test.describe.serial('Phase 7: Author Management', () => {
   });
 
   test('7.3 Create author 3', async () => {
-    await page.goto(`${BASE}/admin/autori/crea`);
+    await page.goto(`${BASE}/admin/authors/create`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.fill('#nome', `AuthorC_${RUN_ID}`);
@@ -1220,7 +1220,7 @@ test.describe.serial('Phase 7: Author Management', () => {
     if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
       await swalConfirm.click();
     }
-    await page.waitForURL(/admin\/autori/, { timeout: 30000 });
+    await page.waitForURL(/admin\/authors/, { timeout: 30000 });
 
     const id = dbQuery(`SELECT id FROM autori WHERE nome='AuthorC_${RUN_ID}' LIMIT 1`);
     expect(Number(id)).toBeGreaterThan(0);
@@ -1236,7 +1236,7 @@ test.describe.serial('Phase 7: Author Management', () => {
     // Real merge UI lives on the author list page: `.row-select[data-id]`
     // checkboxes + `#bulk-merge` button → Swal with `#swal-primary-author`
     // select → confirm → AJAX POST /api/autori/merge.
-    await page.goto(`${BASE}/admin/autori`);
+    await page.goto(`${BASE}/admin/authors`);
     await page.waitForLoadState('domcontentloaded');
 
     // Wait for DataTable rows to render — the checkboxes are added by
@@ -1281,7 +1281,7 @@ test.describe.serial('Phase 7: Author Management', () => {
     test.skip(state.authorIds.length === 0, 'No authors');
 
     const authorId = state.authorIds[0];
-    await page.goto(`${BASE}/admin/autori/modifica/${authorId}`);
+    await page.goto(`${BASE}/admin/authors/edit/${authorId}`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.fill('#nome', `AuthorMerged_${RUN_ID}`);
@@ -1299,7 +1299,7 @@ test.describe.serial('Phase 7: Author Management', () => {
     if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
       await swalConfirm.click();
     }
-    await page.waitForURL(/admin\/autori/, { timeout: 30000 });
+    await page.waitForURL(/admin\/authors/, { timeout: 30000 });
 
     const dbName = dbQuery(`SELECT nome FROM autori WHERE id=${authorId}`);
     expect(dbName).toBe(`AuthorMerged_${RUN_ID}`);
@@ -1308,7 +1308,7 @@ test.describe.serial('Phase 7: Author Management', () => {
   test('7.6 Autocomplete regression (#58, #74)', async () => {
     test.skip(state.authorIds.length === 0, 'No authors');
 
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForSelector('.choices__inner', { timeout: 10000 });
 
     const authorWrapper = page.locator('#autori_select').locator('xpath=ancestor::*[contains(@class,"choices")]').first();
@@ -1348,7 +1348,7 @@ test.describe.serial('Phase 8: Publisher Management', () => {
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('8.1 Create publisher 1', async () => {
-    await page.goto(`${BASE}/admin/editori/crea`);
+    await page.goto(`${BASE}/admin/publishers/create`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.fill('#nome', `PubA_${RUN_ID}`);
@@ -1358,7 +1358,7 @@ test.describe.serial('Phase 8: Publisher Management', () => {
     if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
       await swalConfirm.click();
     }
-    await page.waitForURL(/admin\/editori/, { timeout: 30000 });
+    await page.waitForURL(/admin\/publishers/, { timeout: 30000 });
 
     const id = dbQuery(`SELECT id FROM editori WHERE nome='PubA_${RUN_ID}' LIMIT 1`);
     expect(Number(id)).toBeGreaterThan(0);
@@ -1366,7 +1366,7 @@ test.describe.serial('Phase 8: Publisher Management', () => {
   });
 
   test('8.2 Create publisher 2', async () => {
-    await page.goto(`${BASE}/admin/editori/crea`);
+    await page.goto(`${BASE}/admin/publishers/create`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.fill('#nome', `PubB_${RUN_ID}`);
@@ -1376,7 +1376,7 @@ test.describe.serial('Phase 8: Publisher Management', () => {
     if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
       await swalConfirm.click();
     }
-    await page.waitForURL(/admin\/editori/, { timeout: 30000 });
+    await page.waitForURL(/admin\/publishers/, { timeout: 30000 });
 
     const id = dbQuery(`SELECT id FROM editori WHERE nome='PubB_${RUN_ID}' LIMIT 1`);
     expect(Number(id)).toBeGreaterThan(0);
@@ -1392,7 +1392,7 @@ test.describe.serial('Phase 8: Publisher Management', () => {
     // Same real-UI pattern as Phase 7.4 for authors, but the publisher
     // list uses `#swal-primary-publisher` instead of `#swal-primary-author`
     // and posts to /api/editori/merge.
-    await page.goto(`${BASE}/admin/editori`);
+    await page.goto(`${BASE}/admin/publishers`);
     await page.waitForLoadState('domcontentloaded');
 
     // The editori list is a server-paginated DataTable. With many publishers
@@ -1430,7 +1430,7 @@ test.describe.serial('Phase 8: Publisher Management', () => {
     test.skip(state.publisherIds.length === 0, 'No publishers');
 
     const pubId = state.publisherIds[0];
-    await page.goto(`${BASE}/admin/editori/modifica/${pubId}`);
+    await page.goto(`${BASE}/admin/publishers/edit/${pubId}`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.fill('#nome', `PubEdited_${RUN_ID}`);
@@ -1440,7 +1440,7 @@ test.describe.serial('Phase 8: Publisher Management', () => {
     if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
       await swalConfirm.click();
     }
-    await page.waitForURL(/admin\/editori/, { timeout: 30000 });
+    await page.waitForURL(/admin\/publishers/, { timeout: 30000 });
 
     const dbName = dbQuery(`SELECT nome FROM editori WHERE id=${pubId}`);
     expect(dbName).toBe(`PubEdited_${RUN_ID}`);
@@ -1468,7 +1468,7 @@ test.describe.serial('Phase 9: Bulk Cover Download', () => {
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('9.1 Book list with checkboxes loads', async () => {
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     await page.waitForLoadState('domcontentloaded');
 
     // DataTables should render
@@ -1476,7 +1476,7 @@ test.describe.serial('Phase 9: Bulk Cover Download', () => {
   });
 
   test('9.2 Bulk cover download button exists', async () => {
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     await page.waitForLoadState('domcontentloaded');
 
     // Check for bulk actions dropdown or button
@@ -1518,13 +1518,13 @@ test.describe.serial('Phase 10: CSV/TSV Import & Export', () => {
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('10.1 Navigate to import page', async () => {
-    await page.goto(`${BASE}/admin/libri/importa`);
+    await page.goto(`${BASE}/admin/books/importa`);
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('body')).not.toBeEmpty();
   });
 
   test('10.2 Upload CSV file', async () => {
-    await page.goto(`${BASE}/admin/libri/importa`);
+    await page.goto(`${BASE}/admin/books/importa`);
     await page.waitForLoadState('domcontentloaded');
 
     // Create a test CSV file
@@ -1553,7 +1553,7 @@ CSV_Book2_${RUN_ID};CSV Author2;CSV Publisher2;9781234567906;2023`;
   });
 
   test('10.3 Upload TSV file', async () => {
-    await page.goto(`${BASE}/admin/libri/importa`);
+    await page.goto(`${BASE}/admin/books/importa`);
     await page.waitForLoadState('domcontentloaded');
 
     const tsvContent = `titolo\tautore\teditore\tanno_pubblicazione
@@ -1611,14 +1611,14 @@ TSV_Book1_${RUN_ID}\tTSV Author\tTSV Publisher\t2024`;
     expect(bookIds.length).toBe(2);
 
     // Export ALL
-    const allResp = await page.request.get(`${BASE}/admin/libri/export/csv`);
+    const allResp = await page.request.get(`${BASE}/admin/books/export/csv`);
     expect(allResp.ok()).toBeTruthy();
     const allCsv = await allResp.text();
     const allRecords = countCsvRecords(allCsv);
 
     // Export SELECTED (regression #77)
     const selectedResp = await page.request.get(
-      `${BASE}/admin/libri/export/csv?ids=${bookIds.join(',')}`
+      `${BASE}/admin/books/export/csv?ids=${bookIds.join(',')}`
     );
     expect(selectedResp.ok()).toBeTruthy();
     const selectedCsv = await selectedResp.text();
@@ -1800,7 +1800,7 @@ test.describe.serial('Phase 12: CMS and Events', () => {
   test('12.3 Create event', async () => {
     const eventTitle = `E2E Event ${RUN_ID}`;
 
-    await page.goto(`${BASE}/admin/cms/events/create`);
+    await page.goto(`${BASE}/admin/cms/events/createte`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.fill('#event_title', eventTitle);
@@ -1898,7 +1898,7 @@ test.describe.serial('Phase 13: Shelf/Location Management', () => {
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('13.1 Create shelf (scaffale)', async () => {
-    await page.goto(`${BASE}/admin/collocazione`);
+    await page.goto(`${BASE}/admin/placement`);
     await page.waitForLoadState('domcontentloaded');
 
     await page.fill('input[name="codice"]', scaffaleCode);
@@ -1916,7 +1916,7 @@ test.describe.serial('Phase 13: Shelf/Location Management', () => {
   test('13.2 Create position (mensola)', async () => {
     test.skip(!state.shelfId, 'No shelf created');
 
-    await page.goto(`${BASE}/admin/collocazione`);
+    await page.goto(`${BASE}/admin/placement`);
     await page.waitForLoadState('domcontentloaded');
 
     const mensolaForm = page.locator('form[action*="mensole"]').first();
@@ -1934,7 +1934,7 @@ test.describe.serial('Phase 13: Shelf/Location Management', () => {
     const bookId = state.createdBookIds[0];
     test.skip(!bookId || !state.shelfId, 'No book or shelf');
 
-    await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Select scaffold in the book form
@@ -1958,14 +1958,14 @@ test.describe.serial('Phase 13: Shelf/Location Management', () => {
     if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
       await swalConfirm.click();
     }
-    await page.waitForURL(/admin\/libri(?!.*modifica)/, { timeout: 30000 });
+    await page.waitForURL(/admin\/books(?!.*edit)/, { timeout: 30000 });
   });
 
   test('13.4 Verify assignment persists', async () => {
     const bookId = state.createdBookIds[0];
     test.skip(!bookId || !state.shelfId, 'No book or shelf');
 
-    await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Check that scaffold is selected
@@ -2053,7 +2053,7 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     const bookTitle = String(dbQuery(`SELECT titolo FROM libri WHERE id=${testBookId} AND deleted_at IS NULL`)).trim();
     test.skip(!bookTitle, `Book ${testBookId} has no title`);
 
-    await page.goto(`${BASE}/admin/prestiti/crea`);
+    await page.goto(`${BASE}/admin/loans/create`);
     await page.waitForLoadState('domcontentloaded');
 
     // Search for user by their unique surname (`User${RUN_ID}` — set in 14.1).
@@ -2091,15 +2091,15 @@ test.describe.serial('Phase 14: Admin Loan', () => {
     // Wait for BOTH conditions: we're no longer on /crea AND there's no
     // error query param. A validation failure (e.g. a book whose copies
     // became unavailable between the autocomplete pick and submit) would
-    // redirect to /admin/prestiti/crea?error=... — pathname check alone
-    // would still match `startsWith('/admin/prestiti')` and proceed, with
+    // redirect to /admin/loans/create?error=... — pathname check alone
+    // would still match `startsWith('/admin/loans')` and proceed, with
     // the real failure surfacing only later as `testLoanId === 0`.
     await page.waitForFunction(
       () => {
         const p = window.location.pathname;
         const s = window.location.search || '';
-        return p.startsWith('/admin/prestiti')
-            && !p.endsWith('/crea')
+        return p.startsWith('/admin/loans')
+            && !p.endsWith('/create')
             && !s.includes('error=');
       },
       null,
@@ -2308,7 +2308,7 @@ test.describe.serial('Phase 15: User Reservation & Approval', () => {
     }
 
     // Second-chance fallback: the UI path sometimes confirms the swal but
-    // the POST /admin/prestiti/<id>/conferma-ritiro doesn't propagate (CSRF
+    // the POST /admin/loans/<id>/conferma-ritiro doesn't propagate (CSRF
     // renewal race under heavy php-fpm load). If the DB didn't reflect the
     // pickup, force it here rather than letting the assertion fail — the
     // feature itself is covered by a dedicated loan-reservation.spec.js.
@@ -2629,7 +2629,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     expect(bookIds.length).toBe(2);
 
     const selectedResp = await page.request.get(
-      `${BASE}/admin/libri/export/csv?ids=${bookIds.join(',')}`
+      `${BASE}/admin/books/export/csv?ids=${bookIds.join(',')}`
     );
     expect(selectedResp.ok()).toBeTruthy();
     const selectedCsv = await selectedResp.text();
@@ -2674,7 +2674,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const bookId = state.createdBookIds[0];
     test.skip(!bookId, 'No book');
 
-    await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
 
     const statoField = page.locator('#stato, select[name="stato"]');
@@ -2721,7 +2721,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
       dbQuery(`UPDATE libri SET descrizione='${searchTerm}' WHERE id=${targetId}`);
     }
 
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     await page.waitForLoadState('domcontentloaded');
     const apiResp = await page.request.get(
       `${BASE}/api/libri?draw=1&start=0&length=10&search_text=${encodeURIComponent(searchTerm)}`
@@ -2818,7 +2818,7 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     dbQuery(`UPDATE libri SET genere_id=${rootId}, sottogenere_id=${childId} WHERE id=${bookId}`);
 
     // 1) Admin book detail page
-    await page.goto(`${BASE}/admin/libri/${bookId}`);
+    await page.goto(`${BASE}/admin/books/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     const genreText = await page.locator('[data-testid="genre-display"]').textContent();
     expect(genreText).toContain(childName);
@@ -2889,11 +2889,11 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     const countBefore = dbQuery(`SELECT COUNT(*) FROM generi WHERE id=${genreId}`);
     expect(countBefore).toBe('1');
 
-    // Delete via POST (app uses POST /admin/generi/{id}/elimina)
+    // Delete via POST (app uses POST /admin/genres/{id}/delete)
     const csrfToken = await page.evaluate(() => {
       return document.querySelector('meta[name="csrf-token"]')?.content || '';
     });
-    const resp = await page.request.post(`${BASE}/admin/generi/${genreId}/elimina`, {
+    const resp = await page.request.post(`${BASE}/admin/genres/${genreId}/delete`, {
       headers: { 'X-CSRF-Token': csrfToken },
       form: { csrf_token: csrfToken },
     });
@@ -3003,7 +3003,7 @@ test.describe.serial('Phase 19: Security', () => {
   test('19.3 CSRF token present on admin forms', async () => {
     await loginAsAdmin(page);
 
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
 
     const csrfInput = page.locator('input[name="csrf_token"]');
@@ -3209,7 +3209,7 @@ test.describe.serial('Phase 21: Language Switch', () => {
   test('21.2 Book form LibraryThing section renders in French', async () => {
     // Navigate to the book create form — has the same LibraryThing section as edit,
     // and does not require an existing book ID.
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
 
     const ltButton = page.locator('[aria-controls="librarything-accordion-content"]');
@@ -3341,7 +3341,7 @@ async function addChoicesItems(page, selectId, hiddenId, names) {
 
 /** Create a book with the given authors/publishers via the form. Returns book id. */
 async function createBookWithRelations(page, { title, authors = [], publishers = [] }) {
-  await page.goto(`${BASE}/admin/libri/crea`);
+  await page.goto(`${BASE}/admin/books/create`);
   await page.waitForLoadState('domcontentloaded');
   await page.fill('#titolo', title);
   if (authors.length) await addChoicesItems(page, 'autori_select', 'autori_hidden', authors);
@@ -3354,7 +3354,7 @@ async function createBookWithRelations(page, { title, authors = [], publishers =
     ).catch(() => {});
     await radiceSelect.selectOption({ index: 1 }).catch(() => {});
   }
-  await submitBookFormAndNavigate(page, /admin\/libri(?!.*crea)/, '/crea');
+  await submitBookFormAndNavigate(page, /admin\/books(?!.*create)/, '/create');
   const t = title.replace(/'/g, "''");
   const id = Number(String(dbQuery(
     `SELECT id FROM libri WHERE titolo='${t}' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1`
@@ -3759,7 +3759,7 @@ test.describe.serial('Phase 23: Multi-publisher & Multi-author', () => {
   });
 
   test('23.5 Edit: add a third publisher → junction grows to 3', async () => {
-    await page.goto(`${BASE}/admin/libri/modifica/${multiPubBook}`);
+    await page.goto(`${BASE}/admin/books/edit/${multiPubBook}`);
     await page.waitForLoadState('domcontentloaded');
     // Wait for the 2 pre-populated publisher chips + hidden inputs to render —
     // adding before they are synced would submit only the new publisher and
@@ -3767,14 +3767,14 @@ test.describe.serial('Phase 23: Multi-publisher & Multi-author', () => {
     await expect(page.locator('#editori_hidden input')).toHaveCount(2, { timeout: 8000 });
     await addChoicesItems(page, 'editori_select', 'editori_hidden', [P3]);
     await expect(page.locator('#editori_hidden input')).toHaveCount(3, { timeout: 5000 });
-    await submitBookFormAndNavigate(page, /admin\/libri(?!.*modifica)/, '/modifica');
+    await submitBookFormAndNavigate(page, /admin\/books(?!.*edit)/, '/edit');
     const pubs = bookPublishers(multiPubBook);
     expect(pubs.length).toBe(3);
     expect(pubs).toContain(P3);
   });
 
   test('23.6 Edit: remove a publisher → junction shrinks, primary still valid', async () => {
-    await page.goto(`${BASE}/admin/libri/modifica/${multiPubBook}`);
+    await page.goto(`${BASE}/admin/books/edit/${multiPubBook}`);
     await page.waitForLoadState('domcontentloaded');
     // Wait for the 3 pre-populated chips before removing one.
     await expect(page.locator('#editori_hidden input')).toHaveCount(3, { timeout: 8000 });
@@ -3786,7 +3786,7 @@ test.describe.serial('Phase 23: Multi-publisher & Multi-author', () => {
       await removeBtn.click();
     }
     await expect(page.locator('#editori_hidden input')).toHaveCount(2, { timeout: 5000 });
-    await submitBookFormAndNavigate(page, /admin\/libri(?!.*modifica)/, '/modifica');
+    await submitBookFormAndNavigate(page, /admin\/books(?!.*edit)/, '/edit');
     const pubs = bookPublishers(multiPubBook);
     expect(pubs.length).toBe(2);
     // editore_id must point to a publisher that is still in the junction

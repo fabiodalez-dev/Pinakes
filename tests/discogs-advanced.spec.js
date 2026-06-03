@@ -101,7 +101,7 @@ test.describe.serial('Discogs Advanced Tests', () => {
   // Test 2: CSV export includes tipo_media column
   // ═══════════════════════════════════════════════════════════════════
   test('2. CSV export includes tipo_media for music records', async () => {
-    const resp = await page.request.get(`${BASE}/admin/libri/export/csv?ids=${musicBookId}`);
+    const resp = await page.request.get(`${BASE}/admin/books/export/csv?ids=${musicBookId}`);
     expect(resp.status()).toBe(200);
     const body = await resp.text();
 
@@ -162,7 +162,7 @@ test.describe.serial('Discogs Advanced Tests', () => {
   // ═══════════════════════════════════════════════════════════════════
   test('4. Admin detail: music shows tracklist, book shows prose description', async () => {
     // Music book
-    await page.goto(`${BASE}/admin/libri/${musicBookId}`);
+    await page.goto(`${BASE}/admin/books/${musicBookId}`);
     await page.waitForLoadState('domcontentloaded');
     const musicContent = await page.content();
 
@@ -179,7 +179,7 @@ test.describe.serial('Discogs Advanced Tests', () => {
     expect(musicContent).toContain('fa-compact-disc');
 
     // Regular book
-    await page.goto(`${BASE}/admin/libri/${bookBookId}`);
+    await page.goto(`${BASE}/admin/books/${bookBookId}`);
     await page.waitForLoadState('domcontentloaded');
     const bookContent = await page.content();
 
@@ -195,7 +195,7 @@ test.describe.serial('Discogs Advanced Tests', () => {
   // Test 5: Edit a CD — tipo_media persists after save
   // ═══════════════════════════════════════════════════════════════════
   test('5. Edit music record: tipo_media persists after save', async () => {
-    await page.goto(`${BASE}/admin/libri/modifica/${musicBookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${musicBookId}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Verify tipo_media select shows "disco" (or equivalent)
@@ -215,7 +215,7 @@ test.describe.serial('Discogs Advanced Tests', () => {
       if (await swalConfirm.isVisible({ timeout: 3000 }).catch(() => false)) {
         await swalConfirm.click();
       }
-      await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 }).catch(() => {});
+      await page.waitForURL(/\/admin\/books\/\d+/, { timeout: 15000 }).catch(() => {});
 
       // Verify tipo_media was NOT overwritten to 'libro'
       const tipoAfter = dbQuery(`SELECT tipo_media FROM libri WHERE id = ${musicBookId}`);

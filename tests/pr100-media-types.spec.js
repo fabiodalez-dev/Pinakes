@@ -107,7 +107,7 @@ test.describe.serial('PR #100: Media Types System', () => {
   // 2. Admin book form has tipo_media dropdown
   // ═══════════════════════════════════════════════════════
   test('2. Book form has tipo_media dropdown with all options', async () => {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
 
     const select = page.locator('#tipo_media');
@@ -121,7 +121,7 @@ test.describe.serial('PR #100: Media Types System', () => {
   // 3. Admin list shows tipo_media icon column
   // ═══════════════════════════════════════════════════════
   test('3. Admin list has media type icon column', async () => {
-    await page.goto(`${BASE}/admin/libri`);
+    await page.goto(`${BASE}/admin/books`);
     await page.waitForLoadState('domcontentloaded');
     await page.waitForTimeout(2000);
 
@@ -149,7 +149,7 @@ test.describe.serial('PR #100: Media Types System', () => {
   // 5. CD shows music labels (Etichetta, Anno di Uscita)
   // ═══════════════════════════════════════════════════════
   test('5. CD admin detail shows music-specific labels', async () => {
-    await page.goto(`${BASE}/admin/libri/${cdId}`);
+    await page.goto(`${BASE}/admin/books/${cdId}`);
     await page.waitForLoadState('domcontentloaded');
     const content = await page.content();
 
@@ -163,7 +163,7 @@ test.describe.serial('PR #100: Media Types System', () => {
   // 6. Book shows standard labels (Editore, Anno Pubblicazione)
   // ═══════════════════════════════════════════════════════
   test('6. Book admin detail shows standard labels', async () => {
-    await page.goto(`${BASE}/admin/libri/${bookId}`);
+    await page.goto(`${BASE}/admin/books/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     const content = await page.content();
 
@@ -176,7 +176,7 @@ test.describe.serial('PR #100: Media Types System', () => {
   // 7. Edit CD — tipo_media persists as 'disco'
   // ═══════════════════════════════════════════════════════
   test('7. Edit CD preserves tipo_media=disco', async () => {
-    await page.goto(`${BASE}/admin/libri/modifica/${cdId}`);
+    await page.goto(`${BASE}/admin/books/edit/${cdId}`);
     await page.waitForLoadState('domcontentloaded');
 
     const select = page.locator('#tipo_media');
@@ -188,7 +188,7 @@ test.describe.serial('PR #100: Media Types System', () => {
       await page.locator('button[type="submit"]').first().click();
       const swal = page.locator('.swal2-confirm');
       if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-      await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 }).catch(() => {});
+      await page.waitForURL(/\/admin\/books\/\d+/, { timeout: 15000 }).catch(() => {});
 
       // Verify DB
       const tipo = dbQuery(`SELECT tipo_media FROM libri WHERE id = ${cdId}`);
@@ -225,7 +225,7 @@ test.describe.serial('PR #100: Media Types System', () => {
       return rows;
     };
 
-    const resp = await page.request.get(`${BASE}/admin/libri/export/csv?ids=${cdId},${bookId}`);
+    const resp = await page.request.get(`${BASE}/admin/books/export/csv?ids=${cdId},${bookId}`);
     expect(resp.status()).toBe(200);
     const body = await resp.text();
     const header = body.split('\n')[0].replace(/^\uFEFF/, '');
@@ -245,7 +245,7 @@ test.describe.serial('PR #100: Media Types System', () => {
   // 9. Format display name: "cd_audio" → "CD Audio"
   // ═══════════════════════════════════════════════════════
   test('9. Format shows human-readable name, not raw key', async () => {
-    await page.goto(`${BASE}/admin/libri/${cdId}`);
+    await page.goto(`${BASE}/admin/books/${cdId}`);
     await page.waitForLoadState('domcontentloaded');
     const content = await page.content();
 

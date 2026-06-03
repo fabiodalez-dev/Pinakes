@@ -91,7 +91,7 @@ test.describe.serial('REICAT/SBN — book form', () => {
 
   test('1.1 REICAT/SBN panel renders on the book edit form', async () => {
     test.skip(bookId === 0, 'no book available');
-    await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('#reicat-sbn-panel')).toBeVisible();
     await expect(page.locator('#reicat-sbn-panel')).toContainText(/REICAT/i);
@@ -102,7 +102,7 @@ test.describe.serial('REICAT/SBN — book form', () => {
   test('1.2 Import from SBN (mocked) populates form fields + BID', async () => {
     test.skip(bookId === 0, 'no book available');
     // Mock the import-sbn endpoint with a deterministic SBN/UNIMARC-derived record.
-    await page.route('**/admin/libri/import-sbn', async (route) => {
+    await page.route('**/admin/books/import-sbn', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -123,7 +123,7 @@ test.describe.serial('REICAT/SBN — book form', () => {
       });
     });
 
-    await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     await page.fill('#reicat_import_isbn', '9788845292866');
     await page.locator('#reicat-import-btn').click();
@@ -133,12 +133,12 @@ test.describe.serial('REICAT/SBN — book form', () => {
     await expect(page.locator('#anno_pubblicazione')).toHaveValue('1980');
     await expect(page.locator('#sbn_bid')).toHaveValue('IT\\ICCU\\RMB\\0769708');
     await expect(page.locator('#sbn_polo')).toHaveValue('RMB');
-    await page.unroute('**/admin/libri/import-sbn');
+    await page.unroute('**/admin/books/import-sbn');
   });
 
   test('1.3 Nuovo Soggettario picker (mocked) adds a controlled subject chip', async () => {
     test.skip(bookId === 0, 'no book available');
-    await page.route('**/admin/libri/soggettario-search**', async (route) => {
+    await page.route('**/admin/books/soggettario-search**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -151,7 +151,7 @@ test.describe.serial('REICAT/SBN — book form', () => {
       });
     });
 
-    await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     await page.fill('#reicat_soggettario_search', 'Romanzi');
     // Wait for the mocked dropdown then click the result.
@@ -164,12 +164,12 @@ test.describe.serial('REICAT/SBN — book form', () => {
     const hidden = await page.locator('#reicat_soggetti').inputValue();
     const parsed = JSON.parse(hidden);
     expect(parsed.some((s) => s.bncf_id === '12345' && /Romanzi storici/.test(s.termine))).toBeTruthy();
-    await page.unroute('**/admin/libri/soggettario-search**');
+    await page.unroute('**/admin/books/soggettario-search**');
   });
 
   test('1.4 Free-text subject can be added with Enter', async () => {
     test.skip(bookId === 0, 'no book available');
-    await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+    await page.goto(`${BASE}/admin/books/edit/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
     await page.fill('#reicat_soggettario_search', 'Soggetto libero E2E');
     await page.locator('#reicat_soggettario_search').press('Enter');
@@ -181,7 +181,7 @@ test.describe.serial('REICAT/SBN — book form', () => {
 
   test('1.5 UNIMARC export endpoint returns a valid MARCXchange document', async () => {
     test.skip(bookId === 0, 'no book available');
-    const resp = await page.request.get(`${BASE}/admin/libri/${bookId}/export.unimarc.xml`);
+    const resp = await page.request.get(`${BASE}/admin/books/${bookId}/export.unimarc.xml`);
     expect(resp.status()).toBe(200);
     expect(resp.headers()['content-type']).toContain('xml');
     const xml = await resp.text();
@@ -211,7 +211,7 @@ test.describe.serial('REICAT/SBN — author authority', () => {
 
   test('2.1 Authority panel renders on the author edit form', async () => {
     test.skip(authorId === 0, 'no author available');
-    await page.goto(`${BASE}/admin/autori/modifica/${authorId}`);
+    await page.goto(`${BASE}/admin/authors/edit/${authorId}`);
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('#reicat-authority-panel')).toBeVisible();
     await expect(page.locator('#sbn_authorized_form')).toHaveCount(1);
@@ -220,7 +220,7 @@ test.describe.serial('REICAT/SBN — author authority', () => {
 
   test('2.2 Lookup CCN (mocked) shows a candidate and applies it', async () => {
     test.skip(authorId === 0, 'no author available');
-    await page.route(`**/admin/autori/${authorId}/lookup-ccn`, async (route) => {
+    await page.route(`**/admin/authors/${authorId}/lookup-ccn`, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -234,11 +234,11 @@ test.describe.serial('REICAT/SBN — author authority', () => {
       });
     });
     // apply-authority must not actually mutate in this UI test → mock it too.
-    await page.route(`**/admin/autori/${authorId}/apply-authority`, async (route) => {
+    await page.route(`**/admin/authors/${authorId}/apply-authority`, async (route) => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true }) });
     });
 
-    await page.goto(`${BASE}/admin/autori/modifica/${authorId}`);
+    await page.goto(`${BASE}/admin/authors/edit/${authorId}`);
     await page.waitForLoadState('domcontentloaded');
     await page.locator('#reicat-lookup-btn').click();
 
@@ -249,7 +249,7 @@ test.describe.serial('REICAT/SBN — author authority', () => {
     await expect(page.locator('#sbn_authorized_form')).toHaveValue('Calvino, Italo');
     await expect(page.locator('#qualifier_dates')).toHaveValue('1923-1985');
 
-    await page.unroute(`**/admin/autori/${authorId}/lookup-ccn`);
-    await page.unroute(`**/admin/autori/${authorId}/apply-authority`);
+    await page.unroute(`**/admin/authors/${authorId}/lookup-ccn`);
+    await page.unroute(`**/admin/authors/${authorId}/apply-authority`);
   });
 });

@@ -62,7 +62,7 @@ test.describe.serial('Issue #83: CSV column alignment', () => {
   });
 
   test('CSV export has no \\r characters in output', async () => {
-    const resp = await page.request.get(`${BASE}/admin/libri/export/csv?ids=${testBookId}`);
+    const resp = await page.request.get(`${BASE}/admin/books/export/csv?ids=${testBookId}`);
     expect(resp.ok()).toBeTruthy();
     const csv = await resp.text();
 
@@ -75,7 +75,7 @@ test.describe.serial('Issue #83: CSV column alignment', () => {
   });
 
   test('CSV columns stay aligned — same number of fields per record', async () => {
-    const resp = await page.request.get(`${BASE}/admin/libri/export/csv?ids=${testBookId}`);
+    const resp = await page.request.get(`${BASE}/admin/books/export/csv?ids=${testBookId}`);
     expect(resp.ok()).toBeTruthy();
     const csv = await resp.text();
 
@@ -117,7 +117,7 @@ test.describe.serial('Issue #83: CSV column alignment', () => {
   });
 
   test('CSV correctly quotes fields containing newlines', async () => {
-    const resp = await page.request.get(`${BASE}/admin/libri/export/csv?ids=${testBookId}`);
+    const resp = await page.request.get(`${BASE}/admin/books/export/csv?ids=${testBookId}`);
     expect(resp.ok()).toBeTruthy();
     const csv = await resp.text();
 
@@ -170,7 +170,7 @@ test.describe.serial('Issue #90: Admin genre display', () => {
 
   test('Admin book detail shows separate clickable genre links', async () => {
     test.skip(rootGenreId === 0, 'No genres in database');
-    await page.goto(`${BASE}/admin/libri/${testBookId}`);
+    await page.goto(`${BASE}/admin/books/${testBookId}`);
     await page.waitForLoadState('domcontentloaded');
 
     const genreDisplay = page.locator('[data-testid="genre-display"]');
@@ -181,10 +181,10 @@ test.describe.serial('Issue #90: Admin genre display', () => {
     const linkCount = await genreLinks.count();
     expect(linkCount).toBeGreaterThanOrEqual(1);
 
-    // Each link should point to /admin/libri?genere=<id>
+    // Each link should point to /admin/books?genere=<id>
     for (let i = 0; i < linkCount; i++) {
       const href = await genreLinks.nth(i).getAttribute('href');
-      expect(href).toMatch(/\/admin\/libri\?genere=\d+/);
+      expect(href).toMatch(/\/admin\/books\?genere=\d+/);
     }
 
     // The genre name text should be present
@@ -200,7 +200,7 @@ test.describe.serial('Issue #90: Admin genre display', () => {
 
   test('Admin book detail genre links have arrow separator', async () => {
     test.skip(rootGenreId === 0 || childGenreId === 0, 'Need root+child genre');
-    await page.goto(`${BASE}/admin/libri/${testBookId}`);
+    await page.goto(`${BASE}/admin/books/${testBookId}`);
     await page.waitForLoadState('domcontentloaded');
 
     const genreDisplay = page.locator('[data-testid="genre-display"]');
@@ -220,7 +220,7 @@ test.describe.serial('Issue #90: Admin genre display', () => {
     const filterGenreId = childGenreId > 0 ? childGenreId : rootGenreId;
     const filterGenreName = childGenreId > 0 ? childGenreName : rootGenreName;
 
-    await page.goto(`${BASE}/admin/libri?genere=${filterGenreId}`);
+    await page.goto(`${BASE}/admin/books?genere=${filterGenreId}`);
     await page.waitForLoadState('domcontentloaded');
 
     // Wait for the filter flash banner to appear

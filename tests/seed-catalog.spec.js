@@ -51,7 +51,7 @@ async function trySave(page, label) {
   await page.locator('button[type="submit"]').first().click();
   const swal = page.locator('.swal2-confirm');
   if (await swal.isVisible({ timeout: 3000 }).catch(() => false)) await swal.click();
-  const saved = await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 }).then(() => true).catch(() => false);
+  const saved = await page.waitForURL(/\/admin\/books\/\d+/, { timeout: 15000 }).then(() => true).catch(() => false);
   if (saved) {
     console.log(`  ✓ ${label}`);
   } else {
@@ -88,7 +88,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
     const rec = MUSIC_BARCODES[i];
     test(`Music ${i + 1}: ${rec.note}`, async () => {
       test.setTimeout(45000);
-      await page.goto(`${BASE}/admin/libri/crea`);
+      await page.goto(`${BASE}/admin/books/create`);
       await page.waitForLoadState('domcontentloaded');
 
       const importBtn = page.locator('#btnImportIsbn');
@@ -130,7 +130,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
     const book = BOOK_ISBNS[i];
     test(`Book ${i + 1}: ${book.note}`, async () => {
       test.setTimeout(45000);
-      await page.goto(`${BASE}/admin/libri/crea`);
+      await page.goto(`${BASE}/admin/books/create`);
       await page.waitForLoadState('domcontentloaded');
 
       const importBtn = page.locator('#btnImportIsbn');
@@ -162,7 +162,7 @@ test.describe.serial('Seed Catalog (books + music)', () => {
     const entry = MANUAL_ENTRIES[i];
     test(`Manual ${i + 1}: ${entry.titolo}`, async () => {
       test.setTimeout(15000);
-      await page.goto(`${BASE}/admin/libri/crea`);
+      await page.goto(`${BASE}/admin/books/create`);
       await page.waitForLoadState('domcontentloaded');
 
       await page.locator('input[name="titolo"]').fill(entry.titolo);

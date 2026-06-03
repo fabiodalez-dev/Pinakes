@@ -210,7 +210,7 @@ test.describe.serial('Phase 2: Book Form Scraping Fields (numero_serie + dimensi
     page = await context.newPage();
     await loginAsAdmin(page);
     // Navigate to the book creation form once for all tests in this phase
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('networkidle');
   });
   test.afterAll(async () => { await context?.close(); });

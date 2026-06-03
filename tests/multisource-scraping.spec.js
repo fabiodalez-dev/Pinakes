@@ -67,7 +67,7 @@ async function loginAsAdmin(page) {
 }
 
 async function openCreateForm(page) {
-  await page.goto(`${BASE}/admin/libri/crea`);
+  await page.goto(`${BASE}/admin/books/create`);
   await page.waitForLoadState('domcontentloaded');
 }
 
@@ -102,8 +102,8 @@ async function saveCurrentForm(page) {
     await swalConfirm.click();
   }
 
-  await page.waitForURL(/\/admin\/libri\/\d+/, { timeout: 15000 });
-  const match = page.url().match(/\/admin\/libri\/(\d+)/);
+  await page.waitForURL(/\/admin\/books\/\d+/, { timeout: 15000 });
+  const match = page.url().match(/\/admin\/books\/(\d+)/);
   if (!match) {
     throw new Error(`Could not resolve saved book id from URL: ${page.url()}`);
   }
@@ -335,7 +335,7 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     expect(row).toContain('libro');
     expect(row).toContain(IMPORTED_BOOK_ISBN13);
 
-    await page.goto(`${BASE}/admin/libri/${importedBookId}`);
+    await page.goto(`${BASE}/admin/books/${importedBookId}`);
     await page.waitForLoadState('domcontentloaded');
     const html = await page.content();
 
@@ -367,7 +367,7 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     expect(row).toContain(MANUAL_DISC_EAN);
     expect(row).toContain('cd_audio');
 
-    await page.goto(`${BASE}/admin/libri/${manualDiscId}`);
+    await page.goto(`${BASE}/admin/books/${manualDiscId}`);
     await page.waitForLoadState('domcontentloaded');
     const html = await page.content();
 
@@ -404,7 +404,7 @@ test.describe.serial('Multi-source scraping and creation flows', () => {
     expect(row).toContain('disco');
     expect(row).toContain(IMPORTED_DISC_1_EAN);
 
-    await page.goto(`${BASE}/admin/libri/${importedDisc1Id}`);
+    await page.goto(`${BASE}/admin/books/${importedDisc1Id}`);
     await page.waitForLoadState('domcontentloaded');
     const html = await page.content();
 

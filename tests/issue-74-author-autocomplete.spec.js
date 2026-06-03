@@ -62,13 +62,13 @@ test.describe.serial('Issue #74 — Choices.js: Enter creates new author when dr
         // form intercepts submit with a SweetAlert2 confirm dialog — click
         // the submit button, then accept the SweetAlert, then wait for
         // the redirect.
-        await page.goto(`${BASE}/admin/autori/crea`);
+        await page.goto(`${BASE}/admin/authors/create`);
         await page.fill('input[name="nome"]', TRAP_AUTHOR);
         await page.click('button[type="submit"]');
         const swalConfirm = page.locator('.swal2-confirm').first();
         if (await swalConfirm.isVisible({ timeout: 5000 }).catch(() => false)) {
             await Promise.all([
-                page.waitForURL(/\/admin\/autori(\?|$)/, { timeout: 10000 }),
+                page.waitForURL(/\/admin\/authors(\?|$)/, { timeout: 10000 }),
                 swalConfirm.click(),
             ]);
         }
@@ -79,7 +79,7 @@ test.describe.serial('Issue #74 — Choices.js: Enter creates new author when dr
         // commit a book so there's no book→author FK to break.
         try {
             for (const name of [TRAP_AUTHOR, NEW_AUTHOR]) {
-                await page.goto(`${BASE}/admin/autori?search=${encodeURIComponent(name)}`);
+                await page.goto(`${BASE}/admin/authors?search=${encodeURIComponent(name)}`);
                 const deleteButton = page.locator(`tr:has-text("${name}") button[type="submit"][formaction*="delete"], tr:has-text("${name}") form[action*="delete"] button`).first();
                 if (await deleteButton.isVisible({ timeout: 2000 }).catch(() => false)) {
                     await deleteButton.click();
@@ -97,7 +97,7 @@ test.describe.serial('Issue #74 — Choices.js: Enter creates new author when dr
 
     test('Typing a new author name and pressing Enter creates the new author, NOT the highlighted existing match', async () => {
         // Go to the create-book form
-        await page.goto(`${BASE}/admin/libri/crea`);
+        await page.goto(`${BASE}/admin/books/create`);
         await page.waitForLoadState('domcontentloaded');
 
         // Wait for Choices.js to render the cloned input
@@ -153,7 +153,7 @@ test.describe.serial('Issue #74 — Choices.js: Enter creates new author when dr
         // Counter-test: the monkey-patch must NOT regress the "type exact
         // existing name → Enter → select existing" path. Without this
         // assertion, a too-aggressive monkey-patch could create a duplicate.
-        await page.goto(`${BASE}/admin/libri/crea`);
+        await page.goto(`${BASE}/admin/books/create`);
         await page.waitForLoadState('domcontentloaded');
 
         const choicesInput = page.locator('.choices__input--cloned').first();

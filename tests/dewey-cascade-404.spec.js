@@ -108,7 +108,7 @@ test.describe.serial('Dewey cascade — no 404 on legacy codes deeper than JSON'
             if (msg.type() === 'error') consoleErrors.push(msg.text());
         });
 
-        await page.goto(`${BASE}/admin/libri/modifica/${bookId}`);
+        await page.goto(`${BASE}/admin/books/edit/${bookId}`);
         await page.waitForLoadState('networkidle', { timeout: 15000 });
 
         // Let the cascade finish its sweep up the path

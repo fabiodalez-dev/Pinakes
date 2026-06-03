@@ -23,13 +23,13 @@ test.describe.serial('Standard CSV import (20 books)', () => {
   test('imports all 20 rows via the browser with no row errors', async ({ page }) => {
     test.setTimeout(150000);
     await loginAsAdmin(page);
-    await page.goto(`${BASE}/admin/libri/import`);
+    await page.goto(`${BASE}/admin/books/import`);
 
     const statuses = [];
     let lastChunk = null;
     page.on('response', async (r) => {
       const u = r.url();
-      if (u.includes('/admin/libri/import/upload') || u.includes('/admin/libri/import/chunk')) {
+      if (u.includes('/admin/books/import/upload') || u.includes('/admin/books/import/chunk')) {
         statuses.push(r.status());
         if (u.includes('/chunk')) { try { lastChunk = JSON.parse(await r.text()); } catch { /* non-JSON => caught by assertions */ } }
       }

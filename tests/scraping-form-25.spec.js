@@ -34,7 +34,7 @@ const RUN_TAG = `E2E_S25_${RUN_ID}`;
 // The book controller rejects ISBN-13 values that fail the EAN-13 checksum
 // (sum of d1+3*d2+d3+3*d4+...+3*d12 must end in (10 - d13) % 10), so
 // every synthetic ISBN we want to persist must end in a correct check
-// digit. Without this, the server redirects back to /admin/libri/crea
+// digit. Without this, the server redirects back to /admin/books/create
 // with a flash error and submitAndWait() times out.
 function validIsbn13(prefix12) {
     const s = String(prefix12).slice(0, 12).padEnd(12, '0');
@@ -129,7 +129,7 @@ async function dismissAnySwals(page) {
 
 // Open the create form and wait for it to be interactive.
 async function openCreateForm(page) {
-    await page.goto(`${BASE}/admin/libri/crea`);
+    await page.goto(`${BASE}/admin/books/create`);
     await page.waitForLoadState('domcontentloaded');
     await dismissAnySwals(page);
     await page.locator('input[name="titolo"]').waitFor({ state: 'visible', timeout: 10000 });
@@ -137,7 +137,7 @@ async function openCreateForm(page) {
 
 // Submit the form, handle the SweetAlert confirmation if present, and wait
 // for navigation OFF the create/edit form. The controller redirects to
-// /admin/libri/{id} on success (not /admin/libri or /admin/libri/modifica/{id}).
+// /admin/books/{id} on success (not /admin/books or /admin/books/edit/{id}).
 // Returns the URL it ended up on.
 async function submitAndWait(page) {
     // A leftover SweetAlert from a previous test intercepts pointer
@@ -156,8 +156,8 @@ async function submitAndWait(page) {
     }
     // Wait until we've left both /crea and /modifica/ paths.
     await page.waitForFunction(
-        () => !window.location.pathname.endsWith('/admin/libri/crea')
-              && !window.location.pathname.includes('/admin/libri/modifica/'),
+        () => !window.location.pathname.endsWith('/admin/books/create')
+              && !window.location.pathname.includes('/admin/books/edit/'),
         null,
         { timeout: 30000 }
     );
@@ -237,7 +237,7 @@ test.beforeEach(({}, testInfo) => {
 // ════════════════════════════════════════════════════════════════════════
 
 test.describe.serial('Phase 1: Setup', () => {
-    test('1.1 Admin reaches /admin/libri/crea and sees the form', async () => {
+    test('1.1 Admin reaches /admin/books/create and sees the form', async () => {
         await openCreateForm(page);
         await expect(page.locator('input[name="titolo"]')).toBeVisible();
         await expect(page.locator('input[name="isbn13"]')).toBeVisible();
@@ -269,7 +269,7 @@ test.describe.serial('Phase 2: Manual form entry', () => {
             expect(isInvalid).toBe(true);
         }
         // We did NOT navigate away.
-        expect(page.url()).toContain('/admin/libri/crea');
+        expect(page.url()).toContain('/admin/books/create');
     });
 
     test('2.2 Title-only submission saves successfully', async () => {
@@ -298,7 +298,7 @@ test.describe.serial('Phase 2: Manual form entry', () => {
         expect(id).toBeGreaterThan(0);
         createdBookIds.push(id);
         // Reopen edit form and verify fields pre-populated.
-        await page.goto(`${BASE}/admin/libri/modifica/${id}`);
+        await page.goto(`${BASE}/admin/books/edit/${id}`);
         await page.waitForLoadState('domcontentloaded');
         await expect(page.locator('input[name="titolo"]')).toHaveValue(title);
         await expect(page.locator('input[name="isbn13"]')).toHaveValue(isbn);
@@ -386,11 +386,11 @@ test.describe.serial('Phase 3: Built-in ISBN scraping', () => {
         page.on('pageerror', e => jsErrors.push(e.message));
         await triggerScrape(page, ISBN_ITALIAN);
         // The scrape pipeline ran end-to-end iff: no uncaught JS errors AND
-        // the page is still on /admin/libri/crea (we didn't get bounced to an
+        // the page is still on /admin/books/create (we didn't get bounced to an
         // error page). Whether a specific source returned data is upstream-
         // dependent and not what this test verifies — that's 4.x's domain.
         expect(jsErrors).toEqual([]);
-        expect(page.url()).toContain('/admin/libri/crea');
+        expect(page.url()).toContain('/admin/books/create');
         // ISBN field: a successful scrape may rewrite it (hyphenate, swap
         // ISBN-10↔13). A failed scrape may leave it intact or clear it.
         // Accept all of these as long as the digits-only form contains the
@@ -590,7 +590,7 @@ test.describe.serial('Phase 5: Scrape + save flow', () => {
         // "the book is accessible from admin" is via the detail URL,
         // which is where submitAndWait already redirected us. Open it
         // directly and confirm the title shows.
-        await page.goto(`${BASE}/admin/libri/${id}`);
+        await page.goto(`${BASE}/admin/books/${id}`);
         await page.waitForLoadState('domcontentloaded');
         await expect(page.getByText(title).first()).toBeVisible({ timeout: 10000 });
     });
@@ -614,14 +614,14 @@ test.describe.serial('Phase 6: Edit & re-scrape', () => {
         expect(editTargetId).toBeGreaterThan(0);
         createdBookIds.push(editTargetId);
         // Open edit form and verify.
-        await page.goto(`${BASE}/admin/libri/modifica/${editTargetId}`);
+        await page.goto(`${BASE}/admin/books/edit/${editTargetId}`);
         await page.waitForLoadState('domcontentloaded');
         await expect(page.locator('input[name="titolo"]')).toHaveValue(editTitle);
     });
 
     test('6.2 Edit mode shows "Aggiorna Dati" label on scrape button', async () => {
         test.skip(!editTargetId, 'Phase 6.1 did not create a target row');
-        await page.goto(`${BASE}/admin/libri/modifica/${editTargetId}`);
+        await page.goto(`${BASE}/admin/books/edit/${editTargetId}`);
         await page.waitForLoadState('domcontentloaded');
         const btn = page.locator('#btnImportIsbn');
         const label = (await btn.textContent()) || '';
@@ -636,7 +636,7 @@ test.describe.serial('Phase 6: Edit & re-scrape', () => {
         // Ubik+LU+Feltrinelli chain and the test times out on submit while
         // the AJAX is still pending. The *no-duplicate-on-update* invariant
         // is what matters; we exercise it by editing a field and saving.
-        await page.goto(`${BASE}/admin/libri/modifica/${editTargetId}`);
+        await page.goto(`${BASE}/admin/books/edit/${editTargetId}`);
         await page.waitForLoadState('domcontentloaded');
         await dismissAnySwals(page);
         // Modify a free-form field (note) so we're saving a real change.

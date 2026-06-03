@@ -67,7 +67,7 @@ test.describe.serial('GoodLib custom domains', () => {
     await page.getByRole('button', { name: 'OK' }).click();
 
     // Use admin book detail (locale-independent URL)
-    await page.goto(`${BASE_URL}/admin/libri/${book.id}`);
+    await page.goto(`${BASE_URL}/admin/books/${book.id}`);
 
     await expect(page.getByRole('link', { name: "Anna's Archive" })).toHaveAttribute(
       'href',
