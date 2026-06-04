@@ -987,18 +987,22 @@ class ViafAuthorityPlugin
     private function validateCsrf(ServerRequestInterface $request): bool
     {
         // CSRF defends cookie/session-authenticated requests: the threat is a
-        // browser auto-attaching the victim's session cookie to a cross-site
-        // request. Skip CSRF ONLY for a genuinely session-less request that is
-        // actually authenticated via Basic auth, i.e. BOTH:
-        //   - there is no session user — a CSRF attack rides the victim's
-        //     session cookie, so a session means CSRF MUST be enforced even if
-        //     the attacker also spoofs in a bogus Authorization: Basic header;
-        //   - the Basic credentials genuinely validate.
-        // Keying the exemption on the spoofable header alone would let an
-        // attacker append a Basic header to a cookie-bearing forged request and
-        // skip the check.
+        // browser auto-attaching the victim's cookies to a cross-site request.
+        // Skip CSRF ONLY for a genuinely stateless API request — every condition
+        // must hold:
+        //   - the request carries NO cookies. A browser CSRF attack always
+        //     auto-attaches the target origin's cookies (incl. the session
+        //     cookie); a curl/script API client sends none. This is the primary,
+        //     non-spoofable discriminator (an attacker's page cannot strip the
+        //     victim's cookies from a forged cross-site request).
+        //   - there is no authenticated session user (belt-and-suspenders).
+        //   - the Basic credentials genuinely validate server-side.
+        // Keying the exemption on the Authorization header alone would let an
+        // attacker append a Basic header to a cookie-bearing forged request.
         $sessionUser = $_SESSION['user'] ?? null;
-        if ($sessionUser === null && $this->hasValidBasicAuth($request)) {
+        if ($sessionUser === null
+            && empty($request->getCookieParams())
+            && $this->hasValidBasicAuth($request)) {
             return true;
         }
         $body  = (array) ($request->getParsedBody() ?? []);
