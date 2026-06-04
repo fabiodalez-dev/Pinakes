@@ -986,17 +986,44 @@ class ViafAuthorityPlugin
      */
     private function validateCsrf(ServerRequestInterface $request): bool
     {
-        // CSRF only protects cookie/session-authenticated requests: the threat is
-        // a browser auto-attaching the session cookie to a cross-site request. A
-        // request authenticated via a Basic Authorization header (API scripts,
-        // E2E) carries no ambient credential an attacker could ride and has no
-        // session-bound token, so CSRF validation does not apply to it.
-        if (str_starts_with($request->getHeaderLine('Authorization'), 'Basic ')) {
+        // CSRF defends cookie/session-authenticated requests: the threat is a
+        // browser auto-attaching the victim's session cookie to a cross-site
+        // request. Skip CSRF ONLY for a genuinely session-less request that is
+        // actually authenticated via Basic auth, i.e. BOTH:
+        //   - there is no session user — a CSRF attack rides the victim's
+        //     session cookie, so a session means CSRF MUST be enforced even if
+        //     the attacker also spoofs in a bogus Authorization: Basic header;
+        //   - the Basic credentials genuinely validate.
+        // Keying the exemption on the spoofable header alone would let an
+        // attacker append a Basic header to a cookie-bearing forged request and
+        // skip the check.
+        $sessionUser = $_SESSION['user'] ?? null;
+        if ($sessionUser === null && $this->hasValidBasicAuth($request)) {
             return true;
         }
         $body  = (array) ($request->getParsedBody() ?? []);
         $token = (string) ($body['csrf_token'] ?? $request->getHeaderLine('X-CSRF-Token'));
         return \App\Support\Csrf::validate($token !== '' ? $token : null);
+    }
+
+    /**
+     * True only when the request carries an Authorization: Basic header whose
+     * credentials authenticate successfully (same check requireAdminOrStaff
+     * uses). Used to decide CSRF exemption server-side rather than trusting the
+     * raw header.
+     */
+    private function hasValidBasicAuth(ServerRequestInterface $request): bool
+    {
+        $authHeader = $request->getHeaderLine('Authorization');
+        if (!str_starts_with($authHeader, 'Basic ')) {
+            return false;
+        }
+        $decoded = base64_decode(substr($authHeader, 6), true);
+        if ($decoded === false || !str_contains($decoded, ':')) {
+            return false;
+        }
+        [$email, $pass] = explode(':', $decoded, 2);
+        return $this->authenticateBasic($email, $pass);
     }
 
     private function authorExists(int $id): bool
