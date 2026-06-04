@@ -1080,7 +1080,7 @@
   "Data di morte": "Sterbedatum",
   "Data di nascita": "Geburtsdatum",
   "Data di pubblicazione": "Erscheinungsdatum",
-  "Data di scadenza della prenotazione (default: +30 giorni)": "Ablaufdatum der Vormerkung (Standard: +30 Tage)",
+  "Data di scadenza della prenotazione (default: +%d giorni)": "Ablaufdatum der Vormerkung (Standard: +30 Tage)",
   "Data fine": "Enddatum",
   "Data inizio": "Startdatum",
   "Data inizio richiesta mancante": "Angefordertes Startdatum fehlt",

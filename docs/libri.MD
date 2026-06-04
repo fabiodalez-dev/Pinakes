@@ -2,7 +2,7 @@
 
 ## PARTE 1: GUIDA PER L'UTENTE FINALE
 
-### Benvenuto nella Gestione Libri 
+### Benvenuto nella Gestione Libri
 Questa pagina ti spiega **tutto quello che puoi fare** con i libri della tua biblioteca. Non serve essere tecnici!
 
 ### Cosa Puoi Fare Qui
@@ -67,11 +67,11 @@ Clicca su **"Filtri"** per usare:
 2. Trova l'**ISBN** sul retro del libro (13 cifre)
 3. Digita l'ISBN e clicca **"Importa"**
 4. **Magia!** Il sistema recupera:
-   - Titolo completo 
-   - Autore/i 
-   - Copertina 
-   - Descrizione 
-   - Prezzo 
+   - Titolo completo
+   - Autore/i
+   - Copertina
+   - Descrizione
+   - Prezzo
    - Classificazione Dewey (se disponibile)
 
 #### Metodo B: Manuale
@@ -161,7 +161,7 @@ Le etichette servono per **trovare i libri sugli scaffali**.
 >  **Attenzione**: L'eliminazione è un **soft-delete**: il record resta nel database con la colonna `deleted_at` valorizzata e viene nascosto da tutte le viste (ogni query sui libri filtra `AND deleted_at IS NULL`). Al soft-delete il sistema azzera i codici univoci (`isbn10`, `isbn13`, `ean`) e i campi di collocazione (`scaffale_id`, `mensola_id`, `posizione_progressiva`, `collocazione`) per evitare violazioni di unicità su futuri inserimenti.
 
 1. Trova il libro
-2. Clicca 
+2. Clicca
 3. **Conferma** nel popup
 
 > **Non puoi eliminare** se:
@@ -306,6 +306,6 @@ Endpoint JSON di sola lettura / supporto al form:
 
 ---
 
-*Ultimo aggiornamento: 4 Giugno 2026*  
-*Versione documentazione: 4.2.0*  
-*Versione guide correlate: 3.2.0* 
+*Ultimo aggiornamento: 4 Giugno 2026*
+*Versione documentazione: 4.2.0*
+*Versione guide correlate: 3.2.0*

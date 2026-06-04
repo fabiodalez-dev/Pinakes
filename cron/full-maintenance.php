@@ -175,7 +175,9 @@ try {
 
     logMessage("Full maintenance cron job completed successfully");
 
-} catch (Exception $e) {
+} catch (\Throwable $e) {
+    // \Throwable, not \Exception: with strict_types a TypeError is an \Error and
+    // would otherwise escape the cron's error/cleanup path.
     logMessage("ERROR: " . $e->getMessage());
     if (isset($db) && $db instanceof mysqli) {
         $db->close();

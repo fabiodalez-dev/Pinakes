@@ -1080,7 +1080,7 @@
   "Data di morte": "Data di morte",
   "Data di nascita": "Data di nascita",
   "Data di pubblicazione": "Data di pubblicazione",
-  "Data di scadenza della prenotazione (default: +30 giorni)": "Data di scadenza della prenotazione (default: +30 giorni)",
+  "Data di scadenza della prenotazione (default: +%d giorni)": "Data di scadenza della prenotazione (default: +%d giorni)",
   "Data fine": "Data fine",
   "Data inizio": "Data inizio",
   "Data inizio richiesta mancante": "Data inizio richiesta mancante",

@@ -1080,7 +1080,7 @@
   "Data di morte": "Date de décès",
   "Data di nascita": "Date de naissance",
   "Data di pubblicazione": "Date de publication",
-  "Data di scadenza della prenotazione (default: +30 giorni)": "Date d'expiration de la réservation (par défaut : +30 jours)",
+  "Data di scadenza della prenotazione (default: +%d giorni)": "Date d'expiration de la réservation (par défaut : +30 jours)",
   "Data fine": "Date de fin",
   "Data inizio": "Date de début",
   "Data inizio richiesta mancante": "Date de début de la demande manquante",

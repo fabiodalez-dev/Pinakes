@@ -350,7 +350,8 @@ curl "http://localhost:8000/api/prestiti?draw=1&start=0&length=10&attivo=1&stato
 ```
 
 **Loan States** (`prestiti.stato`, as validated in `PrestitiController`):
-```
+
+```text
 pendente       → Request pending admin approval
 prenotato      → Reservation/request approved (queued)
 da_ritirare    → Approved, awaiting pickup
@@ -362,6 +363,7 @@ danneggiato    → Damaged
 annullato      → Cancelled
 scaduto        → Expired (e.g. pickup window elapsed)
 ```
+
 The boolean `attivo` flag is `1` while the loan occupies a copy
 (`prenotato`, `da_ritirare`, `in_corso`, `in_ritardo`) and `0` once closed.
 

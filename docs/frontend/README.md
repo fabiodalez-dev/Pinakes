@@ -353,8 +353,8 @@ Richiedono login (gestito da `AuthMiddleware` con ruoli `admin/staff/standard/pr
 - 📖 [Guida Principale (README)](../README.md) - Indice completo di TUTTE le guide
 - ⚙️ [Impostazioni](../settings.md) - Come personalizzare il sistema
 - 📧 [Email e Notifiche](../email.md) - Come configurare le email
-- 🔧 [Installazione](../installation.md) - Setup iniziale
-- 📊 [API Reference](../api.md) - Per sviluppatori
+- 🔧 [Installazione](../installation.MD) - Setup iniziale
+- 📊 [API Reference](../api.MD) - Per sviluppatori
 
 ---
 

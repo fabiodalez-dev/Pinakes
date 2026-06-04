@@ -83,6 +83,7 @@ Vedrai una tabella con l'elenco di tutti gli utenti registrati. Le rotte admin s
 ### Azioni Principali dell'Amministratore
 
 #### 1. Approvare Nuovi Utenti
+
 -   Nella lista utenti, vedrai i nuovi account con lo stato **`sospeso`** ("In attesa di approvazione").
 -   Sono disponibili **due modalità** di approvazione:
     -   **Approva e invia email di attivazione** (`approve-and-send-activation`): imposta lo stato a `attivo`, genera un token di verifica email valido **7 giorni** e invia all'utente un'email con link di attivazione. L'utente completa la verifica cliccando il link.
