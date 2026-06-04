@@ -2918,11 +2918,12 @@ class Updater
                                                 'errno' => $this->db->errno,
                                                 'error' => $this->db->error
                                             ]);
+                                        } elseif (in_array($this->db->errno, $ignorableErrors, true)) {
+                                            $this->debugLog('DEBUG', 'Errore SQL ignorabile (oggetto già esistente)', [
+                                                'errno' => $this->db->errno,
+                                                'error' => $this->db->error
+                                            ]);
                                         }
-                                        $this->debugLog('DEBUG', 'Errore SQL ignorabile (oggetto già esistente)', [
-                                            'errno' => $this->db->errno,
-                                            'error' => $this->db->error
-                                        ]);
                                     }
                                 }
                             }

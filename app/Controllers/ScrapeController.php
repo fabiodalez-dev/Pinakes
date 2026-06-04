@@ -203,6 +203,17 @@ class ScrapeController
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $payload = $this->normalizeIsbnFields($payload, $searchIdentifier);
 
+            // Hook: scrape.data.modify - Let plugins enrich/transform the
+            // assembled payload (e.g. the discogs plugin filling a missing
+            // cover) regardless of which source produced it. scraping-pro fires
+            // this inside its own parse path, but single-source setups (discogs
+            // alone, or the built-in fallbacks below) only reach it here, so we
+            // emit it for every result. enrichWithDiscogsData is idempotent
+            // (returns early when a cover is already present), so a double-fire
+            // when scraping-pro is also active is harmless.
+            $dataModifyContext = ['source' => 'core', 'identifier' => $searchIdentifier];
+            $payload = \App\Support\Hooks::apply('scrape.data.modify', $payload, [$searchIdentifier, $dataModifyContext, $payload]);
+
             // Hook: scrape.response - Modify final JSON response
             $payload = \App\Support\Hooks::apply('scrape.response', $payload, [$searchIdentifier, $sources, ['timestamp' => time()]]);
 
@@ -272,6 +283,12 @@ class ScrapeController
 
             // Normalize ISBN fields (auto-calculate missing isbn10/isbn13)
             $fallbackData = $this->normalizeIsbnFields($fallbackData, $searchIdentifier);
+
+            // Hook: scrape.data.modify - Same plugin enrichment opportunity for
+            // the built-in fallback path (Google Books / Open Library); see the
+            // custom-result branch above for the rationale.
+            $dataModifyContext = ['source' => 'core', 'identifier' => $searchIdentifier];
+            $fallbackData = \App\Support\Hooks::apply('scrape.data.modify', $fallbackData, [$searchIdentifier, $dataModifyContext, $fallbackData]);
 
             // Ensure plugins can still modify/log the final payload just like regular results
             $fallbackData = \App\Support\Hooks::apply('scrape.response', $fallbackData, [$searchIdentifier, $sources, ['timestamp' => time()]]);

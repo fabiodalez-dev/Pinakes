@@ -122,21 +122,21 @@ class CsvImportController
 
         if (!isset($uploadedFiles['csv_file'])) {
             $_SESSION['error'] = __('Nessun file caricato');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/import'))->withStatus(302);
         }
 
         $uploadedFile = $uploadedFiles['csv_file'];
 
         if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
             $_SESSION['error'] = __('Errore nel caricamento del file');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/import'))->withStatus(302);
         }
 
         // Validazione estensione file
         $filename = $uploadedFile->getClientFilename();
         if (!str_ends_with(strtolower($filename), '.csv')) {
             $_SESSION['error'] = __('Il file deve avere estensione .csv');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/import'))->withStatus(302);
         }
 
         // Validazione MIME type (check multipli)
@@ -144,20 +144,20 @@ class CsvImportController
         $mimeType = $uploadedFile->getClientMediaType();
         if (!in_array($mimeType, $allowedMimes, true)) {
             $_SESSION['error'] = __('Tipo MIME non valido. Solo file CSV sono accettati.');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/import'))->withStatus(302);
         }
 
         $tmpFile = $uploadedFile->getStream()->getMetadata('uri');
         if (!$tmpFile || !is_file($tmpFile)) {
             $_SESSION['error'] = __('Impossibile leggere il file caricato');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/import'))->withStatus(302);
         }
 
         // Validazione contenuto CSV: verifica che contenga separatori validi
         $handle = fopen($tmpFile, 'r');
         if ($handle === false) {
             $_SESSION['error'] = __('Impossibile leggere il file caricato');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/import'))->withStatus(302);
         }
 
         // Leggi prime 3 righe per validare formato
@@ -171,7 +171,7 @@ class CsvImportController
         $delimiter = $this->detectDelimiterFromSample($firstLines);
         if ($delimiter === null) {
             $_SESSION['error'] = __('File CSV non valido: usa ";", "," o TAB come separatore.');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/import'))->withStatus(302);
         }
         // Save CSV file for chunked processing (like LibraryThing)
         $uploadDir = __DIR__ . '/../../writable/uploads';
@@ -181,7 +181,7 @@ class CsvImportController
         $savedFilePath = $uploadDir . '/csv_import_' . session_id() . '_' . uniqid('', true) . '.csv';
         if (!@copy($tmpFile, $savedFilePath)) {
             $_SESSION['error'] = __('Impossibile salvare il file CSV caricato');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/import'))->withStatus(302);
         }
 
         // Count total rows for chunked processing (header excluded).
@@ -194,7 +194,7 @@ class CsvImportController
         } catch (\Throwable $e) {
             $this->safeUnlinkImportTmp($savedFilePath);
             $_SESSION['error'] = __('Impossibile aprire il file CSV salvato');
-            return $response->withHeader('Location', '/admin/libri/import')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/libri/import'))->withStatus(302);
         }
 
         // Store import metadata in session

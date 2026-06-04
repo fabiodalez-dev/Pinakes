@@ -589,6 +589,7 @@ class NotificationService {
                 WHERE w.libro_id = ?
                   AND u.stato = 'attivo'
                   AND w.notified = 0
+                  AND l.copie_disponibili > 0
                 GROUP BY w.id, w.utente_id, u.nome, u.cognome, u.email, l.titolo, l.isbn13, l.isbn10
             ");
             $stmt->bind_param('i', $bookId);

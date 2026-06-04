@@ -29,7 +29,7 @@ class ThemeController
     {
         // Check authorization
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            return $response->withStatus(403)->withHeader('Location', '/admin/dashboard');
+            return $response->withStatus(403)->withHeader('Location', url('/admin/dashboard'));
         }
 
         $themes = $this->themeManager->getAllThemes();
@@ -56,7 +56,7 @@ class ThemeController
     {
         // Check authorization
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            return $response->withStatus(403)->withHeader('Location', '/admin/dashboard');
+            return $response->withStatus(403)->withHeader('Location', url('/admin/dashboard'));
         }
 
         $themeId = (int)($args['id'] ?? 0);
@@ -65,7 +65,7 @@ class ThemeController
         if (!$theme) {
             $_SESSION['error'] = __('Tema non trovato');
             return $response
-                ->withHeader('Location', '/admin/themes')
+                ->withHeader('Location', url('/admin/themes'))
                 ->withStatus(302);
         }
 
@@ -101,7 +101,7 @@ class ThemeController
         if (!$theme) {
             $_SESSION['error'] = __('Tema non trovato');
             return $response
-                ->withHeader('Location', '/admin/themes')
+                ->withHeader('Location', url('/admin/themes'))
                 ->withStatus(302);
         }
 
@@ -113,7 +113,7 @@ class ThemeController
             if (!$this->themeColorizer->isValidHex($color)) {
                 $_SESSION['error'] = __('Colore non valido') . ': ' . $key;
                 return $response
-                    ->withHeader('Location', '/admin/themes/' . $themeId . '/customize')
+                    ->withHeader('Location', url('/admin/themes/' . $themeId . '/customize'))
                     ->withStatus(302);
             }
 
@@ -128,7 +128,7 @@ class ThemeController
             if ($contrastRatio < 3.0) {
                 $_SESSION['error'] = __('Contrasto insufficiente tra bottone e testo (minimo 3:1). Attuale') . ': ' . number_format($contrastRatio, 2) . ':1';
                 return $response
-                    ->withHeader('Location', '/admin/themes/' . $themeId . '/customize')
+                    ->withHeader('Location', url('/admin/themes/' . $themeId . '/customize'))
                     ->withStatus(302);
             }
         }
@@ -156,7 +156,7 @@ class ThemeController
         }
 
         return $response
-            ->withHeader('Location', '/admin/themes/' . $themeId . '/customize')
+            ->withHeader('Location', url('/admin/themes/' . $themeId . '/customize'))
             ->withStatus(302);
     }
 

@@ -1019,7 +1019,7 @@ class SettingsController
         $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
 
         $_SESSION['success_message'] = __('Impostazioni prestiti aggiornate correttamente.');
-        return $response->withHeader('Location', '/admin/settings?tab=loans')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/settings?tab=loans'))->withStatus(302);
     }
 
     private function redirect(Response $response, string $location): Response

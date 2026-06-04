@@ -141,7 +141,18 @@ class ReservationManager
             $lockBookStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockBookStmt->bind_param('i', $bookId);
             $lockBookStmt->execute();
+            $lockBookResult = $lockBookStmt->get_result();
+            $bookRow = $lockBookResult ? $lockBookResult->fetch_assoc() : null;
             $lockBookStmt->close();
+
+            // Soft-deleted or non-existent book: stop before converting any
+            // reservation into a loan for a title removed from the catalogue.
+            // Without this guard the FOR UPDATE returns zero rows but the flow
+            // proceeded anyway (libri queries MUST honour deleted_at IS NULL).
+            if ($bookRow === null) {
+                $this->commitIfOwned($ownTransaction);
+                return false;
+            }
 
             // Get the next date-eligible reservation in queue
             // Only process reservations where start date <= today (ready to convert to loan)
@@ -185,8 +196,14 @@ class ReservationManager
                     $stmt->execute();
                     $stmt->close();
 
-                    // Update queue positions for remaining reservations
-                    $this->updateQueuePositions($bookId);
+                    // Update queue positions for remaining reservations.
+                    // Pass the completed reservation's position: the converted
+                    // reservation is the lowest *date-eligible* one, which is
+                    // not necessarily queue_position = 1 (earlier positions may
+                    // have a future start date). Decrementing everything > 1
+                    // would collide positions when a non-head reservation is
+                    // promoted.
+                    $this->updateQueuePositions($bookId, (int) $nextReservation['queue_position']);
 
                     $this->commitIfOwned($ownTransaction);
 
@@ -416,17 +433,22 @@ class ReservationManager
     /**
      * Decrement queue positions after a reservation is completed
      *
+     * Only positions strictly greater than the completed reservation's
+     * position are shifted down, so promoting a non-head reservation (when
+     * earlier positions are not yet date-eligible) does not corrupt the queue.
+     *
      * @param int $bookId The book ID
+     * @param int $completedPosition Queue position of the reservation just removed
      * @return void
      */
-    private function updateQueuePositions($bookId)
+    private function updateQueuePositions($bookId, int $completedPosition)
     {
         $stmt = $this->db->prepare("
             UPDATE prenotazioni
             SET queue_position = queue_position - 1
-            WHERE libro_id = ? AND stato = 'attiva' AND queue_position > 1
+            WHERE libro_id = ? AND stato = 'attiva' AND queue_position > ?
         ");
-        $stmt->bind_param('i', $bookId);
+        $stmt->bind_param('ii', $bookId, $completedPosition);
         $stmt->execute();
     }
 

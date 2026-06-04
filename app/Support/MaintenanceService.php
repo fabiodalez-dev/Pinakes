@@ -446,12 +446,18 @@ class MaintenanceService
         $stmt->close();
 
         $expiredCount = 0;
-        $reassignmentService = new \App\Services\ReservationReassignmentService($this->db);
-        // Mark as external transaction so reassignmentService won't start nested transactions
-        $reassignmentService->setExternalTransaction(true);
         $integrity = new DataIntegrity($this->db);
 
         foreach ($expiredReservations as $reservation) {
+            // Fresh reassignment service per iteration: it buffers deferred
+            // notifications, so reusing one instance across iterations would let
+            // a notification queued in an iteration that subsequently rolls back
+            // leak into the next iteration's flushDeferredNotifications() and be
+            // emailed for work that was never committed.
+            $reassignmentService = new \App\Services\ReservationReassignmentService($this->db);
+            // External transaction: the service must not open nested transactions
+            $reassignmentService->setExternalTransaction(true);
+
             $this->db->begin_transaction();
 
             try {
@@ -567,12 +573,16 @@ class MaintenanceService
         $stmt->close();
 
         $expiredCount = 0;
-        $reassignmentService = new \App\Services\ReservationReassignmentService($this->db);
-        // Mark as external transaction so reassignmentService won't start nested transactions
-        $reassignmentService->setExternalTransaction(true);
         $integrity = new DataIntegrity($this->db);
 
         foreach ($expiredPickups as $pickup) {
+            // Fresh reassignment service per iteration (see checkExpiredReservations):
+            // a shared instance would leak a rolled-back iteration's buffered
+            // notifications into the next iteration's flush.
+            $reassignmentService = new \App\Services\ReservationReassignmentService($this->db);
+            // External transaction: the service must not open nested transactions
+            $reassignmentService->setExternalTransaction(true);
+
             $this->db->begin_transaction();
 
             try {

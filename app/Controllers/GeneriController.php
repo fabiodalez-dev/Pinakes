@@ -83,7 +83,7 @@ class GeneriController
         } catch (\Throwable $e) {
             SecureLogger::error('GeneriController::store error: ' . $e->getMessage());
             $_SESSION['error_message'] = __('Errore nella creazione del genere.');
-            return $response->withHeader('Location', '/admin/generi/crea')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/generi/crea'))->withStatus(302);
         }
     }
 
@@ -164,7 +164,7 @@ class GeneriController
             }
 
             $_SESSION['success_message'] = __('Genere eliminato con successo!');
-            return $response->withHeader('Location', '/admin/generi')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/generi'))->withStatus(302);
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('GeneriController::destroy error', ['id' => $id, 'message' => $e->getMessage()]);
             $_SESSION['error_message'] = __('Errore nell\'eliminazione del genere.');

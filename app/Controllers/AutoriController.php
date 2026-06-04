@@ -95,7 +95,7 @@ class AutoriController
             'biografia' => $biografia,
             'sito_web' => $sitoWeb,
         ]);
-        return $response->withHeader('Location', '/admin/autori')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/autori'))->withStatus(302);
     }
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
@@ -145,7 +145,7 @@ class AutoriController
             'biografia' => $biografia,
             'sito_web' => $sitoWeb,
         ]);
-        return $response->withHeader('Location', '/admin/autori')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/autori'))->withStatus(302);
     }
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
     {
@@ -166,6 +166,6 @@ class AutoriController
             session_start();
         }
         $_SESSION['success_message'] = __('Autore eliminato con successo.');
-        return $response->withHeader('Location', '/admin/autori')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/autori'))->withStatus(302);
     }
 }

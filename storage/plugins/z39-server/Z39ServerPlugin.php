@@ -383,12 +383,6 @@ class Z39ServerPlugin
                 'callback_method' => 'registerRoutes',
                 'priority' => 10
             ],
-            // Add admin menu item
-            [
-                'hook_name' => 'admin.menu.items',
-                'callback_method' => 'addAdminMenuItem',
-                'priority' => 10
-            ],
             // Register SRU sources (so they appear in "sources consulted" lists)
             [
                 'hook_name' => 'scrape.sources',
@@ -733,21 +727,6 @@ class Z39ServerPlugin
                 '/admin/autori/{id}/lookup-ccn', '/admin/autori/{id}/apply-authority',
             ]
         ]);
-    }
-
-    /**
-     * Add menu item to admin panel
-     */
-    public function addAdminMenuItem(array $menuItems): array
-    {
-        $menuItems[] = [
-            'title' => 'Z39.50/SRU Server',
-            'url' => url('/admin/plugins/z39-server/settings'),
-            'icon' => 'fa-server',
-            'section' => 'plugins'
-        ];
-
-        return $menuItems;
     }
 
     /**

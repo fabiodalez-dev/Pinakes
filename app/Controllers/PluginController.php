@@ -33,7 +33,7 @@ class PluginController
     {
         // Check authorization
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            return $response->withStatus(403)->withHeader('Location', '/admin/dashboard');
+            return $response->withStatus(403)->withHeader('Location', url('/admin/dashboard'));
         }
 
         $plugins = $this->pluginManager->getAllPlugins();

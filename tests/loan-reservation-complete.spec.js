@@ -1324,6 +1324,19 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
       dbQuery(`SELECT COUNT(*) FROM prenotazioni WHERE libro_id=${bookId} AND stato='attiva'`), 10);
     expect(ancoraAttive).toBe(1);
 
+    // Queue order must be deterministic: the HEAD (queue_position=1 = testUser)
+    // is the one promoted to a pending loan, and the still-active reservation is
+    // the SECOND user — not the reverse. A counts-only check would pass even if
+    // the cron promoted position 2 and left the head queued. Guards the
+    // queue-reorder fix (decrement only positions strictly after the promoted).
+    const promossoUserId = parseInt(
+      dbQuery(`SELECT utente_id FROM prestiti WHERE libro_id=${bookId} AND stato='pendente' AND attivo=0 ORDER BY id DESC LIMIT 1`), 10);
+    expect(promossoUserId).toBe(testUserId);
+
+    const inCodaUserId = parseInt(
+      dbQuery(`SELECT utente_id FROM prenotazioni WHERE libro_id=${bookId} AND stato='attiva' ORDER BY queue_position ASC, id ASC LIMIT 1`), 10);
+    expect(inCodaUserId).toBe(testUser2Id);
+
     // Cleanup (FK-safe).
     dbQuery(`DELETE FROM prestiti WHERE libro_id=${bookId}`);
     dbQuery(`DELETE FROM prenotazioni WHERE libro_id=${bookId}`);

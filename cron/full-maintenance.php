@@ -61,6 +61,7 @@ fflush($lockHandle);
 register_shutdown_function(function () use ($lockHandle, $lockFile) {
     flock($lockHandle, LOCK_UN);
     fclose($lockHandle);
+    // nosemgrep: php.lang.security.unlink-use.unlink-use -- $lockFile is a fixed internal path (storage/cache/full-maintenance.lock), not user input
     @unlink($lockFile);
 });
 
@@ -150,6 +151,7 @@ try {
     // Calculate totals
     $totalActions =
         $results['scheduled_loans_activated'] +
+        $results['expired_waitlist_reservations'] +
         $results['reservations_converted'] +
         $results['expired_reservations'] +
         $results['expired_pickups'] +

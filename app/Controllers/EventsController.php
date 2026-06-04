@@ -87,7 +87,7 @@ class EventsController
             $_SESSION['success_message'] = __('Sezione Eventi disabilitata. Il menu e le pagine sono ora nascosti nel frontend.');
         }
 
-        return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/cms/events'))->withStatus(302);
     }
 
     /**
@@ -141,7 +141,7 @@ class EventsController
 
         if (!$event) {
             $_SESSION['error_message'] = __('Evento non trovato.');
-            return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/cms/events'))->withStatus(302);
         }
 
         $title = __('Modifica Evento: %s', $event['title']);
@@ -228,7 +228,7 @@ class EventsController
 
         if (!empty($errors)) {
             $_SESSION['error_message'] = implode('<br>', $errors);
-            return $response->withHeader('Location', '/admin/cms/events/create')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/cms/events/create'))->withStatus(302);
         }
 
         // Insert event
@@ -257,7 +257,7 @@ class EventsController
         }
         $stmt->close();
 
-        return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/cms/events'))->withStatus(302);
     }
 
     /**
@@ -309,7 +309,7 @@ class EventsController
         }
         if (!$eventFound) {
             $_SESSION['error_message'] = __('Evento non trovato.');
-            return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/cms/events'))->withStatus(302);
         }
 
         $errors = [];
@@ -412,7 +412,7 @@ class EventsController
                 $this->deleteUploadedImageFile($featuredImagePath);
             }
             $_SESSION['error_message'] = implode('<br>', $errors);
-            return $response->withHeader('Location', '/admin/cms/events/edit/' . $id)->withStatus(302);
+            return $response->withHeader('Location', url('/admin/cms/events/edit/' . $id))->withStatus(302);
         }
 
         // Update event
@@ -473,7 +473,7 @@ class EventsController
         }
         $stmt->close();
 
-        return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/cms/events'))->withStatus(302);
     }
 
     /**
@@ -576,7 +576,7 @@ class EventsController
         }
         $stmt->close();
 
-        return $response->withHeader('Location', '/admin/cms/events')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/cms/events'))->withStatus(302);
     }
 
     /**

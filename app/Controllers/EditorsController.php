@@ -93,7 +93,7 @@ class EditorsController
             'nome' => trim((string) ($data['nome'] ?? '')),
             'sito_web' => $sitoWeb,
         ]);
-        return $response->withHeader('Location', '/admin/editori')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/editori'))->withStatus(302);
     }
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
@@ -126,7 +126,7 @@ class EditorsController
             'nome' => trim((string) ($data['nome'] ?? '')),
             'sito_web' => $sitoWeb,
         ]);
-        return $response->withHeader('Location', '/admin/editori')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/editori'))->withStatus(302);
     }
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
     {
@@ -147,6 +147,6 @@ class EditorsController
             session_start();
         }
         $_SESSION['success_message'] = __('Editore eliminato con successo.');
-        return $response->withHeader('Location', '/admin/editori')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/editori'))->withStatus(302);
     }
 }
