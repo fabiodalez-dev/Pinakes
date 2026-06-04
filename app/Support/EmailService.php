@@ -76,9 +76,18 @@ class EmailService {
             if ($settings['type'] === 'smtp') {
                 $this->mailer->isSMTP();
                 $this->mailer->Host = $settings['smtp_host'];
-                $this->mailer->SMTPAuth = true;
-                $this->mailer->Username = $settings['smtp_username'];
-                $this->mailer->Password = $settings['smtp_password'];
+                // Only authenticate when a username is configured. Forcing
+                // SMTPAuth=true breaks auth-less relays (local MTAs, internal
+                // smarthosts, Mailpit) — they reject the AUTH command. When the
+                // username is empty, send unauthenticated.
+                $smtpUsername = (string) $settings['smtp_username'];
+                if ($smtpUsername !== '') {
+                    $this->mailer->SMTPAuth = true;
+                    $this->mailer->Username = $smtpUsername;
+                    $this->mailer->Password = (string) $settings['smtp_password'];
+                } else {
+                    $this->mailer->SMTPAuth = false;
+                }
                 $this->mailer->SMTPSecure = $settings['smtp_security'];
                 $this->mailer->Port = (int)$settings['smtp_port'];
             } else {

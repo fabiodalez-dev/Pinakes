@@ -89,7 +89,7 @@ test.describe('fr-bnf merge consistency', () => {
 
   test('interop coverage checks the 0.7.4 NCIP schema fallback migration', () => {
     const spec = read('tests/interop-document-coverage.spec.js');
-    expect(spec).toContain("read('installer/database/migrations/migrate_0.7.4.sql')");
+    expect(spec).toContain("read('installer/database/migrations/migrate_0.7.04.sql')");
     expect(spec).toContain('ncip_partners');
     expect(spec).toContain('ncip_request_id');
     expect(spec).not.toContain("read('installer/database/migrations/migrate_0.7.3.sql')");

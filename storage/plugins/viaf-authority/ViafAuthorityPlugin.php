@@ -986,6 +986,14 @@ class ViafAuthorityPlugin
      */
     private function validateCsrf(ServerRequestInterface $request): bool
     {
+        // CSRF only protects cookie/session-authenticated requests: the threat is
+        // a browser auto-attaching the session cookie to a cross-site request. A
+        // request authenticated via a Basic Authorization header (API scripts,
+        // E2E) carries no ambient credential an attacker could ride and has no
+        // session-bound token, so CSRF validation does not apply to it.
+        if (str_starts_with($request->getHeaderLine('Authorization'), 'Basic ')) {
+            return true;
+        }
         $body  = (array) ($request->getParsedBody() ?? []);
         $token = (string) ($body['csrf_token'] ?? $request->getHeaderLine('X-CSRF-Token'));
         return \App\Support\Csrf::validate($token !== '' ? $token : null);

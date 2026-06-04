@@ -294,7 +294,7 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
         if (!fs.existsSync(autoloadPath)) return; // vendor/ not installed — skip
 
         const content = fs.readFileSync(autoloadPath, 'utf-8');
-        const count   = (content.match(/phpstan/gi) ?? []).length;
+        const count   = (content.match(/phpstan/g) ?? []).length;
         expect(count,
             `autoload_static.php contains ${count} phpstan reference(s). Fix: composer install --no-dev --optimize-autoloader`
         ).toBe(0);

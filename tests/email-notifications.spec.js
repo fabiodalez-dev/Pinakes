@@ -259,8 +259,8 @@ test.describe.serial('Email Notifications E2E', () => {
         ('email', 'smtp_host', 'localhost'),
         ('email', 'smtp_port', '1025'),
         ('email', 'smtp_security', ''),
-        ('email', 'smtp_username', 'mailpit'),
-        ('email', 'smtp_password', 'mailpit'),
+        ('email', 'smtp_username', ''),
+        ('email', 'smtp_password', ''),
         ('email', 'from_email', 'test@biblioteca.local'),
         ('email', 'from_name', 'Pinakes Test')
       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)
