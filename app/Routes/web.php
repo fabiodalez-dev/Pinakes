@@ -1915,7 +1915,7 @@ return function (App $app): void {
         if ($days > 180)
             $days = 180;
         $controller = new \App\Controllers\ReservationsController($db);
-        $availability = $controller->getBookAvailabilityData($bookId, date('Y-m-d'), $days);
+        $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), $days);
 
         $response->getBody()->write(json_encode([
             'total_copies' => $availability['total_copies'] ?? 0,
@@ -2095,7 +2095,7 @@ return function (App $app): void {
         // first_available / is_available_now: delega al calcolo per-giorno e per-copia
         // (AVAIL-001). Il vecchio "giorno dopo la scadenza più lontana" ignorava le
         // copie multiple, restituendo una data troppo conservativa.
-        $today = date('Y-m-d');
+        $today = \App\Support\DateHelper::today();
         $reservations = new \App\Controllers\ReservationsController($db);
         $availability = $reservations->getBookAvailabilityData($libroId, $today, 180);
         $todayData = $availability['by_date'][$today] ?? null;
@@ -2375,7 +2375,7 @@ return function (App $app): void {
             $db = $app->getContainer()->get('db');
             $bookId = (int)$args['id'];
             $controller = new \App\Controllers\ReservationsController($db);
-            $availability = $controller->getBookAvailabilityData($bookId, date('Y-m-d'), 180);
+            $availability = $controller->getBookAvailabilityData($bookId, \App\Support\DateHelper::today(), 180);
             $data = [
                 'success' => true,
                 'availability' => [
