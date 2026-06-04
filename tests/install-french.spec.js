@@ -240,8 +240,8 @@ test.describe.serial('Phase 2: Locale file validation', () => {
     expect(content).toContain('fr_FR');
   });
 
-  test('2.11 migrate_0.7.4.sql backfills fr_FR in languages table', async () => {
-    const filePath = path.join(PROJECT_ROOT, 'installer', 'database', 'migrations', 'migrate_0.7.4.sql');
+  test('2.11 migrate_0.7.04.sql backfills fr_FR in languages table', async () => {
+    const filePath = path.join(PROJECT_ROOT, 'installer', 'database', 'migrations', 'migrate_0.7.04.sql');
     const content = fs.readFileSync(filePath, 'utf-8');
     expect(content).toContain('fr_FR');
     expect(content).toContain('INSERT IGNORE INTO `languages`');

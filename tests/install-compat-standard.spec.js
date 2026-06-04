@@ -5,7 +5,7 @@
  * Covers:
  *   Phase 1 — Multi-locale seed files: all locales include all supported languages
  *   Phase 2 — Route compatibility: fr_FR routes have same keys as other locales
- *   Phase 3 — Migration compatibility: migrate_0.7.4.sql backfills fr_FR correctly
+ *   Phase 3 — Migration compatibility: migrate_0.7.04.sql backfills fr_FR correctly
  *   Phase 4 — Installer code compatibility: fr_FR registered everywhere it_IT/en_US/de_DE are
  *   Phase 5 — DB upgrade simulation: existing install gets fr_FR after migration
  *   Phase 6 — BNF URL security: preset uses HTTPS
@@ -61,7 +61,7 @@ function readFile(filePath) {
 
 const LOCALES      = ['it_IT', 'en_US', 'de_DE', 'fr_FR'];
 const ROUTE_FILES  = LOCALES.map(l => path.join(ROOT, 'locale', `routes_${l}.json`));
-const MIGRATION    = path.join(ROOT, 'installer', 'database', 'migrations', 'migrate_0.7.4.sql');
+const MIGRATION    = path.join(ROOT, 'installer', 'database', 'migrations', 'migrate_0.7.04.sql');
 const INSTALLER_PHP = path.join(ROOT, 'installer', 'classes', 'Installer.php');
 const STEP0_PHP    = path.join(ROOT, 'installer', 'steps', 'step0.php');
 const INDEX_PHP    = path.join(ROOT, 'installer', 'index.php');
@@ -188,7 +188,7 @@ test.describe.serial('Phase 2: Route compatibility across locales', () => {
 // ═════════════════════════════════════════════════════════════════════════════
 // Phase 3: Migration compatibility
 // ═════════════════════════════════════════════════════════════════════════════
-test.describe.serial('Phase 3: migrate_0.7.4.sql backfills fr_FR', () => {
+test.describe.serial('Phase 3: migrate_0.7.04.sql backfills fr_FR', () => {
   test('3.1 Migration file exists', () => {
     expect(fs.existsSync(MIGRATION)).toBe(true);
   });
