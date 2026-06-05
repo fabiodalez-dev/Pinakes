@@ -42,7 +42,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
     <i class="fas fa-exclamation-circle mr-2"></i>
     <?php
     // Errori del rinnovo prestito (redirect da /admin/prestiti/rinnova con ?error=...).
-    switch ((string) $_GET['error']) {
+    // Normalizza prima del cast: ?error[]=x arriverebbe come array (warning PHP 8).
+    $errorKey = is_scalar($_GET['error']) ? (string) $_GET['error'] : '';
+    switch ($errorKey) {
         case 'book_not_found':
             echo __('Libro non trovato o non più disponibile.');
             break;

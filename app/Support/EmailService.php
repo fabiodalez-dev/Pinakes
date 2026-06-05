@@ -87,6 +87,11 @@ class EmailService {
                     $this->mailer->Password = (string) $settings['smtp_password'];
                 } else {
                     $this->mailer->SMTPAuth = false;
+                    // Auth-less relays (local MTAs, internal smarthosts, Mailpit)
+                    // usually accept plaintext: disable opportunistic STARTTLS so
+                    // PHPMailer doesn't try to upgrade the connection and fail.
+                    // Explicit encryption is still honoured via smtp_security below.
+                    $this->mailer->SMTPAutoTLS = false;
                 }
                 $this->mailer->SMTPSecure = $settings['smtp_security'];
                 $this->mailer->Port = (int)$settings['smtp_port'];

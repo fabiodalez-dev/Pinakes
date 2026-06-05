@@ -986,21 +986,24 @@ class ViafAuthorityPlugin
      */
     private function validateCsrf(ServerRequestInterface $request): bool
     {
-        // CSRF defends cookie/session-authenticated requests: the threat is a
-        // browser auto-attaching the victim's cookies to a cross-site request.
-        // Skip CSRF ONLY for a genuinely stateless API request — every condition
-        // must hold:
-        //   - the request carries NO cookies. A browser CSRF attack always
-        //     auto-attaches the target origin's cookies (incl. the session
-        //     cookie); a curl/script API client sends none. This is the primary,
-        //     non-spoofable discriminator (an attacker's page cannot strip the
-        //     victim's cookies from a forged cross-site request).
-        //   - there is no authenticated session user (belt-and-suspenders).
+        // CSRF defends against a browser being tricked into a cross-site request
+        // with ambient credentials. Skip CSRF ONLY for a genuinely non-browser,
+        // stateless API client — EVERY condition must hold:
+        //   - a custom request header (X-Requested-With) is present. Browsers
+        //     CANNOT attach a non-safelisted header to a cross-site request
+        //     without a CORS preflight the server never grants, so this is a
+        //     NON-AMBIENT proof the caller is a real API client, not a forged
+        //     cross-site form/navigation. This is the load-bearing check: HTTP
+        //     Basic credentials alone are ambient (a browser may auto-resend
+        //     cached Basic creds on a cross-site POST), so they cannot be the
+        //     sole discriminator.
+        //   - no cookies and no session user (a browser CSRF request would carry
+        //     the victim's session cookie).
         //   - the Basic credentials genuinely validate server-side.
-        // Keying the exemption on the Authorization header alone would let an
-        // attacker append a Basic header to a cookie-bearing forged request.
+        $hasApiClientHeader = strcasecmp($request->getHeaderLine('X-Requested-With'), 'XMLHttpRequest') === 0;
         $sessionUser = $_SESSION['user'] ?? null;
-        if ($sessionUser === null
+        if ($hasApiClientHeader
+            && $sessionUser === null
             && empty($request->getCookieParams())
             && $this->hasValidBasicAuth($request)) {
             return true;

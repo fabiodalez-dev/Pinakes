@@ -134,19 +134,16 @@ class LoanRepository
             }
             $bookId = (int) $lrow['libro_id'];
 
-            // Lock della riga `libri` per prima (soft-delete guard, rule 2)
-            $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id=? AND deleted_at IS NULL FOR UPDATE');
+            // Lock della riga `libri` per serializzare il ricalcolo della
+            // disponibilità. NB: NIENTE filtro deleted_at qui (e nessun bail) —
+            // la RESTITUZIONE di un prestito deve sempre poter procedere anche se
+            // il libro è stato soft-deleted nel frattempo: la regola soft-delete
+            // governa prestabilità/visibilità, non i rientri. Bloccare il close
+            // lascerebbe il prestito attivo e la copia occupata per sempre.
+            $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id=? FOR UPDATE');
             $lockBook->bind_param('i', $bookId);
             $lockBook->execute();
-            $bookLocked = $lockBook->get_result()->fetch_assoc();
             $lockBook->close();
-
-            // Libro soft-deleted o inesistente: il FOR UPDATE non ha restituito
-            // righe. Interrompi la chiusura (soft-delete guard, rule 2).
-            if (!$bookLocked) {
-                $this->db->rollback();
-                return false;
-            }
 
             // Poi lock della riga del prestito
             $stmt = $this->db->prepare('SELECT id FROM prestiti WHERE id=? FOR UPDATE');

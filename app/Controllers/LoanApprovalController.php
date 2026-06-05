@@ -453,11 +453,20 @@ class LoanApprovalController
             $lockCopyStmt->execute();
             $lockCopyStmt->close();
 
+            // Occupazione canonica #157: la copia è tenuta da un prestito attivo
+            // OPPURE da un pending di conversione prenotazione che ha già una
+            // copia (attivo=0, stato='pendente', copia_id valorizzato). Omettere
+            // il secondo ramo permetteva di assegnare in approvazione una copia
+            // già tenuta da un pending sovrapposto → doppia prenotazione della
+            // stessa copia (mascherata dal trigger quando presente).
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
-                WHERE copia_id = ? AND attivo = 1 AND id != ?
-                AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo')
+                WHERE copia_id = ? AND id != ?
                 AND data_prestito <= ? AND data_scadenza >= ?
+                AND (
+                    (attivo = 1 AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo'))
+                    OR (stato = 'pendente' AND copia_id IS NOT NULL)
+                )
                 LIMIT 1
                 FOR UPDATE
             ");
