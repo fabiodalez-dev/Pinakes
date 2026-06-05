@@ -227,7 +227,7 @@ class ReservationManager
 
         } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
-            error_log("processBookAvailability error: " . $e->getMessage());
+            \App\Support\SecureLogger::error('processBookAvailability error', ['error' => $e->getMessage()]);
             return false;
         }
     }

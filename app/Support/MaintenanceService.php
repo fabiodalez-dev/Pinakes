@@ -508,8 +508,15 @@ class MaintenanceService
                 $this->db->commit();
                 $expiredCount++;
 
-                // Invia notifiche differite DOPO il commit della transazione
-                $reassignmentService->flushDeferredNotifications();
+                // Invia notifiche differite DOPO il commit della transazione.
+                // Isolata in try/catch: un errore di invio post-commit non deve
+                // entrare nel catch esterno (che tenterebbe un rollback su una
+                // transazione già committata).
+                try {
+                    $reassignmentService->flushDeferredNotifications();
+                } catch (\Throwable $flushErr) {
+                    \App\Support\SecureLogger::warning('Flush notifiche differite fallito', ['error' => $flushErr->getMessage()]);
+                }
 
                 // Notifica l'utente che la sua prenotazione è scaduta (GAP-2),
                 // stesso pattern di checkExpiredPickups (email fuori transazione).
@@ -646,8 +653,15 @@ class MaintenanceService
                 $this->db->commit();
                 $expiredCount++;
 
-                // Invia notifiche differite DOPO il commit della transazione
-                $reassignmentService->flushDeferredNotifications();
+                // Invia notifiche differite DOPO il commit della transazione.
+                // Isolata in try/catch: un errore di invio post-commit non deve
+                // entrare nel catch esterno (che tenterebbe un rollback su una
+                // transazione già committata).
+                try {
+                    $reassignmentService->flushDeferredNotifications();
+                } catch (\Throwable $flushErr) {
+                    \App\Support\SecureLogger::warning('Flush notifiche differite fallito', ['error' => $flushErr->getMessage()]);
+                }
 
                 // Send pickup expired notification to user
                 try {

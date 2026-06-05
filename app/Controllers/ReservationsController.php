@@ -230,9 +230,11 @@ class ReservationsController
 
         // CSRF validated by CsrfMiddleware
 
-        // Validate user session
+        // Validate user session. Canonical session key is $_SESSION['user']['id'];
+        // the legacy $_SESSION['user_id'] fallback is not set anywhere and only
+        // risked cross-controller auth inconsistency, so it is dropped.
         $sessionUser = $_SESSION['user'] ?? null;
-        $sessionUserId = $sessionUser['id'] ?? ($_SESSION['user_id'] ?? null);
+        $sessionUserId = $sessionUser['id'] ?? null;
 
         if ($sessionUserId === null) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('Accesso non autorizzato')]));
@@ -402,7 +404,7 @@ class ReservationsController
                     $notificationService = new NotificationService($this->db);
                     $notificationService->notifyLoanRequest($loanRequestId);
                 } catch (\Throwable $notifError) {
-                    error_log("Error sending notification for loan request: " . $notifError->getMessage());
+                    \App\Support\SecureLogger::error('Error sending notification for loan request', ['error' => $notifError->getMessage()]);
                     // Don't fail the loan request creation if notification fails
                 }
 
