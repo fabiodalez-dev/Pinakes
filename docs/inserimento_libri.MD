@@ -1210,6 +1210,6 @@ Se riscontri problemi tecnici:
 
 ---
 
-** Documento aggiornato: 4 Giugno 2026**
-** Versione: 3.1.0 - Guida Completa Estesa**
-** Per utenti finali della biblioteca**
+**Documento aggiornato: 4 Giugno 2026**
+**Versione: 3.1.0 - Guida Completa Estesa**
+**Per utenti finali della biblioteca**

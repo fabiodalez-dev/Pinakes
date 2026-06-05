@@ -26,30 +26,34 @@ locale/
 
 Questi file contengono la maggior parte delle traduzioni. Sono file di tipo **JSON**, che è un formato semplice per associare una "chiave" a un "valore".
 
-**Esempio di `it_IT.json`**:
+A differenza di molti sistemi i18n, **la chiave è la frase italiana stessa**
+(vedi "Come si Aggiunge una Traduzione" più sotto), non un identificatore
+astratto. Nel file sorgente `it_IT.json` chiave e valore coincidono.
+
+**Esempio di `it_IT.json`** (sorgente, chiave = valore):
 ```json
 {
-  "dashboard.title": "Pannello di Controllo",
-  "books.title": "Libri",
-  "books.add_new": "Aggiungi Nuovo Libro",
-  "common.save": "Salva",
-  "common.delete": "Elimina"
+  "Pannello di Controllo": "Pannello di Controllo",
+  "Libri": "Libri",
+  "Aggiungi Nuovo Libro": "Aggiungi Nuovo Libro",
+  "Salva": "Salva",
+  "Elimina": "Elimina"
 }
 ```
 
-**Esempio di `en_US.json` corrispondente**:
+**Esempio di `en_US.json` corrispondente** (stessa chiave italiana, valore tradotto):
 ```json
 {
-  "dashboard.title": "Dashboard",
-  "books.title": "Books",
-  "books.add_new": "Add New Book",
-  "common.save": "Save",
-  "common.delete": "Delete"
+  "Pannello di Controllo": "Dashboard",
+  "Libri": "Books",
+  "Aggiungi Nuovo Libro": "Add New Book",
+  "Salva": "Save",
+  "Elimina": "Delete"
 }
 ```
 
-- **Chiave**: `dashboard.title` (identificatore univoco della traduzione)
-- **Valore**: `"Pannello di Controllo"` (il testo che viene mostrato all'utente)
+- **Chiave**: `Pannello di Controllo` (la frase italiana sorgente, identica in tutti i file)
+- **Valore**: il testo mostrato all'utente nella lingua del file (`"Dashboard"` in `en_US.json`)
 
 A seconda della lingua **scelta in fase di installazione** il sistema usa `it_IT.json` (italiano), `en_US.json` (inglese), `de_DE.json` (tedesco) o `fr_FR.json` (francese). La lingua è fissata all'installazione e non esiste un selettore di lingua nel frontend (vedi sotto).
 

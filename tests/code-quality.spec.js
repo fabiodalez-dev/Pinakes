@@ -294,6 +294,11 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
         if (!fs.existsSync(autoloadPath)) return; // vendor/ not installed — skip
 
         const content = fs.readFileSync(autoloadPath, 'utf-8');
+        // Case-sensitive on purpose: we target the lowercase dev-tool vendor
+        // paths ('phpstan/phpstan/…') that leak when the autoloader is built
+        // WITH dev deps. A case-insensitive match would false-positive on the
+        // legitimate `Carbon\PHPStan\` macro-extension namespace that
+        // nesbot/carbon ships in --no-dev builds. Do NOT make this /i.
         const count   = (content.match(/phpstan/g) ?? []).length;
         expect(count,
             `autoload_static.php contains ${count} phpstan reference(s). Fix: composer install --no-dev --optimize-autoloader`

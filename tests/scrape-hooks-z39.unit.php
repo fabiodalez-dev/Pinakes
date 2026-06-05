@@ -80,10 +80,26 @@ aSame(2, substr_count($scrape, "Hooks::apply('scrape.data.modify'"),
 aSame(2, substr_count($scrape, "Hooks::apply('scrape.response'"),
     'T3  scrape.response still emitted in both branches (not regressed)');
 
-$posData = strpos($scrape, 'scrape.data.modify');
-$posResp = strpos($scrape, 'scrape.response');
-aTrue($posData !== false && $posResp !== false && $posData < $posResp,
-    'T4  scrape.data.modify fires before scrape.response (enrichment precedes final response hook)');
+// Verify ordering in BOTH emit sites (plugin-result branch + fallback branch),
+// not just the first global occurrence: a regression in one branch must not be
+// masked by the other staying correct. T2/T3 already assert each hook appears
+// exactly twice, so we pair them positionally — i-th data.modify before i-th
+// response.
+// Anchor on the Hooks::apply( call (like T2/T3) so comment mentions of the
+// hook names (e.g. "// Hook: scrape.data.modify …") are not counted.
+$dataNeedle = "Hooks::apply('scrape.data.modify'";
+$respNeedle = "Hooks::apply('scrape.response'";
+$dataPositions = [];
+$respPositions = [];
+$off = 0;
+while (($p = strpos($scrape, $dataNeedle, $off)) !== false) { $dataPositions[] = $p; $off = $p + 1; }
+$off = 0;
+while (($p = strpos($scrape, $respNeedle, $off)) !== false) { $respPositions[] = $p; $off = $p + 1; }
+aTrue(
+    count($dataPositions) === 2 && count($respPositions) === 2
+        && $dataPositions[0] < $respPositions[0]
+        && $dataPositions[1] < $respPositions[1],
+    'T4  scrape.data.modify fires before scrape.response in BOTH branches (enrichment precedes final response hook)');
 
 // Emitted in a multi-line Hooks::apply( ... ) call, so match the hook-name argument.
 aContains("'scrape.isbn.validate',", $scrape,

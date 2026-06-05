@@ -129,12 +129,14 @@ Multiple parameters are combined with **OR**. Soft-deleted books
 (`deleted_at IS NULL`) are always excluded. Results are capped at **50** rows.
 
 **Example Request**:
+
 ```bash
 curl "https://example.com/api/public/books/search?isbn13=9788842935780" \
   -H "X-API-Key: YOUR_KEY"
 ```
 
 **Example Response** (`200`, pretty-printed JSON):
+
 ```json
 {
   "results": [
@@ -256,11 +258,13 @@ active) carries `data_prestito`, `data_scadenza`, `data_restituzione`, `stato`,
 | `anno_to` | int | "" | Publication year end |
 
 **Example Request**:
+
 ```bash
 curl "http://localhost:8000/api/libri?draw=1&start=0&length=20&search_text=Dante&genere_filter=5"
 ```
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -320,11 +324,13 @@ Rate limited to **30 requests/minute** (`RateLimitMiddleware`).
 | `search_value` | string | "" | Search by book title, user name, or staff name |
 
 **Example Request**:
+
 ```bash
 curl "http://localhost:8000/api/prestiti?draw=1&start=0&length=10&attivo=1&stato_specifico=in_corso"
 ```
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -392,11 +398,13 @@ Rate limited to **30 requests/minute**.
 | `created_from` | date | "" | Account creation date start (YYYY-MM-DD) |
 
 **Example Request**:
+
 ```bash
 curl "http://localhost:8000/api/utenti?draw=1&start=0&length=20&role_filter=admin"
 ```
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -445,6 +453,7 @@ curl "http://localhost:8000/api/utenti?draw=1&start=0&length=20&role_filter=admi
 | `nascita_to` | year | "" | Birth year end |
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -485,11 +494,13 @@ curl "http://localhost:8000/api/utenti?draw=1&start=0&length=20&role_filter=admi
 | `limit` | int | 20 | Max results (max 50) |
 
 **Example Request**:
+
 ```bash
 curl "http://localhost:8000/api/generi/search?q=fan&limit=10"
 ```
 
 **Example Response**:
+
 ```json
 [
   {
@@ -532,6 +543,7 @@ curl "http://localhost:8000/api/generi/search?q=fan&limit=10"
 | `created_from` | date | "" | Creation date start |
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -564,6 +576,7 @@ curl "http://localhost:8000/api/generi/search?q=fan&limit=10"
 **Authentication**: Required (session)
 
 **Example Response**:
+
 ```json
 [
   {

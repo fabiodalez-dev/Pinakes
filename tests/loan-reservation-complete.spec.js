@@ -291,42 +291,6 @@ async function approveLoanViaApi(adminPage, loanId) {
   return res;
 }
 
-// ── Confirm pickup via the admin API ──────────────────────────────────────────
-async function confirmPickupViaApi(adminPage, loanId) {
-  const csrf = await getCsrf(adminPage);
-  return adminPage.evaluate(async ({ id, token, base }) => {
-    const r = await fetch(`${base}/admin/loans/confirm-pickup`, {
-      method : 'POST',
-      credentials : 'same-origin',
-      headers : {
-        'Content-Type'      : 'application/json',
-        'X-Requested-With'  : 'XMLHttpRequest',
-        'X-CSRF-Token'      : token,
-      },
-      body : JSON.stringify({ loan_id: id }),
-    });
-    return { status: r.status, body: await r.json().catch(() => ({})) };
-  }, { id: loanId, token: csrf, base: BASE });
-}
-
-// ── Return a loan via the admin API ──────────────────────────────────────────
-async function returnLoanViaApi(adminPage, loanId) {
-  const csrf = await getCsrf(adminPage);
-  return adminPage.evaluate(async ({ id, token, base }) => {
-    const r = await fetch(`${base}/admin/loans/return`, {
-      method : 'POST',
-      credentials : 'same-origin',
-      headers : {
-        'Content-Type'      : 'application/json',
-        'X-Requested-With'  : 'XMLHttpRequest',
-        'X-CSRF-Token'      : token,
-      },
-      body : JSON.stringify({ loan_id: id }),
-    });
-    return { status: r.status, body: await r.json().catch(() => ({})) };
-  }, { id: loanId, token: csrf, base: BASE });
-}
-
 // ── Run full maintenance (MaintenanceService::runAll) via CLI ────────────────
 /**
  * Executes the cron/full-maintenance.php script directly (CLI → bypasses
@@ -890,7 +854,6 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
   // ── Test 12: With 1 copy, second user's loan blocked after first approved ─
   test('C.12: 1 copy: first user approved (in_corso) → second user loan request fails or is pendente-queued', async () => {
     // Make user 1's loan in_corso directly via DB (simulates existing active loan)
-    const invSuffix = RUN_ID + 'c12';
     let copiaId12Raw = dbQuery(`SELECT id FROM copie WHERE libro_id=${testBookId} AND stato='disponibile' LIMIT 1`);
     if (!copiaId12Raw) {
       // All copies are in use — the test condition is already met
@@ -1162,9 +1125,14 @@ test.describe.serial('Loan & Reservation Complete Suite (26 tests)', () => {
     const calendarEl = adminPage.locator('#dashboard-calendar');
     await expect(calendarEl).toBeVisible({ timeout: 8_000 });
 
-    // The calendar events are rendered as .fc-event elements.
-    // Wait for at least 1 event to appear (the in_corso loan above).
-    await expect(adminPage.locator('.fc-event').first()).toBeVisible({ timeout: 10_000 });
+    // The calendar events are rendered as .fc-event elements; the loan event's
+    // title is the book title (DashboardStats::calendarEvents → 'title' = titolo).
+    // Scope the assertion to THIS test's loan ('LCT Fixture 1copy') so a
+    // regression in loan-event rendering can't be masked by unrelated seed/
+    // residual events that happen to be on the calendar.
+    await expect(
+      adminPage.locator('.fc-event', { hasText: 'LCT Fixture 1copy' }).first()
+    ).toBeVisible({ timeout: 10_000 });
 
     // Cleanup
     dbQuery(

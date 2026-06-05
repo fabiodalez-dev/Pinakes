@@ -1123,6 +1123,7 @@ Permette di aggiungere voci al menu frontend.
 Questi hook sono **effettivamente invocati dal core** e usati dai plugin distribuiti con Pinakes (archives, oai-pmh-server, frbr-lrm, ecc.).
 
 ### `app.routes.register` (Action)
+
 **Status:** Implementato
 **File:** `app/Routes/web.php:80`
 
@@ -1132,6 +1133,7 @@ Eseguito molto presto nel bootstrap del routing per permettere ai plugin di regi
 - `$app` (\Slim\App): Istanza dell'applicazione su cui chiamare `$app->get()/post()/...`
 
 **Esempio:**
+
 ```php
 Hooks::add('app.routes.register', function($app) {
     $app->get('/oai', [\App\Plugins\OaiPmh\Controller::class, 'handle']);
@@ -1141,12 +1143,14 @@ Hooks::add('app.routes.register', function($app) {
 > Nota: questo hook viene chiamato anche durante il bootstrap, prima che il guard runtime degli hook sia attivo. Un plugin **non** deve invocare `doAction()`/`applyFilters()` dentro `onActivate()` per evitare doppia registrazione delle rotte (FastRoute "Cannot register two routes").
 
 ### `admin.menu.render` (Action)
+
 **Status:** Implementato
 **File:** `app/Views/layout.php:331`
 
 Eseguito nel rendering della sidebar admin: i plugin emettono direttamente l'HTML delle proprie voci di menu (echo). Non riceve né restituisce parametri.
 
 **Esempio:**
+
 ```php
 Hooks::add('admin.menu.render', function() {
     echo '<a href="' . htmlspecialchars(url('/admin/archives'), ENT_QUOTES, 'UTF-8') . '" class="...">Archivi</a>';
@@ -1156,12 +1160,14 @@ Hooks::add('admin.menu.render', function() {
 > Le rotte admin sono letterali inglesi: usare `url('/admin/...')`, mai `route_path()`.
 
 ### `assets.head` (Action)
+
 **Status:** Implementato
 **File:** `app/Views/layout.php:63`, `app/Views/frontend/layout.php:216`
 
 Eseguito nel `<head>` sia del layout admin sia di quello frontend. Permette di iniettare `<link>`/`<style>`/`<script>` di plugin. Invocato via helper `do_action('assets.head')`.
 
 ### `search.unified.sources` (Filter)
+
 **Status:** Implementato
 **File:** `app/Controllers/SearchController.php:204, 240`
 
@@ -1174,6 +1180,7 @@ Permette ai plugin di aggiungere risultati alla ricerca unificata (`/api/search/
 **Restituisce:** array - Risultati arricchiti
 
 ### `frontend.catalog.archive_results` (Filter)
+
 **Status:** Implementato
 **File:** `app/Controllers/FrontendController.php:423`
 
@@ -1186,6 +1193,7 @@ Inietta risultati di materiale archivistico nel catalogo pubblico. Usato dal plu
 **Restituisce:** array - Risultati archivistici da fondere nel catalogo
 
 ### Hook Digital Library (Action)
+
 **Status:** Implementati
 **Plugin:** `digital-library`
 

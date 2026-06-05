@@ -92,7 +92,6 @@ quando la wishlist resta vuota)
 │  ┌─────────────────────┐  ┌────────────────────────┐  │
 │  │  "Gestisci i tuoi"  │  │  ❤️ X preferiti       │  │
 │  │  "titoli preferiti" │  │  ⚡ X disponibili ora  │  │
-│  │                     │  │  ⏰ X in attesa       │  │
 │  └─────────────────────┘  └────────────────────────┘  │
 │                          [Esplora Catalogo] [Prenotazioni]
 └───────────────────────────────────────────────────────┘

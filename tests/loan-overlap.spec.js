@@ -415,12 +415,14 @@ test.describe.serial('Loan overlap model (#157) — 35 scenarios', () => {
     tryInsertLoan({ bookId: b, copyId: c, userId: u1, start: dISO(2), end: dISO(6), stato: 'in_corso', attivo: 1 });
     const data = await availabilityByDate(page, b);
     expect(data).toBeTruthy();
-    const byDate = data.by_date || data.byDate || {};
+    // The endpoint returns days[] ({date, available, …}); build a date→available
+    // map from it and assert the mid day is PRESENT before checking its value, so
+    // a regression that empties days[] or trims the range fails loudly instead of
+    // skipping the assertion silently.
+    const byDate = Object.fromEntries((Array.isArray(data.days) ? data.days : []).map(d => [d.date, Number(d.available)]));
     const mid = dISO(4);
-    if (byDate[mid] !== undefined) {
-      const v = typeof byDate[mid] === 'object' ? (byDate[mid].available ?? byDate[mid].disponibili) : byDate[mid];
-      expect(Number(v)).toBe(0);
-    }
+    expect(byDate[mid], `availability-calendar days[] must include ${mid}`).not.toBeUndefined();
+    expect(byDate[mid]).toBe(0);
   });
 
   test('E.30 availability calendar: a pending-WITH-copy reduces availability like an active loan', async ({ page }) => {
@@ -428,15 +430,13 @@ test.describe.serial('Loan overlap model (#157) — 35 scenarios', () => {
     const b = mkBook('E30'); const c = mkCopy(b, 1);
     tryInsertLoan({ bookId: b, copyId: c, userId: u1, start: dISO(2), end: dISO(6), stato: 'pendente', attivo: 0, origine: 'prenotazione' });
     const data = await availabilityByDate(page, b);
-    const byDate = (data && (data.by_date || data.byDate)) || {};
+    expect(data).toBeTruthy();
+    const byDate = Object.fromEntries((Array.isArray(data.days) ? data.days : []).map(d => [d.date, Number(d.available)]));
     const mid = dISO(4);
-    if (byDate[mid] !== undefined) {
-      const v = typeof byDate[mid] === 'object' ? (byDate[mid].available ?? byDate[mid].disponibili) : byDate[mid];
-      expect(Number(v)).toBe(0);
-    } else {
-      // Fallback: at least the canonical query agrees.
-      expect(freeCopies(b, mid, mid)).toBe(0);
-    }
+    expect(byDate[mid], `availability-calendar days[] must include ${mid}`).not.toBeUndefined();
+    expect(byDate[mid]).toBe(0);
+    // The canonical DB query must agree with the API.
+    expect(freeCopies(b, mid, mid)).toBe(0);
   });
 
   test('E.31 availability calendar: a bare pending (no copy) does NOT reduce availability', async ({ page }) => {
@@ -445,12 +445,11 @@ test.describe.serial('Loan overlap model (#157) — 35 scenarios', () => {
     tryInsertLoan({ bookId: b, copyId: null, userId: u1, start: dISO(2), end: dISO(6), stato: 'pendente', attivo: 0, origine: 'richiesta' });
     expect(freeCopies(b, dISO(4), dISO(4))).toBe(1);
     const data = await availabilityByDate(page, b);
-    const byDate = (data && (data.by_date || data.byDate)) || {};
+    expect(data).toBeTruthy();
+    const byDate = Object.fromEntries((Array.isArray(data.days) ? data.days : []).map(d => [d.date, Number(d.available)]));
     const mid = dISO(4);
-    if (byDate[mid] !== undefined) {
-      const v = typeof byDate[mid] === 'object' ? (byDate[mid].available ?? byDate[mid].disponibili) : byDate[mid];
-      expect(Number(v)).toBeGreaterThanOrEqual(1);
-    }
+    expect(byDate[mid], `availability-calendar days[] must include ${mid}`).not.toBeUndefined();
+    expect(byDate[mid]).toBeGreaterThanOrEqual(1);
   });
 
   test('E.32 availability calendar: free days outside any held window show availability', async ({ page }) => {
@@ -459,6 +458,13 @@ test.describe.serial('Loan overlap model (#157) — 35 scenarios', () => {
     tryInsertLoan({ bookId: b, copyId: c, userId: u1, start: dISO(2), end: dISO(6), stato: 'in_corso', attivo: 1 });
     const free = dISO(20);
     expect(freeCopies(b, free, free)).toBe(1);
+    // Also assert through the calendar API: the free day (within the default
+    // 60-day window) must be present in days[] and show full availability.
+    const data = await availabilityByDate(page, b);
+    expect(data).toBeTruthy();
+    const byDate = Object.fromEntries((Array.isArray(data.days) ? data.days : []).map(d => [d.date, Number(d.available)]));
+    expect(byDate[free], `availability-calendar days[] must include the free day ${free}`).not.toBeUndefined();
+    expect(byDate[free]).toBeGreaterThanOrEqual(1);
   });
 
   // ════════════════════════════════════════════════════════════════════════
