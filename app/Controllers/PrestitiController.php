@@ -762,24 +762,36 @@ class PrestitiController
 
             $db->commit();
 
-            // Send deferred notifications after commit
-            try {
-                // Wishlist availability: only now that the return is durably
-                // committed do we tell wishlist watchers the book is back (#157).
-                if (isset($notifyWishlistForLibroId)) {
+            // Send deferred notifications after commit. Each action is isolated
+            // in its own try/catch: the data is already durably committed, so a
+            // failure in one flush must NOT prevent the others — otherwise a
+            // single send error would silently drop notifications that were
+            // already queued and committed.
+            // Wishlist availability: only now that the return is durably
+            // committed do we tell wishlist watchers the book is back (#157).
+            if (isset($notifyWishlistForLibroId)) {
+                try {
                     (new NotificationService($db))->notifyWishlistBookAvailability($notifyWishlistForLibroId);
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Wishlist availability notification failed', ['error' => $e->getMessage()]);
                 }
-                if (isset($reassignmentService)) {
+            }
+            if (isset($reassignmentService)) {
+                try {
                     $reassignmentService->flushDeferredNotifications();
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Reassignment deferred flush failed', ['error' => $e->getMessage()]);
                 }
-                // P2: la conversione di una prenotazione schedulata è avvenuta in
-                // transazione esterna → la notifica reservation_book_available è stata
-                // accodata e va inviata ora, dopo il commit.
-                if (isset($reservationManager)) {
+            }
+            // P2: la conversione di una prenotazione schedulata è avvenuta in
+            // transazione esterna → la notifica reservation_book_available è stata
+            // accodata e va inviata ora, dopo il commit.
+            if (isset($reservationManager)) {
+                try {
                     $reservationManager->flushDeferredNotifications();
+                } catch (\Throwable $e) {
+                    SecureLogger::warning('Reservation deferred flush failed', ['error' => $e->getMessage()]);
                 }
-            } catch (\Throwable $e) {
-                SecureLogger::warning('Flush deferred notifications failed', ['error' => $e->getMessage()]);
             }
 
             // Conferma di restituzione all'utente (GAP-1) — solo per restituzioni

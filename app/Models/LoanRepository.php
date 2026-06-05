@@ -145,16 +145,27 @@ class LoanRepository
             $lockBook->execute();
             $lockBook->close();
 
-            // Poi lock della riga del prestito
-            $stmt = $this->db->prepare('SELECT id FROM prestiti WHERE id=? FOR UPDATE');
+            // Poi lock della riga del prestito. Rileggiamo libro_id DALLA RIGA
+            // ORA BLOCCATA e lo confrontiamo con quello su cui abbiamo preso il
+            // lock di `libri`: la lettura iniziale (126-135) è non bloccante per
+            // preservare l'ordine di lock canonico (libri prima di prestiti), ma
+            // se libro_id fosse cambiato nel frattempo (TOCTOU) avremmo bloccato
+            // e ricalcolato il libro sbagliato. In quel caso (rarissimo: il
+            // libro di un prestito non viene riassegnato) abortiamo invece di
+            // operare su dati incoerenti.
+            $stmt = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=? FOR UPDATE');
             $stmt->bind_param('i', $id);
             $stmt->execute();
-            if (!$stmt->get_result()->fetch_assoc()) {
-                $stmt->close();
+            $lockedRow = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            if (!$lockedRow) {
                 $this->db->rollback();
                 return false;
             }
-            $stmt->close();
+            if ((int) $lockedRow['libro_id'] !== $bookId) {
+                $this->db->rollback();
+                return false;
+            }
 
             // Chiude il prestito
             $today = gmdate('Y-m-d');

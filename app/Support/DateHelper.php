@@ -23,7 +23,16 @@ class DateHelper
         try {
             return (new \DateTime('now', new \DateTimeZone($tz)))->format('Y-m-d');
         } catch (\Throwable $e) {
-            return date('Y-m-d');
+            // Configured tz invalid: fall back to the documented default zone,
+            // NOT date('Y-m-d') which uses the process tz (often UTC) and would
+            // reintroduce the very midnight day-boundary mismatch this method
+            // exists to prevent. date('Y-m-d') stays only as a last resort if
+            // even the default zone is somehow unusable.
+            try {
+                return (new \DateTime('now', new \DateTimeZone('Europe/Rome')))->format('Y-m-d');
+            } catch (\Throwable $e2) {
+                return date('Y-m-d');
+            }
         }
     }
 
