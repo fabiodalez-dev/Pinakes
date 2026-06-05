@@ -81,6 +81,9 @@ jobs:
               ServerName localhost
               DocumentRoot ${WORKSPACE}/public
               SetEnv PINAKES_E2E_BYPASS_RATE_LIMIT 1
+              # E2E only — deterministic, network-free bulk-enrich scraper stub.
+              # Removes external-API latency/flakiness; never set in production.
+              SetEnv PINAKES_E2E_SCRAPER_STUB 1
               <Directory "${WORKSPACE}/public">
                   Options -Indexes +FollowSymLinks
                   AllowOverride All
