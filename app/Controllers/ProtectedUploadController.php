@@ -38,6 +38,16 @@ class ProtectedUploadController
     /** Read chunk size for bounded (closed-range) responses. */
     private const CHUNK = 262144; // 256 KiB
 
+    /**
+     * Serve a private upload, honouring single-byte-range requests.
+     *
+     * The high cyclomatic/NPath count flagged by PHPMD is the inherent
+     * byte-range state machine (full / open-ended / closed / suffix /
+     * unsatisfiable) layered on the containment checks; splitting it would
+     * scatter that logic without making it clearer, so the complexity is
+     * accepted intentionally. (No @SuppressWarnings tag: PHPStan — the linter
+     * actually wired into CI — rejects the dotted PHPMD identifier in phpDoc.)
+     */
     public function serve(Request $request, Response $response, array $args): Response
     {
         $rel = (string) ($args['path'] ?? '');
@@ -88,6 +98,9 @@ class ProtectedUploadController
         $end = $size - 1;
         $status = 200;
 
+        // Single byte range only. A multi-range header (e.g. "bytes=0-9,20-29")
+        // does not match this pattern and intentionally falls through to a full
+        // 200 response — RFC 7233 permits ignoring a Range we don't satisfy.
         $range = $request->getHeaderLine('Range');
         if ($range !== '' && preg_match('/^bytes=(\d*)-(\d*)$/', trim($range), $m)) {
             $reqStart = $m[1] === '' ? null : (int) $m[1];

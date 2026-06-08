@@ -137,8 +137,18 @@ test.describe.serial('Private mode (issue #158)', () => {
     // to it instead of pre-empting with its own session 401 — so the response
     // is the route's own (API key / feature-gate), never the private payload.
     const resp = await request.get(`${BASE}/api/public/books/search?q=test`);
+    // The response must be ApiKeyMiddleware's OWN JSON gate (401 missing key /
+    // 403 API disabled) with a matching status — proving private mode actually
+    // reached the route and deferred to it, instead of pre-empting with its own
+    // session 401/redirect. A bare "not.toContain" could pass on any unrelated
+    // response, so assert the gate's shape explicitly.
+    expect([401, 403]).toContain(resp.status());
+    expect(resp.headers()['content-type'] || '').toContain('application/json');
     const body = await resp.text();
     expect(body).not.toContain('Autenticazione richiesta');
+    const json = JSON.parse(body);
+    expect(json).toMatchObject({ status: resp.status() });
+    expect(json).toHaveProperty('error');
   });
 
   test('10. Disabled again: home is public for everyone', async ({ page }) => {
