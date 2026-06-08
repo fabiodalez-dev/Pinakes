@@ -1166,7 +1166,12 @@ class LibriController
                 $this->handleCoverUpload($db, $id, $_FILES['copertina']);
                 $coverFileUploaded = true;
             }
-            if (!$coverFileUploaded && !empty($data['scraped_cover_url'])) {
+            // A pending cover removal (remove_cover=1) wins over a stale
+            // scraped_cover_url, mirroring update() for symmetry (#F007). A new
+            // book has no prior cover, so this is purely defensive on the create
+            // path. Reuse the same '=== "1"' comparison as update()'s removal branch.
+            $removeCoverRequested = (isset($data['remove_cover']) && $data['remove_cover'] === '1');
+            if (!$coverFileUploaded && !$removeCoverRequested && !empty($data['scraped_cover_url'])) {
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
             }
 
@@ -1798,7 +1803,13 @@ class LibriController
             }
             // A scraped / alternative cover URL applies only when the user did NOT
             // upload a file in this submit — a direct upload is the explicit choice.
-            if (!$coverFileUploaded && !empty($data['scraped_cover_url'])) {
+            // A pending cover removal (remove_cover=1) also wins over a stale
+            // scraped_cover_url so the cover isn't silently re-added (#F007). Reuse
+            // the exact same comparison as the removal branch above (line ~1414):
+            // match the string '1' explicitly — the hidden field defaults to '0',
+            // so a strict === check avoids any truthiness ambiguity.
+            $removeCoverRequested = (isset($data['remove_cover']) && $data['remove_cover'] === '1');
+            if (!$coverFileUploaded && !$removeCoverRequested && !empty($data['scraped_cover_url'])) {
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
             }
 

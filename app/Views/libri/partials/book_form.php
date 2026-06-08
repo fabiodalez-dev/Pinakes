@@ -1273,6 +1273,10 @@ async function removeCoverImage() {
     // Clear the copertina_url hidden field
     document.getElementById('copertina_url').value = '';
 
+    // Clear any stale scraped cover URL so it can't re-add the cover on save (#F007)
+    const sc = document.getElementById('scraped_cover_url');
+    if (sc) sc.value = '';
+
     // Clear preview
     clearImagePreview();
 
