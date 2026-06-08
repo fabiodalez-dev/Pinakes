@@ -3501,7 +3501,19 @@ function initializeIsbnImport() {
 
     if (!btn || !input) return;
     const defaultBtnLabel = FORM_MODE === 'edit' ? __('Aggiorna Dati') : __('Importa Dati');
-    
+
+    // Barcode scanners append a carriage return (Enter) after the code. Left
+    // unhandled, that Enter submits the whole form and trips the browser's
+    // "required field" validation on the title before anything is filled in
+    // (issue #164). Swallow the Enter here and trigger the import instead —
+    // which is exactly what scanning into this field is meant to do.
+    input.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            btn.click();
+        }
+    });
+
     btn.addEventListener('click', async function() {
         const isbn = input.value.trim();
         if (!isbn) {
