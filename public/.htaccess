@@ -19,9 +19,19 @@
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-    # Allow direct access to static files in /uploads/ directory
+    # Allow direct access to PUBLIC static files in /uploads/ (covers, events,
+    # CMS images, branding).
     RewriteCond %{REQUEST_URI} ^/uploads/ [NC]
+    RewriteCond %{REQUEST_URI} !^/uploads/(digital|archives/documents|storage)/ [NC]
     RewriteRule ^ - [L]
+
+    # PRIVATE uploaded content — digital-library files, archive documents and
+    # generic storage — must NOT be served directly. Force them through
+    # index.php (even when the file exists on disk, so the !-f rule below would
+    # otherwise skip them) so PrivateModeMiddleware (and any future per-file
+    # auth) governs access (issue #160). See ProtectedUploadController.
+    RewriteCond %{REQUEST_URI} ^/uploads/(digital|archives/documents|storage)/ [NC]
+    RewriteRule ^ index.php [QSA,L]
 
     # Redirect all requests to index.php
     RewriteCond %{REQUEST_FILENAME} !-f

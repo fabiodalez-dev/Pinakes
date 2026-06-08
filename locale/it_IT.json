@@ -5212,5 +5212,12 @@
   "Impossibile rinnovare: il prestito non è ancora stato ritirato.": "Impossibile rinnovare: il prestito non è ancora stato ritirato.",
   "Numero massimo di rinnovi raggiunto per questo prestito.": "Numero massimo di rinnovi raggiunto per questo prestito.",
   "Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.": "Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.",
-  "Operazione non riuscita. Riprova.": "Operazione non riuscita. Riprova."
+  "Operazione non riuscita. Riprova.": "Operazione non riuscita. Riprova.",
+  "Data di scadenza della prenotazione (default: +30 giorni)": "Data di scadenza della prenotazione (default: +30 giorni)",
+  "Modalità privata": "Modalità privata",
+  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso",
+  "Questo sito è riservato agli utenti registrati. Accedi per continuare.": "Questo sito è riservato agli utenti registrati. Accedi per continuare.",
+  "Accesso al sito": "Accesso al sito",
+  "Controlla chi può consultare il sito pubblico": "Controlla chi può consultare il sito pubblico",
+  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione."
 }

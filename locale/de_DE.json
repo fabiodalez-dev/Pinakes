@@ -5212,5 +5212,12 @@
   "Impossibile rinnovare: il prestito non è ancora stato ritirato.": "Verlängerung nicht möglich: Die Ausleihe wurde noch nicht abgeholt.",
   "Numero massimo di rinnovi raggiunto per questo prestito.": "Maximale Anzahl von Verlängerungen für diese Ausleihe erreicht.",
   "Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.": "Verlängerung nicht möglich: Eine andere Ausleihe oder Vormerkung belegt den angeforderten Zeitraum.",
-  "Operazione non riuscita. Riprova.": "Vorgang fehlgeschlagen. Bitte versuchen Sie es erneut."
+  "Operazione non riuscita. Riprova.": "Vorgang fehlgeschlagen. Bitte versuchen Sie es erneut.",
+  "Data di scadenza della prenotazione (default: +30 giorni)": "Ablaufdatum der Vormerkung (Standard: +30 Tage)",
+  "Modalità privata": "Privater Modus",
+  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Beschränkt den Zugriff auf die gesamte Website auf registrierte Benutzer: nicht authentifizierte Besucher werden zur Anmeldeseite weitergeleitet",
+  "Questo sito è riservato agli utenti registrati. Accedi per continuare.": "Diese Website ist registrierten Benutzern vorbehalten. Bitte melden Sie sich an, um fortzufahren.",
+  "Accesso al sito": "Website-Zugang",
+  "Controlla chi può consultare il sito pubblico": "Legen Sie fest, wer die öffentliche Website ansehen darf",
+  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "Bei aktiviertem privaten Modus bleiben Verwaltungsbereich, Anmeldung, Registrierung und Assets erreichbar; alles andere erfordert eine Authentifizierung."
 }

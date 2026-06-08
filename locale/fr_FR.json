@@ -5212,5 +5212,12 @@
   "Impossibile rinnovare: il prestito non è ancora stato ritirato.": "Renouvellement impossible : le prêt n'a pas encore été retiré.",
   "Numero massimo di rinnovi raggiunto per questo prestito.": "Nombre maximal de renouvellements atteint pour ce prêt.",
   "Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.": "Renouvellement impossible : un autre prêt ou une réservation occupe la période demandée.",
-  "Operazione non riuscita. Riprova.": "Opération échouée. Veuillez réessayer."
+  "Operazione non riuscita. Riprova.": "Opération échouée. Veuillez réessayer.",
+  "Data di scadenza della prenotazione (default: +30 giorni)": "Date d'expiration de la réservation (par défaut : +30 jours)",
+  "Modalità privata": "Mode privé",
+  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Limite l'accès à l'ensemble du site aux seuls utilisateurs enregistrés : les visiteurs non authentifiés sont redirigés vers la page de connexion",
+  "Questo sito è riservato agli utenti registrati. Accedi per continuare.": "Ce site est réservé aux utilisateurs enregistrés. Veuillez vous connecter pour continuer.",
+  "Accesso al sito": "Accès au site",
+  "Controlla chi può consultare il sito pubblico": "Contrôlez qui peut consulter le site public",
+  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "Lorsque le mode privé est activé, l'espace d'administration, la connexion, l'inscription et les ressources restent accessibles ; tout le reste nécessite une authentification."
 }

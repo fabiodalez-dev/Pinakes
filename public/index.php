@@ -524,6 +524,11 @@ if (!$displayErrorDetails) {
 
 // CSRF: for now use simple session token (see App\Support\Csrf)
 
+// Private mode (issue #158): when enabled, restrict the whole public site to
+// authenticated users. Added BEFORE RememberMe so it runs AFTER it in the stack
+// and sees a token-based auto-login. No-op when disabled (default).
+$app->add(new \App\Middleware\PrivateModeMiddleware());
+
 // Remember Me middleware (auto-login via persistent token)
 // Must run before AuthMiddleware to populate $_SESSION['user']
 $app->add(new \App\Middleware\RememberMeMiddleware($container->get('db')));

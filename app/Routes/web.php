@@ -128,6 +128,17 @@ return function (App $app): void {
         return $response->withHeader('Content-Type', 'application/json');
     });
 
+    // Private uploaded files (digital-library content, archive documents,
+    // generic storage). public/.htaccess routes ONLY these private prefixes
+    // here instead of serving them directly, so the global middleware stack
+    // (PrivateModeMiddleware) governs access. Public uploads (covers, events,
+    // CMS, branding) are still served straight from disk by the web server and
+    // never reach this route; the controller enforces realpath containment.
+    $app->get('/uploads/{path:.*}', function ($request, $response, $args) {
+        $controller = new \App\Controllers\ProtectedUploadController();
+        return $controller->serve($request, $response, $args);
+    });
+
     $app->get('/robots.txt', function ($request, $response) {
         $controller = new SeoController();
         return $controller->robots($request, $response);

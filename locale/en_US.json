@@ -5212,5 +5212,12 @@
   "Impossibile rinnovare: il prestito non è ancora stato ritirato.": "Cannot renew: the loan has not been picked up yet.",
   "Numero massimo di rinnovi raggiunto per questo prestito.": "Maximum number of renewals reached for this loan.",
   "Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.": "Cannot renew: another loan or reservation occupies the requested period.",
-  "Operazione non riuscita. Riprova.": "Operation failed. Please try again."
+  "Operazione non riuscita. Riprova.": "Operation failed. Please try again.",
+  "Data di scadenza della prenotazione (default: +30 giorni)": "Reservation expiry date (default: +30 days)",
+  "Modalità privata": "Private mode",
+  "Limita l'accesso all'intero sito ai soli utenti registrati: i visitatori non autenticati vengono reindirizzati alla pagina di accesso": "Restrict access to the entire site to registered users only: unauthenticated visitors are redirected to the login page",
+  "Questo sito è riservato agli utenti registrati. Accedi per continuare.": "This site is restricted to registered users. Please sign in to continue.",
+  "Accesso al sito": "Site access",
+  "Controlla chi può consultare il sito pubblico": "Control who can browse the public site",
+  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "With private mode on, the admin area, login, registration and assets stay reachable; everything else requires authentication."
 }

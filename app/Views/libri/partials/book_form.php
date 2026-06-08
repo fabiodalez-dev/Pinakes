@@ -606,7 +606,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                     <span class="text-xs text-gray-500"><?= __("Copertina attuale") ?></span>
                     <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                       <i class="fas fa-trash"></i>
-                      Rimuovi
+                      <?= __('Rimuovi') ?>
                     </button>
                   </div>
                 </div>
@@ -1244,7 +1244,7 @@ function displayImagePreview(file) {
                     </div>
                     <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                         <i class="fas fa-trash"></i>
-                        Rimuovi
+                        <?= __('Rimuovi') ?>
                     </button>
                 </div>
             </div>
@@ -4182,7 +4182,7 @@ function displayScrapedCover(imageUrl) {
                 </div>
                 <button type="button" onclick="removeCoverImage()" class="text-xs text-red-600 hover:text-red-800 hover:underline flex items-center gap-1">
                     <i class="fas fa-trash"></i>
-                    Rimuovi
+                    <?= __('Rimuovi') ?>
                 </button>
             </div>
         </div>

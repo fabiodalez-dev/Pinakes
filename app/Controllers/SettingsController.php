@@ -578,6 +578,7 @@ class SettingsController
             'session_lifetime' => (int) $repository->get('advanced', 'session_lifetime', (string) ($config['session_lifetime'] ?? 180)),
             'force_https' => $repository->get('advanced', 'force_https', $config['force_https'] ?? '0'),
             'enable_hsts' => $repository->get('advanced', 'enable_hsts', $config['enable_hsts'] ?? '0'),
+            'private_mode' => $repository->get('advanced', 'private_mode', $config['private_mode'] ?? '0'),
             'sitemap_last_generated_at' => $repository->get('advanced', 'sitemap_last_generated_at', $config['sitemap_last_generated_at'] ?? ''),
             'sitemap_last_generated_total' => (int) $repository->get('advanced', 'sitemap_last_generated_total', (string) ($config['sitemap_last_generated_total'] ?? 0)),
             'api_enabled' => $repository->get('api', 'enabled', '0'),
@@ -614,13 +615,15 @@ class SettingsController
             'session_lifetime' => (string) $sessionLifetime,
             'force_https' => isset($data['force_https']) && $data['force_https'] === '1' ? '1' : '0',
             'enable_hsts' => isset($data['enable_hsts']) && $data['enable_hsts'] === '1' ? '1' : '0',
+            // Private mode (issue #158): restrict the whole public site to logged-in users
+            'private_mode' => isset($data['private_mode']) && $data['private_mode'] === '1' ? '1' : '0',
         ];
 
         foreach ($settings as $key => $value) {
             $repository->set('advanced', $key, $value);
             if ($key === 'days_before_expiry_warning' || $key === 'session_lifetime') {
                 ConfigStore::set("advanced.$key", (int) $value);
-            } elseif ($key === 'force_https' || $key === 'enable_hsts') {
+            } elseif ($key === 'force_https' || $key === 'enable_hsts' || $key === 'private_mode') {
                 ConfigStore::set("advanced.$key", $value === '1');
             } else {
                 ConfigStore::set("advanced.$key", $value);
