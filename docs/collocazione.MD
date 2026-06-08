@@ -28,10 +28,14 @@ Ogni scaffale ha **livelli** chiamati **mensole**:
 - Mensola 3 = terzo ripiano
 - E così via...
 
-### 3. Le Posizioni Automatiche
-**Non devi creare le posizioni manualmente!** Il sistema le genera automaticamente quando:
-- Aggiungi un nuovo libro
-- La posizione diventa: **Scaffale + Mensola + numero progressivo**
+### 3. Le Posizioni
+La posizione di un libro è la terna **Scaffale + Livello mensola + numero progressivo** (es. `A.2.15`), memorizzata sul libro nei campi `scaffale_id`, `mensola_id`, `posizione_progressiva`.
+
+Ci sono due modi di ottenere le posizioni:
+- **Automatico (consigliato)**: quando assegni un libro a uno scaffale+mensola, il sistema **calcola il prossimo numero progressivo libero** (endpoint `GET /api/collocazione/next`). Non devi numerare a mano.
+- **Pre-generazione opzionale**: al momento di creare una mensola puoi indicare quante posizioni vuoi generare in anticipo (campo `genera_posizioni`); il sistema crea N posizioni vuote in quella mensola.
+
+> Esiste anche un **suggerimento per genere**: in fase di inserimento libro, `GET /api/collocazione/suggerisci?genere_id=…&sottogenere_id=…` propone scaffale/mensola in base al genere.
 
 ## Interfaccia Utente - Passo per Passo
 
@@ -148,8 +152,11 @@ Libri: FICTION.1.1, FICTION.1.2...
 **Sì!** Puoi usare: 1, 2, 3 oppure A1, B2, C3 - tutto ciò che ti è comodo.
 
 ### **Cosa succede se elimino uno scaffale?**
-- **Se ha libri**: Non puoi eliminarlo
-- **Se è vuoto**: Si elimina e i numeri si riassegnano automaticamente
+- **Se contiene mensole**: Non puoi eliminarlo (devi prima eliminare le mensole)
+- **Se contiene libri** (non soft-deleted): Non puoi eliminarlo
+- **Se è vuoto** (nessuna mensola e nessun libro): Viene eliminato
+
+> Analogamente, una **mensola** può essere eliminata solo se non contiene libri attivi (`deleted_at IS NULL`). L'eliminazione **non** rinumera automaticamente le posizioni dei libri esistenti.
 
 ### **Posso cambiare l'ordine?**
 **Sì!** Trascina con il mouse e l'ordine si aggiorna automaticamente.
@@ -178,3 +185,27 @@ Il sistema di collocazione è **semplicissimo da usare**:
 1. **Crea gli scaffali** → 2. **Crea le mensole** → 3. **I libri si posizionano da soli!**
 
 **Non serve nessuna conoscenza tecnica** - è progettato per essere intuitivo come organizzare una libreria in casa tua.
+
+---
+
+## Riferimento Tecnico (per Manutentori)
+
+Controller: `App\Controllers\CollocazioneController` · Model: `App\Models\CollocationRepository` · View: `app/Views/collocazione/index.php`.
+Tabelle: `scaffali` (codice, nome, ordine), `mensole` (scaffale_id, numero_livello, ordine), `posizioni`; i libri referenziano `libri.scaffale_id`, `libri.mensola_id`, `libri.posizione_progressiva`.
+
+Tutte le rotte sono letterali in inglese sotto `/admin` (decisione #145/#161), protette da `AdminAuthMiddleware`; le scritture aggiungono `CsrfMiddleware`, le letture hanno rate limit:
+
+| Azione | Metodo | Rotta |
+|---|---|---|
+| Pagina collocazione | `GET` | `/admin/collocazione` |
+| Crea scaffale | `POST` | `/admin/collocazione/scaffali` |
+| Crea mensola (+ `genera_posizioni` opzionale) | `POST` | `/admin/collocazione/mensole` |
+| Elimina scaffale | `POST` | `/admin/collocazione/scaffali/{id}/delete` |
+| Elimina mensola | `POST` | `/admin/collocazione/mensole/{id}/delete` |
+| Riordina (drag&drop) | `POST` | `/api/collocazione/sort` (JSON: `type` = scaffali/mensole/posizioni, `ids`) |
+| Suggerimento per genere | `GET` | `/api/collocazione/suggerisci?genere_id=…&sottogenere_id=…` |
+| Prossima posizione libera | `GET` | `/api/collocazione/next?scaffale_id=…&mensola_id=…&book_id=…` |
+| Lista libri per collocazione | `GET` | `/api/collocazione/libri?scaffale_id=…&mensola_id=…` |
+| Export CSV | `GET` | `/api/collocazione/export-csv` |
+
+Vincoli di unicità: il **codice scaffale** è univoco; ogni coppia **scaffale + numero_livello (mensola)** è univoca (violazioni → errore 1062 gestito con messaggio user-friendly).

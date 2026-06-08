@@ -179,9 +179,11 @@ class UserActionsController
                 $reassignmentService->reassignOnReturn($copiaId);
             }
 
-            // Recalculate book availability
+            // Recalculate book availability (insideTransaction: true — TXN-002:
+            // siamo dentro la transazione aperta in questo metodo, evita il
+            // commit implicito di una begin_transaction() annidata)
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability((int) $loan['libro_id']);
+            $integrity->recalculateBookAvailability((int) $loan['libro_id'], insideTransaction: true);
 
             $db->commit();
 
@@ -265,7 +267,7 @@ class UserActionsController
 
             // Recalculate book availability
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
 
             $db->commit();
 
@@ -370,7 +372,7 @@ class UserActionsController
 
             // Recalculate book availability
             $integrity = new \App\Support\DataIntegrity($db);
-            $integrity->recalculateBookAvailability($libroId);
+            $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
 
             $db->commit();
 
@@ -412,7 +414,12 @@ class UserActionsController
 
         $utenteId = (int) $user['id'];
         $data_prestito = date('Y-m-d');
-        $data_scadenza = date('Y-m-d', strtotime('+14 days'));
+        // Read configured loan duration; fallback to 30 days
+        $loanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
+        if ($loanDays < 1) {
+            $loanDays = 30;
+        }
+        $data_scadenza = date('Y-m-d', strtotime("+{$loanDays} days"));
 
         // Use transaction + lock to prevent race conditions
         $db->begin_transaction();
@@ -452,6 +459,48 @@ class UserActionsController
                 return $this->back($response, ['loan_error' => 'duplicate']);
             }
             $dupStmt->close();
+
+            $dupReservationStmt = $db->prepare("
+                SELECT id
+                FROM prenotazioni
+                WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva'
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupReservationStmt->bind_param('ii', $libroId, $utenteId);
+            $dupReservationStmt->execute();
+            $dupReservationResult = $dupReservationStmt->get_result();
+            if ($dupReservationResult->fetch_assoc()) {
+                $dupReservationStmt->close();
+                $db->rollback();
+                return $this->back($response, ['loan_error' => 'duplicate']);
+            }
+            $dupReservationStmt->close();
+
+            // Enforce max active loans per user (admin setting; 0 = no limit)
+            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
+            if ($maxLoans > 0) {
+                // Serialize concurrent loan requests by the SAME user: the per-book
+                // libri lock taken earlier does not mutually exclude two requests
+                // for *different* books, so without this both could read the same
+                // activeCount below the limit and both insert, exceeding it.
+                // Locking the user row forces them to run one at a time.
+                $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+                $userLockStmt->bind_param('i', $utenteId);
+                $userLockStmt->execute();
+                $userLockStmt->close();
+
+                $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
+                $cntStmt->bind_param('i', $utenteId);
+                $cntStmt->execute();
+                $cntResult = $cntStmt->get_result();
+                $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
+                $cntStmt->close();
+                if ($activeCount >= $maxLoans) {
+                    $db->rollback();
+                    return $this->back($response, ['loan_error' => 'max_loans_reached']);
+                }
+            }
 
             // Insert as 'pendente' - requires admin approval
             $stmt = $db->prepare("INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_scadenza, stato, attivo) VALUES (?, ?, ?, ?, 'pendente', 0)");
@@ -536,6 +585,26 @@ class UserActionsController
             }
             $dupStmt->close();
 
+            $dupLoanStmt = $db->prepare("
+                SELECT id
+                FROM prestiti
+                WHERE libro_id = ? AND utente_id = ? AND (
+                    (attivo = 0 AND stato = 'pendente')
+                    OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                )
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupLoanStmt->bind_param('ii', $libroId, $utenteId);
+            $dupLoanStmt->execute();
+            $dupLoanResult = $dupLoanStmt->get_result();
+            if ($dupLoanResult->fetch_assoc()) {
+                $dupLoanStmt->close();
+                $db->rollback();
+                return $this->back($response, ['reserve_error' => 'duplicate']);
+            }
+            $dupLoanStmt->close();
+
             // Check availability for the requested date range (excluding this user's existing reservations)
             $reservationsController = new ReservationsController($db);
             $availability = $reservationsController->getBookAvailabilityData($libroId, $start, 35, $utenteId);
@@ -582,7 +651,7 @@ class UserActionsController
 
                 // Recalculate book availability after reservation
                 $integrity = new \App\Support\DataIntegrity($db);
-                $integrity->recalculateBookAvailability($libroId);
+                $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
 
                 $db->commit();
                 $params = ['reserve_success' => 1];

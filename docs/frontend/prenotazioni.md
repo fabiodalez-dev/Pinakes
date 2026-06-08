@@ -1,6 +1,7 @@
 # 📅 Prenotazioni - Richiesta e Gestione Prestiti
 
-> **Accedi qui**: http://localhost:8000/prenotazioni (devi essere loggato)
+> **Accedi qui**: `/prenotazioni` (route i18n `reservations`, varia per locale — es.
+> `/reservations` in inglese; devi essere loggato)
 
 La pagina **prenotazioni** è il **tuo centro di controllo** per gestire:
 - 📚 Libri che hai in prestito ADESSO
@@ -58,9 +59,33 @@ Quando richiedi un libro, il prestito passa attraverso diversi stati:
 ### ⚠️ Importante: Da Ritirare
 
 Quando il tuo prestito diventa **"Da Ritirare"**:
-- Riceverai una **email di notifica**
-- Hai un **tempo limite** per ritirare il libro (di solito 3-5 giorni)
-- Se non ritiri in tempo, il prestito potrebbe essere **annullato**
+- Riceverai una **email di notifica** (`loan_pickup_ready`)
+- Hai un **tempo limite** per ritirare il libro (impostazione admin
+  `pickup_expiry_days`, default 3 giorni)
+- Se non ritiri entro il `pickup_deadline`, la manutenzione automatica porta il
+  prestito a **scaduto** e libera la copia (email `loan_pickup_expired`)
+
+---
+
+## 📝 Come si richiede un prestito (dalla scheda libro)
+
+La richiesta non parte da questa pagina ma dalla **scheda del libro** (bottone
+"Prenota"). Si apre un popup **SweetAlert** con un calendario **Flatpickr**:
+
+1. Il calendario carica la disponibilità reale da `/api/libro/{id}/availability`.
+2. Ogni giorno è colorato per stato:
+   - 🟢 **Verde** (`free`) — almeno una copia disponibile, selezionabile
+   - 🔴 **Rosso** (`borrowed`) — tutte le copie in prestito, disabilitato
+   - 🟠 **Arancione** (`reserved`) — tutte le copie già prenotate in coda, disabilitato
+3. Viene suggerita automaticamente la prima data libera (`earliest_available`).
+4. Scegli data inizio e (opzionale) data fine. Se lasci la fine vuota, viene usata
+   la durata configurata (`loan_duration_days`, default 30 giorni).
+5. Invii: `POST /api/libro/{id}/reservation`. La richiesta nasce **pendente** e
+   viene valutata da un amministratore.
+
+> Una **richiesta pendente "nuda"** (senza copia assegnata) **non** sottrae copie
+> alla disponibilità di altri utenti: lo fa solo quando l'admin la approva e le
+> assegna una copia (modello di occupazione #157).
 
 ---
 
@@ -325,8 +350,10 @@ Esempio: "Storico prestiti | 15 prestiti passati"
 | **Perso** | ❌ Rosso | Marcato come perso dall'admin |
 | **Danneggiato** | 🔧 Rosso | Libro restituito ma rotto |
 | **Annullato** | ⛔ Grigio | Richiesta annullata dall'admin o dall'utente |
-| **Rifiutato** | ❌ Grigio | Richiesta rifiutata dall'admin |
 | **Scaduto** | ⏰ Arancione | Non ritirato in tempo (pickup scaduto) |
+
+> Nota: una richiesta **rifiutata** dall'admin non compare nello storico — la sua
+> riga viene eliminata; ricevi comunque l'email di rifiuto.
 
 ### **Se Non Hai Storico**
 
@@ -548,8 +575,9 @@ Contatta la biblioteca per chiarimenti.
 - ❌ Perso: Marcato come perso dall'admin
 - 🔧 Danneggiato: Restituito rovinato
 - ⛔ Annullato: Richiesta annullata (admin o utente)
-- ❌ Rifiutato: Richiesta rifiutata dall'admin
 - ⏰ Scaduto: Non ritirato in tempo (pickup scaduto)
+
+(Le richieste rifiutate non vengono conservate nello storico.)
 
 ---
 
@@ -611,6 +639,17 @@ Contatta la biblioteca per chiarimenti.
 
 ---
 
-*Ultima lettura: 19 Ottobre 2025*
-*Tempo lettura: 12 minuti*
-*Tempo per annullare prenotazione: 30 secondi*
+---
+
+## 🔗 Endpoint coinvolti (riferimento)
+
+| Azione | Endpoint |
+|--------|----------|
+| Pagina prenotazioni | `GET /prenotazioni` (i18n `reservations`) |
+| Disponibilità calendario | `GET /api/libro/{id}/availability` |
+| Invia richiesta prestito | `POST /api/libro/{id}/reservation` |
+| Annulla prenotazione in coda | `POST /reservation/cancel` |
+| Cambia data prenotazione | `POST /reservation/change-date` |
+| Badge conteggio prenotazioni | `GET /api/user/reservations/count` |
+
+*Ultima revisione: Giugno 2026 (branch `review/loan-reservation-system`)*

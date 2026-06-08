@@ -1085,7 +1085,7 @@ Eseguito prima di inviare la risposta.
 - `$response` (ResponseInterface): Oggetto risposta
 
 ### `admin.menu.items` (Filter)
-**Status:** Documentato
+**Status:** Documentato (non ancora invocato — l'hook realmente attivo è `admin.menu.render`, vedi sotto)
 
 Permette di aggiungere voci al menu amministrazione.
 
@@ -1115,6 +1115,96 @@ Permette di aggiungere voci al menu frontend.
 - `$menuItems` (array): Array di voci di menu
 
 **Restituisce:** array - Menu items modificato
+
+---
+
+## Hook di Integrazione (usati dai plugin bundled)
+
+Questi hook sono **effettivamente invocati dal core** e usati dai plugin distribuiti con Pinakes (archives, oai-pmh-server, frbr-lrm, ecc.).
+
+### `app.routes.register` (Action)
+
+**Status:** Implementato
+**File:** `app/Routes/web.php:80`
+
+Eseguito molto presto nel bootstrap del routing per permettere ai plugin di registrare le proprie rotte. Riceve l'istanza dell'app Slim.
+
+**Parametri:**
+- `$app` (\Slim\App): Istanza dell'applicazione su cui chiamare `$app->get()/post()/...`
+
+**Esempio:**
+
+```php
+Hooks::add('app.routes.register', function($app) {
+    $app->get('/oai', [\App\Plugins\OaiPmh\Controller::class, 'handle']);
+}, 10);
+```
+
+> Nota: questo hook viene chiamato anche durante il bootstrap, prima che il guard runtime degli hook sia attivo. Un plugin **non** deve invocare `doAction()`/`applyFilters()` dentro `onActivate()` per evitare doppia registrazione delle rotte (FastRoute "Cannot register two routes").
+
+### `admin.menu.render` (Action)
+
+**Status:** Implementato
+**File:** `app/Views/layout.php:331`
+
+Eseguito nel rendering della sidebar admin: i plugin emettono direttamente l'HTML delle proprie voci di menu (echo). Non riceve né restituisce parametri.
+
+**Esempio:**
+
+```php
+Hooks::add('admin.menu.render', function() {
+    echo '<a href="' . htmlspecialchars(url('/admin/archives'), ENT_QUOTES, 'UTF-8') . '" class="...">Archivi</a>';
+}, 10);
+```
+
+> Le rotte admin sono letterali inglesi: usare `url('/admin/...')`, mai `route_path()`.
+
+### `assets.head` (Action)
+
+**Status:** Implementato
+**File:** `app/Views/layout.php:63`, `app/Views/frontend/layout.php:216`
+
+Eseguito nel `<head>` sia del layout admin sia di quello frontend. Permette di iniettare `<link>`/`<style>`/`<script>` di plugin. Invocato via helper `do_action('assets.head')`.
+
+### `search.unified.sources` (Filter)
+
+**Status:** Implementato
+**File:** `app/Controllers/SearchController.php:204, 240`
+
+Permette ai plugin di aggiungere risultati alla ricerca unificata (`/api/search/unified`), p.es. risultati archivistici o da authority esterne.
+
+**Parametri:**
+- `$results` (array): Risultati correnti
+- `$q` (string): Termine di ricerca
+
+**Restituisce:** array - Risultati arricchiti
+
+### `frontend.catalog.archive_results` (Filter)
+
+**Status:** Implementato
+**File:** `app/Controllers/FrontendController.php:423`
+
+Inietta risultati di materiale archivistico nel catalogo pubblico. Usato dal plugin `archives`.
+
+**Parametri:**
+- valore iniziale `[]` (array): Lista risultati archivistici
+- `$searchTerm` (string): Termine di ricerca
+
+**Restituisce:** array - Risultati archivistici da fondere nel catalogo
+
+### Hook Digital Library (Action)
+
+**Status:** Implementati
+**Plugin:** `digital-library`
+
+Invocati via helper `do_action(...)` nelle view core; il plugin emette direttamente HTML (echo). Ricevono l'array `$book`.
+
+| Hook | File | Scopo |
+|------|------|-------|
+| `book.detail.digital_buttons` | `frontend/book-detail.php:1722` | Pulsanti download/lettura nella scheda libro |
+| `book.detail.digital_player` | `frontend/book-detail.php:1729` | Player audio/PDF inline |
+| `book.badge.digital_icons` | `catalog-grid.php`, `home-books-grid.php`, `archive.php`, `book-detail.php` | Badge "digitale" nelle griglie e tra i correlati |
+| `book.form.digital_fields` | `libri/partials/book_form.php:570` | Campi upload contenuto digitale nel form libro |
 
 ---
 
@@ -1481,8 +1571,7 @@ Hooks::add('book.save.after', function($id, $data) {
 
 ---
 
-**Documentazione aggiornata:** 2025-01-05
-**Hook implementati:** 28 (16 precedenti + 12 scraping)
-**Hook documentati:** 37+
-**Totale hook disponibili:** 53+
+**Documentazione aggiornata:** 2026-06
+**Hook di integrazione aggiunti:** `app.routes.register`, `admin.menu.render`, `assets.head`, `search.unified.sources`, `frontend.catalog.archive_results` (usati dai plugin bundled)
+**Nota:** gli hook con stato "Documentato" (es. `loan.*`, `reservation.*`, `catalog.query.modify`, `book.delete.*`, `admin.menu.items`) sono punti di estensione pianificati, **non** ancora invocati dal core.
 

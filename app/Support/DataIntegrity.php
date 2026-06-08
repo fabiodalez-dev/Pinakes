@@ -86,6 +86,7 @@ class DataIntegrity {
                     SELECT COUNT(*)
                     FROM copie c
                     WHERE c.libro_id = l.id
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                 ),
                 stato = CASE
                     WHEN GREATEST(
@@ -114,6 +115,8 @@ class DataIntegrity {
                     ) > 0 THEN 'disponibile'
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'prestato') > 0 THEN 'prestato'
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'prenotato') > 0 THEN 'prenotato'
+                    -- Copia in biblioteca ma assorbita da una prenotazione attiva → riservata (A1)
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato IN ('disponibile', 'prenotato')) > 0 THEN 'prenotato'
                     ELSE l.stato
                 END
                 WHERE l.deleted_at IS NULL
@@ -328,6 +331,7 @@ class DataIntegrity {
                     SELECT COUNT(*)
                     FROM copie c
                     WHERE c.libro_id = ?
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                 ),
                 stato = CASE
                     WHEN GREATEST(
@@ -356,11 +360,15 @@ class DataIntegrity {
                     ) > 0 THEN 'disponibile'
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ? AND c.stato = 'prestato') > 0 THEN 'prestato'
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ? AND c.stato = 'prenotato') > 0 THEN 'prenotato'
+                    -- Copia fisicamente in biblioteca ma assorbita da una prenotazione attiva:
+                    -- è riservata, non 'disponibile' né stantia (A1). Evita di lasciare il libro
+                    -- bloccato su uno stato precedente (es. 'prestato') dopo la restituzione.
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ? AND c.stato IN ('disponibile', 'prenotato')) > 0 THEN 'prenotato'
                     ELSE l.stato
                 END
                 WHERE id = ?
             ");
-            $stmt->bind_param('iiiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
+            $stmt->bind_param('iiiiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
             $result = $stmt->execute();
             $stmt->close();
 
@@ -473,43 +481,21 @@ class DataIntegrity {
         }
         $stmt->close();
 
-        // 6. Verifica prenotazioni che si sovrappongono a prestiti attivi dello stesso libro
-        $stmt = $this->db->prepare("
-            SELECT pr.id AS prenotazione_id, pr.libro_id, pr.data_inizio_richiesta, pr.data_fine_richiesta, pr.data_scadenza_prenotazione,
-                   p.id AS prestito_id, p.data_prestito, p.data_scadenza, p.data_restituzione, p.stato
-            FROM prenotazioni pr
-            JOIN prestiti p ON pr.libro_id = p.libro_id
-            WHERE pr.stato = 'attiva'
-              AND p.stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')
-              AND p.attivo = 1
-              AND (
-                    (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_inizio_richiesta <= p.data_scadenza AND pr.data_fine_richiesta >= p.data_prestito)
-                 OR (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NULL AND pr.data_inizio_richiesta <= COALESCE(p.data_scadenza, p.data_restituzione, p.data_prestito))
-                 OR (pr.data_inizio_richiesta IS NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_fine_richiesta >= p.data_prestito)
-                 OR (pr.data_inizio_richiesta IS NULL AND pr.data_fine_richiesta IS NULL)
-              )
-        ");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if ($result && $result->num_rows > 0) {
-            while ($row = $result->fetch_assoc()) {
-                $issues[] = [
-                    'type' => 'overlap_reservation_loan',
-                    'message' => \sprintf(__("Prenotazione ID %d si sovrappone al prestito ID %d per il libro %d"), $row['prenotazione_id'], $row['prestito_id'], $row['libro_id'])
-                ];
-            }
+        // 6. Verifica sovra-prenotazioni/prestiti rispetto alla capacità reale del libro.
+        // Sovrapposizioni tra impegni sono lecite se il libro ha copie sufficienti.
+        foreach ($this->findOverbookedCirculationPeriods() as $issue) {
+            $issues[] = $issue;
         }
-        $stmt->close();
 
-        // 7. Verifica prenotazioni che si sovrappongono tra loro per lo stesso libro
+        // 7. Verifica duplicati utente/libro tra richieste di prestito e prenotazioni attive.
         $stmt = $this->db->prepare("
-            SELECT r1.id AS pren1, r2.id AS pren2, r1.libro_id, r1.data_inizio_richiesta, r1.data_fine_richiesta, r2.data_inizio_richiesta AS data_inizio_richiesta2, r2.data_fine_richiesta AS data_fine_richiesta2
-            FROM prenotazioni r1
-            JOIN prenotazioni r2 ON r1.libro_id = r2.libro_id AND r1.id < r2.id
-            WHERE r1.stato = 'attiva' AND r2.stato = 'attiva'
+            SELECT pr.id AS prenotazione_id, p.id AS prestito_id, pr.libro_id, pr.utente_id
+            FROM prenotazioni pr
+            JOIN prestiti p ON p.libro_id = pr.libro_id AND p.utente_id = pr.utente_id
+            WHERE pr.stato = 'attiva'
               AND (
-                  (r1.data_inizio_richiesta IS NOT NULL AND r1.data_fine_richiesta IS NOT NULL AND r2.data_inizio_richiesta IS NOT NULL AND r2.data_fine_richiesta IS NOT NULL
-                   AND r1.data_inizio_richiesta <= r2.data_fine_richiesta AND r1.data_fine_richiesta >= r2.data_inizio_richiesta)
+                    (p.attivo = 0 AND p.stato = 'pendente')
+                 OR (p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
               )
         ");
         $stmt->execute();
@@ -517,8 +503,9 @@ class DataIntegrity {
         if ($result && $result->num_rows > 0) {
             while ($row = $result->fetch_assoc()) {
                 $issues[] = [
-                    'type' => 'overlap_reservation_reservation',
-                    'message' => \sprintf(__("Prenotazioni ID %d e %d si sovrappongono per il libro %d"), $row['pren1'], $row['pren2'], $row['libro_id'])
+                    'type' => 'duplicate_user_circulation_request',
+                    'message' => \sprintf(__("Utente ID %d ha sia prenotazione ID %d sia prestito/richiesta ID %d per il libro %d"), $row['utente_id'], $row['prenotazione_id'], $row['prestito_id'], $row['libro_id']),
+                    'severity' => 'error'
                 ];
             }
         }
@@ -677,6 +664,131 @@ class DataIntegrity {
     }
 
     /**
+     * Trova periodi in cui prestiti e prenotazioni superano le copie prestabili.
+     *
+     * Il controllo è intenzionalmente a livello libro: le prenotazioni storiche non
+     * hanno sempre una copia assegnata, quindi la regola corretta è capacità totale
+     * del libro contro impegni simultanei, non semplice sovrapposizione riga-riga.
+     *
+     * @return array<int, array{type: string, message: string, severity: string}>
+     */
+    private function findOverbookedCirculationPeriods(): array {
+        $issues = [];
+        $capacityByBook = [];
+
+        $stmt = $this->db->prepare("
+            SELECT l.id, l.titolo, l.copie_totali,
+                   COUNT(c.id) AS copy_rows,
+                   COALESCE(SUM(CASE
+                       WHEN c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                       THEN 1 ELSE 0 END), 0) AS loanable_copies
+            FROM libri l
+            LEFT JOIN copie c ON c.libro_id = l.id
+            WHERE l.deleted_at IS NULL
+            GROUP BY l.id, l.titolo, l.copie_totali
+        ");
+        $stmt->execute();
+        $booksResult = $stmt->get_result();
+        while ($row = $booksResult->fetch_assoc()) {
+            $bookId = (int) $row['id'];
+            $copyRows = (int) $row['copy_rows'];
+            // Capacity fallback for books with no per-copy rows mirrors
+            // ReservationsController::getBookTotalCopies: a legacy NULL copie_totali
+            // means "untracked" and defaults to 1 loanable copy, while an explicit 0
+            // stays 0 (AVAIL-007). Keeping the two readers aligned prevents a legacy
+            // book from showing capacity 0 here (→ spurious overbooked) while
+            // availability treats it as 1.
+            $legacyCapacity = $row['copie_totali'] === null ? 1 : max(0, (int) $row['copie_totali']);
+            $capacityByBook[$bookId] = [
+                'title' => (string) $row['titolo'],
+                'capacity' => $copyRows > 0 ? (int) $row['loanable_copies'] : $legacyCapacity,
+            ];
+        }
+        $stmt->close();
+
+        // Occupancy = the #157 canonical copy-holding set only: active loans plus
+        // reservation-conversion pendings that already hold a copy
+        // (attivo=0, stato='pendente', copia_id IS NOT NULL). Waitlist
+        // reservations (prenotazioni, stato='attiva') are intentionally a QUEUE
+        // that may exceed copy count and do NOT hold a copy until converted, so
+        // counting them as full-interval occupancy produced false-positive
+        // overbooked periods for popular low-copy books — they are excluded here.
+        $eventsByBook = [];
+        $stmt = $this->db->prepare("
+            SELECT libro_id, 'prestito' AS source_type, id AS source_id,
+                   DATE(data_prestito) AS start_date,
+                   DATE(data_scadenza) AS end_date
+            FROM prestiti
+            WHERE (
+                    (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                    OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL)
+                  )
+              AND data_prestito IS NOT NULL
+              AND data_scadenza IS NOT NULL
+        ");
+        $stmt->execute();
+        $intervalsResult = $stmt->get_result();
+
+        while ($row = $intervalsResult->fetch_assoc()) {
+            $bookId = (int) $row['libro_id'];
+            if (!isset($capacityByBook[$bookId])) {
+                continue;
+            }
+
+            $start = substr((string) $row['start_date'], 0, 10);
+            $end = substr((string) $row['end_date'], 0, 10);
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) {
+                continue;
+            }
+            if ($end < $start) {
+                $end = $start;
+            }
+
+            $endExclusive = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
+            $eventsByBook[$bookId][$start] = ($eventsByBook[$bookId][$start] ?? 0) + 1;
+            $eventsByBook[$bookId][$endExclusive] = ($eventsByBook[$bookId][$endExclusive] ?? 0) - 1;
+        }
+        $stmt->close();
+
+        foreach ($eventsByBook as $bookId => $events) {
+            ksort($events);
+            $dates = array_keys($events);
+            $occupancy = 0;
+            $reported = 0;
+
+            foreach ($dates as $idx => $date) {
+                $occupancy += $events[$date];
+                $nextDate = $dates[$idx + 1] ?? null;
+                if ($nextDate === null || $occupancy <= $capacityByBook[$bookId]['capacity']) {
+                    continue;
+                }
+
+                $periodEnd = (new \DateTimeImmutable($nextDate))->modify('-1 day')->format('Y-m-d');
+                $issues[] = [
+                    'type' => 'overbooked_circulation_period',
+                    'message' => \sprintf(
+                        __("Libro '%s' (ID: %d) ha %d impegni simultanei dal %s al %s, ma solo %d copie prestabili"),
+                        $capacityByBook[$bookId]['title'],
+                        $bookId,
+                        $occupancy,
+                        $date,
+                        $periodEnd,
+                        $capacityByBook[$bookId]['capacity']
+                    ),
+                    'severity' => 'error',
+                ];
+
+                $reported++;
+                if ($reported >= 3) {
+                    break;
+                }
+            }
+        }
+
+        return $issues;
+    }
+
+    /**
      * Rileva l'URL canonico corrente dal server
      */
     private function detectCurrentCanonicalUrl(): string {
@@ -771,43 +883,24 @@ class DataIntegrity {
             $results['fixed'] += $this->db->affected_rows;
             $stmt->close();
 
-            // 4. Annulla prenotazioni attive che si sovrappongono a prestiti attivi dello stesso libro
-            // Note: 'da_ritirare' è incluso perché il libro è riservato per quell'utente
-            $stmt = $this->db->prepare("
-                UPDATE prenotazioni pr
-                JOIN prestiti p ON pr.libro_id = p.libro_id
-                SET pr.stato = 'annullata'
-                WHERE pr.stato = 'attiva'
-                  AND p.stato IN ('in_corso','in_ritardo','da_ritirare','prenotato')
-                  AND p.attivo = 1
-                  AND (
-                        (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_inizio_richiesta <= p.data_scadenza AND pr.data_fine_richiesta >= p.data_prestito)
-                     OR (pr.data_inizio_richiesta IS NOT NULL AND pr.data_fine_richiesta IS NULL AND pr.data_inizio_richiesta <= COALESCE(p.data_scadenza, p.data_restituzione, p.data_prestito))
-                     OR (pr.data_inizio_richiesta IS NULL AND pr.data_fine_richiesta IS NOT NULL AND pr.data_fine_richiesta >= p.data_prestito)
-                     OR (pr.data_inizio_richiesta IS NULL AND pr.data_fine_richiesta IS NULL)
-                  )
-            ");
-            $stmt->execute();
-            $results['fixed'] += $this->db->affected_rows;
-            $stmt->close();
-
-            // 5. Annulla prenotazioni attive che si sovrappongono tra loro per lo stesso libro (tiene la più vecchia)
+            // 4. Annulla solo prenotazioni duplicate dello stesso utente sullo stesso libro.
+            // Non cancellare sovrapposizioni tra utenti diversi: con più copie possono
+            // essere legittime e vanno valutate con controllo di capacità, non riga-riga.
             $stmt = $this->db->prepare("
                 UPDATE prenotazioni r2
-                JOIN prenotazioni r1 ON r1.libro_id = r2.libro_id AND r1.id < r2.id
+                JOIN prenotazioni r1
+                  ON r1.libro_id = r2.libro_id
+                 AND r1.utente_id = r2.utente_id
+                 AND r1.id < r2.id
                 SET r2.stato = 'annullata'
-                WHERE r1.stato = 'attiva' AND r2.stato = 'attiva'
-                  AND (
-                      r1.data_inizio_richiesta IS NOT NULL AND r1.data_fine_richiesta IS NOT NULL AND
-                      r2.data_inizio_richiesta IS NOT NULL AND r2.data_fine_richiesta IS NOT NULL AND
-                      r1.data_inizio_richiesta <= r2.data_fine_richiesta AND r1.data_fine_richiesta >= r2.data_inizio_richiesta
-                  )
+                WHERE r1.stato = 'attiva'
+                  AND r2.stato = 'attiva'
             ");
             $stmt->execute();
             $results['fixed'] += $this->db->affected_rows;
             $stmt->close();
 
-            // 6. Annulla prenotazioni scadute (data_scadenza_prenotazione < NOW())
+            // 5. Annulla prenotazioni scadute (data_scadenza_prenotazione < NOW())
             $stmt = $this->db->prepare("
                 UPDATE prenotazioni
                 SET stato = 'annullata'
@@ -819,7 +912,7 @@ class DataIntegrity {
             $results['fixed'] += $this->db->affected_rows;
             $stmt->close();
 
-            // 7. Riordina queue_position per prenotazioni attive (elimina gaps)
+            // 6. Riordina queue_position per prenotazioni attive (elimina gaps)
             $bookIds = [];
             $booksResult = $this->db->query("
                 SELECT DISTINCT libro_id FROM prenotazioni WHERE stato = 'attiva'
@@ -832,17 +925,33 @@ class DataIntegrity {
             }
 
             foreach ($bookIds as $bookId) {
-                $this->db->query("SET @pos := 0");
-                $stmt = $this->db->prepare("
-                    UPDATE prenotazioni
-                    SET queue_position = (@pos := @pos + 1)
+                // Ordinamento deterministico (F1): le user-variable MySQL in un
+                // UPDATE ... ORDER BY non garantiscono l'ordine di assegnazione su
+                // MySQL 8 / MariaDB 10.3+. Leggiamo le righe ordinate e riscriviamo
+                // queue_position con un loop esplicito.
+                $sel = $this->db->prepare("
+                    SELECT id FROM prenotazioni
                     WHERE libro_id = ? AND stato = 'attiva'
-                    ORDER BY queue_position ASC
+                    ORDER BY queue_position ASC, id ASC
                 ");
-                $stmt->bind_param('i', $bookId);
-                $stmt->execute();
-                $results['fixed'] += $this->db->affected_rows;
-                $stmt->close();
+                $sel->bind_param('i', $bookId);
+                $sel->execute();
+                $rowsRes = $sel->get_result();
+                $ids = [];
+                while ($r = $rowsRes->fetch_assoc()) {
+                    $ids[] = (int) $r['id'];
+                }
+                $sel->close();
+
+                $pos = 0;
+                $upd = $this->db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
+                foreach ($ids as $id) {
+                    $pos++;
+                    $upd->bind_param('ii', $pos, $id);
+                    $upd->execute();
+                    $results['fixed'] += $this->db->affected_rows;
+                }
+                $upd->close();
             }
 
             $this->db->commit();
@@ -882,7 +991,7 @@ class DataIntegrity {
     /**
      * Verifica ed aggiorna lo stato di un prestito
      */
-    public function validateAndUpdateLoan(int $loanId): array {
+    public function validateAndUpdateLoan(int $loanId, bool $insideTransaction = false): array {
         $result = ['success' => false, 'message' => '', 'updated_fields' => []];
 
         try {
@@ -905,7 +1014,18 @@ class DataIntegrity {
             $loan = $loanResult->fetch_assoc();
             $stmt->close();
 
-            $this->db->begin_transaction();
+            // Un prestito già chiuso (attivo = 0: restituito/scaduto/annullato/...) non
+            // ha transizioni di stato applicabili. Restituire subito evita un ricalcolo
+            // ridondante su uno stato di copia già mutato dal flusso chiamante (TXN-005).
+            if ((int) ($loan['attivo'] ?? 0) === 0) {
+                $result['success'] = true;
+                $result['message'] = __('Prestito già chiuso, nessun aggiornamento necessario');
+                return $result;
+            }
+
+            if (!$insideTransaction) {
+                $this->db->begin_transaction();
+            }
             $updates = [];
 
             // Verifica stato in ritardo
@@ -939,11 +1059,19 @@ class DataIntegrity {
             // Aggiorna disponibilità libro
             $this->recalculateBookAvailability($loan['libro_id'], insideTransaction: true);
 
-            $this->db->commit();
+            if (!$insideTransaction) {
+                $this->db->commit();
+            }
             $result['success'] = true;
             $result['message'] = __('Prestito validato e aggiornato');
 
         } catch (\Throwable $e) {
+            // Dentro una transazione esterna NON facciamo rollback qui (chiuderebbe
+            // la transazione del chiamante): rilanciamo perché sia il chiamante a
+            // gestire il rollback atomico (TXN-001).
+            if ($insideTransaction) {
+                throw $e;
+            }
             $this->db->rollback();
             $result['message'] = __('Errore validazione prestito:') . ' ' . $e->getMessage();
         }

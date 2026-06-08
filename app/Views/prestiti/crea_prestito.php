@@ -40,7 +40,9 @@ $isItalian = str_starts_with($currentLocale, 'it');
   <?php if(isset($_GET['error'])): ?>
     <div class="mb-4 p-4 bg-red-100 text-red-800 rounded">
       <?php
-      switch($_GET['error']) {
+      // Normalizza prima dello switch: ?error[]=x arriverebbe come array (warning PHP 8).
+      $errorKey = is_scalar($_GET['error']) ? (string) $_GET['error'] : '';
+      switch($errorKey) {
         case 'libro_in_prestito':
         case 'book_not_available':
           echo __('Il libro selezionato è già in prestito. Seleziona un altro libro.');
@@ -56,6 +58,12 @@ $isItalian = str_starts_with($currentLocale, 'it');
           break;
         case 'duplicate_reservation':
           echo __('Questo utente ha già un prestito o una prenotazione attiva per questo libro.');
+          break;
+        case 'book_not_found':
+          echo __('Libro non trovato o non più disponibile.');
+          break;
+        case 'max_loans_reached':
+          echo __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti. Restituisci un libro prima di crearne un altro.');
           break;
         default:
           echo __('Errore durante la creazione del prestito.');

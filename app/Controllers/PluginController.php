@@ -33,7 +33,9 @@ class PluginController
     {
         // Check authorization
         if (!isset($_SESSION['user']) || $_SESSION['user']['tipo_utente'] !== 'admin') {
-            return $response->withStatus(403)->withHeader('Location', '/admin/dashboard');
+            // 302 (not 403): a 403 with a Location header is NOT followed by the
+            // browser, so the intended bounce to the dashboard never happened.
+            return $response->withHeader('Location', url('/admin/dashboard'))->withStatus(302);
         }
 
         $plugins = $this->pluginManager->getAllPlugins();

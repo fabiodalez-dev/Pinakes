@@ -24,9 +24,11 @@ app/
 
 | Metodo | Route (esempio) | Descrizione | Principali operazioni |
 |--------|----------------|-------------|----------------------|
-| `showPage` | `GET /cms/:slug` | Visualizza una pagina CMS (es. “chi-siamo”). | - Recupera la pagina dal DB con supporto locale.<br>- Sanitizza il contenuto con `ContentSanitizer`.<br>- Renderizza `frontend/cms-page.php`. |
+| `showPage` | rotte CMS localizzate (es. `GET /chi-siamo` IT, `/about-us` EN) | Visualizza una pagina CMS statica. Le rotte sono registrate **per ogni locale attivo** tramite `RouteTranslator::getRouteForLocale()`; lo slug è risolto a runtime via `CmsHelper::getSlug()` (non più un catch-all `/cms/:slug`). | - Recupera la pagina dal DB con supporto locale.<br>- Sanitizza il contenuto con `ContentSanitizer`.<br>- Renderizza `frontend/cms-page.php`. |
 | `editHome` | `GET /admin/cms/home` | Carica tutti i blocchi della homepage per la modifica. | - Legge tutti i record da `home_content`.<br>- Popola l’array `$sections` (chiave `section_key`).<br>- Include `cms/edit-home.php` e il layout generale. |
 | `updateHome` | `POST /admin/cms/home` | Salva le modifiche della homepage. | - **CSRF**: verifica token.<br>- **Sanitizzazione** di tutti i campi testuali.<br>- **Validazione URL** per link pulsanti.<br>- **Upload immagine** con controlli di estensione, MIME, dimensione, percorso sicuro e nome random.<br>- **UPSERT** (INSERT … ON DUPLICATE KEY UPDATE) per ogni sezione (`hero`, `features_title`, `feature_1‑4`, `latest_books_title`, `text_content`, `cta`).<br>- Gestione errori e messaggi di successo in `$_SESSION`. |
+| `reorderHomeSections` | `POST /admin/cms/home/reorder` | Riordina le sezioni della homepage. | - **CSRF**.<br>- Aggiorna `display_order` dei record `home_content`. |
+| `toggleSectionVisibility` | `POST /admin/cms/home/toggle-visibility` | Mostra/nasconde una singola sezione. | - **CSRF**.<br>- Inverte il flag `is_active` della sezione. |
 
 ---
 
@@ -78,7 +80,7 @@ $validateUrl = function($url) {
 | **Impostazioni utente** | `config/settings.php` | Configurazioni globali (es. `site_name`, `default_locale`). |
 | **CSRF** | `app/Support/Csrf.php` | Generazione e validazione token. |
 | **Sanitizzazione contenuti** | `app/Support/ContentSanitizer.php` | Normalizza asset esterni (es. URL di immagini). |
-| **SEO per la homepage** | Campi `seo_*`, `og_*`, `twitter_*` nella tabella `home_content`. | Permettono di impostare meta‑tag, Open Graph e Twitter Card per ogni sezione. |
+| **SEO per la homepage** | Campi `seo_title`, `seo_description`, `seo_keywords`, `og_image`, `og_title`, `og_description`, `og_type`, `og_url`, `twitter_card`, `twitter_title`, `twitter_description`, `twitter_image` nella tabella `home_content`. | Override di meta‑tag, Open Graph e Twitter Card per la sezione hero. La catena di fallback (custom → hero → app name/logo → default `Branding::socialImage()`) è in `FrontendController`; il rendering in `frontend/layout.php`. `og:type` predefinito = `website`. |
 | **Attivazione sezioni** | Campo `is_active` (boolean) in `home_content`. | Consente di nascondere/mostrare singole sezioni senza cancellare i dati. |
 | **Ordinamento** | Campo `display_order` (int). | Definisce l’ordine di visualizzazione nella homepage. |
 
@@ -109,10 +111,12 @@ Il **scraping** è gestito dal controller `app/Controllers/ScrapeController.php`
 
 ### 2. **CMS – Pagine statiche**
 - Le pagine statiche sono gestite da `cms_pages` (tabella).  
-- Per aggiungere una nuova pagina:
-  1. Inserisci un record in `cms_pages` (slug, locale, title, content, meta_description, is_active).  
-  2. La rotta `/cms/:slug` la renderizza tramite `showPage`.  
-  3. Puoi creare una vista personalizzata in `app/Views/frontend/cms-page.php` o riutilizzare il layout esistente.
+- Le pagine standard (chi-siamo, contatti, privacy, cookie) hanno **rotte
+  dedicate registrate per ogni locale** in `web.php` tramite
+  `RouteTranslator::getRouteForLocale()`; lo slug viene risolto a runtime con
+  `CmsHelper::getSlug()`. Non esiste un catch-all `/cms/:slug`.
+- Il rendering avviene tramite `CmsController::showPage()` →
+  `app/Views/frontend/cms-page.php`.
 
 ### 3. **Inserimento libri (non CMS)**
 - Vedi la guida completa in `docs/inserimento_libri.MD`.  
@@ -126,7 +130,7 @@ Il CMS non gestisce direttamente le copie dei libri; questa logica è presente n
 
 - **Visualizzare** il numero di copie totali e disponibili nella tabella `libri` (`copie_totali`, `copie_disponibili`).  
 - **Aggiornare** le copie tramite la pagina di modifica libro (`app/Views/libri/partials/book_form.php`).  
-- **Aggiungere** copie in massa usando l’endpoint API `POST /api/libri/{id}/copy`.
+- **Aggiungere** copie usando l’endpoint API `POST /api/libri/{id}/increase-copies` (admin).
 
 > **Riferimento**: per dettagli sulla struttura della tabella `libri` consultare `docs/libri.MD`.
 
@@ -167,5 +171,10 @@ Il CMS non gestisce direttamente le copie dei libri; questa logica è presente n
 
 ---
 
-Ultimo aggiornamento: 19 Ottobre 2025
-Versione documento: 1.0.0 
+Ultimo aggiornamento: 4 Giugno 2026
+Versione documento: 1.1.0
+> Note revisione 1.1.0: aggiunte le funzioni `reorderHomeSections` /
+> `toggleSectionVisibility`; corretta la rotta delle pagine CMS statiche
+> (rotte localizzate via `RouteTranslator::getRouteForLocale`, non `/cms/:slug`);
+> corretto l'endpoint copie (`POST /api/libri/{id}/increase-copies`); dettagliati
+> i campi SEO/OG/Twitter di `home_content`.

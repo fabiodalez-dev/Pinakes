@@ -30,24 +30,31 @@ La pagina **registrazione** è dove **crei un nuovo account** per accedere alla 
 │                                        │
 │  ⚠️ MESSAGGI (errori o successi)      │
 │                                        │
-│  Nome:                                 │
-│  [Mario___________________]            │
-│                                        │
-│  Cognome:                              │
-│  [Rossi___________________]            │
+│  Nome:               Cognome:          │
+│  [Mario________]     [Rossi________]   │
 │                                        │
 │  Email:                                │
 │  [mario.rossi@email.it_______]        │
 │                                        │
+│  Telefono:  (obbligatorio)             │
+│  [+39 333 1234567____________]         │
+│                                        │
+│  Indirizzo:  (obbligatorio, textarea)  │
+│  [Via Roma 1, Milano_________]         │
+│                                        │
+│  Data di nascita:    Sesso:            │
+│  [gg/mm/aaaa]        [M / F / Altro ▾] │  ← opzionali
+│                                        │
+│  Codice fiscale:  (opzionale)          │
+│  [RSSMRA__________________]            │
+│                                        │
 │  Password:                             │
 │  [****________________________]        │
-│  [☑️ Mostra password]                 │
 │                                        │
 │  Conferma Password:                    │
 │  [****________________________]        │
-│  [☑️ Mostra password]                 │
 │                                        │
-│  ☐ Ho letto i termini di servizio     │
+│  ☐ Accetto la Privacy Policy          │
 │                                        │
 │  [📝 Crea Account]                    │
 │                                        │
@@ -55,6 +62,11 @@ La pagina **registrazione** è dove **crei un nuovo account** per accedere alla 
 │                                        │
 └────────────────────────────────────────┘
 ```
+
+> **Campi obbligatori** (validati lato server da `RegistrationController::register`):
+> nome, cognome, email, **telefono**, **indirizzo**, password, conferma password,
+> accettazione privacy. **Campi opzionali**: data di nascita, sesso (`M`/`F`/`Altro`),
+> codice fiscale. Non esiste alcuna casella "Mostra password".
 
 ---
 
@@ -103,29 +115,56 @@ Esempio: mario.rossi@email.it
 - 💼 Email di lavoro
 - ⚠️ NON email fasulle o temporanee
 
-### **4. Password**
+### **4. Telefono** (obbligatorio)
+
+```
+Campo: Telefono
+Esempio: +39 333 1234567
+⚠️ Campo richiesto: senza telefono la registrazione fallisce
+   con error=missing_fields
+```
+
+### **5. Indirizzo** (obbligatorio)
+
+```
+Campo: Indirizzo (textarea)
+Esempio: Via Roma 1, 20100 Milano
+⚠️ Campo richiesto: senza indirizzo la registrazione fallisce
+```
+
+### **6. Campi opzionali**
+
+```
+- Data di nascita (gg/mm/aaaa)
+- Sesso (select): M / F / Altro
+- Codice fiscale
+Questi campi NON sono obbligatori: vengono salvati solo se valorizzati.
+```
+
+### **7. Password**
 
 ```
 Campo: Password
-Inserisci una password FORTE
+Inserisci una password robusta
 
-Requisiti (obbligatori):
+Requisiti REALI (validati da RegistrationController::register):
 ✅ Minimo 8 caratteri
-✅ Maiuscole (A-Z)
-✅ Minuscole (a-z)
-✅ Numeri (0-9)
-✅ Simboli (!@#$%^&*)
+✅ Massimo 72 caratteri (limite bcrypt)
+✅ Almeno una MAIUSCOLA (A-Z)
+✅ Almeno una minuscola (a-z)
+✅ Almeno un NUMERO (0-9)
+ℹ️ Il SIMBOLO NON è obbligatorio (consigliato ma non richiesto)
 
-Esempio di PASSWORD FORTE:
+Esempio di password VALIDA:
+✅ Biblioteca2025
 ✅ Lib@ria2025!
-✅ BiB_Mario2025
-✅ Casa#Libri98
+✅ BiBMario2025
 
-Esempio di PASSWORD DEBOLE:
-❌ password
-❌ 12345678
-❌ mario
-❌ aaaaaaaaa
+Esempio di password NON valida:
+❌ password   (no maiuscole, no numeri)
+❌ 12345678   (no lettere)
+❌ Lib2       (meno di 8 caratteri)
+❌ Biblioteca (no numeri)
 ```
 
 **Suggerimenti**:
@@ -134,56 +173,56 @@ Esempio di PASSWORD DEBOLE:
 - Non usare Nome + Cognome
 - Non usare dati pubblici (data nascita, numeri fissi)
 
-### **5. Mostra Password** (Opzionale)
+### **8. Conferma Password**
 
 ```
-☑️ Mostra password
-Clicca se vuoi VEDERE quello che digiti
-Utile per verificare che sia tutto corretto
-```
-
-### **6. Conferma Password**
-
-```
-Campo: Conferma Password
+Campo: Conferma Password (name="password_confirm")
 Digita di nuovo la STESSA password
 
 Perché?
 → Per assicurarsi che l'hai scritta senza errori
-→ Se non corrisponde a "Password", riceverai errore
+→ Se non corrisponde a "Password", error=missing_fields
 ```
 
-### **7. Termini di Servizio** (Obbligatorio)
+### **9. Privacy Policy** (Obbligatorio)
 
 ```
-☐ Ho letto i termini di servizio
+☐ Accetto la Privacy Policy (name="privacy_acceptance")
 
-Devi SPUNTARE questa casella per registrarti!
+Devi SPUNTARE questa casella per registrarti.
+Senza spunta → error=privacy_required.
 
-Significa che accetti:
-- Le regole della biblioteca
-- La privacy policy
-- I termini di prestito
-- Le regole di comportamento
+L'accettazione viene registrata ai fini GDPR:
+- timestamp in `data_accettazione_privacy`
+- versione policy salvata (`privacy_policy_version`)
+- log nella tabella `consent_log` (IP + user-agent, se la tabella esiste)
 ```
 
-### **8. Clicca [📝 Crea Account]**
+### **10. Clicca [📝 Crea Account]**
 
 ```
 Se tutto è OK:
   ↓
-Riceverai email di verifica
+Account creato con stato 'sospeso' ed email_verificata=0
   ↓
-Vedi pagina: "Conferma la tua email"
+Vengono inviate: email di benvenuto/attesa all'utente +
+notifica agli admin (email e notifica in-app)
   ↓
-Vai alla casella di posta
+Redirect alla pagina di conferma /register/success
+("Controlla la tua email")
 
 Se ci sono errori:
   ↓
-Vedi messaggi di errore rossi
+Redirect a /register?error=<codice> con messaggio rosso
   ↓
 Rileggi le istruzioni più sotto
 ```
+
+> **Codici `?error=` reali**: `privacy_required`, `missing_fields`,
+> `name_too_long`, `email_too_long`, `password_too_long`, `password_too_short`,
+> `password_needs_upper_lower_number`, `email_exists`, `db`, `csrf`,
+> `session_expired`.
+> **Rate limit**: 3 registrazioni / ora (`RateLimitMiddleware(3, 3600, 'register')`).
 
 ---
 
@@ -206,27 +245,35 @@ Se non la vedi in 5 minuti:
 ### **Step 2: Clicca il Link di Verifica**
 
 ```
-L'email contiene un link blu:
-[Verifica Email]
+L'email contiene un link verso:
+/verify-email?token=<token di 48 caratteri esadecimali>
 
-Oppure copia/incolla un link lungo dalla email
+Il token è valido 24 ore (data_token_verifica).
 
 Clicca il link (entro 24 ore!)
     ↓
-Vedrai: "Email verificata con successo!"
+RegistrationController::verifyEmail imposta email_verificata=1
+e azzera token_verifica_email / data_token_verifica
+    ↓
+Redirect a /login?verified=1
+"Email verificata con successo! Account in attesa di approvazione."
     ↓
 Ora devi attendere approvazione admin
+
+Token scaduto/invalido → /login?error=token_expired (o invalid_token)
 ```
 
 ### **Step 3: Attendi Approvazione Admin**
 
 ```
-Una volta verificata la email, il tuo account è:
+Una volta verificata la email, l'account resta con stato 'sospeso':
 "In attesa di approvazione"
 
 Cosa significa?
-→ Un amministratore controllerà i tuoi dati
-→ Accertarsi che tutto sia legittimo
+→ L'account viene creato con stato='sospeso' e tipo_utente='standard'
+→ Un amministratore deve portare lo stato ad 'attivo'
+→ Finché lo stato non è 'attivo', il login restituisce
+  error=account_pending (o account_suspended)
 → Di solito approva entro 1-2 giorni
 
 Come faccio a sapere quando è approvato?
@@ -275,20 +322,24 @@ Clicca [🔐 Accedi]
 
 **Soluzione**:
 ```
-Controlla:
-☐ Nome (minimo 2 caratteri)
-☐ Cognome (minimo 2 caratteri)
+Controlla (tutti obbligatori):
+☐ Nome
+☐ Cognome
 ☐ Email (formato valido: xxx@yyy.zz)
-☐ Password (8+ caratteri, maiuscole, numeri, simboli)
+☐ Telefono
+☐ Indirizzo
+☐ Password (8+ caratteri, maiuscola, minuscola, numero)
 ☐ Conferma Password (identica a Password)
-☐ Casella "Ho letto termini" (deve essere spuntata)
+☐ Casella "Accetto la Privacy Policy" (error=privacy_required se manca)
 
 Riempili TUTTI e riprova
 ```
 
-### **"Password non corrisponde"**
+### **"Password non corrisponde"** (rientra in `error=missing_fields`)
 
-**Significa**: "Password" e "Conferma Password" sono diverse.
+**Significa**: "Password" e "Conferma Password" sono diverse. Lato server
+questo caso produce lo stesso codice `missing_fields` (la condizione include
+`$password !== $password2`).
 
 **Soluzione**:
 ```
@@ -297,8 +348,7 @@ Controlla:
 2. Conferma Password deve essere IDENTICA: Lib@ria2025!
 
 Se sono diverse:
-→ Clicca [☑️ Mostra password] per vederle
-→ Controlla lettera per lettera
+→ Controlla lettera per lettera (il form non ha "Mostra password")
 → Se non coincidono, correggi
 
 Pro Tip: Copia/incolla da Password a Conferma Password
@@ -361,31 +411,31 @@ Con minuscole: Biblioteca2025! = SÌ
 
 ✅ **Almeno un NUMERO (0-9)**
 ```
-Senza numeri: Biblioteca! = NO
-Con numeri: Biblioteca2025! = SÌ
+Senza numeri: Biblioteca = NO
+Con numeri: Biblioteca2025 = SÌ
 ```
 
-✅ **Almeno un SIMBOLO (!@#$%^&*)**
+ℹ️ **Simbolo NON obbligatorio**
 ```
-Senza simboli: Biblioteca2025 = NO
-Con simboli: Biblioteca2025! = SÌ
+La regex di validazione richiede solo maiuscola + minuscola + numero.
+Un simbolo è consigliato ma NON è imposto dal sistema.
+Lunghezza massima: 72 caratteri (limite bcrypt).
 ```
 
 ### **Esempi di Password Valide**
 
-✅ Lib@ria2025!
-✅ BiB_Mario2025
-✅ Casa#Libri98
-✅ MyL0v3Books!
-✅ Prova123$test
+✅ Biblioteca2025
+✅ Lib@ria2025! (simbolo opzionale)
+✅ BiBMario2025
+✅ MyL0v3Books
 
 ### **Esempi di Password Non Valide**
 
-❌ password (tutto minuscolo, no numeri, no simboli)
-❌ 12345678 (solo numeri, no lettere, no simboli)
-❌ Mario (solo maiuscole e minuscole)
-❌ Lib@2 (meno di 8 caratteri)
-❌ BibliotecaRossi (no numeri, no simboli)
+❌ password (no maiuscole, no numeri)
+❌ 12345678 (solo numeri, no lettere)
+❌ Mario (no numeri, meno di 8 caratteri)
+❌ Lib2 (meno di 8 caratteri)
+❌ BibliotecaRossi (no numeri)
 
 ---
 
@@ -413,10 +463,12 @@ per generare password forte automaticamente!
 ### **Come Protegge i Tuoi Dati?**
 
 ✅ **HTTPS**: Connessione crittografata
-✅ **Password**: Salvata con hash (non in chiaro)
-✅ **Email Verification**: Prova che email è tua
+✅ **Password**: Salvata con hash bcrypt (`password_hash`)
+✅ **Email Verification**: token 24h, prova che email è tua
 ✅ **CSRF Token**: Protezione da attacchi
-✅ **Admin Approval**: Controllo manuale prima dell'accesso
+✅ **Rate Limit**: 3 registrazioni / ora per IP
+✅ **Admin Approval**: stato 'sospeso' → 'attivo' manuale prima dell'accesso
+✅ **GDPR**: consenso privacy con timestamp, versione e log in `consent_log`
 
 ### **Consigli di Sicurezza**
 
@@ -615,6 +667,6 @@ Dopo la registrazione:
 
 ---
 
-*Ultima lettura: 19 Ottobre 2025*
+*Ultima revisione: Giugno 2026 (allineato a RegistrationController)*
 *Tempo lettura: 12 minuti*
 *Tempo per registrarsi: 3-5 minuti*

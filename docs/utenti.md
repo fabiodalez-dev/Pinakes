@@ -8,12 +8,16 @@ Questa guida spiega come funziona la gestione degli utenti in Pinakes, sia dal p
 
 ## ‍‍ Tipi di Utenti (Ruoli)
 
-Nel sistema esistono principalmente due tipi di utenti:
+Nel sistema esistono **quattro** ruoli (`tipo_utente`):
 
-| **Ruolo** | **Cosa può fare** | **Chi è di solito** |
+| **Ruolo** (`tipo_utente`) | **Cosa può fare** | **Chi è di solito** |
 |-----------|-------------------|---------------------|
-| **Utente Standard** | - Cercare libri<br>- Richiedere prestiti<br>- Gestire il proprio profilo<br>- Salvare preferiti | Studenti, cittadini, membri della biblioteca |
-| **Amministratore** | - **Tutto** quello che fa un utente<br>- Aggiungere e modificare libri<br>- Approvare nuovi utenti<br>- Gestire tutti i prestiti<br>- Modificare le impostazioni | Bibliotecari, responsabili della biblioteca |
+| **Standard** (`standard`) | - Cercare libri<br>- Richiedere prestiti<br>- Gestire il proprio profilo<br>- Salvare preferiti (wishlist) | Studenti, cittadini, membri della biblioteca |
+| **Premium** (`premium`) | - Come Standard (variante di tessera/livello utente) | Membri con privilegi estesi |
+| **Staff** (`staff`) | - Gestione utenti, libri, prestiti e collocazione<br>- Può modificare **solo se stesso** tra gli account staff/admin (protezione IDOR)<br>- **Non** può eliminare utenti | Operatori di front-office |
+| **Amministratore** (`admin`) | - **Tutto** quello che fa lo staff<br>- Approvare/attivare nuovi utenti<br>- Modificare ruolo di chiunque<br>- Eliminare utenti<br>- Modificare le impostazioni | Bibliotecari, responsabili della biblioteca |
+
+> Gli account `admin`/`staff` ricevono un **codice tessera** speciale (`ADMIN-XXXXXX`) generato automaticamente e senza scadenza; gli utenti `standard`/`premium` ricevono una tessera `T…` con eventuale data di scadenza. Quando un admin/staff viene declassato a standard/premium, il sistema assegna automaticamente una scadenza tessera a +1 anno.
 
 ---
 
@@ -38,9 +42,11 @@ Un nuovo utente deve seguire 4 semplici passi per ottenere un account attivo.
 > **Importante**: Se non ricevi l'email entro 5 minuti, controlla la cartella **Spam** o Posta Indesiderata.
 
 ### Passo 3: Attesa dell'Approvazione dell'Amministratore
-1.  Una volta verificata l'email, il tuo account entra in uno stato di **"In attesa di approvazione"**.
+1.  Una volta verificata l'email, il tuo account resta nello stato **`sospeso`** ("In attesa di approvazione").
 2.  **Non puoi ancora accedere** al sistema.
 3.  Un **amministratore** deve rivedere la tua richiesta e approvarla manualmente. Questo garantisce che solo persone autorizzate accedano alla biblioteca.
+
+> **Nota tecnica**: lo stato di "attesa approvazione" coincide con lo stato account `sospeso`. La lista utenti dell'admin elenca proprio gli account `sospeso` come "in attesa". La richiesta di approvazione admin è governata dal setting `registration.require_admin_approval` (configurabile nel tab Email/Registrazione delle Impostazioni).
 
 ### Passo 4: Account Approvato e Accesso
 1.  Quando l'amministratore approva il tuo account, riceverai un'**email di benvenuto**.
@@ -54,17 +60,35 @@ Un nuovo utente deve seguire 4 semplici passi per ottenere un account attivo.
 ## ‍ Gestione Utenti per l'Amministratore
 
 ### Dove Trovare la Gestione Utenti
-1.  **Accedi** come Amministratore.
-2.  Vai su **Dashboard → Utenti**.
+1.  **Accedi** come Amministratore (o Staff).
+2.  Vai su **Dashboard → Utenti** (rotta `/admin/utenti`).
 
-Vedrai una tabella con l'elenco di tutti gli utenti registrati.
+Vedrai una tabella con l'elenco di tutti gli utenti registrati. Le rotte admin sono percorsi fissi (decisione #145/#161):
+
+| Azione | Metodo | Rotta |
+|---|---|---|
+| Lista utenti | `GET` | `/admin/utenti` |
+| Form creazione | `GET` | `/admin/utenti/crea` |
+| Salva nuovo utente | `POST` | `/admin/utenti/store` |
+| Form modifica | `GET` | `/admin/utenti/modifica/{id}` |
+| Salva modifica | `POST` | `/admin/utenti/update/{id}` |
+| Dettagli utente | `GET` | `/admin/utenti/dettagli/{id}` |
+| Elimina utente | `POST` | `/admin/utenti/delete/{id}` |
+| Approva + email attivazione | `POST` | `/admin/utenti/{id}/approve-and-send-activation` |
+| Attiva direttamente | `POST` | `/admin/utenti/{id}/activate-directly` |
+| Export CSV | `GET` | `/admin/utenti/export/csv` |
+
+> Tutte le rotte sono protette da `AdminAuthMiddleware`; quelle in scrittura aggiungono `CsrfMiddleware`; le rotte di lettura hanno rate limit (es. 30 richieste/minuto, 15/min per l'export CSV).
 
 ### Azioni Principali dell'Amministratore
 
 #### 1. Approvare Nuovi Utenti
--   Nella lista utenti, vedrai i nuovi account con lo stato **"In attesa di approvazione"** (di solito evidenziati in giallo).
--   Clicca sull'icona  **"Approva"** accanto al nome dell'utente.
--   L'utente riceverà l'email di benvenuto e potrà accedere.
+
+-   Nella lista utenti, vedrai i nuovi account con lo stato **`sospeso`** ("In attesa di approvazione").
+-   Sono disponibili **due modalità** di approvazione:
+    -   **Approva e invia email di attivazione** (`approve-and-send-activation`): imposta lo stato a `attivo`, genera un token di verifica email valido **7 giorni** e invia all'utente un'email con link di attivazione. L'utente completa la verifica cliccando il link.
+    -   **Attiva direttamente** (`activate-directly`): imposta lo stato a `attivo`, marca `email_verificata = 1`, rimuove i token e invia l'email di benvenuto. L'utente può accedere subito senza ulteriori passaggi.
+-   In entrambi i casi l'account deve trovarsi in stato `sospeso`; su account già attivi le azioni restituiscono un errore (`not_suspended`).
 
 #### 2. Visualizzare i Dettagli di un Utente
 -   Clicca sul nome di un utente per vedere la sua **scheda completa**:
@@ -84,18 +108,25 @@ Vedrai una tabella con l'elenco di tutti gli utenti registrati.
 #### 4. Gestire lo Stato di un Account
 Puoi cambiare lo stato di un account in qualsiasi momento:
 
-| **Stato** | **Significato** | **Quando usarlo** |
+Lo stato account (`stato`) ammette **solo tre valori**:
+
+| **Stato** (`stato`) | **Significato** | **Quando usarlo** |
 |-----------|-----------------|-------------------|
-| **Attivo** | L'utente può accedere e richiedere prestiti. | Stato normale. |
-| **Sospeso** | L'utente non può accedere temporaneamente. | Per violazioni minori o ritardi ripetuti. |
-| **Bloccato** | L'utente è bannato permanentemente. | Per violazioni gravi. |
-| **In attesa** | In attesa di approvazione. | Stato di default per i nuovi iscritti. |
+| **Attivo** (`attivo`) | L'utente può accedere e richiedere prestiti. Impostando `attivo`, `email_verificata` viene forzato a 1. | Stato normale / account approvato. |
+| **Sospeso** (`sospeso`) | L'utente non può accedere. È anche lo stato dei nuovi iscritti **in attesa di approvazione**. | Nuovi iscritti, violazioni, ritardi ripetuti. |
+| **Scaduto** (`scaduto`) | Tessera/account scaduto. | Quando la tessera è scaduta. |
+
+> Non esistono gli stati "bloccato" o "in attesa" come valori separati: l'attesa di approvazione è rappresentata da `sospeso`.
 
 #### 5. Eliminare un Utente
--   Clicca sull'icona  **"Elimina"**.
--   Ti verrà chiesta una **conferma**.
+-   Clicca sull'icona  **"Elimina"** (richiede conferma).
+-   **Solo gli Amministratori** possono eliminare utenti: lo Staff riceve `403`.
 
-> **Attenzione**: L'eliminazione di un utente è **permanente** e cancellerà anche tutto il suo storico prestiti. Usa questa opzione con estrema cautela. Non puoi eliminare un utente se ha prestiti attivi.
+Comportamento effettivo dell'eliminazione:
+-   Se l'utente ha **qualsiasi storico prestiti** (anche restituiti), **non** viene eliminato dal database. Viene invece marcato come `sospeso` e nelle note (`note_utente`) viene aggiunto un marcatore `[ELIMINATO IL …]`. Questo preserva l'integrità dello storico prestiti.
+-   Solo se l'utente **non ha alcun prestito** associato viene eseguita la `DELETE` definitiva del record.
+
+> Le azioni di creazione, modifica ruolo ed eliminazione vengono registrate nell'audit log (`SecureLogger::info`). Se l'utente corrente cambia il proprio ruolo, la sessione e il token CSRF vengono rigenerati per prevenire session fixation.
 
 ---
 
@@ -114,8 +145,8 @@ R: Nella pagina di login, clicca su "Password dimenticata?". Inserisci la tua em
 R: Sì. Una volta effettuato l'accesso, vai sul tuo **Profilo** per cambiare la password. Per cambiare l'email, potrebbe essere necessario contattare un amministratore.
 
 **D: Cosa succede se un utente viene eliminato?**
-R: Tutte le sue informazioni, inclusi i prestiti passati, vengono rimosse dal database. Se l'utente aveva prestiti attivi, il sistema impedirà l'eliminazione finché non saranno restituiti.
+R: Se l'utente ha uno storico prestiti (anche solo prestiti già restituiti), **non** viene cancellato: viene marcato come `sospeso` con una nota `[ELIMINATO IL …]`, così lo storico resta intatto. Solo gli utenti senza alcun prestito vengono rimossi definitivamente dal database. Inoltre, solo gli Amministratori possono eseguire l'eliminazione (lo Staff no).
 
 ---
-*Ultimo aggiornamento: 14 Novembre 2025*
-*Versione guida: 1.0.0*
+*Ultimo aggiornamento: 4 Giugno 2026*
+*Versione guida: 1.1.0*

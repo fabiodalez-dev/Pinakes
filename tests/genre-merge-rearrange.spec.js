@@ -107,14 +107,17 @@ test.describe('Genre Merge & Rearrange', () => {
     await page.goto(`${BASE}/admin/generi/${sourceId}`);
     await expect(page.locator('#merge-genre-form')).toBeVisible();
 
-    // Accept confirm dialog
-    page.on('dialog', dialog => dialog.accept());
-
     await page.selectOption('#merge_target_id', targetId);
     await page.click('#merge-genre-form button[type="submit"]');
 
-    // Should redirect to target genre
-    await page.waitForURL(new RegExp(`generi/${targetId}`));
+    // The merge form confirms via SweetAlert2 (window.SwalApp.confirm), not a
+    // native dialog — wait for the popup and click confirm.
+    await page.waitForSelector('.swal2-confirm', { timeout: 10000 });
+    await page.locator('.swal2-confirm').click();
+
+    // Should redirect to target genre (string predicate, not RegExp — targetId
+    // is a numeric id, and this avoids any dynamic-regex concern).
+    await page.waitForURL((url) => url.toString().includes(`/generi/${targetId}`));
     await expect(page.locator('body')).toContainText('uniti con successo');
 
     // Cleanup: delete target

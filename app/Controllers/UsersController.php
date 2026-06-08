@@ -89,24 +89,24 @@ class UsersController
         $isAdmin = $role === 'admin';
 
         if ($nome === '' || $cognome === '' || $email === '') {
-            return $response->withHeader('Location', '/admin/utenti/crea?error=missing_fields')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti/crea?error=missing_fields'))->withStatus(302);
         }
 
         // Validate input lengths
         if (strlen($nome) > 100 || strlen($cognome) > 100) {
-            return $response->withHeader('Location', '/admin/utenti/crea?error=name_too_long')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti/crea?error=name_too_long'))->withStatus(302);
         }
 
         if (strlen($email) > 255) {
-            return $response->withHeader('Location', '/admin/utenti/crea?error=email_too_long')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti/crea?error=email_too_long'))->withStatus(302);
         }
 
         if (strlen($telefono) > 20) {
-            return $response->withHeader('Location', '/admin/utenti/crea?error=phone_too_long')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti/crea?error=phone_too_long'))->withStatus(302);
         }
 
         if (!$isAdmin && $telefono === '') {
-            return $response->withHeader('Location', '/admin/utenti/crea?error=missing_fields')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti/crea?error=missing_fields'))->withStatus(302);
         }
 
         $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
@@ -192,7 +192,7 @@ class UsersController
 
         if (!$stmt->execute()) {
             $stmt->close();
-            return $response->withHeader('Location', '/admin/utenti/crea?error=db_error')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti/crea?error=db_error'))->withStatus(302);
         }
 
         $userId = (int) $stmt->insert_id;
@@ -223,7 +223,7 @@ class UsersController
             }
         }
 
-        return $response->withHeader('Location', '/admin/utenti?created=1')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/utenti?created=1'))->withStatus(302);
     }
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
@@ -295,11 +295,11 @@ class UsersController
         $isAdmin = $role === 'admin';
 
         if ($nome === '' || $cognome === '' || $email === '') {
-            return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=missing_fields')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti/modifica/' . $id . '?error=missing_fields'))->withStatus(302);
         }
 
         if (!$isAdmin && $telefono === '') {
-            return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=missing_fields')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti/modifica/' . $id . '?error=missing_fields'))->withStatus(302);
         }
 
         $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
@@ -372,17 +372,17 @@ class UsersController
             // Validate password complexity (max 72 — bcrypt silently truncates beyond)
             if (strlen($newPassword) < 8) {
                 $_SESSION['error_message'] = __('La password deve essere lunga almeno 8 caratteri.');
-                return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=password_too_short')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/utenti/modifica/' . $id . '?error=password_too_short'))->withStatus(302);
             }
 
             if (strlen($newPassword) > 72) {
                 $_SESSION['error_message'] = __('La password non può superare i 72 caratteri.');
-                return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=password_too_long')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/utenti/modifica/' . $id . '?error=password_too_long'))->withStatus(302);
             }
 
             if (!preg_match('/[A-Z]/', $newPassword) || !preg_match('/[a-z]/', $newPassword) || !preg_match('/[0-9]/', $newPassword)) {
                 $_SESSION['error_message'] = __('La password deve contenere almeno una lettera maiuscola, una minuscola e un numero.');
-                return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=password_needs_upper_lower_number')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/utenti/modifica/' . $id . '?error=password_needs_upper_lower_number'))->withStatus(302);
             }
 
             $passwordHash = password_hash($newPassword, PASSWORD_DEFAULT);
@@ -424,7 +424,7 @@ class UsersController
         $stmt->close();
 
         if (!$success) {
-            return $response->withHeader('Location', '/admin/utenti/modifica/' . $id . '?error=db_error')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti/modifica/' . $id . '?error=db_error'))->withStatus(302);
         }
 
         // Audit logging for critical actions
@@ -463,7 +463,7 @@ class UsersController
             $notifier->sendAdminInvitation($id);
         }
 
-        return $response->withHeader('Location', '/admin/utenti?updated=1')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/utenti?updated=1'))->withStatus(302);
     }
 
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
@@ -516,7 +516,7 @@ class UsersController
             }
 
             $_SESSION['success_message'] = 'L\'utente ha uno storico prestiti e non può essere eliminato. È stato contrassegnato come sospeso.';
-            return $response->withHeader('Location', '/admin/utenti')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti'))->withStatus(302);
         }
 
         // No loans - safe to delete
@@ -532,7 +532,7 @@ class UsersController
                 'mysqli_error' => $error,
             ]);
             $_SESSION['error_message'] = __('Errore durante l\'eliminazione');
-            return $response->withHeader('Location', '/admin/utenti?error=db_error')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti?error=db_error'))->withStatus(302);
         }
 
         // Audit logging for user deletion
@@ -548,7 +548,7 @@ class UsersController
         }
 
         $_SESSION['success_message'] = __('Utente eliminato con successo.');
-        return $response->withHeader('Location', '/admin/utenti')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/utenti'))->withStatus(302);
     }
 
     public function details(Request $request, Response $response, mysqli $db, int $id): Response
@@ -642,7 +642,7 @@ class UsersController
         $stmt->close();
 
         if (!$user) {
-            return $response->withHeader('Location', '/admin/utenti?error=user_not_found')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti?error=user_not_found'))->withStatus(302);
         }
 
         if ($user['stato'] !== 'sospeso') {
@@ -702,7 +702,7 @@ class UsersController
         $stmt->close();
 
         if (!$user) {
-            return $response->withHeader('Location', '/admin/utenti?error=user_not_found')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/utenti?error=user_not_found'))->withStatus(302);
         }
 
         if ($user['stato'] !== 'sospeso') {

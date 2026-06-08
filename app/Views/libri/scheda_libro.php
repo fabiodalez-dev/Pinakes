@@ -37,6 +37,38 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   </div>
   <?php unset($_SESSION['success_message']); ?>
 <?php endif; ?>
+<?php if (isset($_GET['error']) && $_GET['error'] !== ''): ?>
+  <div class="mb-6 p-4 rounded-xl border border-red-200 bg-red-50 text-red-700" role="alert">
+    <i class="fas fa-exclamation-circle mr-2"></i>
+    <?php
+    // Errori del rinnovo prestito (redirect da /admin/prestiti/rinnova con ?error=...).
+    // Normalizza prima del cast: ?error[]=x arriverebbe come array (warning PHP 8).
+    $errorKey = is_scalar($_GET['error']) ? (string) $_GET['error'] : '';
+    switch ($errorKey) {
+        case 'book_not_found':
+            echo __('Libro non trovato o non più disponibile.');
+            break;
+        case 'loan_not_active':
+            echo __('Il prestito non è più attivo.');
+            break;
+        case 'loan_overdue':
+            echo __('Impossibile rinnovare: il prestito è in ritardo.');
+            break;
+        case 'loan_not_picked_up':
+            echo __('Impossibile rinnovare: il prestito non è ancora stato ritirato.');
+            break;
+        case 'max_renewals':
+            echo __('Numero massimo di rinnovi raggiunto per questo prestito.');
+            break;
+        case 'renewal_conflict':
+            echo __('Impossibile rinnovare: un altro prestito o prenotazione occupa il periodo richiesto.');
+            break;
+        default:
+            echo __('Operazione non riuscita. Riprova.');
+    }
+    ?>
+  </div>
+<?php endif; ?>
 
 <!-- Hero Section with Breadcrumb -->
 <div class="mb-6">
@@ -262,7 +294,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <span class="font-medium"><?= __("Rinnovi effettuati") ?></span>
             <span class="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-800">
               <i class="fas fa-redo-alt mr-1 text-xs"></i>
-              <?php echo (int)($activeLoan['renewals'] ?? 0); ?> / 3
+              <?php
+                /** @var int $maxRenewals admin-configurable renewal cap (loans.max_renewals) */
+                $maxRenewals = isset($maxRenewals) ? (int) $maxRenewals : 3;
+                echo (int)($activeLoan['renewals'] ?? 0); ?> / <?= (int) $maxRenewals ?>
             </span>
           </div>
           <?php if (!empty($activeLoan['processed_by_name'])): ?>
@@ -280,7 +315,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
 
           <div class="pt-3 border-t border-gray-200 space-y-2">
             <?php
-              $maxRenewals = 3;
+              // $maxRenewals (loans.max_renewals) was normalised just above.
               $currentRenewals = (int)($activeLoan['renewals'] ?? 0);
               $canRenew = !$isLate && $currentRenewals < $maxRenewals;
             ?>

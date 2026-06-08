@@ -64,7 +64,16 @@ my-plugin/
 ### File Obbligatori
 
 1. **plugin.json** - Contiene i metadati del plugin
-2. **File principale PHP** - Contiene la classe principale del plugin
+2. **File principale PHP** - Contiene la classe principale del plugin (puntato da `main_file`)
+
+### Pattern `wrapper.php` (plugin bundled)
+
+I plugin distribuiti con Pinakes (archives, discogs, oai-pmh-server, frbr-lrm, ncip-server, digital-library, scraping-pro, ...) usano un file `wrapper.php` come `main_file`. Il motivo:
+
+- `PluginManager::getPluginClassName('archives')` deriva il nome classe **senza namespace** (`ArchivesPlugin`), mentre la vera implementazione vive in un namespace (`App\Plugins\Archives\ArchivesPlugin`).
+- `wrapper.php` definisce una classe proxy globale (`class ArchivesPlugin { ... }`) che istanzia quella namespaced e inoltra `onInstall()`/`onActivate()`/`onDeactivate()`/`onUninstall()` e, tramite `__call()`, ogni altro metodo (es. `ensureSchema()`, `plannedHooks()`).
+
+`z39-server` e `dewey-editor` non usano il wrapper: il loro `main_file` è direttamente `Z39ServerPlugin.php` / `DeweyEditorPlugin.php` con la classe nel namespace globale.
 
 ---
 
@@ -118,6 +127,43 @@ La classe principale deve seguire queste convenzioni:
 - Nome: `{PluginName}Plugin` (es: `MyPluginPlugin`, `BookEnhancerPlugin`)
 - Namespace: Opzionale, ma consigliato
 - Deve implementare i metodi del ciclo di vita
+
+### REGOLA ASSOLUTA — `ensureSchema()` su attivazione E installazione
+
+Ogni plugin che crea tabelle nel database **DEVE**:
+
+1. Implementare un metodo pubblico `ensureSchema()` che usa **solo** `CREATE TABLE IF NOT EXISTS` (idempotente, ri-eseguibile senza danni).
+2. Chiamarlo **sia** da `onActivate()` **sia** da `onInstall()`.
+3. In `onActivate()`, controllare il risultato e lanciare `\RuntimeException` se la creazione fallisce.
+
+Motivo: gli **aggiornamenti** dell'app non ri-eseguono `onActivate()` per i plugin già attivi. Se le tabelle vengono create solo in `onInstall()`, dopo un upgrade risultano silenziosamente assenti. Mettendo la logica in `ensureSchema()` e chiamandola da entrambi i punti, lo schema è sempre presente.
+
+```php
+public function onActivate(): void
+{
+    $result = $this->ensureSchema();
+    if (!empty($result['failed'])) {
+        throw new \RuntimeException('Schema creation failed: ' . implode(', ', $result['failed']));
+    }
+    // NB: in onActivate() NON chiamare mai HookManager::doAction()/applyFilters()
+    // (triggera loadHooks() prima del guard runtime → route registrate 2× → routing rotto).
+    // Registrare gli hook solo via INSERT in plugin_hooks.
+}
+
+public function onInstall(): void
+{
+    $this->ensureSchema();
+    // imposta i default delle impostazioni
+}
+
+public function ensureSchema(): array
+{
+    // CREATE TABLE IF NOT EXISTS ... per ogni tabella
+    // ritorna es. ['created' => [...], 'failed' => [...]]
+}
+```
+
+Plugin di riferimento che applicano questo pattern: `ArchivesPlugin`, `OaiPmhServerPlugin`, `NcipServerPlugin`, `Z39ServerPlugin`, `FrbrLrmPlugin`, `ViafAuthorityPlugin`.
 
 ### Esempio Base
 
@@ -327,16 +373,37 @@ Consulta il file [PLUGIN_HOOKS.md](./PLUGIN_HOOKS.md) per l'elenco completo degl
 
 ### Hook Principali
 
-| Hook | Tipo | Descrizione |
-|------|------|-------------|
-| `book.data.get` | Filter | Modifica dati libro recuperati |
-| `book.save.after` | Action | Dopo il salvataggio libro |
-| `author.data.get` | Filter | Modifica dati autore |
-| `publisher.data.get` | Filter | Modifica dati editore |
-| `login.validate` | Filter | Validazione custom login |
-| `catalog.query.modify` | Filter | Modifica query ricerca |
-| `scrape.sources` | Filter | Aggiunge fonti scraping |
-| `image.process` | Filter | Elabora immagini |
+I seguenti hook sono effettivamente invocati dal core (verificato nel codice):
+
+| Hook | Tipo | Descrizione | Punto di invocazione |
+|------|------|-------------|----------------------|
+| `book.data.get` | Filter | Modifica dati libro recuperati | `BookRepository` |
+| `book.save.before` / `book.save.after` | Action | Prima/dopo il salvataggio libro | `LibriController` |
+| `book.form.fields` | Action | Campi extra nel form libro backend | `book_form.php` |
+| `book.frontend.details` | Action | Contenuto extra nella scheda libro pubblica | `frontend/book-detail.php` |
+| `book.detail.digital_buttons` | Action | Pulsanti download/lettura nella scheda libro | `frontend/book-detail.php` |
+| `book.detail.digital_player` | Action | Player audio/PDF inline nella scheda libro | `frontend/book-detail.php` |
+| `book.badge.digital_icons` | Action | Badge "digitale" nelle griglie catalogo/home | `catalog-grid.php`, `home-books-grid.php`, `archive.php` |
+| `book.form.digital_fields` | Action | Campi upload digitale nel form libro | `book_form.php` |
+| `author.data.get` | Filter | Modifica dati autore | `AuthorRepository` |
+| `author.save.before` / `author.save.after` | Action | Prima/dopo il salvataggio autore | `AuthorRepository` |
+| `author.form.fields` | Action | Campi extra nel form autore | view autori |
+| `publisher.data.get` | Filter | Modifica dati editore | `PublisherRepository` |
+| `login.form.render.before` / `login.form.html` | Action / Filter | Pre-render e modifica HTML del form login | `AuthController` |
+| `login.form.fields` | Action | Campi extra nel form login | `auth/login.php` |
+| `login.validate` | Filter | Validazione custom credenziali | `AuthController` |
+| `login.success` / `login.failed` | Action | Esito login | `AuthController` |
+| `scrape.sources` | Filter | Aggiunge/modifica fonti scraping | `ScrapeController` |
+| `scrape.fetch.custom` | Filter | Fetch dati da fonte custom | `ScrapeController` |
+| `scrape.response` | Filter | Modifica payload finale scraping | `ScrapeController` |
+| `image.process` | Filter | Elabora copertine | `LibriController` |
+| `search.unified.sources` | Filter | Aggiunge risultati alla ricerca unificata `/api/search/unified` | `SearchController` |
+| `frontend.catalog.archive_results` | Filter | Inietta risultati archivistici nel catalogo frontend | `FrontendController` |
+| `admin.menu.render` | Action | Voci di menu admin aggiuntive (sidebar) | `layout.php` |
+| `app.routes.register` | Action | Registrazione rotte di plugin (riceve `$app` Slim) | `Routes/web.php` |
+| `assets.head` | Action | Inietta CSS/JS nel `<head>` (admin e frontend) | `layout.php`, `frontend/layout.php` |
+
+> Gli hook elencati in `PLUGIN_HOOKS.md` / `COMPLETE_HOOKS_SYSTEM.md` con stato "Documentato" (es. `loan.*`, `reservation.*`, `catalog.query.modify`, `book.delete.*`) **non sono ancora invocati dal core** — sono punti di estensione pianificati.
 
 ---
 
@@ -627,6 +694,26 @@ class ImageHandler
     }
 }
 ```
+
+---
+
+## Plugin Inclusi (bundled)
+
+Pinakes distribuisce un set di plugin in `storage/plugins/`. I principali:
+
+| Plugin (dir) | Versione | Scopo |
+|--------------|----------|-------|
+| `archives` | 1.5.0 | Materiale archivistico/fotografico secondo ISAD(G), ISAAR(CPF) e RiC-O. Modello a 4 livelli Fondo → Serie → Fascicolo → Unità, export Linked Data RiC-O JSON-LD. |
+| `discogs` | 1.1.0 | Scraping musicale multi-sorgente (Discogs, MusicBrainz + Cover Art Archive, Deezer). CD, LP, vinili, cassette. |
+| `oai-pmh-server` | 1.1.0 | Server OAI-PMH 2.0 su `/oai` (GET/POST). Formati `oai_dc`, MARCXML, MODS, MAG 2.0.1, UNIMARC, RiC-O; resumption token DB-backed, `deletedRecord=persistent`. |
+| `ncip-server` | 1.0.0 | Server NCIP 2.0 su `/ncip`: LookupItem, LookupUser, CheckOutItem, CheckInItem, RenewItem, RequestItem, CancelRequestItem. |
+| `z39-server` | 1.3.0 | Server SRU + client Z39.50/SRU (copy cataloging, ricerca federata). Dalla 1.3.0 livello REICAT/SBN: import UNIMARC da opac.sbn.it, authority control CCN, Nuovo Soggettario BNCF, round-trip UNIMARC (MARCXchange ISO 25577). |
+| `frbr-lrm` | 1.0.0 | Modello FRBR / IFLA LRM: tabelle opzionali `opere` ed `espressioni`, pagina pubblica `/opera/{slug}`, assistente di deduplicazione. FK `opera_id`/`espressione_id` restano NULL a plugin disattivato. |
+| `dewey-editor` | 1.0.1 | Editor visuale delle classificazioni Dewey (CRUD codici, import/export JSON con validazione). `main_file` diretto `DeweyEditorPlugin.php`. |
+| `digital-library` | 1.3.0 | Gestione eBooks (PDF/ePub) e audiobook con player Green Audio Player e viewer PDF inline. |
+| `scraping-pro` | 1.6.0 | Scraping avanzato libri: Ubik Libri (primario), LibreriaUniversitaria (fallback), Feltrinelli (copertine). |
+
+Altri plugin presenti in `storage/plugins/`: `bibframe-linked-data` (Linked Data BIBFRAME 2.0 + RDA Registry), `resource-sync` (ResourceSync Z39.99-2014), `openurl-resolver` (OpenURL Z39.88-2004 + COinS), `viaf-authority` (VIAF/ISNI authority control), `musicbrainz`, `deezer`, `goodlib`, `open-library`, `api-book-scraper`.
 
 ---
 
@@ -1051,7 +1138,7 @@ Il sistema di plugin di Pinakes è distribuito con la stessa licenza dell'applic
 
 ---
 
-**Documentazione aggiornata:** 2025-01-05
+**Documentazione aggiornata:** 2026-06
 **Versione sistema plugin:** 1.0.0
 **Compatibile con Pinakes:** 1.0.0+
 

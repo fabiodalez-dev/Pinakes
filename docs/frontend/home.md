@@ -66,18 +66,32 @@ Tutti questi contenuti sono **completamente personalizzabili** da:
 
 ---
 
-### 4. **Categories Section (Esplora per Categoria)**
+### 4. **Genre Carousel Section (Caroselli per Genere)**
 
-**A cosa serve**: Permettere agli utenti di scoprire libri per categoria.
+**A cosa serve**: Permettere agli utenti di scoprire libri per genere radice.
 
-**Come funziona**:
-1. Il server carica le **categorie principali con sottocategorie**
-2. Per ogni categoria, mostra fino a **5 libri** degli ultimi aggiunti
-3. Ogni categoria è un'**area collassabile** con i relativi libri
+**Come funziona** (`FrontendController::home`):
+1. Il server parte dai **generi radice** (`generi.parent_id IS NULL`), ordinati per nome
+2. Per ogni genere radice raccoglie ricorsivamente gli ID di tutti i sottogeneri
+   (`collectGenreTreeIds`) e mostra fino a **12 libri** del sottoalbero
+   (`ORDER BY l.created_at DESC LIMIT 12`)
+3. Ogni genere è un **carosello** orizzontale (sezione `genre_carousel`)
+4. La sezione è mostrata solo se abilitata (`isHomeSectionEnabled('genre_carousel')`)
 
 **Navigazione**:
-- Cliccare su una categoria → vai a `/catalogo?categoria=Nome`
-- Ogni libro → vai alla sua pagina dettagli
+- Ogni libro → vai alla sua pagina dettagli `/{author-slug}/{book-slug}/{id}`
+
+---
+
+### 4b. **Events Section (Prossimi Eventi)** — opzionale
+
+**A cosa serve**: Mostrare in home un'anteprima dei prossimi eventi.
+
+**Come funziona**:
+1. Visibile solo se la feature eventi è attiva: setting `cms.events_page_enabled = '1'`
+2. Mostra fino a **3 eventi** futuri (`event_date >= CURDATE()`, `is_active = 1`)
+3. Fallback: se non ci sono eventi futuri, mostra i 3 eventi attivi più recenti
+4. Ogni evento linka alla pagina `/events/{slug}`
 
 ---
 
@@ -198,8 +212,8 @@ Le 4 statistiche in cima si caricano automaticamente via JavaScript quando la pa
 | **Hero** | Barra di ricerca | /catalogo?q=tuaricerca |
 | **Latest Books** | Libro | /autore-slug/titolo-del-libro/61 |
 | **Latest Books** | "Visualizza Tutto" | /catalogo |
-| **Categorie** | Categoria | /catalogo?categoria=Nome |
-| **Categorie** | Libro | /{author-slug}/{book-slug}/{id} |
+| **Genre Carousel** | Libro | /{author-slug}/{book-slug}/{id} |
+| **Events** (se attiva) | Evento | /events/{slug} |
 | **CTA** | "Esplora Catalogo" | Personalizzabile da CMS |
 | **CTA** | "Contattaci" | #contact (se esiste sezione) |
 
@@ -213,7 +227,10 @@ Le 4 statistiche in cima si caricano automaticamente via JavaScript quando la pa
 
 ### **D: Posso nascondere alcune sezioni della home?**
 
-✅ Non da un'interfaccia, ma il tuo admin IT può modificare il file `home.php` per commentare le sezioni che non vuoi mostrare.
+✅ Sì. Le sezioni provengono dalla tabella `home_content`: il flag `is_active`
+e il campo `display_order` controllano visibilità e ordine. Il carosello generi
+ha un toggle dedicato (`genre_carousel`) e la sezione eventi dipende dal setting
+`cms.events_page_enabled`. Tutto gestibile da **Impostazioni → CMS** senza toccare il codice.
 
 ### **D: Come cambio l'immagine di background della hero?**
 
@@ -291,5 +308,5 @@ Le 4 statistiche in cima si caricano automaticamente via JavaScript quando la pa
 
 ---
 
-*Ultima lettura: 19 Ottobre 2025*
+*Ultima revisione: Giugno 2026 (allineato a FrontendController::home)*
 *Tempo lettura: 8 minuti*

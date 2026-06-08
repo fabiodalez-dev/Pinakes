@@ -2859,13 +2859,21 @@ class Updater
                         $sql = file_get_contents($file);
 
                         if ($sql !== false && trim($sql) !== '') {
-                            // Remove comment lines (starting with --)
-                            $sqlLines = explode("\n", $sql);
-                            $sqlLines = array_filter($sqlLines, fn($line) => !preg_match('/^\s*--/', $line));
-                            $sql = implode("\n", $sqlLines);
+                            // Le migrazioni che contengono trigger/routine usano blocchi
+                            // DELIMITER e corpi BEGIN...END con ';' interni: il normale
+                            // splitter su ';' li spezzerebbe. In quel caso usa un parser
+                            // DELIMITER-aware; altrimenti il percorso standard (invariato).
+                            if (preg_match('/^\s*DELIMITER\b/im', $sql) || stripos($sql, 'CREATE TRIGGER') !== false) {
+                                $statements = $this->splitSqlWithDelimiters($sql);
+                            } else {
+                                // Remove comment lines (starting with --)
+                                $sqlLines = explode("\n", $sql);
+                                $sqlLines = array_filter($sqlLines, fn($line) => !preg_match('/^\s*--/', $line));
+                                $sql = implode("\n", $sqlLines);
 
-                            // Split statements respecting quoted strings (handles CSS semicolons)
-                            $statements = $this->splitSqlStatements($sql);
+                                // Split statements respecting quoted strings (handles CSS semicolons)
+                                $statements = $this->splitSqlStatements($sql);
+                            }
 
                             $this->debugLog('DEBUG', 'Statement da eseguire', [
                                 'count' => count($statements)
@@ -2890,7 +2898,12 @@ class Updater
                                         // 1826: Duplicate foreign key constraint
                                         // 1146: Table doesn't exist (DROP TABLE IF NOT EXISTS workaround)
                                         $ignorableErrors = [1060, 1061, 1050, 1091, 1068, 1022, 1826, 1146];
-                                        if (!in_array($this->db->errno, $ignorableErrors, true)) {
+                                        // I trigger sono difesa-in-profondità: le stesse regole
+                                        // sono applicate a livello applicativo. Un loro fallimento
+                                        // (es. privilegio TRIGGER mancante) NON deve far fallire la
+                                        // migrazione — log e prosegui, come fa l'installer.
+                                        $isTriggerStmt = (bool) preg_match('/^\s*(CREATE|DROP)\s+TRIGGER/i', $statement);
+                                        if (!in_array($this->db->errno, $ignorableErrors, true) && !$isTriggerStmt) {
                                             $this->debugLog('ERROR', 'Errore SQL critico', [
                                                 'errno' => $this->db->errno,
                                                 'error' => $this->db->error,
@@ -2900,10 +2913,17 @@ class Updater
                                                 sprintf(__('Errore SQL durante migrazione %s: %s'), $filename, $this->db->error)
                                             );
                                         }
-                                        $this->debugLog('DEBUG', 'Errore SQL ignorabile (oggetto già esistente)', [
-                                            'errno' => $this->db->errno,
-                                            'error' => $this->db->error
-                                        ]);
+                                        if ($isTriggerStmt && !in_array($this->db->errno, $ignorableErrors, true)) {
+                                            $this->debugLog('WARNING', 'Trigger non applicato (non fatale)', [
+                                                'errno' => $this->db->errno,
+                                                'error' => $this->db->error
+                                            ]);
+                                        } elseif (in_array($this->db->errno, $ignorableErrors, true)) {
+                                            $this->debugLog('DEBUG', 'Errore SQL ignorabile (oggetto già esistente)', [
+                                                'errno' => $this->db->errno,
+                                                'error' => $this->db->error
+                                            ]);
+                                        }
                                     }
                                 }
                             }
@@ -2915,6 +2935,16 @@ class Updater
                     }
                 }
             }
+
+            // Re-apply the canonical loan-integrity triggers now that migrations
+            // have succeeded. Trigger bodies use DELIMITER / BEGIN…END blocks that
+            // pre-0.7.17 migration runners cannot execute, so they are NOT shipped
+            // inside migration files (which run under the *starting* version's
+            // runner during an upgrade). Re-applying here — from the freshly
+            // installed triggers.sql, with the DELIMITER-aware splitter — keeps
+            // upgraded installs' triggers current on every upgrade run by 0.7.17+
+            // code. Idempotent and non-fatal.
+            $this->reapplyTriggers();
 
             return [
                 'success' => true,
@@ -2933,6 +2963,45 @@ class Updater
                 'error' => $e->getMessage()
             ];
         }
+    }
+
+    /**
+     * Re-apply installer/database/triggers.sql using the DELIMITER-aware
+     * splitter. Called after a successful migration run so that loan-integrity
+     * triggers are kept current on upgrades (they cannot live inside migration
+     * files because those run under the starting version's non-DELIMITER-aware
+     * runner). Idempotent (triggers.sql is DROP + CREATE) and non-fatal — a
+     * missing TRIGGER privilege only logs a warning; the same overlap rules are
+     * enforced at the application layer.
+     */
+    private function reapplyTriggers(): void
+    {
+        $triggersFile = $this->rootPath . '/installer/database/triggers.sql';
+        if (!is_file($triggersFile)) {
+            $this->debugLog('INFO', 'triggers.sql non trovato — skip re-apply trigger', ['path' => $triggersFile]);
+            return;
+        }
+        $sql = file_get_contents($triggersFile);
+        if ($sql === false || trim($sql) === '') {
+            return;
+        }
+
+        $applied = 0;
+        foreach ($this->splitSqlWithDelimiters($sql) as $statement) {
+            $statement = trim($statement);
+            if ($statement === '') {
+                continue;
+            }
+            if ($this->db->query($statement)) {
+                $applied++;
+            } else {
+                $this->debugLog('WARNING', 'Re-apply trigger non riuscito (non fatale)', [
+                    'errno' => $this->db->errno,
+                    'error' => $this->db->error,
+                ]);
+            }
+        }
+        $this->debugLog('INFO', 'Trigger ri-applicati da triggers.sql', ['applied' => $applied]);
     }
 
     /**
@@ -2987,6 +3056,59 @@ class Updater
         $trimmed = trim($current);
         if (!empty($trimmed)) {
             $statements[] = $trimmed;
+        }
+
+        return $statements;
+    }
+
+    /**
+     * Split SQL honoring DELIMITER blocks (CREATE TRIGGER / stored routines whose
+     * BEGIN...END bodies contain internal ';'). Strips DEFINER clauses and the
+     * DELIMITER directives. Mysqli-friendly: each returned element is a single
+     * statement WITHOUT its trailing delimiter, ready for db->query().
+     *
+     * @return string[]
+     */
+    private function splitSqlWithDelimiters(string $sql): array
+    {
+        // Normalize DEFINER so trigger creation works regardless of the creating user
+        $sql = preg_replace('/CREATE\s+DEFINER=`[^`]+`@`[^`]+`\s+TRIGGER/i', 'CREATE TRIGGER', $sql) ?? $sql;
+
+        $statements = [];
+        $buffer = '';
+        $delimiter = ';';
+
+        foreach (explode("\n", $sql) as $line) {
+            $trimmed = trim($line);
+
+            // Skip blank and comment-only lines while OUTSIDE a statement buffer
+            if ($buffer === '' && ($trimmed === '' || strpos($trimmed, '--') === 0)) {
+                continue;
+            }
+
+            // DELIMITER directive — switch the active terminator, do not emit it
+            if (preg_match('/^DELIMITER\s+(\S+)/i', $trimmed, $m)) {
+                $delimiter = $m[1];
+                continue;
+            }
+
+            $buffer .= $line . "\n";
+
+            // Statement ends when the trimmed line ends with the active delimiter
+            if ($trimmed !== '' && substr($trimmed, -strlen($delimiter)) === $delimiter) {
+                $stmt = trim($buffer);
+                $stmt = substr($stmt, 0, strlen($stmt) - strlen($delimiter));
+                $stmt = trim($stmt);
+                if ($stmt !== '') {
+                    $statements[] = $stmt;
+                }
+                $buffer = '';
+            }
+        }
+
+        $tail = trim($buffer);
+        if ($tail !== '') {
+            $statements[] = $tail;
         }
 
         return $statements;

@@ -20,6 +20,8 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 
 >  **Consiglio**: Usa il formato **25×38mm** per tutto. È lo standard universale!
 
+> **Tecnico**: il formato è salvato come `label.width` / `label.height` (default 25×38). Il tab "Etichette" delle Impostazioni accetta il valore nel campo `label_format` in formato `LARGHEZZAxALTEZZA` (es. `25x38`); il server valida che **ogni** dimensione sia compresa **tra 10mm e 100mm** — non sei limitato ai tre preset, ma valori fuori range vengono rifiutati. L'orientamento del PDF è automatico: Portrait se altezza > larghezza, altrimenti Landscape.
+
 ---
 
 ## Carta Adesiva da Comprare
@@ -47,9 +49,11 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 4. **Vedrai**: La scheda completa del libro
 
 ### Passo 2: Generare l'Etichetta
-1. **Clicca** il bottone **"Stampa Etichetta"**
-2. **Attendi**: 2-3 secondi per generare il PDF
-3. **Si apre**: PDF con l'etichetta pronta
+1. **Clicca** il bottone **"Stampa Etichetta"** nella scheda libro
+2. **Attendi**: il PDF viene generato lato server (TCPDF)
+3. **Si apre**: PDF con l'etichetta pronta (mostrato inline nel browser, `etichetta_{id}.pdf`)
+
+> **Tecnico**: il bottone chiama `GET /api/libri/{id}/etichetta-pdf` (`LibriController::generateLabelPDF`), rotta riservata agli admin (`AdminAuthMiddleware`, rate limit 30/min). Le dimensioni e l'orientamento (Portrait/Landscape) sono dedotti dalle impostazioni etichetta; il numero di collocazione è ricavato da `scaffale + livello mensola + posizione progressiva` del libro.
 
 ### Passo 3: Stampare Correttamente
 **Impostazioni Obbligatorie**:
@@ -81,8 +85,11 @@ Le etichette sono **etichette adesive** che attacchi sul dorso dei libri per:
 ```
 
 ### Cosa Significano i Numeri
-- **A.2.15** = Scaffale A, Mensola 2, Posizione 15
-- **Codice a barre**: Per scanner futuri (se avrai lettori)
+- **A.2.15** = Scaffale A, Mensola (livello) 2, Posizione 15
+- **Codice a barre**: codifica EAN/ISBN del libro (priorità: `isbn13` → `ean` → `isbn10`); se il libro non ha ISBN, l'etichetta riporta solo il testo
+- **Classificazione Dewey**: se presente (`classificazione_dewey`), viene stampata sull'etichetta in formato portrait
+
+> I contenuti effettivi dell'etichetta sono: nome biblioteca, titolo (troncato se lungo), autore/i, codice a barre + testo EAN/ISBN, Dewey, collocazione.
 
 ---
 
@@ -203,6 +210,8 @@ Vedrai:  "Configurazione salvata con successo!"
 ```
 
 ### Dettagli Tecnici delle Impostazioni
+
+> **Nota importante**: nelle Impostazioni → Etichette l'**unico** campo realmente configurabile è il **formato (dimensioni)** dell'etichetta (`label_format` → `label.width`/`label.height`). Le voci "Tipo Carta", "Waterproof", "Font", "Margini" descritte qui sotto si riferiscono alla **carta fisica e alle impostazioni della stampante**, NON a opzioni dell'applicazione: il font e i margini del PDF sono calcolati automaticamente in proporzione alle dimensioni dell'etichetta e non sono modificabili dall'interfaccia.
 
 #### Campo "Formato Etichette"
 ```
@@ -416,5 +425,5 @@ Costo: 0.15€ per etichetta
 
 ---
 
-*Ultimo aggiornamento: 19 Ottobre 2025*
-*Versione guida: 3.0.0 - Guida Completa Estesa*
+*Ultimo aggiornamento: 4 Giugno 2026*
+*Versione guida: 3.1.0 - Allineata a generateLabelPDF / tab Etichette*

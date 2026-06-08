@@ -188,8 +188,10 @@ test.describe.serial('book_form — comprehensive smoke + regressions', () => {
     await page.goto(CREATE_BOOK_URL);
     const flag = page.locator('#remove_cover');
     await expect(flag).toHaveValue('0');
+    // Seed a cover preview, then fire removeCoverImage(). It confirms via
+    // SweetAlert2 (window.SwalApp.confirmDelete), not a native confirm(), so we
+    // must click the SweetAlert confirm button for the flag to flip to '1'.
     await page.evaluate(() => {
-      window.confirm = () => true;
       const preview = document.getElementById('cover-preview-container');
       if (preview && !preview.querySelector('img')) {
         const img = document.createElement('img');
@@ -200,6 +202,10 @@ test.describe.serial('book_form — comprehensive smoke + regressions', () => {
       if (f && typeof window.removeCoverImage === 'function') window.removeCoverImage();
       else if (f) f.value = '1';
     });
+    const confirmBtn = page.locator('.swal2-confirm');
+    if (await confirmBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await confirmBtn.click();
+    }
     await expect(flag).toHaveValue('1');
   });
 

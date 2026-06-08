@@ -15,91 +15,157 @@ locale/
 ├── it_IT.json         # File principale per l'Italiano
 ├── en_US.json         # File principale per l'Inglese
 ├── de_DE.json         # File principale per il Tedesco
+├── fr_FR.json         # File principale per il Francese
 ├── routes_it_IT.json  # Traduzioni per gli URL in Italiano
 ├── routes_en_US.json  # Traduzioni per gli URL in Inglese
-└── routes_de_DE.json  # Traduzioni per gli URL in Tedesco
+├── routes_de_DE.json  # Traduzioni per gli URL in Tedesco
+└── routes_fr_FR.json  # Traduzioni per gli URL in Francese
 ```
 
-### File Principali (`it_IT.json`, `en_US.json`, `de_DE.json`)
+### File Principali (`it_IT.json`, `en_US.json`, `de_DE.json`, `fr_FR.json`)
 
 Questi file contengono la maggior parte delle traduzioni. Sono file di tipo **JSON**, che è un formato semplice per associare una "chiave" a un "valore".
 
-**Esempio di `it_IT.json`**:
+A differenza di molti sistemi i18n, **la chiave è la frase italiana stessa**
+(vedi "Come si Aggiunge una Traduzione" più sotto), non un identificatore
+astratto. Nel file sorgente `it_IT.json` chiave e valore coincidono.
+
+**Esempio di `it_IT.json`** (sorgente, chiave = valore):
 ```json
 {
-  "dashboard.title": "Pannello di Controllo",
-  "books.title": "Libri",
-  "books.add_new": "Aggiungi Nuovo Libro",
-  "common.save": "Salva",
-  "common.delete": "Elimina"
+  "Pannello di Controllo": "Pannello di Controllo",
+  "Libri": "Libri",
+  "Aggiungi Nuovo Libro": "Aggiungi Nuovo Libro",
+  "Salva": "Salva",
+  "Elimina": "Elimina"
 }
 ```
 
-**Esempio di `en_US.json` corrispondente**:
+**Esempio di `en_US.json` corrispondente** (stessa chiave italiana, valore tradotto):
 ```json
 {
-  "dashboard.title": "Dashboard",
-  "books.title": "Books",
-  "books.add_new": "Add New Book",
-  "common.save": "Save",
-  "common.delete": "Delete"
+  "Pannello di Controllo": "Dashboard",
+  "Libri": "Books",
+  "Aggiungi Nuovo Libro": "Add New Book",
+  "Salva": "Save",
+  "Elimina": "Delete"
 }
 ```
 
-- **Chiave**: `dashboard.title` (identificatore univoco della traduzione)
-- **Valore**: `"Pannello di Controllo"` (il testo che viene mostrato all'utente)
+- **Chiave**: `Pannello di Controllo` (la frase italiana sorgente, identica in tutti i file)
+- **Valore**: il testo mostrato all'utente nella lingua del file (`"Dashboard"` in `en_US.json`)
 
-Quando l'utente seleziona l'italiano, il sistema userà `it_IT.json`. Se seleziona l'inglese, userà `en_US.json`. Se seleziona il tedesco, userà `de_DE.json`.
+A seconda della lingua **scelta in fase di installazione** il sistema usa `it_IT.json` (italiano), `en_US.json` (inglese), `de_DE.json` (tedesco) o `fr_FR.json` (francese). La lingua è fissata all'installazione e non esiste un selettore di lingua nel frontend (vedi sotto).
 
 ### File delle Rotte (`routes_it_IT.json`, `routes_en_US.json`)
 
 Questi file speciali servono per tradurre gli **URL** (gli indirizzi delle pagine).
 
-**Esempio di `routes_it_IT.json`**:
+I file delle rotte associano una **chiave di rotta** (es. `catalog`, `book`,
+`login`) al percorso localizzato. Le chiavi sono fisse; cambiano solo i valori.
+
+**Esempio di `routes_it_IT.json`** (estratto reale):
 ```json
 {
-  "books": "libri",
-  "loans": "prestiti",
-  "settings": "impostazioni"
+  "login": "/accedi",
+  "catalog": "/catalogo",
+  "book": "/libro",
+  "author": "/autore",
+  "events": "/eventi"
 }
 ```
 
 **Esempio di `routes_en_US.json`**:
 ```json
 {
-  "books": "books",
-  "loans": "loans",
-  "settings": "settings"
+  "login": "/login",
+  "catalog": "/catalog",
+  "book": "/book",
+  "author": "/author",
+  "events": "/events"
 }
 ```
-Questo permette di avere URL localizzati, come:
-- `http://tuosito.it/admin/libri` (in italiano)
-- `http://tuosito.it/admin/books` (in inglese)
-- `http://tuosito.it/admin/buecher` (in tedesco)
+
+**Esempio di `routes_fr_FR.json`**:
+```json
+{
+  "login": "/connexion",
+  "catalog": "/catalogue",
+  "book": "/livre",
+  "author": "/auteur",
+  "events": "/evenements"
+}
+```
+
+Questo permette di avere URL **utente** (frontend) localizzati, come:
+- `http://tuosito.it/catalogo` / `/libro/123` (italiano)
+- `http://tuosito.it/catalog` / `/book/123` (inglese)
+- `http://tuosito.it/catalogue` / `/livre/123` (francese)
+
+> **Importante (regola del progetto)**: la traduzione delle rotte vale **solo
+> per le rotte utente** (login, catalogo, scheda libro, profilo, eventi, ecc.).
+> Le **rotte admin** (`/admin/...`) sono letterali in inglese e **non** passano
+> dal sistema i18n: vanno generate con `url('/admin/...')`, mai con
+> `route_path()`/`RouteTranslator`.
 
 ---
 
 ## Come Funziona nel Codice
 
-Per mostrare un testo tradotto, usiamo una funzione speciale chiamata `i18n()`.
+### Traduzione dei testi: `__()`
+
+Per mostrare un testo tradotto si usa la funzione globale **`__()`** (definita in
+`app/helpers.php`). A differenza di molti sistemi i18n, **la chiave è il testo
+italiano stesso** (l'italiano è la lingua sorgente): non si usano chiavi
+astratte tipo `dashboard.title`.
 
 **Esempio nel codice PHP (in una vista)**:
 ```php
-<h1><?= i18n('dashboard.title') ?></h1>
+<h1><?= __('Pannello di Controllo') ?></h1>
 
-<a href="/admin/books/create" class="button">
-  <?= i18n('books.add_new') ?>
+<a href="<?= htmlspecialchars(url('/admin/libri/nuovo'), ENT_QUOTES, 'UTF-8') ?>" class="button">
+  <?= __('Aggiungi Nuovo Libro') ?>
 </a>
 ```
 
 **Cosa succede**:
-1. La funzione `i18n('dashboard.title')` viene chiamata.
-2. Il sistema controlla la lingua attualmente selezionata dall'utente (es. `it_IT`).
-3. Apre il file `locale/it_IT.json`.
-4. Cerca la chiave `dashboard.title`.
-5. Trova il valore `"Pannello di Controllo"` e lo mostra nella pagina.
+1. `__('Pannello di Controllo')` viene chiamata.
+2. Il sistema legge la lingua corrente da `I18n::getLocale()` (fissata
+   all'installazione).
+3. Apre il file della lingua, es. `locale/en_US.json`.
+4. Cerca la chiave `"Pannello di Controllo"`.
+5. Restituisce la traduzione (`"Dashboard"`); se la chiave manca, restituisce la
+   stringa italiana originale.
 
-Se l'utente cambiasse lingua in inglese, la stessa funzione `i18n('dashboard.title')` cercherebbe nel file `en_US.json` e mostrerebbe `"Dashboard"`.
+Esiste anche **`__n($singolare, $plurale, $count, ...)`** per le forme plurali.
+Entrambe accettano segnaposto `printf` come argomenti aggiuntivi.
+
+> **Regola del progetto (BLOCCANTE)**: ogni nuova stringa rivolta all'utente
+> va racchiusa in `__()` con l'italiano come sorgente, e la chiave va aggiunta a
+> **tutti e 4** i file di lingua (`it_IT`, `en_US`, `de_DE`, `fr_FR`) nello
+> stesso commit.
+
+### Traduzione degli URL: `route_path()` / `RouteTranslator`
+
+Per generare un percorso **utente** localizzato si usa l'helper di vista
+`route_path('chiave')`, wrapper di `RouteTranslator::route('chiave')`
+(`app/Support/RouteTranslator.php`).
+
+```php
+<a href="<?= htmlspecialchars(route_path('catalog'), ENT_QUOTES, 'UTF-8') ?>">
+  <?= __('Catalogo') ?>
+</a>
+```
+
+`RouteTranslator::route()` legge la lingua corrente, carica
+`locale/routes_<locale>.json` e restituisce il percorso tradotto; se la chiave
+non è nel JSON, ricade su una **mappa di fallback inglese** definita in
+`RouteTranslator` (es. `login → /login`, `catalog → /catalog`). Per URL di
+entità si concatena l'id/slug: `route_path('author') . '/' . $id`.
+
+`RouteTranslator::getRouteForLocale('chiave', $locale)` serve a registrare in
+`web.php` le varianti di rotta per ogni lingua attiva, così percorsi diversi
+(es. `/libro/123` e `/book/123`) puntano allo stesso controller.
 
 ---
 
@@ -107,114 +173,116 @@ Se l'utente cambiasse lingua in inglese, la stessa funzione `i18n('dashboard.tit
 
 Se vuoi aggiungere un nuovo testo traducibile, segui questi 3 semplici passi:
 
-### Passo 1: Scegli una Chiave
-Pensa a una chiave **descrittiva e univoca**. La convenzione è `sezione.nome_del_testo`.
+### Passo 1: Scrivi il Testo in Italiano (è la chiave)
+La chiave **è** la frase italiana. Scrivi una frase intera e naturale.
 
-**Esempio**: Vuoi tradurre il testo "Cerca per autore".
-- **Sezione**: `books` (perché riguarda i libri)
-- **Nome**: `search_by_author`
-- **Chiave finale**: `books.search_by_author`
+**Esempio**: vuoi il testo "Cerca per autore" → la chiave è esattamente
+`"Cerca per autore"`.
 
-### Passo 2: Aggiungi la Chiave ai File JSON
-Apri **tutti** i file di traduzione (`it_IT.json`, `en_US.json`, `de_DE.json`) e aggiungi la nuova chiave con la rispettiva traduzione.
+### Passo 2: Aggiungi la Chiave a TUTTI i File JSON
+Apri **tutti e quattro** i file di traduzione (`it_IT.json`, `en_US.json`,
+`de_DE.json`, `fr_FR.json`) e aggiungi la stessa chiave con la rispettiva
+traduzione, nello **stesso commit**.
 
-**In `it_IT.json`**:
+**In `it_IT.json`** (sorgente, chiave = valore):
 ```json
-{
-  ...
-  "books.search_by_author": "Cerca per autore",
-  ...
-}
+{ "Cerca per autore": "Cerca per autore" }
 ```
 
 **In `en_US.json`**:
 ```json
-{
-  ...
-  "books.search_by_author": "Search by author",
-  ...
-}
+{ "Cerca per autore": "Search by author" }
 ```
 
 **In `de_DE.json`**:
 ```json
-{
-  ...
-  "books.search_by_author": "Nach Autor suchen",
-  ...
-}
+{ "Cerca per autore": "Nach Autor suchen" }
 ```
->  **Importante**: Ricorda di aggiungere una virgola `,` dopo la riga precedente se non è l'ultima del file!
 
-### Passo 3: Usa la Nuova Chiave nel Codice
-Ora, nel file della vista dove vuoi mostrare il testo, usa la funzione `i18n()` con la nuova chiave.
+**In `fr_FR.json`**:
+```json
+{ "Cerca per autore": "Rechercher par auteur" }
+```
+>  **Importante**: ricorda la virgola `,` tra le voci JSON.
+
+### Passo 3: Usa `__()` nel Codice
+Nella vista usa la funzione `__()` con la frase italiana.
 
 **Esempio**:
 ```php
-<label><?= i18n('books.search_by_author') ?></label>
+<label><?= __('Cerca per autore') ?></label>
 <input type="text" name="author_search">
 ```
 
-**Fatto!** Il testo ora è traducibile e cambierà automaticamente in base alla lingua dell'utente.
+**Fatto!** Il testo viene tradotto secondo la lingua impostata all'installazione.
 
 ---
 
 ## Gestire le Lingue
 
 ### Lingue Disponibili
-Pinakes include di serie tre lingue complete:
-- **Italiano** (`it_IT`) — 4.000+ stringhe tradotte
-- **English** (`en_US`) — 4.000+ stringhe tradotte
-- **Deutsch** (`de_DE`) — 4.000+ stringhe tradotte
+Pinakes include di serie **quattro** lingue complete:
+- **Italiano** (`it_IT`) — lingua sorgente
+- **English** (`en_US`)
+- **Deutsch** (`de_DE`)
+- **Français** (`fr_FR`)
 
-La lingua viene scelta durante l'installazione (Step 0) e diventa la lingua predefinita per tutta l'applicazione.
+La lingua viene scelta durante l'installazione e diventa la lingua predefinita
+per tutta l'applicazione. **Non esiste un selettore di lingua nel frontend**: la
+lingua è fissata a livello di installazione.
 
-### Aggiungere una Nuova Lingua (es. Francese)
-Per aggiungere il supporto a una nuova lingua, per esempio il francese (`fr_FR`):
+> **Nota tecnica**: l'elenco delle lingue è gestito da `App\Support\I18n`. Le
+> lingue vengono caricate dal database (`getAvailableLocales()`); la mappa
+> statica di fallback in `I18n` elenca `it_IT`, `en_US`, `de_DE`, mentre i file
+> `fr_FR.json` / `routes_fr_FR.json` sono presenti su disco e la lingua francese
+> è attivabile/registrata a livello DB.
+
+### Aggiungere una Nuova Lingua (es. Spagnolo)
+Per aggiungere il supporto a una nuova lingua, per esempio lo spagnolo (`es_ES`):
 
 1. **Crea i file di traduzione**:
-   - Copia `it_IT.json` e rinominalo in `fr_FR.json`.
-   - Copia `routes_it_IT.json` e rinominalo in `routes_fr_FR.json`.
+   - Copia `it_IT.json` e rinominalo in `es_ES.json`.
+   - Copia `routes_it_IT.json` e rinominalo in `routes_es_ES.json`.
 
 2. **Traduci i valori**:
-   - Apri `fr_FR.json` e traduci tutti i valori in francese.
+   - Apri `es_ES.json` e traduci tutti i valori (le chiavi restano in italiano).
      ```json
-     {
-       "dashboard.title": "Tableau de Bord",
-       "books.title": "Livres"
-     }
+     { "Pannello di Controllo": "Panel de Control", "Libri": "Libros" }
      ```
-   - Apri `routes_fr_FR.json` e traduci gli URL.
+   - Apri `routes_es_ES.json` e traduci i percorsi (le chiavi di rotta restano
+     invariate, es. `catalog`, `book`, `author`).
      ```json
-     {
-       "books": "livres",
-       "loans": "emprunts"
-     }
+     { "catalog": "/catalogo", "book": "/libro", "author": "/autor" }
      ```
 
-3. **Registra la nuova lingua**:
-   - Aggiungi la nuova lingua nell'elenco delle lingue supportate (di solito in un file di configurazione come `config/settings.php`).
+3. **Registra la nuova lingua** nell'elenco delle lingue supportate (gestione
+   lingue lato amministrazione / `App\Support\I18n`).
 
-4. **Testa**: Seleziona la nuova lingua dall'interfaccia e verifica che tutte le traduzioni vengano caricate correttamente.
+4. **Testa**: imposta la nuova lingua e verifica che tutte le traduzioni e i
+   percorsi vengano caricati correttamente.
 
 ---
 
 ## Domande Frequenti
 
 **D: Cosa succede se una chiave di traduzione non viene trovata?**
-R: Se la funzione `i18n()` non trova una chiave nel file JSON, per evitare errori mostrerà la chiave stessa. Ad esempio, `i18n('common.missing_key')` mostrerebbe `common.missing_key`.
+R: Se `__()` non trova la chiave nel file della lingua corrente, restituisce la
+stringa italiana originale (la chiave stessa). Ad esempio
+`__('Testo non tradotto')` mostra `Testo non tradotto`.
 
 **D: Posso usare variabili nelle traduzioni?**
-R: Sì, il sistema supporta i segnaposto.
-**Esempio JSON**: `"welcome_message": "Benvenuto, %s!"`
-**Esempio PHP**: `sprintf(i18n('welcome_message'), $userName)`
+R: Sì, `__()` (e `__n()`) accettano argomenti `printf` aggiuntivi.
+**Esempio JSON**: `"Benvenuto, %s!": "Benvenuto, %s!"`
+**Esempio PHP**: `__('Benvenuto, %s!', $userName)`
 
 **D: Devo tradurre ogni singola parola?**
 R: No, si traducono "stringhe" o frasi intere. Questo rende il contesto più chiaro e la traduzione più naturale. Ad esempio, invece di tradurre "Cerca" e "per" separatamente, si traduce l'intera frase "Cerca per autore".
 
-**D: Perché la convenzione `sezione.nome`?**
-R: Aiuta a mantenere i file JSON organizzati e a evitare conflitti tra chiavi con lo stesso nome ma usate in contesti diversi (es. `books.title` e `authors.title`).
+**D: Devo usare chiavi astratte tipo `sezione.nome`?**
+R: No. In Pinakes la chiave di traduzione **è la frase italiana** (lingua
+sorgente). Si traducono frasi intere, non parole singole: questo mantiene il
+contesto e rende la traduzione più naturale.
 
 ---
-*Ultimo aggiornamento: 2 Marzo 2026*
-*Versione guida: 1.1.0 — Aggiunto supporto tedesco (de_DE)*
+*Ultimo aggiornamento: 4 Giugno 2026*
+*Versione guida: 1.2.0 — Aggiunto supporto francese (fr_FR); corretta la funzione di traduzione (`__()`/`__n()`), il modello a chiave-italiana e il sistema rotte (`route_path`/`RouteTranslator`, rotte admin escluse dall'i18n)*

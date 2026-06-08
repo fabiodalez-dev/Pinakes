@@ -169,8 +169,47 @@ class LoanApprovalController
         try {
             $db->begin_transaction();
 
-            // Lock and verify loan is still pending (FOR UPDATE prevents concurrent approval)
-            // Include copia_id to check if a copy was already assigned (e.g., from reservation)
+            // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
+            // Determiniamo il libro del prestito con una lettura NON bloccante, poi
+            // acquisiamo i lock nell'ordine libri -> prestiti come tutti gli altri
+            // entry point, evitando deadlock da lock-order inversion.
+            $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ? AND stato = 'pendente'");
+            $bookLookup->bind_param('i', $loanId);
+            $bookLookup->execute();
+            $bookRow = $bookLookup->get_result()->fetch_assoc();
+            $bookLookup->close();
+            if (!$bookRow) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o già processato')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+            $libroId = (int) $bookRow['libro_id'];
+
+            // Lock della riga `libri` PRIMA — serializza anche le approvazioni dello
+            // stesso libro (CONC-03).
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockedBook = $lockBookStmt->get_result()->fetch_assoc();
+            $lockBookStmt->close();
+
+            // Libro soft-deleted o inesistente: il FOR UPDATE non ha restituito
+            // righe. Niente approvazione di un prestito per un titolo rimosso dal
+            // catalogo (le query su `libri` devono rispettare deleted_at IS NULL).
+            if (!$lockedBook) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Libro non trovato o non più disponibile')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Ora lock + ri-verifica del prestito pendente (FOR UPDATE impedisce
+            // approvazioni concorrenti dello stesso prestito).
             $stmt = $db->prepare("SELECT libro_id, utente_id, data_prestito, data_scadenza, copia_id FROM prestiti WHERE id = ? AND stato = 'pendente' FOR UPDATE");
             $stmt->bind_param('i', $loanId);
             $stmt->execute();
@@ -188,11 +227,92 @@ class LoanApprovalController
             $loan = $result->fetch_assoc();
             $stmt->close();
 
-            $libroId = (int) $loan['libro_id'];
             $existingCopiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
             $dataPrestito = $loan['data_prestito'];
             $dataScadenza = $loan['data_scadenza'];
-            $today = date('Y-m-d');
+            // "Oggi" calcolato nel timezone configurato dell'applicazione, non in quello
+            // di default di PHP (spesso UTC in produzione): altrimenti, vicino alla
+            // mezzanotte, un prestito datato oggi (lato browser/Rome) verrebbe visto come
+            // futuro e finirebbe 'prenotato' invece di 'da_ritirare' (P1 timezone).
+            $appTz = \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome');
+            try {
+                $today = (new \DateTime('now', new \DateTimeZone($appTz)))->format('Y-m-d');
+            } catch (\Throwable $e) {
+                $today = date('Y-m-d');
+            }
+
+            $utenteId = (int) $loan['utente_id'];
+            $dupStmt = $db->prepare("
+                SELECT id FROM prestiti
+                WHERE libro_id = ? AND utente_id = ? AND id != ?
+                AND (
+                    (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                    OR (attivo = 0 AND stato = 'pendente')
+                )
+                LIMIT 1
+            ");
+            $dupStmt->bind_param('iii', $libroId, $utenteId, $loanId);
+            $dupStmt->execute();
+            $hasActiveDuplicate = $dupStmt->get_result()->num_rows > 0;
+            $dupStmt->close();
+            if ($hasActiveDuplicate) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('L\'utente ha già un prestito attivo per questo libro')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            }
+
+            $dupReservationStmt = $db->prepare("
+                SELECT id
+                FROM prenotazioni
+                WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva'
+                LIMIT 1
+                FOR UPDATE
+            ");
+            $dupReservationStmt->bind_param('ii', $libroId, $utenteId);
+            $dupReservationStmt->execute();
+            $hasActiveReservation = $dupReservationStmt->get_result()->num_rows > 0;
+            $dupReservationStmt->close();
+            if ($hasActiveReservation) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('L\'utente ha già una prenotazione attiva per questo libro')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+            }
+
+            // Enforce max_active_loans_per_user anche in approvazione (P1): il limite era
+            // applicato solo alla creazione/richiesta, ma approvando più richieste pendenti
+            // su libri diversi un admin poteva superarlo. Conta i prestiti attivi escluso
+            // quello in approvazione; il lock sulla riga libro sopra serializza.
+            $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
+            if ($maxLoans > 0) {
+                // Serialize concurrent approvals for the SAME user on DIFFERENT books:
+                // the libri lock above only serializes this loan's book, so two
+                // parallel approvals could both read activeCount below the cap and
+                // both flip to active. Locking the user row prevents exceeding it.
+                $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+                $userLockStmt->bind_param('i', $utenteId);
+                $userLockStmt->execute();
+                $userLockStmt->close();
+
+                $cntStmt = $db->prepare("SELECT COUNT(*) AS c FROM prestiti WHERE utente_id = ? AND id != ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
+                $cntStmt->bind_param('ii', $utenteId, $loanId);
+                $cntStmt->execute();
+                $activeCount = (int) ($cntStmt->get_result()->fetch_assoc()['c'] ?? 0);
+                $cntStmt->close();
+                if ($activeCount >= $maxLoans) {
+                    $db->rollback();
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'message' => __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti')
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(409);
+                }
+            }
 
             // Determine state: 'prenotato' if future loan, 'da_ritirare' if immediate
             // User must confirm pickup before loan becomes 'in_corso'
@@ -204,7 +324,9 @@ class LoanApprovalController
             if (!$isFutureLoan) {
                 $settingsRepo = new \App\Models\SettingsRepository($db);
                 $pickupDays = (int) ($settingsRepo->get('loans', 'pickup_expiry_days', '3') ?? 3);
-                $pickupDeadline = date('Y-m-d', strtotime("+{$pickupDays} days"));
+                // Base su $today (timezone applicativo) per coerenza con la
+                // classificazione immediato/futuro a cavallo della mezzanotte.
+                $pickupDeadline = date('Y-m-d', strtotime("{$today} +{$pickupDays} days"));
             }
 
             // Step 1: Try to use pre-assigned copy first (avoids false rejection when slots are at capacity)
@@ -215,15 +337,17 @@ class LoanApprovalController
                 $existingCopyStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.id = ?
-                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
-                        AND p.attivo = 1
                         AND p.id != ?
-                        AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
+                        AND (
+                            (p.attivo = 1 AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
+                            OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
+                        )
                     )
                 ");
                 $existingCopyStmt->bind_param('iiss', $existingCopiaId, $loanId, $dataScadenza, $dataPrestito);
@@ -235,8 +359,8 @@ class LoanApprovalController
 
             // Step 2: If no valid pre-assigned copy, check global availability and find a new copy
             if (!$selectedCopy) {
-                // Step 2a: Count total lendable copies for this book (exclude perso, danneggiato, manutenzione)
-                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')");
+                // Step 2a: Count total lendable copies for this book
+                $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')");
                 $totalCopiesStmt->bind_param('i', $libroId);
                 $totalCopiesStmt->execute();
                 $totalCopies = (int) ($totalCopiesStmt->get_result()->fetch_assoc()['total'] ?? 0);
@@ -245,9 +369,12 @@ class LoanApprovalController
                 // Step 2b: Count overlapping loans (excluding the current pending one)
                 $loanCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prestiti
-                    WHERE libro_id = ? AND attivo = 1 AND id != ?
-                    AND stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo')
+                    WHERE libro_id = ? AND id != ?
                     AND data_prestito <= ? AND data_scadenza >= ?
+                    AND (
+                        (attivo = 1 AND stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
+                        OR (stato = 'pendente' AND copia_id IS NOT NULL)
+                    )
                 ");
                 $loanCountStmt->bind_param('iiss', $libroId, $loanId, $dataScadenza, $dataPrestito);
                 $loanCountStmt->execute();
@@ -281,18 +408,20 @@ class LoanApprovalController
                 }
 
                 // Step 2d: Find a specific lendable copy without overlapping assigned loans for this period
-                // Exclude non-lendable copies (perso, danneggiato, manutenzione)
+                // Exclude non-lendable copies
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
-                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
-                        AND p.attivo = 1
-                        AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo')
                         AND p.data_prestito <= ?
                         AND p.data_scadenza >= ?
+                        AND (
+                            (p.attivo = 1 AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
+                            OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
+                        )
                     )
                     LIMIT 1
                 ");
@@ -326,11 +455,20 @@ class LoanApprovalController
             $lockCopyStmt->execute();
             $lockCopyStmt->close();
 
+            // Occupazione canonica #157: la copia è tenuta da un prestito attivo
+            // OPPURE da un pending di conversione prenotazione che ha già una
+            // copia (attivo=0, stato='pendente', copia_id valorizzato). Omettere
+            // il secondo ramo permetteva di assegnare in approvazione una copia
+            // già tenuta da un pending sovrapposto → doppia prenotazione della
+            // stessa copia (mascherata dal trigger quando presente).
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
-                WHERE copia_id = ? AND attivo = 1 AND id != ?
-                AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo')
+                WHERE copia_id = ? AND id != ?
                 AND data_prestito <= ? AND data_scadenza >= ?
+                AND (
+                    (attivo = 1 AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo'))
+                    OR (stato = 'pendente' AND copia_id IS NOT NULL)
+                )
                 LIMIT 1
                 FOR UPDATE
             ");
@@ -355,7 +493,7 @@ class LoanApprovalController
             $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
             $copyCheckStmt->close();
 
-            $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+            $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
             if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
                 throw new \RuntimeException(__('Copia non disponibile per il prestito'));
             }
@@ -637,7 +775,7 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
                 if ($copyResult && !in_array($copyResult['stato'], $invalidStates)) {
                     $copyRepo = new \App\Models\CopyRepository($db);
                     $copyRepo->updateStatus($copiaId, 'prestato');
@@ -753,7 +891,7 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
                 if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
                     $copyRepo = new \App\Models\CopyRepository($db);
                     $copyRepo->updateStatus($copiaId, 'disponibile');
@@ -868,7 +1006,7 @@ class LoanApprovalController
                 $copyResult = $copyCheckStmt->get_result()->fetch_assoc();
                 $copyCheckStmt->close();
 
-                $invalidStates = ['perso', 'danneggiato', 'manutenzione'];
+                $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
                 if ($copyResult && !in_array($copyResult['stato'], $invalidStates, true)) {
                     $copyRepo = new \App\Models\CopyRepository($db);
                     if (!$copyRepo->updateStatus($copiaId, 'disponibile')) {
@@ -879,15 +1017,14 @@ class LoanApprovalController
             }
 
             // Reassign returned copy to next waiting reservation
+            // Niente catch locale: la riassegnazione condivide questa transazione e
+            // un errore deve propagare al catch esterno per il rollback completo,
+            // evitando il commit di uno stato parziale (CRITICAL #157).
             $reassignmentService = null;
             if ($copiaId && $copyAvailable) {
-                try {
-                    $reassignmentService = new \App\Services\ReservationReassignmentService($db);
-                    $reassignmentService->setExternalTransaction(true);
-                    $reassignmentService->reassignOnReturn($copiaId);
-                } catch (\Throwable $e) {
-                    \App\Support\SecureLogger::warning("[returnLoan] Reassignment error for copy {$copiaId}: " . $e->getMessage());
-                }
+                $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                $reassignmentService->setExternalTransaction(true);
+                $reassignmentService->reassignOnReturn($copiaId);
             }
 
             // Recalculate availability AFTER reassignment
@@ -917,6 +1054,13 @@ class LoanApprovalController
                 }
             } catch (\Throwable $e) {
                 \App\Support\SecureLogger::warning("[returnLoan] Wishlist notify error for book {$libroId}: " . $e->getMessage());
+            }
+
+            // Conferma di restituzione all'utente (GAP-1), dopo il commit
+            try {
+                (new \App\Support\NotificationService($db))->sendLoanReturnedNotification($loanId);
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::warning("[returnLoan] Loan returned notify error for loan {$loanId}: " . $e->getMessage());
             }
 
             $response->getBody()->write(json_encode([

@@ -294,7 +294,12 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
         if (!fs.existsSync(autoloadPath)) return; // vendor/ not installed — skip
 
         const content = fs.readFileSync(autoloadPath, 'utf-8');
-        const count   = (content.match(/phpstan/gi) ?? []).length;
+        // Case-sensitive on purpose: we target the lowercase dev-tool vendor
+        // paths ('phpstan/phpstan/…') that leak when the autoloader is built
+        // WITH dev deps. A case-insensitive match would false-positive on the
+        // legitimate `Carbon\PHPStan\` macro-extension namespace that
+        // nesbot/carbon ships in --no-dev builds. Do NOT make this /i.
+        const count   = (content.match(/phpstan/g) ?? []).length;
         expect(count,
             `autoload_static.php contains ${count} phpstan reference(s). Fix: composer install --no-dev --optimize-autoloader`
         ).toBe(0);
@@ -331,7 +336,13 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             const v = f.replace('migrate_', '').replace('.sql', '');
             if (!versionLte('0.5.0', v)) continue; // skip pre-0.5.0 legacy files
 
-            const upper = fs.readFileSync(path.join(migrDir, f), 'utf-8').toUpperCase();
+            // Strip SQL comments first: DDL keywords mentioned in prose
+            // (e.g. a comment "no CREATE TABLE here") must not trip the
+            // substring check. Only real, uncommented DDL counts.
+            const stripped = fs.readFileSync(path.join(migrDir, f), 'utf-8')
+                .replace(/\/\*[\s\S]*?\*\//g, ' ')  // block comments
+                .replace(/^\s*--.*$/gm, ' ');       // line comments
+            const upper = stripped.toUpperCase();
             const hasDDL = upper.includes('ALTER TABLE') || upper.includes('CREATE TABLE');
             const isIdempotent = upper.includes('IF NOT EXISTS')
                 || upper.includes('SET @SQL')

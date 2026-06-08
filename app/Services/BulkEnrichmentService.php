@@ -23,6 +23,47 @@ class BulkEnrichmentService
     }
 
     /**
+     * Whether the deterministic E2E scraper stub is active.
+     *
+     * Gated by the PINAKES_E2E_SCRAPER_STUB env flag, read from $_ENV (where
+     * vlucas/phpdotenv loads .env) with a getenv() fallback — the same pattern
+     * RateLimitMiddleware uses for PINAKES_E2E_BYPASS_RATE_LIMIT. The flag is
+     * NEVER set in a production .env; absent/empty/any-other-value disables it,
+     * so production always performs real scraping. Only '1'/'true' enables it.
+     */
+    private function isE2eScraperStub(): bool
+    {
+        $flag = $_ENV['PINAKES_E2E_SCRAPER_STUB']
+            ?? getenv('PINAKES_E2E_SCRAPER_STUB')
+            ?: '';
+        return $flag === '1' || strtolower((string) $flag) === 'true';
+    }
+
+    /**
+     * Deterministic, network-free scraped-data fixture for E2E runs.
+     *
+     * Returns only title + cover + description so enrichBook touches exactly the
+     * two fields the bulk-enrich tests assert on, and never fabricates
+     * publishers/authors/years (which would create junk rows and defeat the
+     * no-overwrite / field-preservation assertions). The reserved "not found"
+     * ISBN 9999999999999 returns an empty array, so enrichBook reports
+     * status='not_found' deterministically.
+     *
+     * @return array<string,string>
+     */
+    private function e2eScraperStub(string $isbn): array
+    {
+        if ($isbn === '9999999999999') {
+            return [];
+        }
+        return [
+            'title'       => 'E2E Stub Title ' . $isbn,
+            'image'       => 'https://example.test/cover-' . $isbn . '.jpg',
+            'description' => 'E2E deterministic description for ' . $isbn . '.',
+        ];
+    }
+
+    /**
      * Get statistics about books eligible for enrichment.
      *
      * @return array{total_with_isbn: int, missing_cover: int, missing_description: int, pending: int}
@@ -236,8 +277,15 @@ class BulkEnrichmentService
                 return $result;
             }
 
-            // Scrape using the existing ScrapingService
-            $scraped = ScrapingService::scrapeBookData($isbn, 3, 'BulkEnrichment');
+            // Scrape using the existing ScrapingService.
+            // In the E2E test environment the scraper is replaced by a
+            // deterministic, network-free stub (see self::isE2eScraperStub()):
+            // real ISBN→external-API calls are slow and non-deterministic, and
+            // an abandoned long request can starve PHP-FPM workers, which is the
+            // exact cause of the bulk-enrich flakiness this seam removes.
+            $scraped = $this->isE2eScraperStub()
+                ? $this->e2eScraperStub($isbn)
+                : ScrapingService::scrapeBookData($isbn, 3, 'BulkEnrichment');
 
             if (empty($scraped) || empty($scraped['title'])) {
                 $result['status'] = 'not_found';
@@ -524,8 +572,10 @@ class BulkEnrichmentService
                 $onProgress($index + 1, $total, $bookResult);
             }
 
-            // Rate-limit: 1 second between requests to avoid hammering scraping APIs
-            if ($index < $total - 1) {
+            // Rate-limit: 1 second between requests to avoid hammering scraping
+            // APIs. Skipped under the E2E stub (no external API to protect),
+            // so a 20-book batch returns in milliseconds instead of ~20s.
+            if ($index < $total - 1 && !$this->isE2eScraperStub()) {
                 sleep(1);
             }
         }

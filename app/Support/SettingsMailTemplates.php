@@ -309,6 +309,58 @@ HTML,
 <p>Cordiali saluti,<br>Il team della biblioteca</p>
 HTML,
             ],
+            'loan_returned' => [
+                'label' => __('Restituzione confermata'),
+                'description' => __("Inviata all'utente quando un prestito viene registrato come restituito."),
+                'subject' => '✅ Restituzione confermata',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_restituzione'],
+                'body' => <<<'HTML'
+<h2>Restituzione confermata</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Confermiamo la restituzione del seguente libro. Grazie!</p>
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Data restituzione:</strong> {{data_restituzione}}</p>
+</div>
+<p>Speriamo che la lettura ti sia piaciuta. A presto in biblioteca!</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
+HTML,
+            ],
+            'reservation_expired' => [
+                'label' => __('Prenotazione scaduta'),
+                'description' => __("Inviata all'utente quando una prenotazione in coda scade automaticamente senza essere stata convertita in prestito."),
+                'subject' => '⌛ Prenotazione scaduta',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'data_scadenza'],
+                'body' => <<<'HTML'
+<h2>Prenotazione scaduta</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>La tua prenotazione per il seguente libro è scaduta ed è stata chiusa automaticamente:</p>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Scaduta il:</strong> {{data_scadenza}}</p>
+</div>
+<p>Se sei ancora interessato, puoi effettuare una nuova prenotazione in qualsiasi momento.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
+HTML,
+            ],
+            'copy_unavailable_user' => [
+                'label' => __('Copia non più disponibile'),
+                'description' => __("Inviata all'utente quando la copia riservata per la sua prenotazione diventa indisponibile (persa o danneggiata)."),
+                'subject' => 'ℹ️ Aggiornamento sulla tua prenotazione',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'motivo'],
+                'body' => <<<'HTML'
+<h2>Aggiornamento sulla tua prenotazione</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Ti informiamo che la copia riservata per la tua prenotazione del seguente libro non è più disponibile:</p>
+<div style="background-color: #fffbeb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Motivo:</strong> {{motivo}}</p>
+</div>
+<p>Stiamo cercando di assegnarti un'altra copia appena possibile. Se non saranno disponibili altre copie, la tua prenotazione resterà in coda e ti avviseremo non appena il libro tornerà disponibile.</p>
+<p>Ci scusiamo per il disagio.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
+HTML,
+            ],
             'user_password_setup' => [
                 'label' => __('Imposta password'),
                 'description' => __("Inviata ai nuovi utenti per impostare la password del loro account."),

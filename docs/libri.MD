@@ -2,7 +2,7 @@
 
 ## PARTE 1: GUIDA PER L'UTENTE FINALE
 
-### Benvenuto nella Gestione Libri 
+### Benvenuto nella Gestione Libri
 Questa pagina ti spiega **tutto quello che puoi fare** con i libri della tua biblioteca. Non serve essere tecnici!
 
 ### Cosa Puoi Fare Qui
@@ -23,8 +23,10 @@ Questa pagina ti spiega **tutto quello che puoi fare** con i libri della tua bib
 ### Come Entrare
 
 1. **Vai su**: Dashboard → **Libri**
-2. **Oppure digita**: `localhost:8000/admin/libri`
+2. **Oppure digita**: `/admin/libri`
 3. **Vedrai**: Una grande tabella con tutti i libri!
+
+> **Nota tecnica**: le rotte admin dei libri sono letterali in inglese sotto `/admin/libri/*` e NON passano dal sistema i18n delle rotte (decisione issue #145).
 
 ---
 
@@ -65,11 +67,11 @@ Clicca su **"Filtri"** per usare:
 2. Trova l'**ISBN** sul retro del libro (13 cifre)
 3. Digita l'ISBN e clicca **"Importa"**
 4. **Magia!** Il sistema recupera:
-   - Titolo completo 
-   - Autore/i 
-   - Copertina 
-   - Descrizione 
-   - Prezzo 
+   - Titolo completo
+   - Autore/i
+   - Copertina
+   - Descrizione
+   - Prezzo
    - Classificazione Dewey (se disponibile)
 
 #### Metodo B: Manuale
@@ -156,145 +158,114 @@ Le etichette servono per **trovare i libri sugli scaffali**.
 
 ### Eliminare un Libro
 
->  **Attenzione**: L'eliminazione è **permanente** e non può essere annullata.
+>  **Attenzione**: L'eliminazione è un **soft-delete**: il record resta nel database con la colonna `deleted_at` valorizzata e viene nascosto da tutte le viste (ogni query sui libri filtra `AND deleted_at IS NULL`). Al soft-delete il sistema azzera i codici univoci (`isbn10`, `isbn13`, `ean`) e i campi di collocazione (`scaffale_id`, `mensola_id`, `posizione_progressiva`, `collocazione`) per evitare violazioni di unicità su futuri inserimenti.
 
 1. Trova il libro
-2. Clicca 
+2. Clicca
 3. **Conferma** nel popup
 
 > **Non puoi eliminare** se:
-> - Il libro è in prestito
-> - Ha prestiti non restituiti
-> - È collegato a record di storico (es. recensioni)
+> - Esiste un prestito attivo (`prestiti.attivo = 1` con stato `in_corso`, `da_ritirare`, `prenotato` o `in_ritardo`)
+> - Esiste una prenotazione attiva (`prenotazioni.stato = 'attiva'`)
+>
+> In questi casi il sistema mostra un messaggio e rimanda alla scheda libro: termina prima i prestiti/prenotazioni.
+>
+> **Rotta**: `POST /admin/libri/delete/{id}` (protetta da `CsrfMiddleware` + `AdminAuthMiddleware`).
 
 ---
 
 ### Gestione delle Copie
 
-- **Aggiungere copie**: nella pagina di modifica, aumenta il campo *Copie totali*; il sistema aggiorna automaticamente *Copie disponibili*.
-- **Rimuovere copie**: diminuisci *Copie totali*; il sistema verifica che non ci siano copie in prestito prima di consentire la riduzione.
-- **Stato delle copie**: ogni copia ha uno stato interno (`Disponibile`, `Prestato`, `Danneggiato`, `Perso`). Il conteggio è mostrato nella colonna *Stato*.
+- **Modello fisico**: alla creazione di un libro il sistema genera N righe fisiche nella tabella `copie` (una per ogni *Copie totali*), tramite `CopyRepository::create()`. Ogni copia ha un `numero_inventario` (es. `LIB-{id}` per la copia singola, oppure `{base}-C1`, `{base}-C2`, … per copie multiple) e uno stato (`disponibile` di default).
+- **In creazione**: `copie_disponibili` viene forzato uguale a `copie_totali` (tutte le copie partono disponibili). Il valore è limitato all'intervallo 1–9999.
+- **Modifica delle copie**: dalla scheda libro è possibile aggiornare/eliminare le singole copie tramite gli endpoint `POST /admin/libri/copie/{id}/update` e `POST /admin/libri/copie/{id}/delete` (gestiti da `CopyController`, protetti da CSRF + AdminAuth).
+- **Disponibilità**: il conteggio delle copie disponibili è ricalcolato dal sistema in base a prestiti e prenotazioni attive (vedi `BookRepository`/`recalculateBookAvailability`).
 
 ---
 
 ### Sicurezza (CSRF, Validazione, Permessi)
 
 #### CSRF Protection
-- **Token CSRF**: ogni form di inserimento/modifica include un campo nascosto `_csrf` generato dal server.
-- **Validazione**: il middleware `CsrfMiddleware` verifica il token su ogni POST, PUT, DELETE.
-- **Rotazione**: il token viene rigenerato ad ogni login e scade dopo 30 minuti di inattività.
+- **Token CSRF**: ogni form di inserimento/modifica include il token generato dal server.
+- **Validazione**: il middleware `CsrfMiddleware` verifica il token sulle rotte di scrittura (`POST /admin/libri/crea`, `POST /admin/libri/update/{id}`, `POST /admin/libri/delete/{id}`, gestione copie, ecc.).
 
-#### Validazione dei Dati
-- **Server‑side**: il `BookValidator` controlla:
-  - ISBN valido (10 o 13 cifre)
-  - Titolo non vuoto
-  - Numero di copie ≥ 1
-  - Formato data (`Y-m-d`) per data di acquisizione
-- **Client‑side**: HTML5 `required`, `pattern` e messaggi di errore personalizzati.
+#### Validazione dei Dati (server‑side, in `LibriController`)
+- **Titolo obbligatorio**: dopo la normalizzazione (rimozione caratteri di controllo MARC‑8 C1 e collasso degli spazi) il titolo non può essere vuoto → risposta `422`.
+- **ISBN/EAN**: spazi e trattini vengono rimossi; valori vuoti convertiti a `NULL` per compatibilità con i vincoli UNIQUE; controllo di lunghezza anti‑ReDoS prima delle regex.
+- **ISSN**: normalizzato al formato canonico `XXXX-XXXX` (8 cifre, l'ultima può essere `X`); formato non valido → errore.
+- **Copie**: `copie_totali` forzato nell'intervallo 1–9999.
+- **Duplicati**: prima dell'inserimento il sistema verifica che non esista già un libro non eliminato con lo stesso ISBN-10/ISBN-13/EAN, usando un advisory lock MySQL (`GET_LOCK`) per rendere atomico il controllo+insert. In caso di duplicato risponde `409` con i dati del libro esistente.
 
 #### Controlli di Accesso
-- **Ruoli**: `admin`, `librarian`, `assistant`.
-- **Policy**: solo `admin` e `librarian` possono creare, modificare o eliminare libri; `assistant` può solo visualizzare e stampare etichette.
-- **Middleware**: `AuthMiddleware` + `RoleMiddleware` proteggono le rotte `/admin/libri/*`.
+- **Ruoli**: il campo `tipo_utente` distingue gli utenti; le rotte admin dei libri sono protette da `AdminAuthMiddleware`, che ammette solo `admin` e `staff`.
+- **Rotte API di lettura libri per autore/editore** usano invece `AuthMiddleware(['admin','staff','standard','premium'])`.
 
 ---
 
 ### Scraping Automatico (ISBN)
 
-Il controller `ScrapeController` utilizza servizi esterni (Google Books, Open Library) per recuperare metadati a partire da un ISBN.
+Il controller `ScrapeController` recupera metadati a partire da un ISBN/EAN.
 
 1. **Richiesta**: `GET /api/scrape/isbn?isbn=9788842935780`
+   - Protetta da `AdminAuthMiddleware` e da `RateLimitMiddleware` (30 richieste al minuto).
 2. **Flusso**:
-   - Verifica formato ISBN
-   - Chiama API esterne in parallelo
-   - Normalizza i dati (titolo, autore, descrizione, copertina)
-   - Restituisce JSON con i campi pronti per l'inserimento
-3. **Gestione errori**:
-   - 404 se nessun risultato
-   - 429 se superi il rate limit
-   - Log su `storage/logs/scrape.log`
+   - Verifica/normalizza il formato ISBN/EAN
+   - Interroga le fonti disponibili e fonde i risultati (`BookDataMerger`)
+   - Normalizza i campi (titolo, autore, descrizione, copertina, prezzo, ecc.)
+   - Restituisce JSON con i campi pronti per popolare il form
+3. **Plugin scraping-pro** (e altri plugin di scraping): aggiungono fonti supplementari tramite l'hook `scrape.fetch.custom`. Il form rileva la disponibilità di una fonte custom con `Hooks::has('scrape.fetch.custom')` e mostra il pannello "fonte" con le alternative dopo l'import.
 
 >  **Vuoi i dettagli?** Leggi la sezione *Scraping* nella [Guida Inserimento Libri](/docs/inserimento_libri.MD#scraping-automatico).
 
 ---
 
-### API REST per Libri
+### Rotte Libri (admin) e API
 
-| Metodo | Endpoint | Descrizione | Permessi |
-|--------|----------|-------------|----------|
-| `GET` | `/api/libri` | Lista paginata con filtri avanzati (DataTables) | `admin`, `librarian`, `assistant` |
-| `GET` | `/api/libri/{id}` | Dettaglio libro | `admin`, `librarian`, `assistant` |
-| `POST` | `/api/libri` | Creazione libro (supporta JSON o form‑data) | `admin`, `librarian` |
-| `PUT` | `/api/libri/{id}` | Aggiornamento libro | `admin`, `librarian` |
-| `DELETE` | `/api/libri/{id}` | Eliminazione libro (soft‑delete) | `admin` |
-| `POST` | `/api/libri/{id}/copy` | Aggiungi copie | `admin`, `librarian` |
-| `POST` | `/api/libri/{id}/scrape` | Avvia scraping ISBN | `admin`, `librarian` |
+La creazione/modifica/eliminazione dei libri avviene tramite i form admin, NON tramite un'API REST CRUD JSON. Le rotte effettive sono:
 
-**Esempio di creazione via API**:
-```bash
-curl -X POST http://localhost:8000/api/libri \
-  -H "Authorization: Bearer <TOKEN>" \
-  -H "Content-Type: application/json" \
-  -d '{
-        "titolo": "Il Nome della Rosa",
-        "isbn13": "9788804671234",
-        "autore_id": 5,
-        "copie_totali": 3,
-        "posizione": "B.1.12"
-      }'
-```
+| Metodo | Endpoint | Descrizione |
+|--------|----------|-------------|
+| `GET` | `/admin/libri` | Lista libri (vista admin) |
+| `GET` | `/admin/libri/{id}` | Scheda libro |
+| `GET` | `/admin/libri/crea` | Form di creazione |
+| `POST` | `/admin/libri/crea` | Salvataggio nuovo libro |
+| `GET` | `/admin/libri/modifica/{id}` | Form di modifica |
+| `POST` | `/admin/libri/update/{id}` | Salvataggio modifiche |
+| `POST` | `/admin/libri/delete/{id}` | Soft-delete |
+| `POST` | `/admin/libri/copie/{id}/update` | Aggiorna una copia fisica |
+| `POST` | `/admin/libri/copie/{id}/delete` | Elimina una copia fisica |
+| `GET` | `/api/scrape/isbn?isbn=...` | Scraping metadati ISBN/EAN (rate-limited) |
+
+Endpoint JSON di sola lettura / supporto al form:
+
+| Metodo | Endpoint | Descrizione |
+|--------|----------|-------------|
+| `GET` | `/api/libri` | Lista libri JSON (DataTables, admin) |
+| `GET` | `/api/libri/author/{id}` | Libri di un autore |
+| `GET` | `/api/libri/publisher/{id}` | Libri di un editore |
+| `GET` | `/api/libri/genre/{id}` | Libri per genere (pubblico, caroselli home) |
+| `POST` | `/api/libri/bulk-status` | Cambio stato in blocco (admin) |
+| `POST` | `/api/libri/bulk-delete` | Soft-delete in blocco (admin) |
+| `POST` | `/api/libri/{id}/increase-copies` | Aggiunge copie (admin) |
+| `GET` | `/api/autori`, `/api/editori`, `/api/generi`, `/api/generi/sottogeneri` | Liste per autocomplete e cascade generi |
+| `GET` | `/api/dewey/categories\|divisions\|specifics\|children\|search\|path` | Classificazione Dewey (cascade + percorso) |
 
 ---
 
 ### Import/Export Bulk
 
-#### Importazione CSV
-- **Formato**: `titolo,autore,isbn13,anno,collocazione,copie`
-- **Endpoint**: `POST /api/libri/import-csv`
-- **Validazione**: ogni riga è controllata; le righe errate vengono riportate nel risultato.
+#### Importazione (CSV/TSV, LibraryThing)
+- **UI**: `GET /admin/libri/import` (esempio scaricabile da `/admin/libri/import/example`)
+- **Upload**: `POST /admin/libri/import/upload`, elaborazione a chunk via `POST /admin/libri/import/chunk` con progress su `GET /admin/libri/import/progress`
+- **LibraryThing**: rotte dedicate sotto `/admin/libri/import/librarything/*` (disponibili con il plugin LibraryThing)
 
-#### Esportazione CSV
-- **Endpoint**: `GET /api/libri/export-csv?filters=...`
-- **Opzioni**: includi solo colonne selezionate, filtra per stato o data.
+#### Esportazione
+- **CSV**: `GET /admin/libri/export/csv` (supporta `?ids=` per esportare solo i libri selezionati — issue #77)
+- **LibraryThing**: `GET /admin/libri/export/librarything`
 
----
-
-### Testing & Debugging
-
-#### PHPUnit Tests (esempio)
-```php
-class BookRepositoryTest extends TestCase
-{
-    public function testCreateAndRetrieve(): void
-    {
-        $repo = new BookRepository();
-        $data = [
-            'titolo' => 'Test Book',
-            'isbn13' => '9781234567890',
-            'copie_totali' => 2,
-            'posizione' => 'C.3.5'
-        ];
-        $id = $repo->create($data);
-        $this->assertGreaterThan(0, $id);
-
-        $book = $repo->find($id);
-        $this->assertEquals('Test Book', $book->titolo);
-        $this->assertEquals(2, $book->copie_totali);
-    }
-}
-```
-
-#### Debug Console
-```bash
-# Verifica API
-curl -X GET "http://localhost:8000/api/libri?length=10"
-
-# Verifica scraping
-curl -X GET "http://localhost:8000/api/scrape/isbn?isbn=9788842935780"
-
-# Log errori
-tail -f storage/logs/app.log
-```
+#### Copertine in blocco / arricchimento
+- **Sync copertine**: `POST /admin/libri/sync-covers`
+- **Bulk enrich** (scraping di massa, max ~20 per richiesta): `GET /admin/libri/bulk-enrich`, `POST /admin/libri/bulk-enrich/start`, `POST /admin/libri/bulk-enrich/toggle`
 
 ---
 
@@ -335,6 +306,6 @@ tail -f storage/logs/app.log
 
 ---
 
-*Ultimo aggiornamento: 19 Ottobre 2025*  
-*Versione documentazione: 4.1.0*  
-*Versione guide correlate: 3.2.0* 
+*Ultimo aggiornamento: 4 Giugno 2026*
+*Versione documentazione: 4.2.0*
+*Versione guide correlate: 3.2.0*

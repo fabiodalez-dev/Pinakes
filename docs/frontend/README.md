@@ -13,11 +13,11 @@ Questa cartella contiene la documentazione **dal punto di vista dell'utente fina
 
 La pagina dove accedi al tuo account con:
 - Form di login semplice (email + password)
-- Recupero password se dimenticata
-- Messaggi di errore chiari
-- Opzione "Mostra password"
-- Link a registrazione se nuovo utente
-- Sicurezza HTTPS e CSRF token
+- Casella "Ricordami" (token persistente, non "Mostra password")
+- Recupero password (`/forgot-password` → `/reset-password`)
+- Messaggi di errore via `?error=` (invalid_credentials, account_pending, ecc.)
+- Redirect post-login: admin/staff → /admin/dashboard, altri → /user/dashboard
+- Sicurezza: CSRF (sessione + cookie `csrf_login`), rate limit 5/5min
 
 **Tempo lettura**: 10 minuti | **Tempo azione**: 30 secondi
 
@@ -27,12 +27,12 @@ La pagina dove accedi al tuo account con:
 **URL**: http://localhost:8000/register
 
 La pagina dove crei un nuovo account con:
-- Form di registrazione (nome, cognome, email, password)
-- Requisiti password: 8+ caratteri, maiuscole, numeri, simboli
-- Email verification (link di conferma)
-- Admin approval (attesa 1-2 giorni)
-- Guida completa su errori e soluzioni
-- Termini di servizio da accettare
+- Campi obbligatori: nome, cognome, email, **telefono**, **indirizzo**, password, conferma password, privacy
+- Campi opzionali: data di nascita, sesso (M/F/Altro), codice fiscale
+- Requisiti password: 8-72 caratteri, maiuscola + minuscola + numero (simbolo NON richiesto)
+- Email verification (token valido 24h) → `/register/success`
+- Admin approval: account creato `stato='sospeso'`, attivato manualmente
+- Consenso privacy GDPR registrato (timestamp + `consent_log`)
 
 **Tempo lettura**: 12 minuti | **Tempo azione**: 3-5 minuti
 
@@ -118,25 +118,26 @@ Il tuo centro di controllo per i prestiti con 3 sezioni:
 ## 🗺️ Mappa di Navigazione
 
 ```
-Login (/login)
-├─ Accedi → Dashboard (privata)
-├─ Password dimenticata? → /recover-password
+Login (/login — route locale-aware)
+├─ Accedi → admin/staff: /admin/dashboard · altri: /user/dashboard
+├─ Password dimenticata? → /forgot-password → /reset-password?token=
 ├─ Nuovo utente? → /register
-└─ Recupera credenziali fallite → [Tentativi bloccati 5 min]
+└─ Rate limit: 5 tentativi / 5 min
 
-Register (/register)
-├─ Compila form → Nome, Cognome, Email, Password
-├─ Accetta termini → Spunta casella
-├─ Clicca "Crea Account" → Email di verifica
-├─ Verifica email (link) → Email confermata
-├─ Attendi admin approval (1-2 giorni) → Email di approzione
+Register (/register — route locale-aware)
+├─ Compila form → Nome, Cognome, Email, Telefono, Indirizzo, Password (+ opzionali)
+├─ Accetta Privacy Policy → Spunta casella (obbligatoria)
+├─ Clicca "Crea Account" → /register/success + email di verifica (token 24h)
+├─ Verifica email → /verify-email?token= → /login?verified=1
+├─ Attendi admin approval (stato sospeso → attivo)
 └─ Accedi → /login (ora puoi loggare!)
 
 Home (/)
 ├─ Hero Search → /catalogo?q=ricerca
 ├─ Quick Links → /catalogo
 ├─ Latest Books → Clicca Libro → /{author-slug}/{book-slug}/{id}
-├─ Categories → /catalogo?categoria=Nome
+├─ Genre Carousel → Clicca Libro → /{author-slug}/{book-slug}/{id}
+├─ Events (se cms.events_page_enabled) → /events/{slug}
 └─ CTA Button → /catalogo
 
 Catalogo (/catalogo)
@@ -155,10 +156,10 @@ Scheda Libro (/{author-slug}/{book-slug}/{id})
 ├─ Libri Correlati → Clicca → Va al libro
 └─ Condividi → Social / Copy Link
 
-Wishlist (/wishlist - Login richiesto)
-├─ Filtro ricerca → Filtra per titolo/stato
+Wishlist (/wishlist - Login richiesto, route locale-aware)
+├─ Filtro ricerca → Filtra per titolo/stato (client-side)
 ├─ Clicca Libro → /{author-slug}/{book-slug}/{id}
-├─ Rimuovi dal preferiti 🗑️ → Aggiorna lista
+├─ Rimuovi dai preferiti 🗑️ → POST /api/user/wishlist/toggle
 ├─ "Esplora Catalogo" → /catalogo
 └─ "Prenotazioni" → /prenotazioni
 
@@ -282,7 +283,14 @@ Tutte le pagine frontend:
 
 ### **D: Le pagine sono pubbliche? Chiunque le può vedere?**
 
-✅ **Sì! Home e Catalogo sono completamente pubblici**. Chiunque può cercare e leggere i dettagli dei libri. Solo il **prestito** richiede login.
+✅ **Sì. Home, Catalogo, Scheda Libro, Eventi e Login/Registrazione sono pubblici.**
+Richiedono login (gestito da `AuthMiddleware` con ruoli `admin/staff/standard/premium`) solo:
+- richiesta prestito (`POST /user/loan`) e prenotazione (`POST /user/reserve`)
+- wishlist (`/wishlist`, `/api/user/wishlist/*`)
+- gestione prenotazioni (`/prenotazioni`) e profilo
+
+> Non esiste una "modalità privata" che blocchi l'intero catalogo dietro login:
+> il gating è per singola azione/pagina riservata, non globale.
 
 ### **D: Perché la ricerca a volte è lenta?**
 
@@ -345,8 +353,8 @@ Tutte le pagine frontend:
 - 📖 [Guida Principale (README)](../README.md) - Indice completo di TUTTE le guide
 - ⚙️ [Impostazioni](../settings.md) - Come personalizzare il sistema
 - 📧 [Email e Notifiche](../email.md) - Come configurare le email
-- 🔧 [Installazione](../installation.md) - Setup iniziale
-- 📊 [API Reference](../api.md) - Per sviluppatori
+- 🔧 [Installazione](../installation.MD) - Setup iniziale
+- 📊 [API Reference](../api.MD) - Per sviluppatori
 
 ---
 
@@ -374,9 +382,9 @@ Se trovi problemi o hai suggerimenti su queste pagine:
 
 ## 📋 Versione e Changelog
 
-**Versione Frontend Docs**: 1.0.0
-**Data**: 19 Ottobre 2025
-**Stato**: ✅ Completo e Aggiornato
+**Versione Frontend Docs**: 1.1.0
+**Data**: Giugno 2026 (revisione cluster login/register/home/wishlist allineata al codice)
+**Stato**: ✅ Aggiornato a AuthController / RegistrationController / UserWishlistController / FrontendController
 
 **Cosa contiene**:
 - ✅ 3 guide complete (Home, Catalogo, Scheda Libro)
@@ -395,6 +403,6 @@ Questa documentazione frontend copre **TUTTE le pagine pubbliche** della bibliot
 
 ---
 
-*Documentazione Frontend - Pinakes v1.0.0*
-*Ultimo aggiornamento: 19 Ottobre 2025*
+*Documentazione Frontend - Pinakes*
+*Ultimo aggiornamento: Giugno 2026*
 *Per tutti gli utenti - User-friendly first! 💙*

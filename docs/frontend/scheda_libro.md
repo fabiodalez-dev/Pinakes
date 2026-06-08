@@ -1,8 +1,8 @@
 # 📖 Scheda Libro - La Pagina di Dettaglio del Libro
 
-> **Accedi qui**: http://localhost:8000/errico-malatesta/anarchia-il-nostro-programma/61
+> **Esempio URL**: `/errico-malatesta/anarchia-il-nostro-programma/61`
 >
-> Esempio URL: `/{author-slug}/{book-slug}/{ID}`
+> Formato canonico: `/{author-slug}/{book-slug}/{ID}` (rotta SEO). Restano disponibili, con redirect interno, le vecchie varianti `/libro/{id}/{slug}`.
 
 Questa è la **pagina più importante per il lettore**: qui vedi TUTTI i dettagli di un libro e puoi richiedere un prestito o aggiungerlo ai preferiti.
 
@@ -129,7 +129,7 @@ Ricevi email di conferma quando approvata
 └─────────────────────────────────┘
 ```
 
-✅ **Se non specifichi fine**: Il sistema assume **1 mese** di prestito.
+✅ **Se non specifichi fine**: Il sistema usa la durata predefinita configurata dall'admin (`loans.loan_duration_days`, default **30 giorni**).
 
 ### **2. Aggiungi ai Preferiti** (Cuore ❤️)
 
@@ -243,16 +243,16 @@ Vedi "Accedi per aggiungere ai Preferiti" → Clicca → Vai a login.
 
 ---
 
-## ⭐ Sezione Recensioni (Placeholder)
+## ⭐ Sezione Recensioni
 
-**Stato attuale**: Placeholder (funzione non ancora implementata).
+**Stato attuale**: implementata. La sezione "Recensioni" compare quando il libro ha recensioni approvate.
 
-**In futuro**:
-- Visualizzare stelle (1-5)
-- Leggere testi di review
-- Scrivere le tue review
+**Cosa mostra**:
+- **Riepilogo**: voto medio (es. `4.3`), stelle, numero totale di recensioni
+- **Distribuzione**: barre per il numero di recensioni a 1–5 stelle
+- **Elenco recensioni**: per ogni recensione approvata vengono mostrati nome utente, data di approvazione, stelle, titolo e testo
 
-**Perché assente**: Il sistema non ha ancora l'infrastruttura per le recensioni, ma è previsto in versioni future.
+**SEO**: se ci sono recensioni, la pagina include lo schema.org `aggregateRating` (`ratingValue` + `reviewCount`).
 
 ---
 
@@ -348,7 +348,7 @@ Il libro sarà riservato per te!
 - 📝 Biografia (se disponibile)
 - 🔗 Link al profilo
 
-**URL**: `/autore/Dante-Alighieri` oppure `/autore-id/1`
+**URL** (locale italiano): `/autore/{id}` (es. `/autore/1`) oppure `/autore/{name}` (es. `/autore/Dante-Alighieri`). In locale inglese il prefisso è `/author/...`.
 
 ---
 
@@ -359,7 +359,7 @@ Il libro sarà riservato per te!
 - 🌐 Link al sito web (se disponibile)
 - 📍 Indirizzo (se disponibile)
 
-**URL**: `/editore/Mondadori`
+**URL** (locale italiano): `/editore/{id}` o `/editore/{name}` (es. `/editore/Mondadori`). In locale inglese il prefisso è `/publisher/...`.
 
 ---
 
@@ -501,6 +501,6 @@ La pagina è **SEO-optimizzata**:
 
 ---
 
-*Ultima lettura: 19 Ottobre 2025*
+*Ultimo aggiornamento: 4 Giugno 2026*
 *Tempo lettura: 10 minuti*
 *Tempo per fare un prestito: 1-2 minuti*

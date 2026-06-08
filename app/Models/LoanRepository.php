@@ -6,6 +6,7 @@ namespace App\Models;
 use mysqli;
 use App\Controllers\ReservationManager;
 use App\Support\DataIntegrity;
+use App\Support\SecureLogger;
 
 class LoanRepository
 {
@@ -54,18 +55,23 @@ class LoanRepository
         return $res->fetch_assoc() ?: null;
     }
 
+    /**
+     * @deprecated Inserimento prestito senza copia_id/stato/data_scadenza né
+     * controllo di overlap/disponibilità: bypassa tutta la logica di prestito e
+     * può creare doppi prestiti sulla stessa copia (CONC-04). Usa invece
+     * PrestitiController::store() (creazione admin) o
+     * ReservationManager::createLoanFromReservation() (da prenotazione), che
+     * applicano lock, overlap check e selezione copia.
+     *
+     * @param array<string,mixed> $data
+     */
     public function create(array $data): int
     {
-        $sql = "INSERT INTO prestiti (libro_id, utente_id, data_prestito, data_restituzione, processed_by, attivo)
-                VALUES (?, ?, ?, ?, ?, ?)";
-        $stmt = $this->db->prepare($sql);
-        $data_prestito = $data['data_prestito'] ?? date('Y-m-d');
-        $data_restituzione = $data['data_restituzione'] ?? null;
-        $processed_by = $data['processed_by'] ?? null;
-        $attivo = (int)($data['attivo'] ?? 1);
-        $stmt->bind_param('iissii', $data['libro_id'], $data['utente_id'], $data_prestito, $data_restituzione, $processed_by, $attivo);
-        $stmt->execute();
-        return (int)$this->db->insert_id;
+        throw new \LogicException(
+            'LoanRepository::create() è disabilitato (CONC-04): bypassa overlap e '
+            . 'selezione copia. Usa PrestitiController::store() o '
+            . 'ReservationManager::createLoanFromReservation().'
+        );
     }
 
     public function update(int $id, array $data): bool
@@ -114,19 +120,52 @@ class LoanRepository
         $bookId = null;
 
         try {
-            // Recupera il libro associato e blocca la riga del prestito
-            $stmt = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=? FOR UPDATE');
-            $stmt->bind_param('i', $id);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($row = $result->fetch_assoc()) {
-                $bookId = (int)$row['libro_id'];
-            } else {
-                $stmt->close();
+            // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
+            // lettura NON bloccante, poi blocca la riga `libri` PRIMA e infine quella del
+            // prestito — stesso ordine di store/approveLoan/renew per evitare deadlock.
+            $lookup = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=?');
+            $lookup->bind_param('i', $id);
+            $lookup->execute();
+            $lrow = $lookup->get_result()->fetch_assoc();
+            $lookup->close();
+            if (!$lrow) {
                 $this->db->rollback();
                 return false;
             }
+            $bookId = (int) $lrow['libro_id'];
+
+            // Lock della riga `libri` per serializzare il ricalcolo della
+            // disponibilità. NB: NIENTE filtro deleted_at qui (e nessun bail) —
+            // la RESTITUZIONE di un prestito deve sempre poter procedere anche se
+            // il libro è stato soft-deleted nel frattempo: la regola soft-delete
+            // governa prestabilità/visibilità, non i rientri. Bloccare il close
+            // lascerebbe il prestito attivo e la copia occupata per sempre.
+            $lockBook = $this->db->prepare('SELECT id FROM libri WHERE id=? FOR UPDATE');
+            $lockBook->bind_param('i', $bookId);
+            $lockBook->execute();
+            $lockBook->close();
+
+            // Poi lock della riga del prestito. Rileggiamo libro_id DALLA RIGA
+            // ORA BLOCCATA e lo confrontiamo con quello su cui abbiamo preso il
+            // lock di `libri`: la lettura iniziale (126-135) è non bloccante per
+            // preservare l'ordine di lock canonico (libri prima di prestiti), ma
+            // se libro_id fosse cambiato nel frattempo (TOCTOU) avremmo bloccato
+            // e ricalcolato il libro sbagliato. In quel caso (rarissimo: il
+            // libro di un prestito non viene riassegnato) abortiamo invece di
+            // operare su dati incoerenti.
+            $stmt = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=? FOR UPDATE');
+            $stmt->bind_param('i', $id);
+            $stmt->execute();
+            $lockedRow = $stmt->get_result()->fetch_assoc();
             $stmt->close();
+            if (!$lockedRow) {
+                $this->db->rollback();
+                return false;
+            }
+            if ((int) $lockedRow['libro_id'] !== $bookId) {
+                $this->db->rollback();
+                return false;
+            }
 
             // Chiude il prestito
             $today = gmdate('Y-m-d');
@@ -159,10 +198,11 @@ class LoanRepository
             }
 
             $reservationManager = new ReservationManager($this->db);
+            $reservationManager->setExternalTransaction(true); // TXN-003: siamo già in transazione
             // Note: processBookAvailability returning false typically indicates no pending
             // reservation or a race condition - acceptable to continue, just log for observability
             if (!$reservationManager->processBookAvailability($bookId)) {
-                error_log("LoanRepository::close - No reservation processed for book ID: {$bookId}");
+                SecureLogger::debug("LoanRepository::close - No reservation processed for book ID: {$bookId}");
             }
 
             $this->db->commit();
@@ -172,12 +212,20 @@ class LoanRepository
             throw $e;
         }
 
+        // P2: invia le notifiche reservation_book_available accodate durante la
+        // transazione esterna (eseguito solo sul percorso di successo, post-commit).
+        try {
+            $reservationManager->flushDeferredNotifications();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('LoanRepository::close flush notifications warning', ['error' => $e->getMessage()]);
+        }
+
         // validateAndUpdateLoan has its own transaction, call it after main transaction completes
         try {
             $integrity = new DataIntegrity($this->db);
             $integrity->validateAndUpdateLoan($id);
         } catch (\Throwable $e) {
-            error_log('DataIntegrity warning (validateAndUpdateLoan): ' . $e->getMessage());
+            SecureLogger::warning('DataIntegrity warning (validateAndUpdateLoan)', ['error' => $e->getMessage()]);
         }
 
         return true;

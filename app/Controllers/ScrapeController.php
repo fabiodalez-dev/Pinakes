@@ -190,6 +190,17 @@ class ScrapeController
                 }
             }
 
+            // Hook: scrape.data.modify - Let plugins enrich/transform the raw
+            // payload BEFORE normalization, so any field they set/correct
+            // (tipo_media, format, ISBN, cover) flows through the normalizers
+            // below instead of being decided without it. scraping-pro fires this
+            // in its own parse path; single-source setups (discogs alone, or the
+            // built-in fallback) only reach it here, so we emit it for every
+            // result. enrichWithDiscogsData is idempotent (early return when a
+            // cover already exists), so a double-fire is harmless.
+            $dataModifyContext = ['source' => 'core', 'identifier' => $searchIdentifier];
+            $payload = \App\Support\Hooks::apply('scrape.data.modify', $payload, [$searchIdentifier, $dataModifyContext, $payload]);
+
             // Normalize text fields (remove MARC-8 control characters, collapse whitespace)
             $payload = $this->normalizeScrapedData($payload);
 
@@ -259,6 +270,13 @@ class ScrapeController
                 }
                 SecureLogger::debug('[ScrapeController] Merged plugin partial data', ['isbn' => $searchIdentifier]);
             }
+
+            // Hook: scrape.data.modify - Same plugin enrichment opportunity for
+            // the built-in fallback path (Google Books / Open Library), fired
+            // BEFORE normalization so plugin-set fields are normalized too; see
+            // the custom-result branch above for the rationale.
+            $dataModifyContext = ['source' => 'core', 'identifier' => $searchIdentifier];
+            $fallbackData = \App\Support\Hooks::apply('scrape.data.modify', $fallbackData, [$searchIdentifier, $dataModifyContext, $fallbackData]);
 
             // Normalize text fields (remove MARC-8 control characters, collapse whitespace)
             $fallbackData = $this->normalizeScrapedData($fallbackData);

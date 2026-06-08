@@ -198,6 +198,18 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('loans', 'pickup_expiry_days', '3', 'Jours pour récupérer un emprunt approuvé avant expiration')
 ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
 
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'loan_duration_days', '30', 'Durée d\'emprunt par défaut en jours')
+ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'max_active_loans_per_user', '0', 'Nombre maximal d\'emprunts actifs par utilisateur (0 = aucune limite)')
+ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
+('loans', 'max_renewals', '3', 'Nombre maximal de renouvellements autorisés par emprunt')
+ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+
 -- ============================================================================
 -- System Settings - Complete default configuration
 -- These replace the old storage/settings.json file

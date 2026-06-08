@@ -205,6 +205,12 @@ class ReservationReassignmentService
 
         } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
+            // In transazione esterna rilanciamo: altrimenti il proprietario farebbe
+            // commit() di uno stato parziale (es. copia_id aggiornato ma stato copia
+            // non impostato a 'prenotato') (CRITICAL #157).
+            if ($this->externalTransaction) {
+                throw $e;
+            }
             SecureLogger::error(__('Errore riassegnazione copia'), [
                 'libro_id' => $libroId,
                 'copia_id' => $newCopiaId,
@@ -289,6 +295,13 @@ class ReservationReassignmentService
 
             } catch (\Throwable $e) {
                 $this->rollbackIfOwned($ownTransaction);
+                // In transazione esterna un'eccezione genuina (la race "copia non
+                // più disponibile" usa 'continue', non il catch) avvelena la
+                // transazione del chiamante: rilanciamo invece di proseguire i
+                // tentativi, così il proprietario fa rollback (CRITICAL #157).
+                if ($this->externalTransaction) {
+                    throw $e;
+                }
                 SecureLogger::error(__('Errore riassegnazione copia persa'), [
                     'copia_id' => $copiaId,
                     'reservation_id' => $reservationId,
@@ -339,6 +352,11 @@ class ReservationReassignmentService
 
         } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
+            // In transazione esterna rilanciamo per non far committare al chiamante
+            // un copia_id azzerato a metà (CRITICAL #157).
+            if ($this->externalTransaction) {
+                throw $e;
+            }
             SecureLogger::error(__('Errore gestione copia non disponibile'), [
                 'reservation_id' => $reservationId,
                 'error' => $e->getMessage()
@@ -503,13 +521,37 @@ class ReservationReassignmentService
             return;
         }
 
-        // Crea notifica in-app per gli admin
         $reasonText = match ($reason) {
             'lost_copy' => __('La copia assegnata è stata segnalata come persa o danneggiata'),
             'expired' => __('La prenotazione è scaduta'),
             default => __('La copia non è più disponibile')
         };
 
+        // Email all'utente la cui copia è diventata indisponibile (GAP-3).
+        // Eseguito in modo differito (questo metodo è chiamato da
+        // flushDeferredNotifications dopo il commit), quindi nessuna I/O in transazione.
+        try {
+            // sendCopyUnavailableNotification reports soft failures by returning
+            // false (not only by throwing): handle that case too, otherwise a
+            // silently undelivered email leaves no operational trace.
+            $sent = $this->notificationService->sendCopyUnavailableNotification($data['email'], [
+                'utente_nome' => $data['utente_nome'],
+                'libro_titolo' => $data['libro_titolo'],
+                'motivo' => $reasonText,
+            ]);
+            if ($sent === false) {
+                SecureLogger::warning(__('Email copia non disponibile non inviata'), [
+                    'prestito_id' => $prestitoId,
+                ]);
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning(__('Email copia non disponibile fallita'), [
+                'prestito_id' => $prestitoId,
+                'error' => $e->getMessage()
+            ]);
+        }
+
+        // Crea notifica in-app per gli admin
         $this->notificationService->createNotification(
             'general',
             __('Prenotazione: copia non disponibile'),
@@ -519,7 +561,7 @@ class ReservationReassignmentService
                 $data['utente_nome'],
                 $reasonText
             ),
-            null,
+            '/admin/prestiti',
             $prestitoId
         );
 

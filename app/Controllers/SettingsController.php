@@ -32,6 +32,7 @@ class SettingsController
         $labelSettings = $this->resolveLabelSettings($repository);
         $eventSettings = $this->resolveEventSettings($repository);
         $advancedSettings = $this->resolveAdvancedSettings($repository);
+        $loansSettings = $this->resolveLoansSettings($repository);
         $contactMessages = $this->loadContactMessages($db);
         $cookieBannerTexts = $this->resolveCookieBannerTexts($repository);
 
@@ -48,6 +49,7 @@ class SettingsController
             'labelSettings',
             'eventSettings',
             'advancedSettings',
+            'loansSettings',
             'contactMessages',
             'activeTab',
             'db',
@@ -979,6 +981,48 @@ class SettingsController
 
         $_SESSION['success_message'] = __('Impostazioni eventi aggiornate.');
         return $this->redirect($response, '/admin/settings?tab=cms');
+    }
+
+    /**
+     * @return array{loan_duration_days: int, pickup_expiry_days: int, max_renewals: int, max_active_loans_per_user: int}
+     */
+    private function resolveLoansSettings(SettingsRepository $repository): array
+    {
+        return [
+            'loan_duration_days'       => (int) ($repository->get('loans', 'loan_duration_days', '30') ?? 30),
+            'pickup_expiry_days'       => (int) ($repository->get('loans', 'pickup_expiry_days', '3') ?? 3),
+            'max_renewals'             => (int) ($repository->get('loans', 'max_renewals', '3') ?? 3),
+            'max_active_loans_per_user' => (int) ($repository->get('loans', 'max_active_loans_per_user', '0') ?? 0),
+        ];
+    }
+
+    public function updateLoansSettings(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+
+        // Clamp to sane bounds on BOTH ends — a hand-crafted POST must not be
+        // able to persist absurd durations/renewals (the UI min/max attributes
+        // are advisory; the server is the authority). Note the two zeros differ:
+        // max_active_loans_per_user = 0 means "unlimited" (the check is gated by
+        // `if ($maxLoans > 0)`), whereas max_renewals = 0 means "no renewals
+        // allowed" (renew() blocks when currentRenewals >= maxRenewals, so 0
+        // blocks every renewal) — it is NOT "unlimited".
+        $loanDurationDays = min(3650, max(1, (int) ($data['loan_duration_days'] ?? 30)));         // 1 day … 10 years
+        $pickupExpiryDays = min(30,   max(1, (int) ($data['pickup_expiry_days'] ?? 3)));          // 1 … 30 days (matches the loans-tab input max)
+        $maxRenewals      = min(100,  max(0, (int) ($data['max_renewals'] ?? 3)));                // 0 … 100
+        $maxActiveLoans   = min(1000, max(0, (int) ($data['max_active_loans_per_user'] ?? 0)));   // 0 (unlimited) … 1000
+
+        $repository->set('loans', 'loan_duration_days', (string) $loanDurationDays);
+        $repository->set('loans', 'pickup_expiry_days', (string) $pickupExpiryDays);
+        $repository->set('loans', 'max_renewals', (string) $maxRenewals);
+        $repository->set('loans', 'max_active_loans_per_user', (string) $maxActiveLoans);
+
+        $_SESSION['success_message'] = __('Impostazioni prestiti aggiornate correttamente.');
+        return $response->withHeader('Location', url('/admin/settings?tab=loans'))->withStatus(302);
     }
 
     private function redirect(Response $response, string $location): Response

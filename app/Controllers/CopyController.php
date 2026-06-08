@@ -152,7 +152,7 @@ class CopyController
             $reassignmentService = new \App\Services\ReservationReassignmentService($db);
 
             // Case 2: Copy became unavailable (lost/damaged/etc) -> Reassign any pending reservation
-            if (in_array($stato, ['perso', 'danneggiato', 'manutenzione', 'in_restauro'])) {
+            if (in_array($stato, ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'])) {
                 $reassignmentService->reassignOnCopyLost($copyId);
             }
             // Case 9: Copy became available -> Assign to waiting reservation

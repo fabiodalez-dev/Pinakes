@@ -40,15 +40,20 @@ La pagina **login** è dove **accedi al tuo account personale** per:
 │                                        │
 │  Password:                             │
 │  [****************************]        │
-│  [☑️ Mostra password]                 │
+│                                        │
+│  [☑️ Ricordami]   [Password dimenticata?]
 │                                        │
 │  [🔐 Accedi]                          │
 │                                        │
-│  Non hai account? [Registrati]         │
-│  Password dimenticata? [Recupera]      │
+│  Non hai un account? [Registrati]      │
 │                                        │
+│  [Privacy Policy]   [Contatti]         │
 └────────────────────────────────────────┘
 ```
+
+> **Nota**: il form NON ha un'opzione "Mostra password". Ha invece una
+> casella **"Ricordami"** (`remember_me`) che crea un token persistente
+> lato server (`RememberMeService`) per restare loggato oltre la sessione.
 
 ---
 
@@ -75,12 +80,12 @@ Campo: Password
 ⚠️ IMPORTANTE: I punti rimpiazzano i caratteri (per privacy)
 ```
 
-**4. (Opzionale) Mostra password**
+**4. (Opzionale) Ricordami**
 
-```
-☑️ Mostra password
-Clicca se vuoi VEDERE la password mentre digiti
-(Utile se hai dubbi di aver scritto tutto bene)
+```text
+☑️ Ricordami
+Spunta per restare loggato oltre la durata della sessione.
+Crea un token persistente lato server (cookie remember-me).
 ```
 
 **5. Clicca [🔐 Accedi]**
@@ -90,20 +95,36 @@ Se credenziali corrette:
   ↓
 Accedi al tuo account
   ↓
-Vieni reindirizzato alla dashboard o pagina che stavi visitando
+Reindirizzamento (gestito da AuthController::login):
+  - admin / staff  → /admin/dashboard
+  - altri ruoli    → /user/dashboard
+  - se era presente un return_url sicuro → quella pagina
 
 Se credenziali ERRATE:
   ↓
-Vedi messaggio di errore rosso
+Redirect a /login?error=invalid_credentials (messaggio rosso)
   ↓
 Puoi ritentare
 ```
+
+> **Tecnico**: il login è gestito da `AuthController::login()`. Verifica
+> sono ammessi solo account con `email_verificata = 1` **e** `stato = 'attivo'`.
+> La verifica password usa `password_verify()` in tempo costante (anche per
+> email inesistenti, per evitare enumerazione). Alla riuscita: `session_regenerate_id()`,
+> rigenerazione token CSRF e caricamento del `locale` preferito dell'utente.
 
 ---
 
 ## ⚠️ Messaggi di Errore e Soluzioni
 
-### **"Email o password non corretti"**
+> Gli errori arrivano come parametro `?error=<codice>` sull'URL `/login` (route
+> locale-aware). I codici reali emessi dal sistema sono: `invalid_credentials`,
+> `email_not_verified`, `account_pending`, `account_suspended`, `session_expired`,
+> `auth_required`, `csrf`, `missing_fields`, `token_expired`, `invalid_token`, `server`.
+> Esistono anche i parametri di successo `?verified=1` (email appena verificata) e
+> `?success=logout` / `?success=registered`.
+
+### **"Email o password non corretti"** (`error=invalid_credentials`)
 
 **Significa**: Email e/o password non riconosciute nel database.
 
@@ -221,14 +242,18 @@ Puoi ritentare
 **Se dimentichi la password**:
 
 ```
-1. Vai a http://localhost:8000/login
-2. Clicca [Password dimenticata?]
+1. Vai a /login
+2. Clicca [Password dimenticata?] → vai a /forgot-password
+   (route locale-aware; fallback inglese /forgot-password)
 3. Inserisci la tua email
 4. Ricevi email con link di recupero
-5. Clicca il link (entro 24 ore!)
+5. Clicca il link → /reset-password?token=...
 6. Scegli una nuova password
 7. Accedi con la nuova password
 ```
+
+> **Tecnico**: gestito da `PasswordController` (forgot/reset). Rate limit:
+> 3 richieste / 15 min su `/forgot-password`, 5 / 5 min su `/reset-password`.
 
 **La email di recupero include**:
 - Link unico per resettare password
@@ -298,11 +323,12 @@ Non devi logout da tutti i dispositivi.
 ### **Come Protegge il Tuo Account?**
 
 ✅ **HTTPS**: Connessione crittografata (lucchetto 🔒)
-✅ **Password**: Salvata con hash (non in chiaro)
-✅ **CSRF Token**: Protezione da attacchi
-✅ **Rate Limiting**: Blocca tentativi ripetuti
-✅ **Email Verification**: Conferma che email è tua
-✅ **Session Timeout**: Logout automatico dopo inattività
+✅ **Password**: Salvata con hash bcrypt (`password_hash`/`password_verify`)
+✅ **CSRF Token**: Sessione + cookie double-submit `csrf_login` (HttpOnly, SameSite=Lax, Max-Age 2h) — permette di validare il login anche se la sessione server è scaduta
+✅ **Rate Limiting**: 5 tentativi / 5 min (`RateLimitMiddleware`)
+✅ **Email Verification**: solo account con `email_verificata=1` possono accedere
+✅ **Session fixation**: `session_regenerate_id(true)` ad ogni login riuscito
+✅ **Constant-time verify**: `password_verify()` eseguito anche per email inesistenti (anti-enumerazione)
 
 ### **Consigli di Sicurezza**
 
@@ -379,8 +405,9 @@ Non devi logout da tutti i dispositivi.
 
 ### **D: Quanti tentativi di login posso fare?**
 
-✅ Puoi fare più tentativi, ma se troppi ravvicinati:
-- Dopo 5-10 tentativi falliti → Blocco temporaneo (5-15 minuti)
+✅ Il rate limit reale (`RateLimitMiddleware`) sul POST `/login` è:
+- **5 tentativi ogni 300 secondi (5 minuti)** per chiave `login`
+- Superato il limite → blocco temporaneo
 - Questo protegge da hacker che provano password random
 - Aspetta e riprova con password corretta
 
@@ -401,9 +428,8 @@ Non devi logout da tutti i dispositivi.
 
 ### **D: La password è visibile mentre digito?**
 
-❌ No, per default è nascosta (puntini). Ma puoi:
-- Cliccare [☑️ Mostra password] per vederla
-- Utile se non sei sicuro di quello che digiti
+❌ No, è sempre nascosta (puntini). Il form di login **non** ha un'opzione
+"Mostra password". L'unica casella presente è **"Ricordami"** (`remember_me`).
 
 ### **D: Se clicco "Password dimenticata" per sbaglio?**
 
@@ -530,6 +556,6 @@ Dopo aver effettuato il login, puoi:
 
 ---
 
-*Ultima lettura: 19 Ottobre 2025*
+*Ultima revisione: Giugno 2026 (allineato a AuthController)*
 *Tempo lettura: 10 minuti*
 *Tempo per accedere: 30 secondi*

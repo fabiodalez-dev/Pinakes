@@ -32,20 +32,55 @@ class ReservationManager
     /** @var bool Internal flag tracking whether we own the current transaction */
     private bool $inTransaction = false;
 
+    /** @var bool Set by the caller when a transaction is already open externally */
+    private bool $externalTransaction = false;
+
+    /** @var array<int,array> Notifiche prenotazione da inviare dopo il commit esterno */
+    private array $deferredReservationNotifications = [];
+
+    /**
+     * Dichiara che il chiamante ha già aperto una transazione: in tal caso questo
+     * manager NON aprirà una transazione propria (evita il commit implicito di una
+     * begin_transaction() annidata). Da chiamare PRIMA di processBookAvailability().
+     */
+    public function setExternalTransaction(bool $external): void
+    {
+        $this->externalTransaction = $external;
+    }
+
+    /**
+     * Invia le notifiche di prenotazione accodate durante una transazione esterna.
+     * Da chiamare dal proprietario della transazione DOPO il proprio commit (P2).
+     */
+    public function flushDeferredNotifications(): void
+    {
+        $pending = $this->deferredReservationNotifications;
+        $this->deferredReservationNotifications = [];
+        foreach ($pending as $reservation) {
+            try {
+                $this->sendReservationNotification($reservation);
+            } catch (\Throwable $e) {
+                \App\Support\SecureLogger::error('Invio notifica prenotazione differita fallito', [
+                    'prenotazione_id' => $reservation['id'] ?? null,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+    }
+
     /**
      * Begin transaction only if not already in one.
      *
-     * Uses an internal flag instead of @@autocommit because
-     * begin_transaction()/START TRANSACTION does NOT change @@autocommit.
+     * Usa un flag esplicito invece di @@autocommit: begin_transaction()/START
+     * TRANSACTION NON modifica @@autocommit in mysqli/MySQL, quindi quel
+     * rilevamento era inaffidabile e poteva aprire una transazione annidata
+     * dentro quella del chiamante (commit implicito) — TXN-003.
      *
      * @return bool True if we started a new transaction, false if already in one
      */
     private function beginTransactionIfNeeded(): bool
     {
-        // Detect nested transaction via @@autocommit (0 = inside transaction)
-        $result = $this->db->query("SELECT @@autocommit as ac");
-        $inDbTransaction = $result instanceof \mysqli_result && (int) ($result->fetch_assoc()['ac'] ?? 1) === 0;
-        if ($this->inTransaction || $inDbTransaction) {
+        if ($this->inTransaction || $this->externalTransaction) {
             return false; // Already in transaction, don't start a new one
         }
         if (!$this->db->begin_transaction()) {
@@ -96,7 +131,9 @@ class ReservationManager
      */
     public function processBookAvailability($bookId)
     {
-        $today = date('Y-m-d');
+        // App-timezone "today" (not PHP UTC) so MySQL-stored dates and the
+        // eligibility comparison agree across the midnight boundary (#157).
+        $today = \App\Support\DateHelper::today();
         $ownTransaction = $this->beginTransactionIfNeeded();
 
         try {
@@ -104,7 +141,18 @@ class ReservationManager
             $lockBookStmt = $this->db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
             $lockBookStmt->bind_param('i', $bookId);
             $lockBookStmt->execute();
+            $lockBookResult = $lockBookStmt->get_result();
+            $bookRow = $lockBookResult ? $lockBookResult->fetch_assoc() : null;
             $lockBookStmt->close();
+
+            // Soft-deleted or non-existent book: stop before converting any
+            // reservation into a loan for a title removed from the catalogue.
+            // Without this guard the FOR UPDATE returns zero rows but the flow
+            // proceeded anyway (libri queries MUST honour deleted_at IS NULL).
+            if ($bookRow === null) {
+                $this->commitIfOwned($ownTransaction);
+                return false;
+            }
 
             // Get the next date-eligible reservation in queue
             // Only process reservations where start date <= today (ready to convert to loan)
@@ -148,15 +196,26 @@ class ReservationManager
                     $stmt->execute();
                     $stmt->close();
 
-                    // Update queue positions for remaining reservations
-                    $this->updateQueuePositions($bookId);
+                    // Update queue positions for remaining reservations.
+                    // Pass the completed reservation's position: the converted
+                    // reservation is the lowest *date-eligible* one, which is
+                    // not necessarily queue_position = 1 (earlier positions may
+                    // have a future start date). Decrementing everything > 1
+                    // would collide positions when a non-head reservation is
+                    // promoted.
+                    $this->updateQueuePositions($bookId, (int) $nextReservation['queue_position']);
 
                     $this->commitIfOwned($ownTransaction);
 
-                    // Send notification ONLY if we own the transaction (committed above)
-                    // If external transaction, caller is responsible for notifications after their commit
+                    // Se possediamo la transazione (già committata sopra) inviamo subito.
+                    // Con una transazione ESTERNA non possiamo inviare ora (il commit del
+                    // chiamante non è ancora avvenuto): accodiamo e il chiamante invierà
+                    // dopo il proprio commit via flushDeferredNotifications(). Senza questo,
+                    // con setExternalTransaction(true) la notifica veniva persa (P2).
                     if ($ownTransaction) {
                         $this->sendReservationNotification($nextReservation);
+                    } else {
+                        $this->deferredReservationNotifications[] = $nextReservation;
                     }
 
                     return true;
@@ -168,7 +227,16 @@ class ReservationManager
 
         } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
-            error_log("processBookAvailability error: " . $e->getMessage());
+            // Con una transazione del CHIAMANTE (external) non possiamo assorbire
+            // l'errore ritornando false: il chiamante farebbe comunque commit() di
+            // uno stato parziale (es. prestito creato ma prenotazione ancora
+            // 'attiva'). Rilanciamo così è il proprietario a fare rollback. Quando
+            // possediamo noi la transazione l'abbiamo già annullata sopra: logghiamo
+            // e ritorniamo false come prima (CRITICAL #157).
+            if ($this->externalTransaction) {
+                throw $e;
+            }
+            \App\Support\SecureLogger::error('processBookAvailability error', ['error' => $e->getMessage()]);
             return false;
         }
     }
@@ -191,10 +259,10 @@ class ReservationManager
             return false;
         }
 
-        // Multi-copy aware: count only loanable copies (exclude lost/damaged/maintenance)
+        // Multi-copy aware: count only loanable copies.
         $totalStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM copie
-            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
         ");
         $totalStmt->bind_param('i', $bookId);
         $totalStmt->execute();
@@ -212,13 +280,24 @@ class ReservationManager
         // - Reservations are in a queue system - they wait their turn, they don't block each other
         // - When converting reservation #1, other reservations shouldn't prevent the conversion
         // Note: 'da_ritirare' counts as occupied even if copy is physically available
+        // CANONICAL "copy is occupied" predicate (#157, model A-refined):
+        //   (attivo = 1 AND stato IN active-states)
+        //   OR (stato = 'pendente' AND copia_id IS NOT NULL)
+        // A reservation-conversion pending (attivo=0) carries a copia_id and
+        // holds that copy until the admin confirms pickup, so it must count;
+        // a bare 'pendente' request with no copy assigned (origine='richiesta')
+        // does NOT yet hold a copy and must NOT reduce availability. The same
+        // predicate is mirrored in store/approveLoan/createReservation and the
+        // DB triggers so every entry point agrees.
         $stmt = $this->db->prepare("
             SELECT COUNT(*) as conflicts
             FROM prestiti
             WHERE libro_id = ?
-            AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
             AND data_prestito <= ? AND data_scadenza >= ?
+            AND (
+                (attivo = 1 AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'))
+                OR (stato = 'pendente' AND copia_id IS NOT NULL)
+            )
         ");
         $stmt->bind_param('iss', $bookId, $endDate, $startDate);
         $stmt->execute();
@@ -266,10 +345,12 @@ class ReservationManager
                 AND NOT EXISTS (
                     SELECT 1 FROM prestiti p
                     WHERE p.copia_id = c.id
-                    AND p.attivo = 1
-                AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo')
                     AND p.data_prestito <= ?
                     AND p.data_scadenza >= ?
+                    AND (
+                        (p.attivo = 1 AND p.stato IN ('in_corso', 'da_ritirare', 'prenotato', 'in_ritardo'))
+                        OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
+                    )
                 )
                 LIMIT 1
             ");
@@ -295,9 +376,12 @@ class ReservationManager
 
             $overlapCopyStmt = $this->db->prepare("
                 SELECT 1 FROM prestiti
-                WHERE copia_id = ? AND attivo = 1
-                AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo')
+                WHERE copia_id = ?
                 AND data_prestito <= ? AND data_scadenza >= ?
+                AND (
+                    (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                    OR (stato = 'pendente' AND copia_id IS NOT NULL)  -- pending conversion holds this copy (#157, model A-refined)
+                )
                 LIMIT 1
             ");
             $overlapCopyStmt->bind_param('iss', $copyId, $endDate, $startDate);
@@ -350,6 +434,11 @@ class ReservationManager
 
         } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
+            // In transazione esterna rilanciamo: assorbire qui lascerebbe il
+            // chiamante a fare commit() di un INSERT prestiti parziale (CRITICAL #157).
+            if ($this->externalTransaction) {
+                throw $e;
+            }
             error_log("Failed to create loan from reservation: " . $e->getMessage());
             return false;
         }
@@ -358,17 +447,22 @@ class ReservationManager
     /**
      * Decrement queue positions after a reservation is completed
      *
+     * Only positions strictly greater than the completed reservation's
+     * position are shifted down, so promoting a non-head reservation (when
+     * earlier positions are not yet date-eligible) does not corrupt the queue.
+     *
      * @param int $bookId The book ID
+     * @param int $completedPosition Queue position of the reservation just removed
      * @return void
      */
-    private function updateQueuePositions($bookId)
+    private function updateQueuePositions($bookId, int $completedPosition)
     {
         $stmt = $this->db->prepare("
             UPDATE prenotazioni
             SET queue_position = queue_position - 1
-            WHERE libro_id = ? AND stato = 'attiva' AND queue_position > 1
+            WHERE libro_id = ? AND stato = 'attiva' AND queue_position > ?
         ");
-        $stmt->bind_param('i', $bookId);
+        $stmt->bind_param('ii', $bookId, $completedPosition);
         $stmt->execute();
     }
 
@@ -483,11 +577,10 @@ class ReservationManager
         $existStmt->close();
 
         if ($totalCopiesExist > 0) {
-            // Copies exist in copie table - count only loanable ones
-            // Exclude permanently unavailable: 'perso', 'danneggiato', 'manutenzione'
+            // Copies exist in copie table - count only loanable ones.
             $totalStmt = $this->db->prepare("
                 SELECT COUNT(*) as total FROM copie
-                WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+                WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
             ");
             $totalStmt->bind_param('i', $bookId);
             $totalStmt->execute();
@@ -611,9 +704,15 @@ class ReservationManager
             $cancelledCount = $this->db->affected_rows;
             $stmt->close();
 
-            // Reorder queue positions for affected books
+            // Reorder queue positions for affected books and refresh their
+            // availability (#157): a today-covering active reservation absorbs a
+            // copy, so a book freed purely by an expired reservation would keep
+            // a stale 'prenotato'/0-availability status until an unrelated event
+            // recalculated it. Recalc here, inside the transaction.
+            $integrity = new \App\Support\DataIntegrity($this->db);
             foreach ($affectedBooks as $bookId) {
                 $this->reorderQueuePositions($bookId);
+                $integrity->recalculateBookAvailability($bookId, true);
             }
 
             $this->commitIfOwned($ownTransaction);
@@ -636,17 +735,31 @@ class ReservationManager
      */
     private function reorderQueuePositions($bookId)
     {
-        // Use MySQL user variables to update all positions in a single query
-        // This avoids N+1 queries when there are many active reservations
-        $this->db->query("SET @pos := 0");
-        $stmt = $this->db->prepare("
-            UPDATE prenotazioni
-            SET queue_position = (@pos := @pos + 1)
+        // Ordinamento deterministico (P2): le user-variable MySQL in un
+        // UPDATE ... ORDER BY non garantiscono l'ordine di assegnazione su MySQL 8 /
+        // MariaDB 10.3+. Leggiamo le righe ordinate e riscriviamo queue_position con
+        // un loop esplicito (stesso pattern già usato in DataIntegrity).
+        $sel = $this->db->prepare("
+            SELECT id FROM prenotazioni
             WHERE libro_id = ? AND stato = 'attiva'
-            ORDER BY queue_position ASC
+            ORDER BY queue_position ASC, id ASC
         ");
-        $stmt->bind_param('i', $bookId);
-        $stmt->execute();
-        $stmt->close();
+        $sel->bind_param('i', $bookId);
+        $sel->execute();
+        $res = $sel->get_result();
+        $ids = [];
+        while ($r = $res->fetch_assoc()) {
+            $ids[] = (int) $r['id'];
+        }
+        $sel->close();
+
+        $pos = 0;
+        $upd = $this->db->prepare("UPDATE prenotazioni SET queue_position = ? WHERE id = ?");
+        foreach ($ids as $id) {
+            $pos++;
+            $upd->bind_param('ii', $pos, $id);
+            $upd->execute();
+        }
+        $upd->close();
     }
 }

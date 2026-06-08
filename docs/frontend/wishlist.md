@@ -54,16 +54,25 @@ Il bottone diventa GRIGIO (rimosso!)
 
 **Opzione 2**: Dalla pagina wishlist
 ```
-Vai a /wishlist
+Vai a /wishlist (route locale-aware)
      ↓
 Trovi il libro nella lista
      ↓
 Clicca il bottone 🗑️ (trash)
      ↓
-"Rimuovere dalla wishlist?" → Conferma
+Dialog SweetAlert "Rimuovere dalla wishlist?" → "Sì, rimuovi"
      ↓
-Il libro è rimosso (reload pagina)
+POST /api/user/wishlist/toggle (con csrf_token + libro_id)
+     ↓
+La card viene rimossa in-place (la pagina si ricarica solo
+quando la wishlist resta vuota)
 ```
+
+> **Tecnico**: aggiunta e rimozione passano dallo stesso endpoint
+> `POST /api/user/wishlist/toggle` (`UserWishlistController::toggle`), che fa
+> toggle atomico (DELETE; se non esisteva, INSERT IGNORE) e risponde
+> `{"favorite": true|false}`. Lo stato per un singolo libro si interroga con
+> `GET /api/user/wishlist/status?libro_id=...`.
 
 ---
 
@@ -83,7 +92,6 @@ Il libro è rimosso (reload pagina)
 │  ┌─────────────────────┐  ┌────────────────────────┐  │
 │  │  "Gestisci i tuoi"  │  │  ❤️ X preferiti       │  │
 │  │  "titoli preferiti" │  │  ⚡ X disponibili ora  │  │
-│  │                     │  │  ⏰ X in attesa       │  │
 │  └─────────────────────┘  └────────────────────────┘  │
 │                          [Esplora Catalogo] [Prenotazioni]
 └───────────────────────────────────────────────────────┘
@@ -113,17 +121,22 @@ Il libro è rimosso (reload pagina)
 
 ## 📊 Riepilogo Statistiche
 
-**In cima alla wishlist, vedi 3 badge**:
+**In cima alla wishlist (card riepilogo) vedi 2 badge**:
 
 | Badge | Significato | Esempio |
 |-------|-------------|---------|
-| **❤️ X preferiti** | Quanti libri total nella wishlist | "❤️ 12 preferiti" |
-| **⚡ X disponibili ora** | Quanti puoi prendere IN QUESTO MOMENTO | "⚡ 5 disponibili ora" |
-| **⏰ X in attesa** | Quanti sono prestati (in attesa) | "⏰ 7 in attesa" |
+| **❤️ X preferiti** | Quanti libri totali nella wishlist (`#wishlist-total-count`) | "❤️ 12 preferiti" |
+| **⚡ X disponibili ora** | Quanti hanno una copia fisica realmente disponibile (`#wishlist-available-count`) | "⚡ 5 disponibili ora" |
 
-**Somma**: Disponibili + In attesa = Totale preferiti
+> **Nota**: esiste anche un contatore "in attesa" (`#wishlist-pending-count`,
+> = totali − disponibili) aggiornato via JavaScript, ma **non** è renderizzato
+> come badge visibile nella barra riepilogo standard.
 
-**Aggiornamento**: I numeri si aggiornano automaticamente quando aggiungi/rimuovi libri.
+**Disponibilità reale**: il conteggio "disponibili ora" usa
+`NotificationService::hasActualAvailableCopy()`, che considera copie fisiche,
+prenotazioni e prestiti in corso — non il semplice `copie_disponibili`.
+
+**Aggiornamento**: i numeri si aggiornano via JS quando rimuovi un libro o filtri.
 
 ---
 
@@ -192,8 +205,13 @@ Vedi di nuovo TUTTI i tuoi preferiti
 
 | Badge | Colore | Significato |
 |-------|--------|-------------|
-| **🟢 Disponibile ora** | Verde | Almeno 1 copia è libera! |
-| **⏰ In attesa** | Arancione | Tutte le copie sono in prestito |
+| **🟢 Disponibile ora** | Verde | `has_actual_copy = true` (copia fisica libera) |
+| **⏰ In attesa** | Arancione | Nessuna copia attualmente disponibile |
+
+**Data di prossima disponibilità**: per i libri "In attesa", se il sistema
+riesce a stimarla, la card mostra **"Disponibile dal: gg/mm/aaaa"**
+(`NotificationService::getNextAvailabilityDate()`). Altrimenti mostra
+"Nessuna copia attualmente disponibile".
 
 ---
 
@@ -209,13 +227,15 @@ Vedi di nuovo TUTTI i tuoi preferiti
 
 ### **2. 🗑️ Rimuovi**
 
-**Clicca** → Ti chiede conferma
+**Clicca** → Dialog SweetAlert di conferma
 ```
-"Rimuovere questo libro dalla wishlist?"
+"Rimuovere dalla wishlist?"
+"Sei sicuro di voler rimuovere questo libro dalla tua wishlist?"
      ↓
 [Sì, rimuovi]   [Annulla]
      ↓ (se sì)
-Libro rimosso (pagina ricaricata)
+POST /api/user/wishlist/toggle → la card sparisce in-place
+(reload solo se la wishlist diventa vuota)
 ```
 
 ---
@@ -444,6 +464,6 @@ Se hai una prenotazione attiva, rimane attiva anche se togli il libro dai prefer
 
 ---
 
-*Ultima lettura: 19 Ottobre 2025*
+*Ultima revisione: Giugno 2026 (allineato a UserWishlistController)*
 *Tempo lettura: 8 minuti*
 *Tempo per aggiungere un libro: 2 secondi*

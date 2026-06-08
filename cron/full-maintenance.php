@@ -61,6 +61,7 @@ fflush($lockHandle);
 register_shutdown_function(function () use ($lockHandle, $lockFile) {
     flock($lockHandle, LOCK_UN);
     fclose($lockHandle);
+    // nosemgrep: php.lang.security.unlink-use.unlink-use -- $lockFile is a fixed internal path (storage/cache/full-maintenance.lock), not user input
     @unlink($lockFile);
 });
 
@@ -121,19 +122,21 @@ try {
     logMessage("Running all maintenance tasks...");
     $results = $maintenance->runAll();
 
-    // Log detailed results
+    // Log detailed results (runAll() returns a fully-populated typed array, so
+    // every key is guaranteed present — no null-coalescing needed)
     logMessage("Maintenance completed:");
-    logMessage("- Scheduled loans activated (prenotato -> da_ritirare): " . ($results['scheduled_loans_activated'] ?? 0));
-    logMessage("- Scheduled reservations converted: " . ($results['reservations_converted'] ?? 0));
-    logMessage("- Expired reservations (prenotato -> scaduto): " . ($results['expired_reservations'] ?? 0));
-    logMessage("- Expired pickups (da_ritirare -> scaduto): " . ($results['expired_pickups'] ?? 0));
-    logMessage("- Overdue loans updated (in_corso -> in_ritardo): " . ($results['overdue_loans_updated'] ?? 0));
+    logMessage("- Scheduled loans activated (prenotato -> da_ritirare): " . $results['scheduled_loans_activated']);
+    logMessage("- Expired waitlist reservations (prenotazioni -> annullata): " . $results['expired_waitlist_reservations']);
+    logMessage("- Scheduled reservations converted: " . $results['reservations_converted']);
+    logMessage("- Expired reservations (prenotato -> scaduto): " . $results['expired_reservations']);
+    logMessage("- Expired pickups (da_ritirare -> scaduto): " . $results['expired_pickups']);
+    logMessage("- Overdue loans updated (in_corso -> in_ritardo): " . $results['overdue_loans_updated']);
 
     // Notification results (counts returned at top-level by MaintenanceService::runAll)
     logMessage("Notifications sent:");
-    logMessage("  - Expiration warnings: " . ($results['expiration_warnings'] ?? 0));
-    logMessage("  - Overdue notifications: " . ($results['overdue_notifications'] ?? 0));
-    logMessage("  - Wishlist notifications: " . ($results['wishlist_notifications'] ?? 0));
+    logMessage("  - Expiration warnings: " . $results['expiration_warnings']);
+    logMessage("  - Overdue notifications: " . $results['overdue_notifications']);
+    logMessage("  - Wishlist notifications: " . $results['wishlist_notifications']);
 
     if (!empty($results['errors'])) {
         logMessage("Errors encountered during maintenance:");
@@ -143,17 +146,16 @@ try {
     }
 
     // ICS calendar generation
-    if (isset($results['ics_generated'])) {
-        logMessage("- ICS calendar generated: " . ($results['ics_generated'] ? 'Yes' : 'No'));
-    }
+    logMessage("- ICS calendar generated: " . ($results['ics_generated'] ? 'Yes' : 'No'));
 
     // Calculate totals
     $totalActions =
-        ($results['scheduled_loans_activated'] ?? 0) +
-        ($results['reservations_converted'] ?? 0) +
-        ($results['expired_reservations'] ?? 0) +
-        ($results['expired_pickups'] ?? 0) +
-        ($results['overdue_loans_updated'] ?? 0);
+        $results['scheduled_loans_activated'] +
+        $results['expired_waitlist_reservations'] +
+        $results['reservations_converted'] +
+        $results['expired_reservations'] +
+        $results['expired_pickups'] +
+        $results['overdue_loans_updated'];
 
     logMessage("Total database actions: {$totalActions}");
 
@@ -173,7 +175,9 @@ try {
 
     logMessage("Full maintenance cron job completed successfully");
 
-} catch (Exception $e) {
+} catch (\Throwable $e) {
+    // \Throwable, not \Exception: with strict_types a TypeError is an \Error and
+    // would otherwise escape the cron's error/cleanup path.
     logMessage("ERROR: " . $e->getMessage());
     if (isset($db) && $db instanceof mysqli) {
         $db->close();

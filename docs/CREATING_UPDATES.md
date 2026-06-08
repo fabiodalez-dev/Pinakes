@@ -22,14 +22,17 @@ The application version is stored in `version.json` at the project root:
 ```json
 {
   "name": "Pinakes",
-  "version": "0.3.0",
+  "version": "0.7.17",
   "description": "Library Management System - Sistema di Gestione Bibliotecaria"
 }
 ```
 
 **When releasing a new version:**
 1. Update the `version` field following [Semantic Versioning](https://semver.org/)
-2. Commit the change before creating the GitHub release
+2. Bump the README version badge AND add a `## What's New in vX.Y.Z` section **in the same commit** (see `updater.md` for the exact rule)
+3. Commit the change before creating the GitHub release
+
+> **Pre-release identifiers (RC/beta):** a version string containing a hyphen (e.g. `0.7.15-rc.1`) is published as a GitHub **prerelease** and is hidden from the in-app updater by default. See `updater.md` § "Release Candidate / Prerelease packages".
 
 ### Version Numbers
 
@@ -49,16 +52,42 @@ The updater system automatically runs SQL migrations when upgrading between vers
 installer/database/migrations/
 ├── migrate_0.3.0.sql
 ├── migrate_0.4.0.sql
-└── migrate_0.5.0.sql
+├── ...
+├── migrate_0.7.16.sql
+└── migrate_0.7.17.sql   # loan settings + DELIMITER-aware trigger recreate
 ```
 
 ### How Migrations Work
 
 1. The updater reads `version.json` to get the current version
-2. It scans the migrations folder for files matching `migrate_X.X.X.sql`
-3. Only migrations **newer than current** and **<= target** are executed
+2. It scans the migrations folder (`glob('migrate_*.sql')`) and **sorts files with `version_compare()`** on the extracted version (so `migrate_0.7.10.sql` runs after `migrate_0.7.9.sql`, not before — lexical sort would be wrong)
+3. Only migrations **newer than current** (`> fromVersion`) **and `<= toVersion`** are executed:
+   ```php
+   if (version_compare($migrationVersion, $fromVersion, '>') &&
+       version_compare($migrationVersion, $toVersion, '<=')) { /* run */ }
+   ```
 4. Executed migrations are recorded in the `migrations` table
-5. Each migration runs only once (idempotent)
+5. Migrations should be idempotent (use `IF NOT EXISTS`, `INSERT IGNORE`, or `INFORMATION_SCHEMA` guards) — the updater does not skip a file that is already applied if its version is in range, so re-runs must be safe
+
+### ⚠️ CRITICAL: Migration version MUST be ≤ release version
+
+`version_compare()` decides whether a migration runs. A migration named with a version **higher than the release version is silently skipped** — no error, no warning.
+
+```
+Release version: 0.4.9.9
+migrate_0.5.0.sql   → version_compare('0.5.0', '0.4.9.9', '<=') = FALSE → SKIPPED!
+migrate_0.4.9.9.sql → version_compare('0.4.9.9', '0.4.9.9', '<=') = TRUE  → EXECUTED ✓
+```
+
+PHP compares segment-by-segment: `0=0`, then `5>4` → done; the extra `.9.9` is irrelevant. **Before every release, verify ALL `migrate_*.sql` files have a version ≤ `version.json`.** If you need multiple migrations for one release, merge them into a single file named after the release version.
+
+### Trigger / routine migrations (DELIMITER-aware runner)
+
+Migrations that create or drop triggers or stored routines (e.g. `migrate_0.7.17.sql`, which recreates the loan-integrity triggers from `installer/database/triggers.sql`) use `DELIMITER $$` blocks and `BEGIN … END` bodies containing internal semicolons. The standard `splitSqlStatements()` parser cannot handle these, so the updater routes them through `splitSqlWithDelimiters()`:
+
+- The updater detects a trigger/routine migration when the SQL matches `^\s*DELIMITER\b` or contains `CREATE TRIGGER`, then splits honoring the active `DELIMITER`.
+- `CREATE DEFINER=...@... TRIGGER` is normalized to plain `CREATE TRIGGER` so creation works regardless of the creating MySQL user.
+- **Trigger statements are defense-in-depth**: a failing `CREATE`/`DROP TRIGGER` (e.g. the DB user lacks the `TRIGGER` privilege on shared hosting) is logged as a non-fatal WARNING and does **not** abort the migration — the same rules are also enforced at the application level.
 
 ### Creating a Migration File
 
@@ -172,22 +201,33 @@ CREATE INDEX idx_name ON table_name(column_name);
 ### Checklist
 
 - [ ] Update `version.json` with new version number
-- [ ] Create migration file if database changes needed
+- [ ] Bump the README version badge AND add a `## What's New in vX.Y.Z` section (same commit)
+- [ ] Create migration file if database changes needed (version ≤ release version!)
 - [ ] Update `installer/database/schema.sql` with any new tables/columns
 - [ ] Update `installer/classes/Installer.php` EXPECTED_TABLES if new tables
-- [ ] Add English translations to `locale/en_US.json`
+- [ ] Update `installer/database/triggers.sql` AND a trigger migration if loan/copy triggers change
+- [ ] Add translations for any new `__()` string to all 4 locale JSONs (it_IT is the source; also fill en_US, de_DE, fr_FR)
+- [ ] Update `app/Support/BundledPlugins::LIST` if plugins added/removed/renamed
 - [ ] Test the migration on a copy of production database
-- [ ] Commit all changes
-- [ ] Create GitHub release with tag `vX.X.X`
+- [ ] Commit all changes and push to `main`
 
-### GitHub Release Steps
+### Creating the GitHub Release — `create-release.sh` is the ONLY way
 
-1. Go to GitHub repository
-2. Click "Releases" → "Create a new release"
-3. Tag: `vX.X.X` (e.g., `v0.4.0`)
-4. Title: `Pinakes vX.X.X`
-5. Description: Include changelog and migration notes
-6. Publish release
+**NEVER create the release ZIP manually. NEVER run `git archive` by hand. NEVER use the GitHub web UI to upload a ZIP.** All of these have broken production before (see the "Lessons Learned" history in `updater.md`).
+
+```bash
+# 1. Bump version.json + README, commit, push to main
+git add version.json README.md storage/plugins/*/plugin.json
+git commit -m "chore: bump version to X.Y.Z"
+git push origin main
+
+# 2. Run the one and only release command
+./scripts/create-release.sh X.Y.Z
+```
+
+The script verifies you are on `main` with a clean tree, checks `version.json`, installs production deps (`composer install --no-dev`), builds the ZIP via `git archive`, runs the ZIP-content verification (Step 5.5), generates the SHA256, creates the GitHub release, uploads the assets, and re-verifies the remote ZIP against the local one (Step 9.5). For full detail and the failure history see **`updater.md`**.
+
+> For a **prerelease** (version contains a hyphen, e.g. `X.Y.Z-rc.1`) the branch guard is relaxed and the script publishes with `--prerelease --target <branch>` instead of `--latest`.
 
 ### Release Notes Template
 
@@ -374,11 +414,13 @@ Add to `CREATE TABLE libri`:
 ```bash
 git add -A
 git commit -m "Add favorites_count column for v0.4.0"
-git tag v0.4.0
-git push origin main --tags
+git push origin main
+
+# Create the release (script creates the tag, ZIP, checksum and GitHub release)
+./scripts/create-release.sh 0.4.0
 ```
 
-**5. Create GitHub Release**
+**Do not** create the tag or the GitHub release by hand — `create-release.sh` owns the whole release flow.
 
 ---
 

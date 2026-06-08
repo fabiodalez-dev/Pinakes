@@ -1740,9 +1740,18 @@ ob_start();
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             <?php
-                              $e = $_GET['loan_error'];
-                              echo $e==='not_available' ? __('Nessuna copia disponibile per il periodo richiesto.') : __('Errore nella richiesta di prestito.');
+                              // Guardia is_scalar come per reserve_error: con ?loan_error[]=x
+                              // il cast diretto (string) genererebbe un warning in PHP 8.
+                              $loanErrorRaw = $_GET['loan_error'];
+                              $loanErrorKey = is_scalar($loanErrorRaw) ? (string) $loanErrorRaw : '';
                             ?>
+                            <?php if ($loanErrorKey === 'not_available'): ?>
+                              <?= __('Nessuna copia disponibile per il periodo richiesto.') ?>
+                            <?php elseif ($loanErrorKey === 'max_loans_reached'): ?>
+                              <?= __('Hai raggiunto il numero massimo di prestiti attivi consentiti') ?>
+                            <?php else: ?>
+                              <?= __('Errore nella richiesta di prestito.') ?>
+                            <?php endif; ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="<?= __('Chiudi') ?>"></button>
                         </div>
                     <?php endif; ?>

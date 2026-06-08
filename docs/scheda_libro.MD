@@ -46,10 +46,12 @@ La **scheda libro** è la pagina di dettaglio di ogni libro nel tuo sistema. Qui
 - 🆔 **ID Libro** (es. #56 - numero univoco)
 - ⭐ **Valutazione** (se attivata)
 
-**Bottoni Principali**:
--  **Modifica** - Va alla form di modifica
--  **Stampa Etichetta** - Genera il PDF per stampare
-- ⋮ **Menu Azioni** - Altre operazioni
+**Bottoni Principali** (come renderizzati dalla vista admin `scheda_libro.php`):
+-  **Stampa etichetta** - Genera il PDF dell'etichetta
+-  **Visualizza** - Apre la scheda pubblica (frontend) del libro
+-  **Modifica** - Va al form di modifica (`/admin/libri/modifica/{id}`)
+-  **Restituzione** / **Registra restituzione** - Se c'è un prestito attivo
+-  **Elimina** - Soft-delete del libro (con conferma; bloccato se ci sono prestiti/prenotazioni attive)
 
 ---
 
@@ -216,24 +218,23 @@ Donazione dalla biblioteca comunale di Milano."
 
 ---
 
-### Sezione Prestiti (Se Attiva)
+### Sezione Prestito Attivo (Se presente)
 
-**Se il libro è in prestito**:
-```
-╔════════════════════════════════════╗
-║ PRESTITO ATTIVO                    ║
-╠════════════════════════════════════╣
-║ Chi: Mario Rossi                   ║
-║ Data Inizio: 15/10/2025            ║
-║ Data Prevista Restituzione: 29/10  ║
-║ Stato: In corso                    ║
-╚════════════════════════════════════╝
-```
+**Se il libro è in prestito**, la scheda mostra il riquadro "Prestito attivo" con: utente (nome/email), data prestito, scadenza, **rinnovi effettuati** (es. `1 / 3`), staff che ha gestito il prestito, e le note.
 
-**Azioni disponibili**:
--  Visualizza dettagli prestito
--  Conferma restituzione (quando torna)
--  Invia promemoria
+**Rinnovo prestito**:
+- È disponibile il pulsante **"Rinnova prestito (+14 giorni)"**.
+- Il limite massimo di rinnovi è configurabile dall'admin (impostazione `loans.max_renewals`, default `3`) ed è applicato sia nella UI sia lato server in `PrestitiController::renew` (issue #157).
+- Il pulsante è disabilitato se il prestito è in ritardo ("Non rinnovabile: prestito in ritardo") o se è stato raggiunto il limite di rinnovi.
+
+**Restituzione**: pulsante **"Registra restituzione"** per chiudere il prestito.
+
+### Altre sezioni della scheda admin
+
+- **Copie fisiche**: elenco delle copie del libro (tabella `copie`) con il relativo stato, da `CopyRepository::getByBookId()`.
+- **Storico prestiti**: tutti i prestiti del libro (in corso e passati), con utente, date, stato, rinnovi e staff.
+- **Prenotazioni attive** (visibili solo a `admin`/`staff`, contengono PII): elenco delle prenotazioni con `stato = 'attiva'`, posizione in coda (`queue_position`) e date richieste.
+- **Multi-volume**: se il libro è un'opera con volumi, vengono elencati i volumi collegati; se è esso stesso un volume, viene mostrata l'opera padre (tabella `volumi`).
 
 ---
 
@@ -248,7 +249,7 @@ Donazione dalla biblioteca comunale di Milano."
 - Cambiare posizione fisica
 - Aggiungere dati mancanti
 
-**Link**: `/admin/libri/update/56` (es. con ID 56)
+**Link**: `/admin/libri/modifica/56` (es. con ID 56). Il salvataggio poi avviene in `POST /admin/libri/update/56`.
 
 >  **Per approfondire**: Leggi la [Guida Modifica Libro](/docs/modifica_libro.MD) per tutte le operazioni possibili.
 
@@ -290,13 +291,12 @@ Donazione dalla biblioteca comunale di Milano."
 
 ---
 
-### Bottone ⋮ Menu Azioni Rapide
+### Bottone Elimina
 
-**Azioni disponibili**:
--  **Duplica** - Crea una copia del libro con nuovi dati
--  **Stampa** - Stampa la scheda completa
--  **Esporta** - Esporta i dati in formato vario
--  **Elimina** - Rimuove il libro (con conferma)
+**Cosa fa**: esegue il **soft-delete** del libro (`POST /admin/libri/delete/{id}`, con conferma).
+
+- Il record non viene cancellato fisicamente: viene valorizzato `deleted_at` e azzerati `isbn10`/`isbn13`/`ean` e i campi di collocazione.
+- L'operazione è **bloccata** se esistono prestiti attivi o prenotazioni attive sul libro.
 
 ---
 
@@ -332,12 +332,13 @@ Donazione dalla biblioteca comunale di Milano."
 
 ### Scenario 4: Vuoi Aggiungere Altre Copie
 ```
-1. Apri la scheda
-2. Clicca ⋮ "Duplica"
-3. Si apre la form di modifica con i dati copiati
-4. Cambia il numero inventario
-5. Assegna una nuova posizione fisica
-6. Salva
+1. Apri la scheda libro
+2. Aumenta "Copie totali" dal form di modifica, OPPURE
+   usa le azioni copie dalla sezione "Copie fisiche":
+   - aggiungi/aggiorna: POST /admin/libri/copie/{id}/update
+   - elimina:           POST /admin/libri/copie/{id}/delete
+   (in alternativa: POST /api/libri/{id}/increase-copies)
+3. Le nuove copie ricevono un numero inventario progressivo (es. {base}-C2)
 ```
 
 ---
@@ -494,6 +495,6 @@ A.2.15
 
 ---
 
-**Documento aggiornato: 19 Ottobre 2025**
-**Versione: 1.0.0 - Guida Scheda Libro**
+**Documento aggiornato: 4 Giugno 2026**
+**Versione: 1.1.0 - Guida Scheda Libro**
 **Per utenti finali della biblioteca**

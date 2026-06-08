@@ -66,12 +66,12 @@ Hai inserito un libro ma ti rendi conto che:
 - Mancano dettagli nella descrizione
 
 #### Come Fare
-1. **Sezione "Aggiorna da ISBN"** in alto a destra del form
-2. **Digita o incolla**: L'ISBN (es. `9788842935780`)
-3. **Clicca**: **"Aggiorna Dati"** (icona sincronizzazione)
-4. **Attendi**: 3-5 secondi
-5. **Verifica**: I nuovi dati sono stati importati
-6. **Salva**: Le modifiche con il pulsante verde
+1. **Sezione "Importa/Aggiorna da ISBN"** del form
+2. **Digita o incolla**: L'ISBN/EAN (es. `9788842935780`)
+3. **Clicca** il pulsante di import → viene chiamato `GET /api/scrape/isbn?isbn=...` (rate-limited a 30 richieste/min)
+4. **Attendi**: alcuni secondi
+5. **Verifica**: i campi popolati (incluse copertina e descrizione TinyMCE)
+6. **Salva**: le modifiche con il pulsante verde
 
 ---
 
@@ -81,6 +81,8 @@ Hai inserito un libro ma ti rendi conto che:
 ```
 Dashboard → Libri →  Modifica
 ```
+
+> **Rotte**: il form di modifica è servito da `GET /admin/libri/modifica/{id}`; il salvataggio avviene su `POST /admin/libri/update/{id}` (protetto da CSRF + AdminAuth). Esiste anche un redirect di compatibilità da `GET /admin/libri/update/{id}` verso `/admin/libri/modifica/{id}`.
 
 Vedrai:
 - **ID Libro**: Numero univoco in alto (es. #123)
@@ -121,11 +123,11 @@ Prima: "Dante" (solo nome)
 Dopo: "Dante Alighieri" (nome completo)
 ```
 
-1. **Clicca** sul campo "Autori"
+1. **Clicca** sul campo "Autori" (campo Choices.js con autocomplete su `/api/autori`)
 2. **Cancella** l'autore sbagliato (clicca la X sul badge)
 3. **Digita** il nome corretto (es. "Dante Alighieri")
 4. **Seleziona** se appare nella lista
-5. **Oppure premi INVIO** per crearlo nuovo
+5. **Oppure premi INVIO** per committare il nome digitato e crearlo nuovo (issue #74: l'Invio salva sempre il testo digitato, anche se è prefisso di un autore esistente)
 
 **Situazione 2: Aggiungere co-autore**
 ```
@@ -185,9 +187,11 @@ Prima: Nessun genere
 Dopo: Prosa → Narrativa → Fantasy
 ```
 
-1. **Seleziona Radice**: es. "Prosa"
-2. **Seleziona Genere**: Si abilita → es. "Narrativa"
-3. **Seleziona Sottogenere** (opzionale): es. "Fantasy"
+1. **Seleziona Radice** (`radice_id`): es. "Prosa"
+2. **Seleziona Genere** (`genere_id`): si abilita dopo la radice → es. "Narrativa"
+3. **Seleziona Sottogenere** (`sottogenere_id`, opzionale): si abilita dopo il genere → es. "Fantasy"
+
+> In modifica i tre menu si pre-popolano con i valori correnti del libro (`radice_id`, `genere_id`, `sottogenere_id`) tramite gli attributi `data-initial-*`. I figli vengono caricati via `/api/generi` e `/api/generi/sottogeneri`.
 
 ### Passo 6: Modifica Dettagli Fisici
 
@@ -222,12 +226,10 @@ Dopo: 3 copie totali, 3 disponibili
 ```
 
 1. **Campo "Copie Totali"**: Cambia da `1` a `3`
-2. **Campo "Copie Disponibili"**: Cambia da `1` a `3`
-3. **Il sistema**: Gestisce automaticamente i prestiti
-   - Quando qualcuno prende in prestito → Copie disponibili scende a `2`
-   - Se tutti in prestito → Copie disponibili = `0`
+2. **Copie disponibili**: viene gestito dal sistema in base a prestiti/prenotazioni attive (ricalcolo della disponibilità), non va impostato manualmente come differenza fissa
+3. **Copie fisiche**: per aggiungere/eliminare le singole copie usa le azioni dalla scheda libro (`POST /admin/libri/copie/{id}/update` e `/delete`), oppure l'endpoint `POST /api/libri/{id}/increase-copies`
 
->  **Attenzione**: Se il libro è in prestito, potresti non poter cambiare questo campo!
+> **Attenzione**: se ci sono copie in prestito, alcune operazioni di riduzione sono limitate.
 
 ### Passo 8: Gestione Copertina
 
@@ -511,9 +513,11 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 **Come fare**:
 1. Modifica → Sezione "Dettagli Fisici"
 2. Copie Totali: 1 → 3
-3. Copie Disponibili: 1 → 3
-4. Salva
-5.  Fatto in 30 secondi
+3. Salva
+4.  Fatto in 30 secondi
+
+> Le **Copie Disponibili** non si impostano a mano: il sistema le ricalcola in
+> automatico in base a prestiti/prenotazioni attive (vedi Passo 7).
 
 ---
 
@@ -641,6 +645,6 @@ Dopo: Scaffale C, Mensola 1, Posizione 5
 
 ---
 
-**Documento aggiornato: 19 Ottobre 2025**
-**Versione: 3.0.0 - Guida Completa Estesa**
+**Documento aggiornato: 4 Giugno 2026**
+**Versione: 3.1.0 - Guida Completa Estesa**
 **Per utenti finali della biblioteca**

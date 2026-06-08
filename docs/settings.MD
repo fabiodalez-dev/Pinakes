@@ -31,11 +31,31 @@
 
 ---
 
-## Le 9 Aree Spiegate Semplice
+## Le Aree (Tab) delle Impostazioni
+
+La pagina Impostazioni (`/admin/settings`) è organizzata in **11 tab**. Il tab attivo è selezionabile con `?tab=…`:
+
+| Tab (`?tab=`) | Contenuto |
+|---|---|
+| `general` | Identità: nome, logo, descrizione footer, link social (Facebook, Twitter/X, Instagram, LinkedIn, Bluesky) |
+| `email` | Provider/SMTP + toggle "richiedi approvazione admin" alla registrazione |
+| `templates` | Template email (19 tipi) |
+| `cms` | Contenuti homepage / pagine + layout immagine eventi |
+| `contacts` | Pagina contatti, email/telefono, mappa (Google Maps o OpenStreetMap), reCAPTCHA |
+| `privacy` | Privacy policy, cookie banner e relativi testi |
+| `messages` | Messaggi ricevuti dal form contatti |
+| `labels` | Formato etichette libri |
+| `sharing` | Provider di condivisione social abilitati |
+| `advanced` | JS/CSS custom, sicurezza HTTPS/HSTS, timeout sessione, preavviso scadenza, sitemap, API pubbliche, llms.txt, modalità catalogo |
+| `loans` | Durata prestito, scadenza ritiro, rinnovi, max prestiti attivi per utente |
+
+> Tutte le rotte di salvataggio sono `POST /admin/settings/<area>` (es. `/admin/settings/general`, `/admin/settings/email`, `/admin/settings/labels`, `/admin/settings/loans`, …), protette da `AdminAuthMiddleware` + `CsrfMiddleware`. Le rotte admin sono letterali in inglese (decisione #145/#161).
 
 ### 1.  **Identità della Biblioteca** - Chi sei al pubblico
 
-**Dove**: Dashboard → Impostazioni → **Tab "Identità"**
+**Dove**: Dashboard → Impostazioni → **Tab "Identità"** (`?tab=general`)
+
+Oltre a nome/logo/descrizione, qui si impostano anche i **link ai social** (Facebook, Twitter/X, Instagram, LinkedIn, Bluesky), mostrati nel footer pubblico. Il logo accetta solo **PNG, JPG o WEBP** (max 2MB; SVG non supportato per motivi di sicurezza).
 
 **Cosa puoi cambiare:**
 
@@ -87,6 +107,8 @@ Chiedi i dati al tuo amministratore IT (se lavori in una scuola/ente).
 1. Clicca **"Test Connessione"**
 2. Se  **Verde**: Perfetto! Email funzioneranno
 3. Se  **Rosso**: Controlla i dati e riprova
+
+> **Dettagli tecnici**: il driver email (campo del form `mail_driver`, salvato come setting `email.driver_mode`) può valere `mail`, `smtp` o `phpmailer`; la cifratura SMTP (campo del form `smtp_encryption`, salvato come setting `email.smtp_security`) può essere `tls`, `ssl` o `none`. La password SMTP è cifrata prima di essere salvata (`SettingsEncryption`). Nello **stesso form** è presente il toggle **"Richiedi approvazione admin"** per le registrazioni (setting `registration.require_admin_approval`).
 
 ---
 
@@ -151,9 +173,11 @@ Riempi questi campi (semplice):
 
 ### 6.  **Template Email** - Personalizza i messaggi automatici
 
-**Dove**: Dashboard → Impostazioni → **Tab "Template"**
+**Dove**: Dashboard → Impostazioni → **Tab "Template"** (`?tab=templates`)
 
-Il sistema manda automaticamente 8 tipi di email. Qui le puoi personalizzare.
+Il sistema gestisce **19 tipi di email** (definiti in `App\Support\SettingsMailTemplates`). Qui puoi personalizzarli. I tipi includono, tra gli altri: `user_registration_pending`, `user_account_approved`, `user_password_setup`, `admin_invitation`, `loan_request_notification`, `loan_approved`, `loan_rejected`, `loan_pickup_ready`, `loan_pickup_expired`, `loan_pickup_cancelled`, `loan_expiring_warning`, `loan_overdue_notification`, `loan_overdue_admin`, `loan_returned`, `reservation_book_available`, `reservation_expired`, `wishlist_book_available`, `copy_unavailable_user`, `admin_new_review`.
+
+Salvataggio: `POST /admin/settings/templates/{template}`.
 
 **Cosa puoi cambiare per ogni email:**
 -  Oggetto (il titolo dell'email)
@@ -198,9 +222,26 @@ Scegli il **formato delle etichette** che stamperai:
 
 ---
 
+### 7-bis.  **Prestiti** - Regole dei prestiti
+
+**Dove**: Dashboard → Impostazioni → **Tab "Prestiti"** (`?tab=loans`) — salvataggio `POST /admin/settings/loans`
+
+Imposti le regole globali dei prestiti (categoria setting `loans`):
+
+| Campo (`name`) | Significato | Default | Clamp lato server |
+|---|---|---|---|
+| `loan_duration_days` | Durata standard del prestito (giorni) | 30 | 1 … 3650 (10 anni) |
+| `pickup_expiry_days` | Giorni entro cui ritirare un prestito approvato prima della scadenza ritiro | 3 | 1 … 365 |
+| `max_renewals` | Numero massimo di rinnovi (0 = illimitato) | 3 | 0 … 100 |
+| `max_active_loans_per_user` | Massimo prestiti attivi per utente (0 = illimitato) | 0 | 0 … 1000 |
+
+> **Importante**: il server **ricalcola e blocca (clamp)** ogni valore entro i limiti indicati a prescindere dagli attributi `min`/`max` del form (che sono solo indicativi). Un POST manipolato non può quindi impostare durate o rinnovi assurdi.
+
+---
+
 ### 8.  **Impostazioni Avanzate** - Personalizzazioni e funzionalità extra
 
-**Dove**: Dashboard → Impostazioni → **Tab "Avanzate"**
+**Dove**: Dashboard → Impostazioni → **Tab "Avanzate"** (`?tab=advanced`)
 
 > **Per la maggior parte degli utenti**: Lascia tutto di default, funziona perfettamente!
 > Esplora questa sezione solo se hai esigenze specifiche.
@@ -232,9 +273,19 @@ Puoi aggiungere codice personalizzato senza modificare i file di sistema:
 
 #### **Notifiche Scadenza Prestiti**
 
-**Giorni preavviso scadenza**: Quanti giorni prima della scadenza mandare l'email di promemoria.
-- Default: **3 giorni**
+**Giorni preavviso scadenza** (`days_before_expiry_warning`): Quanti giorni prima della scadenza mandare l'email di promemoria.
+- Default: **3 giorni** (clamp lato server: 1 … 30)
 - Esempio: Se un prestito scade il 30, l'email parte il 27
+
+#### **Timeout Sessione**
+
+**Durata sessione** (`session_lifetime`, in minuti): tempo di inattività dopo cui l'utente viene disconnesso.
+- Default: **180 minuti** (3 ore)
+- Valori ammessi (preset): 30, 60, 120, 180, 360, 720, 1440 minuti — qualunque altro valore viene riportato a 180
+
+#### **llms.txt**
+
+Toggle (`seo.llms_txt_enabled`) per generare il file `llms.txt` che descrive il sito agli assistenti AI.
 
 #### **Modalità Catalogo**
 
@@ -363,7 +414,7 @@ Qui trovi tutti i messaggi inviati dagli utenti tramite il form contatti del sit
  Nome: "Biblioteca Comunale Borgo Antico"
  Email: info@borgoantico.it
  Formato etichette: 25×38mm Standard
- Prestiti 30 giorni, sanzione €0.50/giorno
+ Prestiti 30 giorni, max 3 rinnovi (nessuna gestione sanzioni/multe nel sistema)
 ```
 
 ### Esempio 3: Biblioteca Privata/Aziendale
@@ -405,67 +456,90 @@ Qui trovi tutti i messaggi inviati dagli utenti tramite il form contatti del sit
 
 ```sql
 CREATE TABLE system_settings (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id INT PRIMARY KEY AUTO_INCREMENT,
     category VARCHAR(50) NOT NULL,
     setting_key VARCHAR(100) NOT NULL,
     setting_value TEXT,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_setting (category, setting_key),
-    INDEX idx_category (category),
-    INDEX idx_key (setting_key)
+    UNIQUE KEY unique_setting (category, setting_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
+I template email vivono in una tabella separata `email_templates` (`name` UNIQUE, `subject`, `body` LONGTEXT, `active`). Entrambe le tabelle sono create idempotentemente da `SettingsRepository::ensureTables()` (`CREATE TABLE IF NOT EXISTS`).
+
 #### Categorie Principali
 
+Categorie effettivamente usate dal `SettingsController` (chiave `category`):
+`app`, `email`, `registration`, `contacts`, `privacy`, `cookie_banner`, `advanced`, `api`, `seo`, `system`, `label`, `sharing`, `cms`, `loans`.
+
 ```sql
-INSERT INTO system_settings (category, setting_key, setting_value, description) VALUES
-('app', 'name', 'Biblioteca', 'Nome dell\'applicazione'),
-('app', 'description', 'Sistema di gestione biblioteca', 'Descrizione dell\'applicazione'),
-('library', 'loan_days', '14', 'Giorni di prestito predefiniti'),
-('library', 'max_renewals', '2', 'Numero massimo di rinnovi'),
-('library', 'fine_per_day', '0.50', 'Sanzione giornaliera per ritardi'),
-('email', 'driver', 'smtp', 'Driver email: smtp, mail, sendmail'),
-('email', 'host', 'smtp.gmail.com', 'Server SMTP'),
-('email', 'port', '587', 'Porta SMTP'),
-('email', 'encryption', 'tls', 'Tipo di cifratura: tls, ssl, none');
+-- Esempi reali di chiavi (category, setting_key)
+('app', 'name', 'Pinakes'),
+('app', 'logo_path', '/uploads/settings/logo_…'),
+('email', 'driver_mode', 'smtp'),            -- mail | smtp | phpmailer
+('email', 'smtp_host', 'smtp.gmail.com'),
+('email', 'smtp_port', '587'),
+('email', 'smtp_security', 'tls'),           -- tls | ssl | none
+('registration', 'require_admin_approval', '1'),
+('loans', 'loan_duration_days', '30'),
+('loans', 'pickup_expiry_days', '3'),
+('loans', 'max_renewals', '3'),
+('loans', 'max_active_loans_per_user', '0'), -- 0 = illimitato
+('advanced', 'days_before_expiry_warning', '3'),
+('advanced', 'session_lifetime', '180'),     -- minuti
+('advanced', 'force_https', '0'),
+('advanced', 'enable_hsts', '0'),
+('seo', 'llms_txt_enabled', '0'),
+('api', 'enabled', '0'),
+('system', 'catalogue_mode', '0'),
+('label', 'width', '25'), ('label', 'height', '38');
 ```
+
+> Non esistono chiavi `library.loan_days` / `fine_per_day`: le regole prestito stanno nella categoria `loans` (vedi tab "Prestiti"). Non c'è gestione sanzioni/multe nel codice del SettingsController.
 
 #### SettingsRepository Pattern
 
 ```php
 class SettingsRepository
 {
-    public function get(string $category, string $key, $default = null);
-    public function set(string $category, string $key, $value);
-    public function getCategory(string $category): array;
-    public function delete(string $category, string $key): bool;
-    public function createDefaults(): void;
+    public function ensureTables(): void;
+    public function get(string $category, string $key, ?string $default = null): ?string;
+    public function set(string $category, string $key, ?string $value): void;
+    public function getCategory(string $category): array;          // [setting_key => value]
+    public function delete(string $category, string $key): void;
+
+    // Template email
+    public function ensureEmailTemplates(array $templates): void;
+    public function getEmailTemplate(string $name): ?array;
+    public function getEmailTemplates(array $names = []): array;
+    public function saveEmailTemplate(string $name, string $subject, string $body, ?string $description = null, bool $active = true): void;
 }
 ```
+
+> Le impostazioni "live" sono anche replicate in `App\Support\ConfigStore` (es. `ConfigStore::set('app.name', …)`, `ConfigStore::get('system.catalogue_mode')`). Il `SettingsController` aggiorna sempre **entrambi**: la tabella tramite `SettingsRepository::set()` e la cache di runtime tramite `ConfigStore`.
 
 #### Email Multi-Provider Configuration
 
 ```php
-// Gmail SMTP
-$settings->set('email', 'driver', 'smtp');
-$settings->set('email', 'host', 'smtp.gmail.com');
-$settings->set('email', 'port', '587');
-$settings->set('email', 'username', 'tua-email@gmail.com');
-$settings->set('email', 'password', 'app-password-generata');
-$settings->set('email', 'encryption', 'tls');
+// Gmail SMTP — chiavi reali usate da SettingsController::updateEmailSettings()
+$settings->set('email', 'driver_mode', 'smtp');
+$settings->set('email', 'smtp_host', 'smtp.gmail.com');
+$settings->set('email', 'smtp_port', '587');
+$settings->set('email', 'smtp_username', 'tua-email@gmail.com');
+$settings->set('email', 'smtp_password', 'app-password-generata');
+$settings->set('email', 'smtp_security', 'tls');
 
 // Outlook SMTP
-$settings->set('email', 'host', 'smtp-mail.outlook.com');
-$settings->set('email', 'port', '587');
-$settings->set('email', 'encryption', 'tls');
+$settings->set('email', 'smtp_host', 'smtp-mail.outlook.com');
+$settings->set('email', 'smtp_port', '587');
+$settings->set('email', 'smtp_security', 'tls');
 
 // PEC Aruba
-$settings->set('email', 'host', 'smtps.pec.aruba.it');
-$settings->set('email', 'port', '465');
-$settings->set('email', 'encryption', 'ssl');
+$settings->set('email', 'smtp_host', 'smtps.pec.aruba.it');
+$settings->set('email', 'smtp_port', '465');
+$settings->set('email', 'smtp_security', 'ssl');
 ```
 
 #### Label Dimensions Configuration
@@ -501,71 +575,48 @@ $labelFormats = [
 
 #### Email Template System
 
-```php
-class EmailTemplateManager
-{
-    public function getTemplate(string $templateName): array;
-    public function updateTemplate(string $templateName, array $content): bool;
-    public function getAvailableVariables(): array;
-    public function processVariables(string $content, array $data): string;
-}
+Le definizioni di default dei 19 template sono in `App\Support\SettingsMailTemplates` (label, oggetto, corpo, descrizione, placeholders). All'apertura della pagina Impostazioni, `SettingsController::index()` chiama `ensureEmailTemplates()` per popolare i default mancanti; gli override personalizzati sono salvati in `email_templates` da `saveEmailTemplate()`.
 
-// Available templates with placeholders
-$templates = [
-    'user_registration' => [
-        'subject' => 'Registrazione - {{app_name}}',
-        'body' => 'Ciao {{user_name}}, grazie per esserti registrato...',
-        'placeholders' => ['user_name', 'app_name', 'app_email']
-    ],
-    'loan_approved' => [
-        'subject' => 'Prestito Approvato - {{book_title}}',
-        'body' => 'Ciao {{user_name}}, il libro {{book_title}} è pronto!',
-        'placeholders' => ['user_name', 'book_title', 'due_date']
-    ]
+```php
+// Lettura definizioni di default
+SettingsMailTemplates::all();              // array di 19 definizioni
+SettingsMailTemplates::get('loan_approved'); // singola definizione (o null)
+
+// Esempio definizione (placeholders come {{user_name}}, {{book_title}}, …)
+'loan_approved' => [
+    'label'        => '…',
+    'subject'      => '…',
+    'body'         => '…',
+    'description'  => '…',
+    'placeholders' => ['user_name', 'book_title', 'due_date'],
 ];
 ```
 
-#### API Endpoints
+#### Rotte di salvataggio (form admin, no REST JSON)
 
-**GET /api/settings/{category}**
-```json
-{
-  "category": "email",
-  "settings": {
-    "driver": "smtp",
-    "host": "smtp.gmail.com",
-    "port": "587",
-    "username": "***@gmail.com",
-    "password": "***"
-  }
-}
-```
+Le impostazioni **non** sono esposte tramite una REST `/api/settings/...`: sono form HTML `POST` protetti da `AdminAuthMiddleware` + `CsrfMiddleware`:
 
-**PUT /api/settings/{category}/{key}**
-```json
-{
-  "value": "nuovo_valore"
-}
-```
+| Area | Rotta |
+|---|---|
+| Identità | `POST /admin/settings/general` |
+| Email + approvazione registrazione | `POST /admin/settings/email` |
+| Template email | `POST /admin/settings/templates/{template}` |
+| Contatti | `POST /admin/settings/contacts` |
+| Privacy | `POST /admin/settings/privacy` |
+| Testi cookie banner | `POST /admin/settings/cookie-banner` |
+| Etichette | `POST /admin/settings/labels` |
+| Condivisione | `POST /admin/settings/sharing` |
+| Eventi (layout immagine) | `POST /admin/settings/events` |
+| Avanzate | `POST /admin/settings/advanced` |
+| Rigenera sitemap | `POST /admin/settings/advanced/regenerate-sitemap` |
+| Prestiti | `POST /admin/settings/loans` |
+| Toggle API pubbliche | `POST /admin/settings/api/toggle` |
+| Crea API key | `POST /admin/settings/api/keys/create` |
+| Toggle/Elimina API key | `POST /admin/settings/api/keys/{id}/toggle` · `/delete` |
 
-**POST /api/settings/test-email**
-```json
-{
-  "recipient": "test@example.com",
-  "template": "test"
-}
-```
+#### Strategia di cache
 
-#### Cache Strategy
-
-Settings are cached with invalidation on update:
-
-```php
-// Cache key: settings:category:key
-Cache::remember("settings:{$category}:{$key}", 3600, function() {
-    return $this->database->query(...);
-});
-```
+Il runtime usa `App\Support\ConfigStore` come cache in-memory delle impostazioni (popolata da DB + default localizzati). Dopo modifiche che cambiano la modalità catalogo, il controller invoca `ConfigStore::clearCache()`. Non esiste un layer `Cache::remember('settings:…')` con TTL: la persistenza è il DB, la cache di runtime è `ConfigStore`.
 
 #### Security Considerations
 
@@ -631,13 +682,19 @@ $settings->set('security', 'hsts_max_age', '31536000'); // 1 year in seconds
 #### Catalogue Mode
 
 ```php
-// Disable loan functionality, show only catalogue
-$settings->set('library', 'catalogue_mode', true);
+// Disabilita i prestiti, mostra solo il catalogo.
+// La chiave è 'catalogue_mode' nella categoria 'system' (NON 'library').
+$repository->set('system', 'catalogue_mode', '1');
+ConfigStore::set('system.catalogue_mode', true);
+ConfigStore::clearCache();
 
-// When enabled:
-// - Hides loan buttons and user registration
-// - Public search and book details remain accessible
-// - Admin functions fully available
+// Lettura runtime:
+ConfigStore::isCatalogueMode(); // bool
+
+// Quando attiva:
+// - Nasconde pulsanti prestito e prenotazioni (dashboard + frontend)
+// - Ricerca e dettaglio libro restano accessibili
+// - Le funzioni admin restano disponibili
 ```
 
 #### Contact Messages API
@@ -672,5 +729,5 @@ $settings->set('library', 'catalogue_mode', true);
 
 ---
 
-*Ultimo aggiornamento: 24 Gennaio 2026*
-*Versione Documentazione: 6.0.0 - Complete Settings Reference*
+*Ultimo aggiornamento: 4 Giugno 2026*
+*Versione Documentazione: 7.0.0 - Allineata a SettingsController (11 tab)*

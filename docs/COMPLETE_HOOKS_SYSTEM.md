@@ -1,6 +1,20 @@
 # Sistema Completo di 60 Hooks per Pinakes
 
-Questo documento descrive tutti i 60 hooks strategici disponibili nel sistema Pinakes, progettati per rendere l'applicazione estremamente estensibile e personalizzabile tramite plugin.
+Questo documento descrive i 60 hooks strategici **progettati** per il sistema Pinakes, pensati per rendere l'applicazione estremamente estensibile e personalizzabile tramite plugin.
+
+> **IMPORTANTE — stato di implementazione.** La maggior parte degli hook elencati qui sotto è **pianificata**, non ancora invocata dal core. Questo file è la roadmap dei punti di estensione.
+>
+> Gli hook **realmente invocati** dal codice oggi sono (vedi `PLUGIN_HOOKS.md` per i punti esatti):
+> - **Libri**: `book.data.get`, `book.save.before`, `book.save.after`, `book.form.fields`, `book.frontend.details`
+> - **Autori**: `author.data.get`, `author.save.before`, `author.save.after`, `author.form.fields`
+> - **Editori**: `publisher.data.get`
+> - **Login**: `login.form.render.before`, `login.form.html`, `login.form.fields`, `login.validate`, `login.success`, `login.failed`
+> - **Scraping**: `scrape.sources`, `scrape.fetch.custom`, `scrape.response` *(gli altri `scrape.*` sotto NON sono ancora invocati dal core)*
+> - **Immagini**: `image.process`
+> - **Integrazione plugin**: `app.routes.register`, `admin.menu.render`, `assets.head`, `search.unified.sources`, `frontend.catalog.archive_results`
+> - **Digital library**: `book.detail.digital_buttons`, `book.detail.digital_player`, `book.badge.digital_icons`, `book.form.digital_fields`
+>
+> Tutti gli hook delle categorie **PRESTITO**, **RECENSIONE**, **PRENOTAZIONE**, **IMPORT/EXPORT**, gran parte di **UTENTE** e **RICERCA**, e gli scraping `scrape.parse`/`scrape.validate.data`/`scrape.data.modify`/`scrape.error`/`scrape.isbn.validate` qui descritti sono **pianificati e non ancora invocati**.
 
 ## Indice dei Hooks per Categoria
 
@@ -393,6 +407,10 @@ class MyPlugin {
 }
 ```
 
+## Plugin con tabelle DB — `ensureSchema()` obbligatorio
+
+Ogni plugin che crea tabelle **DEVE** implementare `ensureSchema()` (solo `CREATE TABLE IF NOT EXISTS`, idempotente) e chiamarlo **sia** da `onActivate()` **sia** da `onInstall()`. Gli upgrade dell'app non ri-eseguono `onActivate()` per i plugin già attivi: se le tabelle stanno solo in `onInstall()`, dopo un aggiornamento risultano silenziosamente assenti. In `onActivate()` controllare il risultato e lanciare `\RuntimeException` su `failed`. Dettagli completi in `PLUGIN_SYSTEM.md`. Plugin di riferimento: `ArchivesPlugin`, `OaiPmhServerPlugin`, `NcipServerPlugin`, `Z39ServerPlugin`, `FrbrLrmPlugin`.
+
 ## Note Importanti
 
 1. **Filter Hooks** devono sempre ritornare un valore
@@ -400,3 +418,4 @@ class MyPlugin {
 3. La priorità determina l'ordine di esecuzione
 4. Hook con stessa priorità vengono eseguiti in ordine di registrazione
 5. I plugin possono registrare hooks multipli sullo stesso evento
+6. In `onActivate()` **non** invocare `Hooks::do()/apply()` (`doAction`/`applyFilters`): triggera il caricamento hook prima del guard runtime → rotte registrate due volte → routing admin rotto. Registrare gli hook solo via `INSERT` in `plugin_hooks`.

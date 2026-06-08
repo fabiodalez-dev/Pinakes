@@ -253,9 +253,13 @@ class DashboardStats
                    ORDER BY COALESCE(r.data_inizio_richiesta, r.data_scadenza_prenotazione, r.created_at) ASC";
         $res = $this->db->query($resSql);
         while ($row = $res->fetch_assoc()) {
-            // Use fallback dates: data_inizio_richiesta -> data_scadenza_prenotazione -> today
-            $startDate = $row['data_inizio_richiesta'] ?? $row['data_scadenza_prenotazione'] ?? $today;
-            $endDate = $row['data_fine_richiesta'] ?? $row['data_scadenza_prenotazione'] ?? $today;
+            // Salta le prenotazioni in coda senza un periodo richiesto: non hanno una
+            // data da mostrare e finirebbero come "eventi fantasma" sul giorno corrente.
+            $startDate = $row['data_inizio_richiesta'] ?? $row['data_scadenza_prenotazione'] ?? null;
+            $endDate = $row['data_fine_richiesta'] ?? $row['data_scadenza_prenotazione'] ?? $startDate;
+            if ($startDate === null) {
+                continue;
+            }
             $events[] = [
                 'id' => 'res_' . $row['id'],
                 'title' => $row['titolo'],

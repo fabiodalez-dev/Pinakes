@@ -61,6 +61,10 @@ $activeTab = $activeTab ?? 'general';
         <i class="fas fa-cogs text-sm mr-2"></i>
         <?= __("Avanzate") ?>
       </button>
+      <button type="button" data-settings-tab="loans" class="settings-tab <?php echo $activeTab === 'loans' ? 'settings-tab-active' : ''; ?>">
+        <i class="fas fa-book-open text-sm mr-2"></i>
+        <?= __("Prestiti") ?>
+      </button>
     </div>
 
     <div class="p-6">
@@ -675,6 +679,9 @@ $activeTab = $activeTab ?? 'general';
 
       <!-- Advanced Settings -->
       <?php include __DIR__ . '/advanced-tab.php'; ?>
+
+      <!-- Loans Settings -->
+      <?php include __DIR__ . '/loans-tab.php'; ?>
     </div>
   </div>
 </div>

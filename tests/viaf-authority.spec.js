@@ -76,6 +76,10 @@ function adminPost(request, path, data) {
         headers: {
             'Authorization': basicAuth(ADMIN_EMAIL, ADMIN_PASS),
             'Content-Type': 'application/x-www-form-urlencoded',
+            // Non-ambient API-client marker: a real stateless client sets this;
+            // a cross-site browser request cannot (CORS preflight). Required for
+            // the plugin's CSRF exemption alongside Basic auth + no cookies.
+            'X-Requested-With': 'XMLHttpRequest',
         },
         data,
     });

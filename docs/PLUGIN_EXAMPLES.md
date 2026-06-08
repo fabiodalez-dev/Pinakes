@@ -386,6 +386,28 @@ Questa guida presenta 20 idee di plugin che sfruttano il sistema di hooks di Pin
 
 ---
 
+## Plugin Realmente Inclusi in Pinakes
+
+Gli esempi sopra sono **idee/proposte**. Pinakes distribuisce già in `storage/plugins/` i seguenti plugin funzionanti:
+
+| Plugin | Versione | Cosa fa | Hook/endpoint chiave |
+|--------|----------|---------|----------------------|
+| **archives** | 1.5.0 | Materiale archivistico ISAD(G)/ISAAR(CPF)/RiC-O, gerarchia Fondo→Serie→Fascicolo→Unità, export RiC-O JSON-LD | `frontend.catalog.archive_results`, `search.unified.sources`, `app.routes.register`, `admin.menu.render` |
+| **discogs** | 1.1.0 | Scraping musicale (Discogs + MusicBrainz + Cover Art Archive + Deezer) | `scrape.sources`, `scrape.fetch.custom` |
+| **scraping-pro** | 1.6.0 | Scraping libri Ubik/LibreriaUniversitaria/Feltrinelli con selezione copertina HD | `scrape.sources`, `scrape.fetch.custom`, `scrape.response` |
+| **oai-pmh-server** | 1.1.0 | Server OAI-PMH 2.0 (`/oai`), formati oai_dc/MARCXML/MODS/MAG/UNIMARC/RiC-O | `app.routes.register` |
+| **ncip-server** | 1.0.0 | Server NCIP 2.0 (`/ncip`) per scambio dati prestiti con ILS | `app.routes.register` |
+| **z39-server** | 1.3.0 | Server SRU + client Z39.50/SRU, livello REICAT/SBN, round-trip UNIMARC | `app.routes.register`, `book.form.fields`, `author.form.fields`, `book.save.after`, `scrape.sources`, `scrape.fetch.custom` |
+| **frbr-lrm** | 1.0.0 | Modello FRBR/IFLA LRM (`opere`/`espressioni`), pagina `/opera/{slug}`, dedup | `app.routes.register`, `admin.menu.render` |
+| **dewey-editor** | 1.0.1 | Editor visuale classificazioni Dewey (CRUD + import/export JSON) | `app.routes.register` |
+| **digital-library** | 1.3.0 | eBooks (PDF/ePub) e audiobook con player e viewer integrati | `book.detail.digital_buttons`, `book.detail.digital_player`, `book.badge.digital_icons`, `book.form.digital_fields`, `assets.head`, `app.routes.register` |
+
+Altri plugin presenti: `bibframe-linked-data`, `resource-sync`, `openurl-resolver`, `viaf-authority`, `musicbrainz`, `deezer`, `goodlib`, `open-library`, `api-book-scraper`.
+
+> I plugin con tabelle DB (archives, oai-pmh-server, ncip-server, z39-server, frbr-lrm, viaf-authority) implementano `ensureSchema()` chiamato da `onActivate()` **e** `onInstall()`.
+
+---
+
 ## Come Implementare Questi Plugin
 
 ### 1. Struttura Base Plugin
@@ -410,12 +432,14 @@ my-plugin/
   "author": "Your Name",
   "description": "Dashboard statistiche avanzato",
   "main_file": "wrapper.php",
-  "requires": {
-    "php": ">=8.0",
-    "pinakes": ">=1.0.0"
-  }
+  "requires_php": "8.0",
+  "requires_app": "1.0.0"
 }
 ```
+
+> Lo schema reale di `plugin.json` usa i campi piatti `requires_php` e `requires_app` (vedi `PLUGIN_SYSTEM.md`), **non** un oggetto `requires`. I plugin bundled usano `wrapper.php` come `main_file`: una classe proxy globale (`class XxxPlugin`) che istanzia l'implementazione namespaced (`App\Plugins\Xxx\XxxPlugin`) e inoltra i metodi del ciclo di vita via `__call()`.
+
+> **Plugin con tabelle DB**: implementare `ensureSchema()` (solo `CREATE TABLE IF NOT EXISTS`) e chiamarlo sia da `onActivate()` sia da `onInstall()`; gli upgrade non ri-eseguono `onActivate()` per i plugin già attivi.
 
 ### 3. Esempio Classe Principale
 

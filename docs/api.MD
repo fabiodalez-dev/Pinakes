@@ -9,6 +9,7 @@
 
 - [Overview](#overview)
 - [Authentication & Security](#authentication--security)
+- [Public API (API-key gated)](#public-api-api-key-gated)
 - [Response Format](#response-format)
 - [Libri API](#libri-api)
 - [Prestiti API](#prestiti-api)
@@ -17,6 +18,7 @@
 - [Generi API](#generi-api)
 - [Editori API](#editori-api)
 - [Dewey API](#dewey-api)
+- [Availability & Calendar API](#availability--calendar-api)
 - [Error Handling](#error-handling)
 - [Rate Limiting](#rate-limiting)
 
@@ -37,7 +39,15 @@ http://localhost:8000/api
 - **Response Format**: JSON with DataTables compatibility
 
 ### Authentication
-All API endpoints are **session-based authenticated**. Requests must include valid session cookies.
+
+Pinakes exposes **two distinct API surfaces** with different authentication models:
+
+| Surface | Routes | Auth |
+|---------|--------|------|
+| **Internal / admin API** | `/api/libri`, `/api/prestiti`, `/api/utenti`, `/api/autori`, `/api/editori`, `/api/generi/*`, `/api/dewey/*`, `/api/search/*`, `/api/collane/*`, `/api/collocazione/*`, `/api/books/{id}/availability*`, ... | **Session-based** (browser cookies + role middleware). Used by the admin UI / DataTables. |
+| **Public API** | `/api/public/*` | **API key** via `ApiKeyMiddleware`. Requires `api.enabled = '1'` in settings and a valid key in the `X-API-Key` header or `api_key` query parameter. |
+
+The internal endpoints below are **not** intended for third-party integration — they are session-gated through `AuthMiddleware`/`AdminAuthMiddleware` and return HTML-laced DataTables payloads. For programmatic third-party access use the **Public API** described below.
 
 ### Protocol
 - **HTTP Methods**: GET, POST (with DataTables integration)
@@ -73,6 +83,108 @@ POST requests require CSRF token in:
 - Prepared statements prevent SQL injection
 - XSS prevention via HTML escaping
 - Rate limiting per IP address
+
+---
+
+## Public API (API-key gated)
+
+The public API is the supported entry point for third-party integrations. It is
+protected by `App\Middleware\ApiKeyMiddleware` and is independent from the
+session-based admin endpoints.
+
+### Enabling the API
+
+1. The setting `api.enabled` must equal `'1'` (Admin → Settings → API tab).
+   If disabled, **every** `/api/public/*` request returns `403`.
+2. Create an API key (stored in the `api_keys` table, managed by
+   `ApiKeyRepository`). Inactive/unknown keys return `401`.
+
+### Passing the key
+
+Provide the key in **either**:
+- HTTP header (preferred): `X-API-Key: <key>`
+- Query parameter: `?api_key=<key>`
+
+Each authenticated request updates the key's `last_used` timestamp
+(non-blocking; failures are logged, not fatal).
+
+### Endpoint: `GET /api/public/books/search`
+
+**Description**: Search the catalogue by code or author and return complete book
+records (publisher, genre, authors, current loan status, approved reviews and
+active reservation count).
+
+**Handler**: `App\Controllers\PublicApiController::searchBooks`
+
+**Query Parameters** (at least one is required):
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `ean` | string | Exact match on `libri.ean` |
+| `isbn13` | string | Exact match on `libri.isbn13` |
+| `isbn10` | string | Exact match on `libri.isbn10` |
+| `author` | string | Partial match (`LIKE %...%`) on author name |
+
+Multiple parameters are combined with **OR**. Soft-deleted books
+(`deleted_at IS NULL`) are always excluded. Results are capped at **50** rows.
+
+**Example Request**:
+
+```bash
+curl "https://example.com/api/public/books/search?isbn13=9788842935780" \
+  -H "X-API-Key: YOUR_KEY"
+```
+
+**Example Response** (`200`, pretty-printed JSON):
+
+```json
+{
+  "results": [
+    {
+      "id": 156,
+      "titolo": "La Divina Commedia",
+      "sottotitolo": null,
+      "isbn10": "8842935786",
+      "isbn13": "9788842935780",
+      "ean": null,
+      "issn": null,
+      "copie_totali": 3,
+      "copie_disponibili": 2,
+      "classificazione_dewey": "851",
+      "collocazione": "A.2.15",
+      "stato": "disponibile",
+      "editore": { "id": 1, "nome": "Mondadori", "indirizzo": "...", "sito_web": "..." },
+      "genere": { "id": 15, "nome": "Poesia", "parent_id": null, "parent_nome": null },
+      "autori": [
+        { "id": 7, "nome": "Dante Alighieri", "biografia": "...", "data_nascita": "1265-05-29", "data_morte": "1321-09-14", "nazionalita": "Italiana" }
+      ],
+      "prestito": null,
+      "recensioni": [],
+      "prenotazioni_attive": 0
+    }
+  ],
+  "count": 1,
+  "api_key_name": "Integration X"
+}
+```
+
+The full per-book object also includes: `data_acquisizione`, `data_pubblicazione`,
+`tipo_acquisizione`, `copertina_url`, `descrizione`, `parole_chiave`, `formato`,
+`tipo_media`, `peso`, `dimensioni`, `prezzo`, `numero_pagine`, `traduttore`,
+`collana`, `numero_serie`, `numero_inventario`, `note_varie`, `file_url`,
+`audio_url`, `created_at`, `updated_at`. The `prestito` object (when a loan is
+active) carries `data_prestito`, `data_scadenza`, `data_restituzione`, `stato`,
+`attivo` and the borrowing `utente`. `recensioni` only contains reviews with
+`stato = 'approvata'`.
+
+**Status Codes**:
+- `200 OK`: success
+- `400 Bad Request`: no search parameter supplied
+- `401 Unauthorized`: missing or invalid API key
+- `403 Forbidden`: API disabled (`api.enabled != '1'`)
+- `500 Internal Server Error`: unhandled error (logged via `SecureLogger`)
+
+**Error shape** (public API): `{ "error": "<message>", "status": <code> }`.
 
 ---
 
@@ -146,11 +258,13 @@ POST requests require CSRF token in:
 | `anno_to` | int | "" | Publication year end |
 
 **Example Request**:
+
 ```bash
 curl "http://localhost:8000/api/libri?draw=1&start=0&length=20&search_text=Dante&genere_filter=5"
 ```
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -188,9 +302,11 @@ curl "http://localhost:8000/api/libri?draw=1&start=0&length=20&search_text=Dante
 
 ### Endpoint: `GET /api/prestiti`
 
-**Description**: List all loans with advanced filtering
+**Description**: List all loans with advanced filtering (DataTables). Handler:
+`App\Controllers\PrestitiApiController::list`.
 
-**Authentication**: Required (session)
+**Authentication**: Required (session, **admin** role via `AdminAuthMiddleware`).
+Rate limited to **30 requests/minute** (`RateLimitMiddleware`).
 
 **Query Parameters**:
 
@@ -204,15 +320,17 @@ curl "http://localhost:8000/api/libri?draw=1&start=0&length=20&search_text=Dante
 | `attivo` | int | -1 | Filter by active status (0=returned, 1=active, -1=all) |
 | `from` | date | "" | Loan date range start (YYYY-MM-DD) |
 | `to` | date | "" | Loan date range end |
-| `stato_specifico` | string | "" | Filter by specific status (richiesto, approvato, in_corso, in_ritardo, restituito) |
+| `stato_specifico` | string | "" | Filter by a specific `prestiti.stato` value (see Loan States below) |
 | `search_value` | string | "" | Search by book title, user name, or staff name |
 
 **Example Request**:
+
 ```bash
 curl "http://localhost:8000/api/prestiti?draw=1&start=0&length=10&attivo=1&stato_specifico=in_corso"
 ```
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -237,15 +355,23 @@ curl "http://localhost:8000/api/prestiti?draw=1&start=0&length=10&attivo=1&stato
 }
 ```
 
-**Loan States**:
-```
-richiesto      → Request pending admin approval
-approvato      → Request approved, awaiting pickup
+**Loan States** (`prestiti.stato`, as validated in `PrestitiController`):
+
+```text
+pendente       → Request pending admin approval
+prenotato      → Reservation/request approved (queued)
+da_ritirare    → Approved, awaiting pickup
 in_corso       → Active loan, in user's possession
 in_ritardo     → Past due date
 restituito     → Returned and closed
+perso          → Lost
+danneggiato    → Damaged
 annullato      → Cancelled
+scaduto        → Expired (e.g. pickup window elapsed)
 ```
+
+The boolean `attivo` flag is `1` while the loan occupies a copy
+(`prenotato`, `da_ritirare`, `in_corso`, `in_ritardo`) and `0` once closed.
 
 ---
 
@@ -253,9 +379,11 @@ annullato      → Cancelled
 
 ### Endpoint: `GET /api/utenti`
 
-**Description**: List all users with filtering
+**Description**: List all users with filtering (DataTables). Handler:
+`App\Controllers\UtentiApiController::list`.
 
-**Authentication**: Required (session, admin role)
+**Authentication**: Required (session, **admin** role via `AdminAuthMiddleware`).
+Rate limited to **30 requests/minute**.
 
 **Query Parameters**:
 
@@ -270,11 +398,13 @@ annullato      → Cancelled
 | `created_from` | date | "" | Account creation date start (YYYY-MM-DD) |
 
 **Example Request**:
+
 ```bash
 curl "http://localhost:8000/api/utenti?draw=1&start=0&length=20&role_filter=admin"
 ```
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -323,6 +453,7 @@ curl "http://localhost:8000/api/utenti?draw=1&start=0&length=20&role_filter=admi
 | `nascita_to` | year | "" | Birth year end |
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -363,11 +494,13 @@ curl "http://localhost:8000/api/utenti?draw=1&start=0&length=20&role_filter=admi
 | `limit` | int | 20 | Max results (max 50) |
 
 **Example Request**:
+
 ```bash
 curl "http://localhost:8000/api/generi/search?q=fan&limit=10"
 ```
 
 **Example Response**:
+
 ```json
 [
   {
@@ -410,6 +543,7 @@ curl "http://localhost:8000/api/generi/search?q=fan&limit=10"
 | `created_from` | date | "" | Creation date start |
 
 **Example Response**:
+
 ```json
 {
   "draw": 1,
@@ -442,6 +576,7 @@ curl "http://localhost:8000/api/generi/search?q=fan&limit=10"
 **Authentication**: Required (session)
 
 **Example Response**:
+
 ```json
 [
   {
@@ -470,6 +605,78 @@ curl "http://localhost:8000/api/generi/search?q=fan&limit=10"
 ```bash
 curl "http://localhost:8000/api/dewey/divisions/000"
 ```
+
+---
+
+## Availability & Calendar API
+
+These session-protected endpoints back the loan/reservation UI and the
+per-book availability calendar. They require a logged-in user with one of the
+roles `admin`, `staff`, `standard`, `premium` (`AuthMiddleware`).
+
+### Endpoint: `GET /api/books/{id}/availability`
+
+Returns the live availability snapshot for a single book.
+
+```json
+{
+  "available": true,
+  "copies_available": 2,
+  "copies_total": 3,
+  "next_due_date": null,
+  "queue": 0
+}
+```
+
+- `available` is `true` when `copie_disponibili > 0`.
+- `next_due_date` is the earliest `data_scadenza` among **active** loans
+  (`prestiti.attivo = 1`), only populated when no copies are available.
+- `queue` counts active reservations (`prenotazioni.stato = 'attiva'`).
+- Soft-deleted books return `404` with `{ "success": false, "message": "..." }`.
+
+### Endpoint: `GET /api/books/{id}/availability-calendar`
+
+Per-day availability for the next *N* days, used by the calendar widget.
+
+| Parameter | Type | Default | Notes |
+|-----------|------|---------|-------|
+| `days` | int | 60 | Clamped to `1..180` (values `< 1` reset to 30) |
+
+```json
+{
+  "total_copies": 3,
+  "days": [ { "date": "2026-06-04", "available": 2 } ]
+}
+```
+
+Backed by `ReservationsController::getBookAvailabilityData()`.
+
+### Endpoint: `GET /api/libri/{id}/disponibilita`
+
+Frontend-facing availability summary (used by the public book page calendar),
+computed over a 180-day horizon.
+
+```json
+{
+  "copie_disponibili": 2,
+  "copie_totali": 3,
+  "first_available": "2026-06-04"
+}
+```
+
+### Endpoint: `GET {api_book}/{id}/availability`
+
+Locale-aware variant registered per active locale via
+`RouteTranslator::getRouteForLocale('api_book', $locale)` (e.g.
+`/api/libro/{id}/availability` in Italian, `/api/book/{id}/availability` in
+English). Returns `unavailable_dates`, `earliest_available` and the per-day
+`days` array over a 180-day window.
+
+### Calendar export: `GET /calendar/events.ics`
+
+Dynamically generated iCalendar feed of library events (also served at the
+legacy path `/storage/calendar/library-calendar.ics`). `Content-Type:
+text/calendar`.
 
 ---
 
@@ -534,6 +741,13 @@ curl "http://localhost:8000/api/dewey/divisions/000"
 ---
 
 ## Rate Limiting
+
+> **Implementation note**: Rate limiting is enforced by
+> `App\Middleware\RateLimitMiddleware`, applied per-route. The DataTables
+> endpoints `/api/prestiti` and `/api/utenti` are limited to **30
+> requests/minute**. The illustrative per-category limits and
+> `X-RateLimit-*` headers below are indicative guidance, not a global
+> guarantee for every endpoint.
 
 ### Limits per User Session
 ```
@@ -659,6 +873,7 @@ curl -b cookies.txt \
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | 2025-10-19 | Initial API documentation |
+| 1.1.0 | 2026-06-04 | Documented the API-key-gated Public API (`/api/public/books/search`), the availability & calendar endpoints, the correct loan states, and the admin/rate-limit auth on `/api/prestiti` and `/api/utenti`. |
 
 ---
 
@@ -673,6 +888,6 @@ For API issues or questions:
 
 ---
 
-*Last Updated: 19 Ottobre 2025*
-*API Version: 1.0.0*
-*Documentation Version: 1.0.0*
+*Last Updated: 4 Giugno 2026*
+*API Version: 1.1.0*
+*Documentation Version: 1.1.0*

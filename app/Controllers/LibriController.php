@@ -595,6 +595,20 @@ class LibriController
         }
 
         $libraryThingInstalled = LibraryThingInstaller::isInstalled($db);
+
+        // Renewal cap is admin-configurable (loans.max_renewals); pass it to the
+        // view so the displayed limit and the "Renew" button gate match the
+        // server-side check in PrestitiController::renew (#157).
+        $loanSettingsRepo = new \App\Models\SettingsRepository($db);
+        // Validate numeric BEFORE casting: a non-numeric stored value (e.g. "abc")
+        // would cast to 0, silently flipping the cap to "no renewals" instead of
+        // falling back to the safe default. Only a genuine number is honoured.
+        $rawMaxRenewals = $loanSettingsRepo->get('loans', 'max_renewals', '3');
+        $maxRenewals = is_numeric($rawMaxRenewals) ? (int) $rawMaxRenewals : 3;
+        if ($maxRenewals < 0) {
+            $maxRenewals = 3;
+        }
+
         ob_start();
         // extract([
         //     'libro' => $libro,

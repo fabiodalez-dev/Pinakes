@@ -22,7 +22,7 @@ Prima di iniziare, verifica di avere:
 
 | **Requisito** | **Cosa Serve** |
 |---|---|
-| **Web Server** | Hosting con PHP 8.1+ (il tuo provider la avrà) |
+| **Web Server** | Hosting con PHP 8.2+ (Apache; il tuo provider lo avrà) |
 | **Database** | MySQL 8.0+ o MariaDB 10.4+ (incluso in hosting) |
 | **Browser** | Chrome, Firefox, Safari, Edge (qualunque moderno) |
 | **Spazio** | Almeno 100MB di spazio disco |
@@ -278,6 +278,6 @@ tuodominio.it/
 
 ---
 
-*Ultimo aggiornamento: 2 Marzo 2026*
-*Versione: 2.1.0 - Installazione con selezione lingua (IT/EN/DE)*
+*Ultimo aggiornamento: Giugno 2026*
+*App: Pinakes 0.7.17 — installer con selezione lingua (IT/EN/DE), 8 step (0-7)*
 *Tempo lettura: 5 minuti | Tempo installazione: 15 minuti*

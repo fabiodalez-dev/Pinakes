@@ -70,13 +70,15 @@ test.describe('C-2: bulkDelete uses soft-delete', () => {
     // Wait for redirect to the book detail or book list
     await page.waitForURL(/admin\/libri(?!.*crea)/, { timeout: 15000 });
 
-    // Get the book ID from the DataTables API — search in page context for proper auth
+    // Get the book ID from the books API — search in page context for proper auth.
+    // The endpoint filters via `search_text` (not the DataTables `search[value]`),
+    // so use that param or the just-created book falls outside the first page.
     const bookId = await page.evaluate(async (title) => {
-      const resp = await fetch(`/api/libri?start=0&length=100&search[value]=${encodeURIComponent(title)}`, {
+      const resp = await fetch(`/api/libri?start=0&length=100&search_text=${encodeURIComponent(title)}`, {
         credentials: 'same-origin'
       });
       const data = await resp.json();
-      const match = data.data.find(b => b.titolo === title);
+      const match = (data.data || []).find(b => b.titolo === title);
       return match ? match.id : 0;
     }, testTitle);
     expect(bookId).toBeGreaterThan(0);

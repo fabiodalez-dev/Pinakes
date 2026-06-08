@@ -988,10 +988,13 @@ class FrontendController
             }
         }
 
+        // Filtra sulla disponibilità reale (copie_disponibili), coerente con badge e
+        // bottone prestito. Usare l.stato escludeva i libri 'prenotato' (copie a 0)
+        // da entrambi i filtri.
         if ($filters['disponibilita'] === 'disponibile') {
-            $conditions[] = "l.stato = 'disponibile'";
+            $conditions[] = "l.copie_disponibili > 0";
         } elseif ($filters['disponibilita'] === 'prestato') {
-            $conditions[] = "l.stato = 'prestato'";
+            $conditions[] = "l.copie_disponibili <= 0";
         }
 
         if (!empty($filters['anno_min'])) {
@@ -1195,8 +1198,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $availabilityBaseQuery .= " AND " . implode(' AND ', $conditionsAvail);
     }
 
-    // Count available books (base query always has WHERE l.deleted_at IS NULL)
-    $queryAvailable = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.stato = 'disponibile'";
+    // Count available books (base query always has WHERE l.deleted_at IS NULL).
+    // Conteggio coerente col filtro: basato su copie_disponibili, non su l.stato.
+    $queryAvailable = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.copie_disponibili > 0";
     $stmt = $db->prepare($queryAvailable);
     if (!empty($paramsAvail)) {
         $stmt->bind_param($typesAvail, ...$paramsAvail);
@@ -1205,8 +1209,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $row = $stmt->get_result()->fetch_assoc();
     $availableCount = $row['cnt'] ?? 0;
 
-    // Count borrowed books (base query always has WHERE l.deleted_at IS NULL)
-    $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.stato = 'prestato'";
+    // Count borrowed/unavailable books (coerente col filtro: copie_disponibili <= 0)
+    $queryBorrowed = "SELECT COUNT(DISTINCT l.id) as cnt " . $availabilityBaseQuery . " AND l.copie_disponibili <= 0";
     $stmt = $db->prepare($queryBorrowed);
     if (!empty($paramsAvail)) {
         $stmt->bind_param($typesAvail, ...$paramsAvail);

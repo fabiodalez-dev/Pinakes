@@ -80,7 +80,7 @@ class NotificationService {
             return $this->sendToAdmins('admin_new_registration', $variables);
 
         } catch (\Throwable $e) {
-            error_log("Failed to notify new user registration: " . $e->getMessage());
+            SecureLogger::error("Failed to notify new user registration: " . $e->getMessage());
             return false;
         }
     }
@@ -133,7 +133,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($user['email'], 'user_registration_pending', $variables, $locale);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send user registration pending email: " . $e->getMessage());
+            SecureLogger::error("Failed to send user registration pending email: " . $e->getMessage());
             return false;
         }
     }
@@ -170,7 +170,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($user['email'], 'user_account_approved', $variables, $locale);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send user account approved email: " . $e->getMessage());
+            SecureLogger::error("Failed to send user account approved email: " . $e->getMessage());
             return false;
         }
     }
@@ -211,7 +211,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($user['email'], 'user_activation_with_verification', $variables, $locale);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send user activation with verification email: " . $e->getMessage());
+            SecureLogger::error("Failed to send user activation with verification email: " . $e->getMessage());
             return false;
         }
     }
@@ -252,7 +252,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($user['email'], 'user_password_setup', $variables, $locale);
 
         } catch (\Throwable $e) {
-            error_log('Failed to send user password setup email: ' . $e->getMessage());
+            SecureLogger::error('Failed to send user password setup email: ' . $e->getMessage());
             return false;
         }
     }
@@ -294,7 +294,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($user['email'], 'admin_invitation', $variables, $locale);
 
         } catch (\Throwable $e) {
-            error_log('Failed to send admin invitation: ' . $e->getMessage());
+            SecureLogger::error('Failed to send admin invitation: ' . $e->getMessage());
             return false;
         }
     }
@@ -357,7 +357,7 @@ class NotificationService {
             return $emailSent;
 
         } catch (\Throwable $e) {
-            error_log("Failed to notify loan request: " . $e->getMessage());
+            SecureLogger::error("Failed to notify loan request: " . $e->getMessage());
             return false;
         }
     }
@@ -435,12 +435,12 @@ class NotificationService {
                     $revertStmt->bind_param('i', $loan['id']);
                     $revertStmt->execute();
                     $revertStmt->close();
-                    error_log("Failed to send expiration warning for loan {$loan['id']} after retries, flag reverted");
+                    SecureLogger::warning("Failed to send expiration warning for loan {$loan['id']} after retries, flag reverted");
                 }
             }
 
         } catch (\Throwable $e) {
-            error_log("Failed to send loan expiration warnings: " . $e->getMessage());
+            SecureLogger::error("Failed to send loan expiration warnings: " . $e->getMessage());
         }
 
         return $sentCount;
@@ -516,12 +516,12 @@ class NotificationService {
                     $revertStmt->bind_param('i', $loan['id']);
                     $revertStmt->execute();
                     $revertStmt->close();
-                    error_log("Failed to send overdue notification for loan {$loan['id']} after retries, flags reverted");
+                    SecureLogger::warning("Failed to send overdue notification for loan {$loan['id']} after retries, flags reverted");
                 }
             }
 
         } catch (\Throwable $e) {
-            error_log("Failed to send overdue loan notifications: " . $e->getMessage());
+            SecureLogger::error("Failed to send overdue loan notifications: " . $e->getMessage());
         }
 
         return $sentCount;
@@ -556,18 +556,14 @@ class NotificationService {
                 'data_prestito' => $loan['data_prestito'],
             ];
 
-            $template = SettingsMailTemplates::get('loan_overdue_admin');
-            if (!$template) {
-                return;
-            }
-
-            $subject = $this->emailService->replaceVariables($template['subject'], $variables);
-            $body = $this->emailService->replaceVariables($template['body'], $variables);
-
-            $this->emailService->sendToAdmins($subject, $body);
+            // Usa sendToAdmins (template dal DB email_templates con fallback) come tutti
+            // gli altri invii: così la personalizzazione admin del template viene
+            // rispettata, a differenza del precedente SettingsMailTemplates::get() che
+            // leggeva solo il PHP hardcoded (GAP-4).
+            $this->sendToAdmins('loan_overdue_admin', $variables);
 
         } catch (\Throwable $e) {
-            error_log('Failed to notify admins about overdue loan: ' . $e->getMessage());
+            SecureLogger::error('Failed to notify admins about overdue loan: ' . $e->getMessage());
         }
     }
 
@@ -593,6 +589,7 @@ class NotificationService {
                 WHERE w.libro_id = ?
                   AND u.stato = 'attivo'
                   AND w.notified = 0
+                  AND l.copie_disponibili > 0
                 GROUP BY w.id, w.utente_id, u.nome, u.cognome, u.email, l.titolo, l.isbn13, l.isbn10
             ");
             $stmt->bind_param('i', $bookId);
@@ -645,12 +642,12 @@ class NotificationService {
                     $revertStmt->bind_param('i', $wishlist['wishlist_id']);
                     $revertStmt->execute();
                     $revertStmt->close();
-                    error_log("Failed to send wishlist notification for entry {$wishlist['wishlist_id']} after retries, flag reverted");
+                    SecureLogger::warning("Failed to send wishlist notification for entry {$wishlist['wishlist_id']} after retries, flag reverted");
                 }
             }
 
         } catch (\Throwable $e) {
-            error_log("Failed to notify wishlist book availability: " . $e->getMessage());
+            SecureLogger::error("Failed to notify wishlist book availability: " . $e->getMessage());
         }
 
         return $sentCount;
@@ -679,7 +676,7 @@ class NotificationService {
 
         } catch (\Throwable $e) {
             $results['errors'][] = 'Error running automatic notifications: ' . $e->getMessage();
-            error_log('Error running automatic notifications: ' . $e->getMessage());
+            SecureLogger::error('Error running automatic notifications: ' . $e->getMessage());
         }
 
         return $results;
@@ -722,7 +719,7 @@ class NotificationService {
             }
 
         } catch (\Throwable $e) {
-            error_log("Failed to check wishlist availability: " . $e->getMessage());
+            SecureLogger::error("Failed to check wishlist availability: " . $e->getMessage());
         }
 
         return $totalNotified;
@@ -738,11 +735,11 @@ class NotificationService {
     public function hasActualAvailableCopy(int $bookId): bool {
         $today = date('Y-m-d');
 
-        // Count total loanable copies (exclude perso, danneggiato, manutenzione)
+        // Count total loanable copies (exclude non-lendable states)
         // This matches the logic in ReservationManager and other availability checks
         $totalStmt = $this->db->prepare("
             SELECT COUNT(*) as total FROM copie
-            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione')
+            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
         ");
         $totalStmt->bind_param('i', $bookId);
         $totalStmt->execute();
@@ -852,7 +849,7 @@ class NotificationService {
             }
 
         } catch (\Throwable $e) {
-            error_log("Failed to add notification columns: " . $e->getMessage());
+            SecureLogger::error("Failed to add notification columns: " . $e->getMessage());
         }
     }
 
@@ -867,7 +864,7 @@ class NotificationService {
             }
 
         } catch (\Throwable $e) {
-            error_log("Failed to add wishlist notification column: " . $e->getMessage());
+            SecureLogger::error("Failed to add wishlist notification column: " . $e->getMessage());
         }
     }
 
@@ -879,7 +876,7 @@ class NotificationService {
             $result = $this->db->query("SELECT email FROM utenti WHERE tipo_utente IN ('admin', 'staff') AND stato = 'attivo'");
 
             if (!$result || $result->num_rows === 0) {
-                error_log("No active admin/staff users found for notification");
+                SecureLogger::warning("No active admin/staff users found for notification");
                 return false;
             }
 
@@ -893,11 +890,11 @@ class NotificationService {
                 }
             }
 
-            error_log("Sent notification to $sentCount admins");
+            SecureLogger::info("Sent notification to $sentCount admins");
             return $sentCount > 0;
 
         } catch (\Throwable $e) {
-            error_log("Failed to send to admins: " . $e->getMessage());
+            SecureLogger::error("Failed to send to admins: " . $e->getMessage());
             return false;
         }
     }
@@ -942,7 +939,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_approved', $variables);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send loan approved notification: " . $e->getMessage());
+            SecureLogger::error("Failed to send loan approved notification: " . $e->getMessage());
             return false;
         }
     }
@@ -979,7 +976,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_rejected', $variables);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send loan rejected notification: " . $e->getMessage());
+            SecureLogger::error("Failed to send loan rejected notification: " . $e->getMessage());
             return false;
         }
     }
@@ -1009,7 +1006,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($userEmail, 'loan_rejected', $variables);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send loan rejected notification (direct): " . $e->getMessage());
+            SecureLogger::error("Failed to send loan rejected notification (direct): " . $e->getMessage());
             return false;
         }
     }
@@ -1055,7 +1052,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_ready', $variables);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send pickup ready notification: " . $e->getMessage());
+            SecureLogger::error("Failed to send pickup ready notification: " . $e->getMessage());
             return false;
         }
     }
@@ -1092,7 +1089,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_expired', $variables);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send pickup expired notification: " . $e->getMessage());
+            SecureLogger::error("Failed to send pickup expired notification: " . $e->getMessage());
             return false;
         }
     }
@@ -1129,7 +1126,7 @@ class NotificationService {
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_cancelled', $variables);
 
         } catch (\Throwable $e) {
-            error_log("Failed to send pickup cancelled notification: " . $e->getMessage());
+            SecureLogger::error("Failed to send pickup cancelled notification: " . $e->getMessage());
             return false;
         }
     }
@@ -1139,6 +1136,96 @@ class NotificationService {
      */
     public function sendReservationBookAvailable(string $email, array $variables): bool {
         return $this->emailService->sendTemplate($email, 'reservation_book_available', $variables);
+    }
+
+    /**
+     * Invia conferma di restituzione all'utente (GAP-1)
+     */
+    public function sendLoanReturnedNotification(int $loanId): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
+                return false;
+            }
+            $stmt->close();
+
+            if (empty($loan['utente_email'])) {
+                return false;
+            }
+
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? date('Y-m-d')),
+            ];
+
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_returned', $variables);
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to send loan returned notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Invia notifica di prenotazione scaduta all'utente (GAP-2).
+     * Il prestito schedulato (stato 'prenotato') è scaduto senza essere ritirato/convertito.
+     */
+    public function sendReservationExpiredNotification(int $loanId): bool {
+        try {
+            $stmt = $this->db->prepare("
+                SELECT p.*, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prestiti p
+                JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                JOIN utenti u ON p.utente_id = u.id
+                WHERE p.id = ?
+            ");
+            $stmt->bind_param('i', $loanId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if (!$loan = $result->fetch_assoc()) {
+                $stmt->close();
+                return false;
+            }
+            $stmt->close();
+
+            if (empty($loan['utente_email'])) {
+                return false;
+            }
+
+            $scadenza = $loan['data_scadenza'] ?? ($loan['pickup_deadline'] ?? date('Y-m-d'));
+            $variables = [
+                'utente_nome' => $loan['utente_nome'],
+                'libro_titolo' => $loan['libro_titolo'],
+                'data_scadenza' => $this->formatEmailDate($scadenza),
+            ];
+
+            return $this->emailService->sendTemplate($loan['utente_email'], 'reservation_expired', $variables);
+        } catch (\Throwable $e) {
+            SecureLogger::error("Failed to send reservation expired notification: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Invia all'utente la notifica che la copia riservata non è più disponibile (GAP-3).
+     */
+    public function sendCopyUnavailableNotification(string $email, array $variables): bool {
+        if (empty($email)) {
+            return false;
+        }
+        return $this->emailService->sendTemplate($email, 'copy_unavailable_user', $variables);
     }
 
     /**
@@ -1157,14 +1244,14 @@ class NotificationService {
             try {
                 if ($this->emailService->sendTemplate($email, $template, $variables)) {
                     if ($attempt > 1) {
-                        error_log("Email to {$email} succeeded on attempt {$attempt}");
+                        SecureLogger::info("Email to {$email} succeeded on attempt {$attempt}");
                     }
                     return true;
                 }
                 $lastError = 'sendTemplate returned false';
             } catch (\Throwable $e) {
                 $lastError = $e->getMessage();
-                error_log("Email attempt {$attempt}/{$maxRetries} to {$email} failed: {$lastError}");
+                SecureLogger::warning("Email attempt {$attempt}/{$maxRetries} to {$email} failed: {$lastError}");
             }
 
             // Don't delay after the last attempt
@@ -1173,7 +1260,7 @@ class NotificationService {
             }
         }
 
-        error_log("Email to {$email} failed after {$maxRetries} attempts. Last error: {$lastError}");
+        SecureLogger::warning("Email to {$email} failed after {$maxRetries} attempts. Last error: {$lastError}");
         return false;
     }
 
@@ -1196,7 +1283,7 @@ class NotificationService {
         $allowedTypes = ['new_message', 'new_reservation', 'new_user', 'overdue_loan', 'new_loan_request', 'new_review', 'general'];
 
         if (!in_array($type, $allowedTypes, true)) {
-            error_log("Invalid notification type: $type");
+            SecureLogger::warning("Invalid notification type: $type");
             return false;
         }
 
@@ -1206,7 +1293,7 @@ class NotificationService {
         ");
 
         if (!$stmt) {
-            error_log("Failed to prepare notification insert: " . $this->db->error);
+            SecureLogger::error("Failed to prepare notification insert: " . $this->db->error);
             return false;
         }
 
@@ -1477,7 +1564,7 @@ class NotificationService {
             return $emailSent;
 
         } catch (\Throwable $e) {
-            error_log("Failed to notify new review: " . $e->getMessage());
+            SecureLogger::error("Failed to notify new review: " . $e->getMessage());
             return false;
         }
     }

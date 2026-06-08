@@ -175,45 +175,28 @@ Lo **scraping** (o "web scraping") è una tecnica informatica che permette al si
 
 ### Da Dove Vengono i Dati?
 
-Il sistema interroga **fonti ufficiali e affidabili** in questo ordine di priorità:
+Lo scraping integrato (senza alcun plugin) interroga **due fonti built-in**, definite in `ScrapeController::getDefaultSources()`:
 
-#### 1⃣ Libreria Universitaria (Fonte Primaria)
-- **URL**: img.libreriauniversitaria.it
-- **Dati forniti**:
-  - Informazioni bibliografiche complete
-  - Copertine ad alta risoluzione
-  - Prezzi aggiornati
-  - Descrizioni dettagliate
-- **Affidabilità**: ⭐⭐⭐⭐⭐ (Molto alta)
-- **Lingua**: Italiano
-
-#### 2⃣ Open Library (Fonte Secondaria)
-- **URL**: covers.openlibrary.org
-- **Dati forniti**:
-  - Catalogo internazionale di libri
-  - Copertine alternative
-  - Edizioni multiple
-- **Affidabilità**: ⭐⭐⭐⭐ (Alta)
+#### 1⃣ Google Books (built-in)
+- **Endpoint**: `https://www.googleapis.com/books/v1/volumes?q=isbn:{isbn}`
+- **Campi forniti**: titolo, autori, editore, descrizione, copertina, pagine, ISBN
+- **Priorità interna**: 50
 - **Lingua**: Internazionale
 
-#### 3⃣ Google Books (Fonte di Backup)
-- **URL**: books.google.com
-- **Dati forniti**:
-  - Database mondiale
-  - Anteprime copertine
-  - Metadati editoriali
-- **Affidabilità**: ⭐⭐⭐⭐ (Alta)
+#### 2⃣ Open Library (built-in)
+- **Endpoint**: `https://openlibrary.org/isbn/{isbn}.json`
+- **Campi forniti**: titolo, autori, editore, descrizione, copertina
+- **Priorità interna**: 60
 - **Lingua**: Internazionale
 
-#### 4⃣ Amazon (Fonte Aggiuntiva Copertine)
-- **URL**: images.amazon.com
-- **Dati forniti**:
-  - Copertine ad alta definizione
-  - Immagini alternative
-- **Affidabilità**: ⭐⭐⭐ (Media)
-- **Lingua**: Internazionale
+I risultati delle diverse fonti vengono fusi da `BookDataMerger`, che sceglie il valore migliore per ogni campo.
 
-#### 5⃣ Z39 Server / SRU — Biblioteche Nazionali (Plugin)
+> **Nota sulle copertine**: il download delle copertine è limitato a una whitelist di domini (Google Books, Open Library, alcune librerie italiane come libreriauniversitaria.it/Mondadori Store/laFeltrinelli/Ubik, Amazon). Le copertine vengono scaricate e salvate localmente in `public/uploads/copertine/`, con protezioni SSRF (blocco redirect a host non in whitelist e IP privati) e limite di 5 MB.
+
+#### Fonti aggiuntive tramite Plugin
+Plugin di scraping (es. **scraping-pro**, **API Book Scraper**) aggiungono fonti supplementari tramite gli hook `scrape.sources` e `scrape.fetch.custom`. Quando un plugin di scraping è attivo, il form mostra il pannello con la fonte usata e le eventuali alternative.
+
+#### Z39 Server / SRU — Biblioteche Nazionali (Plugin)
 Con il plugin **Z39 Server** attivato, il sistema può interrogare le biblioteche nazionali tramite protocollo **SRU (Search/Retrieve via URL)**:
 
 - **SBN** (Servizio Bibliotecario Nazionale) — Biblioteca nazionale italiana, con estrazione automatica del codice Dewey
@@ -233,9 +216,9 @@ Quando clicchi "Importa Dati", ecco cosa succede nei 3-5 secondi di attesa:
    - Rimuove automaticamente spazi, trattini e caratteri non necessari
    - Verifica che non sia già presente nel database
 
-2. **Connessione Prima Fonte** (1-2 secondi)
-   - Si connette a Libreria Universitaria
-   - Cerca il libro nel loro catalogo
+2. **Connessione Fonti Built-in** (1-2 secondi)
+   - Senza plugin, interroga le due fonti built-in (Google Books, Open Library)
+   - Cerca il libro nei loro cataloghi per ISBN
    - Se trovato, scarica tutti i dati disponibili
 
 3. **Integrazione Fonti Secondarie** (1-2 secondi)
@@ -523,14 +506,15 @@ Prima di iniziare l'inserimento manuale, **raccogli tutte le informazioni possib
 
 ##### **Autore/i**
 - **Cosa inserire**: Nome e cognome dell'autore (o autori multipli)
-- **Come funziona**: Menu a tendina con ricerca
+- **Come funziona**: campo **Choices.js** con ricerca/autocomplete (interroga `/api/autori`)
   - Inizia a digitare il nome
   - Se esiste, selezionalo dalla lista
-  - Se non esiste, premi Invio per crearlo automaticamente
+  - Se non esiste, **premi Invio** per committare il nome digitato e crearlo come nuovo autore
+  - **Importante (issue #74)**: anche quando il testo digitato è il prefisso di un autore esistente, premendo Invio viene salvato il valore digitato e NON viene auto-selezionato il suggerimento. Il comportamento è difeso da un override dedicato di `_onEnterKey` nel form.
 - **Autori Multipli**:
-  - Puoi aggiungere più autori
-  - Vengono visualizzati come badge blu
-  - L'ordine conta (primo autore = principale)
+  - Puoi aggiungere più autori (badge)
+  - L'ordine conta (primo autore = principale; ruolo `principale` salvato in `libri_autori`)
+- **Invio dati**: gli autori esistenti vengono inviati in `autori_ids[]`, i nuovi nomi in `autori_new[]`. Lato server, i nuovi autori vengono creati con deduplica per nome (gestisce "Levi, Primo" vs "Primo Levi").
 - **Esempi**:
   - Autore singolo: "Umberto Eco"
   - Autori multipli: "Isaac Asimov", "Robert Silverberg"
@@ -565,12 +549,13 @@ Prima di iniziare l'inserimento manuale, **raccogli tutte le informazioni possib
 
 #### **Informazioni Editoriali (Facoltative)**
 
-##### **Editore**
+##### **Editore/i**
 - **Cosa inserire**: Nome della casa editrice
-- **Come funziona**: Autocomplete intelligente
+- **Come funziona**: campo **Choices.js multi-valore** (issue #143), con autocomplete su `/api/editori`
   - Inizia a digitare (es. "Mond...")
   - Seleziona da lista se esiste ("Mondadori")
   - Oppure scrivi nome completo per crearlo nuovo
+- **Editori multipli**: dalla versione issue #143 il libro può avere più editori; il primo è l'editore principale salvato in `libri.editore_id`, gli altri sono associati separatamente (`editori_ids` risolti lato server, con deduplica e nome sanitizzato).
 - **Esempi comuni**:
   - "Mondadori", "Einaudi", "Feltrinelli", "Rizzoli"
 
@@ -722,11 +707,14 @@ Questa è l'informazione **più importante** perché indica **dove si trova fisi
 #### **Categorie e Classificazione (Facoltative)**
 
 ##### **Genere Letterario**
-- **Come funziona**: Selezione gerarchica a tre livelli
-  1. **Radice**: Categoria principale (es. "Prosa")
-  2. **Genere**: Sottocategoria (es. "Narrativa")
-  3. **Sottogenere**: Specificazione (es. "Fantasy")
-- **Dipendenze**: Devi selezionare in ordine (prima radice, poi genere, poi sottogenere)
+- **Come funziona**: cascade gerarchica a tre livelli, con tre `<select>` dipendenti nel form (`radice_select`, `genere_select`, `sottogenere_select`):
+  1. **Radice**: categoria principale (campo `radice_id`)
+  2. **Genere**: sottocategoria — il menu si abilita dopo aver scelto la radice (campo nascosto `genere_id`)
+  3. **Sottogenere**: specificazione — si abilita dopo il genere (campo nascosto `sottogenere_id`)
+- **Popolamento**: i livelli figli vengono caricati via `GET /api/generi` e `GET /api/generi/sottogeneri` in base al genitore selezionato (i generi sono un albero self-referenziale su `generi.parent_id`).
+- **Dipendenze**: si seleziona in ordine (prima radice, poi genere, poi sottogenere).
+- **Coerenza server-side**: in salvataggio il controller verifica la gerarchia genere/sottogenere — se viene inviato come `genere_id` un valore che in realtà è figlio, lo promuove a `sottogenere_id` e imposta il `parent_id` come `genere_id` (e viceversa).
+- **Auto-creazione**: se nel campo viene scritto un nome non presente, genere/sottogenere vengono creati al salvataggio (campi `genere_search`/`sottogenere_search`).
 - **Esempi di percorsi**:
   - Prosa → Narrativa → Fantasy
   - Prosa → Saggistica → Storia
@@ -773,8 +761,7 @@ Questa è l'informazione **più importante** perché indica **dove si trova fisi
 
 ##### **Descrizione**
 - **Cosa inserire**: Trama, sinossi o descrizione del contenuto
-- **Lunghezza**: Massimo 2000 caratteri (circa 300 parole)
-- **Supporta**: Formattazione base Markdown
+- **Editor**: il campo `descrizione` è un editor **TinyMCE** (HTML, non Markdown). Quando si importa da ISBN, la descrizione recuperata viene sanitizzata prima di essere inserita nell'editor.
 - **Esempio**:
   > "Un'epica avventura ambientata nella Terra di Mezzo, dove un gruppo eterogeneo di eroi deve distruggere un anello magico per salvare il mondo dal male assoluto."
 
@@ -1155,13 +1142,13 @@ Quando aggiungi un libro, il sistema aggiorna automaticamente:
 - Problema: Difficile tenere traccia delle copie
 
 #### Strategia B: Un Libro con Copie Multiple ( Consigliato)
-1. **Inserisci normalmente** la prima copia
+1. **Inserisci normalmente** il libro
 2. **Nel campo "Copie totali"**: Scrivi `3`
-3. **Nel campo "Copie disponibili"**: Scrivi `3` (all'inizio tutte disponibili)
-4. **Sistema**: Gestisce automaticamente i prestiti
-   - Quando prestiti la prima: Copie disponibili → 2
-   - Quando prestiti la seconda: Copie disponibili → 1
-   - Quando tutte prestate: Copie disponibili → 0 (Stato: "Non disponibile")
+3. **In creazione**: `copie_disponibili` viene impostato automaticamente uguale a `copie_totali` (non serve compilarlo a mano)
+4. **Generazione copie fisiche**: il sistema crea 3 righe nella tabella `copie`, ciascuna con numero inventario `{base}-C1`, `{base}-C2`, `{base}-C3` (dove `{base}` è il numero inventario indicato, o `LIB-{id}` se vuoto) e stato `disponibile`
+5. **Sistema**: gestisce automaticamente i prestiti
+   - Quando prestiti la prima: copie disponibili → 2
+   - Quando tutte prestate: copie disponibili → 0
 
 ---
 
@@ -1223,6 +1210,6 @@ Se riscontri problemi tecnici:
 
 ---
 
-** Documento aggiornato: 19 Ottobre 2025**
-** Versione: 3.0.0 - Guida Completa Estesa**
-** Per utenti finali della biblioteca**
+**Documento aggiornato: 4 Giugno 2026**
+**Versione: 3.1.0 - Guida Completa Estesa**
+**Per utenti finali della biblioteca**
