@@ -93,7 +93,7 @@ class EditorsController
             'nome' => trim((string) ($data['nome'] ?? '')),
             'sito_web' => $sitoWeb,
         ]);
-        return $response->withHeader('Location', '/admin/publishers')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/publishers'))->withStatus(302);
     }
 
     public function editForm(Request $request, Response $response, mysqli $db, int $id): Response
@@ -126,7 +126,7 @@ class EditorsController
             'nome' => trim((string) ($data['nome'] ?? '')),
             'sito_web' => $sitoWeb,
         ]);
-        return $response->withHeader('Location', '/admin/publishers')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/publishers'))->withStatus(302);
     }
     public function delete(Request $request, Response $response, mysqli $db, int $id): Response
     {
@@ -137,9 +137,11 @@ class EditorsController
                 session_start();
             }
             $_SESSION['error_message'] = __('Impossibile eliminare l\'editore: sono presenti libri associati.');
-            $referer = $request->getHeaderLine('Referer');
-            $target = str_contains($referer, '/admin/publishers') ? $referer : '/admin/publishers';
-            return $response->withHeader('Location', $target)->withStatus(302);
+            // No Referer reflection: a crafted Referer (e.g. an external URL
+            // containing "/admin/publishers") would pass str_contains() and turn
+            // this into an open redirect. The publishers list is the only safe
+            // target.
+            return $response->withHeader('Location', url('/admin/publishers'))->withStatus(302);
         }
 
         $repo->delete($id);
@@ -147,6 +149,6 @@ class EditorsController
             session_start();
         }
         $_SESSION['success_message'] = __('Editore eliminato con successo.');
-        return $response->withHeader('Location', '/admin/publishers')->withStatus(302);
+        return $response->withHeader('Location', url('/admin/publishers'))->withStatus(302);
     }
 }

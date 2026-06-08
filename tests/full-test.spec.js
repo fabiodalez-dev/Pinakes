@@ -1518,13 +1518,13 @@ test.describe.serial('Phase 10: CSV/TSV Import & Export', () => {
   test.beforeEach(() => { test.skip(!appReady, 'App not ready — Phase 1 did not complete'); });
 
   test('10.1 Navigate to import page', async () => {
-    await page.goto(`${BASE}/admin/books/importa`);
+    await page.goto(`${BASE}/admin/books/import`);
     await page.waitForLoadState('domcontentloaded');
     await expect(page.locator('body')).not.toBeEmpty();
   });
 
   test('10.2 Upload CSV file', async () => {
-    await page.goto(`${BASE}/admin/books/importa`);
+    await page.goto(`${BASE}/admin/books/import`);
     await page.waitForLoadState('domcontentloaded');
 
     // Create a test CSV file
@@ -1553,7 +1553,7 @@ CSV_Book2_${RUN_ID};CSV Author2;CSV Publisher2;9781234567906;2023`;
   });
 
   test('10.3 Upload TSV file', async () => {
-    await page.goto(`${BASE}/admin/books/importa`);
+    await page.goto(`${BASE}/admin/books/import`);
     await page.waitForLoadState('domcontentloaded');
 
     const tsvContent = `titolo\tautore\teditore\tanno_pubblicazione

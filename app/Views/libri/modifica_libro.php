@@ -44,7 +44,7 @@ if (!isset($book['posizione_progressiva']) && isset($book['posizione_id'])) {
           <?= __("Modifica Libro") ?>
         </h1>
         <p class="text-gray-600 text-base mb-4">
-          <?= __("Aggiorna i dettagli del libro:") ?> <a href="<?= htmlspecialchars(url('/admin/books/' . (int)($book['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="text-blue-600 hover:text-blue-800 hover:underline font-semibold transition-colors"><strong><?php echo HtmlHelper::e($book['titolo'] ?? ''); ?></strong></a>
+          <?= __("Aggiorna i dettagli del libro:") ?> <a href="<?= htmlspecialchars(url('/admin/books/' . (int)($book['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="text-blue-600 hover:text-blue-800 hover:underline font-semibold transition-colors"><strong><?php echo htmlspecialchars($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8'); ?></strong></a>
         </p>
         
         <div class="flex items-center text-sm text-gray-500">

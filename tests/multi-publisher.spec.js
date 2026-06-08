@@ -250,7 +250,10 @@ test.describe.serial('Multi-publisher (issue #143)', () => {
     await page.click('button[type="submit"]');
     const c = page.locator('.swal2-confirm').first();
     if (await c.isVisible({ timeout: 4000 }).catch(() => false)) {
-      await Promise.all([page.waitForURL(/admin\/publishers/, { timeout: 10000 }), c.click()]).catch(() => {});
+      // Match the list page (/admin/publishers[?...]), NOT /admin/publishers/create
+      // we're already on — otherwise the wait resolves immediately and the SELECT
+      // below can read before the insert's redirect has landed.
+      await Promise.all([page.waitForURL(/\/admin\/publishers(?:$|\?)/, { timeout: 10000 }), c.click()]).catch(() => {});
     }
     const seededId = parseInt(dbQuery(`SELECT id FROM editori WHERE nome='${existing}' LIMIT 1`), 10) || 0;
     expect(seededId).toBeGreaterThan(0);

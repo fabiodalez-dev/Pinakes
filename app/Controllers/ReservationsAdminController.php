@@ -167,10 +167,10 @@ class ReservationsAdminController
                 $integrity->recalculateBookAvailability($libroId);
             }
 
-            return $response->withHeader('Location', '/admin/reservations?updated=1')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/reservations?updated=1'))->withStatus(302);
         } else {
             $stmt->close();
-            return $response->withHeader('Location', '/admin/reservations/edit/' . $id . '?error=update_failed')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/reservations/edit/' . $id . '?error=update_failed'))->withStatus(302);
         }
     }
 
@@ -224,7 +224,7 @@ class ReservationsAdminController
 
         // Validation
         if ($libroId <= 0 || $utenteId <= 0) {
-            return $response->withHeader('Location', '/admin/reservations/create?error=missing_data')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/reservations/create?error=missing_data'))->withStatus(302);
         }
 
         // Validate date formats (reset to empty if invalid format)
@@ -296,10 +296,10 @@ class ReservationsAdminController
             $integrity = new \App\Support\DataIntegrity($db);
             $integrity->recalculateBookAvailability($libroId);
 
-            return $response->withHeader('Location', '/admin/reservations?created=1')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/reservations?created=1'))->withStatus(302);
         } else {
             $stmt->close();
-            return $response->withHeader('Location', '/admin/reservations/create?error=save_failed')->withStatus(302);
+            return $response->withHeader('Location', url('/admin/reservations/create?error=save_failed'))->withStatus(302);
         }
     }
 }

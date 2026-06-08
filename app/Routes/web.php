@@ -3162,7 +3162,11 @@ return function (App $app): void {
                 $query = $request->getUri()->getQuery();
                 $location = '/admin/' . $enSegment . $rest . ($query !== '' ? '?' . $query : '');
 
-                return $response->withHeader('Location', $location)->withStatus(301);
+                // 308 (not 301): this redirect also covers legacy POST submits.
+                // A 301 lets the browser rewrite POST→GET and drop the body/CSRF,
+                // landing a form on the English endpoint with no payload (or 405).
+                // 308 preserves the method and body, and behaves like 301 for GET.
+                return $response->withHeader('Location', $location)->withStatus(308);
             }
         );
     }
