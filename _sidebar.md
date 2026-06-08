@@ -29,6 +29,7 @@
   * [SEO e Sitemap](admin/seo.md)
   * [Temi e Personalizzazione](admin/tema.md)
   * [Sicurezza](admin/sicurezza.md)
+  * [Modalità Privata](admin/modalita-privata.md)
   * [Dashboard e Statistiche](admin/statistiche.md)
 
 * **Riferimento Tecnico**

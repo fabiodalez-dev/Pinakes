@@ -6,16 +6,127 @@ Per l'ultimo aggiornamento consulta sempre la [pagina releases su GitHub](https:
 
 ---
 
-## In arrivo (branch attivi)
+## In arrivo — Prestiti configurabili, Modalità privata, rotte admin EN
 
-### PR #136 — RiC-CM Phase 1 (target v0.7.7)
+> Release candidate in preparazione (**0.7.18-rc.1**), non ancora pubblicata come release stabile.
 
-Prima fase del roadmap **Records in Contexts** ([#122](https://github.com/fabiodalez-dev/Pinakes/issues/122)): export
-read-only delle unità archivistiche e degli authority record nel
-vocabolario **RiC-O** (Records in Contexts Ontology, ICA 2023). Zero
-modifiche allo schema DB — si traduce semplicemente la gerarchia
-ISAD(G) esistente nel modello a grafo RiC-CM. Vedi
-[Archivi → RiC-O JSON-LD](/guida/archivi.md) per dettagli.
+- **Sistema prestiti e prenotazioni** (#157): durata predefinita, numero massimo di prestiti attivi per utente, numero massimo di rinnovi e giorni per il ritiro sono ora **configurabili** da *Impostazioni → Prestiti*. Modello di occupazione delle copie unificato e multi-copia, riassegnazione automatica della copia restituita alla prossima prenotazione in coda, automatismi di manutenzione e notifiche email differite con nuovi template. Vedi [Prestiti](guida/prestiti.md#impostazioni-configurabili-dei-prestiti).
+- **Modalità privata** (#158 / #160): nuovo interruttore che restringe l'intero sito pubblico ai soli utenti autenticati, deferendo le rotte API-key al loro gate. Vedi [Modalità Privata](admin/modalita-privata.md).
+- **Rotte amministrative in inglese** (#145 / #161): i percorsi `/admin/*` sono ora letterali inglesi (es. `/admin/books`, `/admin/loans`, `/admin/publishers`), con redirect dai vecchi percorsi italiani per retro-compatibilità.
+
+---
+
+## v0.7.16 — 2026-05-31
+**PR:** [#148](https://github.com/fabiodalez-dev/Pinakes/pull/148) (multi-editore), [#149](https://github.com/fabiodalez-dev/Pinakes/pull/149) (standard bibliografici), [#151](https://github.com/fabiodalez-dev/Pinakes/pull/151), [#154](https://github.com/fabiodalez-dev/Pinakes/pull/154), [#155](https://github.com/fabiodalez-dev/Pinakes/pull/155), [#156](https://github.com/fabiodalez-dev/Pinakes/pull/156)
+
+Release maggiore che consolida tre filoni: **supporto multi-editore** per le
+schede libro, una nuova famiglia di plugin per gli **standard bibliografici**
+(FRBR/LRM, RDA Registry, REICAT/SBN) e un refactoring profondo delle dipendenze
+(league/csv + Illuminate + Guzzle, sanitizzazione HTML basata su parser).
+
+### Multi-editore (#143)
+
+- **`libri_editori`** — nuova tabella di giunzione M:N: un libro può ora avere
+  più editori con ordinamento (`ordine`). Merge, filtri e import/enrichment
+  riallineano automaticamente la giunzione, con guard anti-drift che declassano
+  gli «impostori» a `ordine 0` prima di promuovere l'editore primario.
+- Tutti gli editori vengono emessi in **OAI-PMH** e **BIBFRAME** (#143).
+
+### Standard bibliografici (#149)
+
+- **Plugin `frbr-lrm`** — modello Work–Expression FRBR / IFLA LRM: tabelle
+  `opere`, `espressioni`, `libri_autori_ruoli` (ruoli relator MARC21), con FK
+  nullable `libri.opera_id` / `libri.espressione_id` (guardate da
+  INFORMATION_SCHEMA, `ON DELETE SET NULL`). CRUD admin per le opere e pagina
+  pubblica `/opera/{slug}`.
+- **RDA Registry** e mapping **REICAT/SBN** per l'interoperabilità con il
+  Servizio Bibliotecario Nazionale; prefill del campo import REICAT, ISBN
+  «pinnato» sulla query SBN.
+
+### Refactoring dipendenze & sicurezza
+
+- **`league/csv`** centralizza tutto l'import/export CSV/TSV; adozione delle
+  collection **Illuminate** e dell'HttpClient **Guzzle**.
+- **`symfony/html-sanitizer`** — sanitizzazione HTML basata su parser (non più
+  regex), con guard CSV-injection sugli export.
+- **Canale release-candidate** opt-in per sviluppatori nell'updater + supporto
+  alle prerelease (#155).
+- **Durata sessione configurabile** da admin (#142), fix logout spuri
+  (SameSite=Lax + rotazione ID non distruttiva), floor **PHP 8.2** imposto nel
+  bootstrap prima dell'autoloader, pin del platform composer a PHP 8.2.
+- **Hardening SSRF** sui client Z39/SBN (protocolli cURL ristretti a http/https).
+
+### Migration
+
+`migrate_0.7.16.sql` → tabella `libri_editori` + indici, idempotente via guard
+`INFORMATION_SCHEMA`.
+
+## v0.7.15-rc.3 — 2026-05-30
+**Tipo:** Release Candidate (prerelease) — solo canale developer
+
+Prima prerelease distribuita tramite il nuovo **canale release-candidate**
+dell'updater (#155). Anticipa il payload poi stabilizzato in v0.7.16:
+multi-editore (#148), standard bibliografici FRBR/LRM + RDA + REICAT/SBN (#149),
+refactoring su league/csv + Illuminate + Guzzle (#151) e sanitizzazione HTML
+basata su parser (#154). Disponibile solo agli utenti che abilitano
+esplicitamente il canale RC via env — gli aggiornamenti di produzione restano
+sul canale stabile.
+
+## v0.7.14 — 2026-05-27
+**Commit:** `8be24209…` — hotfix di consolidamento
+
+Patch di stabilizzazione immediatamente successiva a v0.7.13: rebuild degli
+asset, allineamento dei test e fix minori emersi dall'ultima suite pre-merge.
+Nessuna nuova feature utente — bump tecnico per portare a tutti gli utenti gli
+ultimi fix di CSS/layout e i test di regressione di #144.
+
+## v0.7.13 — 2026-05-27
+**PR:** [#144](https://github.com/fabiodalez-dev/Pinakes/pull/144) — roadmap unificata: **SwalApp** + layout evento + **RiC-CM**
+**Issues:** [#136](https://github.com/fabiodalez-dev/Pinakes/issues/136), [#137](https://github.com/fabiodalez-dev/Pinakes/issues/137), [#139](https://github.com/fabiodalez-dev/Pinakes/issues/139), [#140](https://github.com/fabiodalez-dev/Pinakes/issues/140), [#141](https://github.com/fabiodalez-dev/Pinakes/issues/141)
+
+Roadmap che unifica tre filoni in un'unica release.
+
+### Unificazione popup → SweetAlert2 (#140)
+
+- **`SwalApp`** — tutti i popup client-side (conferme, alert, prompt) passano a
+  un bus centralizzato basato su **SweetAlert2**, con `confirmText` di default
+  «kind-aware» e 49 test riutilizzabili. Niente più `window.confirm` nativi.
+
+### Layout immagine evento configurabile (#137)
+
+- **Layout admin-configurabile** per l'hero image degli eventi: modalità
+  contenuta (3:2) e thumb (griglia) ridisegnate, preset che producono immagini
+  progressivamente più piccole e allineate a sinistra, con preservazione
+  dell'upload quando si spunta anche «rimuovi immagine».
+
+### Archives — RiC-CM e perfezionamenti (#136)
+
+- Estensione del plugin **Archives** verso **Records in Contexts (RiC-CM)**, fix
+  IIIF route, ciclo place-ancestor e test endpoint README.
+
+### Copertine, ricerca, dettaglio
+
+- **`covers`** — compressione + cache HTTP, self-heal delle copertine locali
+  mancanti, containment via `realpath`, drop del MIME deprecato `font-woff`.
+- Allineamento a sinistra dell'anno nel dropdown hero-search; blocchi prose del
+  dettaglio libro che riempiono il contenitore.
+- Hardening views: rifiuto degli input `$_GET` non scalari prima dell'uso come
+  stringa/intero; `htmlspecialchars` + `JSON_HEX_TAG` su 3 punti di echo non
+  sicuri.
+- **25 test E2E** browser-driven per scraping + form-entry, più ripristino del
+  monkey-patch Choices.js `_onEnterKey` (regressione #74).
+
+## v0.7.7 — 2026-05-20
+**Commit:** `1aa1831b` — fix locale + regressione autori
+
+Patch correttiva mirata:
+
+- **`i18n`** — il cambio di lingua dell'applicazione propaga ora il locale di
+  default a **tutti** gli utenti, evitando UI nel locale sbagliato.
+- **Fix regressione #74** — ripristino del monkey-patch `_onEnterKey` di
+  Choices.js: premere Invio su un autore digitato-ma-non-esistente conferma di
+  nuovo il valore digitato, anche quando un prefisso parziale combacia con un
+  autore esistente.
 
 ---
 

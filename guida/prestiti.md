@@ -330,237 +330,161 @@ Giorno 5: MaintenanceService esegue
           → email "pickup expired" inviata
 ```
 
-### Configurazione
+### Impostazioni Configurabili dei Prestiti
 
-In **Impostazioni → Prestiti**:
-- `pickup_expiry_days` - Giorni per ritirare (default: 3)
+> **Novità (#157)** — I parametri chiave del ciclo prestiti sono ora **configurabili dall'interfaccia**, senza toccare il codice. Si trovano in **Impostazioni → Prestiti** (categoria `loans`).
 
----
-
-## Sistema Rinnovi
-
-### Regole Rinnovo
-
-| Regola | Valore |
-|--------|--------|
-| **Stato richiesto** | Solo `in_corso` (non in ritardo!) |
-| **Max rinnovi** | 3 volte |
-| **Estensione** | +14 giorni dalla scadenza attuale |
-| **Conflitti** | Non deve sovrapporsi ad altre prenotazioni |
-
-### Flusso Rinnovo
-
-```
-1. Utente clicca "Rinnova" nel suo profilo
-2. Sistema verifica:
-   - Stato = in_corso? 
-   - Rinnovi < 3? 
-   - Nessun conflitto con prenotazioni? 
-3. Se tutto OK:
-   - data_scadenza += 14 giorni
-   - renewals += 1
-4. Se conflitto:
-   - Rinnovo RIFIUTATO
-   - Messaggio: "Libro già prenotato da altro utente"
-```
-
-### Controllo Conflitti
-
-```
-nuova_scadenza = data_scadenza + 14 giorni
-
-conflitti = SELECT COUNT(*) FROM prestiti
-WHERE libro_id = ?
-AND id != ?  -- escludi prestito corrente
-AND attivo = 1
-AND (
-    (data_prestito <= nuova_scadenza AND data_scadenza >= data_scadenza)
-)
-
-SE conflitti > 0 AND copie_disponibili = 0:
-    → RIFIUTA rinnovo
-ALTRIMENTI:
-    → APPROVA rinnovo
-```
+Queste impostazioni governano la durata dei prestiti, i limiti per utente, i rinnovi e i tempi di ritiro. Vengono lette in ogni punto del ciclo di vita del prestito: richiesta utente, creazione admin, approvazione prenotazione e manutenzione automatica.
 
 ---
 
-## Sistema Prenotazioni (Wishlist/Coda)
+### Tabella Riepilogativa
 
-### Cos'è una Prenotazione
-
-Quando un libro **non è disponibile**, l'utente può **prenotarlo**:
-- Entra in una **coda** ordinata per data richiesta (FIFO)
-- Quando il libro torna disponibile, il **primo in coda** viene notificato
-- La prenotazione può essere convertita automaticamente in prestito
-
-### Stati Prenotazione
-
-| Stato | Significato |
-|-------|-------------|
-| **attiva** | In attesa che il libro si liberi |
-| **completata** | Convertita in prestito |
-| **annullata** | Cancellata dall'utente o admin |
-
-### Flusso Prenotazione → Prestito
-
-```
-1. Utente prenota libro non disponibile
-   → Prenotazione stato = "attiva"
-   → queue_position assegnata
-
-2. Libro viene restituito
-   → MaintenanceService rileva disponibilità
-
-3. Prima prenotazione in coda:
-   → Viene creato un prestito (origine = 'prenotazione')
-   → Prenotazione stato = "completata"
-   → Utente riceve email
-
-4. Utente ritira il libro
-   → Prestito procede normalmente
-```
-
-### Campi Prenotazione
-
-| Campo | Descrizione |
-|-------|-------------|
-| `data_inizio_richiesta` | Quando vuole iniziare (NULL = subito) |
-| `data_fine_richiesta` | Quando vuole restituire |
-| `data_scadenza_prenotazione` | Entro quando deve essere soddisfatta |
-| `queue_position` | Posizione in coda |
+| Impostazione | Default | Range / Valori | Dove agisce |
+|--------------|:-------:|----------------|-------------|
+| `loan_duration_days` | **30** | 1 – 365 giorni | Durata predefinita del prestito |
+| `max_active_loans_per_user` | **0** | 0 = nessun limite | Tetto prestiti attivi per utente |
+| `max_renewals` | **3** | numero intero | Rinnovi massimi per prestito |
+| `pickup_expiry_days` | **3** | giorni | Tempo per ritirare un prestito approvato |
 
 ---
 
-## Calcolo Disponibilità
+### `loan_duration_days` — Durata predefinita del prestito
 
-### Formula
+**Default: 30 giorni · Range: 1 – 365**
+
+Definisce la durata standard di un prestito in giorni. Viene usata **quando la data di scadenza non è specificata** esplicitamente, in particolare:
+
+- nelle **richieste utente** dal catalogo;
+- nella **creazione di un prestito da parte dell'admin**;
+- nell'**approvazione di una prenotazione**.
+
+In tutti questi casi, se non viene fornita una data di fine, il sistema calcola:
 
 ```
-copie_disponibili = copie_totali - copie_occupate - prenotazioni_attive
+data_scadenza = data_prestito + loan_duration_days
 ```
 
-### Cosa Conta come "Occupata"
-
-Una copia è occupata se associata a un prestito con stato:
-- `in_corso` (utente ha il libro)
-- `in_ritardo` (utente ha ancora il libro)
-- `da_ritirare` (riservata per ritiro)
-- `prenotato` con `data_prestito <= oggi`
-
-### Cosa NON Conta nel Totale
-
-Copie escluse dal conteggio `copie_totali`:
-- Stato `perso`
-- Stato `danneggiato`
-- Stato `manutenzione`
-- Stato `in_restauro`
-
-### Ricalcolo Automatico
-
-La disponibilità viene ricalcolata dopo:
-- Approvazione prestito
-- Conferma ritiro
-- Restituzione
-- Rinnovo
-- Scadenza prenotazione
-- Cambio stato copia
+> **Esempio**: con `loan_duration_days = 30`, un prestito che parte il 1° marzo scade il 31 marzo se l'operatore non imposta manualmente una data diversa.
 
 ---
 
-## Calendario Disponibilità
+### `max_active_loans_per_user` — Limite prestiti attivi per utente
 
-### Nel Form Creazione Prestito
+**Default: 0 (nessun limite)**
 
-Il calendario Flatpickr mostra visivamente la disponibilità:
+Stabilisce il **numero massimo di prestiti attivi** che un singolo utente può avere contemporaneamente. Il valore `0` disattiva il limite.
 
-| Colore | Significato |
-|--------|-------------|
-| **Verde** | Tutte le copie disponibili |
-| **Giallo** | Alcune copie disponibili |
-| **Rosso** | Nessuna copia disponibile |
-| ⬜ **Grigio** | Data passata (non selezionabile) |
+Il controllo viene applicato in **due momenti**:
 
-### Indicatore Copie
+1. alla **creazione** di un prestito;
+2. all'**approvazione** di una prenotazione.
 
-Sopra il calendario: **"Copie disponibili: X/Y"**
-- X = copie libere oggi
-- Y = copie totali prestabili
+#### Stati che contano come "attivo"
 
-### Calendario ICS (Sincronizzazione)
+Concorrono al conteggio del limite i prestiti nei seguenti stati:
 
-Il sistema genera un file ICS per sincronizzare con calendari esterni:
+| Stato | Conta nel limite? |
+|-------|:-----------------:|
+| **prenotato** | ✅ |
+| **da_ritirare** | ✅ |
+| **in_corso** | ✅ |
+| **in_ritardo** | ✅ |
 
-**Percorso**: `/storage/calendar/library-calendar.ics`
-**URL**: `https://tuosito.it/admin/calendar/ics`
+> **Nota**: gli stati finali (`restituito`, `scaduto`, `annullato`, `rifiutato`, `perso`, `danneggiato`) **non** contano nel limite. Una richiesta `pendente` non ancora approvata non occupa uno "slot" del limite finché non viene approvata.
 
-**Contiene:**
-- Tutti i prestiti attivi (in_corso, da_ritirare, prenotato)
-- Prestiti in ritardo
-- Prenotazioni attive
-
-**Compatibile con**: Google Calendar, Apple Calendar, Outlook
+Quando un utente raggiunge il tetto, ulteriori richieste/approvazioni vengono bloccate finché non restituisce un libro.
 
 ---
 
-## Gestione Amministrativa
+### `max_renewals` — Rinnovi massimi consentiti
 
-### Dashboard → Gestione Prestiti
+**Default: 3**
 
-**URL**: `/admin/loans/pending`
+Numero massimo di volte che un prestito può essere rinnovato. Ad ogni rinnovo il contatore `renewals` del prestito viene incrementato; quando raggiunge `max_renewals`, ulteriori rinnovi vengono rifiutati.
 
-**6 Sezioni Operative:**
+> **Robustezza**: se il valore configurato non è un numero valido, il sistema ricade automaticamente sul **default 3**, evitando comportamenti imprevedibili.
 
-#### 1.  Prestiti in Ritardo
-- **Priorità**: MASSIMA
-- **Mostra**: Utente, libro, giorni di ritardo
-- **Azioni**: Restituisci, Contatta utente
-
-#### 2.  Pronti per il Ritiro
-- **Priorità**: ALTA
-- **Mostra**: Utente, libro, giorni rimasti per ritiro
-- **Azioni**: Conferma Ritiro, Annulla
-
-#### 3.  Da Approvare
-- **Priorità**: ALTA
-- **Mostra**: Utente, libro, date richieste
-- **Azioni**: Approva, Rifiuta (con motivo)
-
-#### 4.  Programmati
-- **Priorità**: BASSA (informativo)
-- **Mostra**: Utente, libro, data attivazione
-- **Info**: Si attiveranno automaticamente
-
-#### 5.  In Corso
-- **Priorità**: NORMALE
-- **Mostra**: Utente, libro, data scadenza
-- **Azioni**: Restituisci, Rinnova
-
-#### 6.  Prenotazioni
-- **Priorità**: BASSA
-- **Mostra**: Utente, libro, posizione in coda
-- **Azioni**: Annulla
+I rinnovi restano soggetti anche alle altre regole del [sistema rinnovi](prestiti.md#sistema-rinnovi) (stato `in_corso`, assenza di conflitti con prenotazioni in coda).
 
 ---
 
-## Configurazione
+### `pickup_expiry_days` — Giorni per il ritiro
 
-### Impostazioni → Prestiti
+**Default: 3 giorni**
 
-| Impostazione | Default | Descrizione |
-|--------------|---------|-------------|
-| `loan_duration_days` | 30 | Durata standard prestito |
-| `loan_extension_days` | 14 | Giorni per ogni rinnovo |
-| `max_loans_per_user` | 5 | Max prestiti contemporanei |
-| `pickup_expiry_days` | 3 | Giorni per ritirare |
-| `days_before_expiry_warning` | 3 | Giorni preavviso scadenza |
+Quando un prestito viene approvato e passa allo stato **`da_ritirare`**, l'utente ha un numero limitato di giorni per ritirare fisicamente il libro. Trascorso questo termine, il prestito **scade automaticamente** (stato `scaduto`) e la copia torna disponibile.
 
-### Limiti Hardcoded
+```
+pickup_deadline = data_approvazione + pickup_expiry_days
+```
 
-| Limite | Valore | Note |
-|--------|--------|------|
-| Max rinnovi | 3 | Per prestito |
-| Estensione rinnovo | 14 giorni | Fisso |
+> **Timezone**: la scadenza del ritiro è calcolata nel **fuso orario applicativo**, così la "mezzanotte" del termine coincide con quella della biblioteca e non con l'UTC del server.
+
+Vedi anche il [Sistema Pickup Deadline](prestiti.md#-sistema-pickup-deadline) nella guida prestiti per la timeline completa.
+
+---
+
+## Modello di Occupazione Unificato (#157)
+
+> **Concetto chiave per gli operatori** — Capire *quando una copia è considerata occupata* è essenziale per leggere correttamente la disponibilità mostrata nel catalogo, nella dashboard e nel calendario.
+
+A partire da #157 il sistema usa un **unico modello di occupazione** coerente in tutta l'applicazione.
+
+### Quando una copia è OCCUPATA
+
+Una copia risulta occupata se si verifica **almeno una** di queste condizioni:
+
+1. ha un **prestito attivo** in uno degli stati:
+   - `in_corso`
+   - `in_ritardo`
+   - `da_ritirare`
+   - `prenotato`
+2. **oppure** è associata a una **richiesta pendente con copia già assegnata**.
+
+### Quando una copia NON è occupata
+
+Una **richiesta pendente "nuda"** — cioè una richiesta in stato `pendente` **senza una copia assegnata** — **non occupa alcuna copia**.
+
+```
+Richiesta PENDENTE senza copia  →  NON occupa
+        │
+        ▼  (admin approva e assegna una copia)
+Copia assegnata                 →  da quel momento OCCUPA
+```
+
+> **Perché è importante**: l'occupazione scatta solo quando l'admin **approva la richiesta e le assegna una copia**. Questo evita che richieste in attesa di valutazione "blocchino" copie che potrebbero servire ad altri utenti.
+
+### Multi-copia
+
+Ogni copia di un libro è **tracciata in modo indipendente**. Un libro con 3 copie può quindi avere, nello stesso momento:
+
+- 1 copia in `in_corso`,
+- 1 copia `da_ritirare`,
+- 1 copia ancora `disponibile`.
+
+La disponibilità mostrata è sempre il risultato del conteggio copia per copia, non un valore aggregato approssimato.
+
+---
+
+## Automatismi ed Email Collegate
+
+Le impostazioni qui sopra sono integrate con la **manutenzione automatica** (eseguita dal `MaintenanceService` tramite cron o al login admin) e con le notifiche email.
+
+### Manutenzione automatica
+
+| Automatismo | Cosa fa |
+|-------------|---------|
+| **Scadenza ritiro** | Un prestito `da_ritirare` non ritirato entro `pickup_expiry_days` passa a `scaduto` e libera la copia |
+| **Riassegnazione copia restituita** | Quando un libro viene restituito, la copia liberata viene **riassegnata alla prossima prenotazione in coda** (ordine FIFO) |
+
+### Email differite (dopo il commit)
+
+Le notifiche email legate a questi automatismi vengono **accodate e inviate solo dopo il commit** della transazione del database.
+
+> **Perché differite**: se un'operazione viene annullata (rollback), le email accodate **non partono**. Questo evita di notificare l'utente per un'azione che in realtà non è andata a buon fine (es. "libro pronto al ritiro" per un'approvazione poi fallita).
+
+Per l'elenco completo dei template email e dei loro trigger, vedi la sezione [Sistema Email Automatiche](prestiti.md#sistema-email-automatiche) della guida prestiti.
 
 ---
 
