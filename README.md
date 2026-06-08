@@ -34,6 +34,26 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.18
+
+### Configurable loan & reservation system (#157)
+
+The loan lifecycle is now fully admin-configurable from **Settings → Loans**: default loan duration, maximum active loans per user (`0` = unlimited), maximum renewals, and the pickup window for approved loans. A unified, multi-copy **occupancy model** governs availability — a copy is occupied by an active loan (`in_corso` / `in_ritardo` / `da_ritirare` / `prenotato`) or by a pending request that already holds a copy, while a *bare* pending request (no copy assigned yet) does not block other users until an admin approves it and assigns a copy. Returning a copy automatically reassigns it to the next waiting reservation in the queue, deferred email notifications are flushed only **after** the transaction commits (each send isolated so one failure can't drop the others), and maintenance automations handle pickup expiry and scheduled-reservation conversion. Database changes ship in **`migrate_0.7.17.sql`** (loan settings + reworked overlap triggers, applied through a DELIMITER-aware updater step).
+
+### Private mode — restrict the site to registered users (#158)
+
+A new **Settings → Advanced → Private mode** switch makes the entire public site (home, catalog, book pages) require login. It is **off by default**. When enabled, unauthenticated API calls get a JSON `401`, private uploads are withheld, but public assets (book covers, branding) stay reachable, and the API-key-gated `/api/public/*` routes keep responding through their own `ApiKeyMiddleware` instead of being pre-empted by a session `401`.
+
+### English admin routes (#145)
+
+All `/admin/*` paths are now English literals (`/admin/books`, `/admin/loans`, `/admin/reservations`, `/admin/users`, `/admin/publishers`, `/admin/genres`, …) instead of Italian. Old Italian admin URLs keep working through legacy redirects (`301` for `GET`, `308` for `POST` so form submissions preserve their body and CSRF), so existing bookmarks and integrations don't break. Admin routes are deliberately **not** part of the i18n route system — they are fixed English paths.
+
+### Testing
+
+Validated end to end on the merged `main`: the full lifecycle suite (135 passing), the dedicated loan / reservation / overlap suites (35 + 26 + 21), and a new private-mode suite (10), all green, with PHPStan level 5 clean.
+
+---
+
 ## What's New in v0.7.16
 
 ### Multi-publisher, hardened end to end (#143)
