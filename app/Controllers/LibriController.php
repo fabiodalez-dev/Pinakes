@@ -1153,16 +1153,22 @@ class LibriController
                 $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
             }
 
-            // Handle simple cover upload
-            if (!empty($_FILES['copertina']) && ($_FILES['copertina']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                $this->handleCoverUpload($db, $id, $_FILES['copertina']);
-            }
-            if (!empty($data['scraped_cover_url'])) {
-                $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
-            }
+            // Persist all fields first, then apply an explicitly chosen cover
+            // (file upload or scraped URL) on top so it isn't reverted by the
+            // field update (mirrors update(); see #165).
             // Optionals (numero_pagine, ean, data_pubblicazione, traduttore)
             // Merge normalized $fields over $data so NULL isbn/ean values are preserved
             (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
+
+            // Handle simple cover upload (wins over a scraped URL when both present)
+            $coverFileUploaded = false;
+            if (!empty($_FILES['copertina']) && ($_FILES['copertina']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                $this->handleCoverUpload($db, $id, $_FILES['copertina']);
+                $coverFileUploaded = true;
+            }
+            if (!$coverFileUploaded && !empty($data['scraped_cover_url'])) {
+                $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
+            }
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiunto con successo!');
@@ -1777,14 +1783,24 @@ class LibriController
             $integrity = new \App\Support\DataIntegrity($db);
             $integrity->recalculateBookAvailability($id);
 
-            if (!empty($_FILES['copertina']) && ($_FILES['copertina']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                $this->handleCoverUpload($db, $id, $_FILES['copertina']);
-            }
-            if (!empty($data['scraped_cover_url'])) {
-                $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
-            }
+            // Persist all fields first. An explicitly chosen NEW cover (a direct
+            // file upload, or a scraped / alternative URL) is then applied AFTER
+            // this update, so it replaces the existing cover in place instead of
+            // being reverted by it — no "save, remove the old cover, save again"
+            // dance to swap an auto-imported cover (#165).
             // Merge normalized $fields over $data so NULL isbn/ean values are preserved
             (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
+
+            $coverFileUploaded = false;
+            if (!empty($_FILES['copertina']) && ($_FILES['copertina']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                $this->handleCoverUpload($db, $id, $_FILES['copertina']);
+                $coverFileUploaded = true;
+            }
+            // A scraped / alternative cover URL applies only when the user did NOT
+            // upload a file in this submit — a direct upload is the explicit choice.
+            if (!$coverFileUploaded && !empty($data['scraped_cover_url'])) {
+                $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
+            }
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiornato con successo!');
