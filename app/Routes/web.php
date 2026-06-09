@@ -3069,6 +3069,21 @@ return function (App $app): void {
         return $controller->downloadBackup($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
+    // Restore a stored backup (DB + files). Destructive — the controller
+    // additionally restricts this to admins (AdminAuthMiddleware allows staff).
+    $app->post('/admin/updates/backup/restore', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->restoreBackup($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
+    // Restore from an uploaded backup ZIP. Destructive — admin-only (controller).
+    $app->post('/admin/updates/backup/restore-upload', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->uploadRestore($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Emergency maintenance mode clear (for recovery after failed updates)
     $app->post('/admin/updates/maintenance/clear', function ($request, $response) {
         $controller = new \App\Controllers\UpdateController();
