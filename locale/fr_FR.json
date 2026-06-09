@@ -5252,5 +5252,6 @@
   "connessione al database non riuscita": "échec de la connexion à la base de données",
   "Errore durante il ripristino dei file": "Erreur lors de la restauration des fichiers",
   "Errore durante il ripristino": "Erreur lors de la restauration",
-  "Impossibile salvare l'impostazione": "Impossible d'enregistrer le paramètre"
+  "Impossibile salvare l'impostazione": "Impossible d'enregistrer le paramètre",
+  "Il backup è corrotto (checksum del database non valido)": "La sauvegarde est corrompue (somme de contrôle de la base de données non valide)"
 }

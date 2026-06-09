@@ -263,7 +263,10 @@ class BackupManager
         if (!is_dir($this->backupPath) && !@mkdir($this->backupPath, 0755, true) && !is_dir($this->backupPath)) {
             return ['success' => false, 'safety_backup' => null, 'error' => __('Impossibile creare directory di backup')];
         }
-        $dest = $this->backupPath . '/uploaded_' . date('Y-m-d_His') . '.zip';
+        // Same naming scheme as createBackup() so the uploaded archive is listed
+        // and deletable like any other backup; the random suffix avoids the
+        // same-second collision a plain timestamp would allow.
+        $dest = $this->backupPath . '/backup_' . date('Y-m-d_His') . '_' . bin2hex(random_bytes(3)) . '.zip';
         if (!@rename($tmpPath, $dest) && !@copy($tmpPath, $dest)) {
             return ['success' => false, 'safety_backup' => null, 'error' => __('Impossibile salvare il file caricato')];
         }
@@ -276,9 +279,11 @@ class BackupManager
     private function restoreZip(string $zipPath): array
     {
         $sqlTmp = null;
+        $stagingDir = null;
         $safetyName = null;
         try {
-            // 1. Safety backup of the current state (always full).
+            // 1. Safety backup of the current state (always full) — the rollback
+            //    path, since MySQL DDL can't run inside a transaction.
             $safety = $this->createBackup('full');
             if (!$safety['success']) {
                 throw new \RuntimeException(__('Impossibile creare il backup di sicurezza pre-ripristino') . ': ' . (string) $safety['error']);
@@ -290,30 +295,41 @@ class BackupManager
                 throw new \RuntimeException(__('Impossibile aprire l\'archivio di backup'));
             }
 
-            // Validate the manifest before touching the live system.
-            $manifestRaw = $zip->getFromName('manifest.json');
-            $manifest = $manifestRaw !== false ? json_decode($manifestRaw, true) : null;
-            if (!is_array($manifest) || ($manifest['app'] ?? '') !== 'Pinakes') {
+            try {
+                // Validate the manifest before touching anything.
+                $manifestRaw = $zip->getFromName('manifest.json');
+                $manifest = $manifestRaw !== false ? json_decode($manifestRaw, true) : null;
+                if (!is_array($manifest) || ($manifest['app'] ?? '') !== 'Pinakes') {
+                    throw new \RuntimeException(__('Archivio di backup non valido'));
+                }
+                $expectedSha = is_string($manifest['database_sha256'] ?? null) ? $manifest['database_sha256'] : '';
+
+                // 2. Stream database.sql to a temp file (never the whole dump in
+                //    memory) so we can hash-verify it before importing.
+                $sqlTmp = (string) tempnam(sys_get_temp_dir(), 'pk_restore_');
+                $this->streamEntryToFile($zip, 'database.sql', $sqlTmp);
+
+                // 3. Extract the uploaded files to STAGING first. This is the
+                //    failure-prone step (decompression + I/O per file); doing it
+                //    BEFORE the irreversible DB import shrinks the inconsistency
+                //    window to the fast staging→live promotion at the end.
+                $stagingDir = $this->makeStagingDir();
+                $this->extractFilesSafely($zip, $stagingDir);
+            } finally {
                 $zip->close();
-                throw new \RuntimeException(__('Archivio di backup non valido'));
             }
 
-            // 2. Restore the database from database.sql.
-            $sql = $zip->getFromName('database.sql');
-            if ($sql === false) {
-                $zip->close();
-                throw new \RuntimeException(__('Database mancante nel backup'));
-            }
-            $sqlTmp = (string) tempnam(sys_get_temp_dir(), 'pk_restore_');
-            file_put_contents($sqlTmp, $sql);
-            $this->importDatabase($sqlTmp);
+            // 4. Import the DB (hash-verified inside). After this point the DB is
+            //    the restored one; files are already safely staged.
+            $this->importDatabase($sqlTmp, $expectedSha);
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- tempnam()-generated temp dump path, not user input
             @unlink($sqlTmp);
             $sqlTmp = null;
 
-            // 3. Restore the uploaded files (zip-slip guarded).
-            $this->extractFilesSafely($zip);
-            $zip->close();
+            // 5. Promote staged files over the live upload roots (fast moves).
+            $this->promoteStagedFiles($stagingDir);
+            $this->removeDir($stagingDir);
+            $stagingDir = null;
 
             return ['success' => true, 'safety_backup' => $safetyName, 'error' => null];
         } catch (\Throwable $e) {
@@ -321,8 +337,101 @@ class BackupManager
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- tempnam()-generated temp path, not user input
                 @unlink($sqlTmp);
             }
+            if ($stagingDir !== null && is_dir($stagingDir)) {
+                $this->removeDir($stagingDir);
+            }
             return ['success' => false, 'safety_backup' => $safetyName, 'error' => $e->getMessage()];
         }
+    }
+
+    /**
+     * Stream a single ZIP entry to a file without loading it into memory.
+     */
+    private function streamEntryToFile(ZipArchive $zip, string $entry, string $dest): void
+    {
+        $in = $zip->getStream($entry);
+        if ($in === false) {
+            throw new \RuntimeException(__('Database mancante nel backup'));
+        }
+        $out = fopen($dest, 'w');
+        if ($out === false) {
+            fclose($in);
+            throw new \RuntimeException(__('Impossibile aprire file di backup per scrittura'));
+        }
+        stream_copy_to_stream($in, $out);
+        fclose($in);
+        fclose($out);
+    }
+
+    private function makeStagingDir(): string
+    {
+        $dir = sys_get_temp_dir() . '/pk_stage_' . bin2hex(random_bytes(6));
+        if (!@mkdir($dir, 0700, true) && !is_dir($dir)) {
+            throw new \RuntimeException(__('Impossibile creare directory di backup'));
+        }
+        return $dir;
+    }
+
+    /**
+     * Move every staged upload file over its live counterpart. Merge-overwrite:
+     * files present in the backup replace live ones; live files absent from the
+     * backup are left untouched.
+     */
+    private function promoteStagedFiles(string $stagingDir): void
+    {
+        foreach (self::FILE_ROOTS as $rel) {
+            $stageBase = $stagingDir . '/' . $rel;
+            if (!is_dir($stageBase)) {
+                continue;
+            }
+            $liveBase = $this->rootPath . '/' . $rel;
+            if (!is_dir($liveBase) && !@mkdir($liveBase, 0755, true) && !is_dir($liveBase)) {
+                throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $rel);
+            }
+            /** @var \RecursiveIteratorIterator<\RecursiveDirectoryIterator> $it */
+            $it = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($stageBase, \FilesystemIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+            foreach ($it as $item) {
+                $rl = $it->getSubPathName();
+                $target = $liveBase . '/' . $rl;
+                if ($item->isDir()) {
+                    if (!is_dir($target) && !@mkdir($target, 0755, true) && !is_dir($target)) {
+                        throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $rl);
+                    }
+                    continue;
+                }
+                if (is_link($target)) {
+                    continue;
+                }
+                if (!@rename($item->getPathname(), $target) && !@copy($item->getPathname(), $target)) {
+                    throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $rl);
+                }
+                @chmod($target, 0644);
+            }
+        }
+    }
+
+    private function removeDir(string $dir): void
+    {
+        if (!is_dir($dir)) {
+            return;
+        }
+        /** @var \RecursiveIteratorIterator<\RecursiveDirectoryIterator> $it */
+        $it = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST
+        );
+        foreach ($it as $item) {
+            if ($item->isDir()) {
+                @rmdir($item->getPathname());
+            } else {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- staging temp dir under sys_get_temp_dir(), not user input
+                @unlink($item->getPathname());
+            }
+        }
+        @rmdir($dir);
     }
 
     // ---------------------------------------------------------------------
@@ -338,6 +447,14 @@ class BackupManager
         if ($handle === false) {
             throw new \RuntimeException(__('Impossibile aprire file di backup per scrittura'));
         }
+
+        // Consistent point-in-time snapshot (InnoDB): every table and trigger is
+        // read from one transaction, so concurrent writes can't produce a dump
+        // with inconsistent relations between loans, copies and users.
+        $this->db->query('SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ');
+        $this->db->query('START TRANSACTION WITH CONSISTENT SNAPSHOT');
+        $snapshotOpen = true;
+
         try {
             $tables = [];
             $result = $this->db->query('SHOW TABLES');
@@ -384,9 +501,20 @@ class BackupManager
                 fwrite($handle, "\n");
             }
 
+            // Triggers — emitted AFTER the tables (DROP TABLE drops their triggers)
+            // so loan/expiry invariants survive a restore. DELIMITER markers let the
+            // mysql CLI import recreate the multi-statement BEGIN..END body; the PHP
+            // fallback parses the same markers.
+            $this->dumpTriggers($handle);
+
             fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
+            $this->db->commit();
+            $snapshotOpen = false;
             return count($tables);
         } finally {
+            if ($snapshotOpen) {
+                @$this->db->rollback();
+            }
             if (is_resource($handle)) {
                 fclose($handle);
             }
@@ -394,22 +522,174 @@ class BackupManager
     }
 
     /**
-     * Import a database.sql dump via multi_query. Runs on a DEDICATED
-     * connection: the request connection may have just produced the unbuffered
-     * pre-restore dump, after which a multi_query on the same handle can report
-     * success yet silently not persist. A fresh connection avoids that.
+     * @param resource $handle
      */
-    private function importDatabase(string $sqlPath): void
+    private function dumpTriggers($handle): void
+    {
+        $res = $this->db->query('SHOW TRIGGERS');
+        if (!$res instanceof \mysqli_result) {
+            return;
+        }
+        $names = [];
+        while ($row = $res->fetch_assoc()) {
+            $names[] = (string) ($row['Trigger'] ?? '');
+        }
+        $res->free();
+        if ($names === []) {
+            return;
+        }
+
+        fwrite($handle, "-- PINAKES_TRIGGERS\n");
+        foreach ($names as $trg) {
+            if (!preg_match('/^[a-zA-Z0-9_]+$/', $trg)) {
+                continue;
+            }
+            $ct = $this->db->query("SHOW CREATE TRIGGER `{$trg}`");
+            if (!$ct instanceof \mysqli_result) {
+                continue;
+            }
+            $row = $ct->fetch_assoc();
+            $ct->free();
+            $stmt = (string) ($row['SQL Original Statement'] ?? '');
+            if ($stmt === '') {
+                continue;
+            }
+            // Strip the DEFINER clause so the trigger is recreated owned by the
+            // user performing the restore. Keeping the original DEFINER would
+            // require SUPER/SET_USER_ID when restoring onto a different DB user
+            // (e.g. a server migration) and abort the whole import.
+            $stmt = (string) preg_replace('/^CREATE\s+DEFINER\s*=\s*(?:`[^`]*`|\S+?)@(?:`[^`]*`|\S+?)\s+TRIGGER/i', 'CREATE TRIGGER', $stmt, 1);
+            fwrite($handle, "DROP TRIGGER IF EXISTS `{$trg}`;\n");
+            fwrite($handle, "DELIMITER \$\$\n");
+            fwrite($handle, $stmt . "\$\$\n");
+            fwrite($handle, "DELIMITER ;\n\n");
+        }
+    }
+
+    /**
+     * Import a database.sql dump. Verifies the dump's SHA-256 against the
+     * manifest first (a corrupt dump must never be imported, since DDL +
+     * multi-statement execution can leave the DB half-destroyed). Imports via
+     * the mysql CLI (streams from disk — no whole-dump-in-memory — and honours
+     * DELIMITER so triggers are recreated); falls back to a PHP importer when
+     * exec() is unavailable.
+     */
+    private function importDatabase(string $sqlPath, string $expectedSha = ''): void
+    {
+        if (!is_file($sqlPath) || filesize($sqlPath) === 0) {
+            throw new \RuntimeException(__('Dump del database vuoto o illeggibile'));
+        }
+        if ($expectedSha !== '') {
+            $actual = hash_file('sha256', $sqlPath);
+            if ($actual === false || !hash_equals($expectedSha, $actual)) {
+                throw new \RuntimeException(__('Il backup è corrotto (checksum del database non valido)'));
+            }
+        }
+
+        if (!$this->importViaCli($sqlPath)) {
+            $this->importViaPhp($sqlPath);
+        }
+    }
+
+    private function execEnabled(): bool
+    {
+        if (!function_exists('exec')) {
+            return false;
+        }
+        $disabled = array_map('trim', explode(',', (string) ini_get('disable_functions')));
+        return !in_array('exec', $disabled, true);
+    }
+
+    /**
+     * Import via the mysql CLI (`mysql … < dump`) — streams from disk (no
+     * whole-dump-in-memory) and honours DELIMITER so triggers are recreated.
+     * Returns false (so the caller falls back to the PHP importer) when exec()
+     * is disabled, the mysql binary can't be located, or the CLI run fails for
+     * any reason; the PHP fallback then re-imports cleanly (DROP TABLE IF EXISTS
+     * makes a retry idempotent).
+     */
+    private function importViaCli(string $sqlPath): bool
+    {
+        if (!$this->execEnabled()) {
+            return false;
+        }
+        $bin = $this->locateMysqlBinary();
+        if ($bin === null) {
+            return false;
+        }
+        $cfg = $this->dbConfig();
+        $cnf = (string) tempnam(sys_get_temp_dir(), 'pk_cnf_');
+        $lines = "[client]\nuser=\"" . addslashes($cfg['user']) . "\"\npassword=\"" . addslashes($cfg['pass']) . "\"\n";
+        if ($cfg['socket'] !== '') {
+            $lines .= "socket=\"" . addslashes($cfg['socket']) . "\"\n";
+        } else {
+            $lines .= "host=\"" . addslashes($cfg['host']) . "\"\nport=" . $cfg['port'] . "\n";
+        }
+        file_put_contents($cnf, $lines);
+        @chmod($cnf, 0600);
+
+        $cmd = escapeshellarg($bin) . ' --defaults-extra-file=' . escapeshellarg($cnf)
+            . ' --default-character-set=utf8mb4 ' . escapeshellarg($cfg['name'])
+            . ' < ' . escapeshellarg($sqlPath) . ' 2>&1';
+        $out = [];
+        $code = 0;
+        // nosemgrep: php.lang.security.exec-use.exec-use -- every interpolated value passes through escapeshellarg(); the .cnf holds the password so it never appears on the command line
+        exec($cmd, $out, $code);
+        // nosemgrep: php.lang.security.unlink-use.unlink-use -- tempnam()-generated temp .cnf, not user input
+        @unlink($cnf);
+
+        return $code === 0;
+    }
+
+    /**
+     * Resolve an absolute path to the mysql client. PHP-FPM often runs with a
+     * minimal PATH that omits the binary's directory, so checking known install
+     * locations is more reliable than relying on exec('mysql') resolving.
+     */
+    private function locateMysqlBinary(): ?string
+    {
+        $candidates = [];
+        $out = [];
+        $code = 0;
+        // nosemgrep: php.lang.security.exec-use.exec-use -- constant command, no external input
+        @exec('command -v mysql 2>/dev/null', $out, $code);
+        if ($code === 0 && isset($out[0]) && $out[0] !== '') {
+            $candidates[] = $out[0];
+        }
+        $candidates = array_merge($candidates, [
+            '/opt/homebrew/bin/mysql',
+            '/usr/local/bin/mysql',
+            '/usr/bin/mysql',
+            '/usr/local/mysql/bin/mysql',
+            '/bin/mysql',
+        ]);
+        foreach ($candidates as $bin) {
+            if (is_file($bin) && is_executable($bin)) {
+                return $bin;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Fallback importer (no exec): table/data statements via multi_query on a
+     * dedicated connection, then each trigger as a single query() (DELIMITER is
+     * a CLI construct mysqli can't use, but a whole trigger body is one query).
+     */
+    private function importViaPhp(string $sqlPath): void
     {
         $sql = file_get_contents($sqlPath);
         if ($sql === false || $sql === '') {
             throw new \RuntimeException(__('Dump del database vuoto o illeggibile'));
         }
+        $split = explode("-- PINAKES_TRIGGERS\n", $sql, 2);
+        $main = $split[0];
+        $triggersBlock = $split[1] ?? '';
 
         $conn = $this->openImportConnection();
         try {
             $conn->autocommit(true);
-            if (!$conn->multi_query($sql)) {
+            if (!$conn->multi_query($main)) {
                 throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
             }
             do {
@@ -421,14 +701,80 @@ class BackupManager
                     break;
                 }
             } while ($conn->next_result());
-
             if ($conn->errno !== 0) {
                 throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
+            }
+
+            foreach ($this->parseTriggerStatements($triggersBlock) as $stmt) {
+                if (!$conn->query($stmt)) {
+                    throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
+                }
             }
             $conn->commit();
         } finally {
             $conn->close();
         }
+    }
+
+    /**
+     * Parse the DELIMITER-delimited trigger block into individual statements
+     * (DROP TRIGGER … / CREATE TRIGGER … END) runnable via mysqli::query().
+     *
+     * @return array<int, string>
+     */
+    private function parseTriggerStatements(string $block): array
+    {
+        if (trim($block) === '') {
+            return [];
+        }
+        $statements = [];
+        $lines = explode("\n", $block);
+        $count = count($lines);
+        $i = 0;
+        while ($i < $count) {
+            $line = $lines[$i];
+            $trimmed = trim($line);
+            if ($trimmed === '' || stripos($trimmed, 'DELIMITER') === 0) {
+                $i++;
+                continue;
+            }
+            if (stripos($trimmed, 'DROP TRIGGER') === 0) {
+                $statements[] = rtrim($trimmed, ';');
+                $i++;
+                continue;
+            }
+            // CREATE TRIGGER … accumulate until a line ending with the $$ marker.
+            $stmt = '';
+            while ($i < $count) {
+                $l = $lines[$i];
+                $i++;
+                if (preg_match('/\$\$\s*$/', $l)) {
+                    $stmt .= preg_replace('/\$\$\s*$/', '', $l);
+                    break;
+                }
+                $stmt .= $l . "\n";
+            }
+            $stmt = trim($stmt);
+            if ($stmt !== '') {
+                $statements[] = $stmt;
+            }
+        }
+        return $statements;
+    }
+
+    /**
+     * @return array{host: string, user: string, pass: string, name: string, port: int, socket: string}
+     */
+    private function dbConfig(): array
+    {
+        return [
+            'host' => (string) ($_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'localhost'),
+            'user' => (string) ($_ENV['DB_USER'] ?? getenv('DB_USER') ?: ''),
+            'pass' => (string) ($_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: ''),
+            'name' => (string) ($_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: ''),
+            'port' => (int) ($_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: 3306),
+            'socket' => (string) ($_ENV['DB_SOCKET'] ?? getenv('DB_SOCKET') ?: ''),
+        ];
     }
 
     /**
@@ -491,11 +837,11 @@ class BackupManager
     /**
      * Extract files/* entries back over the upload roots, rejecting zip-slip.
      */
-    private function extractFilesSafely(ZipArchive $zip): void
+    private function extractFilesSafely(ZipArchive $zip, string $destRoot): void
     {
         $allowed = [];
         foreach (self::FILE_ROOTS as $rel) {
-            $base = $this->rootPath . '/' . $rel;
+            $base = $destRoot . '/' . $rel;
             if (!is_dir($base) && !@mkdir($base, 0755, true) && !is_dir($base)) {
                 continue;
             }
@@ -517,7 +863,7 @@ class BackupManager
             if (str_contains($relative, '..') || str_contains($relative, "\0") || str_starts_with($relative, '/')) {
                 continue;
             }
-            $target = $this->rootPath . '/' . $relative;
+            $target = $destRoot . '/' . $relative;
             // Never follow a pre-existing symlink at the target: fopen('w') would
             // write through it to an arbitrary path outside the allowed roots.
             if (is_link($target)) {

@@ -5252,5 +5252,6 @@
   "connessione al database non riuscita": "Datenbankverbindung fehlgeschlagen",
   "Errore durante il ripristino dei file": "Fehler beim Wiederherstellen der Dateien",
   "Errore durante il ripristino": "Fehler bei der Wiederherstellung",
-  "Impossibile salvare l'impostazione": "Einstellung konnte nicht gespeichert werden"
+  "Impossibile salvare l'impostazione": "Einstellung konnte nicht gespeichert werden",
+  "Il backup è corrotto (checksum del database non valido)": "Die Sicherung ist beschädigt (ungültige Datenbank-Prüfsumme)"
 }

@@ -5252,5 +5252,6 @@
   "connessione al database non riuscita": "connessione al database non riuscita",
   "Errore durante il ripristino dei file": "Errore durante il ripristino dei file",
   "Errore durante il ripristino": "Errore durante il ripristino",
-  "Impossibile salvare l'impostazione": "Impossibile salvare l'impostazione"
+  "Impossibile salvare l'impostazione": "Impossibile salvare l'impostazione",
+  "Il backup è corrotto (checksum del database non valido)": "Il backup è corrotto (checksum del database non valido)"
 }

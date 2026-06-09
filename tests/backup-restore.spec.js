@@ -124,12 +124,20 @@ test.describe('#162 — complete backup + restore', () => {
     createdBackups.push(snapName);
 
     const backupsBefore = fs.readdirSync(BACKUP_DIR).filter((f) => f.startsWith('backup_')).length;
+    // The loan/expiry invariant triggers must survive a restore (#167 P1): a
+    // dump that DROP/CREATEs tables drops their triggers, so the restore has to
+    // recreate them. Prove it by dropping one and asserting it comes back.
+    const trigCount = () => Number(dbQuery(`SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE()`));
+    const trigBefore = trigCount();
+    expect(trigBefore).toBeGreaterThan(0);
 
-    // Simulate a dirty state: drop the row and the file.
+    // Simulate a dirty state: drop the row, the file, and a protective trigger.
     dbQuery(`DELETE FROM libri WHERE titolo='${TAG} libro'`);
     fs.unlinkSync(markerCover);
+    dbQuery(`DROP TRIGGER IF EXISTS trg_check_active_prestito_before_insert`);
     expect(Number(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo='${TAG} libro'`))).toBe(0);
     expect(fs.existsSync(markerCover)).toBe(false);
+    expect(trigCount()).toBe(trigBefore - 1);
 
     // Restore the snapshot.
     const res = await apiPost(page, '/admin/updates/backup/restore', { backup: snapName });
@@ -138,10 +146,12 @@ test.describe('#162 — complete backup + restore', () => {
     expect(res.json?.safety_backup).toMatch(/^backup_.*\.zip$/);
     if (res.json?.safety_backup) createdBackups.push(res.json.safety_backup);
 
-    // DB row back, cover file back, and a pre-restore safety backup was created.
+    // DB row back, cover file back, triggers recreated, and a pre-restore safety backup was created.
     expect(Number(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo='${TAG} libro'`))).toBe(1);
     expect(fs.existsSync(markerCover)).toBe(true);
     expect(fs.readFileSync(markerCover, 'utf-8')).toBe('MARKER-' + TAG);
+    expect(trigCount()).toBe(trigBefore);
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME='trg_check_active_prestito_before_insert'`))).toBe(1);
     const backupsAfter = fs.readdirSync(BACKUP_DIR).filter((f) => f.startsWith('backup_')).length;
     expect(backupsAfter).toBeGreaterThan(backupsBefore);
   });
