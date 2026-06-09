@@ -68,6 +68,8 @@ test.describe('#165 — replace a book cover in one step', () => {
     return id;
   }
   const cover = (id) => dbQuery(`SELECT IFNULL(copertina_url,'') FROM libri WHERE id=${id}`);
+  const ROOT = path.resolve(__dirname, '..');
+  const coverFile = (url) => path.join(ROOT, 'public', url.replace(/^\//, '')); // nosemgrep -- url is our own /uploads/copertine path from the DB, test-only
 
   test('1. Uploading a new cover in edit REPLACES the existing one', async () => {
     const id = await createWithCover(`C165a_${Date.now().toString(36)}`, coverA);
@@ -157,5 +159,23 @@ test.describe('#165 — replace a book cover in one step', () => {
     expect(removeFlag).toBe('0');          // the fix cancelled the pending removal
     await submitBook();
     expect(cover(id).length).toBeGreaterThan(0);  // new cover kept, not lost
+  });
+
+  test('6. Replacing a cover deletes the old local file (no orphan, #166 review)', async () => {
+    const id = await createWithCover(`C165f_${Date.now().toString(36)}`, coverA);
+    const before = cover(id);
+    expect(before).toMatch(/^\/uploads\/copertine\//);
+    const oldFile = coverFile(before);
+    expect(fs.existsSync(oldFile)).toBe(true);   // the original local cover is on disk
+
+    await page.goto(`${BASE}/admin/books/edit/${id}`);
+    await expect(page.locator('#titolo')).toBeVisible({ timeout: 10000 });
+    await page.setInputFiles('#fallback-file-input', coverB);
+    await submitBook();
+
+    const after = cover(id);
+    expect(after).not.toBe(before);              // DB repointed to the new file
+    expect(fs.existsSync(coverFile(after))).toBe(true);  // new cover present
+    expect(fs.existsSync(oldFile)).toBe(false);  // old file removed, not orphaned
   });
 });

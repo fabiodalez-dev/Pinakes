@@ -1844,6 +1844,16 @@ class LibriController
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
             }
 
+            // Replacing a cover writes a new uniquely-named file and repoints the
+            // DB, leaving the previous local file orphaned (#166 review). Compare
+            // the cover captured before this update against the final one and
+            // delete the old local file when it actually changed. The remove_cover
+            // branch already unlinks its file, so skip it here.
+            if (!$removeCoverRequested) {
+                $finalCover = $this->currentCoverUrl($db, $id);
+                $this->deleteLocalCoverFile((string) ($currentBook['copertina_url'] ?? ''), $finalCover);
+            }
+
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiornato con successo!');
 
@@ -2102,6 +2112,51 @@ class LibriController
             $this->logCoverDebug('handleCoverUpload.ok', ['bookId' => $bookId, 'stored' => $url]);
         } else {
             $this->logCoverDebug('handleCoverUpload.fail', ['bookId' => $bookId]);
+        }
+    }
+
+    /**
+     * Read the current local/remote cover URL for a book (empty string if none).
+     */
+    private function currentCoverUrl(mysqli $db, int $bookId): string
+    {
+        $stmt = $db->prepare('SELECT copertina_url FROM libri WHERE id=?');
+        if (!$stmt) {
+            return '';
+        }
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return (string) ($row['copertina_url'] ?? '');
+    }
+
+    /**
+     * Delete a previously-stored LOCAL cover file when it is being replaced.
+     * No-op for external URLs, empty values, or when the old path equals the
+     * new one. Uses the same realpath-containment guard as the remove-cover
+     * branch so it can only ever unlink inside public/uploads/copertine.
+     */
+    private function deleteLocalCoverFile(string $oldUrl, ?string $newUrl = null): void
+    {
+        if ($oldUrl === '' || strpos($oldUrl, '/uploads/copertine/') !== 0) {
+            return;
+        }
+        if ($newUrl !== null && $oldUrl === $newUrl) {
+            return;
+        }
+        $safePath = realpath(__DIR__ . '/../../public' . $oldUrl);
+        $baseDir = realpath($this->getCoversUploadPath());
+        if ($safePath && $baseDir && strpos($safePath, $baseDir) === 0 && file_exists($safePath)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- path confined by the realpath() containment check above, not user input
+            unlink($safePath);
+            $this->logCoverDebug('cover.old.deleted', ['path' => $oldUrl]);
+        } else {
+            $this->logCoverDebug('cover.old.delete.security_block', [
+                'requested' => $oldUrl,
+                'resolved' => $safePath,
+                'baseDir' => $baseDir,
+            ]);
         }
     }
 
