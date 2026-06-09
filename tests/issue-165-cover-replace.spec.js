@@ -131,4 +131,30 @@ test.describe('#165 — replace a book cover in one step', () => {
     await submitBook();
     expect(cover(id)).toBe('');           // removal wins; cover NOT re-added
   });
+
+  test('5. Choosing a new cover after Rimuovi keeps it (#F007 inverse order)', async () => {
+    // The inverse of test 4: the user clicks "Rimuovi" and THEN picks a new cover
+    // (here via the real applyAlternativeCover) in the same session. Before the
+    // fix, remove_cover stayed '1', so update() nulled the cover and the guard
+    // skipped re-adding it — the freshly chosen cover was silently lost. The fix
+    // resets remove_cover to '0' at every cover-add site, so the last action wins.
+    const id = await createWithCover(`C165e_${Date.now().toString(36)}`, coverA);
+    const saved = cover(id);
+    expect(saved.length).toBeGreaterThan(0);
+    await page.goto(`${BASE}/admin/books/edit/${id}`);
+    await expect(page.locator('#titolo')).toBeVisible({ timeout: 10000 });
+    // Simulate Rimuovi, then apply a new cover via the actual JS path. Feed the
+    // book's own saved cover back as an absolute same-origin URL (handleCoverUrl
+    // Case 2 persists it locally — deterministic, no external fetch).
+    const removeFlag = await page.evaluate((absUrl) => {
+      document.getElementById('remove_cover').value = '1';
+      document.getElementById('copertina_url').value = '';
+      // The real cover-add path the fix patches:
+      applyAlternativeCover(absUrl);
+      return document.getElementById('remove_cover').value;
+    }, `${BASE}${saved}`);
+    expect(removeFlag).toBe('0');          // the fix cancelled the pending removal
+    await submitBook();
+    expect(cover(id).length).toBeGreaterThan(0);  // new cover kept, not lost
+  });
 });
