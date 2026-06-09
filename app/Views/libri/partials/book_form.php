@@ -1188,7 +1188,10 @@ function initializeUppy() {
         // Handle file added
         uppy.on('file-added', (file) => {
             displayImagePreview(file);
-            
+
+            // Choosing a cover file cancels any pending removal — last action wins (#F007)
+            const rc = document.getElementById('remove_cover'); if (rc) rc.value = '0';
+
             // Set the file to the hidden input for form submission
             const fileInput = document.getElementById('fallback-file-input');
             const dataTransfer = new DataTransfer();
@@ -3491,6 +3494,8 @@ function applyAlternativeCover(url) {
     const scrapedCoverInput = document.getElementById('scraped_cover_url');
     if (coverHidden) coverHidden.value = safeUrl;
     if (scrapedCoverInput) scrapedCoverInput.value = safeUrl;
+    // Choosing a new cover cancels any pending removal — last action wins (#F007)
+    const rc = document.getElementById('remove_cover'); if (rc) rc.value = '0';
     displayScrapedCover(safeUrl);
     if (window.Toast) {
         window.Toast.fire({ icon: 'success', title: __('Copertina applicata') });
@@ -3761,6 +3766,8 @@ function initializeIsbnImport() {
                     if (coverHidden) {
                         coverHidden.value = data.image;
                     }
+                    // A re-scraped cover cancels any pending removal — last action wins (#F007)
+                    const rc = document.getElementById('remove_cover'); if (rc) rc.value = '0';
                     displayScrapedCover(data.image);
                 } else {
                 }
