@@ -5248,5 +5248,6 @@
   "Impossibile aprire l'archivio di backup": "Backup-Archiv kann nicht geöffnet werden",
   "Database mancante nel backup": "Datenbank fehlt im Backup",
   "Dump del database vuoto o illeggibile": "Datenbank-Dump leer oder nicht lesbar",
-  "Errore durante il ripristino del database": "Fehler beim Wiederherstellen der Datenbank"
+  "Errore durante il ripristino del database": "Fehler beim Wiederherstellen der Datenbank",
+  "connessione al database non riuscita": "Datenbankverbindung fehlgeschlagen"
 }

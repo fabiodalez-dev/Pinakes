@@ -5248,5 +5248,6 @@
   "Impossibile aprire l'archivio di backup": "Impossible d'ouvrir l'archive de sauvegarde",
   "Database mancante nel backup": "Base de données absente de la sauvegarde",
   "Dump del database vuoto o illeggibile": "Vidage de base de données vide ou illisible",
-  "Errore durante il ripristino del database": "Erreur lors de la restauration de la base de données"
+  "Errore durante il ripristino del database": "Erreur lors de la restauration de la base de données",
+  "connessione al database non riuscita": "échec de la connexion à la base de données"
 }

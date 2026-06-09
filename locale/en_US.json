@@ -5248,5 +5248,6 @@
   "Impossibile aprire l'archivio di backup": "Cannot open the backup archive",
   "Database mancante nel backup": "Database missing from the backup",
   "Dump del database vuoto o illeggibile": "Database dump empty or unreadable",
-  "Errore durante il ripristino del database": "Error while restoring the database"
+  "Errore durante il ripristino del database": "Error while restoring the database",
+  "connessione al database non riuscita": "database connection failed"
 }

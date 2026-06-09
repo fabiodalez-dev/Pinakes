@@ -384,7 +384,10 @@ class BackupManager
     }
 
     /**
-     * Import a database.sql dump into the current database via multi_query.
+     * Import a database.sql dump via multi_query. Runs on a DEDICATED
+     * connection: the request connection may have just produced the unbuffered
+     * pre-restore dump, after which a multi_query on the same handle can report
+     * success yet silently not persist. A fresh connection avoids that.
      */
     private function importDatabase(string $sqlPath): void
     {
@@ -392,22 +395,53 @@ class BackupManager
         if ($sql === false || $sql === '') {
             throw new \RuntimeException(__('Dump del database vuoto o illeggibile'));
         }
-        if (!$this->db->multi_query($sql)) {
-            throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $this->db->error);
-        }
-        do {
-            $res = $this->db->store_result();
-            if ($res instanceof \mysqli_result) {
-                $res->free();
-            }
-            if (!$this->db->more_results()) {
-                break;
-            }
-        } while ($this->db->next_result());
 
-        if ($this->db->errno !== 0) {
-            throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $this->db->error);
+        $conn = $this->openImportConnection();
+        try {
+            $conn->autocommit(true);
+            if (!$conn->multi_query($sql)) {
+                throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
+            }
+            do {
+                $res = $conn->store_result();
+                if ($res instanceof \mysqli_result) {
+                    $res->free();
+                }
+                if (!$conn->more_results()) {
+                    break;
+                }
+            } while ($conn->next_result());
+
+            if ($conn->errno !== 0) {
+                throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
+            }
+            $conn->commit();
+        } finally {
+            $conn->close();
         }
+    }
+
+    /**
+     * Open a fresh mysqli connection to the same database (from env config).
+     */
+    private function openImportConnection(): mysqli
+    {
+        $host = (string) ($_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'localhost');
+        $user = (string) ($_ENV['DB_USER'] ?? getenv('DB_USER') ?: '');
+        $pass = (string) ($_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: '');
+        $name = (string) ($_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: '');
+        $port = (int) ($_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: 3306);
+        $socket = (string) ($_ENV['DB_SOCKET'] ?? getenv('DB_SOCKET') ?: '');
+
+        mysqli_report(MYSQLI_REPORT_OFF);
+        $conn = $socket !== ''
+            ? @mysqli_connect(null, $user, $pass, $name, 0, $socket)
+            : @mysqli_connect($host, $user, $pass, $name, $port);
+        if (!$conn instanceof mysqli) {
+            throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . __('connessione al database non riuscita'));
+        }
+        $conn->set_charset('utf8mb4');
+        return $conn;
     }
 
     /**
