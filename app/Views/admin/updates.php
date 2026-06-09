@@ -220,22 +220,46 @@ $hasGithubToken ??= false;
                     <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
                         <div class="flex items-start gap-3">
                             <i class="fas fa-shield-alt text-blue-600 mt-0.5"></i>
-                            <div>
+                            <div class="flex-1">
                                 <p class="font-medium text-blue-800"><?= __("Backup Automatico") ?></p>
                                 <p class="text-sm text-blue-700 mt-1">
-                                    <?= __("Prima di ogni aggiornamento viene creato automaticamente un backup del database.") ?>
+                                    <?= __("Prima di ogni aggiornamento viene creato automaticamente un backup.") ?>
                                 </p>
+                                <label class="mt-3 flex items-center gap-2 text-sm text-blue-800 cursor-pointer">
+                                    <input type="checkbox" id="preUpdateIncludeFiles" onchange="saveBackupSetting()" <?= !empty($backupIncludeFiles) ? 'checked' : '' ?>
+                                        class="rounded border-blue-300 text-blue-600 focus:ring-blue-500">
+                                    <?= __("Includi i file caricati nel backup pre-aggiornamento") ?>
+                                </label>
                             </div>
                         </div>
                     </div>
 
                     <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2"><?= __("Contenuto del backup") ?></label>
+                        <select id="backupScope" class="w-full mb-3 px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-gray-400">
+                            <option value="full"><?= __("Completo (database + file caricati)") ?></option>
+                            <option value="db"><?= __("Solo database") ?></option>
+                        </select>
                         <button onclick="createBackup()"
                             class="w-full inline-flex items-center justify-center px-6 py-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200">
                             <i class="fas fa-database mr-2"></i>
                             <?= __("Crea Backup Manuale") ?>
                         </button>
                     </div>
+
+<?php if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin'): ?>
+                    <div class="border-t border-gray-200 pt-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2"><?= __("Ripristina da file") ?></label>
+                        <input type="file" id="restoreFileInput" accept=".zip"
+                            class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
+                        <button onclick="uploadRestoreFile()"
+                            class="mt-3 w-full inline-flex items-center justify-center px-6 py-3 bg-red-50 text-red-700 rounded-xl hover:bg-red-100 transition-all duration-200">
+                            <i class="fas fa-upload mr-2"></i>
+                            <?= __("Carica e Ripristina") ?>
+                        </button>
+                        <p class="text-xs text-gray-500 mt-2"><i class="fas fa-exclamation-triangle mr-1"></i><?= __("Il ripristino sovrascrive i dati attuali. Verrà creato un backup di sicurezza prima.") ?></p>
+                    </div>
+<?php endif; ?>
 
                     <div class="text-sm text-gray-500">
                         <p><i class="fas fa-folder mr-2"></i><?= __("I backup sono salvati in:") ?></p>
@@ -534,6 +558,7 @@ $hasGithubToken ??= false;
 
 <script>
 const csrfToken = <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>;
+const IS_ADMIN = <?= (($_SESSION['user']['tipo_utente'] ?? '') === 'admin') ? 'true' : 'false' ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
 
 async function postTokenRequest(tokenValue) {
@@ -693,12 +718,13 @@ async function createBackup() {
             didOpen: () => Swal.showLoading()
         });
 
+        const scope = (document.getElementById('backupScope')?.value === 'db') ? 'db' : 'full';
         const response = await fetch(window.BASE_PATH + '/admin/updates/backup', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: `csrf_token=${encodeURIComponent(csrfToken)}`
+            body: `csrf_token=${encodeURIComponent(csrfToken)}&scope=${encodeURIComponent(scope)}`
         });
 
         const data = await response.json();
@@ -929,6 +955,7 @@ async function loadBackups() {
                         <tr>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Nome File"), JSON_HEX_TAG) ?>}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Data"), JSON_HEX_TAG) ?>}</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Contenuto"), JSON_HEX_TAG) ?>}</th>
                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Dimensione"), JSON_HEX_TAG) ?>}</th>
                             <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">${<?= json_encode(__("Azioni"), JSON_HEX_TAG) ?>}</th>
                         </tr>
@@ -936,9 +963,23 @@ async function loadBackups() {
                     <tbody class="divide-y divide-gray-200">
         `;
 
+        const labelFull = <?= json_encode(__("DB + file"), JSON_HEX_TAG) ?>;
+        const labelDb = <?= json_encode(__("Solo database"), JSON_HEX_TAG) ?>;
+        const restoreLabel = <?= json_encode(__("Ripristina"), JSON_HEX_TAG) ?>;
+
         data.backups.forEach(backup => {
             const date = new Date(backup.created_at * 1000);
             const formattedDate = formatDateLocale(date, true);
+            const isFull = backup.contents === 'full';
+            const contentsBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${isFull ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">
+                <i class="fas ${isFull ? 'fa-box-archive' : 'fa-database'} mr-1"></i>${isFull ? labelFull : labelDb}</span>`;
+            // Restore is admin-only and only for the new ZIP backups.
+            const restorable = IS_ADMIN && String(backup.name).endsWith('.zip');
+            const restoreBtn = restorable ? `
+                        <button data-backup="${escapeHtml(backup.name)}" data-action="restore"
+                            class="btn-backup-restore inline-flex items-center px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 mr-2">
+                            <i class="fas fa-rotate-left mr-1"></i>${restoreLabel}
+                        </button>` : '';
 
             html += `
                 <tr class="hover:bg-gray-50">
@@ -951,10 +992,14 @@ async function loadBackups() {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         ${formattedDate}
                     </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        ${contentsBadge}
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         ${formatBytes(backup.size)}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-right">
+                        ${restoreBtn}
                         <button data-backup="${escapeHtml(backup.name)}" data-action="download"
                             class="btn-backup-download inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 mr-2">
                             <i class="fas fa-download mr-1"></i>
@@ -1047,6 +1092,90 @@ function downloadBackup(backupName) {
     window.location.href = window.BASE_PATH + '/admin/updates/backup/download?backup=' + encodeURIComponent(backupName);
 }
 
+// Restore from a stored backup (admin-only, destructive).
+async function restoreBackup(backupName) {
+    const result = await Swal.fire({
+        title: <?= json_encode(__("Ripristinare questo backup?"), JSON_HEX_TAG) ?>,
+        html: `<p class="font-mono text-sm">${escapeHtml(backupName)}</p><p class="text-sm text-red-600 mt-3">${<?= json_encode(__("I dati attuali (database e file) verranno sovrascritti. Un backup di sicurezza verrà creato prima del ripristino."), JSON_HEX_TAG) ?>}</p>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: <?= json_encode(__("Ripristina"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
+        confirmButtonColor: '#d97706'
+    });
+    if (!result.isConfirmed) return;
+    await runRestore(window.BASE_PATH + '/admin/updates/backup/restore',
+        `csrf_token=${encodeURIComponent(csrfToken)}&backup=${encodeURIComponent(backupName)}`, false);
+}
+
+// Restore from an uploaded backup ZIP (admin-only, destructive).
+async function uploadRestoreFile() {
+    const input = document.getElementById('restoreFileInput');
+    const file = input?.files?.[0];
+    if (!file) {
+        Swal.fire({ icon: 'warning', title: <?= json_encode(__("Nessun file selezionato"), JSON_HEX_TAG) ?> });
+        return;
+    }
+    const result = await Swal.fire({
+        title: <?= json_encode(__("Ripristinare da questo file?"), JSON_HEX_TAG) ?>,
+        html: `<p class="font-mono text-sm">${escapeHtml(file.name)}</p><p class="text-sm text-red-600 mt-3">${<?= json_encode(__("I dati attuali (database e file) verranno sovrascritti. Un backup di sicurezza verrà creato prima del ripristino."), JSON_HEX_TAG) ?>}</p>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: <?= json_encode(__("Carica e Ripristina"), JSON_HEX_TAG) ?>,
+        cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
+        confirmButtonColor: '#d97706'
+    });
+    if (!result.isConfirmed) return;
+    const fd = new FormData();
+    fd.append('csrf_token', csrfToken);
+    fd.append('backup_file', file);
+    await runRestore(window.BASE_PATH + '/admin/updates/backup/restore-upload', fd, true);
+}
+
+// Shared restore runner. isFormData=true → multipart body.
+async function runRestore(url, body, isFormData) {
+    try {
+        Swal.fire({
+            title: <?= json_encode(__("Ripristino in corso..."), JSON_HEX_TAG) ?>,
+            text: <?= json_encode(__("L'operazione può richiedere alcuni minuti. Non chiudere la pagina."), JSON_HEX_TAG) ?>,
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => Swal.showLoading()
+        });
+        const opts = { method: 'POST', body };
+        if (!isFormData) opts.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+        const response = await fetch(url, opts);
+        const data = await response.json();
+        if (data.success) {
+            await Swal.fire({
+                icon: 'success',
+                title: <?= json_encode(__("Ripristino completato"), JSON_HEX_TAG) ?>,
+                text: data.safety_backup
+                    ? (<?= json_encode(__("Backup di sicurezza creato:"), JSON_HEX_TAG) ?> + ' ' + data.safety_backup)
+                    : data.message
+            });
+            loadBackups();
+        } else {
+            Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: data.error });
+        }
+    } catch (error) {
+        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: error.message });
+    }
+}
+
+// Persist the "include files in pre-update backup" setting.
+async function saveBackupSetting() {
+    const checkbox = document.getElementById('preUpdateIncludeFiles');
+    if (!checkbox) return;
+    try {
+        await fetch(window.BASE_PATH + '/admin/updates/backup/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: `csrf_token=${encodeURIComponent(csrfToken)}&include_files=${checkbox.checked ? '1' : '0'}`
+        });
+    } catch (error) { /* non-blocking */ }
+}
+
 function formatBytes(bytes) {
     if (bytes === 0) return '0 B';
     const k = 1024;
@@ -1079,6 +1208,13 @@ document.addEventListener('click', (e) => {
     if (deleteBtn) {
         const backupName = deleteBtn.getAttribute('data-backup');
         if (backupName) deleteBackup(backupName);
+        return;
+    }
+
+    const restoreBtn = e.target.closest('.btn-backup-restore');
+    if (restoreBtn) {
+        const backupName = restoreBtn.getAttribute('data-backup');
+        if (backupName) restoreBackup(backupName);
         return;
     }
 });

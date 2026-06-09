@@ -36,6 +36,9 @@ class UpdateController
         $githubTokenMasked = $updater->getGitHubTokenMasked();
         $hasGithubToken = $updater->hasGitHubToken();
 
+        $backupIncludeFiles = (new \App\Models\SettingsRepository($db))
+            ->get('backup', 'pre_update_include_files', '0') === '1';
+
         ob_start();
         require __DIR__ . '/../Views/admin/updates.php';
         $content = ob_get_clean();
@@ -336,6 +339,22 @@ class UpdateController
             ]);
         }
         return $this->jsonResponse($response, ['success' => false, 'error' => $result['error']], 500);
+    }
+
+    /**
+     * Persist the "include uploaded files in the pre-update backup" setting.
+     */
+    public function saveBackupSettings(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        if (!Csrf::validate($data['csrf_token'] ?? '')) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $value = (($data['include_files'] ?? '0') === '1') ? '1' : '0';
+        (new \App\Models\SettingsRepository($db))->set('backup', 'pre_update_include_files', $value);
+
+        return $this->jsonResponse($response, ['success' => true]);
     }
 
     /**

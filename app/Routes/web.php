@@ -3069,6 +3069,12 @@ return function (App $app): void {
         return $controller->downloadBackup($request, $response, $db);
     })->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/updates/backup/settings', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new \App\Controllers\UpdateController();
+        return $controller->saveBackupSettings($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     // Restore a stored backup (DB + files). Destructive — the controller
     // additionally restricts this to admins (AdminAuthMiddleware allows staff).
     $app->post('/admin/updates/backup/restore', function ($request, $response) use ($app) {
