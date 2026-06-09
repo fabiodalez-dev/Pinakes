@@ -51,6 +51,12 @@ test.describe('#164 — scanner Enter on the ISBN field', () => {
     page.on('request', onReq);
     await page.locator('#importIsbn').press('Enter');
     await expect(page.locator('.swal2-popup')).toBeVisible({ timeout: 5000 });
+    // Close the warning explicitly (project E2E convention) and wait for it to
+    // disappear. Detaching the listener only after the popup is fully dismissed
+    // gives any erroneously-late scrape request a deterministic window to
+    // surface before we assert it never fired.
+    await page.locator('.swal2-confirm').click();
+    await expect(page.locator('.swal2-popup')).toBeHidden({ timeout: 5000 });
     page.off('request', onReq);
     expect(scrapeFired).toBe(false);     // empty code → no import call
     expect(page.url()).toBe(urlBefore);  // and still no form submit
