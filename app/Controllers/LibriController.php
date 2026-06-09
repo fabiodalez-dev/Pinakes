@@ -829,11 +829,22 @@ class LibriController
         $numPagineRaw = $fields['numero_pagine'] ?? null;
         $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $fields['numero_pagine'] = ($numPagine === false) ? null : $numPagine;
+        // The form posts the same scraped URL in both copertina_url and
+        // scraped_cover_url; this flag lets the scraped-cover branch skip the
+        // redundant second download that would orphan a file on disk (#F009).
+        $scrapedCoverAlreadySaved = false;
         if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
         } else {
             // Auto-download external cover URLs
+            $originalCoverUrl = (string) $fields['copertina_url'];
             $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
+            if (is_string($fields['copertina_url'])
+                && strpos($fields['copertina_url'], '/uploads/copertine/') === 0
+                && isset($data['scraped_cover_url'])
+                && (string) $data['scraped_cover_url'] === $originalCoverUrl) {
+                $scrapedCoverAlreadySaved = true;
+            }
         }
 
         // Ensure hierarchical consistency between genere_id (parent) and sottogenere_id (child)
@@ -1171,7 +1182,7 @@ class LibriController
             // book has no prior cover, so this is purely defensive on the create
             // path. Reuse the same === '1' comparison as update()'s removal branch.
             $removeCoverRequested = (isset($data['remove_cover']) && $data['remove_cover'] === '1');
-            if (!$coverFileUploaded && !$removeCoverRequested && !empty($data['scraped_cover_url'])) {
+            if (!$coverFileUploaded && !$removeCoverRequested && !$scrapedCoverAlreadySaved && !empty($data['scraped_cover_url'])) {
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
             }
 
@@ -1415,6 +1426,13 @@ class LibriController
         $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $fields['numero_pagine'] = ($numPagine === false) ? null : $numPagine;
 
+        // When a scraped cover is saved, the form posts the SAME external URL in
+        // both copertina_url and scraped_cover_url. downloadExternalCover() below
+        // already fetches+stores it locally; this flag lets the scraped-cover
+        // branch skip re-downloading the identical image, which otherwise leaves
+        // an orphaned file on disk and wastes a network round-trip (#F009).
+        $scrapedCoverAlreadySaved = false;
+
         // Gestione rimozione copertina
         if (isset($data['remove_cover']) && $data['remove_cover'] === '1') {
             // Cancella il file della copertina esistente se presente
@@ -1447,7 +1465,20 @@ class LibriController
             $fields['copertina_url'] = null;
         } else {
             // Auto-download external cover URLs
+            $originalCoverUrl = (string) $fields['copertina_url'];
             $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
+            // If the download produced a local file AND the scraped-cover branch
+            // would re-fetch the very same URL, mark it already saved so we don't
+            // download it twice and orphan the first file (#F009). When the domain
+            // isn't whitelisted, downloadExternalCover returns the URL unchanged
+            // (no local file) and the flag stays false, so handleCoverUrl() — with
+            // its own SSRF-guarded fetch — still runs and saves the cover.
+            if (is_string($fields['copertina_url'])
+                && strpos($fields['copertina_url'], '/uploads/copertine/') === 0
+                && isset($data['scraped_cover_url'])
+                && (string) $data['scraped_cover_url'] === $originalCoverUrl) {
+                $scrapedCoverAlreadySaved = true;
+            }
         }
 
         // Ensure hierarchical consistency between genere_id and sottogenere_id also on update
@@ -1809,7 +1840,7 @@ class LibriController
             // match the string '1' explicitly — the hidden field defaults to '0',
             // so a strict === check avoids any truthiness ambiguity.
             $removeCoverRequested = (isset($data['remove_cover']) && $data['remove_cover'] === '1');
-            if (!$coverFileUploaded && !$removeCoverRequested && !empty($data['scraped_cover_url'])) {
+            if (!$coverFileUploaded && !$removeCoverRequested && !$scrapedCoverAlreadySaved && !empty($data['scraped_cover_url'])) {
                 $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
             }
 
