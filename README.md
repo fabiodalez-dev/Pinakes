@@ -34,6 +34,24 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.19-rc.1 (release candidate)
+
+> **Pre-release.** This RC bundles two reviewed-and-fixed PRs for early testing on installs that opt into the RC channel (`UPDATER_ALLOW_PRERELEASE=1` or `UPDATER_CHANNEL=rc` in `.env`). It is hidden from stable installs and from `/releases/latest`.
+
+### Complete backup & restore — DB + uploaded files (#162)
+
+The admin **Updates** page can now create a *complete* backup (database dump **plus** all uploaded files — covers, plugin uploads) as a single ZIP, download it, and **restore** from it (stored backup or uploaded ZIP). Restore is admin-only and CSRF-guarded, always takes a pre-restore safety backup, verifies the dump's SHA-256 against the manifest before importing, streams the dump to disk and imports via the `mysql` CLI (PHP `multi_query` fallback), exports MySQL triggers DELIMITER-aware so they survive the round-trip, and promotes restored files atomically through a staging directory. Hardening from two review rounds: the restore now holds the same `flock` the updater uses and enables maintenance mode for the destructive window (no concurrent restore can interleave DDL); the file extraction enforces a cumulative decompressed-size cap per chunk (zip-bomb guard covering both `database.sql` and `files/*`) and fails loudly on any I/O error instead of promoting a truncated file.
+
+### Book-cover & ISBN-scanner fixes (#164, #165)
+
+A scanner **Enter** now triggers the ISBN/EAN import instead of submitting the form, and is guarded against firing a duplicate in-flight import. Replacing a book cover in one step no longer orphans the previous local file, and a *failed* external-cover replacement no longer deletes the working local cover and leaves the book pointing at a dead URL.
+
+### Testing
+
+Both PRs were validated together: the four targeted regression suites (32 passing) on the combined working tree, and — crucially — a **real updater upgrade** from an installed `v0.7.18` to this combined build through the admin UI (`Updater::performUpdateFromFile()`, no shortcuts), after which the full lifecycle suite (135 passing) and post-upgrade schema + 16-plugin integrity checks all pass. PHPStan level 5 clean.
+
+---
+
 ## What's New in v0.7.18
 
 ### Configurable loan & reservation system (#157)
