@@ -329,6 +329,14 @@ class UpdateController
             return $this->jsonResponse($response, ['error' => __('Nessun file caricato')], 400);
         }
 
+        // Reject an over-cap upload BEFORE moving it to disk, so a 2 GB+ file can't
+        // exhaust storage just to be rejected. restoreFromUploadedZip keeps the
+        // post-move check as a backstop (getSize() can be null/spoofed).
+        $earlySize = $upload->getSize();
+        if ($earlySize !== null && $earlySize > \App\Support\BackupManager::MAX_UPLOAD_BYTES) {
+            return $this->jsonResponse($response, ['error' => __('File di backup troppo grande')], 400);
+        }
+
         $tmpDir = dirname(__DIR__, 2) . '/storage/tmp';
         if (!is_dir($tmpDir)) {
             @mkdir($tmpDir, 0755, true);

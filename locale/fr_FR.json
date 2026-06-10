@@ -5259,5 +5259,14 @@
   "Sono accettati solo file .zip.": "Seuls les fichiers .zip sont acceptés.",
   "File troppo grande": "Fichier trop volumineux",
   "Il file supera il limite di 2 GB.": "Le fichier dépasse la limite de 2 Go.",
-  "Sono accettati solo file .zip fino a 2 GB.": "Seuls les fichiers .zip jusqu'à 2 Go sont acceptés."
+  "Sono accettati solo file .zip fino a 2 GB.": "Seuls les fichiers .zip jusqu'à 2 Go sont acceptés.",
+  "Ricarica la pagina": "Recharger la page",
+  "Formato legacy": "Format hérité",
+  "Il ripristino non è supportato per i backup in formato cartella; scarica il file per un ripristino manuale.": "La restauration n'est pas prise en charge pour les sauvegardes au format dossier ; téléchargez le fichier pour une restauration manuelle.",
+  "Caricamento...": "Téléversement...",
+  "Tempo trascorso": "Temps écoulé",
+  "Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server.": "Le serveur n'a pas répondu correctement : l'opération est peut-être encore en cours ou interrompue à mi-chemin. Ne lancez pas immédiatement une nouvelle restauration. Vérifiez la liste des sauvegardes (il peut y avoir une sauvegarde de sécurité avant restauration) et les journaux du serveur.",
+  "Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio.": "Ne restaurez que des archives créées par cette instance ou auxquelles vous faites entièrement confiance : le contenu de la base de données sera remplacé par celui de l'archive.",
+  "Archivio di backup non valido: dimensione decompressa eccessiva": "Archive de sauvegarde non valide : taille décompressée excessive",
+  "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Sauvegarde trop volumineuse pour l'import PHP : installez le client mysql ou augmentez memory_limit"
 }

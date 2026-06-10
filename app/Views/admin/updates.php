@@ -236,6 +236,7 @@ $hasGithubToken ??= false;
                         </div>
                     </div>
 
+<?php if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin'): ?>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-2"><?= __("Contenuto del backup") ?></label>
                         <select id="backupScope" class="w-full mb-3 px-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-gray-400">
@@ -248,6 +249,7 @@ $hasGithubToken ??= false;
                             <?= __("Crea Backup Manuale") ?>
                         </button>
                     </div>
+<?php endif; ?>
 
 <?php if (($_SESSION['user']['tipo_utente'] ?? '') === 'admin'): ?>
                     <div class="border-t border-gray-200 pt-4">
@@ -968,6 +970,8 @@ async function loadBackups() {
         const labelFull = <?= json_encode(__("DB + file"), JSON_HEX_TAG) ?>;
         const labelDb = <?= json_encode(__("Solo database"), JSON_HEX_TAG) ?>;
         const restoreLabel = <?= json_encode(__("Ripristina"), JSON_HEX_TAG) ?>;
+        const legacyLabel = <?= json_encode(__("Formato legacy"), JSON_HEX_TAG) ?>;
+        const legacyTitle = <?= json_encode(__("Il ripristino non è supportato per i backup in formato cartella; scarica il file per un ripristino manuale."), JSON_HEX_TAG) ?>;
 
         data.backups.forEach(backup => {
             const date = new Date(backup.created_at * 1000);
@@ -981,7 +985,11 @@ async function loadBackups() {
                         <button data-backup="${escapeHtml(backup.name)}" data-action="restore"
                             class="btn-backup-restore inline-flex items-center px-3 py-1.5 text-xs font-medium text-amber-700 bg-amber-100 rounded-lg hover:bg-amber-200 mr-2">
                             <i class="fas fa-rotate-left mr-1"></i>${restoreLabel}
-                        </button>` : '';
+                        </button>` : (IS_ADMIN ? `
+                        <span title="${escapeHtml(legacyTitle)}"
+                            class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-100 rounded-lg cursor-default mr-2">
+                            <i class="fas fa-folder mr-1"></i>${escapeHtml(legacyLabel)}
+                        </span>` : '');
 
             html += `
                 <tr class="hover:bg-gray-50">
@@ -1103,7 +1111,8 @@ async function restoreBackup(backupName) {
         showCancelButton: true,
         confirmButtonText: <?= json_encode(__("Ripristina"), JSON_HEX_TAG) ?>,
         cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
-        confirmButtonColor: '#d97706'
+        confirmButtonColor: '#d97706',
+        focusCancel: true
     });
     if (!result.isConfirmed) return;
     await runRestore(window.BASE_PATH + '/admin/updates/backup/restore',
@@ -1130,12 +1139,13 @@ async function uploadRestoreFile() {
     }
     const result = await Swal.fire({
         title: <?= json_encode(__("Ripristinare da questo file?"), JSON_HEX_TAG) ?>,
-        html: `<p class="font-mono text-sm">${escapeHtml(file.name)}</p><p class="text-sm text-red-600 mt-3">${<?= json_encode(__("I dati attuali (database e file) verranno sovrascritti. Un backup di sicurezza verrà creato prima del ripristino."), JSON_HEX_TAG) ?>}</p>`,
+        html: `<p class="font-mono text-sm">${escapeHtml(file.name)}</p><p class="text-sm text-red-600 mt-3">${<?= json_encode(__("I dati attuali (database e file) verranno sovrascritti. Un backup di sicurezza verrà creato prima del ripristino."), JSON_HEX_TAG) ?>}</p><p class="text-xs text-gray-500 mt-3">${<?= json_encode(__("Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio."), JSON_HEX_TAG) ?>}</p>`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: <?= json_encode(__("Carica e Ripristina"), JSON_HEX_TAG) ?>,
         cancelButtonText: <?= json_encode(__("Annulla"), JSON_HEX_TAG) ?>,
-        confirmButtonColor: '#d97706'
+        confirmButtonColor: '#d97706',
+        focusCancel: true
     });
     if (!result.isConfirmed) return;
     const fd = new FormData();
@@ -1144,30 +1154,87 @@ async function uploadRestoreFile() {
     await runRestore(window.BASE_PATH + '/admin/updates/backup/restore-upload', fd, true);
 }
 
-// Shared restore runner. isFormData=true → multipart body.
+// Shared restore runner. isFormData=true → multipart body (upload-then-restore).
+// For the upload path we use XMLHttpRequest so we can show a real upload
+// progress bar; once the upload finishes the server phase has no progress
+// signal, so we fall back to an elapsed-seconds counter (same as the
+// non-upload, server-only path).
 async function runRestore(url, body, isFormData) {
+    const elapsedLabel = <?= json_encode(__("Tempo trascorso"), JSON_HEX_TAG) ?>;
+    const uploadingLabel = <?= json_encode(__("Caricamento..."), JSON_HEX_TAG) ?>;
+    const baseText = <?= json_encode(__("L'operazione può richiedere alcuni minuti. Non chiudere la pagina."), JSON_HEX_TAG) ?>;
+    let elapsedTimer = null;
+    let startTime = Date.now();
+
+    const setElapsedText = () => {
+        const el = document.getElementById('restoreElapsed');
+        if (el) {
+            const secs = Math.floor((Date.now() - startTime) / 1000);
+            el.textContent = elapsedLabel + ': ' + secs + 's';
+        }
+    };
+
     try {
         Swal.fire({
             title: <?= json_encode(__("Ripristino in corso..."), JSON_HEX_TAG) ?>,
-            text: <?= json_encode(__("L'operazione può richiedere alcuni minuti. Non chiudere la pagina."), JSON_HEX_TAG) ?>,
+            html: `<p class="text-sm text-gray-600">${escapeHtml(baseText)}</p>`
+                + (isFormData ? `<progress id="restoreProgress" max="100" value="0" class="w-full mt-3"></progress><p id="restoreProgressLabel" class="text-xs text-gray-500 mt-1">${escapeHtml(uploadingLabel)} 0%</p>` : '')
+                + `<p id="restoreElapsed" class="text-xs text-gray-500 mt-2"></p>`,
             allowOutsideClick: false,
             showConfirmButton: false,
-            didOpen: () => Swal.showLoading()
+            didOpen: () => {
+                Swal.showLoading();
+                startTime = Date.now();
+                setElapsedText();
+                elapsedTimer = setInterval(setElapsedText, 1000);
+            }
         });
-        const opts = { method: 'POST', body };
-        if (!isFormData) opts.headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-        const response = await fetch(url, opts);
+
         let data = null;
-        try { data = await response.json(); } catch (e) { data = null; }
+        let httpStatus = 0;
+
+        if (isFormData) {
+            // XHR so we can report upload progress on a multi-GB body.
+            const result = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', url);
+                xhr.upload.onprogress = (e) => {
+                    if (!e.lengthComputable) return;
+                    const pct = (e.loaded / e.total * 100).toFixed(0);
+                    const bar = document.getElementById('restoreProgress');
+                    const lbl = document.getElementById('restoreProgressLabel');
+                    if (bar) bar.value = pct;
+                    if (lbl) lbl.textContent = uploadingLabel + ' ' + pct + '%';
+                };
+                xhr.onload = () => resolve({ status: xhr.status, body: xhr.responseText });
+                xhr.onerror = () => reject(new Error('Network error'));
+                xhr.send(body);
+            });
+            httpStatus = result.status;
+            try { data = JSON.parse(result.body); } catch (e) { data = null; }
+        } else {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body
+            });
+            httpStatus = response.status;
+            try { data = await response.json(); } catch (e) { data = null; }
+        }
+
         if (data && data.success) {
             await Swal.fire({
                 icon: 'success',
                 title: <?= json_encode(__("Ripristino completato"), JSON_HEX_TAG) ?>,
                 text: data.safety_backup
                     ? (<?= json_encode(__("Backup di sicurezza creato:"), JSON_HEX_TAG) ?> + ' ' + data.safety_backup)
-                    : data.message
+                    : data.message,
+                showConfirmButton: true,
+                confirmButtonText: <?= json_encode(__("Ricarica la pagina"), JSON_HEX_TAG) ?>
             });
-            loadBackups();
+            // The restored DB/session may differ from what is loaded; reloading
+            // is the honest outcome (may redirect to login if session invalid).
+            window.location.reload();
         } else if (data && data.partial) {
             // The database was already replaced but file promotion failed —
             // a partial restore. Warn explicitly and steer the user away from a
@@ -1179,14 +1246,29 @@ async function runRestore(url, body, isFormData) {
                     + (data.safety_backup ? `<p class="text-sm mt-3">${<?= json_encode(__("Backup di sicurezza creato:"), JSON_HEX_TAG) ?>} <span class="font-mono">${escapeHtml(String(data.safety_backup))}</span></p>` : '')
             });
             loadBackups();
+        } else if (data && data.error) {
+            // Server returned a structured error.
+            Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: data.error });
         } else {
             // A non-JSON body (PHP fatal, timeout, gateway error) leaves data null.
-            const msg = (data && data.error) ? data.error
-                : (<?= json_encode(__("Errore durante il ripristino"), JSON_HEX_TAG) ?> + ' (HTTP ' + response.status + ')');
-            Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: msg });
+            // The restore may be in an unknown/half-done state — warn and refresh
+            // the backup list so a pre-restore safety backup is visible.
+            await Swal.fire({
+                icon: 'warning',
+                title: <?= json_encode(__("Errore durante il ripristino"), JSON_HEX_TAG) ?> + ' (HTTP ' + httpStatus + ')',
+                html: `<p class="text-sm">${<?= json_encode(__("Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server."), JSON_HEX_TAG) ?>}</p>`
+            });
+            loadBackups();
         }
     } catch (error) {
-        Swal.fire({ icon: 'error', title: <?= json_encode(__("Errore"), JSON_HEX_TAG) ?>, text: error.message });
+        await Swal.fire({
+            icon: 'warning',
+            title: <?= json_encode(__("Errore durante il ripristino"), JSON_HEX_TAG) ?>,
+            html: `<p class="text-sm">${<?= json_encode(__("Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server."), JSON_HEX_TAG) ?>}</p>`
+        });
+        loadBackups();
+    } finally {
+        if (elapsedTimer) clearInterval(elapsedTimer);
     }
 }
 

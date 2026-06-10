@@ -33,7 +33,14 @@ class BackupManager
     ];
 
     /** Hard cap for an uploaded restore archive (2 GB). */
-    private const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+    public const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024;
+
+    /**
+     * Hard cap for the cumulative DECOMPRESSED size of a restore archive (4 GB).
+     * Guards against a decompression-bomb ZIP whose compressed form passes
+     * MAX_UPLOAD_BYTES but expands to exhaust disk during extraction.
+     */
+    private const MAX_RESTORE_DECOMPRESSED_BYTES = 4 * 1024 * 1024 * 1024;
 
     public function __construct(mysqli $db, string $rootPath)
     {
@@ -456,6 +463,12 @@ class BackupManager
 
     /**
      * Dump every table to $filepath (DROP/CREATE/INSERT). Returns the table count.
+     *
+     * Binary columns are NOT supported by this dump path: every value is emitted
+     * as a single-quoted, real_escape_string()-escaped text literal (no _binary
+     * or hex literal), so any BLOB/BINARY bytes would be corrupted on a
+     * backup/restore round-trip. The schema is text/numeric/datetime only —
+     * adding a binary column requires changing this serialization first.
      */
     private function dumpDatabaseTo(string $filepath): int
     {
@@ -508,6 +521,7 @@ class BackupManager
                     throw new \RuntimeException(sprintf(__('Errore nel recupero dati tabella %s'), $table) . ': ' . $this->db->error);
                 }
                 while ($row = $dataResult->fetch_assoc()) {
+                    // Schema invariant: no BLOB/BINARY columns — real_escape_string quoting is safe for all text/numeric/datetime types.
                     $values = array_map(function ($value): string {
                         return $value === null ? 'NULL' : "'" . $this->db->real_escape_string((string) $value) . "'";
                     }, $row);
@@ -621,8 +635,11 @@ class BackupManager
      * whole-dump-in-memory) and honours DELIMITER so triggers are recreated.
      * Returns false (so the caller falls back to the PHP importer) when exec()
      * is disabled, the mysql binary can't be located, or the CLI run fails for
-     * any reason; the PHP fallback then re-imports cleanly (DROP TABLE IF EXISTS
-     * makes a retry idempotent).
+     * any reason; the PHP fallback then re-imports cleanly because the dump is
+     * fully idempotent: every table is preceded by DROP TABLE IF EXISTS (which
+     * also cascades to owned triggers), and the triggers section additionally
+     * emits DROP TRIGGER IF EXISTS before each CREATE TRIGGER — so a partial CLI
+     * abort leaves no object the fallback cannot cleanly overwrite.
      */
     private function importViaCli(string $sqlPath): bool
     {
@@ -635,11 +652,11 @@ class BackupManager
         }
         $cfg = $this->dbConfig();
         $cnf = (string) tempnam(sys_get_temp_dir(), 'pk_cnf_');
-        $lines = "[client]\nuser=\"" . addslashes($cfg['user']) . "\"\npassword=\"" . addslashes($cfg['pass']) . "\"\n";
+        $lines = "[client]\nuser=\"" . $this->cnfEscape($cfg['user']) . "\"\npassword=\"" . $this->cnfEscape($cfg['pass']) . "\"\n";
         if ($cfg['socket'] !== '') {
-            $lines .= "socket=\"" . addslashes($cfg['socket']) . "\"\n";
+            $lines .= "socket=\"" . $this->cnfEscape($cfg['socket']) . "\"\n";
         } else {
-            $lines .= "host=\"" . addslashes($cfg['host']) . "\"\nport=" . $cfg['port'] . "\n";
+            $lines .= "host=\"" . $this->cnfEscape($cfg['host']) . "\"\nport=" . $cfg['port'] . "\n";
         }
         file_put_contents($cnf, $lines);
         @chmod($cnf, 0600);
@@ -651,10 +668,32 @@ class BackupManager
         $code = 0;
         // nosemgrep: php.lang.security.exec-use.exec-use -- every interpolated value passes through escapeshellarg(); the .cnf holds the password so it never appears on the command line
         exec($cmd, $out, $code);
+        if ($code !== 0) {
+            // Surface the failure in the audit trail before falling back to the PHP
+            // importer; stderr is merged into $out (2>&1). Do NOT log $cmd or $cnf
+            // (would leak tempdir/sqlPath). Tail to -900 chars: SecureLogger
+            // sanitizeString caps at 1000.
+            SecureLogger::warning('[BackupManager] mysql CLI restore failed', [
+                'exit_code' => $code,
+                'stderr_tail' => mb_substr(trim(implode("\n", $out)), -900),
+            ]);
+        }
         // nosemgrep: php.lang.security.unlink-use.unlink-use -- tempnam()-generated temp .cnf, not user input
         @unlink($cnf);
 
         return $code === 0;
+    }
+
+    /**
+     * Escape a value for a double-quoted MySQL option-file (.cnf) entry: escape
+     * the backslash FIRST, then the double-quote. Single quotes pass through
+     * verbatim (option-file format does not treat them specially) — using
+     * addslashes() here would wrongly escape single quotes and could double a
+     * backslash inside a password, breaking authentication.
+     */
+    private function cnfEscape(string $v): string
+    {
+        return str_replace(['\\', '"'], ['\\\\', '\\"'], $v);
     }
 
     /**
@@ -694,31 +733,72 @@ class BackupManager
      */
     private function importViaPhp(string $sqlPath): void
     {
-        $sql = file_get_contents($sqlPath);
-        if ($sql === false || $sql === '') {
+        // SIZE GUARD — before any DDL runs, so the existing DB is untouched when
+        // we bail. The streaming reader below batches a few hundred lines at a
+        // time, but the trigger block is still split out in memory and a runaway
+        // batch could still pressure the heap; reject up front when the dump is
+        // large relative to the PHP memory budget. '-1' (unlimited) skips it.
+        $memLimitRaw = trim((string) ini_get('memory_limit'));
+        if ($memLimitRaw !== '' && $memLimitRaw !== '-1') {
+            $budget = $this->parseMemoryLimit($memLimitRaw);
+            $fileSize = (int) (filesize($sqlPath) ?: 0);
+            if ($budget > 0 && $fileSize > (int) ($budget * 0.6)) {
+                throw new \RuntimeException(__('Backup troppo grande per l\'importazione PHP: installa il client mysql o aumenta memory_limit'));
+            }
+        }
+
+        $handle = fopen($sqlPath, 'r');
+        if ($handle === false) {
             throw new \RuntimeException(__('Dump del database vuoto o illeggibile'));
         }
-        $split = explode("-- PINAKES_TRIGGERS\n", $sql, 2);
-        $main = $split[0];
-        $triggersBlock = $split[1] ?? '';
 
         $conn = $this->openImportConnection();
         try {
             $conn->autocommit(true);
-            if (!$conn->multi_query($main)) {
-                throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
+
+            // STREAMING line-batch reader. Statements may span multiple physical
+            // lines (e.g. CREATE TABLE from SHOW CREATE TABLE); each top-level
+            // statement TERMINATES at a physical line ending in ';'. INSERT values
+            // are single-line because real_escape_string escapes \n/\r. We therefore
+            // flush a batch only at a ';'-terminated line, so a multi-line CREATE
+            // TABLE is never split across multi_query() calls. Do NOT change
+            // dumpDatabaseTo()'s ";\n" statement terminator without updating this
+            // importer. The main phase stops at the '-- PINAKES_TRIGGERS' sentinel,
+            // after which the trigger block is parsed the same way as before.
+            $batch = '';
+            $lineCount = 0;
+            $triggersBlock = '';
+            $inTriggers = false;
+
+            while (($line = fgets($handle)) !== false) {
+                if (!$inTriggers && rtrim($line, "\r\n") === '-- PINAKES_TRIGGERS') {
+                    // Flush any pending main statements before switching to trigger
+                    // accumulation; the sentinel itself is not part of either block.
+                    if (trim($batch) !== '') {
+                        $this->flushBatch($conn, $batch);
+                    }
+                    $batch = '';
+                    $lineCount = 0;
+                    $inTriggers = true;
+                    continue;
+                }
+                if ($inTriggers) {
+                    $triggersBlock .= $line;
+                    continue;
+                }
+                $batch .= $line;
+                $lineCount++;
+                // Flush only when the threshold is reached AND the current line
+                // completes a statement (';'-terminated) — never mid-statement.
+                if ($lineCount >= 200 && substr(rtrim($line), -1) === ';') {
+                    $this->flushBatch($conn, $batch);
+                    $batch = '';
+                    $lineCount = 0;
+                }
             }
-            do {
-                $res = $conn->store_result();
-                if ($res instanceof \mysqli_result) {
-                    $res->free();
-                }
-                if (!$conn->more_results()) {
-                    break;
-                }
-            } while ($conn->next_result());
-            if ($conn->errno !== 0) {
-                throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
+            // Final main-phase flush (when the dump has no trigger block).
+            if (!$inTriggers && trim($batch) !== '') {
+                $this->flushBatch($conn, $batch);
             }
 
             foreach ($this->parseTriggerStatements($triggersBlock) as $stmt) {
@@ -729,7 +809,62 @@ class BackupManager
             $conn->commit();
         } finally {
             $conn->close();
+            if (is_resource($handle)) {
+                fclose($handle);
+            }
         }
+    }
+
+    /**
+     * Execute one batch of SQL statements via multi_query() and fully drain its
+     * result sets, mirroring the multi_query error handling used elsewhere: any
+     * statement error (at submit time or while draining) aborts the restore.
+     */
+    private function flushBatch(mysqli $conn, string $batch): void
+    {
+        if (!$conn->multi_query($batch)) {
+            throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
+        }
+        do {
+            $res = $conn->store_result();
+            if ($res instanceof \mysqli_result) {
+                $res->free();
+            }
+            if (!$conn->more_results()) {
+                break;
+            }
+        } while ($conn->next_result());
+        if ($conn->errno !== 0) {
+            throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
+        }
+    }
+
+    /**
+     * Convert a PHP memory_limit shorthand ('128M', '1G', '512K', or a plain
+     * byte count) to bytes. Returns 0 when it cannot be parsed.
+     */
+    private function parseMemoryLimit(string $raw): int
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return 0;
+        }
+        if (!preg_match('/^(\d+)\s*([KMG])?$/i', $raw, $m)) {
+            return 0;
+        }
+        $value = (int) $m[1];
+        switch (strtoupper($m[2] ?? '')) {
+            case 'G':
+                $value *= 1024 * 1024 * 1024;
+                break;
+            case 'M':
+                $value *= 1024 * 1024;
+                break;
+            case 'K':
+                $value *= 1024;
+                break;
+        }
+        return $value;
     }
 
     /**
@@ -870,6 +1005,10 @@ class BackupManager
             return;
         }
 
+        // Cumulative decompressed-size guard against a zip bomb (compressed form
+        // already capped by MAX_UPLOAD_BYTES; the expanded form is not).
+        $totalDecompressed = 0;
+
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $name = (string) $zip->getNameIndex($i);
             if ($name === '' || !str_starts_with($name, 'files/') || str_ends_with($name, '/')) {
@@ -918,7 +1057,13 @@ class BackupManager
                 fclose($stream);
                 throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $relative);
             }
-            stream_copy_to_stream($stream, $out);
+            $written = stream_copy_to_stream($stream, $out);
+            $totalDecompressed += (int) $written;
+            if ($totalDecompressed > self::MAX_RESTORE_DECOMPRESSED_BYTES) {
+                fclose($stream);
+                fclose($out);
+                throw new \RuntimeException(__('Archivio di backup non valido: dimensione decompressa eccessiva'));
+            }
             fclose($stream);
             fclose($out);
             @chmod($target, 0644);

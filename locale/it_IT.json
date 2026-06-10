@@ -5259,5 +5259,14 @@
   "Sono accettati solo file .zip.": "Sono accettati solo file .zip.",
   "File troppo grande": "File troppo grande",
   "Il file supera il limite di 2 GB.": "Il file supera il limite di 2 GB.",
-  "Sono accettati solo file .zip fino a 2 GB.": "Sono accettati solo file .zip fino a 2 GB."
+  "Sono accettati solo file .zip fino a 2 GB.": "Sono accettati solo file .zip fino a 2 GB.",
+  "Ricarica la pagina": "Ricarica la pagina",
+  "Formato legacy": "Formato legacy",
+  "Il ripristino non è supportato per i backup in formato cartella; scarica il file per un ripristino manuale.": "Il ripristino non è supportato per i backup in formato cartella; scarica il file per un ripristino manuale.",
+  "Caricamento...": "Caricamento...",
+  "Tempo trascorso": "Tempo trascorso",
+  "Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server.": "Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server.",
+  "Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio.": "Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio.",
+  "Archivio di backup non valido: dimensione decompressa eccessiva": "Archivio di backup non valido: dimensione decompressa eccessiva",
+  "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit"
 }

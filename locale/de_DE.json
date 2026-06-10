@@ -5259,5 +5259,14 @@
   "Sono accettati solo file .zip.": "Es werden nur .zip-Dateien akzeptiert.",
   "File troppo grande": "Datei zu groß",
   "Il file supera il limite di 2 GB.": "Die Datei überschreitet das Limit von 2 GB.",
-  "Sono accettati solo file .zip fino a 2 GB.": "Es werden nur .zip-Dateien bis zu 2 GB akzeptiert."
+  "Sono accettati solo file .zip fino a 2 GB.": "Es werden nur .zip-Dateien bis zu 2 GB akzeptiert.",
+  "Ricarica la pagina": "Seite neu laden",
+  "Formato legacy": "Altes Format",
+  "Il ripristino non è supportato per i backup in formato cartella; scarica il file per un ripristino manuale.": "Die Wiederherstellung wird für Backups im Ordnerformat nicht unterstützt; laden Sie die Datei für eine manuelle Wiederherstellung herunter.",
+  "Caricamento...": "Wird hochgeladen...",
+  "Tempo trascorso": "Verstrichene Zeit",
+  "Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server.": "Der Server hat nicht korrekt geantwortet: Der Vorgang läuft möglicherweise noch oder wurde auf halbem Weg unterbrochen. Starten Sie nicht sofort eine neue Wiederherstellung. Überprüfen Sie die Backup-Liste (möglicherweise gibt es ein Sicherungs-Backup vor der Wiederherstellung) und die Server-Logs.",
+  "Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio.": "Stellen Sie nur Archive wieder her, die von dieser Instanz erstellt wurden oder denen Sie vollständig vertrauen: Der Datenbankinhalt wird durch den des Archivs ersetzt.",
+  "Archivio di backup non valido: dimensione decompressa eccessiva": "Ungültiges Backup-Archiv: entpackte Größe zu groß",
+  "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup zu groß für PHP-Import: Installieren Sie den mysql-Client oder erhöhen Sie memory_limit"
 }

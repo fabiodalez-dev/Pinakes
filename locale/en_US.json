@@ -5259,5 +5259,14 @@
   "Sono accettati solo file .zip.": "Only .zip files are accepted.",
   "File troppo grande": "File too large",
   "Il file supera il limite di 2 GB.": "The file exceeds the 2 GB limit.",
-  "Sono accettati solo file .zip fino a 2 GB.": "Only .zip files up to 2 GB are accepted."
+  "Sono accettati solo file .zip fino a 2 GB.": "Only .zip files up to 2 GB are accepted.",
+  "Ricarica la pagina": "Reload the page",
+  "Formato legacy": "Legacy format",
+  "Il ripristino non è supportato per i backup in formato cartella; scarica il file per un ripristino manuale.": "Restore is not supported for folder-format backups; download the file for a manual restore.",
+  "Caricamento...": "Uploading...",
+  "Tempo trascorso": "Elapsed time",
+  "Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server.": "The server did not respond correctly: the operation may still be in progress or interrupted halfway. Do not start a new restore right away. Check the backup list (there may be a pre-restore safety backup) and the server logs.",
+  "Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio.": "Only restore archives created by this instance or ones you fully trust: the database contents will be replaced with those from the archive.",
+  "Archivio di backup non valido: dimensione decompressa eccessiva": "Invalid backup archive: uncompressed size too large",
+  "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup too large for PHP import: install the mysql client or increase memory_limit"
 }
