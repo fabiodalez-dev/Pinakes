@@ -259,7 +259,7 @@ $hasGithubToken ??= false;
                             <i class="fas fa-upload mr-2"></i>
                             <?= __("Carica e Ripristina") ?>
                         </button>
-                        <p class="text-xs text-gray-500 mt-2"><i class="fas fa-exclamation-triangle mr-1"></i><?= __("Il ripristino sovrascrive i dati attuali. Verrà creato un backup di sicurezza prima.") ?></p>
+                        <p class="text-xs text-gray-500 mt-2"><i class="fas fa-exclamation-triangle mr-1"></i><?= __("Il ripristino sovrascrive i dati attuali. Verrà creato un backup di sicurezza prima.") ?> <?= __("Sono accettati solo file .zip fino a 2 GB.") ?></p>
                     </div>
 <?php endif; ?>
 
@@ -560,7 +560,7 @@ $hasGithubToken ??= false;
 
 <script>
 const csrfToken = <?= json_encode(Csrf::ensureToken(), JSON_HEX_TAG) ?>;
-const IS_ADMIN = <?= json_encode(($_SESSION['user']['tipo_utente'] ?? '') === 'admin') ?>;
+const IS_ADMIN = <?= json_encode(($_SESSION['user']['tipo_utente'] ?? '') === 'admin', JSON_HEX_TAG) ?>;
 // formatDateLocale and appLocale are defined globally in layout.php
 
 async function postTokenRequest(tokenValue) {
@@ -1118,6 +1118,16 @@ async function uploadRestoreFile() {
         Swal.fire({ icon: 'warning', title: <?= json_encode(__("Nessun file selezionato"), JSON_HEX_TAG) ?> });
         return;
     }
+    // Client-side guard: only .zip up to 2 GB. Avoids a long upload that the
+    // server would reject anyway.
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+        Swal.fire({ icon: 'warning', title: <?= json_encode(__("File non valido"), JSON_HEX_TAG) ?>, text: <?= json_encode(__("Sono accettati solo file .zip."), JSON_HEX_TAG) ?> });
+        return;
+    }
+    if (file.size > 2 * 1024 * 1024 * 1024) {
+        Swal.fire({ icon: 'warning', title: <?= json_encode(__("File troppo grande"), JSON_HEX_TAG) ?>, text: <?= json_encode(__("Il file supera il limite di 2 GB."), JSON_HEX_TAG) ?> });
+        return;
+    }
     const result = await Swal.fire({
         title: <?= json_encode(__("Ripristinare da questo file?"), JSON_HEX_TAG) ?>,
         html: `<p class="font-mono text-sm">${escapeHtml(file.name)}</p><p class="text-sm text-red-600 mt-3">${<?= json_encode(__("I dati attuali (database e file) verranno sovrascritti. Un backup di sicurezza verrà creato prima del ripristino."), JSON_HEX_TAG) ?>}</p>`,
@@ -1156,6 +1166,17 @@ async function runRestore(url, body, isFormData) {
                 text: data.safety_backup
                     ? (<?= json_encode(__("Backup di sicurezza creato:"), JSON_HEX_TAG) ?> + ' ' + data.safety_backup)
                     : data.message
+            });
+            loadBackups();
+        } else if (data && data.partial) {
+            // The database was already replaced but file promotion failed —
+            // a partial restore. Warn explicitly and steer the user away from a
+            // destructive retry.
+            await Swal.fire({
+                icon: 'warning',
+                title: <?= json_encode(__("Ripristino parziale"), JSON_HEX_TAG) ?>,
+                html: `<p>${<?= json_encode(__("Il database è stato ripristinato ma il ripristino dei file è fallito. NON riprovare il ripristino: ripristina il backup di sicurezza solo se necessario."), JSON_HEX_TAG) ?>}</p>`
+                    + (data.safety_backup ? `<p class="text-sm mt-3">${<?= json_encode(__("Backup di sicurezza creato:"), JSON_HEX_TAG) ?>} <span class="font-mono">${escapeHtml(String(data.safety_backup))}</span></p>` : '')
             });
             loadBackups();
         } else {

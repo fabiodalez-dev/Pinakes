@@ -221,7 +221,7 @@ class BackupManager
     /**
      * Restore a stored backup (DB + files). Creates a safety backup first.
      *
-     * @return array{success: bool, safety_backup: string|null, error: string|null}
+     * @return array{success: bool, safety_backup: string|null, error: string|null, partial?: bool, restored_phase?: string}
      */
     public function restoreFromBackup(string $name): array
     {
@@ -238,7 +238,7 @@ class BackupManager
      * The caller (controller) is responsible for moving the HTTP upload to
      * $tmpPath (e.g. Slim's UploadedFile::moveTo) before calling this.
      *
-     * @return array{success: bool, safety_backup: string|null, error: string|null}
+     * @return array{success: bool, safety_backup: string|null, error: string|null, partial?: bool, restored_phase?: string}
      */
     public function restoreFromUploadedZip(string $tmpPath, int $size): array
     {
@@ -274,13 +274,14 @@ class BackupManager
     }
 
     /**
-     * @return array{success: bool, safety_backup: string|null, error: string|null}
+     * @return array{success: bool, safety_backup: string|null, error: string|null, partial?: bool, restored_phase?: string}
      */
     private function restoreZip(string $zipPath): array
     {
         $sqlTmp = null;
         $stagingDir = null;
         $safetyName = null;
+        $dbImported = false;
         try {
             // 1. Safety backup of the current state (always full) — the rollback
             //    path, since MySQL DDL can't run inside a transaction.
@@ -322,6 +323,9 @@ class BackupManager
             // 4. Import the DB (hash-verified inside). After this point the DB is
             //    the restored one; files are already safely staged.
             $this->importDatabase($sqlTmp, $expectedSha);
+            // The live DB is now the restored one — any later failure is a
+            // PARTIAL restore, not a no-op, and must be reported as such.
+            $dbImported = true;
             // nosemgrep: php.lang.security.unlink-use.unlink-use -- tempnam()-generated temp dump path, not user input
             @unlink($sqlTmp);
             $sqlTmp = null;
@@ -339,6 +343,18 @@ class BackupManager
             }
             if ($stagingDir !== null && is_dir($stagingDir)) {
                 $this->removeDir($stagingDir);
+            }
+            if ($dbImported) {
+                // The DB was already replaced; only file promotion failed. Signal
+                // a partial restore so the caller does NOT report a clean no-op
+                // failure (which could prompt a destructive retry).
+                return [
+                    'success' => false,
+                    'partial' => true,
+                    'restored_phase' => 'database',
+                    'safety_backup' => $safetyName,
+                    'error' => $e->getMessage(),
+                ];
             }
             return ['success' => false, 'safety_backup' => $safetyName, 'error' => $e->getMessage()];
         }

@@ -121,8 +121,11 @@ class UpdateController
      */
     public function createBackup(Request $request, Response $response, mysqli $db): Response
     {
-        // Admin-only access check removed
-
+        // Destructive/resource-heavy → admin-only (AdminAuthMiddleware also lets
+        // staff through, so re-check here, like restoreBackup/uploadRestore).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
 
         // Verify CSRF token
         $data = (array) $request->getParsedBody();
@@ -201,7 +204,10 @@ class UpdateController
      */
     public function deleteBackup(Request $request, Response $response, mysqli $db): Response
     {
-
+        // Destructive (removes a recovery point) → admin-only re-check.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
 
         $data = (array) $request->getParsedBody();
         $csrfToken = $data['csrf_token'] ?? '';
@@ -235,7 +241,11 @@ class UpdateController
      */
     public function downloadBackup(Request $request, Response $response, mysqli $db): Response
     {
-
+        // Exfiltrates a full DB+uploads archive → admin-only re-check. The other
+        // error branches here already return JSON, so a 403 JSON body is consistent.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
 
         $backupName = $request->getQueryParams()['backup'] ?? '';
         if (empty($backupName)) {
@@ -290,7 +300,13 @@ class UpdateController
                 'safety_backup' => $result['safety_backup'],
             ]);
         }
-        return $this->jsonResponse($response, ['success' => false, 'error' => $result['error']], 500);
+        return $this->jsonResponse($response, [
+            'success' => false,
+            'error' => $result['error'],
+            'partial' => $result['partial'] ?? false,
+            'restored_phase' => $result['restored_phase'] ?? null,
+            'safety_backup' => $result['safety_backup'] ?? null,
+        ], 500);
     }
 
     /**
@@ -338,7 +354,13 @@ class UpdateController
                 'safety_backup' => $result['safety_backup'],
             ]);
         }
-        return $this->jsonResponse($response, ['success' => false, 'error' => $result['error']], 500);
+        return $this->jsonResponse($response, [
+            'success' => false,
+            'error' => $result['error'],
+            'partial' => $result['partial'] ?? false,
+            'restored_phase' => $result['restored_phase'] ?? null,
+            'safety_backup' => $result['safety_backup'] ?? null,
+        ], 500);
     }
 
     /**

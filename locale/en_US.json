@@ -5253,5 +5253,11 @@
   "Errore durante il ripristino dei file": "Error restoring the files",
   "Errore durante il ripristino": "Error during the restore",
   "Impossibile salvare l'impostazione": "Could not save the setting",
-  "Il backup è corrotto (checksum del database non valido)": "The backup is corrupted (invalid database checksum)"
+  "Il backup è corrotto (checksum del database non valido)": "The backup is corrupted (invalid database checksum)",
+  "Ripristino parziale": "Partial restore",
+  "Il database è stato ripristinato ma il ripristino dei file è fallito. NON riprovare il ripristino: ripristina il backup di sicurezza solo se necessario.": "The database was restored but the file restore failed. Do NOT retry the restore: restore the safety backup only if necessary.",
+  "Sono accettati solo file .zip.": "Only .zip files are accepted.",
+  "File troppo grande": "File too large",
+  "Il file supera il limite di 2 GB.": "The file exceeds the 2 GB limit.",
+  "Sono accettati solo file .zip fino a 2 GB.": "Only .zip files up to 2 GB are accepted."
 }

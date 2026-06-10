@@ -5253,5 +5253,11 @@
   "Errore durante il ripristino dei file": "Erreur lors de la restauration des fichiers",
   "Errore durante il ripristino": "Erreur lors de la restauration",
   "Impossibile salvare l'impostazione": "Impossible d'enregistrer le paramètre",
-  "Il backup è corrotto (checksum del database non valido)": "La sauvegarde est corrompue (somme de contrôle de la base de données non valide)"
+  "Il backup è corrotto (checksum del database non valido)": "La sauvegarde est corrompue (somme de contrôle de la base de données non valide)",
+  "Ripristino parziale": "Restauration partielle",
+  "Il database è stato ripristinato ma il ripristino dei file è fallito. NON riprovare il ripristino: ripristina il backup di sicurezza solo se necessario.": "La base de données a été restaurée mais la restauration des fichiers a échoué. NE relancez PAS la restauration : restaurez la sauvegarde de sécurité uniquement si nécessaire.",
+  "Sono accettati solo file .zip.": "Seuls les fichiers .zip sont acceptés.",
+  "File troppo grande": "Fichier trop volumineux",
+  "Il file supera il limite di 2 GB.": "Le fichier dépasse la limite de 2 Go.",
+  "Sono accettati solo file .zip fino a 2 GB.": "Seuls les fichiers .zip jusqu'à 2 Go sont acceptés."
 }

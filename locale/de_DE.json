@@ -5253,5 +5253,11 @@
   "Errore durante il ripristino dei file": "Fehler beim Wiederherstellen der Dateien",
   "Errore durante il ripristino": "Fehler bei der Wiederherstellung",
   "Impossibile salvare l'impostazione": "Einstellung konnte nicht gespeichert werden",
-  "Il backup è corrotto (checksum del database non valido)": "Die Sicherung ist beschädigt (ungültige Datenbank-Prüfsumme)"
+  "Il backup è corrotto (checksum del database non valido)": "Die Sicherung ist beschädigt (ungültige Datenbank-Prüfsumme)",
+  "Ripristino parziale": "Teilweise Wiederherstellung",
+  "Il database è stato ripristinato ma il ripristino dei file è fallito. NON riprovare il ripristino: ripristina il backup di sicurezza solo se necessario.": "Die Datenbank wurde wiederhergestellt, aber die Wiederherstellung der Dateien ist fehlgeschlagen. Wiederholen Sie die Wiederherstellung NICHT: Stellen Sie die Sicherungskopie nur bei Bedarf wieder her.",
+  "Sono accettati solo file .zip.": "Es werden nur .zip-Dateien akzeptiert.",
+  "File troppo grande": "Datei zu groß",
+  "Il file supera il limite di 2 GB.": "Die Datei überschreitet das Limit von 2 GB.",
+  "Sono accettati solo file .zip fino a 2 GB.": "Es werden nur .zip-Dateien bis zu 2 GB akzeptiert."
 }
