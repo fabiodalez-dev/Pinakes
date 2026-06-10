@@ -5268,5 +5268,7 @@
   "Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server.": "The server did not respond correctly: the operation may still be in progress or interrupted halfway. Do not start a new restore right away. Check the backup list (there may be a pre-restore safety backup) and the server logs.",
   "Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio.": "Only restore archives created by this instance or ones you fully trust: the database contents will be replaced with those from the archive.",
   "Archivio di backup non valido: dimensione decompressa eccessiva": "Invalid backup archive: uncompressed size too large",
+  "Un ripristino o aggiornamento è già in corso. Riprova tra poco.": "A restore or update is already in progress. Please try again shortly.",
+  "Ripristino in corso. Riprova tra qualche minuto.": "Restore in progress. Please try again in a few minutes.",
   "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup too large for PHP import: install the mysql client or increase memory_limit"
 }

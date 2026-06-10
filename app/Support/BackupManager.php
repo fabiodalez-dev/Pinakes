@@ -281,9 +281,104 @@ class BackupManager
     }
 
     /**
+     * Entry point for both restore paths (stored backup + uploaded ZIP).
+     *
+     * Mirrors Updater::performUpdate's protection: the import drops and
+     * recreates every table, so (a) two restores — or a restore and an
+     * update — must never interleave DDL (the SHARED storage/cache/update.lock
+     * serializes them), and (b) concurrent user requests must get the
+     * maintenance page instead of hitting half-dropped tables. The front
+     * controller's maintenance allowlist (/admin/updates) keeps the restore
+     * endpoints and the admin polling UI reachable while the flag is up.
+     *
+     * Note: the updater's own pre-update backup (Updater → createBackup) does
+     * NOT go through here, so taking the shared lock cannot deadlock it.
+     *
      * @return array{success: bool, safety_backup: string|null, error: string|null, partial?: bool, restored_phase?: string}
      */
     private function restoreZip(string $zipPath): array
+    {
+        $lockFile = $this->rootPath . '/storage/cache/update.lock';
+        $lockDir = dirname($lockFile);
+        if (!is_dir($lockDir)) {
+            @mkdir($lockDir, 0755, true);
+        }
+        $lockHandle = @fopen($lockFile, 'c');
+        if ($lockHandle === false) {
+            return ['success' => false, 'safety_backup' => null, 'error' => __('Impossibile creare il file di lock per l\'aggiornamento')];
+        }
+        if (!flock($lockHandle, LOCK_EX | LOCK_NB)) {
+            fclose($lockHandle);
+            return ['success' => false, 'safety_backup' => null, 'error' => __('Un ripristino o aggiornamento è già in corso. Riprova tra poco.')];
+        }
+        ftruncate($lockHandle, 0);
+        fwrite($lockHandle, (string) getmypid());
+        fflush($lockHandle);
+
+        // The import must not be aborted mid-DDL by PHP timeout or a client
+        // disconnect (same rationale as Updater::performUpdate).
+        set_time_limit(0);
+        ignore_user_abort(true);
+
+        $maintenanceFile = $this->rootPath . '/storage/.maintenance';
+        // Safety net: a fatal error mid-restore must not leave the site locked
+        // in maintenance (the front controller's 30-minute staleness fallback
+        // remains the last resort). Mirrors Updater's shutdown handler.
+        register_shutdown_function(static function () use ($maintenanceFile, $lockFile): void {
+            $error = error_get_last();
+            if ($error !== null && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR], true)) {
+                if (file_exists($maintenanceFile)) {
+                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
+                    @unlink($maintenanceFile);
+                }
+                if (file_exists($lockFile)) {
+                    // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal lock file under storage/cache, not user input
+                    @unlink($lockFile);
+                }
+            }
+        });
+
+        // Quiesce the site for the WHOLE destructive window (safety backup
+        // included) — written before any mutation, removed in finally on every
+        // exit path (success, plain failure, and the dbImported/partial path).
+        $this->enterRestoreMaintenanceMode($maintenanceFile);
+
+        try {
+            return $this->doRestoreZip($zipPath);
+        } finally {
+            if (file_exists($maintenanceFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
+                @unlink($maintenanceFile);
+            }
+            flock($lockHandle, LOCK_UN);
+            fclose($lockHandle);
+            if (file_exists($lockFile)) {
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal lock file under storage/cache, not user input
+                @unlink($lockFile);
+            }
+        }
+    }
+
+    /**
+     * Write the maintenance flag enforced by the front controller (same JSON
+     * shape as Updater::enableMaintenanceMode, which is private to Updater).
+     */
+    private function enterRestoreMaintenanceMode(string $maintenanceFile): void
+    {
+        $dir = dirname($maintenanceFile);
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+        @file_put_contents($maintenanceFile, json_encode([
+            'time' => time(),
+            'message' => __('Ripristino in corso. Riprova tra qualche minuto.'),
+        ]), LOCK_EX);
+    }
+
+    /**
+     * @return array{success: bool, safety_backup: string|null, error: string|null, partial?: bool, restored_phase?: string}
+     */
+    private function doRestoreZip(string $zipPath): array
     {
         $sqlTmp = null;
         $stagingDir = null;
@@ -312,17 +407,22 @@ class BackupManager
                 }
                 $expectedSha = is_string($manifest['database_sha256'] ?? null) ? $manifest['database_sha256'] : '';
 
+                // Cumulative decompressed-size budget SHARED by database.sql
+                // and every files/* entry (zip-bomb guard, enforced per chunk
+                // inside copyStreamCapped — never reset between entries).
+                $totalDecompressed = 0;
+
                 // 2. Stream database.sql to a temp file (never the whole dump in
                 //    memory) so we can hash-verify it before importing.
                 $sqlTmp = (string) tempnam(sys_get_temp_dir(), 'pk_restore_');
-                $this->streamEntryToFile($zip, 'database.sql', $sqlTmp);
+                $this->streamEntryToFile($zip, 'database.sql', $sqlTmp, $totalDecompressed);
 
                 // 3. Extract the uploaded files to STAGING first. This is the
                 //    failure-prone step (decompression + I/O per file); doing it
                 //    BEFORE the irreversible DB import shrinks the inconsistency
                 //    window to the fast staging→live promotion at the end.
                 $stagingDir = $this->makeStagingDir();
-                $this->extractFilesSafely($zip, $stagingDir);
+                $this->extractFilesSafely($zip, $stagingDir, $totalDecompressed);
             } finally {
                 $zip->close();
             }
@@ -369,8 +469,10 @@ class BackupManager
 
     /**
      * Stream a single ZIP entry to a file without loading it into memory.
+     * Subject to the shared cumulative decompressed-size budget (zip-bomb
+     * guard) and the fail-loud I/O contract of copyStreamCapped().
      */
-    private function streamEntryToFile(ZipArchive $zip, string $entry, string $dest): void
+    private function streamEntryToFile(ZipArchive $zip, string $entry, string $dest, int &$totalDecompressed): void
     {
         $in = $zip->getStream($entry);
         if ($in === false) {
@@ -381,9 +483,64 @@ class BackupManager
             fclose($in);
             throw new \RuntimeException(__('Impossibile aprire file di backup per scrittura'));
         }
-        stream_copy_to_stream($in, $out);
+        $this->copyStreamCapped($in, $out, $totalDecompressed, $entry, $dest);
         fclose($in);
         fclose($out);
+    }
+
+    /**
+     * Chunked copy of a ZIP entry stream to a local file, replacing the old
+     * unbounded/unchecked stream_copy_to_stream():
+     *
+     * - Zip-bomb guard: the SHARED cumulative $totalDecompressed budget is
+     *   incremented per 1 MiB chunk and the copy aborts the moment it exceeds
+     *   MAX_RESTORE_DECOMPRESSED_BYTES — bounding bytes-on-disk to the cap
+     *   plus one chunk instead of one full (arbitrarily large) entry.
+     * - Fail-loud I/O contract: fread() === false and a short/failed fwrite()
+     *   (e.g. disk full) are hard failures — a truncated file must never be
+     *   staged and later promoted over the live roots as a "successful"
+     *   restore.
+     *
+     * On every failure path both handles are closed and the partial $target
+     * is removed before throwing. Zero-byte entries terminate cleanly via
+     * feof().
+     *
+     * @param resource $in                ZIP entry stream
+     * @param resource $out               destination file handle
+     * @param int      $totalDecompressed cumulative budget, shared across entries
+     * @param string   $what              entry label for the error message
+     * @param string   $target            destination path, unlinked on failure
+     */
+    private function copyStreamCapped($in, $out, int &$totalDecompressed, string $what, string $target): void
+    {
+        while (!feof($in)) {
+            $chunk = fread($in, 1048576);
+            if ($chunk === false) {
+                fclose($in);
+                fclose($out);
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- partial staging/temp file created by this restore, not user input
+                @unlink($target);
+                throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $what);
+            }
+            if ($chunk === '') {
+                continue; // EOF: the feof() loop condition terminates next pass
+            }
+            $totalDecompressed += strlen($chunk);
+            if ($totalDecompressed > self::MAX_RESTORE_DECOMPRESSED_BYTES) {
+                fclose($in);
+                fclose($out);
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- partial staging/temp file created by this restore, not user input
+                @unlink($target);
+                throw new \RuntimeException(__('Archivio di backup non valido: dimensione decompressa eccessiva'));
+            }
+            if (fwrite($out, $chunk) !== strlen($chunk)) {
+                fclose($in);
+                fclose($out);
+                // nosemgrep: php.lang.security.unlink-use.unlink-use -- partial staging/temp file created by this restore, not user input
+                @unlink($target);
+                throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $what);
+            }
+        }
     }
 
     private function makeStagingDir(): string
@@ -987,8 +1144,10 @@ class BackupManager
 
     /**
      * Extract files/* entries back over the upload roots, rejecting zip-slip.
+     * $totalDecompressed is the cumulative decompressed-size budget shared
+     * with the database.sql entry (zip-bomb guard, enforced per chunk).
      */
-    private function extractFilesSafely(ZipArchive $zip, string $destRoot): void
+    private function extractFilesSafely(ZipArchive $zip, string $destRoot, int &$totalDecompressed): void
     {
         $allowed = [];
         foreach (self::FILE_ROOTS as $rel) {
@@ -1004,10 +1163,6 @@ class BackupManager
         if ($allowed === []) {
             return;
         }
-
-        // Cumulative decompressed-size guard against a zip bomb (compressed form
-        // already capped by MAX_UPLOAD_BYTES; the expanded form is not).
-        $totalDecompressed = 0;
 
         for ($i = 0; $i < $zip->numFiles; $i++) {
             $name = (string) $zip->getNameIndex($i);
@@ -1025,10 +1180,11 @@ class BackupManager
                 continue;
             }
             $parent = dirname($target);
-            // Real I/O failures (mkdir/realpath/getStream/fopen) must FAIL the
-            // restore, not be silently skipped — otherwise a partial filesystem
-            // restore would still report success. Security skips (out-of-root,
-            // symlink) intentionally `continue`.
+            // Real I/O failures (mkdir/realpath/getStream/fopen, and the
+            // chunked copy itself — fread/fwrite — inside copyStreamCapped)
+            // must FAIL the restore, not be silently skipped — otherwise a
+            // partial filesystem restore would still report success. Security
+            // skips (out-of-root, symlink) intentionally `continue`.
             if (!is_dir($parent) && !@mkdir($parent, 0755, true) && !is_dir($parent)) {
                 throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $relative);
             }
@@ -1057,13 +1213,10 @@ class BackupManager
                 fclose($stream);
                 throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $relative);
             }
-            $written = stream_copy_to_stream($stream, $out);
-            $totalDecompressed += (int) $written;
-            if ($totalDecompressed > self::MAX_RESTORE_DECOMPRESSED_BYTES) {
-                fclose($stream);
-                fclose($out);
-                throw new \RuntimeException(__('Archivio di backup non valido: dimensione decompressa eccessiva'));
-            }
+            // Chunked copy: enforces the cumulative decompressed-size budget
+            // per chunk (zip-bomb guard) and throws on fread/fwrite failure
+            // (closing both handles and unlinking the partial target itself).
+            $this->copyStreamCapped($stream, $out, $totalDecompressed, $relative, $target);
             fclose($stream);
             fclose($out);
             @chmod($target, 0644);

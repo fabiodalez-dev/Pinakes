@@ -5268,5 +5268,7 @@
   "Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server.": "Il server non ha risposto correttamente: l'operazione potrebbe essere ancora in corso o interrotta a metà. Non avviare subito un nuovo ripristino. Verifica la lista backup (potrebbe esserci un backup di sicurezza pre-ripristino) e i log del server.",
   "Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio.": "Ripristina solo archivi creati da questa istanza o di cui ti fidi completamente: il contenuto del database verrà sostituito con quello dell'archivio.",
   "Archivio di backup non valido: dimensione decompressa eccessiva": "Archivio di backup non valido: dimensione decompressa eccessiva",
+  "Un ripristino o aggiornamento è già in corso. Riprova tra poco.": "Un ripristino o aggiornamento è già in corso. Riprova tra poco.",
+  "Ripristino in corso. Riprova tra qualche minuto.": "Ripristino in corso. Riprova tra qualche minuto.",
   "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit"
 }
