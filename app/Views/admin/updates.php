@@ -1165,7 +1165,7 @@ async function uploadRestoreFile() {
 // non-upload, server-only path).
 async function runRestore(url, body, isFormData) {
     const elapsedLabel = <?= json_encode(__("Tempo trascorso"), JSON_HEX_TAG) ?>;
-    const uploadingLabel = <?= json_encode(__("Caricamento..."), JSON_HEX_TAG) ?>;
+    const uploadingLabel = <?= json_encode(__("Upload in corso..."), JSON_HEX_TAG) ?>;
     const baseText = <?= json_encode(__("L'operazione può richiedere alcuni minuti. Non chiudere la pagina."), JSON_HEX_TAG) ?>;
     let elapsedTimer = null;
     let startTime = Date.now();
@@ -1278,10 +1278,15 @@ async function runRestore(url, body, isFormData) {
 
 // Persist the "include files in pre-update backup" setting. On failure, revert
 // the checkbox so its state never diverges from what was actually saved.
+// Rapid toggles fire overlapping POSTs whose responses can land out of order;
+// the request counter makes every stale response a no-op so only the LATEST
+// toggle decides the final UI state. (#167 review)
+let lastBackupSettingReqId = 0;
 async function saveBackupSetting() {
     const checkbox = document.getElementById('preUpdateIncludeFiles');
     if (!checkbox) return;
     const desired = checkbox.checked;
+    const reqId = ++lastBackupSettingReqId;
     let ok = false;
     try {
         const response = await fetch(window.BASE_PATH + '/admin/updates/backup/settings', {
@@ -1293,6 +1298,7 @@ async function saveBackupSetting() {
         try { data = await response.json(); } catch (e) { data = null; }
         ok = response.ok && !!(data && data.success);
     } catch (error) { ok = false; }
+    if (reqId !== lastBackupSettingReqId) return; // stale: a newer toggle is in flight
     if (!ok) {
         checkbox.checked = !desired; // revert
         Swal.fire({
