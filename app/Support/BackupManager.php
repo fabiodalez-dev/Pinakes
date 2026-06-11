@@ -341,10 +341,14 @@ class BackupManager
         // Quiesce the site for the WHOLE destructive window (safety backup
         // included) — written before any mutation, removed in finally on every
         // exit path (success, plain failure, and the dbImported/partial path).
-        $this->enterRestoreMaintenanceMode($maintenanceFile);
-
+        // Inside the try so a failure to arm the flag aborts cleanly: the
+        // finally below still releases the flock, and the catch keeps the
+        // array-return contract instead of leaking the exception. (#167 review)
         try {
+            $this->enterRestoreMaintenanceMode($maintenanceFile);
             return $this->doRestoreZip($zipPath);
+        } catch (\Throwable $e) {
+            return ['success' => false, 'safety_backup' => null, 'error' => $e->getMessage()];
         } finally {
             if (file_exists($maintenanceFile)) {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal maintenance flag under storage/, not user input
@@ -366,13 +370,18 @@ class BackupManager
     private function enterRestoreMaintenanceMode(string $maintenanceFile): void
     {
         $dir = dirname($maintenanceFile);
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0775, true);
+        if (!is_dir($dir) && !@mkdir($dir, 0775, true) && !is_dir($dir)) {
+            throw new \RuntimeException(__('Impossibile attivare la modalità manutenzione per il ripristino'));
         }
-        @file_put_contents($maintenanceFile, json_encode([
+        // Fail loud: if the flag can't be written the restore must NOT proceed,
+        // otherwise visitors hit the site mid DROP/CREATE. (#167 review)
+        $written = @file_put_contents($maintenanceFile, json_encode([
             'time' => time(),
             'message' => __('Ripristino in corso. Riprova tra qualche minuto.'),
         ]), LOCK_EX);
+        if ($written === false) {
+            throw new \RuntimeException(__('Impossibile attivare la modalità manutenzione per il ripristino'));
+        }
     }
 
     /**
@@ -1098,8 +1107,12 @@ class BackupManager
         $socket = (string) ($_ENV['DB_SOCKET'] ?? getenv('DB_SOCKET') ?: '');
 
         mysqli_report(MYSQLI_REPORT_OFF);
+        // With a null host, mysqlnd falls back to ini mysqli.default_host and
+        // only assumes a local socket connection when that is empty. Pass an
+        // explicit 'localhost' so the provided $socket is always honoured;
+        // '127.0.0.1' would force TCP and ignore the socket. (#167 review)
         $conn = $socket !== ''
-            ? @mysqli_connect(null, $user, $pass, $name, 0, $socket)
+            ? @mysqli_connect('localhost', $user, $pass, $name, 0, $socket)
             : @mysqli_connect($host, $user, $pass, $name, $port);
         if (!$conn instanceof mysqli) {
             throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . __('connessione al database non riuscita'));
@@ -1275,7 +1288,11 @@ class BackupManager
         }
         foreach (array_diff($files, ['.', '..']) as $file) {
             $path = $dir . '/' . $file;
-            if (is_dir($path)) {
+            // is_dir() is true for a symlink that points at a directory, so
+            // recursing on it would descend THROUGH the link and unlink files
+            // outside storage/backups. Treat any symlink as a leaf: unlink()
+            // removes the link itself, never its target. (#167 review)
+            if (is_dir($path) && !is_link($path)) {
                 $this->deleteDirectory($path);
             } else {
                 // nosemgrep: php.lang.security.unlink-use.unlink-use -- recursive delete within an already-validated backup directory
