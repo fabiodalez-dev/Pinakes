@@ -583,7 +583,12 @@ class BackupManager
                     continue;
                 }
                 if (is_link($target)) {
-                    continue;
+                    // Writing over a symlink would escape the live root, but
+                    // silently skipping leaves the file missing AFTER the DB
+                    // was already imported, while doRestoreZip still reports
+                    // success. Fail loud so this surfaces as a partial
+                    // restore instead. (#167 review)
+                    throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . __('la destinazione è un link simbolico') . ': ' . $target);
                 }
                 if (!@rename($item->getPathname(), $target) && !@copy($item->getPathname(), $target)) {
                     throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $rl);
@@ -1149,19 +1154,22 @@ class BackupManager
      */
     private function extractFilesSafely(ZipArchive $zip, string $destRoot, int &$totalDecompressed): void
     {
+        // Fail loud: a root that can't be staged would make !$inAllowedRoot
+        // below silently discard EVERY entry under it — and with both roots
+        // missing the restore would skip all files yet still report success.
+        // mkdir/realpath failing on a fresh temp staging dir is a real I/O
+        // fault, so abort the restore instead. (#167 review)
         $allowed = [];
         foreach (self::FILE_ROOTS as $rel) {
             $base = $destRoot . '/' . $rel;
             if (!is_dir($base) && !@mkdir($base, 0755, true) && !is_dir($base)) {
-                continue;
+                throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $rel);
             }
             $real = realpath($base);
-            if ($real !== false) {
-                $allowed[] = str_replace('\\', '/', $real);
+            if ($real === false) {
+                throw new \RuntimeException(__('Errore durante il ripristino dei file') . ': ' . $rel);
             }
-        }
-        if ($allowed === []) {
-            return;
+            $allowed[] = str_replace('\\', '/', $real);
         }
 
         for ($i = 0; $i < $zip->numFiles; $i++) {
