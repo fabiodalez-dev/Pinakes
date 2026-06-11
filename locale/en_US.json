@@ -5262,6 +5262,7 @@
   "Sono accettati solo file .zip fino a 2 GB.": "Only .zip files up to 2 GB are accepted.",
   "Ricarica la pagina": "Reload the page",
   "Formato legacy": "Legacy format",
+  "Sola lettura": "Read-only",
   "Il ripristino non è supportato per i backup in formato cartella; scarica il file per un ripristino manuale.": "Restore is not supported for folder-format backups; download the file for a manual restore.",
   "Upload in corso...": "Uploading...",
   "la destinazione è un link simbolico": "the destination is a symbolic link",

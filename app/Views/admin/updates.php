@@ -1002,7 +1002,8 @@ async function loadBackups() {
                             class="btn-backup-delete inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded-lg hover:bg-red-200">
                             <i class="fas fa-trash mr-1"></i>
                             ${<?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>}
-                        </button>` : '';
+                        </button>`
+                : (restoreBtn ? '' : `<span class="text-xs text-gray-400">${<?= json_encode(__("Sola lettura"), JSON_HEX_TAG) ?>}</span>`);
 
             html += `
                 <tr class="hover:bg-gray-50">
