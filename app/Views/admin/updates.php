@@ -990,6 +990,20 @@ async function loadBackups() {
                             class="inline-flex items-center px-3 py-1.5 text-xs font-medium text-gray-400 bg-gray-100 rounded-lg cursor-default mr-2">
                             <i class="fas fa-folder mr-1"></i>${escapeHtml(legacyLabel)}
                         </span>` : '');
+            // Download + delete are admin-only on the server (staff get 403);
+            // don't render buttons that would always fail for them. (#167 review)
+            const adminBtns = IS_ADMIN ? `
+                        <button data-backup="${escapeHtml(backup.name)}" data-action="download"
+                            class="btn-backup-download inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 mr-2">
+                            <i class="fas fa-download mr-1"></i>
+                            ${<?= json_encode(__("Scarica"), JSON_HEX_TAG) ?>}
+                        </button>
+                        <button data-backup="${escapeHtml(backup.name)}" data-action="delete"
+                            class="btn-backup-delete inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded-lg hover:bg-red-200">
+                            <i class="fas fa-trash mr-1"></i>
+                            ${<?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>}
+                        </button>`
+                : (restoreBtn ? '' : `<span class="text-xs text-gray-400">${<?= json_encode(__("Sola lettura"), JSON_HEX_TAG) ?>}</span>`);
 
             html += `
                 <tr class="hover:bg-gray-50">

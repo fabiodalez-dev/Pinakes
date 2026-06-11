@@ -1274,6 +1274,14 @@ class BackupManager
 
     private function deleteDirectory(string $dir): void
     {
+        // A symlinked root must not be followed either — unlink the link
+        // itself, never recurse into its target (symmetric with the per-child
+        // is_link guard below; is_dir() returns true through a dir symlink). (#167 review)
+        if (is_link($dir)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- removes the symlink, not its target
+            @unlink($dir);
+            return;
+        }
         if (!is_dir($dir)) {
             return;
         }
