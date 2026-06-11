@@ -306,7 +306,7 @@ class UpdateController
             'partial' => $result['partial'] ?? false,
             'restored_phase' => $result['restored_phase'] ?? null,
             'safety_backup' => $result['safety_backup'] ?? null,
-        ], 500);
+        ], $this->restoreFailureStatus($result));
     }
 
     /**
@@ -334,7 +334,9 @@ class UpdateController
         // post-move check as a backstop (getSize() can be null/spoofed).
         $earlySize = $upload->getSize();
         if ($earlySize !== null && $earlySize > \App\Support\BackupManager::MAX_UPLOAD_BYTES) {
-            return $this->jsonResponse($response, ['error' => __('File di backup troppo grande')], 400);
+            // 413 here for consistency with restoreFailureStatus(), which maps
+            // the same BackupManager message to 413 on the post-move check.
+            return $this->jsonResponse($response, ['error' => __('File di backup troppo grande')], 413);
         }
 
         $tmpDir = dirname(__DIR__, 2) . '/storage/tmp';
@@ -368,7 +370,7 @@ class UpdateController
             'partial' => $result['partial'] ?? false,
             'restored_phase' => $result['restored_phase'] ?? null,
             'safety_backup' => $result['safety_backup'] ?? null,
-        ], 500);
+        ], $this->restoreFailureStatus($result));
     }
 
     /**
@@ -653,6 +655,30 @@ class UpdateController
                 'error' => __('Errore nel salvataggio del token')
             ], 500);
         }
+    }
+
+    /**
+     * Helper: map a failed BackupManager restore result to an HTTP status.
+     * User/input errors get a 4xx so clients can tell them apart from server
+     * faults; anything unrecognized — and every partial restore (the DB was
+     * already replaced, so the failure is server-side by definition) — stays
+     * 500. The matched strings are the exact messages BackupManager returns.
+     *
+     * @param array<string, mixed> $result
+     */
+    private function restoreFailureStatus(array $result): int
+    {
+        if (!empty($result['partial'])) {
+            return 500;
+        }
+        return match ((string) ($result['error'] ?? '')) {
+            __('Backup non valido per il ripristino'),
+            __('Nessun file caricato'),
+            __('Archivio di backup non valido') => 400,
+            __('File di backup troppo grande') => 413,
+            __('Un ripristino o aggiornamento è già in corso. Riprova tra poco.') => 409,
+            default => 500,
+        };
     }
 
     /**
