@@ -415,9 +415,8 @@ test.describe.serial('G2 — Restore', () => {
 
     // Track fetch calls to restore-upload.
     const restoreUploadRequests = [];
-    page.on('request', req => {
-      if (req.url().includes('restore-upload')) restoreUploadRequests.push(req.url());
-    });
+    const onReq = req => { if (req.url().includes('restore-upload')) restoreUploadRequests.push(req.url()); };
+    page.on('request', onReq);
 
     // --- Case 1: non-.zip file ---
     await page.evaluate(() => {
@@ -453,6 +452,7 @@ test.describe.serial('G2 — Restore', () => {
 
     // No fetch to restore-upload should have happened.
     expect(restoreUploadRequests.length).toBe(0);
+    page.off('request', onReq); // don't let the listener accumulate across tests
   });
 
   test('10. Trust advisory appears when uploading a real .zip via the file input', async () => {
@@ -993,13 +993,15 @@ test.describe.serial('G6 — Scanner #164', () => {
     await page.goto(`${BASE}/admin/books/create`);
     await page.waitForSelector('#importIsbn', { timeout: 10000 });
     const requests = [];
-    page.on('request', r => { if (r.url().includes('/api/scrape/isbn')) requests.push(r.url()); });
+    const onReq = r => { if (r.url().includes('/api/scrape/isbn')) requests.push(r.url()); };
+    page.on('request', onReq);
     await page.fill('#importIsbn', '9788842935780');
     await page.locator('#importIsbn').press('Enter');
     // Immediately press Enter again — button should be disabled
     await page.locator('#importIsbn').press('Enter');
     await page.waitForTimeout(1500);
     expect(requests.length).toBe(1);
+    page.off('request', onReq); // don't let the listener accumulate across tests
   });
 
   test('24. Empty code shows SweetAlert "Codice mancante" and fires NO scrape request', async () => {
@@ -1008,13 +1010,15 @@ test.describe.serial('G6 — Scanner #164', () => {
     await page.waitForSelector('#importIsbn', { timeout: 10000 });
     const urlBefore = page.url();
     const scrapeRequests = [];
-    page.on('request', r => { if (r.url().includes('/api/scrape/isbn')) scrapeRequests.push(r.url()); });
+    const onReq = r => { if (r.url().includes('/api/scrape/isbn')) scrapeRequests.push(r.url()); };
+    page.on('request', onReq);
     await page.fill('#importIsbn', '');
     await page.locator('#importIsbn').press('Enter');
     await expect(page.locator('.swal2-popup')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('.swal2-popup')).toContainText('Codice mancante');
     expect(scrapeRequests.length).toBe(0);
     expect(page.url()).toBe(urlBefore);
+    page.off('request', onReq); // don't let the listener accumulate across tests
     await page.locator('.swal2-confirm').click();
   });
 
