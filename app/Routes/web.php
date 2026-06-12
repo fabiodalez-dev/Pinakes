@@ -233,9 +233,9 @@ return function (App $app): void {
         $controller = new AuthController();
         return $controller->login($request, $response, $app->getContainer()->get('db'));
     };
-    $registerRouteIfUnique('POST', '/login', $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'login'), new CsrfMiddleware()]); // English fallback
+    $registerRouteIfUnique('POST', '/login', $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(15, 300, 'login'), new CsrfMiddleware()]); // English fallback
     foreach ($supportedLocales as $locale) {
-        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('login', $locale), $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(5, 300, 'login'), new CsrfMiddleware()]);
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('login', $locale), $loginPostHandler, [new \App\Middleware\RateLimitMiddleware(15, 300, 'login'), new CsrfMiddleware()]);
     }
 
     // Logout - all language variants + English fallback
