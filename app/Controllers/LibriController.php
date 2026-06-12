@@ -1493,6 +1493,18 @@ class LibriController
                 && isset($data['scraped_cover_url'])
                 && (string) $data['scraped_cover_url'] === $originalCoverUrl) {
                 $scrapedCoverAlreadySaved = true;
+            } elseif (is_string($fields['copertina_url'])
+                && $fields['copertina_url'] !== ''
+                && strpos($fields['copertina_url'], '/uploads/copertine/') !== 0) {
+                // #F006: downloadExternalCover() returned a RAW external URL — the
+                // download failed (non-whitelisted domain / SSRF block / HTTP/network
+                // error). Never repoint the book to a possibly-dead remote URL: keep
+                // the existing cover. A whitelisted scraped_cover_url, if present,
+                // still gets its own SSRF-guarded fetch via handleCoverUrl() below;
+                // if that can't fetch either, the current working cover stays.
+                $fields['copertina_url'] = ($currentBook['copertina_url'] ?? '') !== ''
+                    ? (string) $currentBook['copertina_url']
+                    : null;
             }
         }
 
