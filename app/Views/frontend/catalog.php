@@ -222,6 +222,31 @@ $additional_css = "
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
+        /* Long facet lists (authors, genres, publishers) scroll inside the
+           section instead of stretching the whole sidebar. A light-grey border
+           signals the area is scrollable. */
+        max-height: 16rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-color) transparent;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md, 0.5rem);
+        padding: 0.35rem;
+    }
+    .filter-options::-webkit-scrollbar { width: 6px; }
+    .filter-options::-webkit-scrollbar-track { background: transparent; }
+    .filter-options::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 999px;
+    }
+    .filter-options::-webkit-scrollbar-thumb:hover { background: var(--text-muted, #94a3b8); }
+    /* A collapsed facet (single pill) must never show a scrollbar or box. */
+    .filter-options.facet-is-collapsed {
+        max-height: none;
+        overflow: visible;
+        border: none;
+        padding: 0;
     }
 
     .filter-option {
@@ -1278,6 +1303,25 @@ ob_start();
                         </div>
                     </div>
 
+                    <!-- Authors -->
+                    <div class="filter-section" id="author-filter-section"<?= $hideAutoreSection ? ' style="display:none"' : '' ?>>
+                        <div class="filter-title">
+                            <i class="fas fa-feather"></i>
+                            <?= __("Autori") ?>
+                        </div>
+                        <div class="filter-options" id="authors-filter">
+                            <?php foreach($facetAutori as $autore): ?>
+                                <a href="#"
+                                   class="filter-option count <?= $selectedAutoreId === (int)$autore['id'] ? 'active' : '' ?>"
+                                   onclick="updateFilter('autore_id', <?= (int)$autore['id'] ?>); return false;"
+                                   title="<?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <span><?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <span class="count-badge"><?= (int)$autore['cnt'] ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
                     <!-- Genres -->
                     <div class="filter-section" id="genre-filter-section"<?= !empty($facetSuppress['genere']) && empty($filters['genere_id']) ? ' style="display:none;"' : '' ?>>
                         <div class="filter-title">
@@ -1343,25 +1387,6 @@ ob_start();
                                    onclick="updateFilter('editore', <?= htmlspecialchars(json_encode($editore['nome'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;">
                                     <span><?= htmlspecialchars(html_entity_decode($editore['nome'], ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?></span>
                                     <span class="count-badge"><?= $editore['cnt'] ?></span>
-                                </a>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-
-                    <!-- Authors -->
-                    <div class="filter-section" id="author-filter-section"<?= $hideAutoreSection ? ' style="display:none"' : '' ?>>
-                        <div class="filter-title">
-                            <i class="fas fa-feather"></i>
-                            <?= __("Autori") ?>
-                        </div>
-                        <div class="filter-options" id="authors-filter">
-                            <?php foreach($facetAutori as $autore): ?>
-                                <a href="#"
-                                   class="filter-option count <?= $selectedAutoreId === (int)$autore['id'] ? 'active' : '' ?>"
-                                   onclick="updateFilter('autore_id', <?= (int)$autore['id'] ?>); return false;"
-                                   title="<?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?>">
-                                    <span><?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?></span>
-                                    <span class="count-badge"><?= (int)$autore['cnt'] ?></span>
                                 </a>
                             <?php endforeach; ?>
                         </div>
@@ -2153,6 +2178,7 @@ function applyFacetCollapse(sectionEl, key, selectedLabel, optionsContent) {
 
 function renderFacetOptions(container, key) {
     const content = facetOptionsRender[key];
+    container.classList.remove('facet-is-collapsed'); // restore scroll box + border
     if (typeof content === 'function') {
         container.replaceChildren();
         content(container);
@@ -2166,6 +2192,7 @@ function renderFacetOptions(container, key) {
 
 function renderCollapsedPill(container, key, selectedLabel) {
     container.replaceChildren();
+    container.classList.add('facet-is-collapsed'); // single pill: no scroll box / border
 
     const pill = document.createElement('div');
     pill.className = 'facet-collapsed';
