@@ -953,42 +953,75 @@ class Installer {
     }
 
     /**
-     * Create default .htaccess if missing
+     * Create / repair the root .htaccess so the app routes correctly.
+     *
+     * REQUIRED when the document root is the project root instead of public/.
+     * cPanel's File Manager hides dotfiles, so users routinely extract the ZIP
+     * and move only the *visible* files into the docroot, leaving the hidden
+     * root .htaccess behind. Without it nothing but "/" resolves (every route
+     * and every /assets, /plugins request 404s). The installer runs PHP, so it
+     * recreates the file directly on disk — invisible to File Manager, but
+     * fully effective for Apache/LiteSpeed — restoring routing with zero manual
+     * steps. Idempotent: existing routing (ours, hand-written, or cPanel PHP
+     * directives) is preserved.
      */
     public function createHtaccess() {
         $htaccessPath = $this->baseDir . '/.htaccess';
 
-        if (file_exists($htaccessPath)) {
-            return true; // Already exists
-        }
-
-        $htaccessContent = <<<'HTACCESS'
+        $pinakesBlock = <<<'HTACCESS'
+# === Pinakes routing (auto-managed by the installer) ===
+# Forwards all requests to the public/ subdirectory. Needed when the document
+# root is the PROJECT ROOT instead of public/. Do not remove this block.
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /
 
-    # Redirect all requests to index.php
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^(.*)$ index.php [QSA,L]
+    # Serve the installer and the manual-upgrade script directly
+    RewriteCond %{REQUEST_URI} (^|/)installer(/|$) [NC,OR]
+    RewriteCond %{REQUEST_URI} (^|/)scripts/manual-upgrade\.php$ [NC]
+    RewriteRule ^ - [L]
+
+    # Allow direct access to calendar .ics subscription files
+    RewriteCond %{REQUEST_URI} ^/storage/calendar/.*\.ics$ [NC]
+    RewriteRule ^ - [L]
+
+    # Everything else is served from public/
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L,QSA]
 </IfModule>
 
-# Disable directory browsing
-Options -Indexes
+# Prevent directory browsing
+<IfModule mod_autoindex.c>
+    Options -Indexes
+</IfModule>
 
-# Protect sensitive files
-<FilesMatch "^\.">
-    Order allow,deny
-    Deny from all
+# Block access to sensitive files at the project root
+<FilesMatch "^(\.env|\.env\..+|\.git.*|\.installed|composer\.(json|lock)|package(-lock)?\.json|CLAUDE\.md)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order deny,allow
+        Deny from all
+    </IfModule>
 </FilesMatch>
-
-<FilesMatch "^(composer\.(json|lock)|package(-lock)?\.json|\.env.*|.*\.md)$">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
+# === end Pinakes routing ===
 HTACCESS;
 
-        return file_put_contents($htaccessPath, $htaccessContent) !== false;
+        if (file_exists($htaccessPath)) {
+            $existing = (string) @file_get_contents($htaccessPath);
+            // Already routed? (our marker, a hand-written rule, or the packaged one)
+            if (strpos($existing, '=== Pinakes routing') !== false
+                || strpos($existing, 'public/$1') !== false) {
+                return true;
+            }
+            // A file exists but lacks routing (e.g. cPanel only wrote its PHP
+            // directives). Append our block, preserving the existing content.
+            $merged = rtrim($existing, "\n") . "\n\n" . $pinakesBlock . "\n";
+            return file_put_contents($htaccessPath, $merged) !== false;
+        }
+
+        // No .htaccess at all — write the full routing block.
+        return file_put_contents($htaccessPath, $pinakesBlock . "\n") !== false;
     }
 
     /**
