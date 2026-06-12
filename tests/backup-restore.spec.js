@@ -34,7 +34,10 @@ function dbQuery(sql) {
   if (DB_HOST) { args.push('-h', DB_HOST); if (DB_PORT) args.push('-P', DB_PORT); } else if (DB_SOCKET) { args.push('-S', DB_SOCKET); }
   args.push('-u', DB_USER, DB_NAME, '-N', '-B', '-e', sql);
   const cnf = path.join(os.tmpdir(), `pk-162-${process.pid}.cnf`);
-  fs.writeFileSync(cnf, `[client]\npassword="${DB_PASS}"\n`, { mode: 0o600 });
+  // Escape for MySQL option-file syntax: a backslash or double quote in the
+  // password would otherwise break the [client] block. (#167 review)
+  const escPass = DB_PASS.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  fs.writeFileSync(cnf, `[client]\npassword="${escPass}"\n`, { mode: 0o600 });
   try { return execFileSync('mysql', [`--defaults-extra-file=${cnf}`, ...args], { encoding: 'utf-8', timeout: 60000 }).trim(); } finally { try { fs.unlinkSync(cnf); } catch {} }
 }
 function zipEntries(zipPath) {
@@ -48,7 +51,7 @@ async function login(page, email, pass) {
   await page.waitForURL((u) => !u.toString().includes('/accedi'), { timeout: 15000 });
 }
 // POST inside the page realm so it reuses the page's own `csrfToken` const + cookies.
-function apiPost(page, urlPath, params, isForm) {
+function apiPost(page, urlPath, params) {
   return page.evaluate(async ({ u, p }) => {
     const body = new URLSearchParams(Object.assign({ csrf_token: csrfToken }, p)).toString();
     const r = await fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body });

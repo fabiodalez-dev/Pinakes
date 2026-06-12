@@ -1023,17 +1023,7 @@ async function loadBackups() {
                         ${formatBytes(backup.size)}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-right">
-                        ${restoreBtn}
-                        <button data-backup="${escapeHtml(backup.name)}" data-action="download"
-                            class="btn-backup-download inline-flex items-center px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-100 rounded-lg hover:bg-blue-200 mr-2">
-                            <i class="fas fa-download mr-1"></i>
-                            ${<?= json_encode(__("Scarica"), JSON_HEX_TAG) ?>}
-                        </button>
-                        <button data-backup="${escapeHtml(backup.name)}" data-action="delete"
-                            class="btn-backup-delete inline-flex items-center px-3 py-1.5 text-xs font-medium text-red-700 bg-red-100 rounded-lg hover:bg-red-200">
-                            <i class="fas fa-trash mr-1"></i>
-                            ${<?= json_encode(__("Elimina"), JSON_HEX_TAG) ?>}
-                        </button>
+                        ${restoreBtn}${adminBtns}
                     </td>
                 </tr>
             `;
