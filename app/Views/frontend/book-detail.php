@@ -614,8 +614,17 @@ $additional_css = "
     .genre-tags {
         display: flex;
         flex-wrap: wrap;
+        align-items: center;
         gap: 0.5rem;
         margin-bottom: 1.5rem;
+    }
+
+    .genre-separator {
+        display: inline-flex;
+        align-items: center;
+        color: rgba(26, 26, 26, 0.45);
+        font-weight: 600;
+        line-height: 1;
     }
 
     .genre-tag {
