@@ -34,6 +34,39 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.19
+
+### Complete backup & restore — database + uploaded files (#162)
+
+Backups now bundle the **database dump and the uploaded files** into a single
+verifiable ZIP, and can be **restored** from the admin panel (Admin → Updates →
+Backup). Each archive carries a `manifest.json` with a SHA-256 of the dump, so a
+corrupted or tampered backup is rejected before any destructive restore. Restores
+run under a global lock + maintenance mode (concurrent restores are refused),
+recreate loan-integrity triggers DELIMITER-aware, stream large entries with a
+decompressed-size cap (zip-bomb guard), and stage files atomically. `.env` is
+never included in a backup nor written by a restore. Backup creation/restore and
+download/delete are strictly admin-only (staff get `403`); a configurable toggle
+controls whether uploaded files are included in the automatic pre-update backup.
+
+### ISBN-scanner Enter + one-step cover replace (#164, #165, #166)
+
+On the book form, a barcode scanner's trailing **Enter** now triggers the ISBN/EAN
+import instead of submitting the half-filled form (and a double-Enter during an
+in-flight import is ignored). An auto-imported or uploaded **cover can be replaced
+in a single step** — the previous local file is removed with no orphan left on
+disk, while a failed external replacement keeps the existing working cover rather
+than pointing at a dead URL.
+
+### Testing
+
+Validated end to end on a dedicated isolated install: a 32-point regression suite
+covering both feature sets (backup create/restore, concurrency/lock, permissions,
+PHP-fallback streaming, scanner, cover replacement) plus full install + upgrade
+runs, all green, with PHPStan level 5 clean.
+
+---
+
 ## What's New in v0.7.18
 
 ### Configurable loan & reservation system (#157)
