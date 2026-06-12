@@ -41,6 +41,33 @@ class CmsController
         $page = $result->fetch_assoc();
         $stmt->close();
 
+        // Resilience fallback: some installs have the cms_pages row seeded with a
+        // different slug variant than the current locale's canonical one (e.g. an
+        // it_IT install seeded with 'about-us' instead of 'chi-siamo'). Retry by
+        // matching ANY slug mapped to the same page identifier, in this locale,
+        // so the page resolves regardless of which variant was stored.
+        if (!$page) {
+            $pageId = CmsHelper::getPageIdFromSlug($slug);
+            $variants = $pageId !== null ? CmsHelper::getSlugsForPage($pageId) : [];
+            if ($variants !== []) {
+                $placeholders = implode(',', array_fill(0, count($variants), '?'));
+                $types = str_repeat('s', count($variants) + 1);
+                $params = $variants;
+                $params[] = $currentLocale;
+                $stmt = $db->prepare(
+                    "SELECT id, slug, title, content, image, meta_description, locale
+                     FROM cms_pages
+                     WHERE slug IN ($placeholders) AND locale = ? AND is_active = 1
+                     LIMIT 1"
+                );
+                $stmt->bind_param($types, ...$params);
+                $stmt->execute();
+                $result = $stmt->get_result();
+                $page = $result->fetch_assoc();
+                $stmt->close();
+            }
+        }
+
         if (!$page) {
             $response->getBody()->write('Pagina non trovata');
             return $response->withStatus(404);
