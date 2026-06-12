@@ -405,6 +405,7 @@
   "Auto-detect se vuoto": "Automatische Erkennung wenn leer",
   "Automatismi": "Automatisierungen",
   "Autore": "Autor",
+  "Cambia": "Ändern",
   "Autore \"${normalizedLabel}\" pronto per essere creato": "Autor \"${normalizedLabel}\" bereit zur Erstellung",
   "Autore \"${normalizedLabel}\" è già selezionato": "Autor \"${normalizedLabel}\" ist bereits ausgewählt",
   "Autore \"%s\" pronto per essere creato": "Autor \"%s\" bereit zur Erstellung",

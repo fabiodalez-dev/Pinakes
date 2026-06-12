@@ -840,6 +840,7 @@ class FrontendController
             'anno_min' => $params['anno_min'] ?? '',
             'anno_max' => $params['anno_max'] ?? '',
             'tipo_media' => trim((string) $rawTipoMedia),
+            'autore_id' => (int)($params['autore_id'] ?? 0),
             'sort' => $params['sort'] ?? 'newest'
         ];
     }
@@ -1013,6 +1014,12 @@ class FrontendController
             $conditions[] = "l.tipo_media = ?";
             $params[] = $filters['tipo_media'];
             $types .= 's';
+        }
+
+        if (!empty($filters['autore_id'])) {
+            $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_f WHERE la_f.libro_id = l.id AND la_f.autore_id = ?)";
+            $params[] = (int) $filters['autore_id'];
+            $types .= 'i';
         }
 
         return [
@@ -1223,6 +1230,133 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         'available' => $availableCount,
         'borrowed' => $borrowedCount,
         'total' => $availableCount + $borrowedCount
+    ];
+
+    // Shared LEFT JOIN block so the remove-self WHERE conditions (which reference
+    // e./g./gp./gpp./sg. aliases) resolve in every facet query below.
+    $facetJoins = "
+        LEFT JOIN editori e ON l.editore_id = e.id
+        LEFT JOIN generi g ON l.genere_id = g.id
+        LEFT JOIN generi gp ON g.parent_id = gp.id
+        LEFT JOIN generi gpp ON gp.parent_id = gpp.id
+        LEFT JOIN generi sg ON l.sottogenere_id = sg.id
+    ";
+
+    // ---------- Autori (remove-self: count excluding the autore_id filter) ----------
+    $options['autori'] = [];
+    $filtersForAutori = $filters;
+    $filtersForAutori['autore_id'] = 0;
+    $whereAu = $this->buildWhereConditions($filtersForAutori, $db);
+    $queryAutori = "
+        SELECT a.id, a.nome, COUNT(DISTINCT l.id) AS cnt
+        FROM autori a
+        JOIN libri_autori la ON la.autore_id = a.id
+        JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
+        {$facetJoins}
+    ";
+    if (!empty($whereAu['conditions'])) {
+        $queryAutori .= " WHERE " . implode(' AND ', $whereAu['conditions']);
+    }
+    $queryAutori .= " GROUP BY a.id, a.nome HAVING cnt > 0 ORDER BY a.nome LIMIT 100";
+    $stmt = $db->prepare($queryAutori);
+    if ($stmt !== false) {
+        if (!empty($whereAu['params'])) {
+            $stmt->bind_param($whereAu['types'], ...$whereAu['params']);
+        }
+        $stmt->execute();
+        $options['autori'] = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
+
+    // ---------- Tipo media (remove-self + per-type counts, only types present) ----------
+    $options['media_types'] = [];
+    if ($this->hasLibriColumn($db, 'tipo_media')) {
+        $mediaLabels = \App\Support\MediaLabels::allTypes();
+        $filtersForMedia = $filters;
+        $filtersForMedia['tipo_media'] = '';
+        $whereMt = $this->buildWhereConditions($filtersForMedia, $db);
+        $queryMt = "
+            SELECT l.tipo_media AS value, COUNT(DISTINCT l.id) AS cnt
+            FROM libri l
+            {$facetJoins}
+            WHERE l.deleted_at IS NULL AND l.tipo_media IS NOT NULL AND l.tipo_media <> ''
+        ";
+        if (!empty($whereMt['conditions'])) {
+            $queryMt .= " AND " . implode(' AND ', $whereMt['conditions']);
+        }
+        $queryMt .= " GROUP BY l.tipo_media HAVING cnt > 0 ORDER BY cnt DESC, l.tipo_media";
+        $stmt = $db->prepare($queryMt);
+        if ($stmt !== false) {
+            if (!empty($whereMt['params'])) {
+                $stmt->bind_param($whereMt['types'], ...$whereMt['params']);
+            }
+            $stmt->execute();
+            foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+                $val = (string) $r['value'];
+                $options['media_types'][] = [
+                    'value' => $val,
+                    'label' => $mediaLabels[$val]['label'] ?? ucfirst($val),
+                    'icon'  => $mediaLabels[$val]['icon'] ?? 'fa-tag',
+                    'cnt'   => (int) $r['cnt'],
+                ];
+            }
+        }
+    }
+
+    // ---------- Anno: dynamic bounds (remove-self on anno_min/anno_max) ----------
+    $filtersForAnno = $filters;
+    $filtersForAnno['anno_min'] = '';
+    $filtersForAnno['anno_max'] = '';
+    $whereAn = $this->buildWhereConditions($filtersForAnno, $db);
+    $queryAnno = "
+        SELECT MIN(l.anno_pubblicazione) AS ymin, MAX(l.anno_pubblicazione) AS ymax,
+               COUNT(DISTINCT l.anno_pubblicazione) AS ydistinct
+        FROM libri l
+        {$facetJoins}
+        WHERE l.deleted_at IS NULL AND l.anno_pubblicazione > 0
+    ";
+    if (!empty($whereAn['conditions'])) {
+        $queryAnno .= " AND " . implode(' AND ', $whereAn['conditions']);
+    }
+    $annoBounds = ['min' => 0, 'max' => 0, 'distinct' => 0];
+    $stmt = $db->prepare($queryAnno);
+    if ($stmt !== false) {
+        if (!empty($whereAn['params'])) {
+            $stmt->bind_param($whereAn['types'], ...$whereAn['params']);
+        }
+        $stmt->execute();
+        $rowAn = $stmt->get_result()->fetch_assoc() ?: [];
+        $annoBounds = [
+            'min' => (int) ($rowAn['ymin'] ?? 0),
+            'max' => (int) ($rowAn['ymax'] ?? 0),
+            'distinct' => (int) ($rowAn['ydistinct'] ?? 0),
+        ];
+    }
+    $options['anno_bounds'] = $annoBounds;
+
+    // ---------- Suppress flags: a facet with <=1 reachable value is noise ----------
+    // Genre uses a stricter rule: only suppressed when ZERO genres are reachable
+    // (an empty "Generi" header is pure noise) — a single genre is still useful
+    // to show, and the hierarchical drill-down stays otherwise.
+    $genreReachable = 0;
+    $flattenGenres = function (array $nodes) use (&$flattenGenres, &$genreReachable): void {
+        foreach ($nodes as $n) {
+            if ((int) ($n['cnt'] ?? 0) > 0) {
+                $genreReachable++;
+            }
+            if (!empty($n['children']) && is_array($n['children'])) {
+                $flattenGenres($n['children']);
+            }
+        }
+    };
+    if (!empty($options['generi'])) {
+        $flattenGenres($options['generi']);
+    }
+    $options['suppress'] = [
+        'genere'     => ($genreReachable === 0),
+        'editore'    => count($options['editori']) <= 1,
+        'autore'     => count($options['autori']) <= 1,
+        'tipo_media' => count($options['media_types']) <= 1,
+        'anno'       => ($annoBounds['distinct'] <= 1),
     ];
 
     return $options;

@@ -1178,12 +1178,16 @@ test.describe.serial('G7 — Cover #165/#166', () => {
     const fileA = coverFile(urlA);
     expect(require('fs').existsSync(fileA)).toBe(true);
 
-    // Edit: set scraped_cover_url to a non-whitelisted domain
+    // Edit: set both fields to a non-whitelisted domain.
+    // The real UI (applyAlternativeCover in book_form.php:3495-3496) sets BOTH
+    // copertina_url AND scraped_cover_url, so we mirror that here.
     await page.goto(`${BASE}/admin/books/edit/${id}`);
     await page.waitForSelector('#bookForm', { timeout: 10000 });
     await page.evaluate((url) => {
-      const el = document.getElementById('scraped_cover_url');
-      if (el) el.value = url;
+      const cu = document.getElementById('copertina_url');
+      if (cu) cu.value = url;
+      const sc = document.getElementById('scraped_cover_url');
+      if (sc) sc.value = url;
     }, 'https://evil.example.com/x.jpg');
     await page.locator('#bookForm button[type="submit"]').click();
     const confirmBtn = page.locator('.swal2-confirm');
