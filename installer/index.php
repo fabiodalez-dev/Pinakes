@@ -84,6 +84,20 @@ $baseDir = dirname(__DIR__);
 $installer = new Installer($baseDir);
 $validator = new Validator();
 
+// Ensure the root .htaccess exists BEFORE rendering any installer page. When the
+// document root is the project root (a very common cPanel setup) the installer's
+// own assets — /assets/vendor.css (Font Awesome icons) and /assets/brand/logo.png
+// — live under public/assets and only resolve once the routing rewrite exists.
+// cPanel's File Manager hides dotfiles, so the packaged root .htaccess is often
+// lost during extraction; writing it here (PHP, on disk) makes the installer
+// render correctly and self-heals routing for the installed app. Idempotent and
+// best-effort: a non-writable root simply leaves things as they are.
+try {
+    $installer->createHtaccess();
+} catch (\Throwable $e) {
+    // Non-fatal: the install can still proceed; routing may need a manual .htaccess.
+}
+
 // Base path detection for subfolder installations
 $installerBasePath = rtrim(dirname(dirname($_SERVER['SCRIPT_NAME'] ?? '')), '/\\');
 if ($installerBasePath === '.' || $installerBasePath === DIRECTORY_SEPARATOR) $installerBasePath = '';
