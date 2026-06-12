@@ -66,6 +66,21 @@ final class CmsHelper
     }
 
     /**
+     * Get every known slug variant mapped to a page identifier (all locales).
+     *
+     * Resilience fallback for cms_pages rows seeded with a different-locale slug
+     * than the current locale's canonical one (e.g. an it_IT install seeded with
+     * 'about-us' instead of 'chi-siamo').
+     *
+     * @param string $pageId Page identifier (e.g., 'about')
+     * @return list<string> Distinct slugs for the page across all locales
+     */
+    public static function getSlugsForPage(string $pageId): array
+    {
+        return array_values(array_unique(array_values(self::$slugMap[$pageId] ?? [])));
+    }
+
+    /**
      * Get the correct slug for the current locale
      * If the given slug is in a different language, return the current locale version
      *
