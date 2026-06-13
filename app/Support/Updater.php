@@ -321,6 +321,113 @@ class Updater
     }
 
     /**
+     * Whether a URL targets the GitHub API host — the ONLY host that may
+     * receive the Authorization bearer token. Release asset / sidecar / patch
+     * downloads use browser_download_url (host github.com, redirecting to the
+     * CDN objects.githubusercontent.com); sending the token there would leak it
+     * into non-API (CDN) logs, so those requests must stay anonymous. Public
+     * release assets don't need auth anyway.
+     */
+    private function isApiUrl(string $url): bool
+    {
+        $urlHost = parse_url($url, PHP_URL_HOST);
+        return is_string($urlHost) && strcasecmp($urlHost, 'api.github.com') === 0;
+    }
+
+    /**
+     * Fetch and parse the "<asset>.sha256" sidecar of a release.
+     *
+     * @param array<string, mixed> $release Decoded GitHub release object.
+     * @return string|null Lowercase 64-char sha256 hex, or null when unavailable/invalid.
+     */
+    private function fetchSidecarChecksum(array $release, string $assetName): ?string
+    {
+        $sidecarName = $assetName . '.sha256';
+        $sidecarUrl = null;
+        foreach ((array) ($release['assets'] ?? []) as $asset) {
+            if (is_array($asset) && ($asset['name'] ?? '') === $sidecarName) {
+                $url = $asset['browser_download_url'] ?? null;
+                $sidecarUrl = is_string($url) ? $url : null;
+                break;
+            }
+        }
+        if ($sidecarUrl === null) {
+            return null;
+        }
+        $content = $this->downloadPatchFile($sidecarUrl); // anonymous (no bearer token)
+        if ($content === null) {
+            return null;
+        }
+        $first = trim(explode(' ', trim($content))[0]);
+        $hash = strtolower($first);
+        return preg_match('/^[a-f0-9]{64}$/', $hash) === 1 ? $hash : null;
+    }
+
+    /**
+     * Download a named release asset and verify its sha256 integrity, sourcing
+     * the expected hash from the GitHub API "digest" field (served over TLS by
+     * api.github.com) with the ".sha256" sidecar as a fallback.
+     *
+     * Fail-closed: returns null when the asset is absent OR no integrity source
+     * exists OR the hash mismatches — the caller therefore never receives (and
+     * never executes) unverified bytes.
+     *
+     * @return string|null Verified asset bytes, or null.
+     */
+    private function fetchVerifiedReleaseAsset(string $version, string $assetName): ?string
+    {
+        $release = $this->getReleaseByVersion($version);
+        if (!is_array($release)) {
+            return null;
+        }
+
+        $asset = null;
+        foreach ((array) ($release['assets'] ?? []) as $candidate) {
+            if (is_array($candidate) && ($candidate['name'] ?? '') === $assetName) {
+                $asset = $candidate;
+                break;
+            }
+        }
+        if ($asset === null) {
+            return null; // no such asset on this release — normal (no patch)
+        }
+
+        $url = $asset['browser_download_url'] ?? '';
+        if (!is_string($url) || $url === '') {
+            return null;
+        }
+
+        $expectedHash = null;
+        $digest = $asset['digest'] ?? null;
+        if (is_string($digest) && stripos($digest, 'sha256:') === 0) {
+            $expectedHash = strtolower(substr($digest, 7));
+        } else {
+            $expectedHash = $this->fetchSidecarChecksum($release, $assetName);
+        }
+        if ($expectedHash === null) {
+            $this->debugLog('WARNING', 'Asset senza fonte di integrità (no digest/sidecar), ignorato', [
+                'asset' => $assetName,
+            ]);
+            return null;
+        }
+
+        $content = $this->downloadPatchFile($url); // anonymous (no bearer token)
+        if ($content === null) {
+            return null;
+        }
+
+        if (!hash_equals($expectedHash, hash('sha256', $content))) {
+            $this->debugLog('ERROR', 'Asset digest mismatch, ignorato', [
+                'asset'    => $assetName,
+                'expected' => $expectedHash,
+            ]);
+            return null;
+        }
+
+        return $content;
+    }
+
+    /**
      * Extract final HTTP status code from response headers (handles redirects).
      * @param array<int, string> $headers
      */
@@ -985,32 +1092,43 @@ class Updater
                 'assets' => array_map(fn($a) => $a['name'], $release['assets'] ?? [])
             ]);
 
-            // Find the source code zip asset or use zipball_url
-            $downloadUrl = $release['zipball_url'] ?? null;
+            // SECURITY: only the packaged "pinakes-*.zip" release asset is
+            // installable — it is the artifact create-release.sh builds, ships a
+            // sha256 sidecar for, and (on modern GitHub) carries an API "digest".
+            // The git zipball_url is deliberately NOT used as a fallback: it has
+            // neither a digest nor a sidecar, so its integrity cannot be
+            // verified, and it lacks vendor/. We refuse rather than install an
+            // unverifiable package.
+            $downloadUrl = null;
+            $selectedAssetName = null;
+            $expectedDigest = null;
 
-            // Check for custom asset named pinakes-vX.X.X.zip first
             foreach ($release['assets'] ?? [] as $asset) {
                 $this->debugLog('DEBUG', 'Controllo asset', [
-                    'name' => $asset['name'],
+                    'name' => $asset['name'] ?? 'N/A',
                     'size' => $asset['size'] ?? 0,
                     'download_url' => $asset['browser_download_url'] ?? 'N/A'
                 ]);
 
-                if (preg_match('/pinakes.*\.zip$/i', $asset['name'])) {
-                    $downloadUrl = $asset['browser_download_url'];
+                if (isset($asset['name']) && preg_match('/pinakes.*\.zip$/i', (string) $asset['name'])) {
+                    $downloadUrl = $asset['browser_download_url'] ?? null;
+                    $selectedAssetName = (string) $asset['name'];
+                    $expectedDigest = isset($asset['digest']) && is_string($asset['digest']) ? $asset['digest'] : null;
                     $this->debugLog('INFO', 'Trovato asset personalizzato', [
-                        'name' => $asset['name'],
-                        'url' => $downloadUrl
+                        'name' => $selectedAssetName,
+                        'url' => $downloadUrl,
+                        'digest' => $expectedDigest ?? 'N/A'
                     ]);
                     break;
                 }
             }
 
-            if (!$downloadUrl) {
-                $this->debugLog('ERROR', 'URL di download non trovato', [
-                    'release' => $release['tag_name']
+            if (!$downloadUrl || $selectedAssetName === null) {
+                $this->debugLog('ERROR', 'Nessun asset pacchetto verificabile (pinakes-*.zip) nella release', [
+                    'release' => $release['tag_name'] ?? 'N/A',
+                    'assets'  => array_map(static fn($a) => $a['name'] ?? '?', $release['assets'] ?? [])
                 ]);
-                throw new Exception(__('URL di download non trovato'));
+                throw new Exception(__('La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.'));
             }
 
             $this->debugLog('INFO', 'URL download selezionato', ['url' => $downloadUrl]);
@@ -1048,7 +1166,7 @@ class Updater
                     CURLOPT_TIMEOUT => 300,
                     CURLOPT_CONNECTTIMEOUT => 30,
                     CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
-                    CURLOPT_HTTPHEADER => $this->getGitHubHeaders('application/octet-stream'),
+                    CURLOPT_HTTPHEADER => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
                     CURLOPT_SSL_VERIFYPEER => true,
                     CURLOPT_BUFFERSIZE => 1024 * 1024, // 1MB buffer
                 ]);
@@ -1111,7 +1229,7 @@ class Updater
                 $context = stream_context_create([
                     'http' => [
                         'method' => 'GET',
-                        'header' => $this->getGitHubHeaders('application/octet-stream'),
+                        'header' => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
                         'timeout' => 300,
                         'follow_location' => true,
                         'ignore_errors' => true
@@ -1138,7 +1256,7 @@ class Updater
                         $context = stream_context_create([
                             'http' => [
                                 'method' => 'GET',
-                                'header' => $this->getGitHubHeaders('application/octet-stream'),
+                                'header' => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
                                 'timeout' => 300,
                                 'follow_location' => true,
                                 'ignore_errors' => true
@@ -1185,6 +1303,41 @@ class Updater
                 ]);
                 throw new Exception(__('File di aggiornamento non valido (troppo piccolo)'));
             }
+
+            // SECURITY: integrity verification is MANDATORY before the package is
+            // ever written to disk and extracted. The downloaded bytes must match
+            // a published sha256 — the supply-chain guard that TLS alone does not
+            // provide against a tampered release artifact. Sources, in order:
+            //   1) the GitHub asset "digest" field ("sha256:<hex>", API/TLS)
+            //   2) the companion "<asset>.sha256" sidecar asset
+            // If NEITHER is available, refuse the update (fail-closed).
+            $expectedHash = null;
+            if (is_string($expectedDigest) && stripos($expectedDigest, 'sha256:') === 0) {
+                $expectedHash = strtolower(substr($expectedDigest, 7));
+                $this->debugLog('INFO', 'Verifica integrità via digest asset GitHub');
+            } else {
+                $this->debugLog('WARNING', 'Asset senza digest, tentativo sidecar .sha256', [
+                    'asset' => $selectedAssetName
+                ]);
+                $expectedHash = $this->fetchSidecarChecksum($release, $selectedAssetName);
+            }
+
+            if ($expectedHash === null) {
+                $this->debugLog('ERROR', 'Nessuna fonte di integrità per il pacchetto', [
+                    'asset' => $selectedAssetName
+                ]);
+                throw new Exception(__('Verifica di integrità impossibile: la release non pubblica né un digest né un sidecar .sha256. Installazione di un pacchetto non verificato rifiutata.'));
+            }
+
+            $actualHash = hash('sha256', $fileContent);
+            if (!hash_equals($expectedHash, $actualHash)) {
+                $this->debugLog('ERROR', 'Digest del pacchetto non corrispondente', [
+                    'expected' => $expectedHash,
+                    'actual'   => $actualHash
+                ]);
+                throw new Exception(__('Verifica di integrità fallita: l\'archivio scaricato non corrisponde al checksum atteso.'));
+            }
+            $this->debugLog('INFO', 'Integrità pacchetto verificata (sha256)', ['sha256' => $actualHash]);
 
             // Save file
             $this->debugLog('DEBUG', 'Salvataggio file ZIP', ['path' => $zipPath]);
@@ -3808,54 +3961,24 @@ class Updater
         ];
 
         try {
-            // Build URL for pre-update-patch.php from GitHub release
-            $tag = strpos($targetVersion, 'v') === 0 ? $targetVersion : 'v' . $targetVersion;
-            $baseUrl = "https://github.com/{$this->repoOwner}/{$this->repoName}/releases/download/{$tag}";
-            $patchUrl = $baseUrl . '/pre-update-patch.php';
-            $checksumUrl = $baseUrl . '/pre-update-patch.php.sha256';
-
-            $this->debugLog('DEBUG', 'Tentativo download pre-update-patch', [
-                'patch_url' => $patchUrl,
-                'checksum_url' => $checksumUrl
-            ]);
-
-            // Download patch file
-            $patchContent = $this->downloadPatchFile($patchUrl);
+            // SECURITY: the pre-update patch is fetched as a release asset and
+            // its sha256 verified against the GitHub API "digest" (served over
+            // TLS by api.github.com), falling back to the ".sha256" sidecar.
+            // The previous flow downloaded patch + checksum from the SAME CDN
+            // path, so a tampered/MITM'd CDN could forge both — the check gave
+            // no protection against tampering. fetchVerifiedReleaseAsset() is
+            // fail-closed (no asset / no integrity source / mismatch => null)
+            // and uses hash_equals, so unverified PHP is never executed.
+            $patchContent = $this->fetchVerifiedReleaseAsset($targetVersion, 'pre-update-patch.php');
 
             if ($patchContent === null) {
-                // 404 or download failed - this is OK, no patch needed
-                $this->debugLog('INFO', 'Nessun pre-update-patch disponibile (OK, normale)', [
-                    'reason' => 'File not found or download failed'
-                ]);
+                $this->debugLog('INFO', 'Nessun pre-update-patch verificato disponibile (OK, normale)');
                 return $result;
             }
 
-            $this->debugLog('INFO', 'Pre-update-patch scaricato', [
+            $this->debugLog('INFO', 'Pre-update-patch scaricato e verificato (sha256)', [
                 'size' => strlen($patchContent)
             ]);
-
-            // Download checksum file
-            $checksumContent = $this->downloadPatchFile($checksumUrl);
-
-            if ($checksumContent === null) {
-                $this->debugLog('WARNING', 'Checksum file non trovato, patch ignorata per sicurezza');
-                return $result;
-            }
-
-            // Verify checksum
-            $expectedChecksum = trim(explode(' ', trim($checksumContent))[0]);
-            $actualChecksum = hash('sha256', $patchContent);
-
-            if ($expectedChecksum !== $actualChecksum) {
-                $this->debugLog('ERROR', 'Checksum pre-update-patch non valido', [
-                    'expected' => $expectedChecksum,
-                    'actual' => $actualChecksum
-                ]);
-                // Don't fail the update, just skip the patch
-                return $result;
-            }
-
-            $this->debugLog('INFO', 'Checksum verificato', ['checksum' => $actualChecksum]);
 
             // Save patch to temp file and evaluate
             $tempPatchFile = $this->rootPath . '/storage/tmp/pre-update-patch-' . uniqid() . '.php';
@@ -4106,53 +4229,21 @@ class Updater
         ];
 
         try {
-            // Build URL for post-install-patch.php from GitHub release
-            $tag = strpos($targetVersion, 'v') === 0 ? $targetVersion : 'v' . $targetVersion;
-            $baseUrl = "https://github.com/{$this->repoOwner}/{$this->repoName}/releases/download/{$tag}";
-            $patchUrl = $baseUrl . '/post-install-patch.php';
-            $checksumUrl = $baseUrl . '/post-install-patch.php.sha256';
-
-            $this->debugLog('DEBUG', 'Tentativo download post-install-patch', [
-                'patch_url' => $patchUrl,
-                'checksum_url' => $checksumUrl
-            ]);
-
-            // Download patch file
-            $patchContent = $this->downloadPatchFile($patchUrl);
+            // SECURITY: same hardened path as the pre-update patch — fetch the
+            // post-install patch as a release asset and verify its sha256 against
+            // the GitHub API "digest" (TLS) with the ".sha256" sidecar fallback.
+            // fetchVerifiedReleaseAsset() is fail-closed and uses hash_equals, so
+            // unverified PHP is never written to disk or executed.
+            $patchContent = $this->fetchVerifiedReleaseAsset($targetVersion, 'post-install-patch.php');
 
             if ($patchContent === null) {
-                // 404 or download failed - this is OK, no patch needed
-                $this->debugLog('INFO', 'Nessun post-install-patch disponibile (OK, normale)', [
-                    'reason' => 'File not found or download failed'
-                ]);
+                $this->debugLog('INFO', 'Nessun post-install-patch verificato disponibile (OK, normale)');
                 return $result;
             }
 
-            $this->debugLog('INFO', 'Post-install-patch scaricato', [
+            $this->debugLog('INFO', 'Post-install-patch scaricato e verificato (sha256)', [
                 'size' => strlen($patchContent)
             ]);
-
-            // Download checksum file
-            $checksumContent = $this->downloadPatchFile($checksumUrl);
-
-            if ($checksumContent === null) {
-                $this->debugLog('WARNING', 'Checksum file non trovato, patch ignorata per sicurezza');
-                return $result;
-            }
-
-            // Verify checksum
-            $expectedChecksum = trim(explode(' ', trim($checksumContent))[0]);
-            $actualChecksum = hash('sha256', $patchContent);
-
-            if ($expectedChecksum !== $actualChecksum) {
-                $this->debugLog('ERROR', 'Checksum post-install-patch non valido', [
-                    'expected' => $expectedChecksum,
-                    'actual' => $actualChecksum
-                ]);
-                return $result;
-            }
-
-            $this->debugLog('INFO', 'Checksum verificato', ['checksum' => $actualChecksum]);
 
             // Save patch to temp file and evaluate
             $tempPatchFile = $this->rootPath . '/storage/tmp/post-install-patch-' . uniqid() . '.php';
