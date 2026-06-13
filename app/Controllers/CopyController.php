@@ -80,7 +80,8 @@ class CopyController
         $libroId = (int) $copy['libro_id'];
         $statoCorrente = $copy['stato'];
 
-        // Verifica se la copia è in prestito attivo
+        // Prestito "in carico" su questa copia (in_corso/in_ritardo): usato per la
+        // chiusura automatica quando la copia torna 'disponibile'.
         $stmt = $db->prepare("
             SELECT id
             FROM prestiti
@@ -88,8 +89,24 @@ class CopyController
         ");
         $stmt->bind_param('i', $copyId);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $prestito = $result->fetch_assoc();
+        $prestito = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        // La copia è "trattenuta" da QUALSIASI impegno HOLDING — prestito attivo
+        // (prenotato/da_ritirare/in_corso/in_ritardo) o pendente-con-copia? Blocca il
+        // passaggio a stati non prestabili senza prima liberarla (I10/BUG7a/D12):
+        // anche un ritiro in attesa o una prenotazione futura trattengono la copia.
+        $stmt = $db->prepare("
+            SELECT 1
+            FROM prestiti
+            WHERE copia_id = ?
+              AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                    OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+            LIMIT 1
+        ");
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $copyHeld = (bool) $stmt->get_result()->fetch_row();
         $stmt->close();
 
         // GESTIONE CAMBIO STATO -> "PRESTATO"
@@ -100,26 +117,57 @@ class CopyController
         }
 
         // GESTIONE CAMBIO STATO DA "PRESTATO" A "DISPONIBILE"
-        // Se c'è un prestito attivo e si vuole rendere disponibile, chiudi il prestito
+        // Se c'è un prestito in carico e si vuole rendere disponibile, chiudilo.
         if ($prestito && $statoCorrente === 'prestato' && $stato === 'disponibile') {
-            $prestitoId = (int) $prestito['id'];
-
             $db->begin_transaction();
             try {
-                // Chiudi il prestito
-                $stmt = $db->prepare("
+                // Ri-leggi e BLOCCA il prestito da chiudere dentro la transazione.
+                $sel = $db->prepare("
+                    SELECT id, stato, data_scadenza
+                    FROM prestiti
+                    WHERE copia_id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo','da_ritirare')
+                    ORDER BY data_prestito DESC
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $sel->bind_param('i', $copyId);
+                $sel->execute();
+                $loanRow = $sel->get_result()->fetch_assoc();
+                $sel->close();
+                if (!$loanRow) {
+                    $db->rollback();
+                    $_SESSION['error_message'] = __('Il prestito associato non è più chiudibile. Ricarica la pagina.');
+                    return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+                }
+                $prestitoId = (int) $loanRow['id'];
+                // Ritardo calcolato in PHP dalla riga bloccata: nell'UPDATE single-table
+                // non si può riferire il vecchio `stato` dopo averlo riassegnato.
+                $scadenza = (string) ($loanRow['data_scadenza'] ?? '');
+                $wasLate = ($loanRow['stato'] === 'in_ritardo')
+                    || ($scadenza !== '' && $scadenza < date('Y-m-d'));
+                $lateFlag = $wasLate ? 1 : 0;
+
+                // Chiudi come 'restituito' (MAI 'completato', I8); marca il ritardo (BUG5).
+                $upd = $db->prepare("
                     UPDATE prestiti
-                    SET stato = 'completato',
+                    SET stato = 'restituito',
+                        restituito_in_ritardo = ?,
                         attivo = 0,
                         data_restituzione = CURDATE(),
                         updated_at = NOW()
-                    WHERE id = ?
+                    WHERE id = ? AND attivo = 1
                 ");
-                $stmt->bind_param('i', $prestitoId);
-                $stmt->execute();
-                $stmt->close();
+                $upd->bind_param('ii', $lateFlag, $prestitoId);
+                $upd->execute();
+                $affected = $upd->affected_rows;
+                $upd->close();
+                if ($affected !== 1) {
+                    $db->rollback();
+                    $_SESSION['error_message'] = __('Il prestito associato non è più chiudibile. Ricarica la pagina.');
+                    return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+                }
 
-                // Aggiorna la copia nello stesso transaction
+                // Aggiorna la copia nella stessa transazione
                 $stmt = $db->prepare("UPDATE copie SET stato = ?, note = ?, updated_at = NOW() WHERE id = ?");
                 $stmt->bind_param('ssi', $stato, $note, $copyId);
                 $stmt->execute();
@@ -134,9 +182,10 @@ class CopyController
             $_SESSION['success_message'] = __('Prestito chiuso automaticamente. La copia è ora disponibile.');
         } else {
             // GESTIONE ALTRI STATI
-            // Blocca modifiche se c'è un prestito attivo (eccetto cambio a disponibile già gestito)
-            if ($prestito) {
-                $_SESSION['error_message'] = __('Impossibile modificare una copia attualmente in prestito. Prima termina il prestito o imposta lo stato su "Disponibile" per chiuderlo automaticamente.');
+            // Blocca modifiche se la copia è trattenuta da un impegno HOLDING
+            // (eccetto il cambio a disponibile già gestito sopra).
+            if ($copyHeld) {
+                $_SESSION['error_message'] = __('Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su "Disponibile".');
                 return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
             }
 
@@ -200,11 +249,14 @@ class CopyController
         $libroId = (int) $copy['libro_id'];
         $stato = $copy['stato'];
 
-        // Verifica se la copia è in prestito attivo
+        // Verifica se la copia è trattenuta da QUALSIASI impegno HOLDING (prestito
+        // attivo o pendente-con-copia, incluse prenotazioni future e ritiri in attesa).
         $stmt = $db->prepare("
             SELECT COUNT(*) as count
             FROM prestiti
-            WHERE copia_id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')
+            WHERE copia_id = ?
+              AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                    OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
         ");
         $stmt->bind_param('i', $copyId);
         $stmt->execute();
@@ -213,7 +265,7 @@ class CopyController
         $stmt->close();
 
         if ($hasPrestito) {
-            $_SESSION['error_message'] = __('Impossibile eliminare una copia attualmente in prestito.');
+            $_SESSION['error_message'] = __('Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.');
             return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
         }
 

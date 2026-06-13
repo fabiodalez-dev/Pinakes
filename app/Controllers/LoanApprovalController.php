@@ -967,7 +967,7 @@ class LoanApprovalController
             $db->begin_transaction();
 
             $stmt = $db->prepare("
-                SELECT libro_id, copia_id, stato
+                SELECT libro_id, copia_id, stato, data_scadenza
                 FROM prestiti
                 WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')
                 FOR UPDATE
@@ -990,10 +990,15 @@ class LoanApprovalController
             $libroId = (int) $loan['libro_id'];
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
             $dataRestituzione = date('Y-m-d');
+            // Returned-late flag: a return past the due date is restituito + flag (I4/BUG5).
+            // This is the primary quick-return path — without it late returns keep the
+            // flag at 0 and Stats/Recensioni undercount late returners.
+            $scadenza = (string) ($loan['data_scadenza'] ?? '');
+            $ritardo = ($scadenza !== '' && $scadenza < $dataRestituzione) ? 1 : 0;
 
             // Close the loan
-            $stmt = $db->prepare("UPDATE prestiti SET stato = 'restituito', data_restituzione = ?, attivo = 0 WHERE id = ?");
-            $stmt->bind_param('si', $dataRestituzione, $loanId);
+            $stmt = $db->prepare("UPDATE prestiti SET stato = 'restituito', restituito_in_ritardo = ?, data_restituzione = ?, attivo = 0 WHERE id = ? AND attivo = 1");
+            $stmt->bind_param('isi', $ritardo, $dataRestituzione, $loanId);
             $stmt->execute();
             $stmt->close();
 

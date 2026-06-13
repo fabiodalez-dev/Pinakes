@@ -142,9 +142,10 @@ $csrfToken = Csrf::ensureToken();
                         class="rounded-lg border-2 border-gray-300 bg-white px-4 py-3 text-gray-900 font-medium focus:border-gray-900 focus:outline-none"
                     >
                         <?php
+                        // Il ritardo NON è una scelta: è derivato automaticamente dalla
+                        // scadenza (restituito + restituito_in_ritardo=1 se oltre termine, I4).
                         $options = [
-                            'restituito'   => __('Restituito regolarmente'),
-                            'in_ritardo'   => __('Restituito in ritardo'),
+                            'restituito'   => __('Restituito'),
                             'perso'        => __('Perso'),
                             'danneggiato'  => __('Danneggiato'),
                         ];

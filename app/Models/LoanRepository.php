@@ -74,16 +74,24 @@ class LoanRepository
         );
     }
 
+    /**
+     * Edit ONLY the user-editable fields of a loan. It deliberately never writes
+     * the lifecycle columns (attivo / stato / data_restituzione / restituito_in_ritardo)
+     * nor libro_id / copia_id — editing a loan must not resurrect a returned one
+     * (BUG1/I1) nor decouple the copy from its book (BUG2/I7). Lifecycle changes
+     * go through the dedicated return/approve/cancel paths, never through here.
+     *
+     * @param array<string,mixed> $data
+     */
     public function update(int $id, array $data): bool
     {
-        $sql = "UPDATE prestiti SET libro_id=?, utente_id=?, data_prestito=?, data_scadenza=?, data_restituzione=?, processed_by=?, attivo=? WHERE id=?";
+        $sql = "UPDATE prestiti SET utente_id=?, data_prestito=?, data_scadenza=?, processed_by=? WHERE id=?";
         $stmt = $this->db->prepare($sql);
+        $utente_id = (int) ($data['utente_id'] ?? 0);
         $data_prestito = $data['data_prestito'] ?? date('Y-m-d');
         $data_scadenza = $data['data_scadenza'] ?? date('Y-m-d', strtotime('+14 days'));
-        $data_restituzione = $data['data_restituzione'] ?? null;
         $processed_by = $data['processed_by'] ?? null;
-        $attivo = (int)($data['attivo'] ?? 1);
-        $stmt->bind_param('iisssiii', $data['libro_id'], $data['utente_id'], $data_prestito, $data_scadenza, $data_restituzione, $processed_by, $attivo, $id);
+        $stmt->bind_param('issii', $utente_id, $data_prestito, $data_scadenza, $processed_by, $id);
         return $stmt->execute();
     }
 
