@@ -105,8 +105,8 @@ class AuthorRepository
 
     public function create(array $data): int
     {
-        $sql = "INSERT INTO autori (nome, pseudonimo, data_nascita, data_morte, `nazionalità`, biografia, sito_web, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+        $sql = "INSERT INTO autori (nome, pseudonimo, data_nascita, data_morte, `nazionalità`, biografia, sito_web, foto, collegamenti, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
         $stmt = $this->db->prepare($sql);
 
         // Handle empty dates by converting them to NULL
@@ -119,20 +119,26 @@ class AuthorRepository
         $nazionalita = \App\Support\HtmlHelper::decode($data['nazionalita'] ?? '');
         $biografia = \App\Support\HtmlHelper::decode($data['biografia'] ?? '');
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
+        // foto = stored path or URL; collegamenti = pre-encoded JSON string (issue #163).
+        // Both nullable — empty becomes NULL so the column reads cleanly.
+        $foto = (($data['foto'] ?? '') !== '') ? (string) $data['foto'] : null;
+        $collegamenti = (($data['collegamenti'] ?? '') !== '') ? (string) $data['collegamenti'] : null;
 
         // Normalize author name to canonical format ("Name Surname")
         // This prevents duplicates from different sources (SBN: "Levi, Primo" vs Google: "Primo Levi")
         $nome = \App\Support\AuthorNormalizer::normalize($nome);
 
         $stmt->bind_param(
-            'sssssss',
+            'sssssssss',
             $nome,
             $pseudonimo,
             $data_nascita,
             $data_morte,
             $nazionalita,
             $biografia,
-            $sito_web
+            $sito_web,
+            $foto,
+            $collegamenti
         );
         $stmt->execute();
         return (int)$this->db->insert_id;
@@ -143,7 +149,7 @@ class AuthorRepository
         // Plugin hook: Before author save
         \App\Support\Hooks::do('author.save.before', [$data, $id]);
 
-        $sql = "UPDATE autori SET nome=?, pseudonimo=?, data_nascita=?, data_morte=?, `nazionalità`=?, biografia=?, sito_web=?, updated_at=NOW() WHERE id=?";
+        $sql = "UPDATE autori SET nome=?, pseudonimo=?, data_nascita=?, data_morte=?, `nazionalità`=?, biografia=?, sito_web=?, foto=?, collegamenti=?, updated_at=NOW() WHERE id=?";
         $stmt = $this->db->prepare($sql);
 
         // Handle empty dates by converting them to NULL
@@ -156,13 +162,16 @@ class AuthorRepository
         $nazionalita = \App\Support\HtmlHelper::decode($data['nazionalita'] ?? '');
         $biografia = \App\Support\HtmlHelper::decode($data['biografia'] ?? '');
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
+        // foto = stored path or URL; collegamenti = pre-encoded JSON string (issue #163).
+        $foto = (($data['foto'] ?? '') !== '') ? (string) $data['foto'] : null;
+        $collegamenti = (($data['collegamenti'] ?? '') !== '') ? (string) $data['collegamenti'] : null;
 
         // Normalize author name to canonical format ("Name Surname")
         // This ensures consistency when updating existing authors
         $nome = \App\Support\AuthorNormalizer::normalize($nome);
 
         $stmt->bind_param(
-            'sssssssi',
+            'sssssssssi',
             $nome,
             $pseudonimo,
             $data_nascita,
@@ -170,6 +179,8 @@ class AuthorRepository
             $nazionalita,
             $biografia,
             $sito_web,
+            $foto,
+            $collegamenti,
             $id
         );
 

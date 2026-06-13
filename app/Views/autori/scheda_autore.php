@@ -26,6 +26,29 @@ if ($sitoWebRaw !== '') {
 $biografia   = trim((string)($autore['biografia'] ?? ''));
 $createdAt   = trim((string)($autore['created_at'] ?? ''));
 $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
+
+// Issue #163 — author photo + relevant source/website links.
+$fotoRaw = trim((string)($autore['foto'] ?? ''));
+$fotoUrl = '';
+if ($fotoRaw !== '') {
+    if (strpos($fotoRaw, '/uploads/') === 0) {
+        $fotoUrl = url($fotoRaw); // locally uploaded photo
+    } elseif (filter_var($fotoRaw, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $fotoRaw) === 1) {
+        $fotoUrl = $fotoRaw; // external URL
+    }
+}
+$collegamenti = [];
+if (!empty($autore['collegamenti'])) {
+    $decodedLinks = json_decode((string)$autore['collegamenti'], true);
+    if (is_array($decodedLinks)) {
+        foreach ($decodedLinks as $c) {
+            if (!is_array($c)) { continue; }
+            $u = trim((string)($c['url'] ?? ''));
+            if ($u === '' || !filter_var($u, FILTER_VALIDATE_URL) || preg_match('#^https?://#i', $u) !== 1) { continue; }
+            $collegamenti[] = ['etichetta' => trim((string)($c['etichetta'] ?? '')), 'url' => $u];
+        }
+    }
+}
 ?>
 <section class="min-h-screen bg-gray-50 py-6">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -59,6 +82,9 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
       <div class="relative p-8 sm:p-10 lg:p-12">
         <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 p-4">
           <div>
+            <?php if ($fotoUrl !== ''): ?>
+              <img src="<?php echo htmlspecialchars($fotoUrl, ENT_QUOTES, 'UTF-8'); ?>" alt="<?= htmlspecialchars(__('Foto autore'), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" style="width:96px;height:96px;object-fit:cover;border-radius:14px;border:1px solid rgba(0,0,0,0.1);margin-bottom:0.85rem;display:block;">
+            <?php endif; ?>
             <div class="text-sm uppercase tracking-widest text-gray-900 mb-2 flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-gray-400"></span>
               Profilo Autore
@@ -200,6 +226,22 @@ $updatedAt   = trim((string)($autore['updated_at'] ?? ''));
                 <a href="<?php echo htmlspecialchars($sitoWeb, ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-800 underline decoration-gray-400">
                   <?php echo HtmlHelper::e($sitoWeb); ?>
                 </a>
+              </dd>
+            </div>
+          <?php endif; ?>
+          <?php if (!empty($collegamenti)): ?>
+            <div>
+              <dt class="text-gray-500 uppercase tracking-wide text-xs"><?= __("Collegamenti e fonti") ?></dt>
+              <dd class="text-gray-900 font-medium mt-1">
+                <ul class="space-y-1">
+                  <?php foreach ($collegamenti as $c): ?>
+                    <li class="truncate">
+                      <a href="<?php echo htmlspecialchars($c['url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-800 underline decoration-gray-400">
+                        <i class="fas fa-external-link-alt text-gray-400 mr-1 text-xs"></i><?php echo HtmlHelper::e($c['etichetta'] !== '' ? $c['etichetta'] : $c['url']); ?>
+                      </a>
+                    </li>
+                  <?php endforeach; ?>
+                </ul>
               </dd>
             </div>
           <?php endif; ?>

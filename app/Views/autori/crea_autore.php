@@ -33,7 +33,7 @@
     </div>
 
     <!-- Main Form -->
-    <form id="create-author-form" method="post" action="<?= htmlspecialchars(url('/admin/authors/create'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
+    <form id="create-author-form" method="post" enctype="multipart/form-data" action="<?= htmlspecialchars(url('/admin/authors/create'), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->
@@ -100,6 +100,31 @@
         </div>
       </div>
 
+      <!-- Photo & Links Section (issue #163) -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="form-section-title flex items-center gap-2">
+            <i class="fas fa-image text-primary"></i>
+            <?= __("Foto e Collegamenti") ?>
+          </h2>
+        </div>
+        <div class="card-body form-section">
+          <div>
+            <label class="form-label"><?= __("Foto dell'autore") ?></label>
+            <input type="file" id="foto_file" name="foto_file" accept="image/png,image/jpeg,image/webp,image/gif" class="form-input">
+            <p class="text-xs text-gray-500 mt-1"><?= __("Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.") ?></p>
+            <input type="url" id="foto_url" name="foto_url" class="form-input mt-2" placeholder="<?= __('https://www.esempio.com/foto.jpg') ?>">
+          </div>
+
+          <div class="mt-6">
+            <label class="form-label"><?= __("Collegamenti e fonti") ?></label>
+            <p class="text-xs text-gray-500 mb-2"><?= __("Link a fonti, voci enciclopediche o siti rilevanti per l'autore.") ?></p>
+            <div id="collegamenti-list" class="space-y-2"></div>
+            <button type="button" id="collegamento-add" class="btn btn-light mt-2"><i class="fas fa-plus mr-1"></i><?= __("Aggiungi collegamento") ?></button>
+          </div>
+        </div>
+      </div>
+
       <!-- Submit Section -->
       <div class="flex flex-col sm:flex-row gap-4 justify-end">
         <a href="<?= htmlspecialchars(url('/admin/authors'), ENT_QUOTES, 'UTF-8') ?>" class="btn-secondary order-2 sm:order-1 text-center">
@@ -118,13 +143,39 @@
 <!-- JavaScript for Enhanced UX -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    
+
     // Initialize form validation
     initializeFormValidation();
-    
+
     // Initialize SweetAlert confirmations
     initializeSweetAlert();
+
+    // Issue #163 — collegamenti (source/website links) repeater
+    initializeCollegamenti();
 });
+
+// Add/remove rows for the author "collegamenti" (links) list.
+function initializeCollegamenti() {
+    const list = document.getElementById('collegamenti-list');
+    const addBtn = document.getElementById('collegamento-add');
+    if (!list || !addBtn) return;
+    const labelPh = <?= json_encode(__('Etichetta (es. Wikipedia)'), JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) ?>;
+    addBtn.addEventListener('click', function() {
+        const row = document.createElement('div');
+        row.className = 'collegamento-row flex flex-col sm:flex-row gap-2';
+        row.innerHTML =
+            '<input type="text" name="collegamenti_etichetta[]" class="form-input sm:w-1/3">' +
+            '<input type="url" name="collegamenti_url[]" class="form-input sm:flex-1">' +
+            '<button type="button" class="btn btn-light collegamento-remove"><i class="fas fa-times"></i></button>';
+        row.querySelector('input[type="text"]').placeholder = labelPh;
+        row.querySelector('input[type="url"]').placeholder = 'https://...';
+        list.appendChild(row);
+    });
+    list.addEventListener('click', function(e) {
+        const btn = e.target.closest('.collegamento-remove');
+        if (btn) { const row = btn.closest('.collegamento-row'); if (row) row.remove(); }
+    });
+}
 
 // Initialize Form Validation
 function initializeFormValidation() {

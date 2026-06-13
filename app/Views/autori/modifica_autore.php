@@ -40,7 +40,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
     </div>
 
     <!-- Main Form -->
-    <form id="edit-author-form" method="post" action="<?= htmlspecialchars(url('/admin/authors/update/' . (int)$autore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
+    <form id="edit-author-form" method="post" enctype="multipart/form-data" action="<?= htmlspecialchars(url('/admin/authors/update/' . (int)$autore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->
@@ -108,6 +108,57 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
       </div>
 
       <?php
+      // Issue #163 — author photo + relevant source/website links.
+      $fotoVal = (string) ($autore['foto'] ?? '');
+      $fotoIsUrl = $fotoVal !== '' && preg_match('#^https?://#i', $fotoVal) === 1;
+      $collegamentiArr = [];
+      if (!empty($autore['collegamenti'])) {
+          $dec = json_decode((string) $autore['collegamenti'], true);
+          if (is_array($dec)) { $collegamentiArr = $dec; }
+      }
+      ?>
+      <!-- Photo & Links Section (issue #163) -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="form-section-title flex items-center gap-2">
+            <i class="fas fa-image text-primary"></i>
+            <?= __("Foto e Collegamenti") ?>
+          </h2>
+        </div>
+        <div class="card-body form-section">
+          <div>
+            <label class="form-label"><?= __("Foto dell'autore") ?></label>
+            <?php if ($fotoVal !== ''): ?>
+              <div class="flex items-center gap-3 mb-2" id="author-photo-current">
+                <img src="<?= htmlspecialchars(url($fotoVal), ENT_QUOTES, 'UTF-8') ?>" alt="<?= __('Foto autore') ?>" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color,#e5e7eb);">
+                <label class="inline-flex items-center gap-2 text-sm text-red-600">
+                  <input type="checkbox" name="rimuovi_foto" value="1"> <?= __("Rimuovi la foto attuale") ?>
+                </label>
+              </div>
+            <?php endif; ?>
+            <input type="file" id="foto_file" name="foto_file" accept="image/png,image/jpeg,image/webp,image/gif" class="form-input">
+            <p class="text-xs text-gray-500 mt-1"><?= __("Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.") ?></p>
+            <input type="url" id="foto_url" name="foto_url" value="<?= $fotoIsUrl ? htmlspecialchars($fotoVal, ENT_QUOTES, 'UTF-8') : '' ?>" class="form-input mt-2" placeholder="<?= __('https://www.esempio.com/foto.jpg') ?>">
+          </div>
+
+          <div class="mt-6">
+            <label class="form-label"><?= __("Collegamenti e fonti") ?></label>
+            <p class="text-xs text-gray-500 mb-2"><?= __("Link a fonti, voci enciclopediche o siti rilevanti per l'autore.") ?></p>
+            <div id="collegamenti-list" class="space-y-2">
+              <?php foreach ($collegamentiArr as $c): if (!is_array($c)) { continue; } ?>
+                <div class="collegamento-row flex flex-col sm:flex-row gap-2">
+                  <input type="text" name="collegamenti_etichetta[]" value="<?= htmlspecialchars((string) ($c['etichetta'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="form-input sm:w-1/3" placeholder="<?= __('Etichetta (es. Wikipedia)') ?>">
+                  <input type="url" name="collegamenti_url[]" value="<?= htmlspecialchars((string) ($c['url'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="form-input sm:flex-1" placeholder="<?= __('https://...') ?>">
+                  <button type="button" class="btn btn-light collegamento-remove" title="<?= __('Rimuovi') ?>"><i class="fas fa-times"></i></button>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <button type="button" id="collegamento-add" class="btn btn-light mt-2"><i class="fas fa-plus mr-1"></i><?= __("Aggiungi collegamento") ?></button>
+          </div>
+        </div>
+      </div>
+
+      <?php
       // Plugin hook: additional author fields (e.g. REICAT/SBN authority panel)
       \App\Support\Hooks::do('author.form.fields', [$autore ?? null]);
       ?>
@@ -130,13 +181,40 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
 <!-- JavaScript for Enhanced UX -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    
+
     // Initialize form validation
     initializeFormValidation();
-    
+
     // Initialize SweetAlert confirmations
     initializeSweetAlert();
+
+    // Issue #163 — collegamenti (source/website links) repeater
+    initializeCollegamenti();
 });
+
+// Add/remove rows for the author "collegamenti" (links) list.
+function initializeCollegamenti() {
+    const list = document.getElementById('collegamenti-list');
+    const addBtn = document.getElementById('collegamento-add');
+    if (!list || !addBtn) return;
+    const labelPh = <?= json_encode(__('Etichetta (es. Wikipedia)'), JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) ?>;
+    const urlPh = 'https://...';
+    addBtn.addEventListener('click', function() {
+        const row = document.createElement('div');
+        row.className = 'collegamento-row flex flex-col sm:flex-row gap-2';
+        row.innerHTML =
+            '<input type="text" name="collegamenti_etichetta[]" class="form-input sm:w-1/3">' +
+            '<input type="url" name="collegamenti_url[]" class="form-input sm:flex-1">' +
+            '<button type="button" class="btn btn-light collegamento-remove"><i class="fas fa-times"></i></button>';
+        row.querySelector('input[type="text"]').placeholder = labelPh;
+        row.querySelector('input[type="url"]').placeholder = urlPh;
+        list.appendChild(row);
+    });
+    list.addEventListener('click', function(e) {
+        const btn = e.target.closest('.collegamento-remove');
+        if (btn) { const row = btn.closest('.collegamento-row'); if (row) row.remove(); }
+    });
+}
 
 // Initialize Form Validation
 function initializeFormValidation() {

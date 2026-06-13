@@ -5276,5 +5276,15 @@
   "Archivio di backup non valido: dimensione decompressa eccessiva": "Archive de sauvegarde non valide : taille décompressée excessive",
   "Un ripristino o aggiornamento è già in corso. Riprova tra poco.": "Une restauration ou une mise à jour est déjà en cours. Réessayez dans un instant.",
   "Ripristino in corso. Riprova tra qualche minuto.": "Restauration en cours. Réessayez dans quelques minutes.",
-  "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Sauvegarde trop volumineuse pour l'import PHP : installez le client mysql ou augmentez memory_limit"
+  "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Sauvegarde trop volumineuse pour l'import PHP : installez le client mysql ou augmentez memory_limit",
+  "Foto e Collegamenti": "Photo et liens",
+  "Foto dell'autore": "Photo de l'auteur",
+  "Foto autore": "Photo de l'auteur",
+  "Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.": "Téléversez une image (PNG/JPG/WEBP/GIF, max 5 Mo) ou collez une URL ci-dessous.",
+  "https://www.esempio.com/foto.jpg": "https://www.exemple.com/photo.jpg",
+  "Rimuovi la foto attuale": "Supprimer la photo actuelle",
+  "Collegamenti e fonti": "Liens et sources",
+  "Link a fonti, voci enciclopediche o siti rilevanti per l'autore.": "Liens vers des sources, des notices encyclopédiques ou des sites pertinents pour l'auteur.",
+  "Etichetta (es. Wikipedia)": "Libellé (ex. Wikipédia)",
+  "Aggiungi collegamento": "Ajouter un lien"
 }

@@ -6,6 +6,31 @@
 /** @var int $page */
 
 $catalogRoute = route_path('catalog');
+
+// #163 — author photo + relevant source/website links (only for the author archive).
+$authorPhoto = '';
+$authorLinks = [];
+if ($archive_type === 'autore') {
+    $pf = trim((string)($archive_info['foto'] ?? ''));
+    if ($pf !== '') {
+        if (strpos($pf, '/uploads/') === 0) {
+            $authorPhoto = url($pf);
+        } elseif (filter_var($pf, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $pf) === 1) {
+            $authorPhoto = $pf;
+        }
+    }
+    if (!empty($archive_info['collegamenti'])) {
+        $decodedLinks = json_decode((string)$archive_info['collegamenti'], true);
+        if (is_array($decodedLinks)) {
+            foreach ($decodedLinks as $c) {
+                if (!is_array($c)) { continue; }
+                $u = trim((string)($c['url'] ?? ''));
+                if ($u === '' || !filter_var($u, FILTER_VALIDATE_URL) || preg_match('#^https?://#i', $u) !== 1) { continue; }
+                $authorLinks[] = ['etichetta' => trim((string)($c['etichetta'] ?? '')), 'url' => $u];
+            }
+        }
+    }
+}
 $additional_css = "
 <style>
     .archive-hero {
@@ -408,7 +433,9 @@ ob_start();
     <div class="container">
         <div class="archive-hero-content">
             <div class="archive-icon">
-                <?php if ($archive_type === 'autore'): ?>
+                <?php if ($archive_type === 'autore' && $authorPhoto !== ''): ?>
+                    <img src="<?= htmlspecialchars($authorPhoto, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars((string)($archive_info['nome'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                <?php elseif ($archive_type === 'autore'): ?>
                     <i class="fas fa-user"></i>
                 <?php elseif ($archive_type === 'editore'): ?>
                     <i class="fas fa-building"></i>
@@ -445,10 +472,27 @@ ob_start();
             <?php endif; ?>
         </div>
     <div class="archive-info-card">
-        <?php if ($archive_type === 'autore' && !empty($archive_info['biografia'])): ?>
-            <div class="author-bio">
-                <?= nl2br(htmlspecialchars($archive_info['biografia'])) ?>
-            </div>
+        <?php if ($archive_type === 'autore'): ?>
+            <?php if (!empty($archive_info['biografia'])): ?>
+                <div class="author-bio">
+                    <?= nl2br(htmlspecialchars($archive_info['biografia'])) ?>
+                </div>
+            <?php endif; ?>
+            <?php
+            // #163 — relevant source/website links (official site + collegamenti)
+            $sw = (string)($archive_info['sito_web'] ?? '');
+            $hasSite = $sw !== '' && filter_var($sw, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $sw) === 1;
+            ?>
+            <?php if ($hasSite || !empty($authorLinks)): ?>
+                <div class="author-links" style="margin-top:<?= !empty($archive_info['biografia']) ? '1rem' : '0' ?>;display:flex;flex-wrap:wrap;gap:0.5rem 1.25rem;">
+                    <?php if ($hasSite): ?>
+                        <a href="<?= htmlspecialchars($sw, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-globe mr-1"></i><?= __("Sito web") ?></a>
+                    <?php endif; ?>
+                    <?php foreach ($authorLinks as $c): ?>
+                        <a href="<?= htmlspecialchars($c['url'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt mr-1"></i><?= htmlspecialchars($c['etichetta'] !== '' ? $c['etichetta'] : $c['url']) ?></a>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
         <?php elseif ($archive_type === 'editore'): ?>
             <div class="publisher-details">
                 <?php if (!empty($archive_info['indirizzo'])): ?>
