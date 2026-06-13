@@ -1498,16 +1498,27 @@ $additional_css = "
         position: absolute;
         top: 12px;
         right: 12px;
-        width: 32px;
+        min-width: 32px;
         height: 32px;
-        border-radius: 50%;
-        display: flex;
+        padding: 0 9px;
+        border-radius: 16px;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
+        gap: 5px;
         font-size: 1rem;
+        line-height: 1;
+        white-space: nowrap;
         background: rgba(16, 185, 129, 0.95);
         color: white;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    /* When a digital icon (eBook/audio) is injected next to the availability
+       check, the pill grows to fit both — drop the icon's own left margin so
+       the spacing is the flex gap alone (no overlap). */
+    .related-availability-badge .digital-badge-icon {
+        margin-left: 0;
     }
 
     .related-book-content {
