@@ -9,6 +9,30 @@ class AuthorRepository
 {
     public function __construct(private mysqli $db) {}
 
+    /** @var array<string, array<string, bool>> column presence cache, keyed by DB name */
+    private static array $columnCacheByDb = [];
+
+    /**
+     * Whether the `autori` table has the given column. Used to stay backward
+     * compatible with installs whose DB has not yet applied a recent migration
+     * (issue #163: foto, collegamenti). Cached per database name.
+     */
+    private function hasColumn(string $name): bool
+    {
+        $dbRes = $this->db->query('SELECT DATABASE()');
+        $dbName = ($dbRes ? (string) ($dbRes->fetch_row()[0] ?? 'default') : 'default');
+        if (!isset(self::$columnCacheByDb[$dbName])) {
+            self::$columnCacheByDb[$dbName] = [];
+            $res = $this->db->query('SHOW COLUMNS FROM autori');
+            if ($res) {
+                while ($r = $res->fetch_assoc()) {
+                    self::$columnCacheByDb[$dbName][(string) $r['Field']] = true;
+                }
+            }
+        }
+        return isset(self::$columnCacheByDb[$dbName][$name]);
+    }
+
     public function listBasic(int $limit = 100): array
     {
         $rows = [];
@@ -105,10 +129,6 @@ class AuthorRepository
 
     public function create(array $data): int
     {
-        $sql = "INSERT INTO autori (nome, pseudonimo, data_nascita, data_morte, `nazionalità`, biografia, sito_web, foto, collegamenti, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
-        $stmt = $this->db->prepare($sql);
-
         // Handle empty dates by converting them to NULL
         $data_nascita = empty($data['data_nascita']) ? null : $data['data_nascita'];
         $data_morte = empty($data['data_morte']) ? null : $data['data_morte'];
@@ -119,27 +139,41 @@ class AuthorRepository
         $nazionalita = \App\Support\HtmlHelper::decode($data['nazionalita'] ?? '');
         $biografia = \App\Support\HtmlHelper::decode($data['biografia'] ?? '');
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
-        // foto = stored path or URL; collegamenti = pre-encoded JSON string (issue #163).
-        // Both nullable — empty becomes NULL so the column reads cleanly.
-        $foto = (($data['foto'] ?? '') !== '') ? (string) $data['foto'] : null;
-        $collegamenti = (($data['collegamenti'] ?? '') !== '') ? (string) $data['collegamenti'] : null;
 
         // Normalize author name to canonical format ("Name Surname")
         // This prevents duplicates from different sources (SBN: "Levi, Primo" vs Google: "Primo Levi")
         $nome = \App\Support\AuthorNormalizer::normalize($nome);
 
-        $stmt->bind_param(
-            'sssssssss',
-            $nome,
-            $pseudonimo,
-            $data_nascita,
-            $data_morte,
-            $nazionalita,
-            $biografia,
-            $sito_web,
-            $foto,
-            $collegamenti
-        );
+        // Base columns always present.
+        $columns = ['nome', 'pseudonimo', 'data_nascita', 'data_morte', '`nazionalità`', 'biografia', 'sito_web'];
+        $types = 'sssssss';
+        $values = [$nome, $pseudonimo, $data_nascita, $data_morte, $nazionalita, $biografia, $sito_web];
+
+        // issue #163 columns — guarded with hasColumn() for backward compat with
+        // installs whose DB has not yet applied migrate_0.7.20.sql.
+        // foto = stored path or URL; collegamenti = pre-encoded JSON string. Both
+        // nullable — empty becomes NULL so the column reads cleanly.
+        if ($this->hasColumn('foto')) {
+            $columns[] = 'foto';
+            $types .= 's';
+            $values[] = (($data['foto'] ?? '') !== '') ? (string) $data['foto'] : null;
+        }
+        if ($this->hasColumn('collegamenti')) {
+            $columns[] = 'collegamenti';
+            $types .= 's';
+            $values[] = (($data['collegamenti'] ?? '') !== '') ? (string) $data['collegamenti'] : null;
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        $sql = 'INSERT INTO autori (' . implode(', ', $columns) . ', created_at, updated_at)'
+             . ' VALUES (' . $placeholders . ', NOW(), NOW())';
+        $stmt = $this->db->prepare($sql);
+
+        $refs = [$types];
+        foreach ($values as $k => $v) {
+            $refs[] = &$values[$k];
+        }
+        call_user_func_array([$stmt, 'bind_param'], $refs);
         $stmt->execute();
         return (int)$this->db->insert_id;
     }
@@ -149,9 +183,6 @@ class AuthorRepository
         // Plugin hook: Before author save
         \App\Support\Hooks::do('author.save.before', [$data, $id]);
 
-        $sql = "UPDATE autori SET nome=?, pseudonimo=?, data_nascita=?, data_morte=?, `nazionalità`=?, biografia=?, sito_web=?, foto=?, collegamenti=?, updated_at=NOW() WHERE id=?";
-        $stmt = $this->db->prepare($sql);
-
         // Handle empty dates by converting them to NULL
         $data_nascita = empty($data['data_nascita']) ? null : $data['data_nascita'];
         $data_morte = empty($data['data_morte']) ? null : $data['data_morte'];
@@ -162,27 +193,40 @@ class AuthorRepository
         $nazionalita = \App\Support\HtmlHelper::decode($data['nazionalita'] ?? '');
         $biografia = \App\Support\HtmlHelper::decode($data['biografia'] ?? '');
         $sito_web = \App\Support\HtmlHelper::decode($data['sito_web'] ?? '');
-        // foto = stored path or URL; collegamenti = pre-encoded JSON string (issue #163).
-        $foto = (($data['foto'] ?? '') !== '') ? (string) $data['foto'] : null;
-        $collegamenti = (($data['collegamenti'] ?? '') !== '') ? (string) $data['collegamenti'] : null;
 
         // Normalize author name to canonical format ("Name Surname")
         // This ensures consistency when updating existing authors
         $nome = \App\Support\AuthorNormalizer::normalize($nome);
 
-        $stmt->bind_param(
-            'sssssssssi',
-            $nome,
-            $pseudonimo,
-            $data_nascita,
-            $data_morte,
-            $nazionalita,
-            $biografia,
-            $sito_web,
-            $foto,
-            $collegamenti,
-            $id
-        );
+        // Base columns always present.
+        $assignments = ['nome=?', 'pseudonimo=?', 'data_nascita=?', 'data_morte=?', '`nazionalità`=?', 'biografia=?', 'sito_web=?'];
+        $types = 'sssssss';
+        $values = [$nome, $pseudonimo, $data_nascita, $data_morte, $nazionalita, $biografia, $sito_web];
+
+        // issue #163 columns — guarded with hasColumn() for backward compat with
+        // installs whose DB has not yet applied migrate_0.7.20.sql.
+        if ($this->hasColumn('foto')) {
+            $assignments[] = 'foto=?';
+            $types .= 's';
+            $values[] = (($data['foto'] ?? '') !== '') ? (string) $data['foto'] : null;
+        }
+        if ($this->hasColumn('collegamenti')) {
+            $assignments[] = 'collegamenti=?';
+            $types .= 's';
+            $values[] = (($data['collegamenti'] ?? '') !== '') ? (string) $data['collegamenti'] : null;
+        }
+
+        $types .= 'i';
+        $values[] = $id;
+
+        $sql = 'UPDATE autori SET ' . implode(', ', $assignments) . ', updated_at=NOW() WHERE id=?';
+        $stmt = $this->db->prepare($sql);
+
+        $refs = [$types];
+        foreach ($values as $k => $v) {
+            $refs[] = &$values[$k];
+        }
+        call_user_func_array([$stmt, 'bind_param'], $refs);
 
         $result = $stmt->execute();
 

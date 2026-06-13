@@ -130,7 +130,8 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
             <label class="form-label"><?= __("Foto dell'autore") ?></label>
             <?php if ($fotoVal !== ''): ?>
               <div class="flex items-center gap-3 mb-2" id="author-photo-current">
-                <img src="<?= htmlspecialchars(url($fotoVal), ENT_QUOTES, 'UTF-8') ?>" alt="<?= __('Foto autore') ?>" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color,#e5e7eb);">
+                <?php $fotoSrc = $fotoIsUrl ? $fotoVal : url($fotoVal); ?>
+                <img src="<?= htmlspecialchars($fotoSrc, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars(__('Foto autore'), ENT_QUOTES, 'UTF-8') ?>" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color,#e5e7eb);">
                 <label class="inline-flex items-center gap-2 text-sm text-red-600">
                   <input type="checkbox" name="rimuovi_foto" value="1"> <?= __("Rimuovi la foto attuale") ?>
                 </label>

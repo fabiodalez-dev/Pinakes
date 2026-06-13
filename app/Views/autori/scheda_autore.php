@@ -237,7 +237,7 @@ if (!empty($autore['collegamenti'])) {
                   <?php foreach ($collegamenti as $c): ?>
                     <li class="truncate">
                       <a href="<?php echo htmlspecialchars($c['url'], ENT_QUOTES, 'UTF-8'); ?>" target="_blank" rel="noopener noreferrer" class="text-gray-600 hover:text-gray-800 underline decoration-gray-400">
-                        <i class="fas fa-external-link-alt text-gray-400 mr-1 text-xs"></i><?php echo HtmlHelper::e($c['etichetta'] !== '' ? $c['etichetta'] : $c['url']); ?>
+                        <i class="fas fa-external-link-alt text-gray-400 mr-1 text-xs"></i><?php echo htmlspecialchars($c['etichetta'] !== '' ? $c['etichetta'] : $c['url'], ENT_QUOTES, 'UTF-8'); ?>
                       </a>
                     </li>
                   <?php endforeach; ?>

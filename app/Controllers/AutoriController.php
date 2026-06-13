@@ -87,20 +87,34 @@ class AutoriController
         }
 
         // Issue #163: author photo (upload or URL) + relevant source/website links.
-        $foto = $this->resolveAuthorPhoto($request, $data, '');
+        $photo = $this->resolveAuthorPhoto($request, $data, '');
         $collegamenti = $this->buildCollegamentiJson($data);
 
-        $repo->create([
-            'nome' => trim($data['nome'] ?? ''),
-            'pseudonimo' => trim($data['pseudonimo'] ?? ''),
-            'data_nascita' => $data['data_nascita'] ?? null,
-            'data_morte' => $data['data_morte'] ?? null,
-            'nazionalita' => trim($data['nazionalita'] ?? ''),
-            'biografia' => $biografia,
-            'sito_web' => $sitoWeb,
-            'foto' => $foto,
-            'collegamenti' => $collegamenti,
-        ]);
+        try {
+            $repo->create([
+                'nome' => trim($data['nome'] ?? ''),
+                'pseudonimo' => trim($data['pseudonimo'] ?? ''),
+                'data_nascita' => $data['data_nascita'] ?? null,
+                'data_morte' => $data['data_morte'] ?? null,
+                'nazionalita' => trim($data['nazionalita'] ?? ''),
+                'biografia' => $biografia,
+                'sito_web' => $sitoWeb,
+                'foto' => $photo['foto'],
+                'collegamenti' => $collegamenti,
+            ]);
+        } catch (\Throwable $e) {
+            // Persistence failed → roll back the just-written upload so no orphan file is left.
+            \App\Support\SecureLogger::error('Author create failed: ' . $e->getMessage());
+            if ($photo['deleteOnFailure'] !== null) {
+                $this->deleteLocalPhoto($photo['deleteOnFailure']);
+            }
+            $this->flashError(__('Impossibile salvare l\'autore. Riprova.'));
+            return $response->withHeader('Location', url('/admin/authors/create'))->withStatus(302);
+        }
+        // Persistence succeeded → safe to remove any superseded local photo (none on create).
+        if ($photo['deleteOnSuccess'] !== null) {
+            $this->deleteLocalPhoto($photo['deleteOnSuccess']);
+        }
         return $response->withHeader('Location', url('/admin/authors'))->withStatus(302);
     }
 
@@ -143,57 +157,100 @@ class AutoriController
         }
 
         // Issue #163: resolve photo against the existing value, build links JSON.
+        // Guard: the record may have been deleted between form-open and submit —
+        // return 404 instead of a masked redirect (which would also orphan uploads).
         $existing = $repo->getById($id);
-        $existingFoto = is_array($existing) ? (string) ($existing['foto'] ?? '') : '';
-        $foto = $this->resolveAuthorPhoto($request, $data, $existingFoto);
+        if (!$existing) {
+            return $response->withStatus(404);
+        }
+        $existingFoto = (string) ($existing['foto'] ?? '');
+        $photo = $this->resolveAuthorPhoto($request, $data, $existingFoto);
         $collegamenti = $this->buildCollegamentiJson($data);
 
-        $repo->update($id, [
-            'nome' => trim($data['nome'] ?? ''),
-            'pseudonimo' => trim($data['pseudonimo'] ?? ''),
-            'data_nascita' => $data['data_nascita'] ?? null,
-            'data_morte' => $data['data_morte'] ?? null,
-            'nazionalita' => trim($data['nazionalita'] ?? ''),
-            'biografia' => $biografia,
-            'sito_web' => $sitoWeb,
-            'foto' => $foto,
-            'collegamenti' => $collegamenti,
-        ]);
+        try {
+            $repo->update($id, [
+                'nome' => trim($data['nome'] ?? ''),
+                'pseudonimo' => trim($data['pseudonimo'] ?? ''),
+                'data_nascita' => $data['data_nascita'] ?? null,
+                'data_morte' => $data['data_morte'] ?? null,
+                'nazionalita' => trim($data['nazionalita'] ?? ''),
+                'biografia' => $biografia,
+                'sito_web' => $sitoWeb,
+                'foto' => $photo['foto'],
+                'collegamenti' => $collegamenti,
+            ]);
+        } catch (\Throwable $e) {
+            // Persistence failed → roll back the just-written upload, keep the old photo intact.
+            \App\Support\SecureLogger::error('Author update failed: ' . $e->getMessage());
+            if ($photo['deleteOnFailure'] !== null) {
+                $this->deleteLocalPhoto($photo['deleteOnFailure']);
+            }
+            $this->flashError(__('Impossibile salvare l\'autore. Riprova.'));
+            return $response->withHeader('Location', url('/admin/authors/edit/' . $id))->withStatus(302);
+        }
+        // Persistence succeeded → now it is safe to drop the superseded local photo.
+        if ($photo['deleteOnSuccess'] !== null) {
+            $this->deleteLocalPhoto($photo['deleteOnSuccess']);
+        }
         return $response->withHeader('Location', url('/admin/authors'))->withStatus(302);
     }
 
     /**
      * Resolve the author photo (issue #163). Priority: an uploaded image
      * (saved under public/uploads/autori/), then a pasted URL, then the
-     * "remove" flag, otherwise the existing value is kept. Returns the stored
-     * value — a `/uploads/...` path, an external `https?://` URL, or ''.
+     * "remove" flag, otherwise the existing value is kept.
+     *
+     * Side effects are DEFERRED to the caller: this method may WRITE a new local
+     * file, but it never DELETES the previous photo — instead it returns which
+     * file to drop after a successful DB write (`deleteOnSuccess`) and which file
+     * to drop if the DB write fails (`deleteOnFailure`). This keeps the photo and
+     * the persisted value consistent even when the DB write throws.
+     *
+     * @return array{foto: string, deleteOnSuccess: ?string, deleteOnFailure: ?string}
+     *         foto = stored value (`/uploads/...` path, external `https?://` URL, or '')
      */
-    private function resolveAuthorPhoto(Request $request, array $data, string $existing): string
+    private function resolveAuthorPhoto(Request $request, array $data, string $existing): array
     {
         if (!empty($data['rimuovi_foto'])) {
-            $this->deleteLocalPhoto($existing);
-            return '';
+            // Drop the old local photo only after the DB row is updated to ''.
+            return ['foto' => '', 'deleteOnSuccess' => $existing, 'deleteOnFailure' => null];
         }
 
         $files = $request->getUploadedFiles();
         $up = $files['foto_file'] ?? null;
         if ($up instanceof \Psr\Http\Message\UploadedFileInterface && $up->getError() === UPLOAD_ERR_OK) {
-            $allowed = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'];
-            $mime = (string) $up->getClientMediaType();
             $size = (int) $up->getSize();
-            if (isset($allowed[$mime]) && $size > 0 && $size <= 5 * 1024 * 1024) {
-                $dir = dirname(__DIR__, 2) . '/public/uploads/autori';
-                if (!is_dir($dir)) {
-                    @mkdir($dir, 0775, true);
-                }
-                $name = 'autore_' . bin2hex(random_bytes(8)) . '.' . $allowed[$mime];
+            if ($size > 0 && $size <= 5 * 1024 * 1024) {
+                $bytes = '';
                 try {
-                    $up->moveTo($dir . '/' . $name);
-                    @chmod($dir . '/' . $name, 0644);
-                    $this->deleteLocalPhoto($existing); // replacing a previous local photo
-                    return '/uploads/autori/' . $name;
+                    $bytes = (string) $up->getStream();
                 } catch (\Throwable $e) {
-                    \App\Support\SecureLogger::error('Author photo upload failed: ' . $e->getMessage());
+                    $bytes = '';
+                }
+                // SECURITY: never trust the client-supplied MIME — validate the
+                // real bytes and derive the extension from the detected type.
+                $info = ($bytes !== '' && strlen($bytes) <= 5 * 1024 * 1024)
+                    ? @getimagesizefromstring($bytes) : false;
+                $detected = is_array($info) ? (string) $info['mime'] : '';
+                $allowed = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+                if (isset($allowed[$detected])) {
+                    $dir = dirname(__DIR__, 2) . '/public/uploads/autori';
+                    if (!is_dir($dir)) {
+                        @mkdir($dir, 0775, true);
+                    }
+                    $name = 'autore_' . bin2hex(random_bytes(8)) . '.' . $allowed[$detected];
+                    $dest = $dir . '/' . $name;
+                    // Re-encode through GD to strip any embedded payload (mirrors cover handling).
+                    if ($this->reencodeAuthorPhoto($bytes, $detected, $dest)) {
+                        @chmod($dest, 0644);
+                        $stored = '/uploads/autori/' . $name;
+                        return [
+                            'foto' => $stored,
+                            'deleteOnSuccess' => ($existing !== '' && $existing !== $stored) ? $existing : null,
+                            'deleteOnFailure' => $stored, // remove this fresh upload if the DB write fails
+                        ];
+                    }
+                    \App\Support\SecureLogger::error('Author photo re-encode failed (unsupported or corrupt image)');
                 }
             }
         }
@@ -204,14 +261,53 @@ class AutoriController
                 $urlRaw = 'https://' . ltrim($urlRaw, '/');
             }
             if (filter_var($urlRaw, FILTER_VALIDATE_URL) && preg_match('#^https?://#i', $urlRaw) === 1) {
-                if ($urlRaw !== $existing) {
-                    $this->deleteLocalPhoto($existing); // switching from a local file to a URL
-                }
-                return $urlRaw;
+                // Switching from a local file to a URL: drop the file only after the DB write.
+                $deleteOld = ($urlRaw !== $existing) ? $existing : null;
+                return ['foto' => $urlRaw, 'deleteOnSuccess' => $deleteOld, 'deleteOnFailure' => null];
             }
         }
 
-        return $existing; // unchanged
+        return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null]; // unchanged
+    }
+
+    /**
+     * Re-encode validated image bytes to $dest via GD, stripping any embedded
+     * payload. $mime is the server-detected type (one of png/jpeg/webp/gif).
+     * Returns false if GD cannot decode/encode that format (upload is rejected).
+     */
+    private function reencodeAuthorPhoto(string $bytes, string $mime, string $dest): bool
+    {
+        $img = @imagecreatefromstring($bytes);
+        if ($img === false) {
+            return false;
+        }
+        try {
+            switch ($mime) {
+                case 'image/png':
+                    imagealphablending($img, false);
+                    imagesavealpha($img, true);
+                    return imagepng($img, $dest, 9);
+                case 'image/jpeg':
+                    return imagejpeg($img, $dest, 88);
+                case 'image/gif':
+                    return imagegif($img, $dest);
+                case 'image/webp':
+                    return function_exists('imagewebp') ? imagewebp($img, $dest) : false;
+                default:
+                    return false;
+            }
+        } finally {
+            imagedestroy($img);
+        }
+    }
+
+    /** Flash an error message for the next request (mirrors delete()). */
+    private function flashError(string $message): void
+    {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        $_SESSION['error_message'] = $message;
     }
 
     /** Delete a previously-uploaded local author photo (never an external URL). */

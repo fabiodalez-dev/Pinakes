@@ -475,7 +475,7 @@ ob_start();
         <?php if ($archive_type === 'autore'): ?>
             <?php if (!empty($archive_info['biografia'])): ?>
                 <div class="author-bio">
-                    <?= nl2br(htmlspecialchars($archive_info['biografia'])) ?>
+                    <?= nl2br(htmlspecialchars($archive_info['biografia'], ENT_QUOTES, 'UTF-8')) ?>
                 </div>
             <?php endif; ?>
             <?php
@@ -489,7 +489,7 @@ ob_start();
                         <a href="<?= htmlspecialchars($sw, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-globe mr-1"></i><?= __("Sito web") ?></a>
                     <?php endif; ?>
                     <?php foreach ($authorLinks as $c): ?>
-                        <a href="<?= htmlspecialchars($c['url'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt mr-1"></i><?= htmlspecialchars($c['etichetta'] !== '' ? $c['etichetta'] : $c['url']) ?></a>
+                        <a href="<?= htmlspecialchars($c['url'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i class="fas fa-external-link-alt mr-1"></i><?= htmlspecialchars($c['etichetta'] !== '' ? $c['etichetta'] : $c['url'], ENT_QUOTES, 'UTF-8') ?></a>
                     <?php endforeach; ?>
                 </div>
             <?php endif; ?>
