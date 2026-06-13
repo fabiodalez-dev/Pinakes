@@ -111,7 +111,10 @@
         <div class="card-body form-section">
           <div>
             <label class="form-label"><?= __("Foto dell'autore") ?></label>
-            <input type="file" id="foto_file" name="foto_file" accept="image/png,image/jpeg,image/webp,image/gif" class="form-input">
+            <!-- Uppy drag-drop UI (same pattern as the book cover uploader in book_form.php) -->
+            <div id="author-uppy-upload" class="mb-2"></div>
+            <div id="author-uppy-progress" class="mb-2"></div>
+            <input type="file" id="author-fallback-file-input" name="foto_file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
             <p class="text-xs text-gray-500 mt-1"><?= __("Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.") ?></p>
             <input type="url" id="foto_url" name="foto_url" class="form-input mt-2" placeholder="<?= __('https://www.esempio.com/foto.jpg') ?>">
           </div>
@@ -152,7 +155,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Issue #163 — collegamenti (source/website links) repeater
     initializeCollegamenti();
+
+    // Issue #163 — author photo via Uppy (same drag-drop pattern as book_form.php)
+    initializeAuthorUppy();
 });
+
+// Uppy drag-drop UI feeding the hidden #author-fallback-file-input, mirroring
+// book_form.php's cover uploader: Uppy is the UI, the file rides the form's
+// multipart POST (AutoriController reads `foto_file`). No AJAX endpoint needed.
+function initializeAuthorUppy() {
+    var mount = document.getElementById('author-uppy-upload');
+    if (!mount || typeof Uppy === 'undefined' || typeof UppyDragDrop === 'undefined') {
+        var fb = document.getElementById('author-fallback-file-input');
+        if (fb) fb.style.display = 'block';
+        return;
+    }
+    try {
+        var uppy = new Uppy({
+            restrictions: { maxFileSize: 5000000, maxNumberOfFiles: 1, allowedFileTypes: ['image/*'] },
+            autoProceed: false
+        });
+        uppy.use(UppyDragDrop, {
+            target: '#author-uppy-upload',
+            note: <?= json_encode(__("Trascina qui la foto dell'autore o clicca per selezionare"), JSON_HEX_TAG) ?>
+        });
+        if (typeof UppyProgressBar !== 'undefined') {
+            uppy.use(UppyProgressBar, { target: '#author-uppy-progress', hideAfterFinish: false });
+        }
+        uppy.on('file-added', function (file) {
+            var input = document.getElementById('author-fallback-file-input');
+            var dt = new DataTransfer();
+            dt.items.add(new File([file.data], file.name, { type: file.type }));
+            input.files = dt.files;
+        });
+        uppy.on('file-removed', function () {
+            document.getElementById('author-fallback-file-input').value = '';
+        });
+    } catch (e) {
+        console.error('Author Uppy init failed:', e);
+        var fb2 = document.getElementById('author-fallback-file-input');
+        if (fb2) fb2.style.display = 'block';
+    }
+}
 
 // Add/remove rows for the author "collegamenti" (links) list.
 function initializeCollegamenti() {

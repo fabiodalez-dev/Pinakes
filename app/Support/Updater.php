@@ -73,6 +73,10 @@ class Updater
             $this->backupPath,
             $this->rootPath . '/storage/logs',
             $this->rootPath . '/storage/cache',
+            // #163 — author photos live here; ensure the dir exists on every
+            // upgrade so the author form can save uploads even before the first
+            // on-demand mkdir in AutoriController.
+            $this->rootPath . '/public/uploads/autori',
         ];
 
         foreach ($requiredDirs as $dir) {
