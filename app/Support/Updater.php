@@ -31,6 +31,15 @@ class Updater
     private string $tempPath;
     private string $githubToken = '';
 
+    /**
+     * Per-instance memo of releases fetched by tag, so a single update run that
+     * checks the package + the pre-update patch + the post-install patch hits
+     * the GitHub API once instead of three times (matters under the 60 req/h
+     * unauthenticated quota on shared hosting). Keyed by normalized version.
+     * @var array<string, array<string, mixed>|null>
+     */
+    private array $releaseByVersionCache = [];
+
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
         '.env',
@@ -330,8 +339,18 @@ class Updater
      */
     private function isApiUrl(string $url): bool
     {
+        // The scheme is part of the contract: a bearer token sent over plain
+        // http:// would leak in transit, so https is required as well as the host.
+        $scheme = parse_url($url, PHP_URL_SCHEME);
         $urlHost = parse_url($url, PHP_URL_HOST);
-        return is_string($urlHost) && strcasecmp($urlHost, 'api.github.com') === 0;
+        return is_string($scheme) && strcasecmp($scheme, 'https') === 0
+            && is_string($urlHost) && strcasecmp($urlHost, 'api.github.com') === 0;
+    }
+
+    /** True for a well-formed lowercase 64-char sha256 hex digest. */
+    private function isValidSha256(string $hash): bool
+    {
+        return preg_match('/^[a-f0-9]{64}$/', $hash) === 1;
     }
 
     /**
@@ -360,7 +379,7 @@ class Updater
         }
         $first = trim(explode(' ', trim($content))[0]);
         $hash = strtolower($first);
-        return preg_match('/^[a-f0-9]{64}$/', $hash) === 1 ? $hash : null;
+        return $this->isValidSha256($hash) ? $hash : null;
     }
 
     /**
@@ -378,6 +397,15 @@ class Updater
     {
         $release = $this->getReleaseByVersion($version);
         if (!is_array($release)) {
+            // Distinguish a transient API/network failure (loud) from a release
+            // that simply ships no such patch asset (silent/normal, handled
+            // below). Both still skip the patch — fail-closed — but a failed
+            // release lookup for a version that DOES carry a required patch
+            // should leave a trace rather than vanishing.
+            $this->debugLog('WARNING', 'Lookup release fallito durante il fetch patch (skip, possibile rate-limit/network)', [
+                'version' => $version,
+                'asset'   => $assetName,
+            ]);
             return null;
         }
 
@@ -400,8 +428,12 @@ class Updater
         $expectedHash = null;
         $digest = $asset['digest'] ?? null;
         if (is_string($digest) && stripos($digest, 'sha256:') === 0) {
-            $expectedHash = strtolower(substr($digest, 7));
-        } else {
+            $candidate = strtolower(substr($digest, 7));
+            // Same hex validation the sidecar path applies — a malformed digest
+            // must not be carried into hash_equals; fall back to the sidecar.
+            $expectedHash = $this->isValidSha256($candidate) ? $candidate : null;
+        }
+        if ($expectedHash === null) {
             $expectedHash = $this->fetchSidecarChecksum($release, $assetName);
         }
         if ($expectedHash === null) {
@@ -881,6 +913,7 @@ class Updater
                 CURLOPT_TIMEOUT => 10,
                 CURLOPT_HTTPHEADER => $this->getGitHubHeaders(),
                 CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
             ]);
             $curlResult = curl_exec($ch);
             $curlInfo = curl_getinfo($ch);
@@ -977,6 +1010,7 @@ class Updater
                 CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
                 CURLOPT_HTTPHEADER => $this->getGitHubHeaders(),
                 CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
             ]);
 
             $curlResult = curl_exec($ch);
@@ -998,6 +1032,7 @@ class Updater
                     CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
                     CURLOPT_HTTPHEADER => $retryHeaders,
                     CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
                 ]);
                 $retryResult = curl_exec($ch2);
                 $retryCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
@@ -1168,6 +1203,7 @@ class Updater
                     CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
                     CURLOPT_HTTPHEADER => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
                     CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
                     CURLOPT_BUFFERSIZE => 1024 * 1024, // 1MB buffer
                 ]);
 
@@ -1204,6 +1240,7 @@ class Updater
                             CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
                             CURLOPT_HTTPHEADER => $retryHeaders,
                             CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
                         ]);
                         $retryContent = curl_exec($ch2);
                         $retryCode = (int)(curl_getinfo($ch2, CURLINFO_HTTP_CODE));
@@ -1313,10 +1350,16 @@ class Updater
             // If NEITHER is available, refuse the update (fail-closed).
             $expectedHash = null;
             if (is_string($expectedDigest) && stripos($expectedDigest, 'sha256:') === 0) {
-                $expectedHash = strtolower(substr($expectedDigest, 7));
-                $this->debugLog('INFO', 'Verifica integrità via digest asset GitHub');
-            } else {
-                $this->debugLog('WARNING', 'Asset senza digest, tentativo sidecar .sha256', [
+                $candidate = strtolower(substr($expectedDigest, 7));
+                // Reject a malformed digest rather than carry it into hash_equals;
+                // fall through to the sidecar (same guard as fetchSidecarChecksum).
+                if ($this->isValidSha256($candidate)) {
+                    $expectedHash = $candidate;
+                    $this->debugLog('INFO', 'Verifica integrità via digest asset GitHub');
+                }
+            }
+            if ($expectedHash === null) {
+                $this->debugLog('WARNING', 'Nessun digest valido, tentativo sidecar .sha256', [
                     'asset' => $selectedAssetName
                 ]);
                 $expectedHash = $this->fetchSidecarChecksum($release, $selectedAssetName);
@@ -1562,9 +1605,16 @@ class Updater
     /**
      * Get release by version tag
      */
-    private function getReleaseByVersion(string $version): ?array
+    protected function getReleaseByVersion(string $version): ?array
     {
         $tag = strpos($version, 'v') === 0 ? $version : 'v' . $version;
+
+        // Memoized: the package download and both patch checks ask for the same
+        // tag within one update run — collapse them to a single API call.
+        if (array_key_exists($tag, $this->releaseByVersionCache)) {
+            return $this->releaseByVersionCache[$tag];
+        }
+
         $url = "https://api.github.com/repos/{$this->repoOwner}/{$this->repoName}/releases/tags/{$tag}";
 
         $this->debugLog('INFO', 'Recupero release per tag', [
@@ -1574,7 +1624,13 @@ class Updater
         ]);
 
         try {
-            return $this->makeGitHubRequest($url);
+            $release = $this->makeGitHubRequest($url);
+            // Only cache positive results: a transient API error must not pin a
+            // null for the rest of the run (a later retry may legitimately succeed).
+            if (is_array($release)) {
+                $this->releaseByVersionCache[$tag] = $release;
+            }
+            return $release;
         } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore recupero release per versione', [
                 'version' => $version,
@@ -3981,7 +4037,7 @@ class Updater
             ]);
 
             // Save patch to temp file and evaluate
-            $tempPatchFile = $this->rootPath . '/storage/tmp/pre-update-patch-' . uniqid() . '.php';
+            $tempPatchFile = $this->rootPath . '/storage/tmp/pre-update-patch-' . bin2hex(random_bytes(16)) . '.php';
             if (!is_dir(dirname($tempPatchFile))) {
                 @mkdir(dirname($tempPatchFile), 0775, true);
             }
@@ -4064,7 +4120,7 @@ class Updater
     /**
      * Download patch file from URL, returns null on 404 or error
      */
-    private function downloadPatchFile(string $url): ?string
+    protected function downloadPatchFile(string $url): ?string
     {
         // Try cURL first
         if (extension_loaded('curl')) {
@@ -4077,6 +4133,7 @@ class Updater
                 CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
                 CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
             ]);
 
             $content = curl_exec($ch);
@@ -4246,7 +4303,7 @@ class Updater
             ]);
 
             // Save patch to temp file and evaluate
-            $tempPatchFile = $this->rootPath . '/storage/tmp/post-install-patch-' . uniqid() . '.php';
+            $tempPatchFile = $this->rootPath . '/storage/tmp/post-install-patch-' . bin2hex(random_bytes(16)) . '.php';
             if (!is_dir(dirname($tempPatchFile))) {
                 @mkdir(dirname($tempPatchFile), 0775, true);
             }

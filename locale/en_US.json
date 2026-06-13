@@ -5219,5 +5219,8 @@
   "Questo sito è riservato agli utenti registrati. Accedi per continuare.": "This site is restricted to registered users. Please sign in to continue.",
   "Accesso al sito": "Site access",
   "Controlla chi può consultare il sito pubblico": "Control who can browse the public site",
-  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "With private mode on, the admin area, login, registration and assets stay reachable; everything else requires authentication."
+  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "With private mode on, the admin area, login, registration and assets stay reachable; everything else requires authentication.",
+  "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.": "The release does not contain a verifiable installable package (pinakes-*.zip). Update cancelled.",
+  "Verifica di integrità impossibile: la release non pubblica né un digest né un sidecar .sha256. Installazione di un pacchetto non verificato rifiutata.": "Integrity check impossible: the release publishes neither a digest nor a .sha256 sidecar. Installation of an unverified package refused.",
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Integrity check failed: the downloaded archive does not match the expected checksum."
 }

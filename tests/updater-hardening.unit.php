@@ -51,6 +51,101 @@ $check($call('https://objects.githubusercontent.com/github-production-release-as
 $check($call('https://api.github.com.evil.test/repos/x') === false,
     'api.github.com.evil.test => false (no suffix confusion)');
 
+// 5. Plain http:// to the API host must NOT receive the bearer (scheme is part
+//    of the contract — a token over http leaks in transit).
+$check($call('http://api.github.com/repos/x') === false,
+    'http://api.github.com => false (scheme must be https)');
+
+// ---------------------------------------------------------------------------
+echo "isValidSha256() — digest/sidecar hex guard (shared by both paths)\n";
+// ---------------------------------------------------------------------------
+
+$isValid = $ref->getMethod('isValidSha256');
+$isValid->setAccessible(true);
+$sha = static fn(string $h): bool => (bool) $isValid->invoke($updater, $h);
+
+$check($sha(str_repeat('a', 64)) === true, '64 lowercase hex => true');
+$check($sha(str_repeat('A', 64)) === false, 'uppercase hex => false (must be lowercase)');
+$check($sha(str_repeat('a', 32)) === false, '32 chars (md5-like) => false');
+$check($sha('sha256:' . str_repeat('a', 64)) === false, 'still-prefixed value => false');
+$check($sha(str_repeat('a', 63) . 'g') === false, 'non-hex char => false');
+
+// ---------------------------------------------------------------------------
+echo "fetchVerifiedReleaseAsset() — behavioral, offline (injected canned data)\n";
+// ---------------------------------------------------------------------------
+
+// A test double overriding the two network seams (now protected) so the real
+// verify logic runs against controlled bytes — no GitHub, no DB.
+$makeUpdater = static function (?array $release, array $downloads): \App\Support\Updater {
+    return new class($release, $downloads) extends \App\Support\Updater {
+        private ?array $cannedRelease;
+        /** @var array<string, ?string> */
+        private array $cannedDownloads;
+        public function __construct(?array $release, array $downloads)
+        {
+            $this->cannedRelease = $release;
+            $this->cannedDownloads = $downloads;
+        }
+        protected function getReleaseByVersion(string $version): ?array
+        {
+            return $this->cannedRelease;
+        }
+        protected function downloadPatchFile(string $url): ?string
+        {
+            return $this->cannedDownloads[$url] ?? null;
+        }
+    };
+};
+$fvMethod = new ReflectionMethod(\App\Support\Updater::class, 'fetchVerifiedReleaseAsset');
+$fvMethod->setAccessible(true);
+$fetch = static function (\App\Support\Updater $u, string $asset) use ($fvMethod) {
+    return $fvMethod->invoke($u, '1.0.0', $asset);
+};
+
+$BYTES = "<?php /* a verified patch */ return ['patches' => []];";
+$HASH  = hash('sha256', $BYTES);
+$URL   = 'https://github.com/o/r/releases/download/v1.0.0/pre-update-patch.php';
+$SIDE  = 'https://github.com/o/r/releases/download/v1.0.0/pre-update-patch.php.sha256';
+
+// 1. Matching API digest => verified bytes returned.
+$u1 = $makeUpdater(
+    ['assets' => [['name' => 'pre-update-patch.php', 'browser_download_url' => $URL, 'digest' => 'sha256:' . $HASH]]],
+    [$URL => $BYTES]
+);
+$check($fetch($u1, 'pre-update-patch.php') === $BYTES, 'matching digest => returns verified bytes');
+
+// 2. TAMPERED bytes (digest unchanged) => rejected (null). The core guarantee.
+$u2 = $makeUpdater(
+    ['assets' => [['name' => 'pre-update-patch.php', 'browser_download_url' => $URL, 'digest' => 'sha256:' . $HASH]]],
+    [$URL => $BYTES . ' /* tampered */']
+);
+$check($fetch($u2, 'pre-update-patch.php') === null, 'tampered bytes => rejected (null)');
+
+// 3. No digest, but a valid matching .sha256 sidecar => verified bytes returned.
+$u3 = $makeUpdater(
+    ['assets' => [
+        ['name' => 'pre-update-patch.php', 'browser_download_url' => $URL],
+        ['name' => 'pre-update-patch.php.sha256', 'browser_download_url' => $SIDE],
+    ]],
+    [$URL => $BYTES, $SIDE => $HASH . '  pre-update-patch.php']
+);
+$check($fetch($u3, 'pre-update-patch.php') === $BYTES, 'no digest + valid sidecar => returns bytes');
+
+// 4. Malformed digest AND no sidecar => refused (null), no fall-through to bytes.
+$u4 = $makeUpdater(
+    ['assets' => [['name' => 'pre-update-patch.php', 'browser_download_url' => $URL, 'digest' => 'sha256:NOTHEX']]],
+    [$URL => $BYTES]
+);
+$check($fetch($u4, 'pre-update-patch.php') === null, 'malformed digest + no sidecar => null');
+
+// 5. Asset absent on the release => null (normal "no patch").
+$u5 = $makeUpdater(['assets' => []], []);
+$check($fetch($u5, 'pre-update-patch.php') === null, 'asset absent => null (no patch)');
+
+// 6. Release lookup failed (API error) => null (fail-closed).
+$u6 = $makeUpdater(null, []);
+$check($fetch($u6, 'pre-update-patch.php') === null, 'release lookup failed => null');
+
 // ---------------------------------------------------------------------------
 echo "Source guards — mandatory integrity + token scoping\n";
 // ---------------------------------------------------------------------------

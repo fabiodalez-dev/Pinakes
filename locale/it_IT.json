@@ -5219,5 +5219,8 @@
   "Questo sito è riservato agli utenti registrati. Accedi per continuare.": "Questo sito è riservato agli utenti registrati. Accedi per continuare.",
   "Accesso al sito": "Accesso al sito",
   "Controlla chi può consultare il sito pubblico": "Controlla chi può consultare il sito pubblico",
-  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione."
+  "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.": "Con la modalità privata attiva, l'area amministrativa, l'accesso, la registrazione e gli asset restano sempre raggiungibili; tutto il resto richiede l'autenticazione.",
+  "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.": "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.",
+  "Verifica di integrità impossibile: la release non pubblica né un digest né un sidecar .sha256. Installazione di un pacchetto non verificato rifiutata.": "Verifica di integrità impossibile: la release non pubblica né un digest né un sidecar .sha256. Installazione di un pacchetto non verificato rifiutata.",
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso."
 }
