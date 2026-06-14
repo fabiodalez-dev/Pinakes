@@ -194,10 +194,18 @@ class CopyController
             // check e l'UPDATE lasciando la copia non-prestabile ma ancora impegnata.
             $db->begin_transaction();
             try {
-                $lockBook = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+                // Lock + soft-delete guard: su un libro rimosso dal catalogo NON si
+                // committa stato operativo sulle copie (fail-closed, AND deleted_at IS NULL).
+                $lockBook = $db->prepare("SELECT id FROM libri WHERE id = ? AND deleted_at IS NULL FOR UPDATE");
                 $lockBook->bind_param('i', $libroId);
                 $lockBook->execute();
+                $bookLocked = (bool) $lockBook->get_result()->fetch_row();
                 $lockBook->close();
+                if (!$bookLocked) {
+                    $db->rollback();
+                    $_SESSION['error_message'] = __('Libro non trovato o non più disponibile.');
+                    return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+                }
 
                 $recheck = $db->prepare("
                     SELECT 1 FROM prestiti
