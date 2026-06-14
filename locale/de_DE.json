@@ -5291,5 +5291,19 @@
   "La foto supera la dimensione massima di 5 MB.": "Das Foto überschreitet die maximale Größe von 5 MB.",
   "Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.": "Nicht unterstütztes Bildformat. Verwenden Sie PNG, JPG, WebP oder GIF.",
   "Impossibile elaborare l'immagine caricata.": "Das hochgeladene Bild konnte nicht verarbeitet werden.",
-  "Anteprima foto autore": "Vorschau Autorenfoto"
+  "Anteprima foto autore": "Vorschau Autorenfoto",
+  "Nessuna disponibilità nel periodo": "Keine Verfügbarkeit im Zeitraum",
+  "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "Alle Exemplare sind im gewünschten Zeitraum bereits vergeben (Ausleihen oder Vormerkungen). Wählen Sie einen anderen Zeitraum.",
+  "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.": "Das zugewiesene Exemplar ist nicht ausleihbar. Weisen Sie das Exemplar neu zu oder brechen Sie die Abholung ab.",
+  "Il prestito associato non è più chiudibile. Ricarica la pagina.": "Die zugehörige Ausleihe kann nicht mehr geschlossen werden. Laden Sie die Seite neu.",
+  "Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.": "Ein Exemplar, das aktuell durch eine Ausleihe oder Vormerkung gebunden ist, kann nicht gelöscht werden.",
+  "Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su \"Disponibile\".": "Ein Exemplar, das aktuell durch eine Ausleihe oder Vormerkung gebunden ist, kann nicht geändert werden. Geben Sie es zuerst frei (Ausleihe schließen oder stornieren) oder setzen Sie es auf \"Verfügbar\".",
+  "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.": "Die Veröffentlichung enthält kein verifizierbares installierbares Paket (pinakes-*.zip). Aktualisierung abgebrochen.",
+  "Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.": "Integritätsprüfung nicht möglich: Die Veröffentlichung enthält keinen gültigen SHA256-Digest. Installation eines nicht verifizierten Pakets abgelehnt.",
+  "Patch post-installazione non verificabile.": "Post-Installations-Patch nicht überprüfbar.",
+  "Patch post-installazione presente ma non verificabile: patch non applicata, aggiornamento mantenuto.": "Ein Post-Installations-Patch ist vorhanden, aber nicht überprüfbar: Der Patch wurde nicht angewendet, das Update bleibt bestehen.",
+  "Patch pre-aggiornamento non verificabile.": "Pre-Update-Patch nicht überprüfbar.",
+  "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "Ein Pre-Update-Patch ist vorhanden, aber nicht überprüfbar: Das Update wurde aus Sicherheitsgründen abgebrochen.",
+  "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Unerwartete GitHub-Antwort (Weiterleitung) bei einer authentifizierten Anfrage.",
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Integritätsprüfung fehlgeschlagen: Das heruntergeladene Archiv stimmt nicht mit der erwarteten Prüfsumme überein."
 }

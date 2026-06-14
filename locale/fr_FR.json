@@ -5291,5 +5291,19 @@
   "La foto supera la dimensione massima di 5 MB.": "La photo dépasse la taille maximale de 5 Mo.",
   "Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.": "Format d'image non pris en charge. Utilisez PNG, JPG, WebP ou GIF.",
   "Impossibile elaborare l'immagine caricata.": "Impossible de traiter l'image téléchargée.",
-  "Anteprima foto autore": "Aperçu de la photo de l'auteur"
+  "Anteprima foto autore": "Aperçu de la photo de l'auteur",
+  "Nessuna disponibilità nel periodo": "Aucune disponibilité pour cette période",
+  "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "Tous les exemplaires sont déjà engagés (prêts ou réservations) pour la période demandée. Choisissez une autre période.",
+  "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.": "L'exemplaire attribué n'est pas empruntable. Réattribuez l'exemplaire ou annulez le retrait.",
+  "Il prestito associato non è più chiudibile. Ricarica la pagina.": "Le prêt associé ne peut plus être clôturé. Rechargez la page.",
+  "Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.": "Impossible de supprimer un exemplaire actuellement engagé dans un prêt ou une réservation.",
+  "Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su \"Disponibile\".": "Impossible de modifier un exemplaire actuellement engagé dans un prêt ou une réservation. Libérez-le d'abord (clôturez ou annulez le prêt) ou définissez-le sur « Disponible ».",
+  "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.": "La version ne contient pas de paquet installable vérifiable (pinakes-*.zip). Mise à jour annulée.",
+  "Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.": "Vérification d'intégrité impossible : la version ne publie pas d'empreinte sha256 (digest) valide. Installation d'un paquet non vérifié refusée.",
+  "Patch post-installazione non verificabile.": "Correctif post-installation non vérifiable.",
+  "Patch post-installazione presente ma non verificabile: patch non applicata, aggiornamento mantenuto.": "Un correctif post-installation est présent mais non vérifiable : le correctif n'a pas été appliqué, la mise à jour est conservée.",
+  "Patch pre-aggiornamento non verificabile.": "Correctif pré-mise à jour non vérifiable.",
+  "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "Un correctif pré-mise à jour est présent mais non vérifiable : la mise à jour a été interrompue par sécurité.",
+  "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Réponse GitHub inattendue (redirection) sur une requête authentifiée.",
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Échec de la vérification d'intégrité : l'archive téléchargée ne correspond pas à la somme de contrôle attendue."
 }

@@ -5291,5 +5291,19 @@
   "La foto supera la dimensione massima di 5 MB.": "The photo exceeds the maximum size of 5 MB.",
   "Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.": "Unsupported image format. Use PNG, JPG, WebP or GIF.",
   "Impossibile elaborare l'immagine caricata.": "Could not process the uploaded image.",
-  "Anteprima foto autore": "Author photo preview"
+  "Anteprima foto autore": "Author photo preview",
+  "Nessuna disponibilità nel periodo": "No availability for this period",
+  "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "All copies are already committed (loans or reservations) for the requested period. Choose another period.",
+  "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.": "The assigned copy is not lendable. Reassign the copy or cancel the pickup.",
+  "Il prestito associato non è più chiudibile. Ricarica la pagina.": "The associated loan can no longer be closed. Reload the page.",
+  "Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.": "Cannot delete a copy currently committed to a loan or reservation.",
+  "Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su \"Disponibile\".": "Cannot modify a copy currently committed to a loan or reservation. First release it (close or cancel the loan) or set it to \"Available\".",
+  "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.": "The release does not contain a verifiable installable package (pinakes-*.zip). Update cancelled.",
+  "Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.": "Integrity check impossible: the release does not publish a valid sha256 digest. Installation of an unverified package refused.",
+  "Patch post-installazione non verificabile.": "Post-installation patch not verifiable.",
+  "Patch post-installazione presente ma non verificabile: patch non applicata, aggiornamento mantenuto.": "A post-installation patch is present but not verifiable: the patch was not applied, the update was kept.",
+  "Patch pre-aggiornamento non verificabile.": "Pre-update patch not verifiable.",
+  "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "A pre-update patch is present but not verifiable: the update was aborted for safety.",
+  "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Unexpected GitHub response (redirect) on an authenticated request.",
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Integrity check failed: the downloaded archive does not match the expected checksum."
 }

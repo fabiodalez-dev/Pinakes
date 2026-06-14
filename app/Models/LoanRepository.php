@@ -74,16 +74,24 @@ class LoanRepository
         );
     }
 
+    /**
+     * Edit ONLY the user-editable fields of a loan. It deliberately never writes
+     * the lifecycle columns (attivo / stato / data_restituzione / restituito_in_ritardo)
+     * nor libro_id / copia_id — editing a loan must not resurrect a returned one
+     * (BUG1/I1) nor decouple the copy from its book (BUG2/I7). Lifecycle changes
+     * go through the dedicated return/approve/cancel paths, never through here.
+     *
+     * @param array<string,mixed> $data
+     */
     public function update(int $id, array $data): bool
     {
-        $sql = "UPDATE prestiti SET libro_id=?, utente_id=?, data_prestito=?, data_scadenza=?, data_restituzione=?, processed_by=?, attivo=? WHERE id=?";
+        $sql = "UPDATE prestiti SET utente_id=?, data_prestito=?, data_scadenza=?, processed_by=? WHERE id=?";
         $stmt = $this->db->prepare($sql);
+        $utente_id = (int) ($data['utente_id'] ?? 0);
         $data_prestito = $data['data_prestito'] ?? date('Y-m-d');
         $data_scadenza = $data['data_scadenza'] ?? date('Y-m-d', strtotime('+14 days'));
-        $data_restituzione = $data['data_restituzione'] ?? null;
         $processed_by = $data['processed_by'] ?? null;
-        $attivo = (int)($data['attivo'] ?? 1);
-        $stmt->bind_param('iisssiii', $data['libro_id'], $data['utente_id'], $data_prestito, $data_scadenza, $data_restituzione, $processed_by, $attivo, $id);
+        $stmt->bind_param('issii', $utente_id, $data_prestito, $data_scadenza, $processed_by, $id);
         return $stmt->execute();
     }
 
@@ -153,7 +161,7 @@ class LoanRepository
             // e ricalcolato il libro sbagliato. In quel caso (rarissimo: il
             // libro di un prestito non viene riassegnato) abortiamo invece di
             // operare su dati incoerenti.
-            $stmt = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=? FOR UPDATE');
+            $stmt = $this->db->prepare('SELECT libro_id, copia_id, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $lockedRow = $stmt->get_result()->fetch_assoc();
@@ -166,11 +174,14 @@ class LoanRepository
                 $this->db->rollback();
                 return false;
             }
+            $closedCopiaId = $lockedRow['copia_id'] !== null ? (int) $lockedRow['copia_id'] : null;
 
-            // Chiude il prestito
+            // Chiude il prestito (restituito + flag ritardo se oltre scadenza, I4/BUG5)
             $today = gmdate('Y-m-d');
-            $stmt = $this->db->prepare('UPDATE prestiti SET attivo=0, data_restituzione=?, stato="restituito" WHERE id=?');
-            $stmt->bind_param('si', $today, $id);
+            $scadenza = (string) ($lockedRow['data_scadenza'] ?? '');
+            $ritardo = ($scadenza !== '' && $scadenza < $today) ? 1 : 0;
+            $stmt = $this->db->prepare('UPDATE prestiti SET attivo=0, data_restituzione=?, stato="restituito", restituito_in_ritardo=? WHERE id=?');
+            $stmt->bind_param('sii', $today, $ritardo, $id);
             if (!$stmt->execute()) {
                 throw new \RuntimeException('Impossibile aggiornare lo stato del prestito.');
             }
@@ -197,12 +208,21 @@ class LoanRepository
                 throw new \RuntimeException(__('Impossibile ricalcolare la disponibilità del libro.'));
             }
 
+            // Layer 1: reassign any copy-less 'prenotato' hold to the freed copy
+            // (the inverse-gap fix — close() previously promoted only the waitlist).
+            $reassignmentService = null;
+            if ($closedCopiaId !== null) {
+                $reassignmentService = new \App\Services\ReservationReassignmentService($this->db);
+                $reassignmentService->setExternalTransaction(true);
+                $reassignmentService->reassignOnReturn($closedCopiaId);
+            }
+
+            // Layer 2: promote queued waitlist reservations. Loop until none convert
+            // (a multi-copy free can promote several). Both queues (D5/BUG10).
             $reservationManager = new ReservationManager($this->db);
             $reservationManager->setExternalTransaction(true); // TXN-003: siamo già in transazione
-            // Note: processBookAvailability returning false typically indicates no pending
-            // reservation or a race condition - acceptable to continue, just log for observability
-            if (!$reservationManager->processBookAvailability($bookId)) {
-                SecureLogger::debug("LoanRepository::close - No reservation processed for book ID: {$bookId}");
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($bookId); $promoGuard++) {
+                // keep promoting while freed capacity converts the next queued reservation
             }
 
             $this->db->commit();
@@ -212,8 +232,17 @@ class LoanRepository
             throw $e;
         }
 
-        // P2: invia le notifiche reservation_book_available accodate durante la
-        // transazione esterna (eseguito solo sul percorso di successo, post-commit).
+        // P2: invia le notifiche accodate durante la transazione esterna (solo sul
+        // percorso di successo, post-commit). Ordine: prima il reassignment (Layer 1,
+        // copia assegnata a una prenotazione copy-less), poi la promozione waitlist
+        // (Layer 2) — stesso ordine temporale in cui sono avvenuti.
+        if ($reassignmentService !== null) {
+            try {
+                $reassignmentService->flushDeferredNotifications();
+            } catch (\Throwable $e) {
+                SecureLogger::warning('LoanRepository::close reassign flush warning', ['error' => $e->getMessage()]);
+            }
+        }
         try {
             $reservationManager->flushDeferredNotifications();
         } catch (\Throwable $e) {
