@@ -41,20 +41,41 @@ final class CapacityService
 {
     public function __construct(private mysqli $db) {}
 
-    /** Lendable physical copies of a book (the capacity ceiling). */
+    /**
+     * Lendable physical copies of a book (the capacity ceiling). If the book has
+     * per-copy rows, count the lendable ones; otherwise fall back to the legacy
+     * libri.copie_totali (NULL → 1, explicit 0 → 0), matching
+     * ReservationsController::getBookTotalCopies and the overbooked auditor so a
+     * legacy book without copie rows is not spuriously blocked by every gate.
+     */
     public function totalCopies(int $libroId): int
     {
-        $stmt = $this->db->prepare(
-            "SELECT COUNT(*) FROM copie
-             WHERE libro_id = ?
-               AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento')"
-        );
+        $stmt = $this->db->prepare("SELECT COUNT(*) AS total FROM copie WHERE libro_id = ?");
         $stmt->bind_param('i', $libroId);
         $stmt->execute();
-        $stmt->bind_result($n);
-        $stmt->fetch();
+        $copyRows = (int) ($stmt->get_result()->fetch_assoc()['total'] ?? 0);
         $stmt->close();
-        return (int) $n;
+
+        if ($copyRows > 0) {
+            $stmt = $this->db->prepare(
+                "SELECT COUNT(*) AS total FROM copie
+                 WHERE libro_id = ?
+                   AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento')"
+            );
+            $stmt->bind_param('i', $libroId);
+            $stmt->execute();
+            $lendable = (int) ($stmt->get_result()->fetch_assoc()['total'] ?? 0);
+            $stmt->close();
+            return $lendable;
+        }
+
+        // No per-copy rows: legacy fallback to libri.copie_totali (NULL → 1, 0 → 0).
+        $stmt = $this->db->prepare("SELECT IFNULL(copie_totali, 1) AS total FROM libri WHERE id = ? AND deleted_at IS NULL");
+        $stmt->bind_param('i', $libroId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row !== null ? (int) $row['total'] : 0;
     }
 
     /**

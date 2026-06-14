@@ -141,7 +141,7 @@ class ReservationReassignmentService
             FROM prestiti p
             LEFT JOIN copie c ON p.copia_id = c.id
             WHERE p.libro_id = ?
-            AND p.stato = 'prenotato'
+            AND p.stato IN ('prenotato', 'da_ritirare')
             AND p.attivo = 1
             AND ( p.copia_id IS NULL
                   OR c.stato IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento') )

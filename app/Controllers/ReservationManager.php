@@ -174,9 +174,18 @@ class ReservationManager
             $stmt->close();
 
             if ($nextReservation) {
-                // Check if the desired date range is available
+                // Check if the desired date range is available. Resolve the canonical
+                // R_END once: a legacy prenotazione may have data_fine_richiesta NULL but
+                // data_scadenza_prenotazione set — passing the raw NULL would make
+                // isDateRangeAvailable() return false and the row would never promote.
                 $startDate = $nextReservation['data_inizio_richiesta'];
-                $endDate = $nextReservation['data_fine_richiesta'];
+                $endDate = $nextReservation['data_fine_richiesta']
+                    ?: (!empty($nextReservation['data_scadenza_prenotazione'])
+                        ? substr((string) $nextReservation['data_scadenza_prenotazione'], 0, 10)
+                        : $startDate);
+                // Feed the resolved end to createLoanFromReservation() too (it reads
+                // $reservation['data_fine_richiesta'] for the loan period).
+                $nextReservation['data_fine_richiesta'] = $endDate;
 
                 if ($this->isDateRangeAvailable($bookId, $startDate, $endDate, (int) $nextReservation['id'])) {
                     // Create the loan - check return value to handle race conditions

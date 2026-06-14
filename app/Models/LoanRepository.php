@@ -221,7 +221,7 @@ class LoanRepository
             // (a multi-copy free can promote several). Both queues (D5/BUG10).
             $reservationManager = new ReservationManager($this->db);
             $reservationManager->setExternalTransaction(true); // TXN-003: siamo già in transazione
-            while ($reservationManager->processBookAvailability($bookId)) {
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($bookId); $promoGuard++) {
                 // keep promoting while freed capacity converts the next queued reservation
             }
 
@@ -232,19 +232,21 @@ class LoanRepository
             throw $e;
         }
 
-        // P2: invia le notifiche reservation_book_available accodate durante la
-        // transazione esterna (eseguito solo sul percorso di successo, post-commit).
-        try {
-            $reservationManager->flushDeferredNotifications();
-        } catch (\Throwable $e) {
-            SecureLogger::warning('LoanRepository::close flush notifications warning', ['error' => $e->getMessage()]);
-        }
+        // P2: invia le notifiche accodate durante la transazione esterna (solo sul
+        // percorso di successo, post-commit). Ordine: prima il reassignment (Layer 1,
+        // copia assegnata a una prenotazione copy-less), poi la promozione waitlist
+        // (Layer 2) — stesso ordine temporale in cui sono avvenuti.
         if ($reassignmentService !== null) {
             try {
                 $reassignmentService->flushDeferredNotifications();
             } catch (\Throwable $e) {
                 SecureLogger::warning('LoanRepository::close reassign flush warning', ['error' => $e->getMessage()]);
             }
+        }
+        try {
+            $reservationManager->flushDeferredNotifications();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('LoanRepository::close flush notifications warning', ['error' => $e->getMessage()]);
         }
 
         // validateAndUpdateLoan has its own transaction, call it after main transaction completes

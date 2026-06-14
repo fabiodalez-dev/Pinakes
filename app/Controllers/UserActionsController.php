@@ -183,7 +183,7 @@ class UserActionsController
             // queued reservations. Loop until none convert. Both queues (D5/BUG10).
             $reservationManager = new \App\Controllers\ReservationManager($db);
             $reservationManager->setExternalTransaction(true);
-            while ($reservationManager->processBookAvailability((int) $loan['libro_id'])) {
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability((int) $loan['libro_id']); $promoGuard++) {
                 // keep promoting while freed capacity converts the next queued reservation
             }
 

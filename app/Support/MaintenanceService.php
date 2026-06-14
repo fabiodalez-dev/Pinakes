@@ -517,7 +517,7 @@ class MaintenanceService
                 // (loop until none convert). Both queues on every release path (D5/BUG10).
                 $reservationManager = new \App\Controllers\ReservationManager($this->db);
                 $reservationManager->setExternalTransaction(true);
-                while ($reservationManager->processBookAvailability($libroId)) {
+                for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
                     // keep promoting while freed capacity converts the next queued reservation
                 }
 
@@ -671,7 +671,7 @@ class MaintenanceService
                 // pickup (loop until none convert). Both queues (D5/BUG10).
                 $reservationManager = new \App\Controllers\ReservationManager($this->db);
                 $reservationManager->setExternalTransaction(true);
-                while ($reservationManager->processBookAvailability($libroId)) {
+                for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
                     // keep promoting while freed capacity converts the next queued reservation
                 }
 

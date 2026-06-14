@@ -624,8 +624,9 @@ class DataIntegrity {
             WHERE c.stato IN ('prenotato', 'prestato')
             AND NOT EXISTS (
                 SELECT 1 FROM prestiti p
-                WHERE p.copia_id = c.id AND p.attivo = 1
-                AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'da_ritirare')
+                WHERE p.copia_id = c.id
+                AND ( (p.attivo = 1 AND p.stato IN ('in_corso', 'in_ritardo', 'prenotato', 'da_ritirare'))
+                      OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL) )
             )
         ");
         $stmt->execute();

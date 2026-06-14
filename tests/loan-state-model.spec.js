@@ -16,7 +16,7 @@ const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 const DB_USER = process.env.E2E_DB_USER || '', DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '', DB_HOST = process.env.E2E_DB_HOST || '';
 const DB_PORT = process.env.E2E_DB_PORT || '', DB_NAME = process.env.E2E_DB_NAME || '';
-test.skip(!ADMIN_EMAIL || !DB_USER || !DB_NAME, 'creds not configured');
+test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME, 'creds not configured');
 
 function dbQuery(sql){
   const args=[]; if(DB_HOST){args.push('-h',DB_HOST); if(DB_PORT)args.push('-P',DB_PORT);} else if(DB_SOCKET){args.push('-S',DB_SOCKET);}
@@ -25,7 +25,11 @@ function dbQuery(sql){
   try{ return execFileSync('mysql',[`--defaults-extra-file=${cnf}`,...args],{encoding:'utf-8',timeout:10000}).trim(); } finally { try{fs.unlinkSync(cnf);}catch{} }
 }
 const q1 = (sql) => dbQuery(sql).split('\n')[0].trim();
-const addDays = (n) => { const d = new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+const addDays = (n) => {
+  const d = new Date(); d.setDate(d.getDate()+n);
+  // Local Y-m-d (not toISOString/UTC) so dates don't slip ±1 near local midnight.
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+};
 
 test.describe('canonical loan/reservation state model', () => {
   /** @type {import('@playwright/test').Page} */
