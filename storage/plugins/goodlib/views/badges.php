@@ -17,12 +17,12 @@ $context = $context ?? 'frontend';
 // On the frontend the badges are injected into #book-action-buttons, a centered
 // flex row. Force a full-width flex-basis so the whole "Cerca su" block wraps
 // onto its own line below the action buttons instead of sitting inline with them.
-$frontendBreak = $context === 'admin' ? '' : ' style="flex-basis:100%;width:100%;text-align:left;"';
+$frontendBreak = $context === 'admin' ? '' : ' style="flex-basis:100%;width:100%;text-align:center;"';
 ?>
 <div class="text-base text-gray-600 <?= $context === 'admin' ? '' : 'mt-3' ?>"<?= $frontendBreak ?>>
   <i class="fas fa-external-link-alt text-gray-400 mr-2"></i>
   <span class="font-medium"><?= htmlspecialchars(__("Cerca su:"), ENT_QUOTES, 'UTF-8') ?></span>
-  <div class="mt-2 flex flex-wrap gap-2">
+  <div class="mt-2 flex flex-wrap gap-2<?= $context === 'admin' ? '' : ' justify-center' ?>">
     <?php foreach ($sources as $key => $source): ?>
       <?php
         $sourceLabel = __($source['label']);

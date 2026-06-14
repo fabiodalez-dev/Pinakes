@@ -101,10 +101,10 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   <div class="flex flex-col gap-4">
       <!-- Title and subtitle: full width -->
       <div class="flex flex-col gap-2">
-        <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
-          <i class="fas fa-book text-gray-600"></i>
+        <h1 class="text-3xl font-bold text-gray-900 flex flex-wrap items-start gap-3">
+          <i class="fas fa-book text-gray-600 mt-1"></i>
           <?php echo App\Support\HtmlHelper::e($libro['titolo'] ?? ''); ?>
-          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+          <span class="self-center inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
             <i class="fas <?= \App\Support\MediaLabels::icon($resolvedTipoMedia) ?> mr-1"></i>
             <?= \App\Support\MediaLabels::tipoMediaDisplayName($resolvedTipoMedia) ?>
           </span>
