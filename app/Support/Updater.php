@@ -2037,44 +2037,31 @@ class Updater
         $this->debugLog('INFO', '=== INIZIO BACKUP ===');
 
         try {
-            $timestamp = date('Y-m-d_His');
-            $backupDir = $this->backupPath . '/update_' . $timestamp;
+            // The complete-backup logic lives in BackupManager. The pre-update
+            // backup is DB-only by default; the admin can opt into bundling the
+            // uploaded files via the backup.pre_update_include_files setting.
+            $includeFiles = (new \App\Models\SettingsRepository($this->db))
+                ->get('backup', 'pre_update_include_files', '0') === '1';
+            $scope = $includeFiles ? 'full' : 'db';
 
-            $this->debugLog('DEBUG', 'Creazione directory backup', ['path' => $backupDir]);
+            $this->debugLog('INFO', 'Inizio backup', ['scope' => $scope]);
+            $result = (new \App\Support\BackupManager($this->db, $this->rootPath))->createBackup($scope);
 
-            if (!mkdir($backupDir, 0755, true) && !is_dir($backupDir)) {
-                $this->debugLog('ERROR', 'Impossibile creare directory backup', [
-                    'path' => $backupDir,
-                    'error' => error_get_last()
-                ]);
-                throw new Exception(__('Impossibile creare directory di backup'));
+            // Record the history row against the actual backup file path (or the
+            // backups dir on failure, where path is null).
+            $logId = $this->logUpdateStart($this->getCurrentVersion(), 'backup', (string) ($result['path'] ?? $this->backupPath));
+
+            if (!$result['success']) {
+                $this->debugLog('ERROR', 'Backup fallito', ['error' => $result['error']]);
+                throw new Exception((string) $result['error']);
             }
 
-            // Log the backup start
-            $logId = $this->logUpdateStart($this->getCurrentVersion(), 'backup', $backupDir);
-
-            // Backup database
-            $this->debugLog('INFO', 'Inizio backup database');
-            $dbBackupResult = $this->backupDatabase($backupDir . '/database.sql');
-
-            if (!$dbBackupResult['success']) {
-                $this->debugLog('ERROR', 'Backup database fallito', [
-                    'error' => $dbBackupResult['error']
-                ]);
-                throw new Exception($dbBackupResult['error']);
-            }
-
-            // Mark backup as complete
             $this->logUpdateComplete($logId, true);
-
-            $this->debugLog('INFO', 'Backup completato con successo', [
-                'path' => $backupDir,
-                'db_file' => $backupDir . '/database.sql'
-            ]);
+            $this->debugLog('INFO', 'Backup completato con successo', ['path' => $result['path']]);
 
             return [
                 'success' => true,
-                'path' => $backupDir,
+                'path' => $result['path'],
                 'error' => null
             ];
 
@@ -2195,117 +2182,6 @@ class Updater
             'filename' => $backupName . '.sql',
             'error' => null
         ];
-    }
-
-    /**
-     * Backup database to file using streaming
-     * @return array{success: bool, error: string|null}
-     */
-    private function backupDatabase(string $filepath): array
-    {
-        $handle = null;
-
-        try {
-            $this->debugLog('INFO', 'Avvio backup database', ['filepath' => $filepath]);
-
-            $handle = fopen($filepath, 'w');
-            if ($handle === false) {
-                throw new Exception(__('Impossibile aprire file di backup per scrittura'));
-            }
-
-            // Get list of tables
-            $tables = [];
-            $result = $this->db->query("SHOW TABLES");
-            if ($result === false) {
-                throw new Exception(__('Errore nel recupero delle tabelle') . ': ' . $this->db->error);
-            }
-
-            while ($row = $result->fetch_row()) {
-                $tables[] = $row[0];
-            }
-            $result->free();
-
-            $this->debugLog('DEBUG', 'Tabelle trovate', ['count' => count($tables), 'tables' => $tables]);
-
-            // Write header
-            fwrite($handle, "-- Pinakes Database Backup\n");
-            fwrite($handle, "-- Generated: " . date('Y-m-d H:i:s') . "\n");
-            fwrite($handle, "-- Version: " . $this->getCurrentVersion() . "\n");
-            fwrite($handle, "-- Tables: " . count($tables) . "\n\n");
-            fwrite($handle, "SET FOREIGN_KEY_CHECKS=0;\n\n");
-
-            foreach ($tables as $table) {
-                // Validate table name (alphanumeric and underscore only)
-                if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $table)) {
-                    $this->debugLog('WARNING', 'Skipping table with invalid name', ['table' => $table]);
-                    continue;
-                }
-
-                $this->debugLog('DEBUG', 'Backup tabella', ['table' => $table]);
-
-                // Get create table statement
-                $createResult = $this->db->query("SHOW CREATE TABLE `{$table}`");
-                if ($createResult === false) {
-                    throw new Exception(sprintf(__('Errore nel recupero struttura tabella %s'), $table) . ': ' . $this->db->error);
-                }
-                $createRow = $createResult->fetch_row();
-                $createResult->free();
-
-                fwrite($handle, "DROP TABLE IF EXISTS `{$table}`;\n");
-                fwrite($handle, $createRow[1] . ";\n\n");
-
-                // Get data with unbuffered query
-                $this->db->real_query("SELECT * FROM `{$table}`");
-                $dataResult = $this->db->use_result();
-
-                if ($dataResult === false) {
-                    throw new Exception(sprintf(__('Errore nel recupero dati tabella %s'), $table) . ': ' . $this->db->error);
-                }
-
-                $rowCount = 0;
-                while ($row = $dataResult->fetch_assoc()) {
-                    $values = array_map(function ($value) {
-                        if ($value === null) {
-                            return 'NULL';
-                        }
-                        return "'" . $this->db->real_escape_string($value) . "'";
-                    }, $row);
-
-                    fwrite($handle, "INSERT INTO `{$table}` VALUES (" . implode(', ', $values) . ");\n");
-                    $rowCount++;
-                }
-                $dataResult->free();
-
-                fwrite($handle, "\n");
-            }
-
-            fwrite($handle, "SET FOREIGN_KEY_CHECKS=1;\n");
-            fclose($handle);
-            $handle = null;
-
-            $fileSize = filesize($filepath);
-            $this->debugLog('INFO', 'Backup database completato', [
-                'filepath' => $filepath,
-                'size' => $this->formatBytes((float)$fileSize),
-                'tables' => count($tables)
-            ]);
-
-            return ['success' => true, 'error' => null];
-
-        } catch (\Throwable $e) {
-            $this->debugLog('ERROR', 'Errore backup database', ['error' => $e->getMessage()]);
-
-            if ($handle !== null && is_resource($handle)) {
-                fclose($handle);
-            }
-
-            if (file_exists($filepath)) {
-                // nosemgrep: php.lang.security.unlink-use.unlink-use -- internal updater-controlled path (constant or constructed under storage), not user input
-                @unlink($filepath);
-            }
-
-            return ['success' => false, 'error' => $e->getMessage()];
-        }
     }
 
     /**

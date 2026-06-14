@@ -222,6 +222,31 @@ $additional_css = "
         display: flex;
         flex-direction: column;
         gap: 0.25rem;
+        /* Long facet lists (authors, genres, publishers) scroll inside the
+           section instead of stretching the whole sidebar. A light-grey border
+           signals the area is scrollable. */
+        max-height: 16rem;
+        overflow-y: auto;
+        overflow-x: hidden;
+        scrollbar-width: thin;
+        scrollbar-color: var(--border-color) transparent;
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md, 0.5rem);
+        padding: 0.35rem;
+    }
+    .filter-options::-webkit-scrollbar { width: 6px; }
+    .filter-options::-webkit-scrollbar-track { background: transparent; }
+    .filter-options::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 999px;
+    }
+    .filter-options::-webkit-scrollbar-thumb:hover { background: var(--text-muted, #94a3b8); }
+    /* A collapsed facet (single pill) must never show a scrollbar or box. */
+    .filter-options.facet-is-collapsed {
+        max-height: none;
+        overflow: visible;
+        border: none;
+        padding: 0;
     }
 
     .filter-option {
@@ -1117,8 +1142,110 @@ $additional_css = "
     .filter-back-btn span {
         font-weight: 500;
     }
+
+    /* Faceted search: collapsed facet pill (collapse-on-select) */
+    .facet-collapsed {
+        display: inline-flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        align-self: flex-start;
+        max-width: 100%;
+        padding: 0.45rem 0.5rem 0.45rem 0.75rem;
+        background: var(--primary-color);
+        color: white;
+        border: 1px solid var(--primary-color);
+        border-radius: var(--radius-md);
+        font-size: 0.8125rem;
+        font-weight: 600;
+        transition: var(--transition);
+    }
+
+    .facet-collapsed .facet-collapsed-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
+    }
+
+    .facet-collapsed-remove {
+        cursor: pointer;
+        border: none;
+        padding: 0;
+        background: rgba(255, 255, 255, 0.2);
+        color: white;
+        border-radius: 50%;
+        width: 1.25rem;
+        height: 1.25rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.9rem;
+        font-weight: 700;
+        line-height: 1;
+        flex-shrink: 0;
+        transition: var(--transition);
+    }
+
+    .facet-collapsed-remove:hover {
+        background: rgba(255, 255, 255, 0.35);
+        transform: scale(1.1);
+    }
+
+    .facet-change-link {
+        display: inline-block;
+        margin-top: 0.5rem;
+        align-self: flex-start;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        text-decoration: none;
+        cursor: pointer;
+        transition: var(--transition);
+    }
+
+    .facet-change-link:hover {
+        text-decoration: underline;
+        color: var(--primary-hover, var(--primary-color));
+    }
+
+    .facet-fade-in {
+        animation: facetFade 0.2s ease-out;
+    }
+
+    @keyframes facetFade {
+        from {
+            opacity: 0;
+            transform: translateY(4px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
 </style>
 ";
+
+// Faceted search: dynamic filter data with safe fallbacks (backend contract)
+$facetSuppress = $filter_options['suppress'] ?? [];
+$facetAutori = array_values($filter_options['autori'] ?? []);
+$facetMediaTypes = array_values($filter_options['media_types'] ?? []);
+$facetAnnoBounds = $filter_options['anno_bounds'] ?? [];
+$yearMinBound = (int)($facetAnnoBounds['min'] ?? 1900);
+$yearMaxBound = (int)($facetAnnoBounds['max'] ?? (int)date('Y'));
+if ($yearMaxBound < $yearMinBound) {
+    $yearMaxBound = $yearMinBound;
+}
+$selectedAutoreId = (int)($filters['autore_id'] ?? 0);
+$hideEditoreSection = !empty($facetSuppress['editore']) && ($filters['editore'] ?? '') === '';
+$hideAutoreSection = !empty($facetSuppress['autore']) && $selectedAutoreId <= 0;
+$hideMediaSection = !empty($facetSuppress['tipo_media']) && (string)($filters['tipo_media'] ?? '') === '';
+$hideAnnoSection = !empty($facetSuppress['anno']) && empty($filters['anno_min']) && empty($filters['anno_max']);
+$annoMinValue = max($yearMinBound, min($yearMaxBound, (int)($filters['anno_min'] ?? $yearMinBound)));
+$annoMaxValue = max($yearMinBound, min($yearMaxBound, (int)($filters['anno_max'] ?? $yearMaxBound)));
+if ($annoMaxValue < $annoMinValue) {
+    $annoMaxValue = $annoMinValue;
+}
 
 ob_start();
 ?>
@@ -1176,8 +1303,27 @@ ob_start();
                         </div>
                     </div>
 
+                    <!-- Authors -->
+                    <div class="filter-section" id="author-filter-section"<?= $hideAutoreSection ? ' style="display:none"' : '' ?>>
+                        <div class="filter-title">
+                            <i class="fas fa-feather"></i>
+                            <?= __("Autori") ?>
+                        </div>
+                        <div class="filter-options" id="authors-filter">
+                            <?php foreach($facetAutori as $autore): ?>
+                                <a href="#"
+                                   class="filter-option count <?= $selectedAutoreId === (int)$autore['id'] ? 'active' : '' ?>"
+                                   onclick="updateFilter('autore_id', <?= (int)$autore['id'] ?>); return false;"
+                                   title="<?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?>">
+                                    <span><?= htmlspecialchars((string)$autore['nome'], ENT_QUOTES, 'UTF-8') ?></span>
+                                    <span class="count-badge"><?= (int)$autore['cnt'] ?></span>
+                                </a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+
                     <!-- Genres -->
-                    <div class="filter-section">
+                    <div class="filter-section" id="genre-filter-section"<?= !empty($facetSuppress['genere']) && empty($filters['genere_id']) ? ' style="display:none;"' : '' ?>>
                         <div class="filter-title">
                             <i class="fas fa-tags"></i>
                             <?= __("Generi") ?>
@@ -1229,7 +1375,7 @@ ob_start();
                     </div>
 
                     <!-- Publishers -->
-                    <div class="filter-section">
+                    <div class="filter-section" id="publisher-filter-section"<?= $hideEditoreSection ? ' style="display:none"' : '' ?>>
                         <div class="filter-title">
                             <i class="fas fa-building"></i>
                             <?= __("Editori") ?>
@@ -1300,66 +1446,70 @@ ob_start();
                         </div>
                     </div>
 
-                    <!-- Media Type -->
-                    <div class="filter-section">
+                    <!-- Media Type (dynamic from backend media_types) -->
+                    <div class="filter-section" id="media-filter-section"<?= $hideMediaSection ? ' style="display:none"' : '' ?>>
                         <div class="filter-title">
                             <i class="fas fa-compact-disc"></i>
                             <?= __("Tipo Media") ?>
                         </div>
-                        <div class="filter-options">
+                        <div class="filter-options" id="media-types-filter">
                           <?php
-                          $currentTipo = $filters['tipo_media'] ?? '';
-                          $tipoFilters = ['' => ['icon' => 'fa-th-large', 'label' => __('Tutti i media')]];
-                          foreach (\App\Support\MediaLabels::allTypes() as $tmValue => $tmMeta) {
-                              $tipoFilters[$tmValue] = ['icon' => $tmMeta['icon'], 'label' => __($tmMeta['label'])];
-                          }
-                          foreach ($tipoFilters as $tmValue => $tmInfo):
-                            $isActive = $currentTipo === (string)$tmValue;
+                          $currentTipo = (string)($filters['tipo_media'] ?? '');
+                          foreach ($facetMediaTypes as $mt):
+                            $mtValue = (string)($mt['value'] ?? '');
+                            $mtLabel = (string)($mt['label'] ?? $mtValue);
+                            $mtIcon = (string)($mt['icon'] ?? '');
+                            if (!preg_match('/^fa-[a-z0-9-]+$/i', $mtIcon)) {
+                                $mtIcon = 'fa-circle';
+                            }
+                            $mtCnt = (int)($mt['cnt'] ?? 0);
+                            $isActive = $currentTipo !== '' && $currentTipo === $mtValue;
                           ?>
                             <a href="#"
-                               class="filter-option <?= $isActive ? 'active' : '' ?>"
-                               onclick="updateFilter('tipo_media', <?= htmlspecialchars(json_encode((string) $tmValue, JSON_HEX_TAG | JSON_HEX_APOS), ENT_QUOTES, 'UTF-8') ?>); return false;">
-                              <i class="fas <?= htmlspecialchars((string)$tmInfo['icon'], ENT_QUOTES, 'UTF-8') ?> me-1"></i>
-                              <?= htmlspecialchars((string)$tmInfo['label'], ENT_QUOTES, 'UTF-8') ?>
+                               class="filter-option count <?= $isActive ? 'active' : '' ?>"
+                               onclick="updateFilter('tipo_media', <?= htmlspecialchars(json_encode($mtValue, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8') ?>); return false;"
+                               title="<?= htmlspecialchars($mtLabel, ENT_QUOTES, 'UTF-8') ?>">
+                              <span><i class="fas <?= htmlspecialchars($mtIcon, ENT_QUOTES, 'UTF-8') ?> me-1"></i><?= htmlspecialchars($mtLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                              <span class="count-badge"><?= $mtCnt ?></span>
                             </a>
                           <?php endforeach; ?>
                         </div>
                     </div>
 
-                    <!-- Year Range -->
-                    <div class="filter-section">
+                    <!-- Year Range (dynamic bounds from backend anno_bounds) -->
+                    <div class="filter-section" id="year-filter-section"<?= $hideAnnoSection ? ' style="display:none"' : '' ?>>
                         <div class="filter-title">
                             <i class="fas fa-calendar-alt"></i>
                             <?= __("Anno di pubblicazione") ?>
                         </div>
                         <div class="year-range">
                             <div class="year-range-label">
-                                <span>1900</span>
-                                <span><?= date('Y') ?></span>
+                                <span id="year-bound-min-label"><?= $yearMinBound ?></span>
+                                <span id="year-bound-max-label"><?= $yearMaxBound ?></span>
                             </div>
                             <div class="year-slider-container">
                                 <div class="year-slider-track" id="year-track"></div>
                                 <input type="range"
                                        id="year-min"
                                        class="year-slider"
-                                       min="1900"
-                                       max="<?= date('Y') ?>"
-                                       value="<?= $filters['anno_min'] ?? 1900 ?>"
+                                       min="<?= $yearMinBound ?>"
+                                       max="<?= $yearMaxBound ?>"
+                                       value="<?= $annoMinValue ?>"
                                        oninput="updateYearRange()">
                                 <input type="range"
                                        id="year-max"
                                        class="year-slider"
-                                       min="1900"
-                                       max="<?= date('Y') ?>"
-                                       value="<?= $filters['anno_max'] ?? date('Y') ?>"
+                                       min="<?= $yearMinBound ?>"
+                                       max="<?= $yearMaxBound ?>"
+                                       value="<?= $annoMaxValue ?>"
                                        oninput="updateYearRange()">
                             </div>
                             <div class="year-values">
-                                <span class="year-value" id="year-min-value"><?= $filters['anno_min'] ?? 1900 ?></span>
+                                <span class="year-value" id="year-min-value"><?= $annoMinValue ?></span>
                                 <button type="button" class="year-reset" onclick="resetYearRange()" title="<?= __("Reset anni") ?>">
                                     <i class="fas fa-undo"></i>
                                 </button>
-                                <span class="year-value" id="year-max-value"><?= $filters['anno_max'] ?? date('Y') ?></span>
+                                <span class="year-value" id="year-max-value"><?= $annoMaxValue ?></span>
                             </div>
                         </div>
                     </div>
@@ -1491,6 +1641,8 @@ $i18nTranslations = [
     'anno_max' => __('Anno max'),
     'sort' => __('Ordinamento'),
     'tipo_media' => __('Tipo Media'),
+    'autore' => __('Autore'),
+    'cambia' => __('Cambia'),
 
     // Sort labels
     'newest' => __('Più recenti'),
@@ -1521,6 +1673,11 @@ $i18nJson = json_encode($i18nTranslations, JSON_UNESCAPED_UNICODE | JSON_UNESCAP
 $catalogRouteJs = json_encode($catalogRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 $apiCatalogRouteJs = json_encode($apiCatalogRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG);
 $currentGenreNameJs = json_encode(isset($genre_display['selectedGenre']) ? $genre_display['selectedGenre']['nome'] : '', JSON_HEX_TAG);
+$facetJsonFlags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG;
+$autoriJson = json_encode($facetAutori, $facetJsonFlags) ?: '[]';
+$mediaTypesJson = json_encode($facetMediaTypes, $facetJsonFlags) ?: '[]';
+$editoriJson = json_encode(array_values($filter_options['editori'] ?? []), $facetJsonFlags) ?: '[]';
+$suppressJson = json_encode($facetSuppress, $facetJsonFlags) ?: '{}';
 
 $additional_js = <<<JS
 <script>
@@ -1534,6 +1691,16 @@ let searchTimeout;
 let loadingTimeout;
 let currentGenreName = {$currentGenreNameJs};
 const CURRENT_YEAR = {$currentYear};
+
+// Faceted search state (dynamic data from filter_options, refreshed on each AJAX response)
+let YEAR_MIN = {$yearMinBound};
+let YEAR_MAX = {$yearMaxBound};
+let autoriData = {$autoriJson};
+let mediaTypesData = {$mediaTypesJson};
+let editoriData = {$editoriJson};
+let suppressData = {$suppressJson};
+const facetExpanded = {};       // key -> true when user clicked "Cambia" on a collapsed facet
+const facetOptionsRender = {};  // key -> options content (HTML string or render function)
 
 document.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1555,7 +1722,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateActiveFiltersDisplay();
     updateURL();
-    updateYearRange(false);
+    applyYearBounds(null);
+
+    // Apply collapse-on-select to the server-rendered genre list, then render the other facets
+    const genresInit = document.getElementById('genres-filter');
+    if (genresInit) {
+        applyFacetCollapse(genresInit, 'genere_id', genereSelectedLabel(), genresInit.innerHTML);
+    }
+    renderFacets();
 
     const initialPagination = {$initialPaginationJson};
     updatePagination(initialPagination);
@@ -1579,11 +1753,15 @@ function updateFilter(key, value) {
         }
     }
 
+    // A new selection (or a clear) always re-collapses that facet
+    facetExpanded[key] = false;
+
     currentFilters.page = 1;
     if (key === 'disponibilita') {
         syncAvailabilityActiveState();
     }
     updateActiveFiltersDisplay();
+    renderFacets();
     updateURL();
     loadBooks();
 }
@@ -1612,9 +1790,11 @@ function removeFilter(key) {
     if (key === 'genere_id') {
         currentGenreName = '';
     }
+    facetExpanded[key] = false;
     currentFilters.page = 1;
 
     updateActiveFiltersDisplay();
+    renderFacets();
     updateURL();
     loadBooks();
 }
@@ -1648,6 +1828,7 @@ function updateActiveFiltersDisplay() {
         search: i18n.search,
         genere_id: i18n.genere_id,
         editore: i18n.editore,
+        autore_id: i18n.autore,
         disponibilita: i18n.disponibilita,
         anno_min: i18n.anno_min,
         anno_max: i18n.anno_max,
@@ -1683,6 +1864,12 @@ function updateActiveFiltersDisplay() {
             displayValue = value === 'disponibile' ? i18n.disponibile : i18n.in_prestito;
         } else if (filterKey === 'genere_id') {
             displayValue = currentGenreName || value;
+        } else if (filterKey === 'autore_id') {
+            displayValue = autoreSelectedLabel() || value;
+        } else if (filterKey === 'tipo_media') {
+            displayValue = mediaSelectedLabel() || value;
+        } else if (filterKey === 'editore') {
+            displayValue = decodeHtmlEntities(String(value));
         }
 
         const tag = document.createElement('span');
@@ -1865,7 +2052,7 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                 html += '<span class="count-badge">' + gen.cnt + '</span>';
                 html += '</a>';
             });
-            genresContainer.innerHTML = html;
+            applyFacetCollapse(genresContainer, 'genere_id', genereSelectedLabel(), html);
         }
     } else if (filterOptions.generi) {
         // Fallback: if genre_display not provided, use old method (for backwards compatibility)
@@ -1894,41 +2081,29 @@ function updateFilterOptions(filterOptions, genreDisplay) {
                     }
                 }
             });
-            genresContainer.innerHTML = html;
+            applyFacetCollapse(genresContainer, 'genere_id', genereSelectedLabel(), html);
         }
     }
 
-    // Update publishers — build via DOM API instead of innerHTML to avoid
-    // stored XSS (CR R6 / Bug-hunt #2-1). Publisher names can contain quotes
-    // or HTML-meaningful chars and were previously interpolated directly into
-    // an inline onclick attribute. Using createElement + addEventListener
-    // keeps name as text-only and fully bypasses HTML parsing.
+    // Refresh facet data from the API response, then re-render all facets
+    // (publishers/authors/media are built via DOM API — textContent only —
+    // to avoid stored XSS from names containing quotes/HTML chars).
     if (filterOptions.editori) {
-        const publishersContainer = document.getElementById('publishers-filter');
-        if (publishersContainer) {
-            publishersContainer.replaceChildren();
-            filterOptions.editori.forEach(ed => {
-                if ((ed.cnt ?? 0) > 0) {
-                    const decodedName = decodeHtmlEntities(ed.nome);
-                    const a = document.createElement('a');
-                    a.href = '#';
-                    a.className = 'filter-option count' + (currentFilters.editore === ed.nome ? ' active' : '');
-                    a.dataset.editore = ed.nome;
-                    a.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        updateFilter('editore', a.dataset.editore);
-                    });
-                    const labelSpan = document.createElement('span');
-                    labelSpan.textContent = decodedName;
-                    const countSpan = document.createElement('span');
-                    countSpan.className = 'count-badge';
-                    countSpan.textContent = String(ed.cnt);
-                    a.append(labelSpan, countSpan);
-                    publishersContainer.append(a);
-                }
-            });
-        }
+        editoriData = filterOptions.editori;
     }
+    if (filterOptions.autori) {
+        autoriData = filterOptions.autori;
+    }
+    if (filterOptions.media_types) {
+        mediaTypesData = filterOptions.media_types;
+    }
+    if (filterOptions.suppress) {
+        suppressData = filterOptions.suppress;
+    }
+    if (filterOptions.anno_bounds) {
+        applyYearBounds(filterOptions.anno_bounds);
+    }
+    renderFacets();
 
     // Update availability counts
     if (filterOptions.availability_stats) {
@@ -1941,6 +2116,281 @@ function updateFilterOptions(filterOptions, genreDisplay) {
         if (borrowedCount) borrowedCount.textContent = filterOptions.availability_stats.borrowed.toLocaleString();
         syncAvailabilityActiveState();
     }
+}
+
+// ---------------------------------------------------------------------------
+// Faceted search helpers: collapse-on-select, suppression, dynamic rendering
+// ---------------------------------------------------------------------------
+
+function facetLabel(key) {
+    const labels = {
+        editore: i18n.editore,
+        autore_id: i18n.autore,
+        genere_id: i18n.genere_id,
+        tipo_media: i18n.tipo_media,
+    };
+    return labels[key] || key;
+}
+
+function editoreSelectedLabel() {
+    return currentFilters.editore ? decodeHtmlEntities(String(currentFilters.editore)) : '';
+}
+
+function autoreSelectedLabel() {
+    const id = parseInt(currentFilters.autore_id, 10);
+    if (Number.isNaN(id)) {
+        return '';
+    }
+    const found = (autoriData || []).find((au) => parseInt(au.id, 10) === id);
+    return found ? String(found.nome) : String(currentFilters.autore_id);
+}
+
+function mediaSelectedLabel() {
+    const value = String(currentFilters.tipo_media || '');
+    if (value === '') {
+        return '';
+    }
+    const found = (mediaTypesData || []).find((mt) => String(mt.value) === value);
+    return found ? String(found.label) : value;
+}
+
+function genereSelectedLabel() {
+    return currentGenreName || String(currentFilters.genere_id || '');
+}
+
+// Shared collapse-on-select: when the facet has a selected value, replace the
+// option list with a compact pill ("Label: Value" + clear button) and a small
+// "Cambia" link that re-expands the scoped options on demand.
+// optionsContent is an HTML string (already escaped) OR a function(container).
+function applyFacetCollapse(sectionEl, key, selectedLabel, optionsContent) {
+    if (!sectionEl) {
+        return;
+    }
+    facetOptionsRender[key] = optionsContent;
+
+    const hasSelection = !!currentFilters[key];
+    if (hasSelection && !facetExpanded[key]) {
+        renderCollapsedPill(sectionEl, key, selectedLabel);
+    } else {
+        renderFacetOptions(sectionEl, key);
+    }
+}
+
+function renderFacetOptions(container, key) {
+    const content = facetOptionsRender[key];
+    container.classList.remove('facet-is-collapsed'); // restore scroll box + border
+    if (typeof content === 'function') {
+        container.replaceChildren();
+        content(container);
+    } else {
+        container.innerHTML = content || '';
+    }
+    container.classList.remove('facet-fade-in');
+    void container.offsetWidth; // restart animation
+    container.classList.add('facet-fade-in');
+}
+
+function renderCollapsedPill(container, key, selectedLabel) {
+    container.replaceChildren();
+    container.classList.add('facet-is-collapsed'); // single pill: no scroll box / border
+
+    const pill = document.createElement('div');
+    pill.className = 'facet-collapsed';
+
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'facet-collapsed-label';
+    labelSpan.textContent = facetLabel(key) + ': ' + (selectedLabel || '');
+    labelSpan.title = String(selectedLabel || '');
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'facet-collapsed-remove';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.title = i18n.rimuovi_filtro;
+    removeBtn.setAttribute('aria-label', i18n.rimuovi_filtro);
+    removeBtn.addEventListener('click', () => {
+        facetExpanded[key] = false;
+        updateFilter(key, key === 'genere_id' || key === 'autore_id' ? 0 : '');
+    });
+
+    pill.append(labelSpan, removeBtn);
+
+    const changeLink = document.createElement('a');
+    changeLink.href = '#';
+    changeLink.className = 'facet-change-link';
+    changeLink.textContent = i18n.cambia;
+    changeLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        facetExpanded[key] = true;
+        renderFacetOptions(container, key);
+    });
+
+    container.append(pill, changeLink);
+    container.classList.remove('facet-fade-in');
+    void container.offsetWidth;
+    container.classList.add('facet-fade-in');
+}
+
+function buildPublisherOptions(container) {
+    (editoriData || []).forEach((ed) => {
+        if ((ed.cnt ?? 0) <= 0) {
+            return;
+        }
+        const decodedName = decodeHtmlEntities(String(ed.nome));
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'filter-option count' + (currentFilters.editore === ed.nome ? ' active' : '');
+        a.dataset.editore = ed.nome;
+        a.title = decodedName;
+        a.addEventListener('click', (e) => {
+            e.preventDefault();
+            updateFilter('editore', a.dataset.editore);
+        });
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = decodedName;
+        const countSpan = document.createElement('span');
+        countSpan.className = 'count-badge';
+        countSpan.textContent = String(ed.cnt);
+        a.append(labelSpan, countSpan);
+        container.append(a);
+    });
+}
+
+function buildAuthorOptions(container) {
+    (autoriData || []).forEach((au) => {
+        if ((au.cnt ?? 0) <= 0) {
+            return;
+        }
+        const id = parseInt(au.id, 10);
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'filter-option count' + (parseInt(currentFilters.autore_id, 10) === id ? ' active' : '');
+        a.title = String(au.nome);
+        a.addEventListener('click', (e) => {
+            e.preventDefault();
+            updateFilter('autore_id', id);
+        });
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = String(au.nome);
+        const countSpan = document.createElement('span');
+        countSpan.className = 'count-badge';
+        countSpan.textContent = String(au.cnt);
+        a.append(labelSpan, countSpan);
+        container.append(a);
+    });
+}
+
+function buildMediaTypeOptions(container) {
+    (mediaTypesData || []).forEach((mt) => {
+        if ((mt.cnt ?? 0) <= 0) {
+            return;
+        }
+        const value = String(mt.value ?? '');
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'filter-option count' + (String(currentFilters.tipo_media || '') === value && value !== '' ? ' active' : '');
+        a.title = String(mt.label ?? value);
+        a.addEventListener('click', (e) => {
+            e.preventDefault();
+            updateFilter('tipo_media', value);
+        });
+        const labelSpan = document.createElement('span');
+        const icon = document.createElement('i');
+        const iconName = /^fa-[a-z0-9-]+$/i.test(String(mt.icon || '')) ? String(mt.icon) : 'fa-circle';
+        icon.className = 'fas ' + iconName + ' me-1';
+        labelSpan.append(icon, document.createTextNode(String(mt.label ?? value)));
+        const countSpan = document.createElement('span');
+        countSpan.className = 'count-badge';
+        countSpan.textContent = String(mt.cnt);
+        a.append(labelSpan, countSpan);
+        container.append(a);
+    });
+}
+
+// Re-render the editore/autore/tipo_media facets (collapse-aware) and apply
+// suppression of noise facets. The genere facet is handled by
+// updateFilterOptions (it depends on genre_display drill-down data).
+function renderFacets() {
+    const publishers = document.getElementById('publishers-filter');
+    if (publishers) {
+        applyFacetCollapse(publishers, 'editore', editoreSelectedLabel(), buildPublisherOptions);
+    }
+    const authors = document.getElementById('authors-filter');
+    if (authors) {
+        applyFacetCollapse(authors, 'autore_id', autoreSelectedLabel(), buildAuthorOptions);
+    }
+    const mediaTypes = document.getElementById('media-types-filter');
+    if (mediaTypes) {
+        applyFacetCollapse(mediaTypes, 'tipo_media', mediaSelectedLabel(), buildMediaTypeOptions);
+    }
+    applySuppression();
+}
+
+// Hide a whole facet section when the backend marks it as noise
+// (<= 1 reachable value) AND it is not currently selected.
+function applySuppression() {
+    const sectionMap = {
+        genere: 'genre-filter-section',
+        editore: 'publisher-filter-section',
+        autore: 'author-filter-section',
+        tipo_media: 'media-filter-section',
+        anno: 'year-filter-section',
+    };
+    const selectedMap = {
+        genere: !!currentFilters.genere_id,
+        editore: !!currentFilters.editore,
+        autore: !!currentFilters.autore_id,
+        tipo_media: !!currentFilters.tipo_media,
+        anno: !!(currentFilters.anno_min || currentFilters.anno_max),
+    };
+    Object.keys(sectionMap).forEach((key) => {
+        const section = document.getElementById(sectionMap[key]);
+        if (!section) {
+            return;
+        }
+        const hide = !!(suppressData && suppressData[key]) && !selectedMap[key];
+        section.style.display = hide ? 'none' : '';
+    });
+}
+
+// Clamp the year sliders to the real data range (anno_bounds) — never beyond.
+function applyYearBounds(bounds) {
+    if (bounds) {
+        const boundMin = parseInt(bounds.min, 10);
+        const boundMax = parseInt(bounds.max, 10);
+        if (!Number.isNaN(boundMin)) {
+            YEAR_MIN = boundMin;
+        }
+        if (!Number.isNaN(boundMax)) {
+            YEAR_MAX = boundMax;
+        }
+    }
+    if (YEAR_MAX < YEAR_MIN) {
+        YEAR_MAX = YEAR_MIN;
+    }
+
+    const minSlider = document.getElementById('year-min');
+    const maxSlider = document.getElementById('year-max');
+    if (!minSlider || !maxSlider) {
+        return;
+    }
+
+    minSlider.min = YEAR_MIN;
+    minSlider.max = YEAR_MAX;
+    maxSlider.min = YEAR_MIN;
+    maxSlider.max = YEAR_MAX;
+
+    const filterMin = parseInt(currentFilters.anno_min, 10);
+    const filterMax = parseInt(currentFilters.anno_max, 10);
+    minSlider.value = Number.isNaN(filterMin) ? YEAR_MIN : Math.min(Math.max(filterMin, YEAR_MIN), YEAR_MAX);
+    maxSlider.value = Number.isNaN(filterMax) ? YEAR_MAX : Math.min(Math.max(filterMax, YEAR_MIN), YEAR_MAX);
+
+    const minBoundLabel = document.getElementById('year-bound-min-label');
+    const maxBoundLabel = document.getElementById('year-bound-max-label');
+    if (minBoundLabel) minBoundLabel.textContent = YEAR_MIN;
+    if (maxBoundLabel) maxBoundLabel.textContent = YEAR_MAX;
+
+    updateYearRange(false);
 }
 
 function escapeHtml(text) {
@@ -1982,20 +2432,21 @@ function updateYearRange(updateFilters = true) {
     minValue.textContent = min;
     maxValue.textContent = max;
 
-    const minPercent = ((min - 1900) / (CURRENT_YEAR - 1900)) * 100;
-    const maxPercent = ((max - 1900) / (CURRENT_YEAR - 1900)) * 100;
+    const span = Math.max(1, YEAR_MAX - YEAR_MIN);
+    const minPercent = ((min - YEAR_MIN) / span) * 100;
+    const maxPercent = ((max - YEAR_MIN) / span) * 100;
 
-    track.style.left = minPercent + '%';
-    track.style.width = (maxPercent - minPercent) + '%';
+    track.style.left = Math.max(0, minPercent) + '%';
+    track.style.width = Math.max(0, maxPercent - minPercent) + '%';
 
     if (updateFilters) {
-        if (min !== 1900) {
+        if (min !== YEAR_MIN) {
             currentFilters.anno_min = min.toString();
         } else {
             delete currentFilters.anno_min;
         }
 
-        if (max !== CURRENT_YEAR) {
+        if (max !== YEAR_MAX) {
             currentFilters.anno_max = max.toString();
         } else {
             delete currentFilters.anno_max;
@@ -2016,13 +2467,14 @@ function resetYearRange() {
         return;
     }
 
-    minSlider.value = 1900;
-    maxSlider.value = CURRENT_YEAR;
+    minSlider.value = YEAR_MIN;
+    maxSlider.value = YEAR_MAX;
 
     delete currentFilters.anno_min;
     delete currentFilters.anno_max;
 
-    updateYearRange();
+    updateYearRange(false);
+    currentFilters.page = 1;
     updateActiveFiltersDisplay();
     updateURL();
     loadBooks();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Support\Updater;
+use App\Support\BackupManager;
 use App\Support\Csrf;
 use App\Support\SecureLogger;
 use mysqli;
@@ -34,6 +35,9 @@ class UpdateController
 
         $githubTokenMasked = $updater->getGitHubTokenMasked();
         $hasGithubToken = $updater->hasGitHubToken();
+
+        $backupIncludeFiles = (new \App\Models\SettingsRepository($db))
+            ->get('backup', 'pre_update_include_files', '0') === '1';
 
         ob_start();
         require __DIR__ . '/../Views/admin/updates.php';
@@ -117,8 +121,11 @@ class UpdateController
      */
     public function createBackup(Request $request, Response $response, mysqli $db): Response
     {
-        // Admin-only access check removed
-
+        // Destructive/resource-heavy → admin-only (AdminAuthMiddleware also lets
+        // staff through, so re-check here, like restoreBackup/uploadRestore).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
 
         // Verify CSRF token
         $data = (array) $request->getParsedBody();
@@ -128,14 +135,14 @@ class UpdateController
             return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
         }
 
-        $updater = new Updater($db);
-        $result = $updater->createBackup();
+        $scope = (($data['scope'] ?? 'full') === 'db') ? 'db' : 'full';
+        $result = (new BackupManager($db, dirname(__DIR__, 2)))->createBackup($scope);
 
         if ($result['success']) {
             return $this->jsonResponse($response, [
                 'success' => true,
                 'message' => __('Backup creato con successo'),
-                'path' => $result['path']
+                'name' => $result['name']
             ]);
         }
 
@@ -187,8 +194,7 @@ class UpdateController
     {
 
 
-        $updater = new Updater($db);
-        $backups = $updater->getBackupList();
+        $backups = (new BackupManager($db, dirname(__DIR__, 2)))->listBackups();
 
         return $this->jsonResponse($response, ['backups' => $backups]);
     }
@@ -198,7 +204,10 @@ class UpdateController
      */
     public function deleteBackup(Request $request, Response $response, mysqli $db): Response
     {
-
+        // Destructive (removes a recovery point) → admin-only re-check.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
 
         $data = (array) $request->getParsedBody();
         $csrfToken = $data['csrf_token'] ?? '';
@@ -212,8 +221,7 @@ class UpdateController
             return $this->jsonResponse($response, ['error' => __('Nome backup non specificato')], 400);
         }
 
-        $updater = new Updater($db);
-        $result = $updater->deleteBackup($backupName);
+        $result = (new BackupManager($db, dirname(__DIR__, 2)))->deleteBackup($backupName);
 
         if ($result['success']) {
             return $this->jsonResponse($response, [
@@ -233,30 +241,156 @@ class UpdateController
      */
     public function downloadBackup(Request $request, Response $response, mysqli $db): Response
     {
-
+        // Exfiltrates a full DB+uploads archive → admin-only re-check. The other
+        // error branches here already return JSON, so a 403 JSON body is consistent.
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
 
         $backupName = $request->getQueryParams()['backup'] ?? '';
         if (empty($backupName)) {
             return $this->jsonResponse($response, ['error' => __('Nome backup non specificato')], 400);
         }
 
-        $updater = new Updater($db);
-        $result = $updater->getBackupDownloadPath($backupName);
-
+        $result = (new BackupManager($db, dirname(__DIR__, 2)))->getDownloadPath($backupName);
         if (!$result['success']) {
             return $this->jsonResponse($response, ['error' => $result['error']], 404);
         }
 
-        $content = file_get_contents($result['path']);
-        if ($content === false) {
+        // Stream the file instead of loading it into memory — backups can be large.
+        $handle = fopen((string) $result['path'], 'rb');
+        if ($handle === false) {
             return $this->jsonResponse($response, ['error' => __('Impossibile leggere il file di backup')], 500);
         }
+        $size = filesize((string) $result['path']);
 
-        $response->getBody()->write($content);
         return $response
-            ->withHeader('Content-Type', 'application/sql')
+            ->withBody(new \Slim\Psr7\Stream($handle))
+            ->withHeader('Content-Type', (string) $result['mime'])
             ->withHeader('Content-Disposition', 'attachment; filename="' . $result['filename'] . '"')
-            ->withHeader('Content-Length', (string) strlen($content));
+            ->withHeader('Content-Length', (string) ($size === false ? 0 : $size));
+    }
+
+    /**
+     * Restore a stored backup (database + uploaded files). Destructive →
+     * admin-only (AdminAuthMiddleware also lets staff through, so re-check here).
+     */
+    public function restoreBackup(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
+        $data = (array) $request->getParsedBody();
+        if (!Csrf::validate($data['csrf_token'] ?? '')) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $backupName = $data['backup'] ?? '';
+        if (empty($backupName)) {
+            return $this->jsonResponse($response, ['error' => __('Nome backup non specificato')], 400);
+        }
+
+        $result = (new BackupManager($db, dirname(__DIR__, 2)))->restoreFromBackup((string) $backupName);
+
+        if ($result['success']) {
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'message' => __('Ripristino completato'),
+                'safety_backup' => $result['safety_backup'],
+            ]);
+        }
+        return $this->jsonResponse($response, [
+            'success' => false,
+            'error' => $result['error'],
+            'partial' => $result['partial'] ?? false,
+            'restored_phase' => $result['restored_phase'] ?? null,
+            'safety_backup' => $result['safety_backup'] ?? null,
+        ], $this->restoreFailureStatus($result));
+    }
+
+    /**
+     * Restore from an uploaded backup ZIP. Destructive → admin-only.
+     */
+    public function uploadRestore(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
+        $data = (array) $request->getParsedBody();
+        if (!Csrf::validate($data['csrf_token'] ?? '')) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $files = $request->getUploadedFiles();
+        $upload = $files['backup_file'] ?? null;
+        if (!$upload instanceof \Psr\Http\Message\UploadedFileInterface || $upload->getError() !== UPLOAD_ERR_OK) {
+            return $this->jsonResponse($response, ['error' => __('Nessun file caricato')], 400);
+        }
+
+        // Reject an over-cap upload BEFORE moving it to disk, so a 2 GB+ file can't
+        // exhaust storage just to be rejected. restoreFromUploadedZip keeps the
+        // post-move check as a backstop (getSize() can be null/spoofed).
+        $earlySize = $upload->getSize();
+        if ($earlySize !== null && $earlySize > \App\Support\BackupManager::MAX_UPLOAD_BYTES) {
+            // 413 here for consistency with restoreFailureStatus(), which maps
+            // the same BackupManager message to 413 on the post-move check.
+            return $this->jsonResponse($response, ['error' => __('File di backup troppo grande')], 413);
+        }
+
+        $tmpDir = dirname(__DIR__, 2) . '/storage/tmp';
+        if (!is_dir($tmpDir)) {
+            @mkdir($tmpDir, 0755, true);
+        }
+        $tmpPath = $tmpDir . '/restore_' . bin2hex(random_bytes(6)) . '.zip';
+        try {
+            $upload->moveTo($tmpPath);
+        } catch (\Throwable $e) {
+            return $this->jsonResponse($response, ['error' => __('Impossibile salvare il file caricato')], 500);
+        }
+
+        $size = (int) ($upload->getSize() ?? (filesize($tmpPath) ?: 0));
+        $result = (new BackupManager($db, dirname(__DIR__, 2)))->restoreFromUploadedZip($tmpPath, $size);
+        if (is_file($tmpPath)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- internally-generated storage/tmp path, not user input
+            @unlink($tmpPath);
+        }
+
+        if ($result['success']) {
+            return $this->jsonResponse($response, [
+                'success' => true,
+                'message' => __('Ripristino completato'),
+                'safety_backup' => $result['safety_backup'],
+            ]);
+        }
+        return $this->jsonResponse($response, [
+            'success' => false,
+            'error' => $result['error'],
+            'partial' => $result['partial'] ?? false,
+            'restored_phase' => $result['restored_phase'] ?? null,
+            'safety_backup' => $result['safety_backup'] ?? null,
+        ], $this->restoreFailureStatus($result));
+    }
+
+    /**
+     * Persist the "include uploaded files in the pre-update backup" setting.
+     */
+    public function saveBackupSettings(Request $request, Response $response, mysqli $db): Response
+    {
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
+        $data = (array) $request->getParsedBody();
+        if (!Csrf::validate($data['csrf_token'] ?? '')) {
+            return $this->jsonResponse($response, ['error' => __('Token CSRF non valido')], 403);
+        }
+
+        $value = (($data['include_files'] ?? '0') === '1') ? '1' : '0';
+        (new \App\Models\SettingsRepository($db))->set('backup', 'pre_update_include_files', $value);
+
+        return $this->jsonResponse($response, ['success' => true]);
     }
 
     /**
@@ -278,6 +412,7 @@ class UpdateController
         $maintenanceFile = dirname(__DIR__, 2) . '/storage/.maintenance';
 
         if (file_exists($maintenanceFile)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- constant internal path (storage/.maintenance), not user input
             if (@unlink($maintenanceFile)) {
                 error_log("[Updater] Maintenance mode cleared manually by admin user " . ($_SESSION['user']['id'] ?? 'unknown'));
                 return $this->jsonResponse($response, [
@@ -520,6 +655,30 @@ class UpdateController
                 'error' => __('Errore nel salvataggio del token')
             ], 500);
         }
+    }
+
+    /**
+     * Helper: map a failed BackupManager restore result to an HTTP status.
+     * User/input errors get a 4xx so clients can tell them apart from server
+     * faults; anything unrecognized — and every partial restore (the DB was
+     * already replaced, so the failure is server-side by definition) — stays
+     * 500. The matched strings are the exact messages BackupManager returns.
+     *
+     * @param array<string, mixed> $result
+     */
+    private function restoreFailureStatus(array $result): int
+    {
+        if (!empty($result['partial'])) {
+            return 500;
+        }
+        return match ((string) ($result['error'] ?? '')) {
+            __('Backup non valido per il ripristino'),
+            __('Nessun file caricato'),
+            __('Archivio di backup non valido') => 400,
+            __('File di backup troppo grande') => 413,
+            __('Un ripristino o aggiornamento è già in corso. Riprova tra poco.') => 409,
+            default => 500,
+        };
     }
 
     /**

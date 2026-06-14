@@ -829,11 +829,22 @@ class LibriController
         $numPagineRaw = $fields['numero_pagine'] ?? null;
         $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $fields['numero_pagine'] = ($numPagine === false) ? null : $numPagine;
+        // The form posts the same scraped URL in both copertina_url and
+        // scraped_cover_url; this flag lets the scraped-cover branch skip the
+        // redundant second download that would orphan a file on disk (#F009).
+        $scrapedCoverAlreadySaved = false;
         if ($fields['copertina_url'] === '' || $fields['copertina_url'] === null) {
             $fields['copertina_url'] = null;
         } else {
             // Auto-download external cover URLs
+            $originalCoverUrl = (string) $fields['copertina_url'];
             $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
+            if (is_string($fields['copertina_url'])
+                && strpos($fields['copertina_url'], '/uploads/copertine/') === 0
+                && isset($data['scraped_cover_url'])
+                && (string) $data['scraped_cover_url'] === $originalCoverUrl) {
+                $scrapedCoverAlreadySaved = true;
+            }
         }
 
         // Ensure hierarchical consistency between genere_id (parent) and sottogenere_id (child)
@@ -1153,16 +1164,42 @@ class LibriController
                 $copyRepo->create($id, $numeroInventario, 'disponibile', $note);
             }
 
-            // Handle simple cover upload
-            if (!empty($_FILES['copertina']) && ($_FILES['copertina']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                $this->handleCoverUpload($db, $id, $_FILES['copertina']);
-            }
-            if (!empty($data['scraped_cover_url'])) {
-                $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
-            }
+            // Persist all fields first, then apply an explicitly chosen cover
+            // (file upload or scraped URL) on top so it isn't reverted by the
+            // field update (mirrors update(); see #165).
             // Optionals (numero_pagine, ean, data_pubblicazione, traduttore)
             // Merge normalized $fields over $data so NULL isbn/ean values are preserved
             (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
+            // The cover persisted just above may be a local file that
+            // downloadExternalCover() saved during this submit; capture it so
+            // it can be cleaned up if the branches below replace it (#F002).
+            $intermediateCover = (string) ($fields['copertina_url'] ?? '');
+
+            // Handle simple cover upload (wins over a scraped URL when both present)
+            $coverFileUploaded = false;
+            if (!empty($_FILES['copertina']) && ($_FILES['copertina']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                $this->handleCoverUpload($db, $id, $_FILES['copertina']);
+                $coverFileUploaded = true;
+            }
+            // A pending cover removal (remove_cover=1) wins over a stale
+            // scraped_cover_url, mirroring update() for symmetry (#F007). A new
+            // book has no prior cover, so this is purely defensive on the create
+            // path. Reuse the same === '1' comparison as update()'s removal branch.
+            $removeCoverRequested = (isset($data['remove_cover']) && $data['remove_cover'] === '1');
+            if (!$coverFileUploaded && !$removeCoverRequested && !$scrapedCoverAlreadySaved && !empty($data['scraped_cover_url'])) {
+                $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
+            }
+
+            // A file upload (or a different scraped URL) above may have just
+            // replaced the cover that downloadExternalCover() saved during this
+            // same submit, leaving that intermediate file orphaned on disk
+            // (#F002). deleteLocalCoverFile() already no-ops when the
+            // intermediate IS the final cover (pure-scrape path) or isn't a
+            // local /uploads/copertine/ file.
+            if (!$removeCoverRequested) {
+                $finalCover = $this->currentCoverUrl($db, $id);
+                $this->deleteLocalCoverFile($intermediateCover, $finalCover);
+            }
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiunto con successo!');
@@ -1404,6 +1441,13 @@ class LibriController
         $numPagine = filter_var($numPagineRaw, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
         $fields['numero_pagine'] = ($numPagine === false) ? null : $numPagine;
 
+        // When a scraped cover is saved, the form posts the SAME external URL in
+        // both copertina_url and scraped_cover_url. downloadExternalCover() below
+        // already fetches+stores it locally; this flag lets the scraped-cover
+        // branch skip re-downloading the identical image, which otherwise leaves
+        // an orphaned file on disk and wastes a network round-trip (#F009).
+        $scrapedCoverAlreadySaved = false;
+
         // Gestione rimozione copertina
         if (isset($data['remove_cover']) && $data['remove_cover'] === '1') {
             // Cancella il file della copertina esistente se presente
@@ -1436,7 +1480,32 @@ class LibriController
             $fields['copertina_url'] = null;
         } else {
             // Auto-download external cover URLs
+            $originalCoverUrl = (string) $fields['copertina_url'];
             $fields['copertina_url'] = $this->downloadExternalCover($fields['copertina_url']);
+            // If the download produced a local file AND the scraped-cover branch
+            // would re-fetch the very same URL, mark it already saved so we don't
+            // download it twice and orphan the first file (#F009). When the domain
+            // isn't whitelisted, downloadExternalCover returns the URL unchanged
+            // (no local file) and the flag stays false, so handleCoverUrl() — with
+            // its own SSRF-guarded fetch — still runs and saves the cover.
+            if (is_string($fields['copertina_url'])
+                && strpos($fields['copertina_url'], '/uploads/copertine/') === 0
+                && isset($data['scraped_cover_url'])
+                && (string) $data['scraped_cover_url'] === $originalCoverUrl) {
+                $scrapedCoverAlreadySaved = true;
+            } elseif (is_string($fields['copertina_url'])
+                && $fields['copertina_url'] !== ''
+                && strpos($fields['copertina_url'], '/uploads/copertine/') !== 0) {
+                // #F006: downloadExternalCover() returned a RAW external URL — the
+                // download failed (non-whitelisted domain / SSRF block / HTTP/network
+                // error). Never repoint the book to a possibly-dead remote URL: keep
+                // the existing cover. A whitelisted scraped_cover_url, if present,
+                // still gets its own SSRF-guarded fetch via handleCoverUrl() below;
+                // if that can't fetch either, the current working cover stays.
+                $fields['copertina_url'] = ($currentBook['copertina_url'] ?? '') !== ''
+                    ? (string) $currentBook['copertina_url']
+                    : null;
+            }
         }
 
         // Ensure hierarchical consistency between genere_id and sottogenere_id also on update
@@ -1777,14 +1846,49 @@ class LibriController
             $integrity = new \App\Support\DataIntegrity($db);
             $integrity->recalculateBookAvailability($id);
 
-            if (!empty($_FILES['copertina']) && ($_FILES['copertina']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                $this->handleCoverUpload($db, $id, $_FILES['copertina']);
-            }
-            if (!empty($data['scraped_cover_url'])) {
-                $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
-            }
+            // Persist all fields first. An explicitly chosen NEW cover (a direct
+            // file upload, or a scraped / alternative URL) is then applied AFTER
+            // this update, so it replaces the existing cover in place instead of
+            // being reverted by it — no "save, remove the old cover, save again"
+            // dance to swap an auto-imported cover (#165).
             // Merge normalized $fields over $data so NULL isbn/ean values are preserved
             (new \App\Models\BookRepository($db))->updateOptionals($id, array_merge($data, $fields));
+            // The cover persisted just above may be a local file that
+            // downloadExternalCover() saved during this submit; capture it so
+            // the cleanup below can also remove it when a file upload or a
+            // different scraped URL replaces it (#F002).
+            $intermediateCover = (string) ($fields['copertina_url'] ?? '');
+
+            $coverFileUploaded = false;
+            if (!empty($_FILES['copertina']) && ($_FILES['copertina']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+                $this->handleCoverUpload($db, $id, $_FILES['copertina']);
+                $coverFileUploaded = true;
+            }
+            // A scraped / alternative cover URL applies only when the user did NOT
+            // upload a file in this submit — a direct upload is the explicit choice.
+            // A pending cover removal (remove_cover=1) also wins over a stale
+            // scraped_cover_url so the cover isn't silently re-added (#F007). Reuse
+            // the exact same comparison as the removal branch above (line 1419):
+            // match the string '1' explicitly — the hidden field defaults to '0',
+            // so a strict === check avoids any truthiness ambiguity.
+            $removeCoverRequested = (isset($data['remove_cover']) && $data['remove_cover'] === '1');
+            if (!$coverFileUploaded && !$removeCoverRequested && !$scrapedCoverAlreadySaved && !empty($data['scraped_cover_url'])) {
+                $this->handleCoverUrl($db, $id, (string) $data['scraped_cover_url']);
+            }
+
+            // Replacing a cover writes a new uniquely-named file and repoints the
+            // DB, leaving the previous local file orphaned (#166 review). Compare
+            // the cover captured before this update against the final one and
+            // delete the old local file when it actually changed. The remove_cover
+            // branch already unlinks its file, so skip it here.
+            if (!$removeCoverRequested) {
+                $finalCover = $this->currentCoverUrl($db, $id);
+                $this->deleteLocalCoverFile((string) ($currentBook['copertina_url'] ?? ''), $finalCover);
+                // Also clean up the intermediate file downloadExternalCover()
+                // saved during this submit when a file upload / scraped URL
+                // replaced it (#F002); no-ops when intermediate === final.
+                $this->deleteLocalCoverFile($intermediateCover, $finalCover);
+            }
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiornato con successo!');
@@ -2044,6 +2148,62 @@ class LibriController
             $this->logCoverDebug('handleCoverUpload.ok', ['bookId' => $bookId, 'stored' => $url]);
         } else {
             $this->logCoverDebug('handleCoverUpload.fail', ['bookId' => $bookId]);
+        }
+    }
+
+    /**
+     * Read the current local/remote cover URL for a book (empty string if none).
+     */
+    private function currentCoverUrl(mysqli $db, int $bookId): string
+    {
+        $stmt = $db->prepare('SELECT copertina_url FROM libri WHERE id=?');
+        if (!$stmt) {
+            return '';
+        }
+        $stmt->bind_param('i', $bookId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return (string) ($row['copertina_url'] ?? '');
+    }
+
+    /**
+     * Delete a previously-stored LOCAL cover file when it is being replaced.
+     * No-op for external URLs, empty values, or when the old path equals the
+     * new one. Uses the same realpath-containment guard as the remove-cover
+     * branch so it can only ever unlink inside public/uploads/copertine.
+     */
+    private function deleteLocalCoverFile(string $oldUrl, ?string $newUrl = null): void
+    {
+        if ($oldUrl === '' || strpos($oldUrl, '/uploads/copertine/') !== 0) {
+            return;
+        }
+        if ($newUrl !== null && $oldUrl === $newUrl) {
+            return;
+        }
+        // The replacement must itself be a DURABLE LOCAL file before the old
+        // one is removed: when the final cover is a raw external URL (the
+        // download bailed — non-whitelisted domain, SSRF block, network/HTTP
+        // error — and the raw URL was persisted) or the local file is missing,
+        // keep the old working cover. A harmless orphan on disk beats losing
+        // the only working cover to a possibly-dead remote URL (#F006).
+        if ($newUrl !== null
+            && (strpos($newUrl, '/uploads/copertine/') !== 0
+                || !file_exists(__DIR__ . '/../../public' . $newUrl))) {
+            return;
+        }
+        $safePath = realpath(__DIR__ . '/../../public' . $oldUrl);
+        $baseDir = realpath($this->getCoversUploadPath());
+        if ($safePath && $baseDir && strpos($safePath, $baseDir) === 0 && file_exists($safePath)) {
+            // nosemgrep: php.lang.security.unlink-use.unlink-use -- path confined by the realpath() containment check above, not user input
+            unlink($safePath);
+            $this->logCoverDebug('cover.old.deleted', ['path' => $oldUrl]);
+        } else {
+            $this->logCoverDebug('cover.old.delete.security_block', [
+                'requested' => $oldUrl,
+                'resolved' => $safePath,
+                'baseDir' => $baseDir,
+            ]);
         }
     }
 

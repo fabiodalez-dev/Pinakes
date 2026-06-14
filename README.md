@@ -34,6 +34,36 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.19
+
+### Faceted catalog filters ([#169](https://github.com/fabiodalez-dev/Pinakes/pull/169))
+
+The public catalog (`/catalogo`) filters were reworked to be clear and noise-free. Choosing a value **collapses** that facet to a removable pill and re-scopes the others; options that would return zero results disappear, single-value facets are suppressed, and the year range clamps to the data's real bounds. A new **Author** facet joins genres, publishers, media type and availability, long lists scroll internally with subtle borders, and everything is **theme-aware** (driven by the app's CSS variables).
+
+### Complete backup & restore ([#162](https://github.com/fabiodalez-dev/Pinakes/issues/162) / [#167](https://github.com/fabiodalez-dev/Pinakes/pull/167))
+
+A full backup system from **Admin → Updates/Maintenance**: it archives the database **and** the uploaded files, with a hash-verified, streaming restore (fail-loud staging/promotion, 4xx restore errors, admin-only download/delete). Restores replace the database content with the archive's — only restore trusted archives.
+
+### Scanner & cover fixes ([#164](https://github.com/fabiodalez-dev/Pinakes/issues/164) / [#165](https://github.com/fabiodalez-dev/Pinakes/issues/165))
+
+The ISBN scanner now commits on **Enter** even when a partial prefix matches an existing entry, and book-cover replacement is a single step (no dead links left when an external cover can't be downloaded).
+
+### Install & operations robustness
+
+- **cPanel install fix:** when the document root is the project root (a very common shared-hosting layout), the installer now self-heals the root `.htaccess` so routing and all assets work even though cPanel's File Manager hides the dotfile during extraction. No manual step required.
+- **`/chi-siamo` (and localized CMS pages)** resolve reliably: the CMS page lookup tolerates a row seeded with a different-locale slug.
+- **Login rate limit** relaxed from 5 to **15 attempts / 5 min** — far fewer accidental lockouts during setup, still bounded against brute force.
+
+### UI polish
+
+The book page "Cerca su" external-search block moved to its own row (no longer crammed in with the action buttons), genre breadcrumb separators are vertically aligned, and the related-book availability/eBook badges no longer overlap. Bundled plugin **goodlib** bumped to 1.0.1 (ships to new installs and is overwritten on upgrade).
+
+### Testing
+
+A 32-point regression suite covers the scanner/cover and backup/restore work ([#168](https://github.com/fabiodalez-dev/Pinakes/pull/168)), plus 26 new tests for the install/CMS/rate-limit/UI fixes. The full lifecycle suite (135) is green and the real admin-UI upgrade path (`reinstall-test.sh` Test B) passes; PHPStan level 5 clean. No new migration in this release (schema baseline stays at `migrate_0.7.17.sql`).
+
+---
+
 ## What's New in v0.7.18
 
 ### Configurable loan & reservation system (#157)

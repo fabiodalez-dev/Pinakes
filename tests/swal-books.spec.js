@@ -278,14 +278,14 @@ test.describe.serial('Books cluster SweetAlerts', () => {
     await expect(page.locator('.swal2-popup')).toContainText(/Genere prima del Sottogenere/i);
   });
 
-  // book_form.php:3508 (error-alert) — ISBN import with empty ISBN
-  test('book_form.php:3508 empty ISBN import surfaces "ISBN Mancante" warning', async () => {
+  // book_form.php (warning-alert) — ISBN/EAN import with empty code
+  test('empty code import surfaces "Codice mancante" warning', async () => {
     await page.goto(`${BASE}/admin/books/create`);
     await page.waitForSelector('#bookForm', { timeout: 15000 });
     await page.fill('#importIsbn', '');
     await page.click('#btnImportIsbn');
     await page.waitForSelector('.swal2-popup', { timeout: 8000 });
-    await expect(page.locator('.swal2-popup')).toContainText(/ISBN Mancante/i);
+    await expect(page.locator('.swal2-popup')).toContainText(/Codice mancante/i);
   });
 
   // book_form.php:3234 (confirm-action) — cancel-form confirm then navigate away

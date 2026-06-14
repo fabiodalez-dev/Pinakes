@@ -3329,16 +3329,30 @@ async function addChoicesItems(page, selectId, hiddenId, names) {
     .locator('xpath=ancestor::*[contains(@class,"choices")]').first();
   const input = wrapper.locator('.choices__input--cloned');
   if (!await input.isVisible({ timeout: 3000 }).catch(() => false)) return;
+  const committedCount = () => page.locator(`#${hiddenId} input`).count();
   for (const name of names) {
-    const before = await page.locator(`#${hiddenId} input`).count();
-    await input.click();
-    await input.fill(name);
-    await input.press('Enter');
-    await page.waitForFunction(
-      (args) => document.querySelectorAll(`#${args.hid} input`).length > args.before,
-      { hid: hiddenId, before },
-      { timeout: 5000 },
-    ).catch(() => {});
+    const before = await committedCount();
+    // Choices.js Enter-commit is timing-sensitive (issue #74): a single
+    // type+Enter can race the instance's input handling and silently drop the
+    // item. Retry the commit until the hidden-input count actually grows, and
+    // fail loudly if it never does — never leave a missing relation undetected.
+    let committed = false;
+    for (let attempt = 0; attempt < 4 && !committed; attempt++) {
+      // A prior attempt may have landed it even though waitForFunction timed
+      // out (false negative) — re-check before re-typing so we don't double-add.
+      if (await committedCount() > before) { committed = true; break; }
+      await input.click();
+      await input.fill(name);
+      await input.press('Enter');
+      committed = await page.waitForFunction(
+        (args) => document.querySelectorAll(`#${args.hid} input`).length > args.before,
+        { hid: hiddenId, before },
+        { timeout: 3000 },
+      ).then(() => true).catch(() => false);
+    }
+    if (!committed) {
+      throw new Error(`Choices.js item "${name}" never committed into #${hiddenId} (4 attempts)`);
+    }
   }
 }
 

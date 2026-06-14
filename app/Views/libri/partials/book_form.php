@@ -1025,8 +1025,8 @@ const i18nTranslations = Object.assign({}, window.i18nTranslations || {}, <?= js
     'Errore' => __("Errore"),
     'Si è verificato un errore durante il salvataggio.' => __("Si è verificato un errore durante il salvataggio."),
     'Si è verificato un errore di rete.' => __("Si è verificato un errore di rete."),
-    'ISBN Mancante' => __("ISBN Mancante"),
-    'Inserisci un codice ISBN per continuare.' => __("Inserisci un codice ISBN per continuare.")
+    'Codice mancante' => __("Codice mancante"),
+    'Inserisci un codice ISBN o EAN per continuare.' => __("Inserisci un codice ISBN o EAN per continuare.")
 ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>);
 
 // LibraryThing accordion toggle
@@ -1188,7 +1188,10 @@ function initializeUppy() {
         // Handle file added
         uppy.on('file-added', (file) => {
             displayImagePreview(file);
-            
+
+            // Choosing a cover file cancels any pending removal — last action wins (#F007)
+            const rc = document.getElementById('remove_cover'); if (rc) rc.value = '0';
+
             // Set the file to the hidden input for form submission
             const fileInput = document.getElementById('fallback-file-input');
             const dataTransfer = new DataTransfer();
@@ -1272,6 +1275,10 @@ async function removeCoverImage() {
 
     // Clear the copertina_url hidden field
     document.getElementById('copertina_url').value = '';
+
+    // Clear any stale scraped cover URL so it can't re-add the cover on save (#F007)
+    const sc = document.getElementById('scraped_cover_url');
+    if (sc) sc.value = '';
 
     // Clear preview
     clearImagePreview();
@@ -3487,6 +3494,8 @@ function applyAlternativeCover(url) {
     const scrapedCoverInput = document.getElementById('scraped_cover_url');
     if (coverHidden) coverHidden.value = safeUrl;
     if (scrapedCoverInput) scrapedCoverInput.value = safeUrl;
+    // Choosing a new cover cancels any pending removal — last action wins (#F007)
+    const rc = document.getElementById('remove_cover'); if (rc) rc.value = '0';
     displayScrapedCover(safeUrl);
     if (window.Toast) {
         window.Toast.fire({ icon: 'success', title: __('Copertina applicata') });
@@ -3501,14 +3510,29 @@ function initializeIsbnImport() {
 
     if (!btn || !input) return;
     const defaultBtnLabel = FORM_MODE === 'edit' ? __('Aggiorna Dati') : __('Importa Dati');
-    
+
+    // Barcode scanners append a carriage return (Enter) after the code. Left
+    // unhandled, that Enter submits the whole form, which — the form is
+    // novalidate — trips the custom JS "title is required" SweetAlert before
+    // anything is filled in (issue #164). Swallow the Enter here and trigger
+    // the import instead — which is exactly what scanning into this field is
+    // meant to do.
+    input.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            if (!btn.disabled) {
+                btn.click();
+            }
+        }
+    });
+
     btn.addEventListener('click', async function() {
         const isbn = input.value.trim();
         if (!isbn) {
             Swal.fire({
                 icon: 'warning',
-                title: __('ISBN Mancante'),
-                text: __('Inserisci un codice ISBN per continuare.')
+                title: __('Codice mancante'),
+                text: __('Inserisci un codice ISBN o EAN per continuare.')
             });
             return;
         }
@@ -3745,6 +3769,8 @@ function initializeIsbnImport() {
                     if (coverHidden) {
                         coverHidden.value = data.image;
                     }
+                    // A re-scraped cover cancels any pending removal — last action wins (#F007)
+                    const rc = document.getElementById('remove_cover'); if (rc) rc.value = '0';
                     displayScrapedCover(data.image);
                 } else {
                 }
