@@ -5279,5 +5279,8 @@
   "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup too large for PHP import: install the mysql client or increase memory_limit",
   "Nessuna disponibilità nel periodo": "No availability for this period",
   "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "All copies are already committed (loans or reservations) for the requested period. Choose another period.",
-  "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.": "The assigned copy is not lendable. Reassign the copy or cancel the pickup."
+  "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.": "The assigned copy is not lendable. Reassign the copy or cancel the pickup.",
+  "Il prestito associato non è più chiudibile. Ricarica la pagina.": "The associated loan can no longer be closed. Reload the page.",
+  "Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.": "Cannot delete a copy currently committed to a loan or reservation.",
+  "Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su \"Disponibile\".": "Cannot modify a copy currently committed to a loan or reservation. First release it (close or cancel the loan) or set it to \"Available\"."
 }
