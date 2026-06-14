@@ -5287,5 +5287,8 @@
   "Link a fonti, voci enciclopediche o siti rilevanti per l'autore.": "Links to sources, encyclopedia entries or websites relevant to the author.",
   "Etichetta (es. Wikipedia)": "Label (e.g. Wikipedia)",
   "Aggiungi collegamento": "Add link",
-  "Trascina qui la foto dell'autore o clicca per selezionare": "Drag the author photo here or click to select"
+  "Trascina qui la foto dell'autore o clicca per selezionare": "Drag the author photo here or click to select",
+  "La foto supera la dimensione massima di 5 MB.": "The photo exceeds the maximum size of 5 MB.",
+  "Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.": "Unsupported image format. Use PNG, JPG, WebP or GIF.",
+  "Impossibile elaborare l'immagine caricata.": "Could not process the uploaded image."
 }

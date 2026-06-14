@@ -19,7 +19,7 @@ const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 const DB_USER = process.env.E2E_DB_USER || '', DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '', DB_HOST = process.env.E2E_DB_HOST || '';
 const DB_PORT = process.env.E2E_DB_PORT || '', DB_NAME = process.env.E2E_DB_NAME || '';
-test.skip(!ADMIN_EMAIL || !DB_USER || !DB_NAME, 'creds not configured');
+test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME, 'creds not configured');
 
 // 1x1 PNGs (distinct bytes so we can tell A from B on disk).
 const PNG_RED  = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -150,12 +150,14 @@ test.describe('#163 — author photo lifecycle (CodeRabbit-hardened)', () => {
   });
 
   test('6. updating a non-existent author returns 404 (no masked redirect)', async () => {
-    const token = await page.evaluate(async () => {
-      const r = await fetch('/admin/authors/edit/' + 1, { credentials: 'same-origin' });
+    // Fetch the CSRF token from the author created in beforeAll (not a hardcoded
+    // id=1, which may not exist on a clean DB and would fail CSRF retrieval).
+    const token = await page.evaluate(async (id) => {
+      const r = await fetch('/admin/authors/edit/' + id, { credentials: 'same-origin' });
       const html = await r.text();
       const m = html.match(/name="csrf_token"\s+value="([^"]+)"/);
       return m ? m[1] : '';
-    });
+    }, authorId);
     const status = await page.evaluate(async (csrf) => {
       const body = new URLSearchParams({ csrf_token: csrf, nome: 'X' });
       const r = await fetch('/admin/authors/update/99999999', {

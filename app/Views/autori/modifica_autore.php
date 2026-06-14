@@ -204,11 +204,24 @@ document.addEventListener('DOMContentLoaded', function() {
 // book_form.php's cover uploader: Uppy is the UI, the file rides the form's
 // multipart POST (AutoriController reads `foto_file`). No AJAX endpoint needed.
 function initializeAuthorUppy() {
+    // Whether via Uppy or the native fallback input, picking a file must cancel a
+    // pending "remove current photo" — otherwise the controller (which now lets a
+    // submitted upload win over rimuovi_foto) is fine, but we also keep the UI
+    // consistent so the checkbox doesn't stay visually checked.
+    var fallbackInput = document.getElementById('author-fallback-file-input');
+    if (fallbackInput) {
+        fallbackInput.addEventListener('change', function () {
+            var rc = document.querySelector('input[name="rimuovi_foto"]');
+            if (rc && fallbackInput.files && fallbackInput.files.length > 0) {
+                rc.checked = false;
+            }
+        });
+    }
+
     var mount = document.getElementById('author-uppy-upload');
     if (!mount || typeof Uppy === 'undefined' || typeof UppyDragDrop === 'undefined') {
         // Graceful fallback: reveal the hidden file input so upload still works.
-        var fb = document.getElementById('author-fallback-file-input');
-        if (fb) fb.style.display = 'block';
+        if (fallbackInput) fallbackInput.style.display = 'block';
         return;
     }
     try {
@@ -225,6 +238,7 @@ function initializeAuthorUppy() {
         }
         uppy.on('file-added', function (file) {
             var input = document.getElementById('author-fallback-file-input');
+            if (!input) return;
             var dt = new DataTransfer();
             dt.items.add(new File([file.data], file.name, { type: file.type }));
             input.files = dt.files;

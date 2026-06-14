@@ -5287,5 +5287,8 @@
   "Link a fonti, voci enciclopediche o siti rilevanti per l'autore.": "Liens vers des sources, des notices encyclopédiques ou des sites pertinents pour l'auteur.",
   "Etichetta (es. Wikipedia)": "Libellé (ex. Wikipédia)",
   "Aggiungi collegamento": "Ajouter un lien",
-  "Trascina qui la foto dell'autore o clicca per selezionare": "Glissez la photo de l'auteur ici ou cliquez pour sélectionner"
+  "Trascina qui la foto dell'autore o clicca per selezionare": "Glissez la photo de l'auteur ici ou cliquez pour sélectionner",
+  "La foto supera la dimensione massima di 5 MB.": "La photo dépasse la taille maximale de 5 Mo.",
+  "Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.": "Format d'image non pris en charge. Utilisez PNG, JPG, WebP ou GIF.",
+  "Impossibile elaborare l'immagine caricata.": "Impossible de traiter l'image téléchargée."
 }

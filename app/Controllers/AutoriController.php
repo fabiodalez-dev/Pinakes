@@ -88,6 +88,11 @@ class AutoriController
 
         // Issue #163: author photo (upload or URL) + relevant source/website links.
         $photo = $this->resolveAuthorPhoto($request, $data, '');
+        if (isset($photo['error'])) {
+            // A submitted upload was rejected — surface it instead of saving without the photo.
+            $this->flashError($photo['error']);
+            return $response->withHeader('Location', url('/admin/authors/create'))->withStatus(302);
+        }
         $collegamenti = $this->buildCollegamentiJson($data);
 
         try {
@@ -165,6 +170,11 @@ class AutoriController
         }
         $existingFoto = (string) ($existing['foto'] ?? '');
         $photo = $this->resolveAuthorPhoto($request, $data, $existingFoto);
+        if (isset($photo['error'])) {
+            // A submitted upload was rejected — surface it instead of silently discarding it.
+            $this->flashError($photo['error']);
+            return $response->withHeader('Location', url('/admin/authors/edit/' . $id))->withStatus(302);
+        }
         $collegamenti = $this->buildCollegamentiJson($data);
 
         try {
@@ -206,55 +216,67 @@ class AutoriController
      * to drop if the DB write fails (`deleteOnFailure`). This keeps the photo and
      * the persisted value consistent even when the DB write throws.
      *
-     * @return array{foto: string, deleteOnSuccess: ?string, deleteOnFailure: ?string}
+     * A submitted upload/URL takes priority over the "remove" flag (so the user
+     * never loses a replacement they sent together with `rimuovi_foto`); the flag
+     * applies only as a fallback when no new photo data is present. A REJECTED
+     * upload (oversized, not a real image, or re-encode failure) returns an
+     * `error` so the caller can surface it instead of silently saving no photo.
+     *
+     * @return array{foto: string, deleteOnSuccess: ?string, deleteOnFailure: ?string, error?: string}
      *         foto = stored value (`/uploads/...` path, external `https?://` URL, or '')
      */
     private function resolveAuthorPhoto(Request $request, array $data, string $existing): array
     {
-        if (!empty($data['rimuovi_foto'])) {
-            // Drop the old local photo only after the DB row is updated to ''.
-            return ['foto' => '', 'deleteOnSuccess' => $existing, 'deleteOnFailure' => null];
-        }
+        $removeRequested = !empty($data['rimuovi_foto']);
 
+        // 1) An uploaded file takes priority. A present-but-invalid upload is
+        //    reported as an error (never silently downgraded to "no photo").
         $files = $request->getUploadedFiles();
         $up = $files['foto_file'] ?? null;
         if ($up instanceof \Psr\Http\Message\UploadedFileInterface && $up->getError() === UPLOAD_ERR_OK) {
             $size = (int) $up->getSize();
-            if ($size > 0 && $size <= 5 * 1024 * 1024) {
-                $bytes = '';
-                try {
-                    $bytes = (string) $up->getStream();
-                } catch (\Throwable $e) {
-                    $bytes = '';
-                }
-                // SECURITY: never trust the client-supplied MIME — validate the
-                // real bytes and derive the extension from the detected type.
-                $info = ($bytes !== '' && strlen($bytes) <= 5 * 1024 * 1024)
-                    ? @getimagesizefromstring($bytes) : false;
-                $detected = is_array($info) ? (string) $info['mime'] : '';
-                $allowed = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'];
-                if (isset($allowed[$detected])) {
-                    $dir = dirname(__DIR__, 2) . '/public/uploads/autori';
-                    if (!is_dir($dir)) {
-                        @mkdir($dir, 0775, true);
-                    }
-                    $name = 'autore_' . bin2hex(random_bytes(8)) . '.' . $allowed[$detected];
-                    $dest = $dir . '/' . $name;
-                    // Re-encode through GD to strip any embedded payload (mirrors cover handling).
-                    if ($this->reencodeAuthorPhoto($bytes, $detected, $dest)) {
-                        @chmod($dest, 0644);
-                        $stored = '/uploads/autori/' . $name;
-                        return [
-                            'foto' => $stored,
-                            'deleteOnSuccess' => ($existing !== '' && $existing !== $stored) ? $existing : null,
-                            'deleteOnFailure' => $stored, // remove this fresh upload if the DB write fails
-                        ];
-                    }
-                    \App\Support\SecureLogger::error('Author photo re-encode failed (unsupported or corrupt image)');
-                }
+            if ($size <= 0 || $size > 5 * 1024 * 1024) {
+                return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
+                        'error' => __('La foto supera la dimensione massima di 5 MB.')];
             }
+            $bytes = '';
+            try {
+                $bytes = (string) $up->getStream();
+            } catch (\Throwable $e) {
+                $bytes = '';
+            }
+            // SECURITY: never trust the client-supplied MIME — validate the real
+            // bytes and derive the extension from the detected type.
+            $info = ($bytes !== '' && strlen($bytes) <= 5 * 1024 * 1024)
+                ? @getimagesizefromstring($bytes) : false;
+            $detected = is_array($info) ? (string) $info['mime'] : '';
+            $allowed = ['image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp', 'image/gif' => 'gif'];
+            if (!isset($allowed[$detected])) {
+                return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
+                        'error' => __('Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.')];
+            }
+            $dir = dirname(__DIR__, 2) . '/public/uploads/autori';
+            if (!is_dir($dir)) {
+                @mkdir($dir, 0775, true);
+            }
+            $name = 'autore_' . bin2hex(random_bytes(8)) . '.' . $allowed[$detected];
+            $dest = $dir . '/' . $name;
+            // Re-encode through GD to strip any embedded payload (mirrors cover handling).
+            if (!$this->reencodeAuthorPhoto($bytes, $detected, $dest)) {
+                \App\Support\SecureLogger::error('Author photo re-encode failed (unsupported or corrupt image)');
+                return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null,
+                        'error' => __('Impossibile elaborare l\'immagine caricata.')];
+            }
+            @chmod($dest, 0644);
+            $stored = '/uploads/autori/' . $name;
+            return [
+                'foto' => $stored,
+                'deleteOnSuccess' => ($existing !== '' && $existing !== $stored) ? $existing : null,
+                'deleteOnFailure' => $stored, // remove this fresh upload if the DB write fails
+            ];
         }
 
+        // 2) A pasted URL takes priority over the remove flag too.
         $urlRaw = trim((string) ($data['foto_url'] ?? ''));
         if ($urlRaw !== '') {
             if (!filter_var($urlRaw, FILTER_VALIDATE_URL)) {
@@ -265,6 +287,11 @@ class AutoriController
                 $deleteOld = ($urlRaw !== $existing) ? $existing : null;
                 return ['foto' => $urlRaw, 'deleteOnSuccess' => $deleteOld, 'deleteOnFailure' => null];
             }
+        }
+
+        // 3) No new photo data → apply the remove flag as a fallback.
+        if ($removeRequested) {
+            return ['foto' => '', 'deleteOnSuccess' => $existing, 'deleteOnFailure' => null];
         }
 
         return ['foto' => $existing, 'deleteOnSuccess' => null, 'deleteOnFailure' => null]; // unchanged
