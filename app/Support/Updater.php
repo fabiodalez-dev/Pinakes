@@ -354,59 +354,29 @@ class Updater
     }
 
     /**
-     * Fetch and parse the "<asset>.sha256" sidecar of a release.
+     * Fetch a named release asset and verify its sha256 against the GitHub API
+     * "digest" field (TLS, api.github.com). Returns a TYPED outcome so the caller
+     * can tell a genuinely-absent patch (skip, normal) from a present-but-
+     * unverifiable one (block the update):
+     *   - 'absent'   : no such asset (or the release lookup failed) → skip
+     *   - 'verified' : asset present and sha256 matches the API digest → 'content' set
+     *   - 'invalid'  : asset present but unverifiable (no digest / download failed /
+     *                  hash mismatch) → caller MUST block the update
      *
-     * @param array<string, mixed> $release Decoded GitHub release object.
-     * @return string|null Lowercase 64-char sha256 hex, or null when unavailable/invalid.
+     * @return array{status: string, content: ?string}
      */
-    private function fetchSidecarChecksum(array $release, string $assetName): ?string
-    {
-        $sidecarName = $assetName . '.sha256';
-        $sidecarUrl = null;
-        foreach ((array) ($release['assets'] ?? []) as $asset) {
-            if (is_array($asset) && ($asset['name'] ?? '') === $sidecarName) {
-                $url = $asset['browser_download_url'] ?? null;
-                $sidecarUrl = is_string($url) ? $url : null;
-                break;
-            }
-        }
-        if ($sidecarUrl === null) {
-            return null;
-        }
-        $content = $this->downloadPatchFile($sidecarUrl); // anonymous (no bearer token)
-        if ($content === null) {
-            return null;
-        }
-        $first = trim(explode(' ', trim($content))[0]);
-        $hash = strtolower($first);
-        return $this->isValidSha256($hash) ? $hash : null;
-    }
-
-    /**
-     * Download a named release asset and verify its sha256 integrity, sourcing
-     * the expected hash from the GitHub API "digest" field (served over TLS by
-     * api.github.com) with the ".sha256" sidecar as a fallback.
-     *
-     * Fail-closed: returns null when the asset is absent OR no integrity source
-     * exists OR the hash mismatches — the caller therefore never receives (and
-     * never executes) unverified bytes.
-     *
-     * @return string|null Verified asset bytes, or null.
-     */
-    private function fetchVerifiedReleaseAsset(string $version, string $assetName): ?string
+    private function fetchVerifiedReleaseAsset(string $version, string $assetName): array
     {
         $release = $this->getReleaseByVersion($version);
         if (!is_array($release)) {
-            // Distinguish a transient API/network failure (loud) from a release
-            // that simply ships no such patch asset (silent/normal, handled
-            // below). Both still skip the patch — fail-closed — but a failed
-            // release lookup for a version that DOES carry a required patch
-            // should leave a trace rather than vanishing.
+            // Release lookup failed (rate-limit/network). We cannot confirm whether a
+            // patch is shipped, so treat it as ABSENT (skip) — logged loudly. NOT
+            // 'invalid': a transient API failure must not block every update.
             $this->debugLog('WARNING', 'Lookup release fallito durante il fetch patch (skip, possibile rate-limit/network)', [
                 'version' => $version,
                 'asset'   => $assetName,
             ]);
-            return null;
+            return ['status' => 'absent', 'content' => null];
         }
 
         $asset = null;
@@ -417,46 +387,48 @@ class Updater
             }
         }
         if ($asset === null) {
-            return null; // no such asset on this release — normal (no patch)
+            return ['status' => 'absent', 'content' => null]; // no such asset — normal (no patch)
         }
 
+        // From here the asset IS present on the release: ANY failure to verify+fetch
+        // it is INVALID (a patch is shipped but cannot be trusted) and the caller
+        // MUST block the update — never silently skip a present-but-unverifiable patch.
         $url = $asset['browser_download_url'] ?? '';
         if (!is_string($url) || $url === '') {
-            return null;
+            $this->debugLog('ERROR', 'Asset patch presente ma senza URL di download', ['asset' => $assetName]);
+            return ['status' => 'invalid', 'content' => null];
         }
 
+        // Integrity comes ONLY from the GitHub API "digest" (served over TLS by
+        // api.github.com). The ".sha256" sidecar fallback was removed: payload and
+        // sidecar would come from the same CDN, so a CDN/MITM attacker could forge
+        // both. Every GitHub asset carries an API digest, the only trusted source.
         $expectedHash = null;
         $digest = $asset['digest'] ?? null;
         if (is_string($digest) && stripos($digest, 'sha256:') === 0) {
             $candidate = strtolower(substr($digest, 7));
-            // Same hex validation the sidecar path applies — a malformed digest
-            // must not be carried into hash_equals; fall back to the sidecar.
             $expectedHash = $this->isValidSha256($candidate) ? $candidate : null;
         }
         if ($expectedHash === null) {
-            $expectedHash = $this->fetchSidecarChecksum($release, $assetName);
-        }
-        if ($expectedHash === null) {
-            $this->debugLog('WARNING', 'Asset senza fonte di integrità (no digest/sidecar), ignorato', [
-                'asset' => $assetName,
-            ]);
-            return null;
+            $this->debugLog('ERROR', 'Asset patch presente ma senza digest API valido, rifiutato', ['asset' => $assetName]);
+            return ['status' => 'invalid', 'content' => null];
         }
 
         $content = $this->downloadPatchFile($url); // anonymous (no bearer token)
         if ($content === null) {
-            return null;
+            $this->debugLog('ERROR', 'Download di un asset patch presente fallito', ['asset' => $assetName]);
+            return ['status' => 'invalid', 'content' => null];
         }
 
         if (!hash_equals($expectedHash, hash('sha256', $content))) {
-            $this->debugLog('ERROR', 'Asset digest mismatch, ignorato', [
+            $this->debugLog('ERROR', 'Asset patch digest mismatch, rifiutato', [
                 'asset'    => $assetName,
                 'expected' => $expectedHash,
             ]);
-            return null;
+            return ['status' => 'invalid', 'content' => null];
         }
 
-        return $content;
+        return ['status' => 'verified', 'content' => $content];
     }
 
     /**
@@ -746,7 +718,14 @@ class Updater
                 'method' => 'GET',
                 'header' => $headers,
                 'timeout' => 30,
-                'ignore_errors' => true // Questo ci permette di leggere anche risposte di errore
+                'ignore_errors' => true, // Questo ci permette di leggere anche risposte di errore
+                // SECURITY: this request carries the GitHub bearer token. file_get_contents
+                // would otherwise follow a 3xx redirect and re-send the Authorization
+                // header cross-host (token leak). Disable auto-redirects; a redirect is
+                // handled explicitly below as a hard error (api.github.com returns data
+                // directly and does not redirect the endpoints we call).
+                'follow_location' => 0,
+                'max_redirects' => 0,
             ],
             'ssl' => [
                 'verify_peer' => true,
@@ -798,6 +777,17 @@ class Updater
         }
 
         $this->debugLog('INFO', 'Status code HTTP', ['status' => $statusCode]);
+
+        // SECURITY: a redirect on this token-bearing request is NOT auto-followed
+        // (see context above). The bearer must never leak to a redirect target, so
+        // fail closed rather than re-issuing the request to the Location host.
+        if ($statusCode >= 300 && $statusCode < 400) {
+            $this->debugLog('ERROR', 'Redirect inatteso su richiesta GitHub autenticata (non seguito)', [
+                'status_code' => $statusCode,
+                'url' => $url,
+            ]);
+            throw new Exception(__('Risposta GitHub inattesa (redirect) su una richiesta autenticata.'));
+        }
 
         if ($statusCode >= 400) {
             // Retry without token on 401/403 (invalid/revoked token shouldn't block updates)
@@ -1343,33 +1333,27 @@ class Updater
 
             // SECURITY: integrity verification is MANDATORY before the package is
             // ever written to disk and extracted. The downloaded bytes must match
-            // a published sha256 — the supply-chain guard that TLS alone does not
-            // provide against a tampered release artifact. Sources, in order:
-            //   1) the GitHub asset "digest" field ("sha256:<hex>", API/TLS)
-            //   2) the companion "<asset>.sha256" sidecar asset
-            // If NEITHER is available, refuse the update (fail-closed).
+            // the GitHub asset "digest" ("sha256:<hex>", served over TLS by
+            // api.github.com) — the supply-chain guard that TLS-transport alone does
+            // not provide against a tampered release artifact. The ".sha256" sidecar
+            // fallback was removed: payload + sidecar share the same CDN, so a CDN/
+            // MITM attacker could forge both. Every GitHub asset carries an API
+            // digest; if it is missing or malformed, refuse the update (fail-closed).
             $expectedHash = null;
             if (is_string($expectedDigest) && stripos($expectedDigest, 'sha256:') === 0) {
                 $candidate = strtolower(substr($expectedDigest, 7));
-                // Reject a malformed digest rather than carry it into hash_equals;
-                // fall through to the sidecar (same guard as fetchSidecarChecksum).
+                // Reject a malformed digest rather than carry it into hash_equals.
                 if ($this->isValidSha256($candidate)) {
                     $expectedHash = $candidate;
                     $this->debugLog('INFO', 'Verifica integrità via digest asset GitHub');
                 }
             }
-            if ($expectedHash === null) {
-                $this->debugLog('WARNING', 'Nessun digest valido, tentativo sidecar .sha256', [
-                    'asset' => $selectedAssetName
-                ]);
-                $expectedHash = $this->fetchSidecarChecksum($release, $selectedAssetName);
-            }
 
             if ($expectedHash === null) {
-                $this->debugLog('ERROR', 'Nessuna fonte di integrità per il pacchetto', [
+                $this->debugLog('ERROR', 'Nessun digest API valido per il pacchetto, rifiutato', [
                     'asset' => $selectedAssetName
                 ]);
-                throw new Exception(__('Verifica di integrità impossibile: la release non pubblica né un digest né un sidecar .sha256. Installazione di un pacchetto non verificato rifiutata.'));
+                throw new Exception(__('Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.'));
             }
 
             $actualHash = hash('sha256', $fileContent);
@@ -1871,6 +1855,10 @@ class Updater
             // Step 2.5: Apply pre-update patch (if available)
             $this->debugLog('INFO', '>>> STEP 2.5: Pre-update patch check <<<');
             $patchResult = $this->applyPreUpdatePatch($targetVersion);
+            if (!$patchResult['success']) {
+                // A present-but-unverifiable pre-update patch blocks the update.
+                throw new Exception($patchResult['error'] ?? __('Patch pre-aggiornamento non verificabile.'));
+            }
             if ($patchResult['applied']) {
                 $this->debugLog('INFO', 'Pre-update patch applicato', [
                     'patches' => $patchResult['patches']
@@ -1888,6 +1876,10 @@ class Updater
             // Step 4: Apply post-install patch (if available)
             $this->debugLog('INFO', '>>> STEP 4: Post-install patch check <<<');
             $postPatchResult = $this->applyPostInstallPatch($targetVersion);
+            if (!$postPatchResult['success']) {
+                // A present-but-unverifiable post-install patch blocks the update.
+                throw new Exception($postPatchResult['error'] ?? __('Patch post-installazione non verificabile.'));
+            }
             if ($postPatchResult['applied']) {
                 $this->debugLog('INFO', 'Post-install patch applicato', [
                     'patches' => $postPatchResult['patches']
@@ -3757,6 +3749,10 @@ class Updater
             // Step 0: Apply pre-update patch (if available)
             $this->debugLog('INFO', '>>> STEP 0: Pre-update patch check <<<');
             $patchResult = $this->applyPreUpdatePatch($targetVersion);
+            if (!$patchResult['success']) {
+                // A present-but-unverifiable pre-update patch blocks the update.
+                throw new Exception($patchResult['error'] ?? __('Patch pre-aggiornamento non verificabile.'));
+            }
             if ($patchResult['applied']) {
                 $this->debugLog('INFO', 'Pre-update patch applicato', [
                     'patches' => $patchResult['patches']
@@ -3790,6 +3786,10 @@ class Updater
             // Step 4: Apply post-install patch (if available)
             $this->debugLog('INFO', '>>> STEP 4: Post-install patch check <<<');
             $postPatchResult = $this->applyPostInstallPatch($targetVersion);
+            if (!$postPatchResult['success']) {
+                // A present-but-unverifiable post-install patch blocks the update.
+                throw new Exception($postPatchResult['error'] ?? __('Patch post-installazione non verificabile.'));
+            }
             if ($postPatchResult['applied']) {
                 $this->debugLog('INFO', 'Post-install patch applicato', [
                     'patches' => $postPatchResult['patches'],
@@ -3893,17 +3893,27 @@ class Updater
         ];
 
         try {
-            // SECURITY: the pre-update patch is fetched as a release asset and
-            // its sha256 verified against the GitHub API "digest" (served over
-            // TLS by api.github.com), falling back to the ".sha256" sidecar.
-            // The previous flow downloaded patch + checksum from the SAME CDN
-            // path, so a tampered/MITM'd CDN could forge both — the check gave
-            // no protection against tampering. fetchVerifiedReleaseAsset() is
-            // fail-closed (no asset / no integrity source / mismatch => null)
-            // and uses hash_equals, so unverified PHP is never executed.
-            $patchContent = $this->fetchVerifiedReleaseAsset($targetVersion, 'pre-update-patch.php');
+            // SECURITY: the pre-update patch is fetched as a release asset and its
+            // sha256 verified against the GitHub API "digest" (TLS, api.github.com).
+            // fetchVerifiedReleaseAsset() returns a typed outcome so we can tell an
+            // absent patch (skip) from a present-but-unverifiable one (block).
+            $patchOutcome = $this->fetchVerifiedReleaseAsset($targetVersion, 'pre-update-patch.php');
 
-            if ($patchContent === null) {
+            if ($patchOutcome['status'] === 'invalid') {
+                // A pre-update patch IS shipped for this update but is corrupt /
+                // unverifiable. NEVER silently skip a required patch — block the
+                // update (fail-closed) so the user retries rather than installing
+                // half-patched.
+                $result['success'] = false;
+                $result['error'] = __('Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.');
+                $this->debugLog('ERROR', 'Pre-update patch INVALIDA → aggiornamento bloccato', [
+                    'target_version' => $targetVersion,
+                ]);
+                return $result;
+            }
+
+            $patchContent = $patchOutcome['content'];
+            if ($patchOutcome['status'] === 'absent' || $patchContent === null) {
                 $this->debugLog('INFO', 'Nessun pre-update-patch verificato disponibile (OK, normale)');
                 return $result;
             }
@@ -4164,12 +4174,21 @@ class Updater
         try {
             // SECURITY: same hardened path as the pre-update patch — fetch the
             // post-install patch as a release asset and verify its sha256 against
-            // the GitHub API "digest" (TLS) with the ".sha256" sidecar fallback.
-            // fetchVerifiedReleaseAsset() is fail-closed and uses hash_equals, so
-            // unverified PHP is never written to disk or executed.
-            $patchContent = $this->fetchVerifiedReleaseAsset($targetVersion, 'post-install-patch.php');
+            // the GitHub API "digest" (TLS). Typed outcome: absent → skip,
+            // invalid → block (a present-but-unverifiable patch must not be skipped).
+            $patchOutcome = $this->fetchVerifiedReleaseAsset($targetVersion, 'post-install-patch.php');
 
-            if ($patchContent === null) {
+            if ($patchOutcome['status'] === 'invalid') {
+                $result['success'] = false;
+                $result['error'] = __('Patch post-installazione presente ma non verificabile: aggiornamento interrotto per sicurezza.');
+                $this->debugLog('ERROR', 'Post-install patch INVALIDA → aggiornamento bloccato', [
+                    'target_version' => $targetVersion,
+                ]);
+                return $result;
+            }
+
+            $patchContent = $patchOutcome['content'];
+            if ($patchOutcome['status'] === 'absent' || $patchContent === null) {
                 $this->debugLog('INFO', 'Nessun post-install-patch verificato disponibile (OK, normale)');
                 return $result;
             }

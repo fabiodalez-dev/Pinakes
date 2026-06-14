@@ -105,46 +105,52 @@ $fetch = static function (\App\Support\Updater $u, string $asset) use ($fvMethod
 $BYTES = "<?php /* a verified patch */ return ['patches' => []];";
 $HASH  = hash('sha256', $BYTES);
 $URL   = 'https://github.com/o/r/releases/download/v1.0.0/pre-update-patch.php';
-$SIDE  = 'https://github.com/o/r/releases/download/v1.0.0/pre-update-patch.php.sha256';
 
-// 1. Matching API digest => verified bytes returned.
+// 1. Matching API digest => verified, bytes returned.
 $u1 = $makeUpdater(
     ['assets' => [['name' => 'pre-update-patch.php', 'browser_download_url' => $URL, 'digest' => 'sha256:' . $HASH]]],
     [$URL => $BYTES]
 );
-$check($fetch($u1, 'pre-update-patch.php') === $BYTES, 'matching digest => returns verified bytes');
+$r1 = $fetch($u1, 'pre-update-patch.php');
+$check($r1['status'] === 'verified' && $r1['content'] === $BYTES, 'matching digest => verified + content');
 
-// 2. TAMPERED bytes (digest unchanged) => rejected (null). The core guarantee.
+// 2. TAMPERED bytes (digest unchanged) => INVALID (present-but-corrupt → block). Core guarantee.
 $u2 = $makeUpdater(
     ['assets' => [['name' => 'pre-update-patch.php', 'browser_download_url' => $URL, 'digest' => 'sha256:' . $HASH]]],
     [$URL => $BYTES . ' /* tampered */']
 );
-$check($fetch($u2, 'pre-update-patch.php') === null, 'tampered bytes => rejected (null)');
+$check($fetch($u2, 'pre-update-patch.php')['status'] === 'invalid', 'tampered bytes => invalid (block)');
 
-// 3. No digest, but a valid matching .sha256 sidecar => verified bytes returned.
+// 3. Asset present but NO API digest => INVALID. The ".sha256" sidecar fallback was
+//    removed (same-CDN forgery), so a present patch without a trusted digest blocks.
 $u3 = $makeUpdater(
-    ['assets' => [
-        ['name' => 'pre-update-patch.php', 'browser_download_url' => $URL],
-        ['name' => 'pre-update-patch.php.sha256', 'browser_download_url' => $SIDE],
-    ]],
-    [$URL => $BYTES, $SIDE => $HASH . '  pre-update-patch.php']
+    ['assets' => [['name' => 'pre-update-patch.php', 'browser_download_url' => $URL]]],
+    [$URL => $BYTES]
 );
-$check($fetch($u3, 'pre-update-patch.php') === $BYTES, 'no digest + valid sidecar => returns bytes');
+$check($fetch($u3, 'pre-update-patch.php')['status'] === 'invalid', 'present asset, no digest => invalid (no sidecar)');
 
-// 4. Malformed digest AND no sidecar => refused (null), no fall-through to bytes.
+// 4. Malformed digest => INVALID (no fall-through to bytes).
 $u4 = $makeUpdater(
     ['assets' => [['name' => 'pre-update-patch.php', 'browser_download_url' => $URL, 'digest' => 'sha256:NOTHEX']]],
     [$URL => $BYTES]
 );
-$check($fetch($u4, 'pre-update-patch.php') === null, 'malformed digest + no sidecar => null');
+$check($fetch($u4, 'pre-update-patch.php')['status'] === 'invalid', 'malformed digest => invalid');
 
-// 5. Asset absent on the release => null (normal "no patch").
+// 5. Asset absent on the release => ABSENT (normal "no patch", skip).
 $u5 = $makeUpdater(['assets' => []], []);
-$check($fetch($u5, 'pre-update-patch.php') === null, 'asset absent => null (no patch)');
+$check($fetch($u5, 'pre-update-patch.php')['status'] === 'absent', 'asset absent => absent (no patch)');
 
-// 6. Release lookup failed (API error) => null (fail-closed).
+// 6. Release lookup failed (API error) => ABSENT (skip, not block — transient API failure).
 $u6 = $makeUpdater(null, []);
-$check($fetch($u6, 'pre-update-patch.php') === null, 'release lookup failed => null');
+$check($fetch($u6, 'pre-update-patch.php')['status'] === 'absent', 'release lookup failed => absent');
+
+// 7. Present asset + valid digest but the download fails => INVALID (a present patch
+//    we cannot fetch must NOT be silently skipped).
+$u7 = $makeUpdater(
+    ['assets' => [['name' => 'pre-update-patch.php', 'browser_download_url' => $URL, 'digest' => 'sha256:' . $HASH]]],
+    [] // no canned download for $URL => downloadPatchFile() returns null
+);
+$check($fetch($u7, 'pre-update-patch.php')['status'] === 'invalid', 'present asset, download fails => invalid');
 
 // ---------------------------------------------------------------------------
 echo "Source guards — mandatory integrity + token scoping\n";
@@ -186,6 +192,22 @@ $check(strpos($src, "fetchVerifiedReleaseAsset(\$targetVersion, 'post-install-pa
 // 11. The weak same-CDN "!== $actualChecksum" patch compare is gone.
 $check(strpos($src, '$expectedChecksum !== $actualChecksum') === false,
     'weak same-source checksum compare removed from patches');
+
+// 12. The ".sha256" sidecar fallback helper was removed (same-CDN forgery).
+$check(strpos($src, 'function fetchSidecarChecksum') === false,
+    'fetchSidecarChecksum() removed (no same-CDN sidecar fallback)');
+
+// 13. A present-but-unverifiable patch BLOCKS the update (success=false), not skip.
+$check(preg_match('/applyPreUpdatePatch.*?status.*?===\s*\x27invalid\x27.*?success.*?false/s', $src) === 1,
+    'pre-update patch invalid => success=false (blocks update)');
+$check(strpos($src, "throw new Exception(\$patchResult['error']") !== false,
+    'update flow throws on a non-verifiable pre-update patch');
+
+// 14. The token-bearing GitHub request does NOT auto-follow redirects (no token leak).
+$check(preg_match('/makeGitHubRequest.*?\x27follow_location\x27\s*=>\s*0/s', $src) === 1,
+    'makeGitHubRequest() disables redirect auto-follow (token-scope)');
+$check(preg_match('/statusCode\s*>=\s*300\s*&&\s*\$statusCode\s*<\s*400/s', $src) === 1,
+    'makeGitHubRequest() fails closed on an unexpected redirect');
 
 // ---------------------------------------------------------------------------
 echo "\n" . ($failed === 0
