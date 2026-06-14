@@ -317,9 +317,10 @@ echo -e "${YELLOW}[8/9] Uploading files to GitHub release...${NC}"
 UPLOAD_ASSETS=("$ZIPFILE" "${ZIPFILE}.sha256")
 for PATCH in post-install-patch.php pre-update-patch.php; do
     if [ -f "$PATCH" ]; then
-        # Ensure checksum is fresh — the Updater verifies SHA-256 of the patch
-        # before executing it, so a stale .sha256 would cause the patch to be
-        # silently ignored on user installs.
+        # Publish a fresh checksum next to the patch. NOTE: the hardened Updater
+        # verifies the patch from the GitHub asset *digest* (computed server-side
+        # over TLS), NOT this sidecar — the .sha256 fallback was removed. The
+        # sidecar is kept only as a convenience for manual verification.
         shasum -a 256 "$PATCH" > "${PATCH}.sha256"
         UPLOAD_ASSETS+=("$PATCH" "${PATCH}.sha256")
         echo -e "${YELLOW}  + Attaching $PATCH (+ checksum)${NC}"
@@ -353,24 +354,25 @@ echo ""
 
 # ============================================================================
 # STEP 9.4: INTEGRITY-SOURCE GUARD (supports the hardened in-app updater)
-# The updater REFUSES to install a package it cannot verify: it needs either
-# the GitHub asset "digest" (sha256:...) OR a "<asset>.sha256" sidecar. A
-# release that ships neither would wedge the upgrade chain for every install.
-# Fail the publish here rather than discover it at users' update time.
+# The updater REFUSES to install a package it cannot verify. Since the sidecar
+# fallback was removed (see Updater.php — "The '.sha256' sidecar fallback was
+# removed"), integrity comes EXCLUSIVELY from the GitHub asset "digest"
+# (sha256:...), which GitHub computes server-side over TLS. A release without a
+# digest would wedge the upgrade chain for every install, so fail the publish
+# here rather than discover it at users' update time.
 # ============================================================================
 ZIP_ASSET_NAME="pinakes-v${VERSION}.zip"
 ASSET_META=$(gh release view "v${VERSION}" --json assets \
     --jq ".assets[] | select(.name == \"${ZIP_ASSET_NAME}\")" 2>/dev/null || echo "")
 HAS_DIGEST=$(printf '%s' "$ASSET_META" | jq -r 'if (.digest // "") | startswith("sha256:") then "yes" else "no" end' 2>/dev/null || echo "no")
-HAS_SIDECAR=$(gh release view "v${VERSION}" --json assets \
-    --jq "[.assets[] | select(.name == \"${ZIP_ASSET_NAME}.sha256\")] | length" 2>/dev/null || echo "0")
 
-if [ "$HAS_DIGEST" != "yes" ] && [ "$HAS_SIDECAR" = "0" ]; then
-    echo -e "${RED}❌ ERROR: release exposes neither an API digest nor a ${ZIP_ASSET_NAME}.sha256 sidecar.${NC}"
-    echo -e "${RED}   The hardened updater would refuse this release. Re-upload the .sha256 sidecar.${NC}"
+if [ "$HAS_DIGEST" != "yes" ]; then
+    echo -e "${RED}❌ ERROR: release asset ${ZIP_ASSET_NAME} exposes no API sha256 digest.${NC}"
+    echo -e "${RED}   The hardened updater verifies integrity from the digest ONLY (sidecar fallback removed).${NC}"
+    echo -e "${RED}   GitHub normally computes the digest moments after upload — re-check the asset or re-upload.${NC}"
     exit 1
 fi
-echo -e "${GREEN}✓ Integrity source present (digest=${HAS_DIGEST}, sidecar=${HAS_SIDECAR}) — updater can verify this package${NC}"
+echo -e "${GREEN}✓ Integrity source present (digest=${HAS_DIGEST}) — hardened updater can verify this package${NC}"
 echo ""
 
 # ============================================================================

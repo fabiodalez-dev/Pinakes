@@ -5278,6 +5278,6 @@
   "Ripristino in corso. Riprova tra qualche minuto.": "Restore in progress. Please try again in a few minutes.",
   "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup too large for PHP import: install the mysql client or increase memory_limit",
   "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.": "The release does not contain a verifiable installable package (pinakes-*.zip). Update cancelled.",
-  "Verifica di integrità impossibile: la release non pubblica né un digest né un sidecar .sha256. Installazione di un pacchetto non verificato rifiutata.": "Integrity check impossible: the release publishes neither a digest nor a .sha256 sidecar. Installation of an unverified package refused.",
+  "Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.": "Integrity check impossible: the release does not publish a valid sha256 digest. Installation of an unverified package refused.",
   "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Integrity check failed: the downloaded archive does not match the expected checksum."
 }
