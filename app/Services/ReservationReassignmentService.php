@@ -132,14 +132,19 @@ class ReservationReassignmentService
     {
         // 1. Trova prenotazioni che sono "bloccate" (assegnate a copie non disponibili o senza copia)
         // Ordina per data creazione (FIFO)
+        // Solo righe GENUINAMENTE bloccate: senza copia, oppure con una copia in
+        // stato NON prestabile. NON 'c.stato != disponibile' — una copia 'prenotato'
+        // o 'prestato' per un periodo NON sovrapposto è legittimamente assegnata e
+        // non va strappata (BUG6/D11).
         $stmt = $this->db->prepare("
-            SELECT p.id, p.copia_id, p.utente_id
+            SELECT p.id, p.copia_id, p.utente_id, p.data_prestito, p.data_scadenza
             FROM prestiti p
             LEFT JOIN copie c ON p.copia_id = c.id
             WHERE p.libro_id = ?
-            AND p.stato = 'prenotato'
-            AND (p.copia_id IS NULL OR c.stato != 'disponibile')
+            AND p.stato IN ('prenotato', 'da_ritirare')
             AND p.attivo = 1
+            AND ( p.copia_id IS NULL
+                  OR c.stato IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento') )
             ORDER BY p.created_at ASC
             LIMIT 1
         ");
@@ -164,6 +169,28 @@ class ReservationReassignmentService
             $stmt->close();
 
             if (!$copyStatus || $copyStatus['stato'] !== 'disponibile') {
+                $this->rollbackIfOwned($ownTransaction);
+                return;
+            }
+
+            // Non riassegnare se la copia target ha un impegno HOLDING sovrapposto
+            // al periodo della prenotazione: eviterebbe un SIGNAL del trigger di
+            // overlap che avvelenerebbe la transazione (BUG6/D11). Overlap inclusivo.
+            $ovl = $this->db->prepare("
+                SELECT 1 FROM prestiti
+                WHERE copia_id = ? AND id <> ?
+                AND data_prestito <= ? AND data_scadenza >= ?
+                AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                      OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                LIMIT 1
+            ");
+            $ovl->bind_param('iiss', $newCopiaId, $reservation['id'], $reservation['data_scadenza'], $reservation['data_prestito']);
+            $ovl->execute();
+            $hasOverlap = (bool) $ovl->get_result()->fetch_row();
+            $ovl->close();
+            if ($hasOverlap) {
+                // La nuova copia non è libera per l'intero periodo: lascia la
+                // prenotazione bloccata, verrà riassegnata da un'altra copia/ritorno.
                 $this->rollbackIfOwned($ownTransaction);
                 return;
             }
@@ -225,12 +252,14 @@ class ReservationReassignmentService
      */
     public function reassignOnCopyLost(int $copiaId): void
     {
-        // Trova se c'era una prenotazione attiva su questa copia
+        // Trova un impegno HOLDING "futuro" su questa copia da riassegnare. Include
+        // 'da_ritirare' (ritiro in attesa) oltre a 'prenotato' (BUG7b/D12): perdere
+        // la copia di un ritiro in attesa deve riassegnarlo, non lasciarlo bloccato.
         $stmt = $this->db->prepare("
-            SELECT id, libro_id, utente_id
+            SELECT id, libro_id, utente_id, data_prestito, data_scadenza
             FROM prestiti
             WHERE copia_id = ?
-            AND stato = 'prenotato'
+            AND stato IN ('prenotato', 'da_ritirare')
             AND attivo = 1
             LIMIT 1
         ");
@@ -245,6 +274,8 @@ class ReservationReassignmentService
 
         $libroId = (int) $reservation['libro_id'];
         $reservationId = (int) $reservation['id'];
+        $resStart = (string) $reservation['data_prestito'];
+        $resEnd = (string) $reservation['data_scadenza'];
         $excludedCopies = [$copiaId]; // Copie da escludere dalla ricerca
         $maxRetries = 5; // Limite tentativi per evitare loop infiniti
 
@@ -272,6 +303,27 @@ class ReservationReassignmentService
                 if (!$copyStatus || $copyStatus['stato'] !== 'disponibile') {
                     $this->rollbackIfOwned($ownTransaction);
                     // Aggiungi questa copia alle escluse e riprova
+                    $excludedCopies[] = $nextCopyId;
+                    continue;
+                }
+
+                // Non riassegnare a una copia con un impegno HOLDING sovrapposto al
+                // periodo della prenotazione: eviterebbe un SIGNAL del trigger di
+                // overlap (BUG7b/D12). Overlap inclusivo.
+                $ovl = $this->db->prepare("
+                    SELECT 1 FROM prestiti
+                    WHERE copia_id = ? AND id <> ?
+                    AND data_prestito <= ? AND data_scadenza >= ?
+                    AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                          OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                    LIMIT 1
+                ");
+                $ovl->bind_param('iiss', $nextCopyId, $reservationId, $resEnd, $resStart);
+                $ovl->execute();
+                $hasOverlap = (bool) $ovl->get_result()->fetch_row();
+                $ovl->close();
+                if ($hasOverlap) {
+                    $this->rollbackIfOwned($ownTransaction);
                     $excludedCopies[] = $nextCopyId;
                     continue;
                 }

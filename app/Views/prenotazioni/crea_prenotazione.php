@@ -71,6 +71,18 @@
                     </div>
                 </div>
             </div>
+        <?php elseif ($error === 'capacity_full'): ?>
+            <div class="mb-8 p-6 bg-red-50 border border-red-200 text-red-700 rounded-xl shadow-sm" role="alert">
+                <div class="flex items-center">
+                    <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-exclamation-triangle text-red-600"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-semibold"><?= __("Nessuna disponibilità nel periodo") ?></h3>
+                        <p class="text-sm mt-1"><?= __("Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.") ?></p>
+                    </div>
+                </div>
+            </div>
         <?php endif; ?>
 
         <!-- Form -->

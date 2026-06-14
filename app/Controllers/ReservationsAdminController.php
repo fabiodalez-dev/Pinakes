@@ -224,6 +224,17 @@ class ReservationsAdminController
                 $dupLoanStmt->close();
             }
 
+            // Capacity gate on edit (the decision): only an 'attiva' reservation
+            // occupies. Reject a change that would push the period over capacity,
+            // excluding this reservation itself (and the user) from the count.
+            if ($stato === 'attiva') {
+                $capacity = new \App\Services\CapacityService($db);
+                if (!$capacity->hasFreeCapacity($libroId, $dataInizioRichiesta, $dataFineRichiesta, excludeReservationId: $id, excludeUserId: $utenteId)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/reservations/edit/' . $id) . '?error=capacity_full')->withStatus(302);
+                }
+            }
+
             $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=? WHERE id=?");
             $stmt->bind_param('sssssi', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $id);
             if (!$stmt->execute()) {
@@ -404,6 +415,16 @@ class ReservationsAdminController
                 return $response->withHeader('Location', url('/admin/reservations/create') . '?error=duplicate')->withStatus(302);
             }
             $dupLoanStmt->close();
+
+            // Capacity gate (the decision): a waitlist reservation occupies one
+            // capacity unit for its promised period, so reject it when the book is
+            // already at capacity for that window (counting other commitments).
+            // Same CapacityService predicate as the promotion gate and the auditor.
+            $capacity = new \App\Services\CapacityService($db);
+            if (!$capacity->hasFreeCapacity($libroId, $dataInizioRichiesta, $dataFineRichiesta, excludeUserId: $utenteId)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/reservations/create') . '?error=capacity_full')->withStatus(302);
+            }
 
             $stmt = $db->prepare("SELECT COALESCE(MAX(queue_position), 0) + 1 as position FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
             $stmt->bind_param('i', $libroId);

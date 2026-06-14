@@ -2067,6 +2067,11 @@ class Updater
                 'executed' => $migrationResult['executed']
             ]);
 
+            // Some migrations (e.g. 0.7.20 loan-state cleanup) change occupancy by
+            // rewriting prestiti rows directly; re-derive copie.stato and the
+            // libri.copie_disponibili/stato display caches so they stay consistent.
+            $this->recalculateAfterMigrations();
+
             // Fix file permissions
             $this->debugLog('INFO', 'Fix permessi file');
             $this->fixPermissions();
@@ -2850,6 +2855,25 @@ class Updater
      * missing TRIGGER privilege only logs a warning; the same overlap rules are
      * enforced at the application layer.
      */
+    /**
+     * Re-derive availability caches after migrations that rewrite prestiti rows
+     * (e.g. the 0.7.20 loan-state cleanup flips attivo/stato directly, which a
+     * bare UPDATE cannot reflect into copie.stato / libri.copie_disponibili).
+     * Idempotent and non-fatal — a recalc failure must not abort the upgrade.
+     */
+    private function recalculateAfterMigrations(): void
+    {
+        try {
+            $integrity = new \App\Support\DataIntegrity($this->db);
+            $integrity->recalculateAllBookAvailability();
+            $this->debugLog('INFO', 'Recalcolo disponibilità post-migrazione completato');
+        } catch (\Throwable $e) {
+            $this->debugLog('WARNING', 'Recalcolo disponibilità post-migrazione non riuscito (non fatale)', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     private function reapplyTriggers(): void
     {
         $triggersFile = $this->rootPath . '/installer/database/triggers.sql';

@@ -611,14 +611,14 @@ class PrestitiController
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\LoanRepository($db);
         $processedBy = $_SESSION['user']['id'] ?? null;
-        // Whitelist esplicita dei campi modificabili per prevenire mass assignment
-        // Note: data_restituzione e attivo sono gestiti dal form "Registra Restituzione" dedicato
-        $allowedFields = ['libro_id', 'utente_id', 'data_prestito', 'data_scadenza'];
+        // Whitelist esplicita dei campi modificabili per prevenire mass assignment.
+        // libro_id è SOLO display (cambiarlo scollegherebbe la copia dal libro → I7);
+        // data_restituzione/attivo/stato sono gestiti dal form "Registra Restituzione".
+        $allowedFields = ['utente_id', 'data_prestito', 'data_scadenza'];
         $updateData = [];
         foreach ($allowedFields as $field) {
             if (isset($data[$field])) {
                 switch ($field) {
-                    case 'libro_id':
                     case 'utente_id':
                         $updateData[$field] = (int) $data[$field];
                         break;
@@ -631,7 +631,30 @@ class PrestitiController
         }
         $updateData['processed_by'] = $processedBy;
 
-        $repo->update($id, $updateData);
+        // Rifiuta la modifica di un prestito CHIUSO: editarlo non deve riattivarlo
+        // (I1/I2 — BUG1). Un prestito è chiuso se attivo=0 o data_restituzione valorizzata.
+        $check = $db->prepare('SELECT attivo, data_restituzione FROM prestiti WHERE id=?');
+        $check->bind_param('i', $id);
+        $check->execute();
+        $current = $check->get_result()->fetch_assoc();
+        $check->close();
+        if (!$current) {
+            return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
+        }
+        if ((int) $current['attivo'] === 0 || $current['data_restituzione'] !== null) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_closed')->withStatus(302);
+        }
+
+        try {
+            $ok = $repo->update($id, $updateData);
+        } catch (\mysqli_sql_exception $e) {
+            // A trigger SIGNAL (e.g. I7) surfaces here under STRICT mode — never a 500.
+            \App\Support\SecureLogger::error('Loan update failed: ' . $e->getMessage());
+            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
+        }
+        if (!$ok) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
+        }
         return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
     }
     public function close(Request $request, Response $response, mysqli $db, int $id): Response
@@ -693,7 +716,9 @@ class PrestitiController
         $note = trim((string) ($data['note'] ?? '')) ?: null;
         $redirectTo = $this->sanitizeRedirect($data['redirect_to'] ?? null);
 
-        $allowed_status = ['restituito', 'in_ritardo', 'perso', 'danneggiato'];
+        // 'in_ritardo' NON è più un esito di restituzione: un rientro tardivo è
+        // 'restituito' + restituito_in_ritardo=1 (I4). Gli unici esiti sono questi.
+        $allowed_status = ['restituito', 'perso', 'danneggiato'];
         if (!in_array($nuovo_stato, $allowed_status)) {
             return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=invalid_status')->withStatus(302);
         }
@@ -703,8 +728,15 @@ class PrestitiController
         // Avvia transazione
         $db->begin_transaction();
         try {
-            // Recupera libro_id e copia_id dal prestito
-            $stmt = $db->prepare("SELECT libro_id, copia_id FROM prestiti WHERE id = ?");
+            // Recupera e BLOCCA il prestito: solo un prestito ancora aperto
+            // (attivo=1, in_corso/in_ritardo) è restituibile (BUG4/D10 — niente
+            // doppia elaborazione, niente TypeError su copia_id nullo).
+            $stmt = $db->prepare("
+                SELECT libro_id, copia_id, stato, data_scadenza
+                FROM prestiti
+                WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')
+                FOR UPDATE
+            ");
             $stmt->bind_param("i", $id);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -713,32 +745,42 @@ class PrestitiController
 
             if (!$loan) {
                 $db->rollback();
-                return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_found')->withStatus(302);
+                return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
             }
 
             $libro_id = $loan['libro_id'];
             $copia_id = $loan['copia_id'];
 
-            // Aggiorna il prestito
-            $stmt = $db->prepare("UPDATE prestiti SET stato = ?, data_restituzione = ?, note = ?, attivo = 0 WHERE id = ?");
-            $stmt->bind_param("sssi", $nuovo_stato, $data_restituzione, $note, $id);
-            $stmt->execute();
-            $stmt->close();
+            // Ritardo: un rientro oltre la scadenza è 'restituito' + flag (I4/BUG5).
+            // Confronto lessicografico Y-m-d sicuro. Significativo solo per 'restituito'.
+            $scadenza = (string) ($loan['data_scadenza'] ?? '');
+            $ritardo = ($nuovo_stato === 'restituito' && $scadenza !== '' && $scadenza < $data_restituzione) ? 1 : 0;
 
-            // Mappa stato prestito → stato copia
-            // Nota: questo è il form di RESTITUZIONE, quindi il libro torna sempre
-            // 'in_ritardo' qui significa "restituito in ritardo", non "ancora in prestito"
+            // Aggiorna il prestito (state-guard sull'attivo per evitare doppie restituzioni)
+            $stmt = $db->prepare("UPDATE prestiti SET stato = ?, data_restituzione = ?, note = ?, attivo = 0, restituito_in_ritardo = ? WHERE id = ? AND attivo = 1");
+            $stmt->bind_param("sssii", $nuovo_stato, $data_restituzione, $note, $ritardo, $id);
+            $stmt->execute();
+            $loanAffected = $stmt->affected_rows;
+            $stmt->close();
+            if ($loanAffected < 1) {
+                // Un'altra richiesta ha già chiuso questo prestito tra la SELECT e l'UPDATE.
+                throw new \RuntimeException('Prestito non più restituibile (race).');
+            }
+
+            // Mappa stato prestito → stato copia (form di RESTITUZIONE).
             $copia_stato = match ($nuovo_stato) {
                 'restituito' => 'disponibile',
-                'in_ritardo' => 'disponibile',  // Restituito in ritardo = disponibile
                 'perso' => 'perso',
                 'danneggiato' => 'danneggiato',
                 default => 'disponibile'
             };
 
-            // Aggiorna lo stato della copia
-            $copyRepo = new \App\Models\CopyRepository($db);
-            $copyRepo->updateStatus($copia_id, $copia_stato);
+            // Aggiorna lo stato della copia — solo se il prestito porta una copia
+            // (updateStatus ha firma int non-nullable: un copia_id nullo darebbe TypeError).
+            if ($copia_id !== null) {
+                $copyRepo = new \App\Models\CopyRepository($db);
+                $copyRepo->updateStatus((int) $copia_id, $copia_stato);
+            }
 
             $integrity = new DataIntegrity($db);
 
@@ -754,9 +796,11 @@ class PrestitiController
                 // transazione e deve propagare al catch esterno per il rollback
                 // dell'intera restituzione, evitando il commit di uno stato parziale
                 // (CRITICAL #157). Il servizio rilancia in transazione esterna.
-                $reassignmentService = new \App\Services\ReservationReassignmentService($db);
-                $reassignmentService->setExternalTransaction(true);
-                $reassignmentService->reassignOnReturn($copia_id);
+                if ($copia_id !== null) {
+                    $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                    $reassignmentService->setExternalTransaction(true);
+                    $reassignmentService->reassignOnReturn((int) $copia_id);
+                }
 
                 // Processa prenotazioni attive per questo libro (Future/Scheduled reservations)
                 $reservationManager = new \App\Controllers\ReservationManager($db);
@@ -806,7 +850,7 @@ class PrestitiController
 
             // Conferma di restituzione all'utente (GAP-1) — solo per restituzioni
             // effettive, non per copie segnate perse/danneggiate.
-            if (in_array($nuovo_stato, ['restituito', 'in_ritardo'], true)) {
+            if ($nuovo_stato === 'restituito') {
                 try {
                     (new NotificationService($db))->sendLoanReturnedNotification($id);
                 } catch (\Throwable $e) {
