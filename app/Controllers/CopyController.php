@@ -182,18 +182,50 @@ class CopyController
             $_SESSION['success_message'] = __('Prestito chiuso automaticamente. La copia è ora disponibile.');
         } else {
             // GESTIONE ALTRI STATI
-            // Blocca modifiche se la copia è trattenuta da un impegno HOLDING
-            // (eccetto il cambio a disponibile già gestito sopra).
+            // Fast-path: blocca subito se è già evidentemente trattenuta (HOLDING).
             if ($copyHeld) {
                 $_SESSION['error_message'] = __('Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su "Disponibile".');
                 return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
             }
 
-            // Aggiorna la copia
-            $stmt = $db->prepare("UPDATE copie SET stato = ?, note = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->bind_param('ssi', $stato, $note, $copyId);
-            $stmt->execute();
-            $stmt->close();
+            // L'aggiornamento avviene sotto lock del libro (ordine di lock canonico,
+            // come store/approveLoan) con ri-verifica HOLDING atomica: così una
+            // creazione prestito/prenotazione concorrente non può inserirsi tra il
+            // check e l'UPDATE lasciando la copia non-prestabile ma ancora impegnata.
+            $db->begin_transaction();
+            try {
+                $lockBook = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+                $lockBook->bind_param('i', $libroId);
+                $lockBook->execute();
+                $lockBook->close();
+
+                $recheck = $db->prepare("
+                    SELECT 1 FROM prestiti
+                    WHERE copia_id = ?
+                      AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                            OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                    LIMIT 1
+                ");
+                $recheck->bind_param('i', $copyId);
+                $recheck->execute();
+                $heldNow = (bool) $recheck->get_result()->fetch_row();
+                $recheck->close();
+                if ($heldNow) {
+                    $db->rollback();
+                    $_SESSION['error_message'] = __('Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su "Disponibile".');
+                    return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+                }
+
+                $stmt = $db->prepare("UPDATE copie SET stato = ?, note = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->bind_param('ssi', $stato, $note, $copyId);
+                $stmt->execute();
+                $stmt->close();
+
+                $db->commit();
+            } catch (\Throwable $e) {
+                $db->rollback();
+                throw $e;
+            }
         }
 
         // Case 2 & 9: Handle Copy Status Changes
