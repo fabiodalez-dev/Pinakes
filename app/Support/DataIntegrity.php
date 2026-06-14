@@ -40,8 +40,9 @@ class DataIntegrity {
                     ) THEN 'prestato'
                     WHEN EXISTS (
                         SELECT 1 FROM prestiti p
-                        WHERE p.copia_id = c.id AND p.attivo = 1
-                        AND p.stato IN ('prenotato', 'da_ritirare')
+                        WHERE p.copia_id = c.id
+                        AND ( (p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare'))
+                              OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL) )
                     ) THEN 'prenotato'
                     ELSE 'disponibile'
                 END
@@ -63,10 +64,12 @@ class DataIntegrity {
                         SELECT COUNT(*)
                         FROM copie c
                         LEFT JOIN prestiti p ON c.id = p.copia_id
-                            AND p.attivo = 1
                             AND (
-                                p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                                ( p.attivo = 1 AND (
+                                    p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
+                                    OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE() AND p.data_scadenza >= CURDATE())
+                                ) )
+                                OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                             )
                         WHERE c.libro_id = l.id
                         AND c.stato IN ('disponibile', 'prenotato')
@@ -94,10 +97,12 @@ class DataIntegrity {
                             SELECT COUNT(*)
                             FROM copie c
                             LEFT JOIN prestiti p ON c.id = p.copia_id
-                                AND p.attivo = 1
                                 AND (
-                                    p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                    OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                                    ( p.attivo = 1 AND (
+                                        p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
+                                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE() AND p.data_scadenza >= CURDATE())
+                                    ) )
+                                    OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                                 )
                             WHERE c.libro_id = l.id
                             AND c.stato IN ('disponibile', 'prenotato')
@@ -174,8 +179,9 @@ class DataIntegrity {
                     ) THEN 'prestato'
                     WHEN EXISTS (
                         SELECT 1 FROM prestiti p
-                        WHERE p.copia_id = c.id AND p.attivo = 1
-                        AND p.stato IN ('prenotato', 'da_ritirare')
+                        WHERE p.copia_id = c.id
+                        AND ( (p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare'))
+                              OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL) )
                     ) THEN 'prenotato'
                     ELSE 'disponibile'
                 END
@@ -283,8 +289,9 @@ class DataIntegrity {
                     ) THEN 'prestato'
                     WHEN EXISTS (
                         SELECT 1 FROM prestiti p
-                        WHERE p.copia_id = c.id AND p.attivo = 1
-                        AND p.stato IN ('prenotato', 'da_ritirare')
+                        WHERE p.copia_id = c.id
+                        AND ( (p.attivo = 1 AND p.stato IN ('prenotato', 'da_ritirare'))
+                              OR (p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL) )
                     ) THEN 'prenotato'
                     ELSE 'disponibile'
                 END
@@ -308,10 +315,12 @@ class DataIntegrity {
                         SELECT COUNT(*)
                         FROM copie c
                         LEFT JOIN prestiti p ON c.id = p.copia_id
-                            AND p.attivo = 1
                             AND (
-                                p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                                ( p.attivo = 1 AND (
+                                    p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
+                                    OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE() AND p.data_scadenza >= CURDATE())
+                                ) )
+                                OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                             )
                         WHERE c.libro_id = ?
                         AND c.stato IN ('disponibile', 'prenotato')
@@ -339,10 +348,12 @@ class DataIntegrity {
                             SELECT COUNT(*)
                             FROM copie c
                             LEFT JOIN prestiti p ON c.id = p.copia_id
-                                AND p.attivo = 1
                                 AND (
-                                    p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                    OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE())
+                                    ( p.attivo = 1 AND (
+                                        p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
+                                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE() AND p.data_scadenza >= CURDATE())
+                                    ) )
+                                    OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                                 )
                             WHERE c.libro_id = ?
                             AND c.stato IN ('disponibile', 'prenotato')
@@ -706,13 +717,12 @@ class DataIntegrity {
         }
         $stmt->close();
 
-        // Occupancy = the #157 canonical copy-holding set only: active loans plus
-        // reservation-conversion pendings that already hold a copy
-        // (attivo=0, stato='pendente', copia_id IS NOT NULL). Waitlist
-        // reservations (prenotazioni, stato='attiva') are intentionally a QUEUE
-        // that may exceed copy count and do NOT hold a copy until converted, so
-        // counting them as full-interval occupancy produced false-positive
-        // overbooked periods for popular low-copy books — they are excluded here.
+        // Occupancy = the canonical OCC: HOLDING loans (active loans + the
+        // pendente-with-copy conversion holder) PLUS active waitlist reservations.
+        // Per the canonical model, a prenotazioni row (stato='attiva') occupies one
+        // capacity unit for its promised period [data_inizio_richiesta, R_END], so
+        // the auditor MUST count it — otherwise it would bless an over-capacity
+        // waitlist that the creation/promotion gates already reject.
         $eventsByBook = [];
         $stmt = $this->db->prepare("
             SELECT libro_id, 'prestito' AS source_type, id AS source_id,
@@ -744,6 +754,38 @@ class DataIntegrity {
                 $end = $start;
             }
 
+            $endExclusive = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
+            $eventsByBook[$bookId][$start] = ($eventsByBook[$bookId][$start] ?? 0) + 1;
+            $eventsByBook[$bookId][$endExclusive] = ($eventsByBook[$bookId][$endExclusive] ?? 0) - 1;
+        }
+        $stmt->close();
+
+        // Active waitlist reservations occupy their promised period too (the
+        // decision): add them as occupancy events with the canonical 3-step
+        // coalesce chain for the interval end, same endExclusive conversion.
+        $stmt = $this->db->prepare("
+            SELECT libro_id,
+                   DATE(data_inizio_richiesta) AS start_date,
+                   DATE(COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione), data_inizio_richiesta)) AS end_date
+            FROM prenotazioni
+            WHERE stato = 'attiva'
+              AND data_inizio_richiesta IS NOT NULL
+        ");
+        $stmt->execute();
+        $resResult = $stmt->get_result();
+        while ($row = $resResult->fetch_assoc()) {
+            $bookId = (int) $row['libro_id'];
+            if (!isset($capacityByBook[$bookId])) {
+                continue;
+            }
+            $start = substr((string) $row['start_date'], 0, 10);
+            $end = substr((string) ($row['end_date'] ?? ''), 0, 10);
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start)) {
+                continue;
+            }
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) || $end < $start) {
+                $end = $start;
+            }
             $endExclusive = (new \DateTimeImmutable($end))->modify('+1 day')->format('Y-m-d');
             $eventsByBook[$bookId][$start] = ($eventsByBook[$bookId][$start] ?? 0) + 1;
             $eventsByBook[$bookId][$endExclusive] = ($eventsByBook[$bookId][$endExclusive] ?? 0) - 1;

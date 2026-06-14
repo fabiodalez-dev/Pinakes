@@ -178,7 +178,7 @@ class ReservationManager
                 $startDate = $nextReservation['data_inizio_richiesta'];
                 $endDate = $nextReservation['data_fine_richiesta'];
 
-                if ($this->isDateRangeAvailable($bookId, $startDate, $endDate)) {
+                if ($this->isDateRangeAvailable($bookId, $startDate, $endDate, (int) $nextReservation['id'])) {
                     // Create the loan - check return value to handle race conditions
                     // Note: createLoanFromReservation() handles its own transaction internally
                     // when called standalone, but here we're already in a transaction
@@ -195,6 +195,14 @@ class ReservationManager
                     $stmt->bind_param('i', $nextReservation['id']);
                     $stmt->execute();
                     $stmt->close();
+
+                    // BUG9/D4 double-subtraction fix: createLoanFromReservation() already
+                    // recalc'd availability, but the source reservation was still 'attiva'
+                    // then — so the new pendente+copy loan AND the waitlist slot were both
+                    // counted. Recalc again now that the reservation is 'completata', so the
+                    // commitment is counted exactly once.
+                    $integrity = new \App\Support\DataIntegrity($this->db);
+                    $integrity->recalculateBookAvailability($bookId, true);
 
                     // Update queue positions for remaining reservations.
                     // Pass the completed reservation's position: the converted
@@ -253,59 +261,25 @@ class ReservationManager
      * @param string|null $endDate End date (Y-m-d format)
      * @return bool True if at least one copy is available
      */
-    private function isDateRangeAvailable($bookId, $startDate, $endDate)
+    private function isDateRangeAvailable($bookId, $startDate, $endDate, ?int $excludeReservationId = null)
     {
         if (!$startDate || !$endDate) {
             return false;
         }
 
-        // Multi-copy aware: count only loanable copies.
-        $totalStmt = $this->db->prepare("
-            SELECT COUNT(*) as total FROM copie
-            WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
-        ");
-        $totalStmt->bind_param('i', $bookId);
-        $totalStmt->execute();
-        $totalCopies = (int) ($totalStmt->get_result()->fetch_assoc()['total'] ?? 0);
-        $totalStmt->close();
-
-        if ($totalCopies === 0) {
-            return false;
-        }
-
-        // Count overlapping loans (approved states only)
-        // Overlap check: existing_start <= our_end AND existing_end >= our_start
-        // Note: We only count LOANS here, not reservations, because:
-        // - This method is only used by processBookAvailability() to convert reservations to loans
-        // - Reservations are in a queue system - they wait their turn, they don't block each other
-        // - When converting reservation #1, other reservations shouldn't prevent the conversion
-        // Note: 'da_ritirare' counts as occupied even if copy is physically available
-        // CANONICAL "copy is occupied" predicate (#157, model A-refined):
-        //   (attivo = 1 AND stato IN active-states)
-        //   OR (stato = 'pendente' AND copia_id IS NOT NULL)
-        // A reservation-conversion pending (attivo=0) carries a copia_id and
-        // holds that copy until the admin confirms pickup, so it must count;
-        // a bare 'pendente' request with no copy assigned (origine='richiesta')
-        // does NOT yet hold a copy and must NOT reduce availability. The same
-        // predicate is mirrored in store/approveLoan/createReservation and the
-        // DB triggers so every entry point agrees.
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as conflicts
-            FROM prestiti
-            WHERE libro_id = ?
-            AND data_prestito <= ? AND data_scadenza >= ?
-            AND (
-                (attivo = 1 AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato'))
-                OR (stato = 'pendente' AND copia_id IS NOT NULL)
-            )
-        ");
-        $stmt->bind_param('iss', $bookId, $endDate, $startDate);
-        $stmt->execute();
-        $loanConflicts = (int) ($stmt->get_result()->fetch_assoc()['conflicts'] ?? 0);
-        $stmt->close();
-
-        // Multi-copy: available if there's at least one free slot
-        return $loanConflicts < $totalCopies;
+        // Canonical capacity gate (CapacityService): OCC counts HOLDING loans AND
+        // active reservations — the waitlist occupies one capacity unit for its
+        // promised period. This is the promotion gate, so it excludes the
+        // reservation being promoted (it would otherwise block its own conversion).
+        // Same predicate as the admin creation gate and the overbooked auditor —
+        // one source of truth, no drift.
+        $capacity = new \App\Services\CapacityService($this->db);
+        return $capacity->hasFreeCapacity(
+            (int) $bookId,
+            (string) $startDate,
+            (string) $endDate,
+            excludeReservationId: $excludeReservationId
+        );
     }
 
     /**
@@ -611,52 +585,22 @@ class ReservationManager
             }
         }
 
-        // Count active loans that overlap with the requested period (approved states only)
-        // Overlap condition: existing_start <= our_end AND existing_end >= our_start
-        // Note: We don't exclude user's own loans here - if they have a loan, they have the book.
-        // Unless we want to allow them to borrow ANOTHER copy? Usually no.
-        // Note: 'da_ritirare' counts as occupied even if copy is physically available
-        $stmt = $this->db->prepare("
-            SELECT COUNT(*) as active_loans
-            FROM prestiti
-            WHERE libro_id = ?
-            AND attivo = 1
-            AND stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
-            AND data_prestito <= ? AND data_scadenza >= ?
-        ");
-        $stmt->bind_param('iss', $bookId, $endDate, $startDate);
-        $stmt->execute();
-        $activeLoans = (int) ($stmt->get_result()->fetch_assoc()['active_loans'] ?? 0);
-        $stmt->close();
+        // Canonical OCC (CapacityService): per-day peak of HOLDING loans + active
+        // reservations over the requested period, using the canonical 3-step
+        // coalesce chain and the full HOLDING predicate (incl. the pendente+copy
+        // holder). excludeUserId drops the requesting user's own commitments so
+        // they are not blocked by themselves. Replaces the previous naive
+        // loans+reservations sum and the 2-step coalesce.
+        $capacity = new \App\Services\CapacityService($this->db);
+        $occupied = $capacity->occupiedCount(
+            (int) $bookId,
+            (string) $startDate,
+            (string) $endDate,
+            excludeUserId: $excludeUserId
+        );
 
-        // Count active reservations that overlap with the requested period
-        // Use COALESCE for safety, though data_inizio/fine_richiesta are always set
-        $sql = "
-            SELECT COUNT(*) as active_reservations
-            FROM prenotazioni
-            WHERE libro_id = ? AND stato = 'attiva'
-            AND COALESCE(data_inizio_richiesta, data_scadenza_prenotazione) <= ?
-            AND COALESCE(data_fine_richiesta, data_scadenza_prenotazione) >= ?
-        ";
-
-        $params = [$bookId, $endDate, $startDate];
-        $types = 'iss';
-
-        if ($excludeUserId !== null) {
-            $sql .= " AND utente_id != ?";
-            $params[] = $excludeUserId;
-            $types .= 'i';
-        }
-
-        $stmt = $this->db->prepare($sql);
-        $stmt->bind_param($types, ...$params);
-        $stmt->execute();
-        $activeReservations = (int) ($stmt->get_result()->fetch_assoc()['active_reservations'] ?? 0);
-        $stmt->close();
-
-        // Multi-copy: available if total occupied < total copies
-        $totalOccupied = $activeLoans + $activeReservations;
-        return $totalOccupied < $totalCopies;
+        // Multi-copy: available if peak occupancy is below the (possibly legacy) capacity.
+        return $occupied < $totalCopies;
     }
 
     /**
