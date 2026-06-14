@@ -910,6 +910,14 @@ class LoanApprovalController
                 }
             }
 
+            // Promote the waitlist (Layer 2): a cancelled pickup frees capacity for
+            // queued reservations. Loop until none convert. Both queues (D5/BUG10).
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            while ($reservationManager->processBookAvailability($libroId)) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
             // Recalculate book availability (inside transaction)
             $integrity = new DataIntegrity($db);
             if (!$integrity->recalculateBookAvailability($libroId, true)) {
@@ -920,6 +928,7 @@ class LoanApprovalController
 
             // Send deferred reservation notifications AFTER commit (outside transaction)
             $reassignmentService->flushDeferredNotifications();
+            $reservationManager->flushDeferredNotifications();
 
             // Send notification to user about cancelled pickup (outside transaction)
             try {
@@ -1039,7 +1048,16 @@ class LoanApprovalController
                 $reassignmentService->reassignOnReturn($copiaId);
             }
 
-            // Recalculate availability AFTER reassignment
+            // Promote the waitlist (Layer 2): a freed unit may convert one or more
+            // queued reservations. Loop until none convert — multi-copy frees can
+            // promote several. Both queues on every release path (D5/BUG10).
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            while ($reservationManager->processBookAvailability($libroId)) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
+            // Recalculate availability AFTER reassignment + promotion
             $integrity = new DataIntegrity($db);
             if (!$integrity->recalculateBookAvailability($libroId, true)) {
                 throw new \RuntimeException('Failed to recalculate book availability');
@@ -1051,6 +1069,7 @@ class LoanApprovalController
             if ($reassignmentService) {
                 $reassignmentService->flushDeferredNotifications();
             }
+            $reservationManager->flushDeferredNotifications();
 
             // Notify wishlist users AFTER commit, only if book has available copies
             try {

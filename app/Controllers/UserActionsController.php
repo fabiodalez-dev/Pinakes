@@ -179,6 +179,14 @@ class UserActionsController
                 $reassignmentService->reassignOnReturn($copiaId);
             }
 
+            // Promote the waitlist (Layer 2): a cancellation frees capacity for
+            // queued reservations. Loop until none convert. Both queues (D5/BUG10).
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            while ($reservationManager->processBookAvailability((int) $loan['libro_id'])) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
             // Recalculate book availability (insideTransaction: true — TXN-002:
             // siamo dentro la transazione aperta in questo metodo, evita il
             // commit implicito di una begin_transaction() annidata)
@@ -194,6 +202,11 @@ class UserActionsController
                 } catch (\Throwable $e) {
                     SecureLogger::warning('Failed to flush deferred notifications after loan cancellation', ['error' => $e->getMessage()]);
                 }
+            }
+            try {
+                $reservationManager->flushDeferredNotifications();
+            } catch (\Throwable $e) {
+                SecureLogger::warning('Failed to flush reservation notifications after loan cancellation', ['error' => $e->getMessage()]);
             }
 
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?canceled=1')->withStatus(302);

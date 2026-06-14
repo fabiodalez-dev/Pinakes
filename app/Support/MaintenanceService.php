@@ -84,6 +84,23 @@ class MaintenanceService
             'errors' => []
         ];
 
+        // Expire FIRST (BUG8/D13 ordering): cull dead-period reservations and
+        // unclaimed pickups before activating scheduled loans, so a reservation
+        // whose window has already passed is never promoted to 'da_ritirare'.
+        try {
+            $results['expired_reservations'] = $this->checkExpiredReservations();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'checkExpiredReservations: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore prenotazioni scadute'), ['error' => $e->getMessage()]);
+        }
+
+        try {
+            $results['expired_pickups'] = $this->checkExpiredPickups();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'checkExpiredPickups: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore ritiri scaduti'), ['error' => $e->getMessage()]);
+        }
+
         try {
             $results['scheduled_loans_activated'] = $this->activateScheduledLoans();
         } catch (\Throwable $e) {
@@ -104,22 +121,6 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'processScheduledReservations: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore conversione prenotazioni'), ['error' => $e->getMessage()]);
-        }
-
-        // Check expired reservations (Case 4 from reservation plan)
-        try {
-            $results['expired_reservations'] = $this->checkExpiredReservations();
-        } catch (\Throwable $e) {
-            $results['errors'][] = 'checkExpiredReservations: ' . $e->getMessage();
-            SecureLogger::error(__('MaintenanceService errore prenotazioni scadute'), ['error' => $e->getMessage()]);
-        }
-
-        // Check expired pickups (da_ritirare with pickup_deadline passed)
-        try {
-            $results['expired_pickups'] = $this->checkExpiredPickups();
-        } catch (\Throwable $e) {
-            $results['errors'][] = 'checkExpiredPickups: ' . $e->getMessage();
-            SecureLogger::error(__('MaintenanceService errore ritiri scaduti'), ['error' => $e->getMessage()]);
         }
 
         try {
@@ -221,11 +222,14 @@ class MaintenanceService
      */
     public function activateScheduledLoans(): int
     {
-        // Find all scheduled loans that should be activated
+        // Find all scheduled loans that should be activated. data_scadenza >= today
+        // guard (BUG8/D13): never promote a reservation whose whole window is already
+        // past into 'da_ritirare' — its expiry cron culls it instead.
         $stmt = $this->db->prepare("
             SELECT id, copia_id, libro_id FROM prestiti
             WHERE stato = 'prenotato'
             AND data_prestito <= CURDATE()
+            AND data_scadenza >= CURDATE()
             AND attivo = 1
         ");
 
@@ -258,7 +262,7 @@ class MaintenanceService
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
                     SET stato = 'da_ritirare', pickup_deadline = ?
-                    WHERE id = ? AND stato = 'prenotato'
+                    WHERE id = ? AND stato = 'prenotato' AND data_scadenza >= CURDATE()
                 ");
                 $updateStmt->bind_param('si', $pickupDeadline, $loan['id']);
                 $updateStmt->execute();
@@ -468,18 +472,25 @@ class MaintenanceService
                 // Build note suffix safely with bound parameter
                 $noteSuffix = "\n[System] " . __('Scaduta il') . ' ' . date('d/m/Y');
 
-                // Mark as expired
+                // Mark as expired. Re-assert stato='prenotato' + check affected_rows
+                // (D14): a concurrent confirmPickup/activateScheduledLoans may have
+                // advanced this row between the SELECT and here — don't stomp it.
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
                     SET stato = 'scaduto',
                         attivo = 0,
                         updated_at = NOW(),
                         note = CONCAT(COALESCE(note, ''), ?)
-                    WHERE id = ?
+                    WHERE id = ? AND stato = 'prenotato' AND attivo = 1
                 ");
                 $updateStmt->bind_param('si', $noteSuffix, $id);
                 $updateStmt->execute();
+                $expiredAffected = $updateStmt->affected_rows;
                 $updateStmt->close();
+                if ($expiredAffected === 0) {
+                    $this->db->rollback();
+                    continue;
+                }
 
                 // If a copy was assigned, make it available (if currently 'prenotato')
                 if ($copiaId) {
@@ -502,6 +513,14 @@ class MaintenanceService
                     }
                 }
 
+                // Layer 2: promote queued waitlist reservations freed by this expiry
+                // (loop until none convert). Both queues on every release path (D5/BUG10).
+                $reservationManager = new \App\Controllers\ReservationManager($this->db);
+                $reservationManager->setExternalTransaction(true);
+                while ($reservationManager->processBookAvailability($libroId)) {
+                    // keep promoting while freed capacity converts the next queued reservation
+                }
+
                 // Recalculate book availability (inside transaction)
                 $integrity->recalculateBookAvailability($libroId, true);
 
@@ -514,6 +533,7 @@ class MaintenanceService
                 // transazione già committata).
                 try {
                     $reassignmentService->flushDeferredNotifications();
+                    $reservationManager->flushDeferredNotifications();
                 } catch (\Throwable $flushErr) {
                     \App\Support\SecureLogger::warning('Flush notifiche differite fallito', ['error' => $flushErr->getMessage()]);
                 }
@@ -647,6 +667,14 @@ class MaintenanceService
                     $reassignmentService->reassignOnReturn($copiaId);
                 }
 
+                // Layer 2: promote queued waitlist reservations freed by this expired
+                // pickup (loop until none convert). Both queues (D5/BUG10).
+                $reservationManager = new \App\Controllers\ReservationManager($this->db);
+                $reservationManager->setExternalTransaction(true);
+                while ($reservationManager->processBookAvailability($libroId)) {
+                    // keep promoting while freed capacity converts the next queued reservation
+                }
+
                 // Recalculate book availability (inside transaction)
                 $integrity->recalculateBookAvailability($libroId, true);
 
@@ -659,6 +687,7 @@ class MaintenanceService
                 // transazione già committata).
                 try {
                     $reassignmentService->flushDeferredNotifications();
+                    $reservationManager->flushDeferredNotifications();
                 } catch (\Throwable $flushErr) {
                     \App\Support\SecureLogger::warning('Flush notifiche differite fallito', ['error' => $flushErr->getMessage()]);
                 }

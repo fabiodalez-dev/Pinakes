@@ -206,7 +206,13 @@ class CopyController
             }
             // Case 9: Copy became available -> Assign to waiting reservation
             elseif ($stato === 'disponibile') {
-                $reassignmentService->reassignOnReturn($copyId); // reassignOnReturn handles picking a waiting reservation
+                $reassignmentService->reassignOnReturn($copyId); // Layer 1: copy-less prenotato holds
+                // Layer 2: promote queued waitlist reservations for this book (loop
+                // until none convert). Both queues on every release path (D5/BUG10).
+                $reservationManager = new \App\Controllers\ReservationManager($db);
+                while ($reservationManager->processBookAvailability($libroId)) {
+                    // keep promoting while freed capacity converts the next queued reservation
+                }
             }
         } catch (\Throwable $e) {
             SecureLogger::error(__('Errore gestione cambio stato copia'), [

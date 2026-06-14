@@ -161,7 +161,7 @@ class LoanRepository
             // e ricalcolato il libro sbagliato. In quel caso (rarissimo: il
             // libro di un prestito non viene riassegnato) abortiamo invece di
             // operare su dati incoerenti.
-            $stmt = $this->db->prepare('SELECT libro_id FROM prestiti WHERE id=? FOR UPDATE');
+            $stmt = $this->db->prepare('SELECT libro_id, copia_id, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $lockedRow = $stmt->get_result()->fetch_assoc();
@@ -174,11 +174,14 @@ class LoanRepository
                 $this->db->rollback();
                 return false;
             }
+            $closedCopiaId = $lockedRow['copia_id'] !== null ? (int) $lockedRow['copia_id'] : null;
 
-            // Chiude il prestito
+            // Chiude il prestito (restituito + flag ritardo se oltre scadenza, I4/BUG5)
             $today = gmdate('Y-m-d');
-            $stmt = $this->db->prepare('UPDATE prestiti SET attivo=0, data_restituzione=?, stato="restituito" WHERE id=?');
-            $stmt->bind_param('si', $today, $id);
+            $scadenza = (string) ($lockedRow['data_scadenza'] ?? '');
+            $ritardo = ($scadenza !== '' && $scadenza < $today) ? 1 : 0;
+            $stmt = $this->db->prepare('UPDATE prestiti SET attivo=0, data_restituzione=?, stato="restituito", restituito_in_ritardo=? WHERE id=?');
+            $stmt->bind_param('sii', $today, $ritardo, $id);
             if (!$stmt->execute()) {
                 throw new \RuntimeException('Impossibile aggiornare lo stato del prestito.');
             }
@@ -205,12 +208,21 @@ class LoanRepository
                 throw new \RuntimeException(__('Impossibile ricalcolare la disponibilità del libro.'));
             }
 
+            // Layer 1: reassign any copy-less 'prenotato' hold to the freed copy
+            // (the inverse-gap fix — close() previously promoted only the waitlist).
+            $reassignmentService = null;
+            if ($closedCopiaId !== null) {
+                $reassignmentService = new \App\Services\ReservationReassignmentService($this->db);
+                $reassignmentService->setExternalTransaction(true);
+                $reassignmentService->reassignOnReturn($closedCopiaId);
+            }
+
+            // Layer 2: promote queued waitlist reservations. Loop until none convert
+            // (a multi-copy free can promote several). Both queues (D5/BUG10).
             $reservationManager = new ReservationManager($this->db);
             $reservationManager->setExternalTransaction(true); // TXN-003: siamo già in transazione
-            // Note: processBookAvailability returning false typically indicates no pending
-            // reservation or a race condition - acceptable to continue, just log for observability
-            if (!$reservationManager->processBookAvailability($bookId)) {
-                SecureLogger::debug("LoanRepository::close - No reservation processed for book ID: {$bookId}");
+            while ($reservationManager->processBookAvailability($bookId)) {
+                // keep promoting while freed capacity converts the next queued reservation
             }
 
             $this->db->commit();
@@ -226,6 +238,13 @@ class LoanRepository
             $reservationManager->flushDeferredNotifications();
         } catch (\Throwable $e) {
             SecureLogger::warning('LoanRepository::close flush notifications warning', ['error' => $e->getMessage()]);
+        }
+        if ($reassignmentService !== null) {
+            try {
+                $reassignmentService->flushDeferredNotifications();
+            } catch (\Throwable $e) {
+                SecureLogger::warning('LoanRepository::close reassign flush warning', ['error' => $e->getMessage()]);
+            }
         }
 
         // validateAndUpdateLoan has its own transaction, call it after main transaction completes
