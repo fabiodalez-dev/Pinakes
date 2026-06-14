@@ -389,7 +389,11 @@ HAS_DIGEST="no"
 for attempt in 1 2 3 4 5 6; do
     GUARD_ASSET_META=$(gh api "repos/fabiodalez-dev/Pinakes/releases/${GUARD_RELEASE_ID}/assets" \
         --jq ".[] | select(.name == \"${ZIP_ASSET_NAME}\")" 2>/dev/null || echo "")
-    HAS_DIGEST=$(printf '%s' "$GUARD_ASSET_META" | jq -r 'if (.digest // "") | startswith("sha256:") then "yes" else "no" end' 2>/dev/null || echo "no")
+    # Match the Updater's runtime contract (isValidSha256): require the FULL
+    # "sha256:" + 64 hex chars, not just the prefix — a malformed digest like
+    # "sha256:NOTHEX" would pass a prefix check here but be rejected as 'invalid'
+    # by the updater at install time.
+    HAS_DIGEST=$(printf '%s' "$GUARD_ASSET_META" | jq -r 'if (.digest // "") | test("^sha256:[A-Fa-f0-9]{64}$") then "yes" else "no" end' 2>/dev/null || echo "no")
     [ "$HAS_DIGEST" = "yes" ] && break
     echo -e "${YELLOW}  digest not computed yet (attempt $attempt/6), waiting 10s...${NC}"
     sleep 10

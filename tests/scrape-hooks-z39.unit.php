@@ -73,7 +73,13 @@ $archives    = readOrFail($root . '/storage/plugins/archives/ArchivesPlugin.php'
 // developer box but is skipped (not failed) in the standalone CI run that
 // ships no premium code.
 $scrapingProPath = $root . '/storage/plugins/scraping-pro/ScrapingProPlugin.php';
-$scrapingPro     = is_file($scrapingProPath) ? (string) file_get_contents($scrapingProPath) : null;
+// Read defensively: a TOCTOU race (file removed between is_file() and the read)
+// makes file_get_contents() return false — treat that as "absent" (null → skip
+// T8), NOT "" which would slip into aContains() and mis-assert. readOrFail() is
+// deliberately avoided here: it exit(1)s on a read miss, which would re-break the
+// CI run this guard exists to keep green.
+$scrapingProRaw = is_file($scrapingProPath) ? file_get_contents($scrapingProPath) : false;
+$scrapingPro    = ($scrapingProRaw === false) ? null : $scrapingProRaw;
 
 // ─── Group A — core emits scrape.data.modify (FIX 1) ────────────────────────
 aContains("Hooks::apply('scrape.data.modify'", $scrape,
