@@ -5279,5 +5279,10 @@
   "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup too large for PHP import: install the mysql client or increase memory_limit",
   "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.": "The release does not contain a verifiable installable package (pinakes-*.zip). Update cancelled.",
   "Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.": "Integrity check impossible: the release does not publish a valid sha256 digest. Installation of an unverified package refused.",
+  "Patch post-installazione non verificabile.": "Post-installation patch not verifiable.",
+  "Patch post-installazione presente ma non verificabile: patch non applicata, aggiornamento mantenuto.": "A post-installation patch is present but not verifiable: the patch was not applied, the update was kept.",
+  "Patch pre-aggiornamento non verificabile.": "Pre-update patch not verifiable.",
+  "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "A pre-update patch is present but not verifiable: the update was aborted for safety.",
+  "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Unexpected GitHub response (redirect) on an authenticated request.",
   "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Integrity check failed: the downloaded archive does not match the expected checksum."
 }

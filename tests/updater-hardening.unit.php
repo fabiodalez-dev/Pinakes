@@ -57,7 +57,7 @@ $check($call('http://api.github.com/repos/x') === false,
     'http://api.github.com => false (scheme must be https)');
 
 // ---------------------------------------------------------------------------
-echo "isValidSha256() — digest/sidecar hex guard (shared by both paths)\n";
+echo "isValidSha256() — digest hex guard\n";
 // ---------------------------------------------------------------------------
 
 $isValid = $ref->getMethod('isValidSha256');
@@ -127,7 +127,7 @@ $u3 = $makeUpdater(
     ['assets' => [['name' => 'pre-update-patch.php', 'browser_download_url' => $URL]]],
     [$URL => $BYTES]
 );
-$check($fetch($u3, 'pre-update-patch.php')['status'] === 'invalid', 'present asset, no digest => invalid (no sidecar)');
+$check($fetch($u3, 'pre-update-patch.php')['status'] === 'invalid', 'present asset, no digest => invalid (digest-only)');
 
 // 4. Malformed digest => INVALID (no fall-through to bytes).
 $u4 = $makeUpdater(
@@ -165,7 +165,7 @@ $check(strpos($src, "hash_equals(\$expectedHash, \$actualHash)") !== false,
 // 6. Missing integrity source => refuse (fail-closed, not silent install).
 $check(strpos($src, 'Verifica di integrità impossibile') !== false
     && strpos($src, 'Installazione di un pacchetto non verificato rifiutata') !== false,
-    'refuses update when no digest/sidecar available');
+    'refuses update when no digest available');
 
 // 7. No silent zipball fallback as a download source any more.
 $check(strpos($src, "\$downloadUrl = \$release['zipball_url']") === false,
@@ -197,17 +197,32 @@ $check(strpos($src, '$expectedChecksum !== $actualChecksum') === false,
 $check(strpos($src, 'function fetchSidecarChecksum') === false,
     'fetchSidecarChecksum() removed (no same-CDN sidecar fallback)');
 
-// 13. A present-but-unverifiable patch BLOCKS the update (success=false), not skip.
+// 13. A present-but-unverifiable patch is reported as success=false by both patch
+//     methods (the unverified code is never executed). The CALLER reacts
+//     asymmetrically by lifecycle position:
+//     - pre-update (nothing committed yet)  => THROW, abort the whole update.
+//     - post-install (core update already committed) => NON-FATAL warning, keep
+//       the update successful (else a correct upgrade is reported as failed).
 $check(preg_match('/applyPreUpdatePatch.*?status.*?===\s*\x27invalid\x27.*?success.*?false/s', $src) === 1,
     'pre-update patch invalid => success=false (blocks update)');
 $check(strpos($src, "throw new Exception(\$patchResult['error']") !== false,
     'update flow throws on a non-verifiable pre-update patch');
+// post-install must NOT throw — it records a non-fatal warning instead.
+$check(strpos($src, "throw new Exception(\$postPatchResult['error']") === false,
+    'post-install patch failure does NOT throw (update already committed)');
+$check(strpos($src, "'warning' => \$postPatchWarning") !== false,
+    'post-install patch failure surfaces a non-fatal warning in the result');
 
 // 14. The token-bearing GitHub request does NOT auto-follow redirects (no token leak).
 $check(preg_match('/makeGitHubRequest.*?\x27follow_location\x27\s*=>\s*0/s', $src) === 1,
     'makeGitHubRequest() disables redirect auto-follow (token-scope)');
 $check(preg_match('/statusCode\s*>=\s*300\s*&&\s*\$statusCode\s*<\s*400/s', $src) === 1,
     'makeGitHubRequest() fails closed on an unexpected redirect');
+// Every authenticated request path disables redirect auto-follow, not just the
+// cURL makeGitHubRequest() — the file_get_contents releases fallback (and its
+// token-retry) must also pin follow_location => 0 so the bearer is never resent.
+$check(substr_count($src, "'follow_location' => 0") >= 3,
+    'authenticated file_get_contents fallback paths also disable redirect follow');
 
 // ---------------------------------------------------------------------------
 echo "\n" . ($failed === 0

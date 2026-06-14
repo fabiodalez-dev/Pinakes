@@ -5278,6 +5278,11 @@
   "Ripristino in corso. Riprova tra qualche minuto.": "Restauration en cours. Réessayez dans quelques minutes.",
   "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Sauvegarde trop volumineuse pour l'import PHP : installez le client mysql ou augmentez memory_limit",
   "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.": "La version ne contient pas de paquet installable vérifiable (pinakes-*.zip). Mise à jour annulée.",
-  "Verifica di integrità impossibile: la release non pubblica né un digest né un sidecar .sha256. Installazione di un pacchetto non verificato rifiutata.": "Vérification d'intégrité impossible : la version ne publie ni empreinte (digest) ni fichier .sha256. Installation d'un paquet non vérifié refusée.",
+  "Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.": "Vérification d'intégrité impossible : la version ne publie pas d'empreinte sha256 (digest) valide. Installation d'un paquet non vérifié refusée.",
+  "Patch post-installazione non verificabile.": "Correctif post-installation non vérifiable.",
+  "Patch post-installazione presente ma non verificabile: patch non applicata, aggiornamento mantenuto.": "Un correctif post-installation est présent mais non vérifiable : le correctif n'a pas été appliqué, la mise à jour est conservée.",
+  "Patch pre-aggiornamento non verificabile.": "Correctif pré-mise à jour non vérifiable.",
+  "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "Un correctif pré-mise à jour est présent mais non vérifiable : la mise à jour a été interrompue par sécurité.",
+  "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Réponse GitHub inattendue (redirection) sur une requête authentifiée.",
   "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Échec de la vérification d'intégrité : l'archive téléchargée ne correspond pas à la somme de contrôle attendue."
 }

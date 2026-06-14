@@ -331,7 +331,7 @@ class Updater
 
     /**
      * Whether a URL targets the GitHub API host — the ONLY host that may
-     * receive the Authorization bearer token. Release asset / sidecar / patch
+     * receive the Authorization bearer token. Release asset / patch
      * downloads use browser_download_url (host github.com, redirecting to the
      * CDN objects.githubusercontent.com); sending the token there would leak it
      * into non-API (CDN) logs, so those requests must stay anonymous. Public
@@ -1035,12 +1035,18 @@ class Updater
 
         // Fallback to file_get_contents
         if ($response === null) {
+            // SECURITY: this request carries the bearer token (getGitHubHeaders()
+            // with auth). Disable redirect-following so the Authorization header is
+            // never resent to a redirect target — same fail-closed stance as
+            // makeGitHubRequest(). api.github.com does not legitimately redirect.
             $context = stream_context_create([
                 'http' => [
                     'method' => 'GET',
                     'header' => $this->getGitHubHeaders(),
                     'timeout' => 30,
-                    'ignore_errors' => true
+                    'ignore_errors' => true,
+                    'follow_location' => 0,
+                    'max_redirects' => 0
                 ]
             ]);
 
@@ -1058,7 +1064,9 @@ class Updater
                             'method' => 'GET',
                             'header' => $this->getGitHubHeaders(),
                             'timeout' => 30,
-                            'ignore_errors' => true
+                            'ignore_errors' => true,
+                            'follow_location' => 0,
+                            'max_redirects' => 0
                         ]
                     ]);
                     $response = @file_get_contents($url, false, $context);
@@ -1118,12 +1126,11 @@ class Updater
             ]);
 
             // SECURITY: only the packaged "pinakes-*.zip" release asset is
-            // installable — it is the artifact create-release.sh builds, ships a
-            // sha256 sidecar for, and (on modern GitHub) carries an API "digest".
+            // installable — it is the artifact create-release.sh builds and which
+            // GitHub serves with an API "digest" (sha256, computed server-side).
             // The git zipball_url is deliberately NOT used as a fallback: it has
-            // neither a digest nor a sidecar, so its integrity cannot be
-            // verified, and it lacks vendor/. We refuse rather than install an
-            // unverifiable package.
+            // no digest, so its integrity cannot be verified, and it lacks vendor/.
+            // We refuse rather than install an unverifiable package.
             $downloadUrl = null;
             $selectedAssetName = null;
             $expectedDigest = null;
@@ -1876,11 +1883,20 @@ class Updater
             // Step 4: Apply post-install patch (if available)
             $this->debugLog('INFO', '>>> STEP 4: Post-install patch check <<<');
             $postPatchResult = $this->applyPostInstallPatch($targetVersion);
+            $postPatchWarning = null;
             if (!$postPatchResult['success']) {
-                // A present-but-unverifiable post-install patch blocks the update.
-                throw new Exception($postPatchResult['error'] ?? __('Patch post-installazione non verificabile.'));
-            }
-            if ($postPatchResult['applied']) {
+                // The core update is ALREADY committed at this point (Step 3 copied
+                // the files, ran migrations and wrote version.json). A present-but-
+                // unverifiable post-install patch was NOT executed (security: never
+                // run unverified code — applyPostInstallPatch already declined it),
+                // but the update itself succeeded. Throwing here would report
+                // "update failed" on a correctly-upgraded install and push the admin
+                // to needlessly restore the backup. Record a non-fatal warning instead.
+                $postPatchWarning = $postPatchResult['error'] ?? __('Patch post-installazione non verificabile.');
+                $this->debugLog('WARNING', 'Post-install patch non verificabile — update mantenuto, patch non eseguita', [
+                    'warning' => $postPatchWarning
+                ]);
+            } elseif ($postPatchResult['applied']) {
                 $this->debugLog('INFO', 'Post-install patch applicato', [
                     'patches' => $postPatchResult['patches']
                 ]);
@@ -1892,6 +1908,7 @@ class Updater
             $result = [
                 'success' => true,
                 'error' => null,
+                'warning' => $postPatchWarning,
                 'backup_path' => $backupResult['path']
             ];
 
@@ -3786,11 +3803,17 @@ class Updater
             // Step 4: Apply post-install patch (if available)
             $this->debugLog('INFO', '>>> STEP 4: Post-install patch check <<<');
             $postPatchResult = $this->applyPostInstallPatch($targetVersion);
+            $postPatchWarning = null;
             if (!$postPatchResult['success']) {
-                // A present-but-unverifiable post-install patch blocks the update.
-                throw new Exception($postPatchResult['error'] ?? __('Patch post-installazione non verificabile.'));
-            }
-            if ($postPatchResult['applied']) {
+                // The core update is ALREADY committed (Step 3). A present-but-
+                // unverifiable post-install patch was NOT executed (security), but
+                // the update succeeded — do not report a hard failure on a correctly-
+                // upgraded install. Record a non-fatal warning instead of throwing.
+                $postPatchWarning = $postPatchResult['error'] ?? __('Patch post-installazione non verificabile.');
+                $this->debugLog('WARNING', 'Post-install patch non verificabile — update mantenuto, patch non eseguita', [
+                    'warning' => $postPatchWarning
+                ]);
+            } elseif ($postPatchResult['applied']) {
                 $this->debugLog('INFO', 'Post-install patch applicato', [
                     'patches' => $postPatchResult['patches'],
                     'cleanup' => $postPatchResult['cleanup'],
@@ -3803,6 +3826,7 @@ class Updater
             $result = [
                 'success' => true,
                 'error' => null,
+                'warning' => $postPatchWarning,
                 'backup_path' => $backupResult['path']
             ];
 
@@ -4004,7 +4028,10 @@ class Updater
     }
 
     /**
-     * Download patch file from URL, returns null on 404 or error
+     * Download patch file from URL. Returns null on any non-success outcome —
+     * 404 (absent), 403 (rate-limit/forbidden), or transport/cURL error. The
+     * caller (fetchVerifiedReleaseAsset) treats a null on a PRESENT asset as
+     * 'invalid' (block), so a transient failure is fail-closed by design.
      */
     protected function downloadPatchFile(string $url): ?string
     {
@@ -4179,9 +4206,13 @@ class Updater
             $patchOutcome = $this->fetchVerifiedReleaseAsset($targetVersion, 'post-install-patch.php');
 
             if ($patchOutcome['status'] === 'invalid') {
+                // success=false here means ONLY "a post-install patch is present but
+                // its sha256 could not be verified, so it was not executed". The
+                // caller treats this as a non-fatal warning because the core update
+                // is already committed by the time post-install patches run.
                 $result['success'] = false;
-                $result['error'] = __('Patch post-installazione presente ma non verificabile: aggiornamento interrotto per sicurezza.');
-                $this->debugLog('ERROR', 'Post-install patch INVALIDA → aggiornamento bloccato', [
+                $result['error'] = __('Patch post-installazione presente ma non verificabile: patch non applicata, aggiornamento mantenuto.');
+                $this->debugLog('WARNING', 'Post-install patch INVALIDA → patch non applicata (update mantenuto)', [
                     'target_version' => $targetVersion,
                 ]);
                 return $result;
