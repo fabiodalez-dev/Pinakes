@@ -25,7 +25,6 @@ function dbQuery(sql){
   try{ return execFileSync('mysql',[`--defaults-extra-file=${cnf}`,...args],{encoding:'utf-8',timeout:10000}).trim(); } finally { try{fs.unlinkSync(cnf);}catch{} }
 }
 const q1 = (sql) => dbQuery(sql).split('\n')[0].trim();
-const esc = (s) => String(s).replace(/'/g, "''");
 const addDays = (n) => { const d = new Date(); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
 
 test.describe('canonical loan/reservation state model', () => {
@@ -140,7 +139,7 @@ test.describe('canonical loan/reservation state model', () => {
   test('BUG10 — the waitlist occupies its period: overlapping admin reservation rejected, disjoint allowed', async () => {
     const startA = addDays(5), endA = addDays(10);
     const csrf1 = await csrfFrom('/admin/reservations/create');
-    const r1 = await postForm('/admin/reservations/create', {
+    await postForm('/admin/reservations/create', {
       csrf_token: csrf1, libro_id: String(bookId), utente_id: String(userA),
       data_prenotazione: startA, data_scadenza: endA,
       data_inizio_richiesta: startA, data_fine_richiesta: endA,
@@ -161,7 +160,7 @@ test.describe('canonical loan/reservation state model', () => {
 
     // user B, disjoint window → allowed
     const csrf3 = await csrfFrom('/admin/reservations/create');
-    const r3 = await postForm('/admin/reservations/create', {
+    await postForm('/admin/reservations/create', {
       csrf_token: csrf3, libro_id: String(bookId), utente_id: String(userB),
       data_prenotazione: addDays(40), data_scadenza: addDays(45),
       data_inizio_richiesta: addDays(40), data_fine_richiesta: addDays(45),
