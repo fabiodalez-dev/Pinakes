@@ -1,0 +1,20 @@
+name: "Pinakes CodeQL config"
+
+# Exclude vendored, built, and test-only JavaScript from analysis. These are
+# not application source we maintain, so their alerts are pure noise:
+#   - tests/**                         Playwright E2E specs (test fixtures, never shipped)
+#   - public/assets/tinymce/**         vendored TinyMCE editor (upstream code)
+#   - public/assets/vendors-*.js       webpack-bundled third-party (html2canvas, canvg, …)
+#   - public/assets/**/*.min.js        minified vendor libraries
+#   - silktide consent manager         vendored consent banner
+#   - installer/assets, scripts        installer UI + build scripts
+# Hand-written app JS (e.g. public/assets/js/csrf-helper.js) stays analyzed.
+paths-ignore:
+  - 'tests/**'
+  - 'public/assets/tinymce/**'
+  - 'public/assets/vendors-*.js'
+  - 'public/assets/**/*.min.js'
+  - 'public/assets/js/silktide-consent-manager.js'
+  - 'installer/assets/**'
+  - 'public/installer/assets/**'
+  - 'scripts/**'

@@ -350,6 +350,7 @@ traduzione_stringhe.md
 # ========================================
 .github/*
 !.github/workflows/
+!.github/codeql/
 vendor/**/.github/
 **/.gitkeep
 
