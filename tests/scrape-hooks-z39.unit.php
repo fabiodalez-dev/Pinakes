@@ -68,7 +68,18 @@ $z39         = readOrFail($root . '/storage/plugins/z39-server/Z39ServerPlugin.p
 $layout      = readOrFail($root . '/app/Views/layout.php');
 $discogsSrc  = readOrFail($root . '/storage/plugins/discogs/DiscogsPlugin.php');
 $archives    = readOrFail($root . '/storage/plugins/archives/ArchivesPlugin.php');
-$scrapingPro = readOrFail($root . '/storage/plugins/scraping-pro/ScrapingProPlugin.php');
+// scraping-pro is a PREMIUM plugin — NOT bundled in the repo / CI checkout.
+// Read it only when present so T8 (cross-plugin enrichment path) runs on a
+// developer box but is skipped (not failed) in the standalone CI run that
+// ships no premium code.
+$scrapingProPath = $root . '/storage/plugins/scraping-pro/ScrapingProPlugin.php';
+// Read defensively: a TOCTOU race (file removed between is_file() and the read)
+// makes file_get_contents() return false — treat that as "absent" (null → skip
+// T8), NOT "" which would slip into aContains() and mis-assert. readOrFail() is
+// deliberately avoided here: it exit(1)s on a read miss, which would re-break the
+// CI run this guard exists to keep green.
+$scrapingProRaw = is_file($scrapingProPath) ? file_get_contents($scrapingProPath) : false;
+$scrapingPro    = ($scrapingProRaw === false) ? null : $scrapingProRaw;
 
 // ─── Group A — core emits scrape.data.modify (FIX 1) ────────────────────────
 aContains("Hooks::apply('scrape.data.modify'", $scrape,
@@ -112,8 +123,12 @@ aContains("Hooks::add('scrape.data.modify', [\$this, 'enrichWithDiscogsData']", 
 aContains("Hooks::add('scrape.isbn.validate', [\$this, 'validateBarcode']", $discogsSrc,
     'T7  discogs registers validateBarcode on scrape.isbn.validate');
 
-aContains("Hooks::apply('scrape.data.modify'", $scrapingPro,
-    'T8  scraping-pro still emits scrape.data.modify (cross-plugin enrichment path preserved)');
+if ($scrapingPro === null) {
+    fwrite(STDOUT, "SKIP: T8  scraping-pro premium plugin not present (not bundled) — cross-plugin emit check skipped\n");
+} else {
+    aContains("Hooks::apply('scrape.data.modify'", $scrapingPro,
+        'T8  scraping-pro still emits scrape.data.modify (cross-plugin enrichment path preserved)');
+}
 
 // ─── Group C — z39 dead hook removed (FIX 2) ────────────────────────────────
 aNotContains('admin.menu.items', $z39,

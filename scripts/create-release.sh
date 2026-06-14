@@ -19,6 +19,16 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
+# SECURITY: VERSION is interpolated into gh/jq/tag commands below. Whitelist the
+# shape (X.Y.Z, optional 4th segment, optional -prerelease tail) so a value with
+# shell metacharacters can never reach those commands. Matches the project's
+# 3- and 4-segment scheme (e.g. 0.7.20, 0.4.9.9) plus SemVer pre-release ids.
+if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(\.[0-9]+)?(-[0-9A-Za-z.]+)?$'; then
+    echo "❌ ERROR: invalid version '$VERSION'."
+    echo "   Expected X.Y.Z, X.Y.Z.W, or X.Y.Z-rc.N (digits, dots, and a -prerelease tail only)."
+    exit 1
+fi
+
 # Detect a release candidate / prerelease: any SemVer pre-release identifier,
 # i.e. a hyphen in the version (0.7.15-rc.1, 0.8.0-beta.2, …). RC packages are
 # published as GitHub *prereleases* so the /releases/latest endpoint skips them
@@ -276,20 +286,25 @@ if gh release view "v${VERSION}" >/dev/null 2>&1; then
     gh release delete "v${VERSION}" --yes
 fi
 
+# SECURITY (draft → upload → verify → publish): create the release as a DRAFT so
+# it is never visible/installable while we upload and verify its assets. It is
+# published only AFTER the remote ZIP is proven to match the local one (STEP 9.6).
+# --target pins the commit the tag will point at when the draft is published.
 if [ "$IS_PRERELEASE" = true ]; then
     # --prerelease (NOT --latest): GitHub excludes prereleases from
     # /releases/latest, so the default updater never offers this package.
-    # --target pins the tag to this branch's tip (already verified on origin).
     gh release create "v${VERSION}" \
         --title "Pinakes v${VERSION} (Release Candidate)" \
         --generate-notes \
         --prerelease \
+        --draft \
         --target "$BRANCH"
 else
     gh release create "v${VERSION}" \
         --title "Pinakes v${VERSION}" \
         --generate-notes \
-        --latest
+        --draft \
+        --target "$BRANCH"
 fi
 
 if [ $? -ne 0 ]; then
@@ -297,7 +312,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo -e "${GREEN}✓ GitHub release created${NC}"
+echo -e "${GREEN}✓ GitHub DRAFT release created (published only after verification)${NC}"
 echo ""
 
 # ============================================================================
@@ -312,9 +327,10 @@ echo -e "${YELLOW}[8/9] Uploading files to GitHub release...${NC}"
 UPLOAD_ASSETS=("$ZIPFILE" "${ZIPFILE}.sha256")
 for PATCH in post-install-patch.php pre-update-patch.php; do
     if [ -f "$PATCH" ]; then
-        # Ensure checksum is fresh — the Updater verifies SHA-256 of the patch
-        # before executing it, so a stale .sha256 would cause the patch to be
-        # silently ignored on user installs.
+        # Publish a fresh checksum next to the patch. NOTE: the hardened Updater
+        # verifies the patch from the GitHub asset *digest* (computed server-side
+        # over TLS), NOT this sidecar — the .sha256 fallback was removed. The
+        # sidecar is kept only as a convenience for manual verification.
         shasum -a 256 "$PATCH" > "${PATCH}.sha256"
         UPLOAD_ASSETS+=("$PATCH" "${PATCH}.sha256")
         echo -e "${YELLOW}  + Attaching $PATCH (+ checksum)${NC}"
@@ -347,6 +363,52 @@ echo -e "${GREEN}✓ Release has $ASSETS assets${NC}"
 echo ""
 
 # ============================================================================
+# STEP 9.4: INTEGRITY-SOURCE GUARD (supports the hardened in-app updater)
+# The updater REFUSES to install a package it cannot verify. Since the sidecar
+# fallback was removed (see Updater.php — "The '.sha256' sidecar fallback was
+# removed"), integrity comes EXCLUSIVELY from the GitHub asset "digest"
+# (sha256:...), which GitHub computes server-side over TLS. A release without a
+# digest would wedge the upgrade chain for every install, so fail the publish
+# here rather than discover it at users' update time.
+# ============================================================================
+ZIP_ASSET_NAME="pinakes-v${VERSION}.zip"
+# Resolve the DRAFT release's numeric id by tag_name. Drafts have no git tag yet,
+# so `gh release view <tag>` / releases/tags/<tag> are unreliable for them — list
+# releases (which includes drafts) and match tag_name, then read assets via the
+# release id. Same draft-safe pattern as STEP 9.5.
+GUARD_RELEASE_ID=$(gh api "repos/fabiodalez-dev/Pinakes/releases" --paginate \
+    --jq ".[] | select(.tag_name == \"v${VERSION}\") | .id" 2>/dev/null | head -1)
+if [ -z "$GUARD_RELEASE_ID" ]; then
+    echo -e "${RED}❌ ERROR: could not resolve the draft release id for v${VERSION} (integrity guard).${NC}"
+    exit 1
+fi
+
+# GitHub computes the asset "digest" ASYNCHRONOUSLY after upload (like size), so
+# poll briefly rather than fail on the first miss.
+HAS_DIGEST="no"
+for attempt in 1 2 3 4 5 6; do
+    GUARD_ASSET_META=$(gh api "repos/fabiodalez-dev/Pinakes/releases/${GUARD_RELEASE_ID}/assets" \
+        --jq ".[] | select(.name == \"${ZIP_ASSET_NAME}\")" 2>/dev/null || echo "")
+    # Match the Updater's runtime contract (isValidSha256): require the FULL
+    # "sha256:" + 64 hex chars, not just the prefix — a malformed digest like
+    # "sha256:NOTHEX" would pass a prefix check here but be rejected as 'invalid'
+    # by the updater at install time.
+    HAS_DIGEST=$(printf '%s' "$GUARD_ASSET_META" | jq -r 'if (.digest // "") | test("^sha256:[A-Fa-f0-9]{64}$") then "yes" else "no" end' 2>/dev/null || echo "no")
+    [ "$HAS_DIGEST" = "yes" ] && break
+    echo -e "${YELLOW}  digest not computed yet (attempt $attempt/6), waiting 10s...${NC}"
+    sleep 10
+done
+
+if [ "$HAS_DIGEST" != "yes" ]; then
+    echo -e "${RED}❌ ERROR: release asset ${ZIP_ASSET_NAME} exposes no API sha256 digest after polling.${NC}"
+    echo -e "${RED}   The hardened updater verifies integrity from the digest ONLY (sidecar fallback removed).${NC}"
+    echo -e "${RED}   GitHub usually computes the digest within seconds — re-check the asset or re-upload.${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Integrity source present (digest=${HAS_DIGEST}) — hardened updater can verify this package${NC}"
+echo ""
+
+# ============================================================================
 # STEP 9.5: VERIFY THE ACTUAL REMOTE ZIP MATCHES THE LOCAL ZIP
 # ============================================================================
 # HARD RULE (see updater.md §ABSOLUTE RULE): "upload succeeded" is NOT enough.
@@ -373,6 +435,17 @@ LOCAL_SHA=$(shasum -a 256 "$ZIPFILE" | awk '{print $1}')
 LOCAL_PLUGIN_COUNT=$(unzip -l "$ZIPFILE" 2>/dev/null | grep -cE "storage/plugins/[^/]+/plugin\.json$" || true)
 GH_USER=$(gh api user --jq .login 2>/dev/null || echo "unknown")
 
+# Resolve the DRAFT release's numeric id by tag_name: drafts have no git tag yet,
+# so the tag-based API (releases/tags/v…) does not work — list releases (which
+# includes drafts) and match on tag_name. Assets are then read via the release id.
+RELEASE_ID=$(gh api "repos/fabiodalez-dev/Pinakes/releases" --paginate \
+    --jq ".[] | select(.tag_name == \"v${VERSION}\") | .id" 2>/dev/null | head -1)
+if [ -z "$RELEASE_ID" ]; then
+    echo -e "${RED}❌ ERROR: could not resolve the draft release id for v${VERSION}${NC}"
+    rm -rf "$REMOTE_VERIFY_DIR"
+    exit 1
+fi
+
 # Poll for up to 90s so a slow/async workflow override would also be caught.
 ATTEMPTS=0
 MAX_ATTEMPTS=9
@@ -380,9 +453,9 @@ MATCH=0
 while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
     ATTEMPTS=$((ATTEMPTS + 1))
 
-    # 1. Look up the asset's numeric ID + metadata via the API
-    ASSET_META=$(gh api "repos/fabiodalez-dev/Pinakes/releases/tags/v${VERSION}" \
-        --jq ".assets[] | select(.name == \"pinakes-v${VERSION}.zip\") | {id, size, uploader: .uploader.login}" 2>/dev/null || echo "")
+    # 1. Look up the asset's numeric ID + metadata via the release id (draft-safe).
+    ASSET_META=$(gh api "repos/fabiodalez-dev/Pinakes/releases/${RELEASE_ID}/assets" \
+        --jq ".[] | select(.name == \"pinakes-v${VERSION}.zip\") | {id, size, uploader: .uploader.login}" 2>/dev/null || echo "")
     if [ -z "$ASSET_META" ]; then
         echo -e "${YELLOW}  attempt $ATTEMPTS/$MAX_ATTEMPTS: asset not listed yet, retrying in 10s${NC}"
         sleep 10
@@ -437,6 +510,29 @@ fi
 rm -rf "$REMOTE_VERIFY_DIR"
 echo -e "${GREEN}✓ Remote ZIP matches local via API (SHA256 $LOCAL_SHA, $REMOTE_PLUGIN_COUNT plugins, uploader=$REMOTE_UPLOADER)${NC}"
 echo ""
+
+# ============================================================================
+# STEP 9.6: PUBLISH the verified draft (draft → upload → verify → PUBLISH)
+# The release was a hidden draft until now; only an artifact proven to match the
+# local ZIP gets published, closing the "published-before-verified" window.
+# ============================================================================
+echo -e "${YELLOW}[9.6/9] Publishing the verified draft release...${NC}"
+if [ "$IS_PRERELEASE" = true ]; then
+    gh release edit "v${VERSION}" --draft=false --prerelease
+else
+    gh release edit "v${VERSION}" --draft=false --latest
+fi
+if [ $? -ne 0 ]; then
+    echo -e "${RED}❌ ERROR: failed to publish the verified draft release${NC}"
+    echo -e "${RED}   The release remains a DRAFT (not visible/installable). Publish manually after review:${NC}"
+    echo -e "${RED}     gh release edit v${VERSION} --draft=false${NC}"
+    exit 1
+fi
+echo -e "${GREEN}✓ Release published (verified as a draft first)${NC}"
+echo ""
+# NOTE: GitHub "immutable releases" (assets frozen post-publish) is a repository
+# setting (Settings → General → Releases → Require immutable releases). Enable it
+# there so a published asset can never be silently overwritten by a later workflow.
 
 # ============================================================================
 # STEP 10: Done (no dev restore needed — PHPStan is global, not in vendor)

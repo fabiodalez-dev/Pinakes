@@ -5282,5 +5282,13 @@
   "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.": "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.",
   "Il prestito associato non è più chiudibile. Ricarica la pagina.": "Il prestito associato non è più chiudibile. Ricarica la pagina.",
   "Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.": "Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.",
-  "Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su \"Disponibile\".": "Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su \"Disponibile\"."
+  "Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su \"Disponibile\".": "Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su \"Disponibile\".",
+  "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.": "La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.",
+  "Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.": "Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.",
+  "Patch post-installazione non verificabile.": "Patch post-installazione non verificabile.",
+  "Patch post-installazione presente ma non verificabile: patch non applicata, aggiornamento mantenuto.": "Patch post-installazione presente ma non verificabile: patch non applicata, aggiornamento mantenuto.",
+  "Patch pre-aggiornamento non verificabile.": "Patch pre-aggiornamento non verificabile.",
+  "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.",
+  "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Risposta GitHub inattesa (redirect) su una richiesta autenticata.",
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso."
 }

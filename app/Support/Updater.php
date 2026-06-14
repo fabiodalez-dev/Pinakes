@@ -31,6 +31,15 @@ class Updater
     private string $tempPath;
     private string $githubToken = '';
 
+    /**
+     * Per-instance memo of releases fetched by tag, so a single update run that
+     * checks the package + the pre-update patch + the post-install patch hits
+     * the GitHub API once instead of three times (matters under the 60 req/h
+     * unauthenticated quota on shared hosting). Keyed by normalized version.
+     * @var array<string, array<string, mixed>|null>
+     */
+    private array $releaseByVersionCache = [];
+
     /** @var array<string> Files/directories to preserve during update */
     private array $preservePaths = [
         '.env',
@@ -321,6 +330,108 @@ class Updater
     }
 
     /**
+     * Whether a URL targets the GitHub API host — the ONLY host that may
+     * receive the Authorization bearer token. Release asset / patch
+     * downloads use browser_download_url (host github.com, redirecting to the
+     * CDN objects.githubusercontent.com); sending the token there would leak it
+     * into non-API (CDN) logs, so those requests must stay anonymous. Public
+     * release assets don't need auth anyway.
+     */
+    private function isApiUrl(string $url): bool
+    {
+        // The scheme is part of the contract: a bearer token sent over plain
+        // http:// would leak in transit, so https is required as well as the host.
+        $scheme = parse_url($url, PHP_URL_SCHEME);
+        $urlHost = parse_url($url, PHP_URL_HOST);
+        return is_string($scheme) && strcasecmp($scheme, 'https') === 0
+            && is_string($urlHost) && strcasecmp($urlHost, 'api.github.com') === 0;
+    }
+
+    /** True for a well-formed lowercase 64-char sha256 hex digest. */
+    private function isValidSha256(string $hash): bool
+    {
+        return preg_match('/^[a-f0-9]{64}$/', $hash) === 1;
+    }
+
+    /**
+     * Fetch a named release asset and verify its sha256 against the GitHub API
+     * "digest" field (TLS, api.github.com). Returns a TYPED outcome so the caller
+     * can tell a genuinely-absent patch (skip, normal) from a present-but-
+     * unverifiable one (block the update):
+     *   - 'absent'   : no such asset (or the release lookup failed) → skip
+     *   - 'verified' : asset present and sha256 matches the API digest → 'content' set
+     *   - 'invalid'  : asset present but unverifiable (no digest / download failed /
+     *                  hash mismatch) → caller MUST block the update
+     *
+     * @return array{status: string, content: ?string}
+     */
+    private function fetchVerifiedReleaseAsset(string $version, string $assetName): array
+    {
+        $release = $this->getReleaseByVersion($version);
+        if (!is_array($release)) {
+            // Release lookup failed (rate-limit/network). We cannot confirm whether a
+            // patch is shipped, so treat it as ABSENT (skip) — logged loudly. NOT
+            // 'invalid': a transient API failure must not block every update.
+            $this->debugLog('WARNING', 'Lookup release fallito durante il fetch patch (skip, possibile rate-limit/network)', [
+                'version' => $version,
+                'asset'   => $assetName,
+            ]);
+            return ['status' => 'absent', 'content' => null];
+        }
+
+        $asset = null;
+        foreach ((array) ($release['assets'] ?? []) as $candidate) {
+            if (is_array($candidate) && ($candidate['name'] ?? '') === $assetName) {
+                $asset = $candidate;
+                break;
+            }
+        }
+        if ($asset === null) {
+            return ['status' => 'absent', 'content' => null]; // no such asset — normal (no patch)
+        }
+
+        // From here the asset IS present on the release: ANY failure to verify+fetch
+        // it is INVALID (a patch is shipped but cannot be trusted) and the caller
+        // MUST block the update — never silently skip a present-but-unverifiable patch.
+        $url = $asset['browser_download_url'] ?? '';
+        if (!is_string($url) || $url === '') {
+            $this->debugLog('ERROR', 'Asset patch presente ma senza URL di download', ['asset' => $assetName]);
+            return ['status' => 'invalid', 'content' => null];
+        }
+
+        // Integrity comes ONLY from the GitHub API "digest" (served over TLS by
+        // api.github.com). The ".sha256" sidecar fallback was removed: payload and
+        // sidecar would come from the same CDN, so a CDN/MITM attacker could forge
+        // both. Every GitHub asset carries an API digest, the only trusted source.
+        $expectedHash = null;
+        $digest = $asset['digest'] ?? null;
+        if (is_string($digest) && stripos($digest, 'sha256:') === 0) {
+            $candidate = strtolower(substr($digest, 7));
+            $expectedHash = $this->isValidSha256($candidate) ? $candidate : null;
+        }
+        if ($expectedHash === null) {
+            $this->debugLog('ERROR', 'Asset patch presente ma senza digest API valido, rifiutato', ['asset' => $assetName]);
+            return ['status' => 'invalid', 'content' => null];
+        }
+
+        $content = $this->downloadPatchFile($url); // anonymous (no bearer token)
+        if ($content === null) {
+            $this->debugLog('ERROR', 'Download di un asset patch presente fallito', ['asset' => $assetName]);
+            return ['status' => 'invalid', 'content' => null];
+        }
+
+        if (!hash_equals($expectedHash, hash('sha256', $content))) {
+            $this->debugLog('ERROR', 'Asset patch digest mismatch, rifiutato', [
+                'asset'    => $assetName,
+                'expected' => $expectedHash,
+            ]);
+            return ['status' => 'invalid', 'content' => null];
+        }
+
+        return ['status' => 'verified', 'content' => $content];
+    }
+
+    /**
      * Extract final HTTP status code from response headers (handles redirects).
      * @param array<int, string> $headers
      */
@@ -607,7 +718,14 @@ class Updater
                 'method' => 'GET',
                 'header' => $headers,
                 'timeout' => 30,
-                'ignore_errors' => true // Questo ci permette di leggere anche risposte di errore
+                'ignore_errors' => true, // Questo ci permette di leggere anche risposte di errore
+                // SECURITY: this request carries the GitHub bearer token. file_get_contents
+                // would otherwise follow a 3xx redirect and re-send the Authorization
+                // header cross-host (token leak). Disable auto-redirects; a redirect is
+                // handled explicitly below as a hard error (api.github.com returns data
+                // directly and does not redirect the endpoints we call).
+                'follow_location' => 0,
+                'max_redirects' => 0,
             ],
             'ssl' => [
                 'verify_peer' => true,
@@ -659,6 +777,17 @@ class Updater
         }
 
         $this->debugLog('INFO', 'Status code HTTP', ['status' => $statusCode]);
+
+        // SECURITY: a redirect on this token-bearing request is NOT auto-followed
+        // (see context above). The bearer must never leak to a redirect target, so
+        // fail closed rather than re-issuing the request to the Location host.
+        if ($statusCode >= 300 && $statusCode < 400) {
+            $this->debugLog('ERROR', 'Redirect inatteso su richiesta GitHub autenticata (non seguito)', [
+                'status_code' => $statusCode,
+                'url' => $url,
+            ]);
+            throw new Exception(__('Risposta GitHub inattesa (redirect) su una richiesta autenticata.'));
+        }
 
         if ($statusCode >= 400) {
             // Retry without token on 401/403 (invalid/revoked token shouldn't block updates)
@@ -774,6 +903,7 @@ class Updater
                 CURLOPT_TIMEOUT => 10,
                 CURLOPT_HTTPHEADER => $this->getGitHubHeaders(),
                 CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
             ]);
             $curlResult = curl_exec($ch);
             $curlInfo = curl_getinfo($ch);
@@ -870,6 +1000,7 @@ class Updater
                 CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
                 CURLOPT_HTTPHEADER => $this->getGitHubHeaders(),
                 CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
             ]);
 
             $curlResult = curl_exec($ch);
@@ -891,6 +1022,7 @@ class Updater
                     CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
                     CURLOPT_HTTPHEADER => $retryHeaders,
                     CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
                 ]);
                 $retryResult = curl_exec($ch2);
                 $retryCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
@@ -903,12 +1035,18 @@ class Updater
 
         // Fallback to file_get_contents
         if ($response === null) {
+            // SECURITY: this request carries the bearer token (getGitHubHeaders()
+            // with auth). Disable redirect-following so the Authorization header is
+            // never resent to a redirect target — same fail-closed stance as
+            // makeGitHubRequest(). api.github.com does not legitimately redirect.
             $context = stream_context_create([
                 'http' => [
                     'method' => 'GET',
                     'header' => $this->getGitHubHeaders(),
                     'timeout' => 30,
-                    'ignore_errors' => true
+                    'ignore_errors' => true,
+                    'follow_location' => 0,
+                    'max_redirects' => 0
                 ]
             ]);
 
@@ -926,7 +1064,9 @@ class Updater
                             'method' => 'GET',
                             'header' => $this->getGitHubHeaders(),
                             'timeout' => 30,
-                            'ignore_errors' => true
+                            'ignore_errors' => true,
+                            'follow_location' => 0,
+                            'max_redirects' => 0
                         ]
                     ]);
                     $response = @file_get_contents($url, false, $context);
@@ -985,32 +1125,42 @@ class Updater
                 'assets' => array_map(fn($a) => $a['name'], $release['assets'] ?? [])
             ]);
 
-            // Find the source code zip asset or use zipball_url
-            $downloadUrl = $release['zipball_url'] ?? null;
+            // SECURITY: only the packaged "pinakes-*.zip" release asset is
+            // installable — it is the artifact create-release.sh builds and which
+            // GitHub serves with an API "digest" (sha256, computed server-side).
+            // The git zipball_url is deliberately NOT used as a fallback: it has
+            // no digest, so its integrity cannot be verified, and it lacks vendor/.
+            // We refuse rather than install an unverifiable package.
+            $downloadUrl = null;
+            $selectedAssetName = null;
+            $expectedDigest = null;
 
-            // Check for custom asset named pinakes-vX.X.X.zip first
             foreach ($release['assets'] ?? [] as $asset) {
                 $this->debugLog('DEBUG', 'Controllo asset', [
-                    'name' => $asset['name'],
+                    'name' => $asset['name'] ?? 'N/A',
                     'size' => $asset['size'] ?? 0,
                     'download_url' => $asset['browser_download_url'] ?? 'N/A'
                 ]);
 
-                if (preg_match('/pinakes.*\.zip$/i', $asset['name'])) {
-                    $downloadUrl = $asset['browser_download_url'];
+                if (isset($asset['name']) && preg_match('/pinakes.*\.zip$/i', (string) $asset['name'])) {
+                    $downloadUrl = $asset['browser_download_url'] ?? null;
+                    $selectedAssetName = (string) $asset['name'];
+                    $expectedDigest = isset($asset['digest']) && is_string($asset['digest']) ? $asset['digest'] : null;
                     $this->debugLog('INFO', 'Trovato asset personalizzato', [
-                        'name' => $asset['name'],
-                        'url' => $downloadUrl
+                        'name' => $selectedAssetName,
+                        'url' => $downloadUrl,
+                        'digest' => $expectedDigest ?? 'N/A'
                     ]);
                     break;
                 }
             }
 
-            if (!$downloadUrl) {
-                $this->debugLog('ERROR', 'URL di download non trovato', [
-                    'release' => $release['tag_name']
+            if (!$downloadUrl || $selectedAssetName === null) {
+                $this->debugLog('ERROR', 'Nessun asset pacchetto verificabile (pinakes-*.zip) nella release', [
+                    'release' => $release['tag_name'] ?? 'N/A',
+                    'assets'  => array_map(static fn($a) => $a['name'] ?? '?', $release['assets'] ?? [])
                 ]);
-                throw new Exception(__('URL di download non trovato'));
+                throw new Exception(__('La release non contiene un pacchetto installabile verificabile (pinakes-*.zip). Aggiornamento annullato.'));
             }
 
             $this->debugLog('INFO', 'URL download selezionato', ['url' => $downloadUrl]);
@@ -1048,8 +1198,9 @@ class Updater
                     CURLOPT_TIMEOUT => 300,
                     CURLOPT_CONNECTTIMEOUT => 30,
                     CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
-                    CURLOPT_HTTPHEADER => $this->getGitHubHeaders('application/octet-stream'),
+                    CURLOPT_HTTPHEADER => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
                     CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
                     CURLOPT_BUFFERSIZE => 1024 * 1024, // 1MB buffer
                 ]);
 
@@ -1086,6 +1237,7 @@ class Updater
                             CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
                             CURLOPT_HTTPHEADER => $retryHeaders,
                             CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
                         ]);
                         $retryContent = curl_exec($ch2);
                         $retryCode = (int)(curl_getinfo($ch2, CURLINFO_HTTP_CODE));
@@ -1111,7 +1263,7 @@ class Updater
                 $context = stream_context_create([
                     'http' => [
                         'method' => 'GET',
-                        'header' => $this->getGitHubHeaders('application/octet-stream'),
+                        'header' => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
                         'timeout' => 300,
                         'follow_location' => true,
                         'ignore_errors' => true
@@ -1138,7 +1290,7 @@ class Updater
                         $context = stream_context_create([
                             'http' => [
                                 'method' => 'GET',
-                                'header' => $this->getGitHubHeaders('application/octet-stream'),
+                                'header' => $this->getGitHubHeaders('application/octet-stream', $this->isApiUrl($downloadUrl)),
                                 'timeout' => 300,
                                 'follow_location' => true,
                                 'ignore_errors' => true
@@ -1185,6 +1337,41 @@ class Updater
                 ]);
                 throw new Exception(__('File di aggiornamento non valido (troppo piccolo)'));
             }
+
+            // SECURITY: integrity verification is MANDATORY before the package is
+            // ever written to disk and extracted. The downloaded bytes must match
+            // the GitHub asset "digest" ("sha256:<hex>", served over TLS by
+            // api.github.com) — the supply-chain guard that TLS-transport alone does
+            // not provide against a tampered release artifact. The ".sha256" sidecar
+            // fallback was removed: payload + sidecar share the same CDN, so a CDN/
+            // MITM attacker could forge both. Every GitHub asset carries an API
+            // digest; if it is missing or malformed, refuse the update (fail-closed).
+            $expectedHash = null;
+            if (is_string($expectedDigest) && stripos($expectedDigest, 'sha256:') === 0) {
+                $candidate = strtolower(substr($expectedDigest, 7));
+                // Reject a malformed digest rather than carry it into hash_equals.
+                if ($this->isValidSha256($candidate)) {
+                    $expectedHash = $candidate;
+                    $this->debugLog('INFO', 'Verifica integrità via digest asset GitHub');
+                }
+            }
+
+            if ($expectedHash === null) {
+                $this->debugLog('ERROR', 'Nessun digest API valido per il pacchetto, rifiutato', [
+                    'asset' => $selectedAssetName
+                ]);
+                throw new Exception(__('Verifica di integrità impossibile: la release non pubblica un digest sha256 valido. Installazione di un pacchetto non verificato rifiutata.'));
+            }
+
+            $actualHash = hash('sha256', $fileContent);
+            if (!hash_equals($expectedHash, $actualHash)) {
+                $this->debugLog('ERROR', 'Digest del pacchetto non corrispondente', [
+                    'expected' => $expectedHash,
+                    'actual'   => $actualHash
+                ]);
+                throw new Exception(__('Verifica di integrità fallita: l\'archivio scaricato non corrisponde al checksum atteso.'));
+            }
+            $this->debugLog('INFO', 'Integrità pacchetto verificata (sha256)', ['sha256' => $actualHash]);
 
             // Save file
             $this->debugLog('DEBUG', 'Salvataggio file ZIP', ['path' => $zipPath]);
@@ -1409,9 +1596,16 @@ class Updater
     /**
      * Get release by version tag
      */
-    private function getReleaseByVersion(string $version): ?array
+    protected function getReleaseByVersion(string $version): ?array
     {
         $tag = strpos($version, 'v') === 0 ? $version : 'v' . $version;
+
+        // Memoized: the package download and both patch checks ask for the same
+        // tag within one update run — collapse them to a single API call.
+        if (array_key_exists($tag, $this->releaseByVersionCache)) {
+            return $this->releaseByVersionCache[$tag];
+        }
+
         $url = "https://api.github.com/repos/{$this->repoOwner}/{$this->repoName}/releases/tags/{$tag}";
 
         $this->debugLog('INFO', 'Recupero release per tag', [
@@ -1421,7 +1615,13 @@ class Updater
         ]);
 
         try {
-            return $this->makeGitHubRequest($url);
+            $release = $this->makeGitHubRequest($url);
+            // Only cache positive results: a transient API error must not pin a
+            // null for the rest of the run (a later retry may legitimately succeed).
+            if (is_array($release)) {
+                $this->releaseByVersionCache[$tag] = $release;
+            }
+            return $release;
         } catch (\Throwable $e) {
             $this->debugLog('ERROR', 'Errore recupero release per versione', [
                 'version' => $version,
@@ -1662,6 +1862,10 @@ class Updater
             // Step 2.5: Apply pre-update patch (if available)
             $this->debugLog('INFO', '>>> STEP 2.5: Pre-update patch check <<<');
             $patchResult = $this->applyPreUpdatePatch($targetVersion);
+            if (!$patchResult['success']) {
+                // A present-but-unverifiable pre-update patch blocks the update.
+                throw new Exception($patchResult['error'] ?? __('Patch pre-aggiornamento non verificabile.'));
+            }
             if ($patchResult['applied']) {
                 $this->debugLog('INFO', 'Pre-update patch applicato', [
                     'patches' => $patchResult['patches']
@@ -1679,7 +1883,20 @@ class Updater
             // Step 4: Apply post-install patch (if available)
             $this->debugLog('INFO', '>>> STEP 4: Post-install patch check <<<');
             $postPatchResult = $this->applyPostInstallPatch($targetVersion);
-            if ($postPatchResult['applied']) {
+            $postPatchWarning = null;
+            if (!$postPatchResult['success']) {
+                // The core update is ALREADY committed at this point (Step 3 copied
+                // the files, ran migrations and wrote version.json). A present-but-
+                // unverifiable post-install patch was NOT executed (security: never
+                // run unverified code — applyPostInstallPatch already declined it),
+                // but the update itself succeeded. Throwing here would report
+                // "update failed" on a correctly-upgraded install and push the admin
+                // to needlessly restore the backup. Record a non-fatal warning instead.
+                $postPatchWarning = $postPatchResult['error'] ?? __('Patch post-installazione non verificabile.');
+                $this->debugLog('WARNING', 'Post-install patch non verificabile — update mantenuto, patch non eseguita', [
+                    'warning' => $postPatchWarning
+                ]);
+            } elseif ($postPatchResult['applied']) {
                 $this->debugLog('INFO', 'Post-install patch applicato', [
                     'patches' => $postPatchResult['patches']
                 ]);
@@ -1691,6 +1908,7 @@ class Updater
             $result = [
                 'success' => true,
                 'error' => null,
+                'warning' => $postPatchWarning,
                 'backup_path' => $backupResult['path']
             ];
 
@@ -3572,6 +3790,10 @@ class Updater
             // Step 0: Apply pre-update patch (if available)
             $this->debugLog('INFO', '>>> STEP 0: Pre-update patch check <<<');
             $patchResult = $this->applyPreUpdatePatch($targetVersion);
+            if (!$patchResult['success']) {
+                // A present-but-unverifiable pre-update patch blocks the update.
+                throw new Exception($patchResult['error'] ?? __('Patch pre-aggiornamento non verificabile.'));
+            }
             if ($patchResult['applied']) {
                 $this->debugLog('INFO', 'Pre-update patch applicato', [
                     'patches' => $patchResult['patches']
@@ -3605,7 +3827,17 @@ class Updater
             // Step 4: Apply post-install patch (if available)
             $this->debugLog('INFO', '>>> STEP 4: Post-install patch check <<<');
             $postPatchResult = $this->applyPostInstallPatch($targetVersion);
-            if ($postPatchResult['applied']) {
+            $postPatchWarning = null;
+            if (!$postPatchResult['success']) {
+                // The core update is ALREADY committed (Step 3). A present-but-
+                // unverifiable post-install patch was NOT executed (security), but
+                // the update succeeded — do not report a hard failure on a correctly-
+                // upgraded install. Record a non-fatal warning instead of throwing.
+                $postPatchWarning = $postPatchResult['error'] ?? __('Patch post-installazione non verificabile.');
+                $this->debugLog('WARNING', 'Post-install patch non verificabile — update mantenuto, patch non eseguita', [
+                    'warning' => $postPatchWarning
+                ]);
+            } elseif ($postPatchResult['applied']) {
                 $this->debugLog('INFO', 'Post-install patch applicato', [
                     'patches' => $postPatchResult['patches'],
                     'cleanup' => $postPatchResult['cleanup'],
@@ -3618,6 +3850,7 @@ class Updater
             $result = [
                 'success' => true,
                 'error' => null,
+                'warning' => $postPatchWarning,
                 'backup_path' => $backupResult['path']
             ];
 
@@ -3708,57 +3941,37 @@ class Updater
         ];
 
         try {
-            // Build URL for pre-update-patch.php from GitHub release
-            $tag = strpos($targetVersion, 'v') === 0 ? $targetVersion : 'v' . $targetVersion;
-            $baseUrl = "https://github.com/{$this->repoOwner}/{$this->repoName}/releases/download/{$tag}";
-            $patchUrl = $baseUrl . '/pre-update-patch.php';
-            $checksumUrl = $baseUrl . '/pre-update-patch.php.sha256';
+            // SECURITY: the pre-update patch is fetched as a release asset and its
+            // sha256 verified against the GitHub API "digest" (TLS, api.github.com).
+            // fetchVerifiedReleaseAsset() returns a typed outcome so we can tell an
+            // absent patch (skip) from a present-but-unverifiable one (block).
+            $patchOutcome = $this->fetchVerifiedReleaseAsset($targetVersion, 'pre-update-patch.php');
 
-            $this->debugLog('DEBUG', 'Tentativo download pre-update-patch', [
-                'patch_url' => $patchUrl,
-                'checksum_url' => $checksumUrl
-            ]);
-
-            // Download patch file
-            $patchContent = $this->downloadPatchFile($patchUrl);
-
-            if ($patchContent === null) {
-                // 404 or download failed - this is OK, no patch needed
-                $this->debugLog('INFO', 'Nessun pre-update-patch disponibile (OK, normale)', [
-                    'reason' => 'File not found or download failed'
+            if ($patchOutcome['status'] === 'invalid') {
+                // A pre-update patch IS shipped for this update but is corrupt /
+                // unverifiable. NEVER silently skip a required patch — block the
+                // update (fail-closed) so the user retries rather than installing
+                // half-patched.
+                $result['success'] = false;
+                $result['error'] = __('Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.');
+                $this->debugLog('ERROR', 'Pre-update patch INVALIDA → aggiornamento bloccato', [
+                    'target_version' => $targetVersion,
                 ]);
                 return $result;
             }
 
-            $this->debugLog('INFO', 'Pre-update-patch scaricato', [
+            $patchContent = $patchOutcome['content'];
+            if ($patchOutcome['status'] === 'absent' || $patchContent === null) {
+                $this->debugLog('INFO', 'Nessun pre-update-patch verificato disponibile (OK, normale)');
+                return $result;
+            }
+
+            $this->debugLog('INFO', 'Pre-update-patch scaricato e verificato (sha256)', [
                 'size' => strlen($patchContent)
             ]);
 
-            // Download checksum file
-            $checksumContent = $this->downloadPatchFile($checksumUrl);
-
-            if ($checksumContent === null) {
-                $this->debugLog('WARNING', 'Checksum file non trovato, patch ignorata per sicurezza');
-                return $result;
-            }
-
-            // Verify checksum
-            $expectedChecksum = trim(explode(' ', trim($checksumContent))[0]);
-            $actualChecksum = hash('sha256', $patchContent);
-
-            if ($expectedChecksum !== $actualChecksum) {
-                $this->debugLog('ERROR', 'Checksum pre-update-patch non valido', [
-                    'expected' => $expectedChecksum,
-                    'actual' => $actualChecksum
-                ]);
-                // Don't fail the update, just skip the patch
-                return $result;
-            }
-
-            $this->debugLog('INFO', 'Checksum verificato', ['checksum' => $actualChecksum]);
-
             // Save patch to temp file and evaluate
-            $tempPatchFile = $this->rootPath . '/storage/tmp/pre-update-patch-' . uniqid() . '.php';
+            $tempPatchFile = $this->rootPath . '/storage/tmp/pre-update-patch-' . bin2hex(random_bytes(16)) . '.php';
             if (!is_dir(dirname($tempPatchFile))) {
                 @mkdir(dirname($tempPatchFile), 0775, true);
             }
@@ -3839,9 +4052,12 @@ class Updater
     }
 
     /**
-     * Download patch file from URL, returns null on 404 or error
+     * Download patch file from URL. Returns null on any non-success outcome —
+     * 404 (absent), 403 (rate-limit/forbidden), or transport/cURL error. The
+     * caller (fetchVerifiedReleaseAsset) treats a null on a PRESENT asset as
+     * 'invalid' (block), so a transient failure is fail-closed by design.
      */
-    private function downloadPatchFile(string $url): ?string
+    protected function downloadPatchFile(string $url): ?string
     {
         // Try cURL first
         if (extension_loaded('curl')) {
@@ -3854,6 +4070,7 @@ class Updater
                 CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
                 CURLOPT_SSL_VERIFYPEER => true,
+                    CURLOPT_UNRESTRICTED_AUTH => false, // never resend the bearer across a cross-host redirect
             ]);
 
             $content = curl_exec($ch);
@@ -4006,56 +4223,37 @@ class Updater
         ];
 
         try {
-            // Build URL for post-install-patch.php from GitHub release
-            $tag = strpos($targetVersion, 'v') === 0 ? $targetVersion : 'v' . $targetVersion;
-            $baseUrl = "https://github.com/{$this->repoOwner}/{$this->repoName}/releases/download/{$tag}";
-            $patchUrl = $baseUrl . '/post-install-patch.php';
-            $checksumUrl = $baseUrl . '/post-install-patch.php.sha256';
+            // SECURITY: same hardened path as the pre-update patch — fetch the
+            // post-install patch as a release asset and verify its sha256 against
+            // the GitHub API "digest" (TLS). Typed outcome: absent → skip,
+            // invalid → block (a present-but-unverifiable patch must not be skipped).
+            $patchOutcome = $this->fetchVerifiedReleaseAsset($targetVersion, 'post-install-patch.php');
 
-            $this->debugLog('DEBUG', 'Tentativo download post-install-patch', [
-                'patch_url' => $patchUrl,
-                'checksum_url' => $checksumUrl
-            ]);
-
-            // Download patch file
-            $patchContent = $this->downloadPatchFile($patchUrl);
-
-            if ($patchContent === null) {
-                // 404 or download failed - this is OK, no patch needed
-                $this->debugLog('INFO', 'Nessun post-install-patch disponibile (OK, normale)', [
-                    'reason' => 'File not found or download failed'
+            if ($patchOutcome['status'] === 'invalid') {
+                // success=false here means ONLY "a post-install patch is present but
+                // its sha256 could not be verified, so it was not executed". The
+                // caller treats this as a non-fatal warning because the core update
+                // is already committed by the time post-install patches run.
+                $result['success'] = false;
+                $result['error'] = __('Patch post-installazione presente ma non verificabile: patch non applicata, aggiornamento mantenuto.');
+                $this->debugLog('WARNING', 'Post-install patch INVALIDA → patch non applicata (update mantenuto)', [
+                    'target_version' => $targetVersion,
                 ]);
                 return $result;
             }
 
-            $this->debugLog('INFO', 'Post-install-patch scaricato', [
+            $patchContent = $patchOutcome['content'];
+            if ($patchOutcome['status'] === 'absent' || $patchContent === null) {
+                $this->debugLog('INFO', 'Nessun post-install-patch verificato disponibile (OK, normale)');
+                return $result;
+            }
+
+            $this->debugLog('INFO', 'Post-install-patch scaricato e verificato (sha256)', [
                 'size' => strlen($patchContent)
             ]);
 
-            // Download checksum file
-            $checksumContent = $this->downloadPatchFile($checksumUrl);
-
-            if ($checksumContent === null) {
-                $this->debugLog('WARNING', 'Checksum file non trovato, patch ignorata per sicurezza');
-                return $result;
-            }
-
-            // Verify checksum
-            $expectedChecksum = trim(explode(' ', trim($checksumContent))[0]);
-            $actualChecksum = hash('sha256', $patchContent);
-
-            if ($expectedChecksum !== $actualChecksum) {
-                $this->debugLog('ERROR', 'Checksum post-install-patch non valido', [
-                    'expected' => $expectedChecksum,
-                    'actual' => $actualChecksum
-                ]);
-                return $result;
-            }
-
-            $this->debugLog('INFO', 'Checksum verificato', ['checksum' => $actualChecksum]);
-
             // Save patch to temp file and evaluate
-            $tempPatchFile = $this->rootPath . '/storage/tmp/post-install-patch-' . uniqid() . '.php';
+            $tempPatchFile = $this->rootPath . '/storage/tmp/post-install-patch-' . bin2hex(random_bytes(16)) . '.php';
             if (!is_dir(dirname($tempPatchFile))) {
                 @mkdir(dirname($tempPatchFile), 0775, true);
             }

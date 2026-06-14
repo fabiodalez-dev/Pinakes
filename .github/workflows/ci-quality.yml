@@ -204,3 +204,13 @@ jobs:
             fi
           done
           [ "$FAILED" -eq 0 ] && echo "✓ Tutte le migration hanno versione ≤ $TARGET" || exit 1
+
+      - name: PHP unit tests (standalone .unit.php)
+        run: |
+          FAILED=0
+          shopt -s nullglob
+          for t in tests/*.unit.php; do
+            echo "── $t"
+            php "$t" || FAILED=1
+          done
+          [ "$FAILED" -eq 0 ] && echo "✓ Tutti gli unit test PHP passati" || { echo "✗ Unit test PHP falliti"; exit 1; }
