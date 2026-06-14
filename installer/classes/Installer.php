@@ -1664,6 +1664,7 @@ HTACCESS;
             'tmp',
             'public/assets',
             'public/uploads',
+            'public/uploads/autori',
         ];
 
         // Sensitive files that need restricted permissions (600)

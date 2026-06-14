@@ -256,6 +256,15 @@ test.describe.serial('Schema integrity — v0.7.4 (17 tests)', () => {
         }
     });
 
+    // ── 4b. autori photo + source links (#163) ─────────────────────────────────
+
+    test('4b. autori: photo + source-link columns (#163, v0.7.20)', () => {
+        // Present via both paths: schema.sql (fresh install) and migrate_0.7.20.sql (upgrade).
+        expect(colType('autori', 'foto'), 'autori.foto missing').toContain('varchar');
+        // collegamenti is JSON on MySQL but LONGTEXT on MariaDB — assert presence, not exact type.
+        expect(colType('autori', 'collegamenti'), 'autori.collegamenti missing').toBeTruthy();
+    });
+
     // ── 5. prestiti NCIP ──────────────────────────────────────────────────────
 
     test("5. prestiti: ncip_request_id + origine ENUM includes 'ncip' (v0.7.3)", () => {

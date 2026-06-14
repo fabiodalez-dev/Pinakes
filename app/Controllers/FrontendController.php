@@ -1963,7 +1963,8 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $offset = ($page - 1) * $limit;
 
         // Query per trovare l'autore by ID
-        $authorQuery = "SELECT id, nome, biografia FROM autori WHERE id = ? LIMIT 1";
+        // #163: also load photo + relevant source/website links for the public page.
+        $authorQuery = "SELECT id, nome, biografia, sito_web, foto, collegamenti FROM autori WHERE id = ? LIMIT 1";
         $stmt = $db->prepare($authorQuery);
         $stmt->bind_param('i', $authorId);
         $stmt->execute();

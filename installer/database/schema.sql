@@ -53,6 +53,8 @@ CREATE TABLE `autori` (
   `pseudonimo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `biografia` text COLLATE utf8mb4_unicode_ci,
   `sito_web` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `foto` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `collegamenti` json DEFAULT NULL,
   `viaf_id` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `viaf_uri` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `isni_id` varchar(16) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

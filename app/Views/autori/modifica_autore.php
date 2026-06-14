@@ -40,7 +40,7 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
     </div>
 
     <!-- Main Form -->
-    <form id="edit-author-form" method="post" action="<?= htmlspecialchars(url('/admin/authors/update/' . (int)$autore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
+    <form id="edit-author-form" method="post" enctype="multipart/form-data" action="<?= htmlspecialchars(url('/admin/authors/update/' . (int)$autore['id']), ENT_QUOTES, 'UTF-8') ?>" class="space-y-8 slide-in-up">
       <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
       
       <!-- Basic Information Section -->
@@ -108,6 +108,64 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
       </div>
 
       <?php
+      // Issue #163 — author photo + relevant source/website links.
+      $fotoVal = (string) ($autore['foto'] ?? '');
+      $fotoIsUrl = $fotoVal !== '' && preg_match('#^https?://#i', $fotoVal) === 1;
+      $collegamentiArr = [];
+      if (!empty($autore['collegamenti'])) {
+          $dec = json_decode((string) $autore['collegamenti'], true);
+          if (is_array($dec)) { $collegamentiArr = $dec; }
+      }
+      ?>
+      <!-- Photo & Links Section (issue #163) -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="form-section-title flex items-center gap-2">
+            <i class="fas fa-image text-primary"></i>
+            <?= __("Foto e Collegamenti") ?>
+          </h2>
+        </div>
+        <div class="card-body form-section">
+          <div>
+            <label class="form-label"><?= __("Foto dell'autore") ?></label>
+            <?php if ($fotoVal !== ''): ?>
+              <div class="flex items-center gap-3 mb-2" id="author-photo-current">
+                <?php $fotoSrc = $fotoIsUrl ? $fotoVal : url($fotoVal); ?>
+                <img src="<?= htmlspecialchars($fotoSrc, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars(__('Foto autore'), ENT_QUOTES, 'UTF-8') ?>" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid var(--border-color,#e5e7eb);">
+                <label class="inline-flex items-center gap-2 text-sm text-red-600">
+                  <input type="checkbox" name="rimuovi_foto" value="1"> <?= __("Rimuovi la foto attuale") ?>
+                </label>
+              </div>
+            <?php endif; ?>
+            <!-- Uppy drag-drop UI (same pattern as the book cover uploader in book_form.php) -->
+            <div id="author-uppy-upload" class="mb-2"></div>
+            <div id="author-uppy-progress" class="mb-2"></div>
+            <!-- Live preview of the newly selected image (mirrors book_form.php cover preview) -->
+            <div id="author-photo-preview" class="mb-2"></div>
+            <!-- Hidden file input fed by Uppy on file-added; the file rides the form's multipart submit -->
+            <input type="file" id="author-fallback-file-input" name="foto_file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+            <p class="text-xs text-gray-500 mt-1"><?= __("Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.") ?></p>
+            <input type="url" id="foto_url" name="foto_url" value="<?= $fotoIsUrl ? htmlspecialchars($fotoVal, ENT_QUOTES, 'UTF-8') : '' ?>" class="form-input mt-2" placeholder="<?= __('https://www.esempio.com/foto.jpg') ?>">
+          </div>
+
+          <div class="mt-6">
+            <label class="form-label"><?= __("Collegamenti e fonti") ?></label>
+            <p class="text-xs text-gray-500 mb-2"><?= __("Link a fonti, voci enciclopediche o siti rilevanti per l'autore.") ?></p>
+            <div id="collegamenti-list" class="space-y-2">
+              <?php foreach ($collegamentiArr as $c): if (!is_array($c)) { continue; } ?>
+                <div class="collegamento-row flex flex-col sm:flex-row gap-2">
+                  <input type="text" name="collegamenti_etichetta[]" value="<?= htmlspecialchars((string) ($c['etichetta'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="form-input sm:w-1/3" placeholder="<?= __('Etichetta (es. Wikipedia)') ?>">
+                  <input type="url" name="collegamenti_url[]" value="<?= htmlspecialchars((string) ($c['url'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" class="form-input sm:flex-1" placeholder="<?= __('https://...') ?>">
+                  <button type="button" class="btn btn-light collegamento-remove" title="<?= __('Rimuovi') ?>"><i class="fas fa-times"></i></button>
+                </div>
+              <?php endforeach; ?>
+            </div>
+            <button type="button" id="collegamento-add" class="btn btn-light mt-2"><i class="fas fa-plus mr-1"></i><?= __("Aggiungi collegamento") ?></button>
+          </div>
+        </div>
+      </div>
+
+      <?php
       // Plugin hook: additional author fields (e.g. REICAT/SBN authority panel)
       \App\Support\Hooks::do('author.form.fields', [$autore ?? null]);
       ?>
@@ -130,13 +188,133 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
 <!-- JavaScript for Enhanced UX -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    
+
     // Initialize form validation
     initializeFormValidation();
-    
+
     // Initialize SweetAlert confirmations
     initializeSweetAlert();
+
+    // Issue #163 — collegamenti (source/website links) repeater
+    initializeCollegamenti();
+
+    // Issue #163 — author photo via Uppy (same drag-drop pattern as book_form.php)
+    initializeAuthorUppy();
 });
+
+// Uppy drag-drop UI feeding the hidden #author-fallback-file-input, mirroring
+// book_form.php's cover uploader: Uppy is the UI, the file rides the form's
+// multipart POST (AutoriController reads `foto_file`). No AJAX endpoint needed.
+function initializeAuthorUppy() {
+    // Whether via Uppy or the native fallback input, picking a file must cancel a
+    // pending "remove current photo" — otherwise the controller (which now lets a
+    // submitted upload win over rimuovi_foto) is fine, but we also keep the UI
+    // consistent so the checkbox doesn't stay visually checked.
+    var fallbackInput = document.getElementById('author-fallback-file-input');
+    if (fallbackInput) {
+        fallbackInput.addEventListener('change', function () {
+            if (fallbackInput.files && fallbackInput.files.length > 0) {
+                var f = fallbackInput.files[0];
+                var rc = document.querySelector('input[name="rimuovi_foto"]');
+                if (rc) rc.checked = false;
+                // Show the preview of the picked image (mirrors book_form.php).
+                showAuthorPhotoPreview(f, f.name, f.size);
+            } else {
+                clearAuthorPhotoPreview();
+            }
+        });
+    }
+
+    var mount = document.getElementById('author-uppy-upload');
+    if (!mount || typeof Uppy === 'undefined' || typeof UppyDragDrop === 'undefined') {
+        // Graceful fallback: reveal the hidden file input so upload still works.
+        if (fallbackInput) fallbackInput.style.display = 'block';
+        return;
+    }
+    try {
+        var uppy = new Uppy({
+            restrictions: { maxFileSize: 5000000, maxNumberOfFiles: 1, allowedFileTypes: ['image/*'] },
+            autoProceed: false
+        });
+        uppy.use(UppyDragDrop, {
+            target: '#author-uppy-upload',
+            note: <?= json_encode(__("Trascina qui la foto dell'autore o clicca per selezionare"), JSON_HEX_TAG) ?>
+        });
+        if (typeof UppyProgressBar !== 'undefined') {
+            uppy.use(UppyProgressBar, { target: '#author-uppy-progress', hideAfterFinish: false });
+        }
+        uppy.on('file-added', function (file) {
+            var input = document.getElementById('author-fallback-file-input');
+            if (!input) return;
+            var dt = new DataTransfer();
+            dt.items.add(new File([file.data], file.name, { type: file.type }));
+            input.files = dt.files;
+            // Picking a new file cancels a pending "remove current photo".
+            var rc = document.querySelector('input[name="rimuovi_foto"]'); if (rc) rc.checked = false;
+            // Show the preview of the picked image so the user can verify it.
+            showAuthorPhotoPreview(file.data, file.name, file.size);
+        });
+        uppy.on('file-removed', function () {
+            document.getElementById('author-fallback-file-input').value = '';
+            clearAuthorPhotoPreview();
+        });
+    } catch (e) {
+        console.error('Author Uppy init failed:', e);
+        var fb2 = document.getElementById('author-fallback-file-input');
+        if (fb2) fb2.style.display = 'block';
+    }
+}
+
+// Live preview of a newly-selected author photo (Blob/File), mirroring the cover
+// preview in book_form.php. The image is rendered from a data URL; the file name
+// is set via textContent so a crafted file name cannot inject HTML.
+function showAuthorPhotoPreview(blob, name, size) {
+    var container = document.getElementById('author-photo-preview');
+    if (!container || !blob) return;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        container.innerHTML =
+            '<div class="inline-flex flex-col items-start gap-2">' +
+                '<img alt="' + <?= json_encode(__('Anteprima foto autore'), JSON_HEX_TAG) ?> + '" ' +
+                     'style="max-height:12rem;object-fit:contain;border:1px solid var(--border-color,#e5e7eb);border-radius:8px;" />' +
+                '<div class="flex items-center gap-2 text-sm text-gray-600">' +
+                    '<i class="fas fa-check-circle text-green-500"></i><span></span>' +
+                '</div>' +
+            '</div>';
+        var img = container.querySelector('img'); if (img) img.src = e.target.result;
+        var span = container.querySelector('span');
+        if (span) span.textContent = (name || '') + (size ? ' (' + (size / 1024).toFixed(1) + ' KB)' : '');
+    };
+    reader.readAsDataURL(blob);
+}
+function clearAuthorPhotoPreview() {
+    var c = document.getElementById('author-photo-preview');
+    if (c) c.innerHTML = '';
+}
+
+// Add/remove rows for the author "collegamenti" (links) list.
+function initializeCollegamenti() {
+    const list = document.getElementById('collegamenti-list');
+    const addBtn = document.getElementById('collegamento-add');
+    if (!list || !addBtn) return;
+    const labelPh = <?= json_encode(__('Etichetta (es. Wikipedia)'), JSON_HEX_TAG | JSON_UNESCAPED_UNICODE) ?>;
+    const urlPh = 'https://...';
+    addBtn.addEventListener('click', function() {
+        const row = document.createElement('div');
+        row.className = 'collegamento-row flex flex-col sm:flex-row gap-2';
+        row.innerHTML =
+            '<input type="text" name="collegamenti_etichetta[]" class="form-input sm:w-1/3">' +
+            '<input type="url" name="collegamenti_url[]" class="form-input sm:flex-1">' +
+            '<button type="button" class="btn btn-light collegamento-remove"><i class="fas fa-times"></i></button>';
+        row.querySelector('input[type="text"]').placeholder = labelPh;
+        row.querySelector('input[type="url"]').placeholder = urlPh;
+        list.appendChild(row);
+    });
+    list.addEventListener('click', function(e) {
+        const btn = e.target.closest('.collegamento-remove');
+        if (btn) { const row = btn.closest('.collegamento-row'); if (row) row.remove(); }
+    });
+}
 
 // Initialize Form Validation
 function initializeFormValidation() {
