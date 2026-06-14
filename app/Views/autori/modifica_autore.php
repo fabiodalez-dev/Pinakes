@@ -140,6 +140,8 @@ $title = __("Modifica Autore:") . " " . ($autore['nome'] ?? 'N/D');
             <!-- Uppy drag-drop UI (same pattern as the book cover uploader in book_form.php) -->
             <div id="author-uppy-upload" class="mb-2"></div>
             <div id="author-uppy-progress" class="mb-2"></div>
+            <!-- Live preview of the newly selected image (mirrors book_form.php cover preview) -->
+            <div id="author-photo-preview" class="mb-2"></div>
             <!-- Hidden file input fed by Uppy on file-added; the file rides the form's multipart submit -->
             <input type="file" id="author-fallback-file-input" name="foto_file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
             <p class="text-xs text-gray-500 mt-1"><?= __("Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.") ?></p>
@@ -211,9 +213,14 @@ function initializeAuthorUppy() {
     var fallbackInput = document.getElementById('author-fallback-file-input');
     if (fallbackInput) {
         fallbackInput.addEventListener('change', function () {
-            var rc = document.querySelector('input[name="rimuovi_foto"]');
-            if (rc && fallbackInput.files && fallbackInput.files.length > 0) {
-                rc.checked = false;
+            if (fallbackInput.files && fallbackInput.files.length > 0) {
+                var f = fallbackInput.files[0];
+                var rc = document.querySelector('input[name="rimuovi_foto"]');
+                if (rc) rc.checked = false;
+                // Show the preview of the picked image (mirrors book_form.php).
+                showAuthorPhotoPreview(f, f.name, f.size);
+            } else {
+                clearAuthorPhotoPreview();
             }
         });
     }
@@ -244,15 +251,45 @@ function initializeAuthorUppy() {
             input.files = dt.files;
             // Picking a new file cancels a pending "remove current photo".
             var rc = document.querySelector('input[name="rimuovi_foto"]'); if (rc) rc.checked = false;
+            // Show the preview of the picked image so the user can verify it.
+            showAuthorPhotoPreview(file.data, file.name, file.size);
         });
         uppy.on('file-removed', function () {
             document.getElementById('author-fallback-file-input').value = '';
+            clearAuthorPhotoPreview();
         });
     } catch (e) {
         console.error('Author Uppy init failed:', e);
         var fb2 = document.getElementById('author-fallback-file-input');
         if (fb2) fb2.style.display = 'block';
     }
+}
+
+// Live preview of a newly-selected author photo (Blob/File), mirroring the cover
+// preview in book_form.php. The image is rendered from a data URL; the file name
+// is set via textContent so a crafted file name cannot inject HTML.
+function showAuthorPhotoPreview(blob, name, size) {
+    var container = document.getElementById('author-photo-preview');
+    if (!container || !blob) return;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        container.innerHTML =
+            '<div class="inline-flex flex-col items-start gap-2">' +
+                '<img alt="' + <?= json_encode(__('Anteprima foto autore'), JSON_HEX_TAG) ?> + '" ' +
+                     'style="max-height:12rem;object-fit:contain;border:1px solid var(--border-color,#e5e7eb);border-radius:8px;" />' +
+                '<div class="flex items-center gap-2 text-sm text-gray-600">' +
+                    '<i class="fas fa-check-circle text-green-500"></i><span></span>' +
+                '</div>' +
+            '</div>';
+        var img = container.querySelector('img'); if (img) img.src = e.target.result;
+        var span = container.querySelector('span');
+        if (span) span.textContent = (name || '') + (size ? ' (' + (size / 1024).toFixed(1) + ' KB)' : '');
+    };
+    reader.readAsDataURL(blob);
+}
+function clearAuthorPhotoPreview() {
+    var c = document.getElementById('author-photo-preview');
+    if (c) c.innerHTML = '';
 }
 
 // Add/remove rows for the author "collegamenti" (links) list.

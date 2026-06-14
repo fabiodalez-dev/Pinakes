@@ -114,6 +114,8 @@
             <!-- Uppy drag-drop UI (same pattern as the book cover uploader in book_form.php) -->
             <div id="author-uppy-upload" class="mb-2"></div>
             <div id="author-uppy-progress" class="mb-2"></div>
+            <!-- Live preview of the newly selected image (mirrors book_form.php cover preview) -->
+            <div id="author-photo-preview" class="mb-2"></div>
             <input type="file" id="author-fallback-file-input" name="foto_file" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
             <p class="text-xs text-gray-500 mt-1"><?= __("Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.") ?></p>
             <input type="url" id="foto_url" name="foto_url" class="form-input mt-2" placeholder="<?= __('https://www.esempio.com/foto.jpg') ?>">
@@ -164,10 +166,22 @@ document.addEventListener('DOMContentLoaded', function() {
 // book_form.php's cover uploader: Uppy is the UI, the file rides the form's
 // multipart POST (AutoriController reads `foto_file`). No AJAX endpoint needed.
 function initializeAuthorUppy() {
+    // Native fallback input: show the preview when a file is picked (Uppy-less path).
+    var fallbackInput = document.getElementById('author-fallback-file-input');
+    if (fallbackInput) {
+        fallbackInput.addEventListener('change', function () {
+            if (fallbackInput.files && fallbackInput.files.length > 0) {
+                var f = fallbackInput.files[0];
+                showAuthorPhotoPreview(f, f.name, f.size);
+            } else {
+                clearAuthorPhotoPreview();
+            }
+        });
+    }
+
     var mount = document.getElementById('author-uppy-upload');
     if (!mount || typeof Uppy === 'undefined' || typeof UppyDragDrop === 'undefined') {
-        var fb = document.getElementById('author-fallback-file-input');
-        if (fb) fb.style.display = 'block';
+        if (fallbackInput) fallbackInput.style.display = 'block';
         return;
     }
     try {
@@ -184,18 +198,49 @@ function initializeAuthorUppy() {
         }
         uppy.on('file-added', function (file) {
             var input = document.getElementById('author-fallback-file-input');
+            if (!input) return;
             var dt = new DataTransfer();
             dt.items.add(new File([file.data], file.name, { type: file.type }));
             input.files = dt.files;
+            // Show the preview of the picked image so the user can verify it.
+            showAuthorPhotoPreview(file.data, file.name, file.size);
         });
         uppy.on('file-removed', function () {
             document.getElementById('author-fallback-file-input').value = '';
+            clearAuthorPhotoPreview();
         });
     } catch (e) {
         console.error('Author Uppy init failed:', e);
         var fb2 = document.getElementById('author-fallback-file-input');
         if (fb2) fb2.style.display = 'block';
     }
+}
+
+// Live preview of a newly-selected author photo (Blob/File), mirroring the cover
+// preview in book_form.php. Rendered from a data URL; the file name is set via
+// textContent so a crafted file name cannot inject HTML.
+function showAuthorPhotoPreview(blob, name, size) {
+    var container = document.getElementById('author-photo-preview');
+    if (!container || !blob) return;
+    var reader = new FileReader();
+    reader.onload = function (e) {
+        container.innerHTML =
+            '<div class="inline-flex flex-col items-start gap-2">' +
+                '<img alt="' + <?= json_encode(__('Anteprima foto autore'), JSON_HEX_TAG) ?> + '" ' +
+                     'style="max-height:12rem;object-fit:contain;border:1px solid var(--border-color,#e5e7eb);border-radius:8px;" />' +
+                '<div class="flex items-center gap-2 text-sm text-gray-600">' +
+                    '<i class="fas fa-check-circle text-green-500"></i><span></span>' +
+                '</div>' +
+            '</div>';
+        var img = container.querySelector('img'); if (img) img.src = e.target.result;
+        var span = container.querySelector('span');
+        if (span) span.textContent = (name || '') + (size ? ' (' + (size / 1024).toFixed(1) + ' KB)' : '');
+    };
+    reader.readAsDataURL(blob);
+}
+function clearAuthorPhotoPreview() {
+    var c = document.getElementById('author-photo-preview');
+    if (c) c.innerHTML = '';
 }
 
 // Add/remove rows for the author "collegamenti" (links) list.
