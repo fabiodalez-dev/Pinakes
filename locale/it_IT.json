@@ -5276,5 +5276,20 @@
   "Archivio di backup non valido: dimensione decompressa eccessiva": "Archivio di backup non valido: dimensione decompressa eccessiva",
   "Un ripristino o aggiornamento è già in corso. Riprova tra poco.": "Un ripristino o aggiornamento è già in corso. Riprova tra poco.",
   "Ripristino in corso. Riprova tra qualche minuto.": "Ripristino in corso. Riprova tra qualche minuto.",
-  "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit"
+  "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit",
+  "Foto e Collegamenti": "Foto e Collegamenti",
+  "Foto dell'autore": "Foto dell'autore",
+  "Foto autore": "Foto autore",
+  "Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.": "Carica un'immagine (PNG/JPG/WEBP/GIF, max 5MB) oppure incolla un URL qui sotto.",
+  "https://www.esempio.com/foto.jpg": "https://www.esempio.com/foto.jpg",
+  "Rimuovi la foto attuale": "Rimuovi la foto attuale",
+  "Collegamenti e fonti": "Collegamenti e fonti",
+  "Link a fonti, voci enciclopediche o siti rilevanti per l'autore.": "Link a fonti, voci enciclopediche o siti rilevanti per l'autore.",
+  "Etichetta (es. Wikipedia)": "Etichetta (es. Wikipedia)",
+  "Aggiungi collegamento": "Aggiungi collegamento",
+  "Trascina qui la foto dell'autore o clicca per selezionare": "Trascina qui la foto dell'autore o clicca per selezionare",
+  "La foto supera la dimensione massima di 5 MB.": "La foto supera la dimensione massima di 5 MB.",
+  "Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.": "Formato immagine non supportato. Usa PNG, JPG, WebP o GIF.",
+  "Impossibile elaborare l'immagine caricata.": "Impossibile elaborare l'immagine caricata.",
+  "Anteprima foto autore": "Anteprima foto autore"
 }
