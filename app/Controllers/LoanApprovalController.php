@@ -776,13 +776,20 @@ class LoanApprovalController
                 $copyCheckStmt->close();
 
                 $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
-                if ($copyResult && !in_array($copyResult['stato'], $invalidStates)) {
-                    $copyRepo = new \App\Models\CopyRepository($db);
-                    $copyRepo->updateStatus($copiaId, 'prestato');
-                } elseif ($copyResult) {
-                    // Log anomaly: loan confirmed but copy in invalid state - requires manual review
-                    \App\Support\SecureLogger::warning("[confirmPickup] Loan {$loanId} confirmed but copy {$copiaId} is in state '{$copyResult['stato']}' - requires manual review");
+                if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
+                    // Fail closed: roll back the just-applied 'in_corso' update instead
+                    // of committing a loan over a missing/non-lendable copy (BUG7c/D12).
+                    $db->rollback();
+                    $copyState = $copyResult ? (string) $copyResult['stato'] : 'inesistente';
+                    \App\Support\SecureLogger::error("[confirmPickup] Loan {$loanId} aborted: copy {$copiaId} non-lendable ('{$copyState}')");
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'message' => __('La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.')
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
                 }
+                $copyRepo = new \App\Models\CopyRepository($db);
+                $copyRepo->updateStatus($copiaId, 'prestato');
             }
 
             // Recalculate book availability (inside transaction)

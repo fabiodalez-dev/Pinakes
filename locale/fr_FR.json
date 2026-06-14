@@ -5278,5 +5278,6 @@
   "Ripristino in corso. Riprova tra qualche minuto.": "Restauration en cours. Réessayez dans quelques minutes.",
   "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Sauvegarde trop volumineuse pour l'import PHP : installez le client mysql ou augmentez memory_limit",
   "Nessuna disponibilità nel periodo": "Aucune disponibilité pour cette période",
-  "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "Tous les exemplaires sont déjà engagés (prêts ou réservations) pour la période demandée. Choisissez une autre période."
+  "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "Tous les exemplaires sont déjà engagés (prêts ou réservations) pour la période demandée. Choisissez une autre période.",
+  "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.": "L'exemplaire attribué n'est pas empruntable. Réattribuez l'exemplaire ou annulez le retrait."
 }

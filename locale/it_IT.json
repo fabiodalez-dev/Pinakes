@@ -5278,5 +5278,6 @@
   "Ripristino in corso. Riprova tra qualche minuto.": "Ripristino in corso. Riprova tra qualche minuto.",
   "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit",
   "Nessuna disponibilità nel periodo": "Nessuna disponibilità nel periodo",
-  "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo."
+  "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.",
+  "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.": "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro."
 }

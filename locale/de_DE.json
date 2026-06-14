@@ -5278,5 +5278,6 @@
   "Ripristino in corso. Riprova tra qualche minuto.": "Wiederherstellung läuft. Bitte versuchen Sie es in einigen Minuten erneut.",
   "Backup troppo grande per l'importazione PHP: installa il client mysql o aumenta memory_limit": "Backup zu groß für PHP-Import: Installieren Sie den mysql-Client oder erhöhen Sie memory_limit",
   "Nessuna disponibilità nel periodo": "Keine Verfügbarkeit im Zeitraum",
-  "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "Alle Exemplare sind im gewünschten Zeitraum bereits vergeben (Ausleihen oder Vormerkungen). Wählen Sie einen anderen Zeitraum."
+  "Tutte le copie sono già impegnate (prestiti o prenotazioni) per il periodo richiesto. Scegli un altro periodo.": "Alle Exemplare sind im gewünschten Zeitraum bereits vergeben (Ausleihen oder Vormerkungen). Wählen Sie einen anderen Zeitraum.",
+  "La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.": "Das zugewiesene Exemplar ist nicht ausleihbar. Weisen Sie das Exemplar neu zu oder brechen Sie die Abholung ab."
 }
