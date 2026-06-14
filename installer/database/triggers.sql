@@ -10,6 +10,14 @@ CREATE TRIGGER `trg_check_active_prestito_before_insert`
 BEFORE INSERT ON `prestiti`
 FOR EACH ROW
 BEGIN
+    -- I7: la copia di un prestito deve appartenere al libro del prestito stesso
+    -- (vale anche per righe chiuse: previene il decoupling libro_id/copia_id, #fix/loan-state-bugs BUG2).
+    IF NEW.copia_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM copie WHERE id = NEW.copia_id AND libro_id = NEW.libro_id) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'La copia non appartiene al libro del prestito.';
+    END IF;
+
     -- #157 model A-refined: a copy is "held" by an active loan OR by a
     -- reservation-conversion 'pendente' that already carries a copia_id.
     IF (NEW.copia_id IS NOT NULL AND (NEW.attivo = 1 OR NEW.stato = 'pendente')) THEN
@@ -52,6 +60,14 @@ CREATE TRIGGER `trg_check_active_prestito_before_update`
 BEFORE UPDATE ON `prestiti`
 FOR EACH ROW
 BEGIN
+    -- I7: la copia di un prestito deve appartenere al libro del prestito stesso
+    -- (vale anche per righe chiuse: previene il decoupling libro_id/copia_id, #fix/loan-state-bugs BUG2).
+    IF NEW.copia_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM copie WHERE id = NEW.copia_id AND libro_id = NEW.libro_id) THEN
+        SIGNAL SQLSTATE '45000'
+            SET MESSAGE_TEXT = 'La copia non appartiene al libro del prestito.';
+    END IF;
+
     -- Solo se si sta assegnando/cambiando una copia a un prestito attivo
     -- #157 model A-refined: a copy is "held" by an active loan OR by a
     -- reservation-conversion 'pendente' that already carries a copia_id.

@@ -776,13 +776,20 @@ class LoanApprovalController
                 $copyCheckStmt->close();
 
                 $invalidStates = ['perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento'];
-                if ($copyResult && !in_array($copyResult['stato'], $invalidStates)) {
-                    $copyRepo = new \App\Models\CopyRepository($db);
-                    $copyRepo->updateStatus($copiaId, 'prestato');
-                } elseif ($copyResult) {
-                    // Log anomaly: loan confirmed but copy in invalid state - requires manual review
-                    \App\Support\SecureLogger::warning("[confirmPickup] Loan {$loanId} confirmed but copy {$copiaId} is in state '{$copyResult['stato']}' - requires manual review");
+                if (!$copyResult || in_array($copyResult['stato'], $invalidStates, true)) {
+                    // Fail closed: roll back the just-applied 'in_corso' update instead
+                    // of committing a loan over a missing/non-lendable copy (BUG7c/D12).
+                    $db->rollback();
+                    $copyState = $copyResult ? (string) $copyResult['stato'] : 'inesistente';
+                    \App\Support\SecureLogger::error("[confirmPickup] Loan {$loanId} aborted: copy {$copiaId} non-lendable ('{$copyState}')");
+                    $response->getBody()->write(json_encode([
+                        'success' => false,
+                        'message' => __('La copia assegnata non è prestabile. Riassegna la copia o annulla il ritiro.')
+                    ]));
+                    return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
                 }
+                $copyRepo = new \App\Models\CopyRepository($db);
+                $copyRepo->updateStatus($copiaId, 'prestato');
             }
 
             // Recalculate book availability (inside transaction)
@@ -903,6 +910,14 @@ class LoanApprovalController
                 }
             }
 
+            // Promote the waitlist (Layer 2): a cancelled pickup frees capacity for
+            // queued reservations. Loop until none convert. Both queues (D5/BUG10).
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
             // Recalculate book availability (inside transaction)
             $integrity = new DataIntegrity($db);
             if (!$integrity->recalculateBookAvailability($libroId, true)) {
@@ -913,6 +928,7 @@ class LoanApprovalController
 
             // Send deferred reservation notifications AFTER commit (outside transaction)
             $reassignmentService->flushDeferredNotifications();
+            $reservationManager->flushDeferredNotifications();
 
             // Send notification to user about cancelled pickup (outside transaction)
             try {
@@ -967,7 +983,7 @@ class LoanApprovalController
             $db->begin_transaction();
 
             $stmt = $db->prepare("
-                SELECT libro_id, copia_id, stato
+                SELECT libro_id, copia_id, stato, data_scadenza
                 FROM prestiti
                 WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')
                 FOR UPDATE
@@ -990,10 +1006,15 @@ class LoanApprovalController
             $libroId = (int) $loan['libro_id'];
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
             $dataRestituzione = date('Y-m-d');
+            // Returned-late flag: a return past the due date is restituito + flag (I4/BUG5).
+            // This is the primary quick-return path — without it late returns keep the
+            // flag at 0 and Stats/Recensioni undercount late returners.
+            $scadenza = (string) ($loan['data_scadenza'] ?? '');
+            $ritardo = ($scadenza !== '' && $scadenza < $dataRestituzione) ? 1 : 0;
 
             // Close the loan
-            $stmt = $db->prepare("UPDATE prestiti SET stato = 'restituito', data_restituzione = ?, attivo = 0 WHERE id = ?");
-            $stmt->bind_param('si', $dataRestituzione, $loanId);
+            $stmt = $db->prepare("UPDATE prestiti SET stato = 'restituito', restituito_in_ritardo = ?, data_restituzione = ?, attivo = 0 WHERE id = ? AND attivo = 1");
+            $stmt->bind_param('isi', $ritardo, $dataRestituzione, $loanId);
             $stmt->execute();
             $stmt->close();
 
@@ -1027,7 +1048,16 @@ class LoanApprovalController
                 $reassignmentService->reassignOnReturn($copiaId);
             }
 
-            // Recalculate availability AFTER reassignment
+            // Promote the waitlist (Layer 2): a freed unit may convert one or more
+            // queued reservations. Loop until none convert — multi-copy frees can
+            // promote several. Both queues on every release path (D5/BUG10).
+            $reservationManager = new \App\Controllers\ReservationManager($db);
+            $reservationManager->setExternalTransaction(true);
+            for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                // keep promoting while freed capacity converts the next queued reservation
+            }
+
+            // Recalculate availability AFTER reassignment + promotion
             $integrity = new DataIntegrity($db);
             if (!$integrity->recalculateBookAvailability($libroId, true)) {
                 throw new \RuntimeException('Failed to recalculate book availability');
@@ -1039,6 +1069,7 @@ class LoanApprovalController
             if ($reassignmentService) {
                 $reassignmentService->flushDeferredNotifications();
             }
+            $reservationManager->flushDeferredNotifications();
 
             // Notify wishlist users AFTER commit, only if book has available copies
             try {

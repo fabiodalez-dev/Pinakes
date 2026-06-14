@@ -36,7 +36,7 @@ $csrf = Csrf::ensureToken();
     <form method="post" action="<?= htmlspecialchars(url('/admin/loans/update/' . (int)($prestito['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
         <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>">
         <input type="hidden" name="utente_id" value="<?= (int)($prestito['utente_id'] ?? 0); ?>">
-        <input type="hidden" name="libro_id" value="<?= (int)($prestito['libro_id'] ?? 0); ?>">
+        <?php /* libro_id è display-only: NON inviato — cambiarlo scollegherebbe la copia dal libro (I7). */ ?>
 
         <div class="grid gap-5 md:grid-cols-2">
             <div class="rounded-lg border border-gray-200 bg-gray-50 p-5">

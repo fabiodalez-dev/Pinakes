@@ -817,6 +817,7 @@ CREATE TABLE `prestiti` (
   `data_scadenza` date NOT NULL,
   `pickup_deadline` date DEFAULT NULL,
   `data_restituzione` date DEFAULT NULL,
+  `restituito_in_ritardo` tinyint(1) NOT NULL DEFAULT '0',
   `stato` enum('pendente','prenotato','da_ritirare','in_corso','restituito','in_ritardo','perso','danneggiato','annullato','scaduto') COLLATE utf8mb4_unicode_ci DEFAULT 'pendente',
   `origine` enum('richiesta','prenotazione','diretto','ncip') COLLATE utf8mb4_unicode_ci DEFAULT 'richiesta',
   `ncip_request_id` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,

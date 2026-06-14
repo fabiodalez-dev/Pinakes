@@ -215,6 +215,16 @@ class ReservationsController
         ];
     }
 
+    /**
+     * Create a user loan REQUEST (D19 — name kept for route stability).
+     *
+     * Despite the name, this writes a BARE `prestiti` row with stato='pendente'
+     * and origine='richiesta' and NO copia_id. Per the canonical occupancy model
+     * this *unbounded* request does NOT occupy capacity — only a period-bearing
+     * `prenotazioni` waitlist row (stato='attiva') occupies its promised period.
+     * It correctly runs a per-day capacity pre-check + a post-lock recheck before
+     * inserting. Do not confuse it with the waitlist (`prenotazioni`).
+     */
     public function createReservation($request, $response, $args)
     {
         $bookId = (int) $args['id'];
