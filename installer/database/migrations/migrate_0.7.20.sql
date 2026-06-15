@@ -1,4 +1,4 @@
--- Migration 0.7.20-rc.1 — consolidated 0.7.20 release migration
+-- Migration 0.7.20 — consolidated release migration
 --
 -- This single file carries ALL schema/data changes shipped in 0.7.20, from two
 -- independent work streams that both target this release:
@@ -7,12 +7,8 @@
 --
 -- One file per release version is mandatory: the updater runs a migration iff its
 -- version is > the installed version AND <= the target version, so every 0.7.20
--- change must live here (CLAUDE.md rule 6). Every statement is idempotent.
---
--- Filename note: named 0.7.20-rc.1 (not 0.7.20) so it ALSO applies when upgrading
--- to the 0.7.20-rc.1 prerelease — version_compare() orders rc.1 BELOW 0.7.20, so a
--- migrate_0.7.20.sql would be skipped for rc upgraders. As 0.7.20-rc.1 <= 0.7.20 it
--- still applies to the stable 0.7.20 upgrade too (idempotent, so re-running is safe).
+-- change must live here (project rule 6). It applies to everyone upgrading from an
+-- older stable AND from the 0.7.20-rc.1 prerelease (rc.1 < 0.7.20). Idempotent.
 --
 -- NOTE (section B): the loan-integrity triggers (incl. the I7 copy/book guard) are
 -- NOT shipped here — the updater re-applies installer/database/triggers.sql with

@@ -34,6 +34,32 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.20
+
+### Author profiles — photo & sources ([#163](https://github.com/fabiodalez-dev/Pinakes/issues/163) / [#170](https://github.com/fabiodalez-dev/Pinakes/pull/170))
+
+Authors can now carry a **photo** (uploaded with a live preview, or an external URL) and a list of **relevant source/website links**. The author and publisher admin detail pages were restyled to match the book page: a full-width identity card, a readable book catalog that gets its own full-width row, and the same buttons/chrome across all three entity pages.
+
+### Loans & reservations — canonical state model ([#171](https://github.com/fabiodalez-dev/Pinakes/pull/171))
+
+The loan/reservation engine was unified around a single occupancy model, fixing **10 state bugs**: returned copies reliably become lendable again, multi-copy availability is computed correctly, the reservation waitlist occupies its promised period without false positives/negatives, and admin/dashboard/calendar displays stay consistent. A new `restituito_in_ritardo` flag records late returns.
+
+### Security — hardened in-app updater ([#172](https://github.com/fabiodalez-dev/Pinakes/pull/172))
+
+Update packages are now verified against GitHub's server-side **sha256 digest** (delivered over TLS) with a constant-time compare — a present-but-unverifiable asset blocks the update instead of being silently skipped. The GitHub bearer token is scoped to the API host and never follows a redirect, and pre/post-update patches go through the same digest verification. A post-install patch that can't be verified is now a non-fatal warning (the core update is already applied) rather than a misleading failure.
+
+### Security — session & login
+
+Five pre-existing session pitfalls that could log an admin out unexpectedly were closed: **logout is now a CSRF-protected POST** (a stray link can no longer log you out), the "remember me" auto-login no longer bounces concurrent tabs to the login screen, a CSRF token mismatch on a still-valid session shows a clear *"reload and resubmit"* page instead of a misleading *"session expired"*, and `storage/sessions` is created automatically so sessions never fall back to a `/tmp` that shared hosts purge early.
+
+### Migration & tooling
+
+- **`migrate_0.7.20.sql`** — author photo/link columns, the `restituito_in_ritardo` flag, and a one-time loan-state cleanup. Idempotent; applies on upgrade from any older stable (and from the `0.7.20-rc.1` prerelease).
+- CodeQL analysis is now scoped to application source (vendored bundles and test fixtures excluded), so the security dashboard reflects only our code.
+- Verified end-to-end: fresh-install and the real admin-UI upgrade path (`reinstall-test.sh` Test A + B) both pass, full lifecycle suite green, PHPStan level 5 clean.
+
+---
+
 ## What's New in v0.7.19
 
 ### Faceted catalog filters ([#169](https://github.com/fabiodalez-dev/Pinakes/pull/169))
