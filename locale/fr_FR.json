@@ -5305,5 +5305,9 @@
   "Patch pre-aggiornamento non verificabile.": "Correctif pré-mise à jour non vérifiable.",
   "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "Un correctif pré-mise à jour est présent mais non vérifiable : la mise à jour a été interrompue par sécurité.",
   "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Réponse GitHub inattendue (redirection) sur une requête authentifiée.",
-  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Échec de la vérification d'intégrité : l'archive téléchargée ne correspond pas à la somme de contrôle attendue."
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Échec de la vérification d'intégrité : l'archive téléchargée ne correspond pas à la somme de contrôle attendue.",
+  "Errore di Sicurezza": "Erreur de sécurité",
+  "La verifica di sicurezza del modulo non è riuscita. Ricarica la pagina e invia di nuovo: il tuo accesso è ancora valido, non devi rifare il login.": "La vérification de sécurité du formulaire a échoué. Rechargez la page et renvoyez — votre connexion est toujours valide, vous n'avez pas besoin de vous reconnecter.",
+  "Torna indietro e riprova": "Revenir en arrière et réessayer",
+  "Questo controllo protegge i tuoi moduli da invii non autorizzati.": "Cette vérification protège vos formulaires contre les envois non autorisés."
 }

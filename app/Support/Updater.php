@@ -50,6 +50,7 @@ class Updater
         'storage/logs',
         'storage/calendar',
         'storage/tmp',
+        'storage/sessions',
         'public/uploads',
         'public/.htaccess',
         'public/robots.txt',

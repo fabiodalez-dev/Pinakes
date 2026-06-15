@@ -892,10 +892,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                                                 <i class="fas fa-user"></i>
                                                 <?= __("Profilo") ?>
                                             </a>
-                                            <a href="<?= htmlspecialchars($logoutRoute, ENT_QUOTES, 'UTF-8') ?>">
-                                                <i class="fas fa-sign-out-alt"></i>
-                                                <?= __("Esci") ?>
-                                            </a>
+                                            <form method="post" action="<?= htmlspecialchars($logoutRoute, ENT_QUOTES, 'UTF-8') ?>" style="display:contents;">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                                <a href="<?= htmlspecialchars($logoutRoute, ENT_QUOTES, 'UTF-8') ?>" onclick="event.preventDefault();this.closest('form').submit();">
+                                                    <i class="fas fa-sign-out-alt"></i>
+                                                    <?= __("Esci") ?>
+                                                </a>
+                                            </form>
                                         </div>
                                     </div>
                                 <?php endif; ?>

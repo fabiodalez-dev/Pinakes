@@ -5305,5 +5305,9 @@
   "Patch pre-aggiornamento non verificabile.": "Pre-Update-Patch nicht überprüfbar.",
   "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "Ein Pre-Update-Patch ist vorhanden, aber nicht überprüfbar: Das Update wurde aus Sicherheitsgründen abgebrochen.",
   "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Unerwartete GitHub-Antwort (Weiterleitung) bei einer authentifizierten Anfrage.",
-  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Integritätsprüfung fehlgeschlagen: Das heruntergeladene Archiv stimmt nicht mit der erwarteten Prüfsumme überein."
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Integritätsprüfung fehlgeschlagen: Das heruntergeladene Archiv stimmt nicht mit der erwarteten Prüfsumme überein.",
+  "Errore di Sicurezza": "Sicherheitsfehler",
+  "La verifica di sicurezza del modulo non è riuscita. Ricarica la pagina e invia di nuovo: il tuo accesso è ancora valido, non devi rifare il login.": "Die Sicherheitsprüfung des Formulars ist fehlgeschlagen. Laden Sie die Seite neu und senden Sie erneut — Ihre Anmeldung ist weiterhin gültig, Sie müssen sich nicht erneut anmelden.",
+  "Torna indietro e riprova": "Zurück und erneut versuchen",
+  "Questo controllo protegge i tuoi moduli da invii non autorizzati.": "Diese Prüfung schützt Ihre Formulare vor nicht autorisierten Übermittlungen."
 }

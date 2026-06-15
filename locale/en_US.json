@@ -5305,5 +5305,9 @@
   "Patch pre-aggiornamento non verificabile.": "Pre-update patch not verifiable.",
   "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "A pre-update patch is present but not verifiable: the update was aborted for safety.",
   "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Unexpected GitHub response (redirect) on an authenticated request.",
-  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Integrity check failed: the downloaded archive does not match the expected checksum."
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Integrity check failed: the downloaded archive does not match the expected checksum.",
+  "Errore di Sicurezza": "Security Error",
+  "La verifica di sicurezza del modulo non è riuscita. Ricarica la pagina e invia di nuovo: il tuo accesso è ancora valido, non devi rifare il login.": "The form's security check failed. Reload the page and submit again — your login is still valid, you don't need to sign in again.",
+  "Torna indietro e riprova": "Go back and retry",
+  "Questo controllo protegge i tuoi moduli da invii non autorizzati.": "This check protects your forms from unauthorized submissions."
 }

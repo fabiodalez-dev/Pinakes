@@ -5305,5 +5305,9 @@
   "Patch pre-aggiornamento non verificabile.": "Patch pre-aggiornamento non verificabile.",
   "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.": "Patch pre-aggiornamento presente ma non verificabile: aggiornamento interrotto per sicurezza.",
   "Risposta GitHub inattesa (redirect) su una richiesta autenticata.": "Risposta GitHub inattesa (redirect) su una richiesta autenticata.",
-  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso."
+  "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.": "Verifica di integrità fallita: l'archivio scaricato non corrisponde al checksum atteso.",
+  "Errore di Sicurezza": "Errore di Sicurezza",
+  "La verifica di sicurezza del modulo non è riuscita. Ricarica la pagina e invia di nuovo: il tuo accesso è ancora valido, non devi rifare il login.": "La verifica di sicurezza del modulo non è riuscita. Ricarica la pagina e invia di nuovo: il tuo accesso è ancora valido, non devi rifare il login.",
+  "Torna indietro e riprova": "Torna indietro e riprova",
+  "Questo controllo protegge i tuoi moduli da invii non autorizzati.": "Questo controllo protegge i tuoi moduli da invii non autorizzati."
 }

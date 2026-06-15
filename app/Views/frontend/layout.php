@@ -1481,10 +1481,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                                                 <?= __('Il mio profilo') ?>
                                             </a>
                                             <div class="user-dropdown-divider"></div>
-                                            <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" class="logout-link" role="menuitem">
-                                                <i class="fas fa-sign-out-alt"></i>
-                                                <?= __('Esci') ?>
-                                            </a>
+                                            <form method="post" action="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" style="display:contents;">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+                                                <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" onclick="event.preventDefault();this.closest('form').submit();" class="logout-link" role="menuitem">
+                                                    <i class="fas fa-sign-out-alt"></i>
+                                                    <?= __('Esci') ?>
+                                                </a>
+                                            </form>
                                         </div>
                                     </div>
                                 <?php endif; ?>

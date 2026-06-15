@@ -243,9 +243,12 @@ return function (App $app): void {
         $controller = new AuthController();
         return $controller->logout($request, $response, $app->getContainer()->get('db'));
     };
-    $registerRouteIfUnique('GET', '/logout', $logoutHandler); // English fallback
+    // Logout is a state-changing action → POST + CSRF only. A GET logout lets any
+    // cross-site link/redirect (SameSite=Lax permits top-level GET navigation) log
+    // the admin out without consent. The UI submits a small CSRF-protected form.
+    $registerRouteIfUnique('POST', '/logout', $logoutHandler, [new CsrfMiddleware()]); // English fallback
     foreach ($supportedLocales as $locale) {
-        $registerRouteIfUnique('GET', RouteTranslator::getRouteForLocale('logout', $locale), $logoutHandler);
+        $registerRouteIfUnique('POST', RouteTranslator::getRouteForLocale('logout', $locale), $logoutHandler, [new CsrfMiddleware()]);
     }
 
     // User profile (multi-language variants)

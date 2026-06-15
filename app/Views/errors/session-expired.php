@@ -6,7 +6,13 @@
  * Uses a standalone layout (no header/footer dependencies to avoid auth issues).
  */
 
-$pageTitle = $pageTitle ?? __('Sessione Scaduta');
+// $csrfReason is passed by CsrfMiddleware. Only a genuinely expired/missing
+// session warrants a "log in again" prompt; a CSRF token mismatch on an
+// otherwise-valid session (e.g. a form left open past the token-rotation
+// window) should just invite a reload + resubmit — the user is still logged in.
+$csrfReason = $csrfReason ?? 'session_expired';
+$isExpired = ($csrfReason === 'session_expired');
+$pageTitle = $pageTitle ?? ($isExpired ? __('Sessione Scaduta') : __('Errore di Sicurezza'));
 $loginUrl = $loginUrl ?? route_path('login');
 ?>
 <!DOCTYPE html>
@@ -142,20 +148,31 @@ $loginUrl = $loginUrl ?? route_path('login');
     <div class="session-expired-container">
         <div class="session-expired-card">
             <div class="session-expired-icon">
-                <i class="fas fa-clock"></i>
+                <i class="fas <?= $isExpired ? 'fa-clock' : 'fa-shield-alt' ?>"></i>
             </div>
 
-            <h1 class="session-expired-title"><?= __('Sessione Scaduta') ?></h1>
+            <h1 class="session-expired-title">
+                <?= $isExpired ? __('Sessione Scaduta') : __('Errore di Sicurezza') ?>
+            </h1>
 
             <p class="session-expired-description">
-                <?= __('Per motivi di sicurezza, la tua sessione è scaduta. Effettua nuovamente l\'accesso per continuare.') ?>
+                <?= $isExpired
+                    ? __('Per motivi di sicurezza, la tua sessione è scaduta. Effettua nuovamente l\'accesso per continuare.')
+                    : __('La verifica di sicurezza del modulo non è riuscita. Ricarica la pagina e invia di nuovo: il tuo accesso è ancora valido, non devi rifare il login.') ?>
             </p>
 
             <div class="session-expired-actions">
-                <a href="<?= htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8') ?>" class="session-expired-btn session-expired-btn-primary">
-                    <i class="fas fa-sign-in-alt"></i>
-                    <?= __('Accedi') ?>
-                </a>
+                <?php if ($isExpired): ?>
+                    <a href="<?= htmlspecialchars($loginUrl, ENT_QUOTES, 'UTF-8') ?>" class="session-expired-btn session-expired-btn-primary">
+                        <i class="fas fa-sign-in-alt"></i>
+                        <?= __('Accedi') ?>
+                    </a>
+                <?php else: ?>
+                    <button type="button" onclick="history.back()" class="session-expired-btn session-expired-btn-primary">
+                        <i class="fas fa-rotate-left"></i>
+                        <?= __('Torna indietro e riprova') ?>
+                    </button>
+                <?php endif; ?>
                 <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="session-expired-btn session-expired-btn-secondary">
                     <i class="fas fa-home"></i>
                     <?= __('Torna alla Home') ?>
@@ -165,7 +182,9 @@ $loginUrl = $loginUrl ?? route_path('login');
             <div class="session-expired-info">
                 <p>
                     <i class="fas fa-shield-alt"></i>
-                    <?= __('Le sessioni scadono automaticamente per proteggere i tuoi dati.') ?>
+                    <?= $isExpired
+                        ? __('Le sessioni scadono automaticamente per proteggere i tuoi dati.')
+                        : __('Questo controllo protegge i tuoi moduli da invii non autorizzati.') ?>
                 </p>
             </div>
         </div>

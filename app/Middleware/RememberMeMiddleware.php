@@ -78,9 +78,16 @@ class RememberMeMiddleware implements MiddlewareInterface
             return;
         }
 
-        // Regenerate session ID for security
+        // Regenerate session ID for security. delete_old_session = FALSE on
+        // purpose: with TRUE the old session file is destroyed immediately, so a
+        // concurrent in-flight AJAX request or a sibling browser tab still
+        // carrying the old ID is rejected by use_strict_mode and bounced to
+        // login — the exact "logged out for no reason" failure the periodic
+        // regeneration in public/index.php:259 already avoids the same way. The
+        // fixation-critical regeneration with TRUE still happens at real login
+        // (AuthController); auto-login is not a privilege-elevation boundary.
         if (session_status() === PHP_SESSION_ACTIVE) {
-            session_regenerate_id(true);
+            session_regenerate_id(false);
         }
 
         // Populate session with user data
@@ -90,6 +97,12 @@ class RememberMeMiddleware implements MiddlewareInterface
             'tipo_utente' => $row['tipo_utente'],
             'name' => trim(\App\Support\HtmlHelper::decode((string) ($row['nome'] ?? '')) . ' ' . \App\Support\HtmlHelper::decode((string) ($row['cognome'] ?? ''))),
         ];
+
+        // Seed a CSRF token for the freshly-authenticated session. Without this,
+        // the new session created by this auto-login has no csrf_token, so the
+        // first POST the admin makes is rejected and (before the #4 fix) shown
+        // the misleading "session expired" screen even though they are logged in.
+        \App\Support\Csrf::ensureToken();
 
         // Load and apply user's preferred locale (only persist if setLocale succeeds)
         if (!empty($row['locale'])) {

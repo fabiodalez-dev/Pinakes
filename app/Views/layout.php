@@ -668,11 +668,14 @@ $htmlLang = substr($currentLocale, 0, 2);
                         </a>
                       <?php endif; ?>
                       <hr class="my-2 border-gray-200">
-                      <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>"
-                        class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600 no-underline">
-                        <i class="fas fa-sign-out-alt w-4 h-4"></i>
-                        <span class="text-sm"><?= __("Esci") ?></span>
-                      </a>
+                      <form method="post" action="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" style="display:contents;">
+                        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+                        <a href="<?= htmlspecialchars(route_path('logout'), ENT_QUOTES, 'UTF-8') ?>" onclick="event.preventDefault();this.closest('form').submit();"
+                          class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-red-600 no-underline">
+                          <i class="fas fa-sign-out-alt w-4 h-4"></i>
+                          <span class="text-sm"><?= __("Esci") ?></span>
+                        </a>
+                      </form>
                     </div>
                   </div>
                 <?php else: ?>

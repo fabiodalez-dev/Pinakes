@@ -102,8 +102,14 @@ class CsrfMiddleware implements MiddlewareInterface
 
                     return $response->withHeader('Content-Type', 'application/json');
                 } else {
-                    // Richiesta form tradizionale: mostra pagina HTML stilizzata
+                    // Richiesta form tradizionale: mostra pagina HTML stilizzata.
+                    // Passa il motivo alla view: una sessione realmente scaduta
+                    // chiede il re-login, un semplice mismatch del token CSRF su
+                    // una sessione ancora valida deve solo invitare a ricaricare e
+                    // reinviare — senza la fuorviante schermata "Sessione Scaduta".
                     $response = new SlimResponse(403);
+
+                    $csrfReason = $csrfValidation['reason'];
 
                     ob_start();
                     require __DIR__ . '/../Views/errors/session-expired.php';

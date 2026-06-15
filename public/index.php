@@ -211,8 +211,15 @@ $httpsDetected = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
 
 // Secure session configuration
 if (session_status() !== PHP_SESSION_ACTIVE) {
-    // Use application-local session storage to avoid /tmp cleanup issues
+    // Use application-local session storage to avoid /tmp cleanup issues.
+    // Create the directory if missing: otherwise PHP silently falls back to the
+    // system /tmp, which on cPanel/shared hosts is purged by an aggressive cron
+    // (often every ~24 min), evicting still-active admin sessions long before the
+    // configured inactivity timeout — i.e. "logged out for no reason".
     $sessionPath = dirname(__DIR__) . '/storage/sessions';
+    if (!is_dir($sessionPath)) {
+        @mkdir($sessionPath, 0770, true);
+    }
     if (is_dir($sessionPath) && is_writable($sessionPath)) {
         ini_set('session.save_path', $sessionPath);
     }
