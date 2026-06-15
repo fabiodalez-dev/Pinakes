@@ -223,6 +223,24 @@ $check(preg_match('/statusCode\s*>=\s*300\s*&&\s*\$statusCode\s*<\s*400/s', $src
 // token-retry) must also pin follow_location => 0 so the bearer is never resent.
 $check(substr_count($src, "'follow_location' => 0") >= 3,
     'authenticated file_get_contents fallback paths also disable redirect follow');
+// 14b. fetchReleasesRaw's cURL branch (primary + token-retry) is fail-closed on
+//      redirects too — FOLLOWLOCATION=false on both. (The asset-DOWNLOAD paths keep
+//      FOLLOWLOCATION=true on purpose: they must follow github.com→CDN, and stay
+//      token-safe via isApiUrl()/anonymous headers.)
+$check(substr_count($src, 'CURLOPT_FOLLOWLOCATION => false') >= 2,
+    'fetchReleasesRaw cURL branch disables redirect auto-follow (primary + retry)');
+
+// 15. Patch error handling is fail-closed where nothing is committed yet:
+//     a present, verified pre-update patch that errors mid-apply sets success=false
+//     (the caller aborts) — the old "Still return success=true" fail-open is gone.
+$check(strpos($src, 'Still return success=true to allow update to continue') === false,
+    'pre-update patch no longer fails open on a mid-apply error');
+$check(preg_match('/Errore durante pre-update-patch.*?\$result\[\x27success\x27\]\s*=\s*false/s', $src) === 1,
+    'pre-update patch catch is fail-closed (success=false)');
+// post-install: the core update is already committed, so a runtime error is a
+// non-fatal warning — but it must set success=false so it is not hidden.
+$check(preg_match('/Errore durante post-install-patch.*?\$result\[\x27success\x27\]\s*=\s*false/s', $src) === 1,
+    'post-install patch catch surfaces errors (success=false), not hidden as "no patch"');
 
 // ---------------------------------------------------------------------------
 echo "\n" . ($failed === 0

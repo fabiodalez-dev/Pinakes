@@ -999,7 +999,11 @@ class Updater
             $ch = curl_init($url);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_FOLLOWLOCATION => true,
+                // Do not follow redirects on this authenticated API call (api.github.com
+                // does not legitimately redirect); a 3xx is rejected as failure below,
+                // matching makeGitHubRequest()'s fail-closed redirect stance.
+                CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_MAXREDIRS => 0,
                 CURLOPT_TIMEOUT => 30,
                 CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
@@ -1012,7 +1016,7 @@ class Updater
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
 
-            if ($curlResult !== false && $httpCode >= 200 && $httpCode < 400) {
+            if ($curlResult !== false && $httpCode >= 200 && $httpCode < 300) {
                 $response = $curlResult;
             } elseif (in_array($httpCode, [401, 403], true) && $this->githubToken !== '') {
                 // Retry without token on auth failure
@@ -1021,7 +1025,8 @@ class Updater
                 $ch2 = curl_init($url);
                 curl_setopt_array($ch2, [
                     CURLOPT_RETURNTRANSFER => true,
-                    CURLOPT_FOLLOWLOCATION => true,
+                    CURLOPT_FOLLOWLOCATION => false,
+                    CURLOPT_MAXREDIRS => 0,
                     CURLOPT_TIMEOUT => 30,
                     CURLOPT_CONNECTTIMEOUT => 10,
                     CURLOPT_USERAGENT => 'Pinakes-Updater/1.0',
@@ -1032,7 +1037,7 @@ class Updater
                 $retryResult = curl_exec($ch2);
                 $retryCode = curl_getinfo($ch2, CURLINFO_HTTP_CODE);
                 curl_close($ch2);
-                if ($retryResult !== false && $retryCode >= 200 && $retryCode < 400) {
+                if ($retryResult !== false && $retryCode >= 200 && $retryCode < 300) {
                     $response = $retryResult;
                 }
             }
@@ -3982,7 +3987,11 @@ class Updater
             }
 
             if (file_put_contents($tempPatchFile, $patchContent) === false) {
-                $this->debugLog('ERROR', 'Impossibile salvare patch temporanea');
+                // The patch is PRESENT and digest-verified; if we can't even stage
+                // it we must NOT install without it — fail closed (nothing committed
+                // yet, the caller aborts and the user retries).
+                $this->debugLog('ERROR', 'Impossibile salvare pre-update patch temporanea → fail-closed');
+                $result['success'] = false;
                 return $result;
             }
 
@@ -3992,7 +4001,9 @@ class Updater
             @unlink($tempPatchFile);
 
             if (!is_array($patchDefinition)) {
-                $this->debugLog('WARNING', 'Patch definition non valida (non è un array)');
+                // Present, verified patch whose definition is malformed — fail closed.
+                $this->debugLog('ERROR', 'Pre-update patch definition non valida (non è un array) → fail-closed');
+                $result['success'] = false;
                 return $result;
             }
 
@@ -4044,12 +4055,14 @@ class Updater
             ]);
 
         } catch (\Throwable $e) {
-            // Don't fail the entire update if patch fails
+            // A present, digest-verified pre-update patch that errors mid-apply must
+            // NOT let the install proceed half-patched — fail closed (nothing is
+            // committed yet, so the caller aborts and the user retries cleanly).
             $this->debugLog('ERROR', 'Errore durante pre-update-patch', [
                 'exception' => get_class($e),
                 'message' => $e->getMessage()
             ]);
-            // Still return success=true to allow update to continue
+            $result['success'] = false;
             $result['error'] = $e->getMessage();
         }
 
@@ -4352,11 +4365,14 @@ class Updater
             ]);
 
         } catch (\Throwable $e) {
-            // Don't fail if post-install patch fails - update is already done
+            // The core update is already committed, so this is NON-FATAL — but it
+            // must surface as a warning at the caller (success=false → warning
+            // branch), not be hidden as "no patch applied".
             $this->debugLog('ERROR', 'Errore durante post-install-patch', [
                 'exception' => get_class($e),
                 'message' => $e->getMessage()
             ]);
+            $result['success'] = false;
             $result['error'] = $e->getMessage();
         }
 
