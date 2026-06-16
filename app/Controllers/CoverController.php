@@ -285,7 +285,9 @@ class CoverController
     }
 
     /**
-     * Ensure the URL uses HTTPS, belongs to the whitelist and resolves to public IPs.
+     * Ensure the URL uses HTTPS and resolves to public IPs only. The host allow-list
+     * was removed (issue #173); the boundary is assertPublicDns() + per-hop IP pinning
+     * in downloadCover(), which is what actually prevents reaching internal services.
      */
     private function assertUrlAllowed(string $url): string
     {
@@ -325,11 +327,22 @@ class CoverController
         for ($redirects = 0; $redirects <= 3; $redirects++) {
             $this->assertUrlAllowed($currentUrl);
 
+            // Pin the connection to the validated public IP: assertPublicDns() resolves
+            // and validates, but cURL would re-resolve on connect — a DNS rebind in
+            // between could reach a different (internal) address. CURLOPT_RESOLVE stops
+            // that by forcing cURL to use the exact IP we just checked, per hop.
+            $pinHost = strtolower((string) (parse_url($currentUrl, PHP_URL_HOST) ?? ''));
+            $pinIp = \App\Support\SsrfGuard::resolvePinnedIp($pinHost);
+            if ($pinIp === null) {
+                throw new \RuntimeException('Host non risolvibile a un IP pubblico');
+            }
+
             $ch = curl_init($currentUrl);
             curl_setopt_array($ch, [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HEADER => true,
                 CURLOPT_FOLLOWLOCATION => false,
+                CURLOPT_RESOLVE => ["$pinHost:443:$pinIp", "$pinHost:80:$pinIp"],
                 CURLOPT_TIMEOUT => 20,
                 CURLOPT_CONNECTTIMEOUT => 10,
                 CURLOPT_SSL_VERIFYPEER => true,
@@ -434,14 +447,14 @@ class CoverController
         }
 
         foreach ($ips as $ip) {
-            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            if (!\App\Support\SsrfGuard::isPublicIp($ip)) {
                 throw new \RuntimeException('IP privato non consentito');
             }
         }
 
         foreach ($aaaaRecords as $record) {
             $ipv6 = $record['ipv6'] ?? null;
-            if ($ipv6 && filter_var($ipv6, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            if ($ipv6 && !\App\Support\SsrfGuard::isPublicIp((string) $ipv6)) {
                 throw new \RuntimeException('IP privato non consentito');
             }
         }
