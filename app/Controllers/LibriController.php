@@ -39,7 +39,48 @@ class LibriController
         // Ubik Libri
         'www.ubiklibri.it',
         'ubiklibri.it',
+        // Internet Archive — covers.openlibrary.org 302-redirects here (issue #173)
+        'archive.org',
     ];
+
+    /**
+     * Wide suffix allow-list for cover hosts (issue #173). Exact-host matching kept
+     * blocking legitimate sources whose CDN host is dynamic — most notably
+     * covers.openlibrary.org, which 302s to archive.org / iaNNNNNN.us.archive.org.
+     * These suffixes cover the major book-cover CDNs. SSRF is still bounded by the
+     * private/reserved-IP check, the image-content validation and the size cap below.
+     */
+    private const COVER_ALLOWED_SUFFIXES = [
+        '.archive.org', '.us.archive.org',
+        '.openlibrary.org',
+        '.googleusercontent.com', '.ggpht.com', '.gstatic.com', '.googleapis.com', '.google.com',
+        '.ssl-images-amazon.com', '.media-amazon.com', '.images-amazon.com', '.amazonaws.com',
+        '.cloudfront.net', '.akamaized.net', '.akamaihd.net', '.fastly.net', '.cloudflare.net',
+        '.cloudinary.com', '.imgix.net', '.wikimedia.org',
+        '.gr-assets.com', '.images-bn.com', '.bookshop.org',
+        '.libreriauniversitaria.it', '.mondadoristore.it', '.lafeltrinelli.it', '.ibs.it', '.ubiklibri.it',
+    ];
+
+    /**
+     * Whether a host may be fetched as a cover source: exact match in
+     * COVER_ALLOWED_DOMAINS, or ends with one of the wide COVER_ALLOWED_SUFFIXES.
+     */
+    private static function coverHostAllowed(string $host): bool
+    {
+        if ($host === '') {
+            return false;
+        }
+        $host = strtolower($host);
+        if (\in_array($host, self::COVER_ALLOWED_DOMAINS, true)) {
+            return true;
+        }
+        foreach (self::COVER_ALLOWED_SUFFIXES as $suffix) {
+            if (str_ends_with($host, $suffix)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     /**
      * Maximum file size for cover downloads (5MB)
@@ -135,8 +176,9 @@ class LibriController
         $parsedUrl = parse_url($url);
         $host = strtolower($parsedUrl['host'] ?? '');
 
-        // Use centralized whitelist
-        if (!\in_array($host, self::COVER_ALLOWED_DOMAINS, true)) {
+        // Initial host: wide cover allow-list (exact + suffix). The real SSRF
+        // boundary is the public-IP check after each request, not this list.
+        if (!self::coverHostAllowed($host)) {
             \App\Support\SecureLogger::warning('Cover download from non-whitelisted domain', ['url' => $url, 'host' => $host]);
             return $url; // Return original URL if domain not allowed
         }
@@ -168,12 +210,15 @@ class LibriController
             $contentLength = (int) curl_getinfo($ch, CURLINFO_CONTENT_LENGTH_DOWNLOAD);
             curl_close($ch);
 
-            // SSRF protection: block redirects to non-whitelisted hosts
-            if ($effectiveHost === '' || !\in_array($effectiveHost, self::COVER_ALLOWED_DOMAINS, true)) {
-                \App\Support\SecureLogger::warning('Cover download blocked: redirected to non-whitelisted host', [
+            // Redirect target: a cover origin may legitimately 302 to any public CDN
+            // (e.g. covers.openlibrary.org → archive.org / *.us.archive.org, issue
+            // #173). We do NOT gate the redirect host on the allow-list anymore — the
+            // SSRF boundary is the private/reserved-IP check below, which is what
+            // actually stops the server reaching internal services.
+            if ($effectiveHost === '') {
+                \App\Support\SecureLogger::warning('Cover download blocked: empty redirect host', [
                     'url' => $url,
                     'effective_url' => $effectiveUrl,
-                    'effective_host' => $effectiveHost,
                 ]);
                 return $url;
             }
@@ -224,12 +269,12 @@ class LibriController
             $primaryIp = (string) curl_getinfo($ch, CURLINFO_PRIMARY_IP);
             curl_close($ch);
 
-            // SSRF protection: block redirects to non-whitelisted hosts
-            if ($effectiveHost === '' || !\in_array($effectiveHost, self::COVER_ALLOWED_DOMAINS, true)) {
-                \App\Support\SecureLogger::warning('Cover GET blocked: redirected to non-whitelisted host', [
+            // Redirect target: any public host is allowed (see HEAD branch above,
+            // issue #173). The private/reserved-IP check below is the SSRF boundary.
+            if ($effectiveHost === '') {
+                \App\Support\SecureLogger::warning('Cover GET blocked: empty redirect host', [
                     'url' => $url,
                     'effective_url' => $effectiveUrl,
-                    'effective_host' => $effectiveHost,
                 ]);
                 return $url;
             }
@@ -2393,7 +2438,7 @@ class LibriController
             return false;
         }
 
-        return \in_array($host, self::COVER_ALLOWED_DOMAINS, true);
+        return self::coverHostAllowed(strtolower($host));
     }
 
     /**
