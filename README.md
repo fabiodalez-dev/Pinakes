@@ -34,6 +34,12 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.20.2
+
+Internal release — **test coverage only, no functional change to the application**.
+
+- **Regression suite for the cover fix ([#173](https://github.com/fabiodalez-dev/Pinakes/issues/173))** — a 5-test end-to-end suite ([#176](https://github.com/fabiodalez-dev/Pinakes/pull/176)) that locks external-cover download &amp; save (OpenLibrary → Internet Archive redirect) and the SSRF boundary on both the save path and the `/api/cover/download` endpoint, so the #173 fix can't silently regress again. Tests are excluded from the release ZIP (`tests/ export-ignore`), so this package is byte-identical to 0.7.20.1 apart from the version marker — no need to update unless you track the latest version.
+
 ## What's New in v0.7.20.1
 
 Maintenance release — two fixes, no schema change.
