@@ -26,7 +26,7 @@ const ADMIN_PASS = process.env.E2E_ADMIN_PASS || '';
 const DB_USER = process.env.E2E_DB_USER || '', DB_PASS = process.env.E2E_DB_PASS || '';
 const DB_SOCKET = process.env.E2E_DB_SOCKET || '', DB_HOST = process.env.E2E_DB_HOST || '';
 const DB_PORT = process.env.E2E_DB_PORT || '', DB_NAME = process.env.E2E_DB_NAME || '';
-test.skip(!ADMIN_EMAIL || !DB_USER || !DB_NAME, 'creds not configured');
+test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_NAME, 'creds not configured');
 
 // The exact cover from issue #173 (EAN 9782205081718). covers.openlibrary.org
 // answers 302 → archive.org — the redirect the old allow-list blocked.
