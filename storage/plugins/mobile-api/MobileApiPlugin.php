@@ -28,6 +28,7 @@ require_once __DIR__ . '/src/Support/TokenQuotaMiddleware.php';
 require_once __DIR__ . '/src/Push/PushPayload.php';
 require_once __DIR__ . '/src/Push/PushResult.php';
 require_once __DIR__ . '/src/Push/PushProvider.php';
+require_once __DIR__ . '/src/Push/VapidSigner.php';
 require_once __DIR__ . '/src/Push/NullProvider.php';
 require_once __DIR__ . '/src/Push/UnifiedPushProvider.php';
 require_once __DIR__ . '/src/Push/FcmProvider.php';
@@ -75,6 +76,11 @@ class MobileApiPlugin
     private const PUSH_PROVIDER_KEY        = 'push_provider';
     private const PUSH_VAPID_SUBJECT_KEY   = 'push_vapid_subject';
     private const PUSH_FCM_CREDENTIALS_KEY = 'push_fcm_credentials';
+    // VAPID keypair (RFC 8292), generated once per instance. Public key is shared
+    // with the app (applicationServerKey) and sent as the `k=` value; the private
+    // key is stored encrypted at rest (SettingsEncryption).
+    private const PUSH_VAPID_PUBLIC_KEY     = 'push_vapid_public_key';
+    private const PUSH_VAPID_PRIVATE_KEY    = 'push_vapid_private_key';
 
     private \mysqli $db;
     /** @phpstan-ignore property.onlyWritten */
@@ -119,6 +125,14 @@ class MobileApiPlugin
             $this->db->rollback();
             throw $e;
         }
+
+        // Ensure the VAPID keypair exists (idempotent, outside the tx). Best-effort:
+        // never let a keygen failure undo a successful activation.
+        try {
+            $this->ensureVapidKeys();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[MobileApi] VAPID keygen at activate failed: ' . $e->getMessage());
+        }
     }
 
     public function onDeactivate(): void
@@ -137,6 +151,15 @@ class MobileApiPlugin
 
         // App access is OFF until the manager explicitly enables it.
         $this->setDefaultEnabledFlag();
+
+        // Generate the VAPID keypair now so /health can advertise the public key
+        // (applicationServerKey) without lazily doing crypto on a public request.
+        // Best-effort: a keygen failure must never abort install.
+        try {
+            $this->ensureVapidKeys();
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[MobileApi] VAPID keygen at install failed: ' . $e->getMessage());
+        }
     }
 
     public function onUninstall(): void
@@ -567,8 +590,25 @@ class MobileApiPlugin
     ): ResponseInterface {
         // Pass the app-access gate read via SettingsRepository (ConfigStore does
         // not surface plugin-defined categories like `mobile_api`, so a direct
-        // ConfigStore::get there would always report the default '0').
-        return (new HealthController())->index($request, $response, $this->isAppAccessEnabled());
+        // ConfigStore::get there would always report the default '0'). Also pass
+        // the VAPID public key so the app can use it as applicationServerKey.
+        // ensureVapidKeys() is idempotent: it generates the keypair on first need
+        // (covers already-active installs whose onActivate didn't re-run) and is a
+        // cached read thereafter. Best-effort: never let it break discovery.
+        $vapidPublic = '';
+        try {
+            $keys = $this->ensureVapidKeys();
+            $vapidPublic = (string) ($keys['public'] ?? '');
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[MobileApi] VAPID key access in health failed: ' . $e->getMessage());
+        }
+
+        return (new HealthController())->index(
+            $request,
+            $response,
+            $this->isAppAccessEnabled(),
+            $vapidPublic
+        );
     }
 
     // ─── Settings (app-access gate) ─────────────────────────────────────────
@@ -590,7 +630,40 @@ class MobileApiPlugin
             'push_provider'        => $repo->get(self::ENABLE_CATEGORY, self::PUSH_PROVIDER_KEY, 'unifiedpush') ?? 'unifiedpush',
             'push_vapid_subject'   => $repo->get(self::ENABLE_CATEGORY, self::PUSH_VAPID_SUBJECT_KEY, '') ?? '',
             'push_fcm_credentials' => $repo->get(self::ENABLE_CATEGORY, self::PUSH_FCM_CREDENTIALS_KEY, '') ?? '',
+            'push_vapid_public_key' => $repo->get(self::ENABLE_CATEGORY, self::PUSH_VAPID_PUBLIC_KEY, '') ?? '',
         ];
+    }
+
+    /**
+     * Return the instance VAPID keypair, generating + persisting it on first use.
+     * Public key is stored/returned plain (it is meant to be shared); the private
+     * key is stored encrypted at rest and returned decrypted (PEM).
+     *
+     * @return array{public:string, private:string}|null Null if EC keygen is
+     *         unavailable — callers then send without VAPID (advisory).
+     */
+    public function ensureVapidKeys(): ?array
+    {
+        $repo    = $this->repo();
+        $public  = (string) ($repo->get(self::ENABLE_CATEGORY, self::PUSH_VAPID_PUBLIC_KEY, '') ?? '');
+        $privEnc = (string) ($repo->get(self::ENABLE_CATEGORY, self::PUSH_VAPID_PRIVATE_KEY, '') ?? '');
+
+        if ($public !== '' && $privEnc !== '') {
+            $privPem = \App\Support\SettingsEncryption::decrypt($privEnc);
+            if (is_string($privPem) && $privPem !== '') {
+                return ['public' => $public, 'private' => $privPem];
+            }
+        }
+
+        $pair = \App\Plugins\MobileApi\Push\VapidSigner::generateKeyPair();
+        if ($pair === null) {
+            return null;
+        }
+
+        $repo->set(self::ENABLE_CATEGORY, self::PUSH_VAPID_PUBLIC_KEY, $pair['public']);
+        $repo->set(self::ENABLE_CATEGORY, self::PUSH_VAPID_PRIVATE_KEY, \App\Support\SettingsEncryption::encrypt($pair['private']));
+
+        return $pair;
     }
 
     /**
@@ -685,11 +758,16 @@ class MobileApiPlugin
 
         // UnifiedPush needs no central credential: the per-device endpoint IS the
         // credential. It is therefore the always-available default whenever app
-        // access is on. The optional VAPID subject is advisory only.
+        // access is on. A VAPID keypair (auto-generated, RFC 8292) lets the POST
+        // be signed so standard Web Push endpoints / VAPID-requiring distributors
+        // accept it; without it the provider still sends (advisory).
+        $subject = (string) ($settings['push_vapid_subject'] ?? '');
+        $keys    = $this->ensureVapidKeys();
+
         return new \App\Plugins\MobileApi\Push\UnifiedPushProvider(
-            (string) ($settings['push_vapid_subject'] ?? '') !== ''
-                ? (string) $settings['push_vapid_subject']
-                : null
+            $subject !== '' ? $subject : null,
+            $keys['public'] ?? null,
+            $keys['private'] ?? null
         );
     }
 

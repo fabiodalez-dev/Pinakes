@@ -19,7 +19,9 @@ use Slim\Psr7\Response as SlimResponse;
  * complete onboarding in dev; it advertises the https status in its own payload.
  *
  * Detection order (proxy-aware): X-Forwarded-Proto, then the PSR-7 URI scheme,
- * then HTTPS server var. Loopback hosts (localhost, 127.0.0.0/8, ::1) are exempt.
+ * then HTTPS server var. The dev exemption is decided from the actual TCP peer
+ * (REMOTE_ADDR), NOT the Host header — a remote attacker setting `Host: localhost`
+ * must not be able to bypass HTTPS and send a bearer token over cleartext.
  */
 final class HttpsEnforceMiddleware implements MiddlewareInterface
 {
@@ -69,23 +71,20 @@ final class HttpsEnforceMiddleware implements MiddlewareInterface
 
     private function isLoopback(Request $request): bool
     {
-        $host = strtolower($request->getUri()->getHost());
-        if ($host === '') {
-            $server = $request->getServerParams();
-            $host   = strtolower((string) ($server['HTTP_HOST'] ?? $server['SERVER_NAME'] ?? ''));
-            // Strip a possible :port suffix.
-            $host = (string) preg_replace('/:\d+$/', '', $host);
+        // Decide the dev exemption from the genuine TCP peer (REMOTE_ADDR), never
+        // the client-controllable Host header: otherwise `Host: localhost` from a
+        // remote client would bypass HTTPS and leak the bearer token in cleartext.
+        $server = $request->getServerParams();
+        $remote = strtolower(trim((string) ($server['REMOTE_ADDR'] ?? '')));
+        if ($remote === '') {
+            return false;
         }
 
-        if ($host === 'localhost' || $host === '::1' || $host === '[::1]') {
+        if ($remote === '::1' || $remote === '[::1]') {
             return true;
         }
 
         // 127.0.0.0/8
-        if (preg_match('/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/', $host) === 1) {
-            return true;
-        }
-
-        return false;
+        return preg_match('/^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/', $remote) === 1;
     }
 }

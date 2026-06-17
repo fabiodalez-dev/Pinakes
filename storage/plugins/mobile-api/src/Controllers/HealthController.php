@@ -29,7 +29,8 @@ final class HealthController
     public function index(
         ServerRequestInterface $request,
         ResponseInterface $response,
-        bool $appAccessEnabled = false
+        bool $appAccessEnabled = false,
+        string $vapidPublicKey = ''
     ): ResponseInterface {
         try {
             $name = (string) ConfigStore::get('app.name', 'Pinakes');
@@ -69,11 +70,14 @@ final class HealthController
                     'wishlist'      => true,
                     'messages'      => true,
                     'notifications' => true,
-                    'push'          => false, // wired in the push slice
+                    'push'          => $vapidPublicKey !== '',
                 ],
                 'app_access_enabled'   => $appAccessEnabled,
                 'registration_enabled' => $registrationEnabled,
                 'private_mode'         => $privateMode,
+                // VAPID public key (applicationServerKey) for Web Push / UnifiedPush
+                // subscription on the device. Empty if push isn't set up.
+                'vapid_public_key'     => $vapidPublicKey !== '' ? $vapidPublicKey : null,
             ];
 
             $meta = [

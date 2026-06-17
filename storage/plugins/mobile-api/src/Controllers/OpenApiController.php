@@ -1116,6 +1116,11 @@ final class OpenApiController
                 'app_access_enabled'   => ['type' => 'boolean'],
                 'registration_enabled' => ['type' => 'boolean'],
                 'private_mode'         => ['type' => 'boolean'],
+                'vapid_public_key'     => [
+                    'type'        => 'string',
+                    'nullable'    => true,
+                    'description' => 'VAPID public key (base64url uncompressed P-256 point) to use as the Web Push / UnifiedPush applicationServerKey. Null when push is not set up.',
+                ],
             ],
         ];
     }
