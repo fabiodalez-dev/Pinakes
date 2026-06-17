@@ -141,6 +141,18 @@ class MaintenanceService
             SecureLogger::error(__('MaintenanceService errore notifiche'), ['error' => $e->getMessage()]);
         }
 
+        // Best-effort plugin push dispatch (Mobile API): fire AFTER the email
+        // reminders on the same cron pass. Plugins hook 'mobile_api.dispatch_push'
+        // to deliver native push for the same events. No-op when no plugin is
+        // listening; a plugin failure is swallowed by HookManager and can never
+        // abort the maintenance run.
+        try {
+            (new HookManager($this->db))->doAction('mobile_api.dispatch_push');
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'dispatchPush: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore push'), ['error' => $e->getMessage()]);
+        }
+
         // Generate ICS calendar file
         try {
             $results['ics_generated'] = $this->generateIcsCalendar();

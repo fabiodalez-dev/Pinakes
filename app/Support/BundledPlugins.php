@@ -15,6 +15,7 @@ final class BundledPlugins
         'discogs',
         'frbr-lrm',
         'goodlib',
+        'mobile-api',
         'musicbrainz',
         'ncip-server',
         'oai-pmh-server',

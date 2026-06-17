@@ -131,6 +131,21 @@ final class HttpClient
                 : false,
         ];
 
+        // Optional IP pinning (SSRF / DNS-rebind defense). When the caller has
+        // already resolved the host to a vetted public IP, pin the connection to
+        // it via CURLOPT_RESOLVE so Guzzle/curl never re-resolves — a TOCTOU
+        // rebind between the caller's check and connect cannot reach a different
+        // address. Only the host the URL targets is pinned, on its effective port.
+        if (isset($options['pin_ip']) && is_string($options['pin_ip']) && $options['pin_ip'] !== '' && \extension_loaded('curl')) {
+            $pinHost = strtolower((string) parse_url($url, PHP_URL_HOST));
+            $pinPort = (int) (parse_url($url, PHP_URL_PORT) ?? ($scheme === 'https' ? 443 : 80));
+            if ($pinHost !== '') {
+                $guzzleOptions['curl'] = [
+                    CURLOPT_RESOLVE => ["$pinHost:$pinPort:" . $options['pin_ip']],
+                ];
+            }
+        }
+
         if (isset($options['query']) && is_array($options['query'])) {
             $guzzleOptions[RequestOptions::QUERY] = $options['query'];
         }

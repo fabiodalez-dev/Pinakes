@@ -254,6 +254,19 @@ storage/plugins/ncip-server/**
 !storage/plugins/ncip-server/migrations/
 !storage/plugins/ncip-server/migrations/*.sql
 
+!storage/plugins/mobile-api/
+storage/plugins/mobile-api/**
+!storage/plugins/mobile-api/*.php
+!storage/plugins/mobile-api/*.json
+!storage/plugins/mobile-api/*.md
+!storage/plugins/mobile-api/views/
+!storage/plugins/mobile-api/views/*.php
+!storage/plugins/mobile-api/src/
+!storage/plugins/mobile-api/src/**/
+!storage/plugins/mobile-api/src/**/*.php
+!storage/plugins/mobile-api/migrations/
+!storage/plugins/mobile-api/migrations/*.sql
+
 # Premium plugin - never track (private/commercial)
 storage/plugins/scraping-pro/
 

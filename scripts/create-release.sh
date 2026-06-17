@@ -176,6 +176,7 @@ BUNDLED_PLUGINS=(
     "discogs"
     "frbr-lrm"
     "goodlib"
+    "mobile-api"
     "musicbrainz"
     "ncip-server"
     "oai-pmh-server"
