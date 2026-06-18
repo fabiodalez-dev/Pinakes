@@ -145,7 +145,7 @@ final class AuthController
         $telefono  = trim((string) ($body['telefono'] ?? ''));
         $indirizzo = \App\Support\HtmlHelper::decode(trim((string) ($body['indirizzo'] ?? '')));
         $password  = (string) ($body['password'] ?? '');
-        $password2 = (string) ($body['password_confirm'] ?? ($body['password'] ?? ''));
+        $password2 = (string) ($body['password_confirm'] ?? '');
         $privacy   = !empty($body['privacy_acceptance']);
 
         // Same validation rules as the web RegistrationController.
@@ -175,7 +175,8 @@ final class AuthController
             }
             $stmt->bind_param('s', $email);
             $stmt->execute();
-            $exists = $stmt->get_result()->num_rows > 0;
+            $res    = $stmt->get_result();
+            $exists = $res instanceof \mysqli_result && $res->num_rows > 0;
             $stmt->close();
             if ($exists) {
                 return ResponseEnvelope::error($response, 'email_exists', __('Esiste già un account con questa email.'), 409);
@@ -429,7 +430,8 @@ final class AuthController
             }
             $stmt->bind_param('s', $candidate);
             $stmt->execute();
-            $taken = $stmt->get_result()->num_rows > 0;
+            $res   = $stmt->get_result();
+            $taken = $res instanceof \mysqli_result && $res->num_rows > 0;
             $stmt->close();
             if (!$taken) {
                 return $candidate;

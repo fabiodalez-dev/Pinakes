@@ -15,6 +15,19 @@ completed by hand afterwards.
     limiter **is** wired on the route; the test still asserts 429 on a server without
     the bypass.
 
+## Post-review fixes (applied)
+
+Findings from the multi-lens review on PR #177, fixed:
+- **i18n gap (was blocking):** all 61 missing API `__()` strings (auth, token, rate-limit, HTTPS, loan/reservation/wishlist/profile/message errors) added to **all 4** locales (it source + en/fr/de translations).
+- **`password_confirm` dead guard:** `register` + `changePassword` no longer default the confirm field to the password — the mismatch check is real again.
+- **`book_available` notification durability:** the watcher is now cleared only **after** a push is actually delivered (kept on NullProvider/quiet-hours/no-subscription), and `book_available` is now emitted by `GET /me/notifications` — so a push-off user still sees it.
+- **Quiet-hours dedup:** the pref + quiet-hours gate (`shouldNotify`) now runs **before** the `mobile_push_log` claim, so a quiet-hours pass no longer burns the dedup and the push re-fires on a later pass.
+- **Stateless-session safety:** `AppAuthMiddleware` mirrors the token identity into `$_SESSION['user']` for the request only and **restores** the prior value afterwards (no clobbering a concurrent web session).
+- **mysqli correctness:** `$stmt->affected_rows` (not connection-level) at 4 sites incl. the push `claim()` and token revoke; `get_result()` null-checked before `->num_rows` at 2 sites.
+- **Docs + a11y:** stale docblocks corrected; settings-view flash banners get `role`/`aria-live`, the Revoke button a per-device `aria-label`, and the actions column an sr-only label.
+
+Known/deferred (low, noted on the PR): `new_message` is a wired-but-unfired push trigger (no producer yet); `X-Forwarded-Proto` is trusted unconditionally (conventional behind a proxy); `HttpClient` IP-pin is curl-only.
+
 ## Complete (implemented + tested)
 
 | Area | Notes |

@@ -426,7 +426,7 @@ final class ActionsController
             }
             $del->bind_param('ii', $userId, $bookId);
             $del->execute();
-            $removed = $this->db->affected_rows > 0;
+            $removed = $del->affected_rows > 0;
             $del->close();
 
             if (!$removed) {
@@ -577,7 +577,7 @@ final class ActionsController
         $body    = JsonBody::parse($request);
         $current = (string) ($body['current_password'] ?? '');
         $p1      = (string) ($body['password'] ?? '');
-        $p2      = (string) ($body['password_confirm'] ?? ($body['password'] ?? ''));
+        $p2      = (string) ($body['password_confirm'] ?? '');
 
         if ($current === '' || $p1 === '') {
             return ResponseEnvelope::error($response, 'missing_fields', __('Compila tutti i campi obbligatori.'), 422);
@@ -772,6 +772,33 @@ final class ActionsController
                         'pickup:' . (int) $r['id'],
                         __('Prenotazione pronta'),
                         sprintf(__('"%s" è pronto per il ritiro.'), (string) $r['titolo']),
+                        (int) $r['libro_id'],
+                        null
+                    );
+                }
+                $stmt->close();
+            }
+
+            // Watched titles that became loanable again (the push dispatcher clears
+            // the watcher once a push is actually delivered, so anything still here
+            // is either pending the next push pass or a push-off user — either way
+            // the user should see it by polling).
+            $sql = "SELECT w.libro_id, l.titolo
+                    FROM mobile_availability_watchers w
+                    JOIN libri l ON l.id = w.libro_id AND l.deleted_at IS NULL
+                    WHERE w.user_id = ? AND l.copie_disponibili > 0
+                    ORDER BY w.created_at DESC";
+            $stmt = $this->db->prepare($sql);
+            if ($stmt !== false) {
+                $stmt->bind_param('i', $userId);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                while ($res !== false && ($r = $res->fetch_assoc()) !== null) {
+                    $items[] = $this->notif(
+                        'book_available',
+                        'available:' . (int) $r['libro_id'],
+                        __('Libro di nuovo disponibile'),
+                        sprintf(__('"%s" è di nuovo disponibile per il prestito.'), (string) $r['titolo']),
                         (int) $r['libro_id'],
                         null
                     );

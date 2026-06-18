@@ -19,14 +19,19 @@ use mysqli;
  * subscribed devices whose mobile_push_prefs allow it and that are outside quiet
  * hours.
  *
- * Idempotency: every (user, event-key) pair is recorded in mobile_push_log with a
- * UNIQUE index, claimed atomically with INSERT IGNORE BEFORE sending — so a push
- * is delivered at most once even across overlapping cron runs (same mark-then-send
- * pattern the email reminders use).
+ * Idempotency: the loan-due / overdue / reservation-ready events record each
+ * (user, event-key) pair in mobile_push_log with a UNIQUE index, claimed atomically
+ * with INSERT IGNORE — but only AFTER the pref + quiet-hours gate (shouldNotify), so
+ * a quiet-hours pass never burns the claim. The book_available event instead uses
+ * its mobile_availability_watchers row as the dedup: the watcher is the durable
+ * "wants notification" record and is cleared only once the push is actually
+ * delivered, so a NullProvider / quiet-hours user keeps it and still sees the
+ * availability in the in-app feed.
  *
  * NEVER hard-fail (spec §Push config): the whole sweep is wrapped; a provider that
  * is NullProvider, or any per-row error, degrades to the in-app feed and is logged,
- * never thrown.
+ * never thrown. A skipped push is never a lost notification — every event type is
+ * also derivable by GET /me/notifications.
  *
  * Data isolation: every query is scoped by the OWNING user_id; a push for user A is
  * only ever sent to user A's own subscriptions. Every `libri` read carries
@@ -107,6 +112,11 @@ final class PushDispatcher
         foreach ($rows as $r) {
             $userId = (int) $r['utente_id'];
             $key    = 'loan_due:' . (int) $r['id'] . ':' . (string) $r['data_scadenza'];
+            // Gate BEFORE claim so a quiet-hours/pref-off pass doesn't burn the dedup.
+            if (!$this->shouldNotify($userId, 'loan_due')) {
+                $counters['skipped']++;
+                continue;
+            }
             if (!$this->claim($userId, $key)) {
                 continue;
             }
@@ -118,7 +128,7 @@ final class PushDispatcher
                 (int) $r['libro_id'],
                 ['loan_id' => (int) $r['id'], 'due_at' => (string) $r['data_scadenza']]
             );
-            $this->deliver($userId, 'loan_due', $payload, $counters);
+            $this->deliver($userId, $payload, $counters);
         }
 
         return $events;
@@ -143,6 +153,10 @@ final class PushDispatcher
             $userId = (int) $r['utente_id'];
             // One overdue push per loop per loan (keyed on due date), not per day.
             $key    = 'loan_overdue:' . (int) $r['id'] . ':' . (string) $r['data_scadenza'];
+            if (!$this->shouldNotify($userId, 'loan_overdue')) {
+                $counters['skipped']++;
+                continue;
+            }
             if (!$this->claim($userId, $key)) {
                 continue;
             }
@@ -154,7 +168,7 @@ final class PushDispatcher
                 (int) $r['libro_id'],
                 ['loan_id' => (int) $r['id'], 'due_at' => (string) $r['data_scadenza']]
             );
-            $this->deliver($userId, 'loan_overdue', $payload, $counters);
+            $this->deliver($userId, $payload, $counters);
         }
 
         return $events;
@@ -179,6 +193,10 @@ final class PushDispatcher
         foreach ($rows as $r) {
             $userId = (int) $r['utente_id'];
             $key    = 'reservation_ready:' . (int) $r['id'];
+            if (!$this->shouldNotify($userId, 'reservation_ready')) {
+                $counters['skipped']++;
+                continue;
+            }
             if (!$this->claim($userId, $key)) {
                 continue;
             }
@@ -190,7 +208,7 @@ final class PushDispatcher
                 (int) $r['libro_id'],
                 ['loan_id' => (int) $r['id']]
             );
-            $this->deliver($userId, 'reservation_ready', $payload, $counters);
+            $this->deliver($userId, $payload, $counters);
         }
 
         return $events;
@@ -221,23 +239,16 @@ final class PushDispatcher
             $userId    = (int) $r['user_id'];
             $watcherId = (int) $r['watcher_id'];
 
-            // Atomically claim+clear the watcher first: deleting it is the dedup —
-            // a watcher fires exactly once and is gone, so no mobile_push_log row
-            // is needed for this event type. If the delete matches nothing, another
-            // pass already handled it.
-            $del = $this->db->prepare('DELETE FROM mobile_availability_watchers WHERE id = ? AND user_id = ?');
-            if ($del === false) {
-                continue;
-            }
-            $del->bind_param('ii', $watcherId, $userId);
-            $del->execute();
-            $claimed = $this->db->affected_rows > 0;
-            $del->close();
-            if (!$claimed) {
+            // The watcher is BOTH the dedup and the durable "wants notification"
+            // record that GET /me/notifications reads — so it must NOT be cleared
+            // until the push has actually been delivered. If the user is in quiet
+            // hours / has the toggle off, leave the watcher in place: the in-app
+            // feed surfaces the availability, and the push re-fires on a later pass.
+            if (!$this->shouldNotify($userId, 'book_available')) {
+                $counters['skipped']++;
                 continue;
             }
 
-            $events++;
             $payload = new PushPayload(
                 'book_available',
                 __('Libro di nuovo disponibile'),
@@ -245,7 +256,23 @@ final class PushDispatcher
                 (int) $r['libro_id'],
                 ['book_id' => (int) $r['libro_id']]
             );
-            $this->deliver($userId, 'book_available', $payload, $counters);
+            $sent = $this->deliver($userId, $payload, $counters);
+            if ($sent <= 0) {
+                // Nothing was delivered (no active subscription / NullProvider):
+                // keep the watcher so the feed keeps showing it and a future pass
+                // can deliver once a subscription exists.
+                continue;
+            }
+
+            // Delivered → clear the one-shot watcher (scoped to its owner).
+            $del = $this->db->prepare('DELETE FROM mobile_availability_watchers WHERE id = ? AND user_id = ?');
+            if ($del === false) {
+                continue;
+            }
+            $del->bind_param('ii', $watcherId, $userId);
+            $del->execute();
+            $del->close();
+            $events++;
         }
 
         return $events;
@@ -254,30 +281,37 @@ final class PushDispatcher
     // ─── Delivery ─────────────────────────────────────────────────────────────
 
     /**
-     * Deliver one event to all of a user's active subscriptions, gated by their
-     * per-type pref and quiet hours. The in-app feed (GET /me/notifications)
-     * always reflects the same state, so a SKIPPED/NullProvider path still leaves
-     * the user able to see the notification by polling.
+     * Whether a notification of this type may be delivered to the user RIGHT NOW
+     * (per-type toggle on AND outside quiet hours). Callers MUST gate on this
+     * BEFORE consuming a dedup claim, so a quiet-hours pass doesn't burn the claim
+     * and silently drop the push for the rest of the window — the event re-fires on
+     * the next post-quiet-hours pass instead.
+     */
+    private function shouldNotify(int $userId, string $prefKey): bool
+    {
+        return $this->prefAllows($userId, $prefKey) && !$this->inQuietHours($userId);
+    }
+
+    /**
+     * Deliver one event to all of a user's active subscriptions. Pref + quiet-hours
+     * gating is the caller's responsibility (shouldNotify, before the dedup claim).
+     * Returns the number of subscriptions the push was accepted by — callers use a
+     * zero return to decide whether a one-shot trigger (book_available watcher) may
+     * be cleared. The in-app feed (GET /me/notifications) reflects the same state,
+     * so a NullProvider / no-subscription path still leaves the user able to see the
+     * notification by polling.
      *
      * @param array{loan_due:int,loan_overdue:int,reservation_ready:int,book_available:int,sent:int,skipped:int} $counters
      */
-    private function deliver(int $userId, string $prefKey, PushPayload $payload, array &$counters): void
+    private function deliver(int $userId, PushPayload $payload, array &$counters): int
     {
-        if (!$this->prefAllows($userId, $prefKey)) {
-            $counters['skipped']++;
-            return;
-        }
-        if ($this->inQuietHours($userId)) {
-            $counters['skipped']++;
-            return;
-        }
-
         $subs = $this->subscriptionsFor($userId);
         if ($subs === []) {
             $counters['skipped']++;
-            return;
+            return 0;
         }
 
+        $sent = 0;
         foreach ($subs as $sub) {
             try {
                 $result = $this->provider->send($sub, $payload);
@@ -290,6 +324,7 @@ final class PushDispatcher
             $subId = (int) $sub['id'];
             if ($result->isOk()) {
                 $counters['sent']++;
+                $sent++;
                 $this->markSubscriptionOk($subId);
             } elseif ($result->isGone()) {
                 $counters['skipped']++;
@@ -299,6 +334,8 @@ final class PushDispatcher
                 $this->bumpSubscriptionFailure($subId);
             }
         }
+
+        return $sent;
     }
 
     // ─── Preferences & quiet hours ────────────────────────────────────────────
@@ -457,7 +494,7 @@ final class PushDispatcher
         }
         $stmt->bind_param('is', $userId, $eventKey);
         $stmt->execute();
-        $claimed = $this->db->affected_rows > 0;
+        $claimed = $stmt->affected_rows > 0;
         $stmt->close();
 
         return $claimed;

@@ -147,7 +147,7 @@ final class TokenService
         }
         $stmt->bind_param('ii', $tokenId, $userId);
         $stmt->execute();
-        $ok = $this->db->affected_rows > 0;
+        $ok = $stmt->affected_rows > 0;
         $stmt->close();
 
         return $ok;

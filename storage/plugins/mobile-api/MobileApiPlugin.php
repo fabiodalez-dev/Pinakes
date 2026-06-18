@@ -42,19 +42,23 @@ require_once __DIR__ . '/src/Controllers/OpenApiController.php';
 require_once __DIR__ . '/src/Controllers/SwaggerUiController.php';
 
 /**
- * Mobile API plugin (scaffold slice).
+ * Mobile API plugin.
  *
  * Bundled, default-inactive plugin that exposes a versioned REST/JSON API under
- * /api/v1 for the Pinakes mobile companion app. This slice wires:
- *   - the 4 data-model tables (mobile_app_tokens, mobile_push_subscriptions,
- *     mobile_push_prefs, mobile_availability_watchers) via ensureSchema();
+ * /api/v1 for the Pinakes mobile companion app. It wires:
+ *   - the 5 data-model tables (mobile_app_tokens, mobile_push_subscriptions,
+ *     mobile_push_prefs, mobile_availability_watchers, mobile_push_log) via
+ *     ensureSchema();
  *   - the dedicated app-access gate setting `mobile_api.enabled` (default '0');
  *   - the /api/v1 route group with HTTPS-except-loopback enforcement;
  *   - the public GET /api/v1/health discovery endpoint;
- *   - the admin settings page (toggle).
+ *   - token auth (login/register/logout/devices), catalog search + book detail,
+ *     loans/reservations, wishlist, profile, contact messages, in-app
+ *     notifications, push (UnifiedPush + VAPID) and prefs;
+ *   - the OpenAPI 3.1 document + Swagger UI + the admin settings page.
  *
- * Auth, catalog, loans, wishlist, push, OpenAPI/Swagger land in later slices
- * (see STATUS.md).
+ * See STATUS.md for what is complete vs. partial (notably Web Push payload
+ * encryption and the FCM provider).
  */
 class MobileApiPlugin
 {

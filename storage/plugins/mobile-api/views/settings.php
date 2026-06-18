@@ -115,15 +115,15 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
   <div class="p-6 space-y-6">
 
     <?php if ($successMessage !== ''): ?>
-    <div class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-center gap-3">
-      <i class="fas fa-check-circle text-green-500"></i>
+    <div role="status" aria-live="polite" class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-center gap-3">
+      <i class="fas fa-check-circle text-green-500" aria-hidden="true"></i>
       <p class="text-sm text-green-700 dark:text-green-300"><?= htmlspecialchars($successMessage, ENT_QUOTES, 'UTF-8') ?></p>
     </div>
     <?php endif; ?>
 
     <?php if ($errorMessage !== ''): ?>
-    <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-center gap-3">
-      <i class="fas fa-exclamation-circle text-red-500"></i>
+    <div role="alert" aria-live="assertive" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-center gap-3">
+      <i class="fas fa-exclamation-circle text-red-500" aria-hidden="true"></i>
       <p class="text-sm text-red-700 dark:text-red-300"><?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?></p>
     </div>
     <?php endif; ?>
@@ -295,7 +295,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
               <th class="px-5 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <?= htmlspecialchars(__('Creato il'), ENT_QUOTES, 'UTF-8') ?>
               </th>
-              <th class="px-5 py-3"></th>
+              <th class="px-5 py-3"><span class="sr-only"><?= htmlspecialchars(__('Azioni'), ENT_QUOTES, 'UTF-8') ?></span></th>
             </tr>
           </thead>
           <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -347,12 +347,13 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
                   <input type="hidden" name="action" value="revoke_device">
                   <input type="hidden" name="device_id" value="<?= $devId ?>">
                   <button type="button"
+                          aria-label="<?= htmlspecialchars(__('Revoca') . ': ' . $deviceName, ENT_QUOTES, 'UTF-8') ?>"
                           data-device-name="<?= htmlspecialchars($deviceName, ENT_QUOTES, 'UTF-8') ?>"
                           data-user-name="<?= htmlspecialchars($userName ?: $userEmail, ENT_QUOTES, 'UTF-8') ?>"
                           data-form-id="mobile-device-revoke-form-<?= $devId ?>"
                           onclick="mobileApiConfirmRevoke(this)"
                           class="inline-flex items-center px-3 py-1.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 text-xs font-medium rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
-                    <i class="fas fa-ban mr-1.5"></i>
+                    <i class="fas fa-ban mr-1.5" aria-hidden="true"></i>
                     <?= htmlspecialchars(__('Revoca'), ENT_QUOTES, 'UTF-8') ?>
                   </button>
                 </form>

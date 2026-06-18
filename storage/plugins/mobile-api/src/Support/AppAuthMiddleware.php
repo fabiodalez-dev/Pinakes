@@ -24,11 +24,13 @@ use Slim\Psr7\Response as SlimResponse;
  *   2. Extract the `Authorization: Bearer <token>` header.
  *   3. Hash + look up the token (not revoked, not expired) via TokenService; the
  *      lookup itself updates last_used_at.
- *   4. Load the owning utente, enforce stato='attivo' (a suspended account must
- *      not keep API access on an old token).
+ *   4. Load the owning utente, enforce stato='attivo' AND email_verificata=1 (a
+ *      suspended or unverified account must not keep API access on an old token).
  *   5. Attach the authenticated identity to the request as attributes
  *      (`mobile_user`, `mobile_token_id`) AND mirror it into $_SESSION['user']
- *      so reused core services that read the session keep working.
+ *      for the duration of the request (restored afterwards) so reused core
+ *      services that read the session keep working without clobbering a
+ *      concurrent web session.
  *
  * Never trusts any client-supplied user_id: identity comes only from the token.
  * Error envelopes are generic — no internals leak (spec §Security).
@@ -75,9 +77,14 @@ final class AppAuthMiddleware implements MiddlewareInterface
             return $this->deny('unauthorized', __('Account non disponibile.'), 401);
         }
 
-        // Mirror into the session so reused core services (e.g. session-scoped
-        // helpers) see a consistent identity. The API is stateless per-request;
-        // this is request-local population, not a persisted web session.
+        // The delegated core services (UserActionsController, ReservationManager,
+        // ProfileController) read identity from $_SESSION['user']. Mirror the
+        // token identity there for the duration of THIS request only, then restore
+        // the prior value in a finally — a stateless API call must never clobber a
+        // concurrent web session that happens to share the same PHP session (e.g.
+        // a browser-based client that still sends its web cookie).
+        $hadPriorUser = array_key_exists('user', $_SESSION ?? []);
+        $priorUser    = $hadPriorUser ? $_SESSION['user'] : null;
         $_SESSION['user'] = [
             'id'          => $user['id'],
             'email'       => $user['email'],
@@ -89,7 +96,15 @@ final class AppAuthMiddleware implements MiddlewareInterface
             ->withAttribute(self::ATTR_USER, $user)
             ->withAttribute(self::ATTR_TOKEN_ID, $row['id']);
 
-        return $handler->handle($request);
+        try {
+            return $handler->handle($request);
+        } finally {
+            if ($hadPriorUser) {
+                $_SESSION['user'] = $priorUser;
+            } else {
+                unset($_SESSION['user']);
+            }
+        }
     }
 
     /**
