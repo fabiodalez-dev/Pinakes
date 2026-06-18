@@ -810,6 +810,12 @@ final class CatalogController
             $candidate = trim($candidate);
             // Strip a weak validator prefix before comparing.
             $candidate = preg_replace('/^W\//', '', $candidate) ?? $candidate;
+            // Apache mod_deflate (and some proxies) append a "-gzip"/"-br" suffix
+            // to the ETag they emit when compressing the response. The client then
+            // echoes that mangled value back in If-None-Match, so strip the suffix
+            // before comparing — otherwise 304 revalidation never succeeds behind a
+            // compressing web server (the exact production setup).
+            $candidate = preg_replace('/-(gzip|br)("?)$/', '$2', $candidate) ?? $candidate;
             if (hash_equals($etag, $candidate)) {
                 return true;
             }
