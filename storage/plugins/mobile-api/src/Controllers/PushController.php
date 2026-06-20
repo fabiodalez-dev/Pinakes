@@ -79,6 +79,11 @@ final class PushController
         $auth     = $this->clip($auth, 255);
 
         try {
+            // DELETE+INSERT must be atomic: if the INSERT failed after a
+            // successful DELETE the device would lose its subscription with no
+            // replacement. A transaction keeps the prior row on any failure.
+            $this->db->begin_transaction();
+
             // Idempotent per device: replace any prior subscription for this token
             // (a device re-registers when its endpoint rotates). Scoped by user_id
             // AND token_id so a user can never touch another user's subscription.
@@ -99,6 +104,7 @@ final class PushController
                  VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 0)'
             );
             if ($ins === false) {
+                $this->db->rollback();
                 return ResponseEnvelope::error($response, 'internal_error', __('Operazione non disponibile.'), 500);
             }
             $endpointParam = $endpoint !== '' ? $endpoint : null;
@@ -110,6 +116,8 @@ final class PushController
             $subId = (int) $ins->insert_id;
             $ins->close();
 
+            $this->db->commit();
+
             // Ensure a prefs row exists (defaults) so GET /me/push/prefs is stable.
             $this->ensurePrefsRow($userId);
 
@@ -120,6 +128,11 @@ final class PushController
                 201
             );
         } catch (\Throwable $e) {
+            try {
+                $this->db->rollback();
+            } catch (\Throwable $ignored) {
+                // already rolled back / no active transaction
+            }
             SecureLogger::error('[MobileApi] push subscribe failed: ' . $e->getMessage());
             return ResponseEnvelope::error($response, 'internal_error', __('Operazione non disponibile.'), 500);
         }

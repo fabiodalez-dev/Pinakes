@@ -59,7 +59,14 @@ final class PushPayload
     public function toJson(): string
     {
         $json = json_encode($this->toArray(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            // Never ship an empty `{}` as if it were the real notification: that
+            // could be counted as a successful (2xx) delivery while silently
+            // dropping the payload. Surface the failure so the provider's
+            // try/catch returns PushResult::failed() and the dedup is released.
+            throw new \RuntimeException('PushPayload JSON encode failed: ' . json_last_error_msg());
+        }
 
-        return $json === false ? '{}' : $json;
+        return $json;
     }
 }

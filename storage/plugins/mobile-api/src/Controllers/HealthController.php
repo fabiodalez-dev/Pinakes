@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\MobileApi\Controllers;
 
+use App\Plugins\MobileApi\Support\ProxyTrust;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
 use App\Support\ConfigStore;
 use App\Support\SecureLogger;
@@ -122,9 +123,14 @@ final class HealthController
 
     private function isHttps(ServerRequestInterface $request): bool
     {
-        $forwarded = $request->getHeaderLine('X-Forwarded-Proto');
-        if ($forwarded !== '') {
-            return strtolower(trim(explode(',', $forwarded)[0])) === 'https';
+        // Only honour X-Forwarded-Proto when the request actually comes from a
+        // configured trusted proxy (TRUSTED_PROXIES); otherwise a client could
+        // spoof the header and have us advertise https=true over cleartext.
+        if (ProxyTrust::isTrustedProxy($request)) {
+            $forwarded = $request->getHeaderLine('X-Forwarded-Proto');
+            if ($forwarded !== '') {
+                return strtolower(trim(explode(',', $forwarded)[0])) === 'https';
+            }
         }
         if (strtolower($request->getUri()->getScheme()) === 'https') {
             return true;

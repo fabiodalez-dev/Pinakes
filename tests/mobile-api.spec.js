@@ -143,7 +143,8 @@ async function ensureMobileApiPlugin(browser) {
         tableExists('mobile_app_tokens') &&
         tableExists('mobile_push_subscriptions') &&
         tableExists('mobile_push_prefs') &&
-        tableExists('mobile_availability_watchers');
+        tableExists('mobile_availability_watchers') &&
+        tableExists('mobile_push_log');
 
     if (!plugin.active || plugin.hooks === 0 || !hasSchema()) {
         const ctx  = await browser.newContext();
@@ -596,7 +597,7 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         const firstTitle = dbQuery(
             "SELECT titolo FROM libri WHERE deleted_at IS NULL ORDER BY id LIMIT 1"
         );
-        if (!firstTitle) return; // no books in DB — skip gracefully
+        test.skip(!firstTitle, 'no books in DB');
 
         const word = firstTitle.split(' ')[0];
         const res  = await apiGet(request, `/catalog/search?q=${encodeURIComponent(word)}`, tokenA);
@@ -629,7 +630,7 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
             "JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL " +
             "LIMIT 1"
         );
-        if (!authorName) return;
+        test.skip(!authorName, 'no authors in DB');
         const res  = await apiGet(request, `/catalog/search?author=${encodeURIComponent(authorName)}`, tokenA);
         const body = await envelope(res, 200);
         expect(Array.isArray(body.data)).toBe(true);
@@ -640,7 +641,7 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         const pubName = dbQuery(
             "SELECT ed.nome FROM editori ed JOIN libri l ON l.editore_id = ed.id AND l.deleted_at IS NULL LIMIT 1"
         );
-        if (!pubName) return;
+        test.skip(!pubName, 'no publishers in DB');
         const res  = await apiGet(request, `/catalog/search?publisher=${encodeURIComponent(pubName)}`, tokenA);
         const body = await envelope(res, 200);
         expect(Array.isArray(body.data)).toBe(true);
@@ -651,7 +652,7 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         const genreId = dbQuery(
             "SELECT g.id FROM generi g JOIN libri l ON l.genere_id = g.id AND l.deleted_at IS NULL LIMIT 1"
         );
-        if (!genreId || parseInt(genreId, 10) === 0) return;
+        test.skip(!genreId || parseInt(genreId, 10) === 0, 'no genres in DB');
         const res  = await apiGet(request, `/catalog/search?genre=${genreId}`, tokenA);
         const body = await envelope(res, 200);
         expect(Array.isArray(body.data)).toBe(true);

@@ -76,12 +76,22 @@ async function ensurePluginReady(page) {
             const base = window.location.origin + (window.BASE_PATH || '');
             const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
             if (document.querySelector(`[data-plugin-id="${pid}"].active`)) {
-                await fetch(`${base}/admin/plugins/${pid}/deactivate`, { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
+                const d = await fetch(`${base}/admin/plugins/${pid}/deactivate`, { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
+                if (!d.ok) throw new Error(`plugin deactivate failed: HTTP ${d.status}`);
             }
-            await fetch(`${base}/admin/plugins/${pid}/activate`, { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
+            const a = await fetch(`${base}/admin/plugins/${pid}/activate`, { method: 'POST', headers: { 'X-CSRF-Token': csrf } });
+            if (!a.ok) throw new Error(`plugin activate failed: HTTP ${a.status}`);
         }, pid);
     }
     dbExec("INSERT INTO system_settings (category, setting_key, setting_value) VALUES ('mobile_api','enabled','1') ON DUPLICATE KEY UPDATE setting_value='1'");
+
+    // Fail fast with a clear diagnostic if activation did not actually persist
+    // (CSRF/session/hook issues otherwise surface as confusing 404s later).
+    const activeNow = dbScalar(`SELECT is_active FROM plugins WHERE id=${pid}`) === '1';
+    const hooksNow  = parseInt(dbScalar(`SELECT COUNT(*) FROM plugin_hooks WHERE plugin_id=${pid} AND is_active=1`) || '0', 10);
+    if (!activeNow || hooksNow === 0) {
+        throw new Error('mobile-api plugin activation did not persist (active/hooks check failed)');
+    }
 }
 
 // ─── Request helpers ─────────────────────────────────────────────────────────
@@ -100,8 +110,12 @@ async function call(request, method, fullPath, { token, body, extraHeaders } = {
 
 // ─── Test user A (a borrower) ────────────────────────────────────────────────
 
-const USER_EMAIL = 'idem_test_user@pinakes.test';
+// Unique per run so the fixture never mutates or deletes a pre-existing real
+// account on a shared (non-ephemeral) database.
+const RUN_ID     = `${Date.now()}_${process.pid}`;
+const USER_EMAIL = `idem_${RUN_ID}@pinakes.test`;
 const USER_PASS  = 'Idem1234Test!';
+const USER_CARD  = `IDEM${String(process.pid).padStart(6, '0')}`.slice(0, 20);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // THE MANIFEST — one row per exposed /api/v1 endpoint. `kind` selects the
@@ -255,8 +269,9 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         let uid = parseInt(dbScalar(`SELECT id FROM utenti WHERE email='${USER_EMAIL}' LIMIT 1`) || '0', 10);
         if (uid === 0) {
             dbExec(`INSERT INTO utenti (nome, cognome, email, password, tipo_utente, stato, email_verificata, codice_tessera, created_at)
-                    VALUES ('Idem','Test','${USER_EMAIL}','x','standard','attivo',1,'IDEMTEST0001',NOW())`);
+                    VALUES ('Idem','Test','${USER_EMAIL}','x','standard','attivo',1,'${USER_CARD}',NOW())`);
             uid = parseInt(dbScalar(`SELECT id FROM utenti WHERE email='${USER_EMAIL}' LIMIT 1`) || '0', 10);
+            ctx.createdUser = true;
         }
         // Set the password to USER_PASS using PHP password_hash so /auth/login matches.
         const realHash = execFileSync('php', ['-r', `echo password_hash(${JSON.stringify(USER_PASS)}, PASSWORD_DEFAULT);`], { encoding: 'utf-8' }).trim();
@@ -306,7 +321,10 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         try { dbExec(`DELETE FROM mobile_push_subscriptions WHERE user_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM wishlist WHERE utente_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM prenotazioni WHERE utente_id=${ctx.userId}`); } catch {}
-        try { dbExec(`DELETE FROM utenti WHERE id=${ctx.userId}`); } catch {}
+        // Only delete the account if THIS run created it.
+        if (ctx.createdUser) {
+            try { dbExec(`DELETE FROM utenti WHERE id=${ctx.userId}`); } catch {}
+        }
         await page?.close();
     });
 

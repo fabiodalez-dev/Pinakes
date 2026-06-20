@@ -71,7 +71,7 @@ final class OpenApiController
                     . 'Every response uses the `{data, meta, error}` envelope. '
                     . 'Authenticated endpoints require `Authorization: Bearer <token>` obtained via POST /auth/login.',
                 'version'     => $version,
-                'contact'     => ['name' => 'Pinakes', 'url' => 'https://github.com/fabiodalez-dev/biblioteca'],
+                'contact'     => ['name' => 'Pinakes', 'url' => 'https://github.com/fabiodalez-dev/Pinakes'],
                 'license'     => ['name' => 'AGPL-3.0', 'url' => 'https://www.gnu.org/licenses/agpl-3.0.html'],
             ],
             'servers' => [
@@ -454,7 +454,30 @@ final class OpenApiController
                         ['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer'], 'description' => 'Book ID'],
                     ],
                     'responses' => [
-                        '200' => ['description' => 'Availability calendar data.'],
+                        '200' => [
+                            'description' => 'Availability calendar data.',
+                            'content'     => ['application/json' => ['schema' => [
+                                'allOf'      => [['$ref' => '#/components/schemas/Envelope']],
+                                'properties' => ['data' => [
+                                    'type'       => 'object',
+                                    'properties' => [
+                                        'total_copies'       => ['type' => 'integer'],
+                                        'earliest_available' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                                        'unavailable_dates'  => ['type' => 'array', 'items' => ['type' => 'string', 'format' => 'date']],
+                                        'days'               => ['type' => 'array', 'items' => [
+                                            'type'       => 'object',
+                                            'properties' => [
+                                                'date'      => ['type' => 'string', 'format' => 'date'],
+                                                'available' => ['type' => 'integer'],
+                                                'loaned'    => ['type' => 'integer'],
+                                                'reserved'  => ['type' => 'integer'],
+                                                'state'     => ['type' => 'string', 'enum' => ['free', 'borrowed', 'reserved']],
+                                            ],
+                                        ]],
+                                    ],
+                                ]],
+                            ]]],
+                        ],
                         '401' => ['$ref' => '#/components/responses/Unauthorized'],
                         '404' => ['$ref' => '#/components/responses/NotFound'],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
@@ -1131,6 +1154,10 @@ final class OpenApiController
                         'notifications' => ['type' => 'boolean'],
                         'push'          => ['type' => 'boolean'],
                     ],
+                ],
+                'catalogue_mode'       => [
+                    'type'        => 'boolean',
+                    'description' => 'True when the instance is in catalogue-only mode (loans, reservations and wishlist disabled).',
                 ],
                 'app_access_enabled'   => ['type' => 'boolean'],
                 'registration_enabled' => ['type' => 'boolean'],

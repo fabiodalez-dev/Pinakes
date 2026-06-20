@@ -81,9 +81,12 @@ function plusDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return 
 
 // ─── Borrower fixture ────────────────────────────────────────────────────────
 
-const USER_EMAIL = 'behaviors_test_user@pinakes.test';
+// Unique per run so the fixture never collides with — or destroys — a
+// pre-existing real account on a shared (non-ephemeral) database.
+const RUN_ID     = `${Date.now()}_${process.pid}`;
+const USER_EMAIL = `behaviors_${RUN_ID}@pinakes.test`;
 const USER_PASS  = 'Behav1234Test!';
-const USER_CARD  = 'BEHAVTEST0001';
+const USER_CARD  = `BEHAV${String(process.pid).padStart(6, '0')}`.slice(0, 20);
 
 // ─── Shared context ──────────────────────────────────────────────────────────
 
@@ -169,6 +172,7 @@ test.beforeAll(async ({ request }) => {
             INSERT INTO utenti (nome, cognome, email, password, codice_tessera, tipo_utente, stato, email_verificata, created_at)
             VALUES ('Behav','Test',${sqlStr(USER_EMAIL)},${sqlStr(realHash)},${sqlStr(USER_CARD)},'standard','attivo',1,NOW())`);
         uid = dbInt(`SELECT id FROM utenti WHERE email = ${sqlStr(USER_EMAIL)} LIMIT 1`);
+        ctx.createdUser = true;
     } else {
         dbExec(`UPDATE utenti SET password = ${sqlStr(realHash)}, stato = 'attivo', email_verificata = 1, codice_tessera = ${sqlStr(USER_CARD)} WHERE id = ${uid}`);
     }
@@ -196,13 +200,19 @@ test.afterAll(async () => {
         try { dbExec(`DELETE FROM mobile_app_tokens WHERE user_id = ${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM mobile_availability_watchers WHERE user_id = ${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM wishlist WHERE utente_id = ${ctx.userId}`); } catch {}
-        try { dbExec(`DELETE FROM utenti WHERE id = ${ctx.userId}`); } catch {}
+        // Only delete the account if THIS run created it — never an account that
+        // already existed (the unique per-run email makes a collision unlikely,
+        // but stay defensive).
+        if (ctx.createdUser) {
+            try { dbExec(`DELETE FROM utenti WHERE id = ${ctx.userId}`); } catch {}
+        }
     }
     if (ctx.adminId) {
         // Only the tokens this suite created for the admin; leave any others.
         try { dbExec(`DELETE FROM mobile_app_tokens WHERE user_id = ${ctx.adminId} AND device_id = 'behav-admin'`); } catch {}
-        // Any stray reservations created against the admin during reservation tests.
-        try { dbExec(`DELETE FROM prenotazioni WHERE utente_id = ${ctx.adminId} AND created_at >= (NOW() - INTERVAL 1 HOUR) AND stato = 'attiva'`); } catch {}
+        // (No admin reservations are seeded by this suite — all admin fixtures are
+        // loans, each cleaned by its own id — so we avoid a broad time-window
+        // DELETE on prenotazioni that could remove unrelated real reservations.)
     }
     // Always restore catalogue mode off.
     try { dbExec("UPDATE system_settings SET setting_value = '0' WHERE category = 'system' AND setting_key = 'catalogue_mode'"); } catch {}

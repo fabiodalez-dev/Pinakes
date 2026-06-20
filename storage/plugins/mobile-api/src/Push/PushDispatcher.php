@@ -129,7 +129,11 @@ final class PushDispatcher
                 (int) $r['libro_id'],
                 ['loan_id' => (int) $r['id'], 'due_at' => (string) $r['data_scadenza']]
             );
-            $this->deliver($userId, $payload, $counters);
+            $outcome = $this->deliver($userId, $payload, $counters);
+            if ($outcome['sent'] === 0 && $outcome['failed'] > 0) {
+                // Transient failure only: free the claim so the next sweep retries.
+                $this->releaseClaim($userId, $key);
+            }
         }
 
         return $events;
@@ -169,7 +173,10 @@ final class PushDispatcher
                 (int) $r['libro_id'],
                 ['loan_id' => (int) $r['id'], 'due_at' => (string) $r['data_scadenza']]
             );
-            $this->deliver($userId, $payload, $counters);
+            $outcome = $this->deliver($userId, $payload, $counters);
+            if ($outcome['sent'] === 0 && $outcome['failed'] > 0) {
+                $this->releaseClaim($userId, $key);
+            }
         }
 
         return $events;
@@ -209,7 +216,10 @@ final class PushDispatcher
                 (int) $r['libro_id'],
                 ['loan_id' => (int) $r['id']]
             );
-            $this->deliver($userId, $payload, $counters);
+            $outcome = $this->deliver($userId, $payload, $counters);
+            if ($outcome['sent'] === 0 && $outcome['failed'] > 0) {
+                $this->releaseClaim($userId, $key);
+            }
         }
 
         return $events;
@@ -266,13 +276,16 @@ final class PushDispatcher
                 (int) $r['libro_id'],
                 ['book_id' => (int) $r['libro_id']]
             );
-            $sent = $this->deliver($userId, $payload, $counters);
-            if ($sent <= 0) {
-                // Nothing was delivered (no active subscription / NullProvider):
-                // keep the watcher so GET /me/notifications keeps surfacing the
-                // availability. The claim above is already consumed, so no further
-                // push fires for this watcher — the feed is the durable fallback,
-                // consistent with the other event types.
+            $outcome = $this->deliver($userId, $payload, $counters);
+            if ($outcome['sent'] <= 0) {
+                // Nothing was delivered: keep the watcher so GET /me/notifications
+                // keeps surfacing the availability (the durable fallback). On a
+                // transient provider/network failure also release the claim so the
+                // push retries on the next sweep, matching the FAILED contract; a
+                // pure no-subscription / NullProvider skip leaves the claim in place.
+                if ($outcome['failed'] > 0) {
+                    $this->releaseClaim($userId, 'book_available:' . $watcherId);
+                }
                 continue;
             }
 
@@ -307,23 +320,28 @@ final class PushDispatcher
     /**
      * Deliver one event to all of a user's active subscriptions. Pref + quiet-hours
      * gating is the caller's responsibility (shouldNotify, before the dedup claim).
-     * Returns the number of subscriptions the push was accepted by — callers use a
-     * zero return to decide whether a one-shot trigger (book_available watcher) may
-     * be cleared. The in-app feed (GET /me/notifications) reflects the same state,
-     * so a NullProvider / no-subscription path still leaves the user able to see the
-     * notification by polling.
+     * Returns ['sent' => N, 'failed' => M]: N is the number of subscriptions that
+     * accepted the push, M the number that failed *transiently* (provider/network
+     * down — not a permanent 404/410 prune nor an unconfigured NullProvider skip).
+     * Callers use a zero `sent` to decide whether a one-shot trigger
+     * (book_available watcher) may be cleared, and a transient `failed` to release
+     * the dedup claim so the event retries on the next sweep. The in-app feed
+     * (GET /me/notifications) reflects the same state, so a NullProvider /
+     * no-subscription path still leaves the user able to see the notification.
      *
      * @param array{loan_due:int,loan_overdue:int,reservation_ready:int,book_available:int,sent:int,skipped:int} $counters
+     * @return array{sent:int,failed:int}
      */
-    private function deliver(int $userId, PushPayload $payload, array &$counters): int
+    private function deliver(int $userId, PushPayload $payload, array &$counters): array
     {
         $subs = $this->subscriptionsFor($userId);
         if ($subs === []) {
             $counters['skipped']++;
-            return 0;
+            return ['sent' => 0, 'failed' => 0];
         }
 
-        $sent = 0;
+        $sent   = 0;
+        $failed = 0;
         foreach ($subs as $sub) {
             try {
                 $result = $this->provider->send($sub, $payload);
@@ -348,12 +366,15 @@ final class PushDispatcher
                 // cron passes (failure_count >= 10 excludes the subscription).
                 $counters['skipped']++;
             } else {
+                // Transient failure (provider/network). Bump the per-device counter
+                // and report it so the caller can release the dedup claim for a retry.
                 $counters['skipped']++;
+                $failed++;
                 $this->bumpSubscriptionFailure($subId, $userId);
             }
         }
 
-        return $sent;
+        return ['sent' => $sent, 'failed' => $failed];
     }
 
     // ─── Preferences & quiet hours ────────────────────────────────────────────
@@ -520,6 +541,25 @@ final class PushDispatcher
         $stmt->close();
 
         return $claimed;
+    }
+
+    /**
+     * Release a previously-acquired claim so the event can be re-attempted on the
+     * next sweep. Used only when delivery failed transiently (provider/network
+     * down) and nothing was sent — honouring the PushResult::FAILED "retry next
+     * sweep" contract instead of permanently consuming the dedup on a blip.
+     */
+    private function releaseClaim(int $userId, string $eventKey): void
+    {
+        $stmt = $this->db->prepare(
+            'DELETE FROM mobile_push_log WHERE user_id = ? AND event_key = ?'
+        );
+        if ($stmt === false) {
+            return;
+        }
+        $stmt->bind_param('is', $userId, $eventKey);
+        $stmt->execute();
+        $stmt->close();
     }
 
     private function dueSoonDays(): int

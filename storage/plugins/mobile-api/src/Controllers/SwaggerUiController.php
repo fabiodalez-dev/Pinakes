@@ -121,7 +121,9 @@ final class SwaggerUiController
         layout: 'BaseLayout',
         persistAuthorization: true,
         requestInterceptor: function (request) {
-          // Strip Cookies from cross-origin requests (CORS hardening).
+          // Avoid sending cookies/session on "Try it out" calls: the API is
+          // bearer-token only, so cookies would just leak the web session.
+          request.credentials = 'omit';
           return request;
         }
       });
@@ -146,10 +148,9 @@ HTML;
         $localBundle = $this->docRoot() . '/assets/swagger-ui/swagger-ui-bundle.js';
 
         if (is_file($localBundle)) {
-            // Local copy available — use it.
-            $basePath = defined('BASE_PATH') ? (string) BASE_PATH : '';
-
-            return rtrim($siteBaseUrl, '/') . rtrim($basePath, '/') . '/assets/swagger-ui';
+            // Local copy available — use it. $siteBaseUrl already includes
+            // BASE_PATH (from baseUrl()), so do not append it again.
+            return rtrim($siteBaseUrl, '/') . '/assets/swagger-ui';
         }
 
         // Fallback: jsDelivr CDN (pinned version).

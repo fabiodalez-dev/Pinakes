@@ -26,7 +26,7 @@ Findings from the multi-lens review on PR #177, fixed:
 - **mysqli correctness:** `$stmt->affected_rows` (not connection-level) at 4 sites incl. the push `claim()` and token revoke; `get_result()` null-checked before `->num_rows` at 2 sites.
 - **Docs + a11y:** stale docblocks corrected; settings-view flash banners get `role`/`aria-live`, the Revoke button a per-device `aria-label`, and the actions column an sr-only label.
 
-Known/deferred (low, noted on the PR): `new_message` is a wired-but-unfired push trigger (no producer yet); `X-Forwarded-Proto` is trusted unconditionally (conventional behind a proxy); `HttpClient` IP-pin is curl-only.
+Known/deferred (low, noted on the PR): `new_message` is a wired-but-unfired push trigger (no producer yet); `X-Forwarded-Proto` is honoured only when the TCP peer is in `TRUSTED_PROXIES` (otherwise the real scheme is used, so the header can't be spoofed); `HttpClient` IP-pin is curl-only.
 
 ## Complete (implemented + tested)
 

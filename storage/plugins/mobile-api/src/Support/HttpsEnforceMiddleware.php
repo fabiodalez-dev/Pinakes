@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\MobileApi\Support;
 
+use App\Plugins\MobileApi\Support\ProxyTrust;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface as Request;
@@ -43,15 +44,21 @@ final class HttpsEnforceMiddleware implements MiddlewareInterface
 
     private function isSecure(Request $request): bool
     {
-        $forwarded = $request->getHeaderLine('X-Forwarded-Proto');
-        if ($forwarded !== '') {
-            // May be a comma-separated list when chained proxies are involved.
-            $first = strtolower(trim(explode(',', $forwarded)[0]));
-            if ($first === 'https') {
-                return true;
-            }
-            if ($first === 'http') {
-                return false;
+        // Only honour X-Forwarded-Proto from a configured trusted proxy
+        // (TRUSTED_PROXIES). Otherwise a remote client could send plain HTTP with
+        // `X-Forwarded-Proto: https` and bypass HTTPS enforcement entirely,
+        // leaking the bearer token over cleartext.
+        if (ProxyTrust::isTrustedProxy($request)) {
+            $forwarded = $request->getHeaderLine('X-Forwarded-Proto');
+            if ($forwarded !== '') {
+                // May be a comma-separated list when chained proxies are involved.
+                $first = strtolower(trim(explode(',', $forwarded)[0]));
+                if ($first === 'https') {
+                    return true;
+                }
+                if ($first === 'http') {
+                    return false;
+                }
             }
         }
 
