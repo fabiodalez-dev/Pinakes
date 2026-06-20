@@ -21,6 +21,7 @@ use Psr\Http\Message\ServerRequestInterface;
 require_once __DIR__ . '/src/Support/ResponseEnvelope.php';
 require_once __DIR__ . '/src/Support/CursorCodec.php';
 require_once __DIR__ . '/src/Support/JsonBody.php';
+require_once __DIR__ . '/src/Support/ProxyTrust.php';
 require_once __DIR__ . '/src/Support/HttpsEnforceMiddleware.php';
 require_once __DIR__ . '/src/Support/TokenService.php';
 require_once __DIR__ . '/src/Support/AppAuthMiddleware.php';
