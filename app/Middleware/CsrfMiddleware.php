@@ -24,6 +24,17 @@ class CsrfMiddleware implements MiddlewareInterface
 
         // Applica protezione CSRF solo su metodi mutating
         if (in_array($method, ['POST', 'PUT', 'DELETE', 'PATCH'], true)) {
+            // Guard post_max_size: quando un POST supera post_max_size, PHP
+            // scarta TUTTO il body (token CSRF incluso) prima che questo
+            // middleware giri. Senza questo controllo l'utente vedrebbe la
+            // fuorviante schermata "Errore di Sicurezza" invece della causa
+            // reale. Lo intercettiamo e restituiamo un 413 chiaro che indica i
+            // limiti di upload PHP del server (regressione manual-upgrade-real:
+            // l'upgrade via UI admin carica uno ZIP da ~30 MB).
+            if ($this->isPostBodyDiscardedBySizeLimit($request)) {
+                return $this->payloadTooLargeResponse($request);
+            }
+
             $token = null;
 
             // Cerca token in diversi posti
@@ -171,5 +182,103 @@ class CsrfMiddleware implements MiddlewareInterface
         }
 
         return false;
+    }
+
+    /**
+     * True quando PHP ha scartato il body del POST perché eccede post_max_size.
+     * In quel caso $_POST/$_FILES (e quindi il parsed body / gli uploaded files
+     * PSR-7) arrivano vuoti pur con un Content-Length grande, e il token CSRF
+     * è perso — va distinto da un vero fallimento CSRF per mostrare la causa
+     * reale.
+     */
+    private function isPostBodyDiscardedBySizeLimit(Request $request): bool
+    {
+        $contentLength = (int) $request->getHeaderLine('Content-Length');
+        if ($contentLength <= 0) {
+            return false;
+        }
+
+        $postMax = $this->iniBytes((string) ini_get('post_max_size'));
+        if ($postMax <= 0) {
+            // 0 / non impostato = "nessun limite" in PHP — mai un errore di dimensione.
+            return false;
+        }
+        if ($contentLength <= $postMax) {
+            return false;
+        }
+
+        // Body davvero scartato: niente parsato e nessun file caricato.
+        $parsedBody = $request->getParsedBody();
+        $uploaded   = $request->getUploadedFiles();
+
+        return empty($parsedBody) && empty($uploaded);
+    }
+
+    /**
+     * Converte una dimensione shorthand di php.ini (es. "8M", "520M", "1G") in byte.
+     */
+    private function iniBytes(string $value): int
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return 0;
+        }
+        $unit = strtolower($value[strlen($value) - 1]);
+        $num  = (int) $value;
+        switch ($unit) {
+            case 'g':
+                $num *= 1024;
+                // no break
+            case 'm':
+                $num *= 1024;
+                // no break
+            case 'k':
+                $num *= 1024;
+                // no break
+        }
+        return $num;
+    }
+
+    /**
+     * Risposta 413 chiara per un upload oltre il limite — sostituisce la
+     * fuorviante pagina CSRF/sessione-scaduta quando PHP ha scartato il body
+     * per post_max_size.
+     */
+    private function payloadTooLargeResponse(Request $request): Response
+    {
+        $limit   = (string) ini_get('post_max_size');
+        $message = __('Il file caricato supera il limite di caricamento del server (post_max_size = %s). Aumenta post_max_size e upload_max_filesize nella configurazione PHP del server e riprova. Su hosting con php-fpm o CGI le direttive php_value in .htaccess vengono ignorate: modifica php.ini o la configurazione del pool php-fpm.', $limit);
+
+        SecureLogger::warning('[Upload] POST rifiutato: Content-Length supera post_max_size (' . $limit . ')');
+
+        $response = new SlimResponse(413);
+
+        if ($this->isAjaxRequest($request) || $this->isMultipartUpload($request)) {
+            $response->getBody()->write((string) json_encode([
+                'error'   => $message,
+                'code'    => 'PAYLOAD_TOO_LARGE',
+                'success' => false,
+            ], JSON_UNESCAPED_UNICODE));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        $title = __('File troppo grande');
+        $html  = '<!DOCTYPE html><html lang="it"><head><meta charset="UTF-8">'
+            . '<meta name="viewport" content="width=device-width, initial-scale=1.0">'
+            . '<title>' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</title></head>'
+            . '<body style="font-family:system-ui,sans-serif;max-width:520px;margin:4rem auto;padding:0 1rem;color:#111827">'
+            . '<h1 style="font-size:1.5rem">' . htmlspecialchars($title, ENT_QUOTES, 'UTF-8') . '</h1>'
+            . '<p style="color:#6b7280;line-height:1.6">' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>'
+            . '</body></html>';
+        $response->getBody()->write($html);
+        return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    /**
+     * True quando la richiesta è un upload multipart/form-data.
+     */
+    private function isMultipartUpload(Request $request): bool
+    {
+        return stripos($request->getHeaderLine('Content-Type'), 'multipart/form-data') !== false;
     }
 }

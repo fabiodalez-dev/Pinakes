@@ -5409,5 +5409,6 @@
   "Troppe richieste. Riprova più tardi.": "Troppe richieste. Riprova più tardi.",
   "Disconnesso.": "Disconnesso.",
   "Dispositivo non trovato.": "Dispositivo non trovato.",
-  "Impossibile recuperare lo stato del servizio.": "Impossibile recuperare lo stato del servizio."
+  "Impossibile recuperare lo stato del servizio.": "Impossibile recuperare lo stato del servizio.",
+  "Il file caricato supera il limite di caricamento del server (post_max_size = %s). Aumenta post_max_size e upload_max_filesize nella configurazione PHP del server e riprova. Su hosting con php-fpm o CGI le direttive php_value in .htaccess vengono ignorate: modifica php.ini o la configurazione del pool php-fpm.": "Il file caricato supera il limite di caricamento del server (post_max_size = %s). Aumenta post_max_size e upload_max_filesize nella configurazione PHP del server e riprova. Su hosting con php-fpm o CGI le direttive php_value in .htaccess vengono ignorate: modifica php.ini o la configurazione del pool php-fpm."
 }

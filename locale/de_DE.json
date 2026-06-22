@@ -5409,5 +5409,6 @@
   "Troppe richieste. Riprova più tardi.": "Zu viele Anfragen. Versuchen Sie es später erneut.",
   "Disconnesso.": "Abgemeldet.",
   "Dispositivo non trovato.": "Gerät nicht gefunden.",
-  "Impossibile recuperare lo stato del servizio.": "Dienststatus konnte nicht abgerufen werden."
+  "Impossibile recuperare lo stato del servizio.": "Dienststatus konnte nicht abgerufen werden.",
+  "Il file caricato supera il limite di caricamento del server (post_max_size = %s). Aumenta post_max_size e upload_max_filesize nella configurazione PHP del server e riprova. Su hosting con php-fpm o CGI le direttive php_value in .htaccess vengono ignorate: modifica php.ini o la configurazione del pool php-fpm.": "Die hochgeladene Datei überschreitet das Upload-Limit des Servers (post_max_size = %s). Erhöhen Sie post_max_size und upload_max_filesize in der PHP-Konfiguration des Servers und versuchen Sie es erneut. Bei php-fpm- oder CGI-Hosting werden php_value-Direktiven in der .htaccess ignoriert: Bearbeiten Sie php.ini oder die php-fpm-Pool-Konfiguration."
 }

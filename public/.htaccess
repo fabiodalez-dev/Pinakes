@@ -1,4 +1,13 @@
 # PHP upload limits (required for Digital Library plugin: eBook up to 100MB, audiobook up to 500MB)
+#
+# NOTE: these php_value directives ONLY take effect when PHP runs as an Apache
+# module (mod_php). On php-fpm / FastCGI / CGI / suExec hosting — the common
+# case on cPanel and most shared hosts — the <IfModule mod_php*> blocks are
+# skipped and these limits are IGNORED. There the server's own PHP config wins,
+# so raise post_max_size and upload_max_filesize via php.ini / MultiPHP INI
+# Editor / the php-fpm pool (php_admin_value[...]). The ~30MB admin-UI upgrade
+# ZIP needs post_max_size >= 32M; if it's lower the upload is rejected and the
+# app surfaces a clear 413 "file too large" message (see CsrfMiddleware).
 <IfModule mod_php.c>
     php_value upload_max_filesize 512M
     php_value post_max_size 520M
