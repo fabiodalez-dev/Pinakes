@@ -9,6 +9,8 @@
 
 Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and private collections. It focuses on automation, extensibility, and a usable public catalog without requiring a web team.
 
+📱 **Pinakes ships with a free companion [Android app](https://github.com/fabiodalez-dev/Pinakes-Android).** Enable the bundled Mobile API plugin, point the app at your instance URL, and your members can browse the catalog, check real availability, borrow &amp; reserve, read ebooks / listen to audiobooks, and manage their loans from the phone.
+
 [![Version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Ffabiodalez-dev%2FPinakes%2Fmain%2Fversion.json&query=%24.version&label=version&style=for-the-badge&color=0ea5e9)](version.json)
 [![Installer Ready](https://img.shields.io/badge/one--click_install-ready-22c55e?style=for-the-badge&logo=azurepipelines&logoColor=white)](installer)
 [![License](https://img.shields.io/badge/License-GPL--3.0-orange?style=for-the-badge)](LICENSE)
@@ -19,6 +21,7 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 [![JavaScript](https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E)](https://developer.mozilla.org/docs/Web/JavaScript)
 ![TailwindCSS](https://img.shields.io/badge/tailwindcss-0ea5e9?style=for-the-badge&logo=tailwindcss&logoColor=white)
 
+[![Android app](https://img.shields.io/badge/Android%20app-Pinakes-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/fabiodalez-dev/Pinakes-Android)
 [![Documentation](https://img.shields.io/badge/Documentazione-Docsify-4285f4?style=for-the-badge&logo=readthedocs&logoColor=white)](https://fabiodalez-dev.github.io/Pinakes/)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/fabiodalez)
 
