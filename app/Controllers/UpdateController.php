@@ -325,7 +325,14 @@ class UpdateController
 
         $files = $request->getUploadedFiles();
         $upload = $files['backup_file'] ?? null;
-        if (!$upload instanceof \Psr\Http\Message\UploadedFileInterface || $upload->getError() !== UPLOAD_ERR_OK) {
+        if (!$upload instanceof \Psr\Http\Message\UploadedFileInterface) {
+            return $this->jsonResponse($response, ['error' => __('Nessun file caricato')], 400);
+        }
+        $uploadError = $upload->getError();
+        if ($uploadError === UPLOAD_ERR_INI_SIZE || $uploadError === UPLOAD_ERR_FORM_SIZE) {
+            return $this->jsonResponse($response, ['error' => __('Il file caricato supera il limite di upload del server (upload_max_filesize = %s). Aumenta upload_max_filesize e post_max_size nella configurazione PHP del server e riprova. Su hosting con php-fpm o CGI le direttive php_value in .htaccess vengono ignorate: modifica php.ini o la configurazione del pool php-fpm.', (string) ini_get('upload_max_filesize'))], 413);
+        }
+        if ($uploadError !== UPLOAD_ERR_OK) {
             return $this->jsonResponse($response, ['error' => __('Nessun file caricato')], 400);
         }
 
@@ -502,7 +509,18 @@ class UpdateController
 
         $uploadedFile = $uploadedFiles['update_package'];
 
-        if ($uploadedFile->getError() !== UPLOAD_ERR_OK) {
+        $uploadError = $uploadedFile->getError();
+        if ($uploadError === UPLOAD_ERR_INI_SIZE || $uploadError === UPLOAD_ERR_FORM_SIZE) {
+            // The package fit under post_max_size (so the body — and the CSRF
+            // token — survived and we got here) but exceeds upload_max_filesize.
+            // Surface the real cause instead of a generic "upload error".
+            // CsrfMiddleware handles the larger post_max_size case.
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => __('Il file caricato supera il limite di upload del server (upload_max_filesize = %s). Aumenta upload_max_filesize e post_max_size nella configurazione PHP del server e riprova. Su hosting con php-fpm o CGI le direttive php_value in .htaccess vengono ignorate: modifica php.ini o la configurazione del pool php-fpm.', (string) ini_get('upload_max_filesize'))
+            ], 413);
+        }
+        if ($uploadError !== UPLOAD_ERR_OK) {
             return $this->jsonResponse($response, [
                 'success' => false,
                 'error' => __('Errore durante il caricamento del file')
