@@ -51,12 +51,17 @@ final class EasyHandle
     public $errno = 0;
 
     /**
+     * @var string|null Effective CURLOPT_PROXY value the handle was created with (if any)
+     */
+    public $effectiveProxy;
+
+    /**
      * @var \Throwable|null Exception during on_headers (if any)
      */
     public $onHeadersException;
 
     /**
-     * @var \Exception|null Exception during createResponse (if any)
+     * @var \Throwable|null Exception during createResponse (if any)
      */
     public $createResponseException;
 
