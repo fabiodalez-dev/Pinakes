@@ -34,6 +34,18 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.21
+
+### Mobile API + companion Android app ([#177](https://github.com/fabiodalez-dev/Pinakes/pull/177))
+
+Pinakes now ships a versioned REST API for mobile clients. A bundled **Mobile API** plugin exposes `/api/v1` — instance discovery (`/health`), email/password login with bearer tokens, catalog browse &amp; search, real availability, loans, reservations, wishlist, push notifications, and digital-asset streaming for ebooks/audiobooks. It is server-agnostic and adapts to each instance's settings (language, catalogue-only mode, push availability). Enable it from **Admin → Plugins → Mobile API**, then allow mobile app access in its settings.
+
+A free, native **[Pinakes Android app](https://github.com/fabiodalez-dev/Pinakes-Android)** (Kotlin / Jetpack Compose, Material 3) consumes this API: any library can point it at its own instance URL and hand it to members. Browse the catalog, check availability, borrow &amp; reserve, read ebooks / listen to audiobooks, and manage loans from the phone. The bearer token is stored in `EncryptedSharedPreferences`; cleartext HTTP is permitted only for loopback and the emulator. A prebuilt debug APK is published on the [app's Releases page](https://github.com/fabiodalez-dev/Pinakes-Android/releases).
+
+### Upgrade upload limits — clear error instead of a misleading CSRF page
+
+When an upload (e.g. the ~30&nbsp;MB admin-UI upgrade ZIP) exceeds the server's `post_max_size`, PHP discards the request body — CSRF token included — before the app runs. Instead of the confusing "security check failed" page, Pinakes now returns a clear **413** that points at the real cause and how to raise `post_max_size` / `upload_max_filesize` (note: `php_value` in `.htaccess` only applies under mod_php — on php-fpm/CGI hosts the host's PHP config must be raised).
+
 ## What's New in v0.7.20.2
 
 Internal release — **test coverage only, no functional change to the application**.
