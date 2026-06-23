@@ -32,6 +32,13 @@ class Installer {
         'log_modifiche',
         'mensole',
         'migrations',
+        // Mobile API plugin tables — active by default since 0.7.21 (schema.sql),
+        // so the installer's post-import verification must check them too.
+        'mobile_app_tokens',
+        'mobile_availability_watchers',
+        'mobile_push_log',
+        'mobile_push_prefs',
+        'mobile_push_subscriptions',
         'plugin_data',
         'plugin_hooks',
         'plugin_logs',
