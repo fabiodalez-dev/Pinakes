@@ -504,13 +504,23 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
             <legend class="px-2 text-sm font-semibold text-gray-700"><i class="fas fa-layer-group text-primary mr-1"></i><?= __("Serie e collana") ?></legend>
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
-                <label for="gruppo_serie" class="form-label"><?= __("Gruppo serie") ?></label>
-                <input id="gruppo_serie" name="gruppo_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Fairy Tail'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['gruppo_serie'] ?? ''); ?>" aria-describedby="gruppo_serie_help" />
+                <label for="gruppo_serie_select" class="form-label"><?= __("Gruppo serie") ?></label>
+                <?php $gruppoSerieVal = (string)($book['gruppo_serie'] ?? ''); ?>
+                <select id="gruppo_serie_select" data-series-autocomplete="gruppo_serie" data-placeholder="<?= htmlspecialchars(__('es. Fairy Tail'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" aria-describedby="gruppo_serie_help">
+                  <option value=""></option>
+                  <?php if ($gruppoSerieVal !== ''): ?><option value="<?= HtmlHelper::e($gruppoSerieVal) ?>" selected><?= HtmlHelper::e($gruppoSerieVal) ?></option><?php endif; ?>
+                </select>
+                <input type="hidden" id="gruppo_serie" name="gruppo_serie" value="<?php echo HtmlHelper::e($gruppoSerieVal); ?>" />
                 <p id="gruppo_serie_help" class="text-xs text-gray-500 mt-1"><?= __('Etichetta "ombrello" per spin-off (es. tutto il franchise di Fairy Tail).') ?></p>
               </div>
               <div>
-                <label for="serie_padre" class="form-label"><?= __("Serie padre / universo") ?></label>
-                <input id="serie_padre" name="serie_padre" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. I mondi di Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['serie_padre'] ?? ''); ?>" aria-describedby="serie_padre_help" />
+                <label for="serie_padre_select" class="form-label"><?= __("Serie padre / universo") ?></label>
+                <?php $seriePadreVal = (string)($book['serie_padre'] ?? ''); ?>
+                <select id="serie_padre_select" data-series-autocomplete="serie_padre" data-placeholder="<?= htmlspecialchars(__('es. I mondi di Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" aria-describedby="serie_padre_help">
+                  <option value=""></option>
+                  <?php if ($seriePadreVal !== ''): ?><option value="<?= HtmlHelper::e($seriePadreVal) ?>" selected><?= HtmlHelper::e($seriePadreVal) ?></option><?php endif; ?>
+                </select>
+                <input type="hidden" id="serie_padre" name="serie_padre" value="<?php echo HtmlHelper::e($seriePadreVal); ?>" />
                 <p id="serie_padre_help" class="text-xs text-gray-500 mt-1"><?= __("Serie superiore nella gerarchia (es. l'universo che contiene cicli e stagioni).") ?></p>
               </div>
               <div>
@@ -523,8 +533,13 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 <p id="tipo_collana_help" class="text-xs text-gray-500 mt-1"><?= __('Tassonomia: serie / universo / ciclo / stagione / spin-off / arco / collana editoriale.') ?></p>
               </div>
               <div>
-                <label for="collana" class="form-label"><?= __("Serie principale") ?></label>
-                <input id="collana" name="collana" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Fairy Tail: 100 Years Quest'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['collana'] ?? ''); ?>" aria-describedby="collana_help" />
+                <label for="collana_select" class="form-label"><?= __("Serie principale") ?></label>
+                <?php $collanaVal = (string)($book['collana'] ?? ''); ?>
+                <select id="collana_select" data-series-autocomplete="collana" data-placeholder="<?= htmlspecialchars(__('es. Fairy Tail: 100 Years Quest'), ENT_QUOTES, 'UTF-8') ?>" class="form-input" aria-describedby="collana_help">
+                  <option value=""></option>
+                  <?php if ($collanaVal !== ''): ?><option value="<?= HtmlHelper::e($collanaVal) ?>" selected><?= HtmlHelper::e($collanaVal) ?></option><?php endif; ?>
+                </select>
+                <input type="hidden" id="collana" name="collana" value="<?php echo HtmlHelper::e($collanaVal); ?>" />
                 <p id="collana_help" class="text-xs text-gray-500 mt-1"><?= __("Nome specifico della serie a cui appartiene il libro.") ?></p>
               </div>
             </div>
@@ -535,8 +550,13 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
                 <input id="numero_serie" name="numero_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. 15'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['numero_serie'] ?? ''); ?>" />
               </div>
               <div>
-                <label for="ciclo_serie" class="form-label"><?= __("Ciclo / stagione") ?></label>
-                <input id="ciclo_serie" name="ciclo_serie" type="text" class="form-input" placeholder="<?= htmlspecialchars(__('es. Ciclo 1 - Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" value="<?php echo HtmlHelper::e($book['ciclo_serie'] ?? ''); ?>" />
+                <label for="ciclo_serie_select" class="form-label"><?= __("Ciclo / stagione") ?></label>
+                <?php $cicloSerieVal = (string)($book['ciclo_serie'] ?? ''); ?>
+                <select id="ciclo_serie_select" data-series-autocomplete="ciclo_serie" data-placeholder="<?= htmlspecialchars(__('es. Ciclo 1 - Aldebaran'), ENT_QUOTES, 'UTF-8') ?>" class="form-input">
+                  <option value=""></option>
+                  <?php if ($cicloSerieVal !== ''): ?><option value="<?= HtmlHelper::e($cicloSerieVal) ?>" selected><?= HtmlHelper::e($cicloSerieVal) ?></option><?php endif; ?>
+                </select>
+                <input type="hidden" id="ciclo_serie" name="ciclo_serie" value="<?php echo HtmlHelper::e($cicloSerieVal); ?>" />
               </div>
               <div>
                 <label for="ordine_ciclo" class="form-label"><?= __("Ordine ciclo") ?></label>
@@ -1125,6 +1145,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeUppy();
     initializeChoicesJS();
     initializePublishersChoices();
+    initializeSeriesAutocompletes();
     initializeSweetAlert();
     initializeGeneriDropdowns();
     initializeFormValidation();
@@ -2129,6 +2150,96 @@ function initializeSweetAlert() {
  *
  * @returns {void}
  */
+/**
+ * Single-value series autocompletes (#179): give the "universe / group / cycle /
+ * series" book-form fields the same Choices.js shape as the author/publisher
+ * pickers, so existing values are proposed after a couple of letters instead of
+ * being retyped (a typo no longer silently spawns a new universe). Each control
+ * is a <select data-series-autocomplete="<field>"> mirrored into a hidden input
+ * named <field> that carries the value to the form unchanged.
+ */
+function initializeSeriesAutocompletes() {
+    if (typeof Choices === 'undefined') return;
+    document.querySelectorAll('select[data-series-autocomplete]').forEach(function (sel) {
+        try {
+            const field = sel.getAttribute('data-series-autocomplete');
+            const hidden = document.getElementById(field);
+            if (!hidden) return;
+
+            const choice = new Choices(sel, {
+                searchEnabled: true,
+                shouldSort: false,
+                searchResultLimit: -1,
+                searchFloor: 2,
+                placeholder: true,
+                placeholderValue: sel.getAttribute('data-placeholder') || '',
+                itemSelectText: <?= json_encode(__("Clicca per selezionare"), JSON_HEX_TAG) ?>,
+                noChoicesText: <?= json_encode(__("Digita almeno 2 lettere per cercare o creare"), JSON_HEX_TAG) ?>,
+                classNames: { containerInner: 'choices__inner' }
+            });
+
+            const wrapper = sel.closest('.choices');
+            const input = wrapper ? wrapper.querySelector('.choices__input--cloned') : null;
+
+            const syncHidden = function () { hidden.value = choice.getValue(true) || ''; };
+            syncHidden();
+
+            // Commit a typed value (existing OR brand-new): a select-one Choices
+            // otherwise only lets the user pick pre-existing options.
+            const commitTyped = function (raw) {
+                const v = (raw || '').trim();
+                if (!v) return;
+                choice.setChoices([{ value: v, label: v, selected: true }], 'value', 'label', false);
+                hidden.value = v;
+                if (input) input.value = '';
+                choice.hideDropdown();
+            };
+
+            // Expose a setter so the ISBN scraper can fill this field visibly
+            // (it goes through Choices, not the now-hidden raw input).
+            window.__seriesAutocomplete = window.__seriesAutocomplete || {};
+            window.__seriesAutocomplete[field] = commitTyped;
+
+            let searchTimer = null;
+            sel.addEventListener('search', function (e) {
+                const q = (e.detail && e.detail.value ? e.detail.value : '').trim();
+                clearTimeout(searchTimer);
+                if (q.length < 2) return;
+                searchTimer = setTimeout(async function () {
+                    try {
+                        const resp = await fetch(`${window.BASE_PATH}/api/collane/search?field=${encodeURIComponent(field)}&q=${encodeURIComponent(q)}`, { credentials: 'same-origin' });
+                        if (!resp.ok) return;
+                        const names = await resp.json();
+                        const opts = (Array.isArray(names) ? names : []).map(function (n) { return { value: n, label: n }; });
+                        // Always offer the typed value so a NEW name can be created.
+                        if (!opts.some(function (o) { return String(o.value).toLowerCase() === q.toLowerCase(); })) {
+                            opts.unshift({ value: q, label: q });
+                        }
+                        choice.setChoices(opts, 'value', 'label', true);
+                    } catch (err) { console.error('series autocomplete failed:', err); }
+                }, 300);
+            });
+
+            sel.addEventListener('change', syncHidden);
+            // Don't lose a typed-but-not-picked value: commit it on blur.
+            if (input) {
+                input.addEventListener('blur', function () { if (input.value.trim()) commitTyped(input.value); });
+            }
+            // Enter on typed text with nothing highlighted creates/commits it.
+            if (typeof choice._onEnterKey === 'function') {
+                const origEnter = choice._onEnterKey.bind(choice);
+                choice._onEnterKey = function (event, hasActiveDropdown) {
+                    const typed = input ? input.value.trim() : '';
+                    const dd = wrapper ? wrapper.querySelector('.choices__list--dropdown') : null;
+                    const hl = dd ? dd.querySelector('.choices__item--selectable.is-highlighted') : null;
+                    if (typed && !hl) { event.preventDefault(); commitTyped(typed); return; }
+                    return origEnter(event, hasActiveDropdown);
+                };
+            }
+        } catch (err) { console.error('initializeSeriesAutocompletes:', err); }
+    });
+}
+
 function initializePublishersChoices() {
     try {
         const element = document.getElementById('editori_select');
@@ -3869,9 +3980,14 @@ function initializeIsbnImport() {
             // Handle series (collana)
             try {
                 if (data.series) {
-                    const seriesInput = document.querySelector('input[name="collana"]');
-                    if (seriesInput) {
-                        seriesInput.value = data.series;
+                    // collana is now a Choices autocomplete (#179) — set it via the
+                    // exposed setter so the value shows in the control; fall back to
+                    // the hidden input if the autocomplete hasn't initialised.
+                    if (window.__seriesAutocomplete && window.__seriesAutocomplete.collana) {
+                        window.__seriesAutocomplete.collana(data.series);
+                    } else {
+                        const seriesInput = document.getElementById('collana');
+                        if (seriesInput) seriesInput.value = data.series;
                     }
                     const scrapedSeries = document.getElementById('scraped_series');
                     if (scrapedSeries) {

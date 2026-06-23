@@ -430,11 +430,47 @@ class CollaneController
     }
 
     /**
-     * API: search collane names for autocomplete.
+     * API: autocomplete suggestions for the book-form series fields.
+     *
+     * Query params:
+     *  - `q`     string the typed text (suggestions returned only for >= 2 chars)
+     *  - `field` string which book-form field is asking; one of `collana`,
+     *            `serie_padre`, `gruppo_serie`, `ciclo_serie`. Unknown values
+     *            fall back to `collana`. The field selects the suggestion source
+     *            (table + column) from an internal whitelist — never built from
+     *            input — while only the search value and tipo are bound.
+     *
+     * @return Response JSON array of up to 10 distinct matching names.
      */
     public function searchApi(Request $request, Response $response, mysqli $db): Response
     {
-        $q = trim((string) ($request->getQueryParams()['q'] ?? ''));
+        $params = $request->getQueryParams();
+        $q = trim((string) ($params['q'] ?? ''));
+
+        // Each book-form series field suggests from its own existing values (the
+        // denormalized libri column) plus, when available, curated collane of the
+        // matching tipo — so e.g. the "universe" field proposes existing universes
+        // instead of forcing the user to retype them (#179). The column is
+        // whitelisted via $fieldMap (never taken from user input) so it can be
+        // embedded in the SQL safely; everything else is bound.
+        // Each book-form series field maps to one or more (table, column[, tipo])
+        // suggestion sources. Tables/columns are whitelisted here (never taken
+        // from user input) so they can be embedded in the SQL safely; the query
+        // value and any tipo filter are bound. This lets e.g. the "universe"
+        // field propose existing universes (collane.nome WHERE tipo='universo')
+        // instead of forcing the user to retype them (#179).
+        $sources = [
+            'collana'      => [['t' => 'collane', 'c' => 'nome',         'tipos' => ['serie']],
+                               ['t' => 'libri',   'c' => 'collana',      'tipos' => []]],
+            'serie_padre'  => [['t' => 'collane', 'c' => 'nome',         'tipos' => ['universo']]],
+            'gruppo_serie' => [['t' => 'collane', 'c' => 'gruppo_serie', 'tipos' => []]],
+            'ciclo_serie'  => [['t' => 'collane', 'c' => 'ciclo',        'tipos' => []]],
+        ];
+        $field = (string) ($params['field'] ?? 'collana');
+        if (!isset($sources[$field])) {
+            $field = 'collana';
+        }
+
         $results = [];
 
         // SEC2-1 + SEC1-5 (review): require min 2 chars and escape LIKE
@@ -443,31 +479,40 @@ class CollaneController
         if (mb_strlen($q) >= 2) {
             $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q);
             $search = '%' . $escaped . '%';
-            if ($this->hasCollaneTable($db)) {
-                $stmt = $db->prepare("
-                    SELECT DISTINCT nome FROM (
-                        SELECT nome FROM collane WHERE nome LIKE ?
-                        UNION
-                        SELECT collana AS nome FROM libri WHERE collana LIKE ? AND collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
-                    ) AS combined ORDER BY nome LIMIT 10
-                ");
-                if ($stmt) {
-                    $stmt->bind_param('ss', $search, $search);
-                    $stmt->execute();
-                    $res = $stmt->get_result();
-                    while ($row = $res->fetch_assoc()) {
-                        $results[] = $row['nome'];
-                    }
-                    $stmt->close();
+
+            $hasCollane = $this->hasCollaneTable($db);
+            $sqlParts = [];
+            $types = '';
+            $binds = [];
+
+            foreach ($sources[$field] as $src) {
+                if ($src['t'] === 'collane' && !$hasCollane) {
+                    continue; // no collane table — skip its sources
                 }
-            } else {
-                $stmt = $db->prepare("
-                    SELECT DISTINCT collana AS nome FROM libri
-                    WHERE collana LIKE ? AND collana IS NOT NULL AND collana != '' AND deleted_at IS NULL
-                    ORDER BY collana LIMIT 10
-                ");
+                $col = $src['c'];
+                $where = "`{$col}` LIKE ? AND `{$col}` IS NOT NULL AND `{$col}` != ''";
+                $types .= 's';
+                $binds[] = $search;
+                if ($src['t'] === 'libri') {
+                    $where .= ' AND deleted_at IS NULL';
+                }
+                if (!empty($src['tipos'])) {
+                    $placeholders = implode(',', array_fill(0, count($src['tipos']), '?'));
+                    $where .= " AND tipo IN ({$placeholders})";
+                    $types .= str_repeat('s', count($src['tipos']));
+                    foreach ($src['tipos'] as $t) {
+                        $binds[] = $t;
+                    }
+                }
+                $sqlParts[] = "SELECT `{$col}` AS nome FROM {$src['t']} WHERE {$where}";
+            }
+
+            if (!empty($sqlParts)) {
+                $sql = 'SELECT DISTINCT nome FROM (' . implode(' UNION ', $sqlParts)
+                     . ') AS combined ORDER BY nome LIMIT 10';
+                $stmt = $db->prepare($sql);
                 if ($stmt) {
-                    $stmt->bind_param('s', $search);
+                    $stmt->bind_param($types, ...$binds);
                     $stmt->execute();
                     $res = $stmt->get_result();
                     while ($row = $res->fetch_assoc()) {

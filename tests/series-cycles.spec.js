@@ -151,16 +151,29 @@ async function submitBookForm(page, expectedId = null) {
   return Number(match?.[1]);
 }
 
+// The universe/group/cycle/series fields are Choices.js autocompletes (#179);
+// their submitted value lives in a hidden input set via the exposed setter.
+async function setSeriesAutocomplete(page, field, value) {
+  await page.evaluate(([f, v]) => {
+    if (window.__seriesAutocomplete && window.__seriesAutocomplete[f]) {
+      window.__seriesAutocomplete[f](v);
+    } else {
+      const h = document.getElementById(f);
+      if (h) h.value = v;
+    }
+  }, [field, value || '']);
+}
+
 async function createBookWithSeries(page, data) {
   await page.goto(`${BASE}/admin/books/create`);
   await page.waitForLoadState('domcontentloaded');
   await page.fill('#titolo', data.title);
-  await page.fill('#gruppo_serie', data.group || '');
-  await page.fill('#serie_padre', data.parent || '');
+  await setSeriesAutocomplete(page, 'gruppo_serie', data.group || '');
+  await setSeriesAutocomplete(page, 'serie_padre', data.parent || '');
   await page.selectOption('#tipo_collana', data.type || 'serie');
-  await page.fill('#collana', data.series || '');
+  await setSeriesAutocomplete(page, 'collana', data.series || '');
   await page.fill('#numero_serie', data.number || '');
-  await page.fill('#ciclo_serie', data.cycle || '');
+  await setSeriesAutocomplete(page, 'ciclo_serie', data.cycle || '');
   await page.fill('#ordine_ciclo', data.cycleOrder ? String(data.cycleOrder) : '');
   await page.fill('#altre_collane', data.otherSeries || '');
   return submitBookForm(page);
@@ -335,7 +348,7 @@ test.describe.serial('Series groups and cycles', () => {
   test('11. editing a book updates its series cycle metadata', async () => {
     const id = ids.get('cycle2book');
     await page.goto(`${BASE}/admin/books/edit/${id}`);
-    await page.fill('#ciclo_serie', 'Cycle 3 - Betelgeuse revised');
+    await setSeriesAutocomplete(page, 'ciclo_serie', 'Cycle 3 - Betelgeuse revised');
     await page.fill('#ordine_ciclo', '3');
     await expect(page.locator('#serie_padre')).toHaveValue(GROUP_WORLDS);
     await expect(page.locator('#tipo_collana')).toHaveValue('ciclo');
@@ -379,7 +392,7 @@ test.describe.serial('Series groups and cycles', () => {
 
   test('13. series detail can add group metadata to the bulk-assigned series', async () => {
     await page.goto(`${BASE}/admin/series/detail?nome=${encodeURIComponent(HAPPY_SERIES)}`);
-    await page.fill('#gruppo_serie', GROUP_FAIRY);
+    await setSeriesAutocomplete(page, 'gruppo_serie', GROUP_FAIRY);
     await page.fill('#ciclo', 'Happy spin-off');
     await page.fill('#ordine_ciclo', '4');
     await page.click('button:has-text("Salva descrizione")');
