@@ -531,6 +531,26 @@ if [ $? -ne 0 ]; then
 fi
 echo -e "${GREEN}✓ Release published (verified as a draft first)${NC}"
 echo ""
+
+# ----------------------------------------------------------------------------
+# Trigger the Docker image rebuild (stable releases only, non-fatal).
+# Notifies fabiodalez-dev/pinakes-docker so it rebuilds + republishes the
+# multi-arch image for this version. The Docker repo also has a daily poller
+# as a safety net, so a failure here is never fatal to the release.
+# ----------------------------------------------------------------------------
+if [ "$IS_PRERELEASE" = false ] && command -v gh >/dev/null 2>&1; then
+    echo -e "${YELLOW}Notifying pinakes-docker to rebuild the image…${NC}"
+    if gh api -X POST "repos/fabiodalez-dev/pinakes-docker/dispatches" \
+        -f "event_type=pinakes_release" \
+        -F "client_payload[pinakes_version]=${VERSION}" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Docker image rebuild triggered for v${VERSION}${NC}"
+    else
+        echo -e "${YELLOW}⚠ Could not trigger pinakes-docker (non-fatal). Trigger manually:${NC}"
+        echo "    gh workflow run build-publish-docker.yml -R fabiodalez-dev/pinakes-docker -f version=${VERSION}"
+    fi
+    echo ""
+fi
+
 # NOTE: GitHub "immutable releases" (assets frozen post-publish) is a repository
 # setting (Settings → General → Releases → Require immutable releases). Enable it
 # there so a published asset can never be silently overwritten by a later workflow.
