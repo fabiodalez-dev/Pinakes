@@ -176,14 +176,17 @@ async function setSeriesAutocomplete(page, field, value) {
     return;
   }
 
-  // Book form: drive the real widget. Pressing Enter goes through the Choices
-  // keypath (_onEnterKey) and commits the typed value for both new and existing
-  // names — the canonical free-text-autocomplete gesture, not a hidden-input
-  // poke. Exercises the #74 Enter-commit guard too.
+  // Book form: drive the real widget per the repo convention
+  // (.coderabbit.yaml) — fill + waitForTimeout + click the suggestion. The typed
+  // value is always offered as a create-option, so this works for new names too.
   await wrapper.click();
   const search = wrapper.locator('input[type="search"], .choices__input--cloned').first();
   await search.fill(v);
-  await search.press('Enter');
+  await page.waitForTimeout(350);
+  await wrapper
+    .locator('.choices__list--dropdown .choices__item--selectable', { hasText: v })
+    .first()
+    .click();
   await expect(page.locator(`#${field}`)).toHaveValue(v);
 }
 
