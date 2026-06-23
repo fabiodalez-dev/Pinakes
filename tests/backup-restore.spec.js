@@ -133,6 +133,11 @@ test.describe('#162 — complete backup + restore', () => {
     const trigCount = () => Number(dbQuery(`SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE()`));
     const trigBefore = trigCount();
     expect(trigBefore).toBeGreaterThan(0);
+    // Precondition: the specific protective trigger must exist before we drop it,
+    // otherwise DROP TRIGGER IF EXISTS is a silent no-op and the post-drop
+    // assertion would fail confusingly instead of testing the restore.
+    const specificTrig = () => Number(dbQuery(`SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME='trg_check_active_prestito_before_insert'`));
+    expect(specificTrig()).toBe(1);
 
     // Simulate a dirty state: drop the row, the file, and a protective trigger.
     dbQuery(`DELETE FROM libri WHERE titolo='${TAG} libro'`);
@@ -140,7 +145,7 @@ test.describe('#162 — complete backup + restore', () => {
     dbQuery(`DROP TRIGGER IF EXISTS trg_check_active_prestito_before_insert`);
     expect(Number(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo='${TAG} libro'`))).toBe(0);
     expect(fs.existsSync(markerCover)).toBe(false);
-    expect(trigCount()).toBe(trigBefore - 1);
+    expect(specificTrig()).toBe(0);
 
     // Restore the snapshot.
     const res = await apiPost(page, '/admin/updates/backup/restore', { backup: snapName });
@@ -154,7 +159,7 @@ test.describe('#162 — complete backup + restore', () => {
     expect(fs.existsSync(markerCover)).toBe(true);
     expect(fs.readFileSync(markerCover, 'utf-8')).toBe('MARKER-' + TAG);
     expect(trigCount()).toBe(trigBefore);
-    expect(Number(dbQuery(`SELECT COUNT(*) FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA=DATABASE() AND TRIGGER_NAME='trg_check_active_prestito_before_insert'`))).toBe(1);
+    expect(specificTrig()).toBe(1);
     const backupsAfter = fs.readdirSync(BACKUP_DIR).filter((f) => f.startsWith('backup_')).length;
     expect(backupsAfter).toBeGreaterThan(backupsBefore);
   });

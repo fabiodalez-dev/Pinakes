@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Controllers;
 
+use App\Models\SettingsRepository;
 use App\Support\Updater;
 use App\Support\BackupManager;
 use App\Support\Csrf;
@@ -10,6 +11,7 @@ use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Psr7\Stream;
 
 class UpdateController
 {
@@ -36,7 +38,7 @@ class UpdateController
         $githubTokenMasked = $updater->getGitHubTokenMasked();
         $hasGithubToken = $updater->hasGitHubToken();
 
-        $backupIncludeFiles = (new \App\Models\SettingsRepository($db))
+        $backupIncludeFiles = (new SettingsRepository($db))
             ->get('backup', 'pre_update_include_files', '0') === '1';
 
         ob_start();
@@ -265,7 +267,7 @@ class UpdateController
         $size = filesize((string) $result['path']);
 
         return $response
-            ->withBody(new \Slim\Psr7\Stream($handle))
+            ->withBody(new Stream($handle))
             ->withHeader('Content-Type', (string) $result['mime'])
             ->withHeader('Content-Disposition', 'attachment; filename="' . $result['filename'] . '"')
             ->withHeader('Content-Length', (string) ($size === false ? 0 : $size));
@@ -340,7 +342,7 @@ class UpdateController
         // exhaust storage just to be rejected. restoreFromUploadedZip keeps the
         // post-move check as a backstop (getSize() can be null/spoofed).
         $earlySize = $upload->getSize();
-        if ($earlySize !== null && $earlySize > \App\Support\BackupManager::MAX_UPLOAD_BYTES) {
+        if ($earlySize !== null && $earlySize > BackupManager::MAX_UPLOAD_BYTES) {
             // 413 here for consistency with restoreFailureStatus(), which maps
             // the same BackupManager message to 413 on the post-move check.
             return $this->jsonResponse($response, ['error' => __('File di backup troppo grande')], 413);
@@ -395,7 +397,7 @@ class UpdateController
         }
 
         $value = (($data['include_files'] ?? '0') === '1') ? '1' : '0';
-        (new \App\Models\SettingsRepository($db))->set('backup', 'pre_update_include_files', $value);
+        (new SettingsRepository($db))->set('backup', 'pre_update_include_files', $value);
 
         return $this->jsonResponse($response, ['success' => true]);
     }

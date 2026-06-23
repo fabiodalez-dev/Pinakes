@@ -12,6 +12,8 @@ declare(strict_types=1);
 
 namespace App\Support;
 
+use App\Models\SettingsRepository;
+use App\Support\BackupManager;
 use App\Support\SecureLogger;
 use mysqli;
 use Exception;
@@ -2059,12 +2061,12 @@ class Updater
             // The complete-backup logic lives in BackupManager. The pre-update
             // backup is DB-only by default; the admin can opt into bundling the
             // uploaded files via the backup.pre_update_include_files setting.
-            $includeFiles = (new \App\Models\SettingsRepository($this->db))
+            $includeFiles = (new SettingsRepository($this->db))
                 ->get('backup', 'pre_update_include_files', '0') === '1';
             $scope = $includeFiles ? 'full' : 'db';
 
             $this->debugLog('INFO', 'Inizio backup', ['scope' => $scope]);
-            $result = (new \App\Support\BackupManager($this->db, $this->rootPath))->createBackup($scope);
+            $result = (new BackupManager($this->db, $this->rootPath))->createBackup($scope);
 
             // Record the history row against the actual backup file path (or the
             // backups dir on failure, where path is null).
