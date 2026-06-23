@@ -37,6 +37,18 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.22
+
+### Series / universe / cycle autocomplete on the book form ([#179](https://github.com/fabiodalez-dev/Pinakes/issues/179))
+
+The cycle, universe, group and series fields on the book form are now **Choices.js autocompletes**, the same shape as the author and publisher pickers. Type a couple of letters and Pinakes suggests existing values instead of making you retype them — so a single different character no longer silently spawns a duplicate universe. Brand-new values can still be created (type and confirm). On an **upgrade**, the series you already use are suggested immediately (they are backfilled into the `collane` table); universes, groups and cycles are new dimensions and populate as you organise the hierarchy — there is nothing to import for them because the data never existed on older installs. No new migration: this is a code-only release.
+
+### Fixes
+
+- **Enter committed the wrong series value** ([#179](https://github.com/fabiodalez-dev/Pinakes/issues/179) review): when a suggestion was highlighted but you had typed something different, pressing Enter could commit the highlighted suggestion instead of your text — the same class of bug as the author field (#74). The series fields now use the same highlighted-vs-typed guard, covered by a dedicated regression test.
+- **View escaping** aligned to `htmlspecialchars(…, ENT_QUOTES, 'UTF-8')` on the new series fields, per project convention.
+- **Test hardening** for the series autocomplete (real Choices.js widget interaction + complete credential skip-guards).
+
 ## What's New in v0.7.21
 
 ### Mobile API + companion Android app ([#177](https://github.com/fabiodalez-dev/Pinakes/pull/177))
