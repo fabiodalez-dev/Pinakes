@@ -977,7 +977,13 @@ class BackupManager
                     throw new \RuntimeException(__('Errore durante il ripristino del database') . ': ' . $conn->error);
                 }
             }
-            $conn->commit();
+            // No explicit commit/rollback: autocommit is on (set above) so every
+            // statement is already persisted. A transaction wouldn't help anyway —
+            // the dump is DDL-heavy (DROP/CREATE TABLE implicitly commit in MySQL),
+            // so it can't be made atomic at the connection level. Atomicity is
+            // provided instead by the pre-restore safety backup + the idempotent
+            // dump (DROP ... IF EXISTS), and a mid-import failure is surfaced as a
+            // partial restore by doRestoreZip().
         } finally {
             $conn->close();
             if (is_resource($handle)) {
