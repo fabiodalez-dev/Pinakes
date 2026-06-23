@@ -430,7 +430,17 @@ class CollaneController
     }
 
     /**
-     * API: search collane names for autocomplete.
+     * API: autocomplete suggestions for the book-form series fields.
+     *
+     * Query params:
+     *  - `q`     string the typed text (suggestions returned only for >= 2 chars)
+     *  - `field` string which book-form field is asking; one of `collana`,
+     *            `serie_padre`, `gruppo_serie`, `ciclo_serie`. Unknown values
+     *            fall back to `collana`. The field selects the suggestion source
+     *            (table + column) from an internal whitelist — never built from
+     *            input — while only the search value and tipo are bound.
+     *
+     * @return Response JSON array of up to 10 distinct matching names.
      */
     public function searchApi(Request $request, Response $response, mysqli $db): Response
     {
