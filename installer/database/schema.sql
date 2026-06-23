@@ -1293,6 +1293,86 @@ CREATE TABLE `consent_log` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 
+--
+-- Mobile API plugin tables (bundled + active by default since 0.7.21).
+-- Mirrors MobileApiPlugin::ensureSchema() (idempotent, single source of truth
+-- on activation/upgrade). Kept here so a fresh install — where the plugin is
+-- auto-activated — has the tables ready. FK_CHECKS is off during this import.
+--
+CREATE TABLE IF NOT EXISTS mobile_app_tokens (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    user_id      INT          NOT NULL,
+    token_hash   CHAR(64)     NOT NULL,
+    device_name  VARCHAR(190) NULL,
+    device_id    VARCHAR(190) NULL,
+    platform     VARCHAR(32)  NULL,
+    created_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at DATETIME     NULL,
+    revoked_at   DATETIME     NULL,
+    expires_at   DATETIME     NULL,
+    UNIQUE KEY uq_token_hash (token_hash),
+    KEY idx_user       (user_id),
+    KEY idx_user_active (user_id, revoked_at),
+    CONSTRAINT fk_mobile_token_user
+        FOREIGN KEY (user_id) REFERENCES utenti (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mobile_push_subscriptions (
+    id              INT AUTO_INCREMENT PRIMARY KEY,
+    user_id         INT          NOT NULL,
+    token_id        INT          NULL,
+    provider        ENUM('unifiedpush','fcm') NOT NULL DEFAULT 'unifiedpush',
+    endpoint        VARCHAR(500) NULL,
+    registration_id VARCHAR(500) NULL,
+    public_key      VARCHAR(255) NULL,
+    auth            VARCHAR(255) NULL,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_ok_at      DATETIME     NULL,
+    failure_count   INT          NOT NULL DEFAULT 0,
+    KEY idx_user     (user_id),
+    KEY idx_token    (token_id),
+    CONSTRAINT fk_mobile_push_user
+        FOREIGN KEY (user_id) REFERENCES utenti (id) ON DELETE CASCADE,
+    CONSTRAINT fk_mobile_push_token
+        FOREIGN KEY (token_id) REFERENCES mobile_app_tokens (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mobile_push_prefs (
+    user_id           INT       NOT NULL PRIMARY KEY,
+    loan_due          TINYINT(1) NOT NULL DEFAULT 1,
+    loan_overdue      TINYINT(1) NOT NULL DEFAULT 1,
+    reservation_ready TINYINT(1) NOT NULL DEFAULT 1,
+    new_message       TINYINT(1) NOT NULL DEFAULT 1,
+    book_available    TINYINT(1) NOT NULL DEFAULT 1,
+    quiet_start       TIME      NULL,
+    quiet_end         TIME      NULL,
+    CONSTRAINT fk_mobile_prefs_user
+        FOREIGN KEY (user_id) REFERENCES utenti (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mobile_availability_watchers (
+    id         INT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT       NOT NULL,
+    libro_id   INT       NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_book (user_id, libro_id),
+    KEY idx_libro (libro_id),
+    CONSTRAINT fk_mobile_watch_user
+        FOREIGN KEY (user_id) REFERENCES utenti (id) ON DELETE CASCADE,
+    CONSTRAINT fk_mobile_watch_book
+        FOREIGN KEY (libro_id) REFERENCES libri (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mobile_push_log (
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id    INT          NOT NULL,
+    event_key  VARCHAR(191) NOT NULL,
+    created_at TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_user_event (user_id, event_key),
+    KEY idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

@@ -1490,7 +1490,8 @@ HTACCESS;
             }
         };
 
-        // NOTE: Only the 5 historically-default plugins are auto-activated on fresh install.
+        // NOTE: The 5 historically-default plugins plus mobile-api (active by default
+        // since 0.7.21) are auto-activated on fresh install.
         // Other bundled plugins (BundledPlugins::LIST) are registered later by
         // autoRegisterBundledPlugins() and remain deactivated until admin opt-in.
         // Keeping new plugins opt-in is safer for fresh installs: it avoids surprising
@@ -1508,6 +1509,14 @@ HTACCESS;
         ]);
         $installPlugin('dewey-editor', [
             ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10]
+        ]);
+        // Mobile API: active by default since 0.7.21 so a fresh install ships a
+        // working /api/v1 for the companion Android app out of the box. Its tables
+        // are created by schema.sql (mirrors MobileApiPlugin::ensureSchema). Existing
+        // installs get it shipped + registered but INACTIVE on upgrade — admin opts in.
+        $installPlugin('mobile-api', [
+            ['name' => 'app.routes.register', 'callback_method' => 'registerRoutes', 'priority' => 10],
+            ['name' => 'mobile_api.dispatch_push', 'callback_method' => 'dispatchPush', 'priority' => 20]
         ]);
 
         // Configure Z39 Server with SBN (Servizio Bibliotecario Nazionale) as default
