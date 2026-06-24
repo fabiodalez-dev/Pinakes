@@ -320,6 +320,16 @@ class PluginController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
         }
 
+        // Self-rendering settings pages (e.g. Mobile API) post flat form fields and
+        // handle their OWN POST inside the view — CSRF, persistence via the plugin's
+        // saveSettings(), success message, re-render. The legacy AJAX handlers below
+        // require a nested `settings` payload; when it's absent, this is such a
+        // self-handling form, so render the settings page (which runs that logic)
+        // instead of falling through to "questo plugin non supporta impostazioni".
+        if (!is_array($body) || !array_key_exists('settings', $body)) {
+            return $this->settingsPage($request, $response, $args);
+        }
+
         error_log('[PluginController] Plugin name: ' . $plugin['name']);
 
         $settings = $body['settings'] ?? [];
