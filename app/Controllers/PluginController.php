@@ -40,8 +40,28 @@ class PluginController
 
         $plugins = $this->pluginManager->getAllPlugins();
         $pluginSettings = [];
+        // Which plugins expose a settings page (so the list can show a generic
+        // "Impostazioni" button for ANY such plugin, not just a hardcoded few —
+        // otherwise e.g. the Mobile API gate is unreachable from the UI).
+        $pluginHasSettings = [];
         foreach ($plugins as $plugin) {
             $settings = $this->pluginManager->getSettings((int) $plugin['id']);
+
+            // Settings-page detection: only meaningful for active plugins (the
+            // instance must be loaded). Mirror the settings-route guard.
+            $hasSettingsPage = false;
+            if (!empty($plugin['is_active'])) {
+                try {
+                    $instance = $this->pluginManager->getPluginInstance((int) $plugin['id']);
+                    $hasSettingsPage = $instance !== null
+                        && is_callable([$instance, 'hasSettingsPage'])
+                        && $instance->hasSettingsPage()
+                        && is_callable([$instance, 'getSettingsViewPath']);
+                } catch (\Throwable $e) {
+                    $hasSettingsPage = false;
+                }
+            }
+            $pluginHasSettings[$plugin['id']] = $hasSettingsPage;
 
             // Handle Google Books API key
             if (array_key_exists('google_books_api_key', $settings)) {
