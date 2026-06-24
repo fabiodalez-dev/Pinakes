@@ -53,10 +53,17 @@ class PluginController
             if (!empty($plugin['is_active'])) {
                 try {
                     $instance = $this->pluginManager->getPluginInstance((int) $plugin['id']);
-                    $hasSettingsPage = $instance !== null
+                    if ($instance !== null
                         && is_callable([$instance, 'hasSettingsPage'])
                         && $instance->hasSettingsPage()
-                        && is_callable([$instance, 'getSettingsViewPath']);
+                        && is_callable([$instance, 'getSettingsViewPath'])
+                    ) {
+                        // Mirror settingsPage()'s guard exactly: a declared view
+                        // path that doesn't exist on disk must NOT surface a button
+                        // (the click would 404).
+                        $viewPath = $instance->getSettingsViewPath();
+                        $hasSettingsPage = is_string($viewPath) && is_file($viewPath);
+                    }
                 } catch (\Throwable $e) {
                     $hasSettingsPage = false;
                 }
