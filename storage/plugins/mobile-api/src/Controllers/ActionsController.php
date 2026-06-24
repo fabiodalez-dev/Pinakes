@@ -210,9 +210,13 @@ final class ActionsController
 
             // Decide loan vs reservation using the SAME availability gate the web
             // uses (ReservationManager), so the two surfaces agree. Immediate loan
-            // only when the user asked for "now" (no date) and a copy is free.
+            // when the user asked for "now" — either no date, OR today's date with
+            // a copy free. The app's "Request loan" on an available title sends
+            // today (its date picker pre-selects the first free day = today), so
+            // without the today case that flow wrongly became a reservation
+            // instead of a pending loan. A FUTURE date is always a reservation.
             $immediate = false;
-            if ($desired === '') {
+            if ($desired === '' || $desired === date('Y-m-d')) {
                 $manager   = new \App\Controllers\ReservationManager($this->db);
                 $immediate = $manager->isBookAvailableForImmediateLoan($bookId, null, null, $userId);
             }
