@@ -2653,6 +2653,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
             const baseOpts = {
               dateFormat: 'Y-m-d',
+              // Force flatpickr's own calendar on mobile too: the native
+              // Android/iOS date picker ignores `disable`, so it would let the
+              // user pick fully-booked days and never show availability.
+              disableMobile: true,
               altInput: true,
               altFormat: forceEn ? 'm-d-Y' : 'd-m-Y',
               minDate: 'today',
