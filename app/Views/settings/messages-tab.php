@@ -21,7 +21,7 @@ use App\Support\HtmlHelper;
     </div>
 
     <!-- Messages Table -->
-    <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+    <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead class="bg-gray-50 border-b border-gray-200">

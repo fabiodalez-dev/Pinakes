@@ -24,7 +24,7 @@
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="loan_duration_days" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __("Durata predefinita prestito (giorni)") ?>
@@ -56,7 +56,7 @@
         </h2>
         <p class="text-sm text-gray-600"><?= __("Numero di giorni che l'utente ha a disposizione per ritirare un prestito approvato prima che scada automaticamente.") ?></p>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="pickup_expiry_days" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __("Giorni per il ritiro del prestito approvato") ?>
@@ -88,7 +88,7 @@
         </h2>
         <p class="text-sm text-gray-600"><?= __("Numero massimo di volte che un utente può rinnovare lo stesso prestito.") ?></p>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="max_renewals" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __("Numero massimo di rinnovi per prestito") ?>
@@ -128,7 +128,7 @@
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="max_active_loans_per_user" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __("Numero massimo di prestiti attivi per utente") ?>

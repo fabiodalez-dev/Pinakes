@@ -19,7 +19,7 @@ $jsAttr = static fn(mixed $x): string =>
     htmlspecialchars((string) json_encode($x, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8');
 
 $typeBadge = [
-    'person'    => 'bg-indigo-100 text-indigo-800',
+    'person'    => 'bg-blue-100 text-blue-800',
     'corporate' => 'bg-amber-100 text-amber-800',
     'family'    => 'bg-pink-100 text-pink-800',
 ];
@@ -29,7 +29,7 @@ $typeLabel = [
     'family'    => __('Famiglia'),
 ];
 $levelBadge = [
-    'fonds'  => 'bg-purple-100 text-purple-800',
+    'fonds'  => 'bg-blue-100 text-blue-800',
     'series' => 'bg-blue-100 text-blue-800',
     'file'   => 'bg-green-100 text-green-800',
     'item'   => 'bg-gray-100 text-gray-800',

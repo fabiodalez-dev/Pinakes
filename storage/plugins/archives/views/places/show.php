@@ -75,7 +75,7 @@ $relationTargetLabels = [
             </div>
             <div class="space-x-2">
                 <a href="<?= $e(url('/admin/archives/places/' . $id . '/edit')) ?>"
-                   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-semibold shadow-sm">
+                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-semibold shadow-sm">
                     <?= __('Modifica') ?>
                 </a>
                 <?php
@@ -212,7 +212,7 @@ $relationTargetLabels = [
                    placeholder="ric:isOrWasRelatedTo"
                    aria-label="<?= $e(__('Predicato RiC-O')) ?>"
                    class="rounded-md border-gray-300">
-            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm font-semibold"><?= __('Collega') ?></button>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-semibold"><?= __('Collega') ?></button>
         </form>
     </div>
 

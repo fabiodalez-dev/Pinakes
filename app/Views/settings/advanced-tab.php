@@ -3,11 +3,6 @@
 /** @var string $csrfToken */
 use App\Support\HtmlHelper;
 ?>
-<style>
-.api-toggle-track .api-toggle-label-on { display: none; }
-.api-toggle-input:checked + .api-toggle-track .api-toggle-label-on { display: flex; }
-.api-toggle-input:checked + .api-toggle-track .api-toggle-label-off { display: none; }
-</style>
 <section data-settings-panel="advanced" class="settings-panel <?php echo $activeTab === 'advanced' ? 'block' : 'hidden'; ?>">
   <form action="<?= htmlspecialchars(url('/admin/settings/advanced'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
@@ -61,7 +56,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-3 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <label for="custom_js_essential" class="block text-sm font-medium text-gray-700"><?= __("Codice JavaScript") ?></label>
         <textarea id="custom_js_essential"
                   name="custom_js_essential"
@@ -102,7 +97,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-3 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <label for="custom_js_analytics" class="block text-sm font-medium text-gray-700"><?= __("Codice JavaScript") ?></label>
         <textarea id="custom_js_analytics"
                   name="custom_js_analytics"
@@ -148,7 +143,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-3 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <label for="custom_js_marketing" class="block text-sm font-medium text-gray-700"><?= __("Codice JavaScript") ?></label>
         <textarea id="custom_js_marketing"
                   name="custom_js_marketing"
@@ -187,7 +182,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-3 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <label for="custom_header_css" class="block text-sm font-medium text-gray-700"><?= __("Codice CSS") ?></label>
         <textarea id="custom_header_css"
                   name="custom_header_css"
@@ -228,7 +223,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label class="inline-flex items-center gap-3 cursor-pointer">
             <input type="checkbox"
@@ -287,7 +282,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label class="inline-flex items-center gap-3 cursor-pointer">
             <input type="checkbox"
@@ -322,7 +317,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="days_before_expiry_warning" class="block text-sm font-medium text-gray-700 mb-2">
             <?= __("Giorni di preavviso per scadenza prestito") ?>
@@ -369,7 +364,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="session_lifetime" class="block text-sm font-medium text-gray-700 mb-2"><?= __("Durata sessione") ?></label>
           <select id="session_lifetime"
@@ -407,7 +402,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div class="flex items-center justify-between">
           <div>
             <span id="llms_txt_enabled_label" class="text-sm font-semibold text-gray-900"><?= __("Abilita llms.txt") ?></span>
@@ -476,7 +471,7 @@ use App\Support\HtmlHelper;
           </div>
         </div>
       </div>
-      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4">
+      <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div class="flex items-center justify-between">
           <div>
             <span class="text-sm font-semibold text-gray-900"><?= __("Abilita Modalità Catalogo") ?></span>
@@ -548,33 +543,39 @@ use App\Support\HtmlHelper;
   ?>
 
   <!-- <?= __("Sitemap XML") ?> Section -->
-  <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6">
-    <div class="border-b border-gray-200 px-6 py-4">
-      <div class="flex items-center gap-3">
-        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100">
-          <i class="fas fa-sitemap text-gray-600"></i>
-        </span>
-        <div>
-          <h3 class="text-lg font-semibold text-gray-900"><?= __("Sitemap XML") ?></h3>
-          <p class="text-sm text-gray-600 mt-0.5"><?= __("Mappa del sito per i motori di ricerca") ?></p>
-        </div>
-      </div>
+  <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
+    <div class="border-b border-gray-200 px-6 py-4 max-sm:!px-0 max-sm:!border-0">
+      <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+        <i class="fas fa-sitemap text-gray-500"></i>
+        <?= __("Sitemap XML") ?>
+      </h2>
+      <p class="text-sm text-gray-600 mt-1"><?= __("Mappa del sito per i motori di ricerca") ?></p>
     </div>
-    <div class="p-6 space-y-6">
+    <div class="p-6 space-y-6 max-sm:!p-0">
       <!-- Sitemap Info -->
       <div class="space-y-3">
         <div class="flex items-start gap-2 text-sm">
           <i class="fas fa-link text-gray-400 mt-0.5"></i>
-          <div>
+          <div class="min-w-0">
             <span class="text-gray-600"><?= __("URL pubblico:") ?></span>
-            <a href="<?php echo HtmlHelper::e($publicSitemapUrl); ?>" class="text-gray-900 hover:text-black underline ml-2" target="_blank" rel="noopener noreferrer"><?php echo HtmlHelper::e($publicSitemapUrl); ?></a>
+            <a href="<?php echo HtmlHelper::e($publicSitemapUrl); ?>" class="text-gray-900 hover:text-black underline ml-2 break-all" target="_blank" rel="noopener noreferrer"><?php echo HtmlHelper::e($publicSitemapUrl); ?></a>
+            <button type="button"
+                    onclick="copyToClipboard(<?php echo htmlspecialchars(json_encode($publicSitemapUrl, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES, 'UTF-8'); ?>, this)"
+                    class="inline-flex items-center gap-1 ml-2 px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors">
+              <i class="fas fa-copy"></i> <?= __("Copia") ?>
+            </button>
+            <p class="mt-1 flex items-start gap-1.5 text-xs text-green-700">
+              <i class="fas fa-arrow-right mt-0.5" aria-hidden="true"></i>
+              <span><?= __("Invia questo URL a Google Search Console.") ?></span>
+            </p>
           </div>
         </div>
         <div class="flex items-start gap-2 text-sm">
           <i class="fas fa-file-code text-gray-400 mt-0.5"></i>
-          <div>
+          <div class="min-w-0">
             <span class="text-gray-600"><?= __("Percorso file:") ?></span>
-            <code class="bg-gray-100 px-2 py-1 rounded text-xs ml-2"><?php echo HtmlHelper::e($filesystemPath); ?></code>
+            <code class="bg-gray-100 px-2 py-1 rounded text-xs ml-2 break-all"><?php echo HtmlHelper::e($filesystemPath); ?></code>
+            <p class="mt-1 text-xs text-gray-500"><?= __("Percorso sul server (per cron/CLI) — non inviarlo a Google.") ?></p>
           </div>
         </div>
         <div class="flex items-start gap-2 text-sm">
@@ -681,23 +682,21 @@ use App\Support\HtmlHelper;
     $apiEndpoint = \App\Controllers\SeoController::resolveBaseUrl() . '/api/public/books/search';
   ?>
 
-  <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6">
-    <div class="border-b border-gray-200 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors" onclick="toggleApiSection()">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100">
-            <i class="fas fa-key text-gray-600"></i>
-          </span>
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900"><?= __("API Pubblica") ?></h3>
-            <p class="text-sm text-gray-600 mt-0.5"><?= __("Gestisci l'accesso all'API per cercare libri via EAN, ISBN e autore") ?></p>
-          </div>
+  <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
+    <div class="border-b border-gray-200 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors max-sm:!px-0 max-sm:!border-0" onclick="toggleApiSection()">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-key text-gray-500"></i>
+            <?= __("API Pubblica") ?>
+          </h2>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Gestisci l'accesso all'API per cercare libri via EAN, ISBN e autore") ?></p>
         </div>
         <i class="fas fa-chevron-down text-gray-400 transition-transform" id="api-section-icon"></i>
       </div>
     </div>
 
-    <div id="api-section-content" class="p-6 space-y-6">
+    <div id="api-section-content" class="p-6 space-y-6 max-sm:!p-0">
       <!-- Enable/Disable API -->
       <form action="<?= htmlspecialchars(url('/admin/settings/api/toggle'), ENT_QUOTES, 'UTF-8') ?>" method="post" id="api-toggle-form">
         <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
@@ -708,25 +707,14 @@ use App\Support\HtmlHelper;
           </div>
           <label class="relative inline-flex items-center cursor-pointer">
             <input type="checkbox"
+                   id="api_enabled"
                    name="api_enabled"
                    value="1"
                    <?php echo $apiEnabled ? 'checked' : ''; ?>
-                   class="sr-only peer api-toggle-input"
+                   class="toggle-checkbox sr-only"
                    onchange="document.getElementById('api-toggle-form').submit()">
-            <div class="api-toggle-track w-20 h-10 bg-white border-4 border-gray-900 rounded-full peer
-                        peer-checked:bg-gray-900
-                        transition-all duration-300 ease-in-out
-                        relative cursor-pointer
-                        shadow-inner">
-              <span class="absolute top-0.5 left-0.5 w-8 h-8 bg-gray-900 rounded-full
-                           peer-checked:translate-x-9 peer-checked:bg-white
-                           transition-all duration-300 ease-in-out
-                           shadow-lg
-                           flex items-center justify-center text-white text-xs font-bold peer-checked:text-gray-900">
-                <span class="api-toggle-label-off uppercase tracking-wide"><?php echo HtmlHelper::e(__('OFF')); ?></span>
-                <span class="api-toggle-label-on uppercase tracking-wide"><?php echo HtmlHelper::e(__('ON')); ?></span>
-              </span>
-            </div>
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
           </label>
         </div>
       </form>

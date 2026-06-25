@@ -17,7 +17,7 @@ use App\Support\HtmlHelper;
         </h2>
         <p class="text-sm text-gray-600"><?= __("Personalizza il titolo e il testo introduttivo della pagina contatti") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="page_title" class="block text-sm font-medium text-gray-700"><?= __("Titolo pagina") ?></label>
           <input type="text"
@@ -47,7 +47,7 @@ use App\Support\HtmlHelper;
         </h2>
         <p class="text-sm text-gray-600"><?= __("Email e telefono visibili sulla pagina contatti") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="contact_email" class="block text-sm font-medium text-gray-700"><?= __("Email di contatto") ?></label>
           <input type="email"
@@ -94,7 +94,7 @@ use App\Support\HtmlHelper;
           <strong><?= __("⚠️ Privacy: Le mappe esterne vengono caricate solo se l'utente accetta i cookie Analytics.") ?></strong>
         </p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <label for="google_maps_embed" class="block text-sm font-medium text-gray-700"><?= __("Codice embed completo") ?></label>
         <textarea id="google_maps_embed"
                   name="google_maps_embed"
@@ -120,7 +120,7 @@ use App\Support\HtmlHelper;
         </h2>
         <p class="text-sm text-gray-600"><?= __("Protezione anti-spam per il form contatti") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="recaptcha_site_key" class="block text-sm font-medium text-gray-700"><?= __("Site Key") ?></label>
           <input type="text"
@@ -155,7 +155,7 @@ use App\Support\HtmlHelper;
         </h2>
         <p class="text-sm text-gray-600"><?= __("Testo della checkbox privacy nel form") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <label for="privacy_text" class="block text-sm font-medium text-gray-700"><?= __("Testo checkbox") ?></label>
         <textarea id="privacy_text"
                   name="privacy_text"

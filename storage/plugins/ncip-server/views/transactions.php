@@ -79,7 +79,7 @@ foreach ($partners as $p) {
                 <?= (int) ($tx['id'] ?? 0) ?>
               </td>
               <td class="px-5 py-3">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                   <?= htmlspecialchars((string) ($tx['message_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
                 </span>
               </td>

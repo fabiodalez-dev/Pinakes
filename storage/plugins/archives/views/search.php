@@ -10,13 +10,13 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 
 $levelBadge = [
-    'fonds'  => 'bg-purple-100 text-purple-800',
+    'fonds'  => 'bg-blue-100 text-blue-800',
     'series' => 'bg-blue-100 text-blue-800',
     'file'   => 'bg-green-100 text-green-800',
     'item'   => 'bg-gray-100 text-gray-800',
 ];
 $typeBadge = [
-    'person'    => 'bg-indigo-100 text-indigo-800',
+    'person'    => 'bg-blue-100 text-blue-800',
     'corporate' => 'bg-amber-100 text-amber-800',
     'family'    => 'bg-pink-100 text-pink-800',
 ];
@@ -172,7 +172,7 @@ $totalHits = count($results['archival_units']) + count($results['authority_recor
                                 <?php if ($authId > 0): ?>
                                     <span class="text-xs text-gray-400">↔</span>
                                     <a href="<?= $e(url('/admin/archives/authorities/' . $authId)) ?>"
-                                       class="text-xs text-indigo-600 hover:underline">
+                                       class="text-xs text-blue-600 hover:underline">
                                         <?= $e((string) ($row['authorised_form'] ?? '')) ?>
                                     </a>
                                 <?php endif; ?>

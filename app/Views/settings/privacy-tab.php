@@ -17,7 +17,7 @@ use App\Support\HtmlHelper;
         </h2>
         <p class="text-sm text-gray-600"><?= __("Personalizza il titolo e il contenuto della pagina privacy policy") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="privacy_page_title" class="block text-sm font-medium text-gray-700"><?= __("Titolo pagina") ?></label>
           <input type="text"
@@ -47,7 +47,7 @@ use App\Support\HtmlHelper;
         </h2>
         <p class="text-sm text-gray-600"><?= __("Contenuto della pagina /cookies accessibile dal banner") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div>
           <label for="cookie_policy_content" class="block text-sm font-medium text-gray-700"><?= __("Contenuto Cookie Policy") ?></label>
           <textarea id="cookie_policy_content"
@@ -68,7 +68,7 @@ use App\Support\HtmlHelper;
         </h2>
         <p class="text-sm text-gray-600"><?= __("Configurazione del banner cookie") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div class="flex items-center justify-between">
           <label for="cookie_banner_enabled" class="text-sm font-medium text-gray-700"><?= __("Abilita Cookie Banner") ?></label>
           <label class="relative inline-flex items-center cursor-pointer">
@@ -150,7 +150,7 @@ use App\Support\HtmlHelper;
         </h2>
         <p class="text-sm text-gray-600"><?= __("Gestisci la visibilità delle categorie di cookie nel banner. I cookie essenziali sono sempre visibili e obbligatori.") ?></p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-2xl p-3 md:p-5 space-y-4 md:space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div class="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-xl">
           <div class="flex-1">
             <label for="show_analytics" class="text-sm font-medium text-gray-900 cursor-pointer flex items-center gap-2">
@@ -226,7 +226,7 @@ use App\Support\HtmlHelper;
           <?= __("Personalizza i testi mostrati sia nel banner iniziale che nel pannello delle preferenze.") ?>
         </p>
       </div>
-      <div class="bg-gray-50 border border-gray-200 rounded-3xl p-3 md:p-5">
+      <div class="bg-gray-50 border border-gray-200 rounded-3xl p-3 md:p-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <form action="<?= htmlspecialchars(url('/admin/settings/cookie-banner'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
           <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
 
