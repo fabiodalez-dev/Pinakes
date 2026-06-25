@@ -83,7 +83,7 @@ $enabled = $enabled ?? false;
             <p class="text-sm text-gray-600 mb-6"><?= __("Abilita l'arricchimento automatico tramite cron. I libri verranno arricchiti in background a intervalli regolari.") ?></p>
             <div class="flex items-center gap-4">
                 <button type="button" id="toggle-enrichment"
-                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 <?= $enabled ? 'bg-blue-600' : 'bg-gray-200' ?>"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2 <?= $enabled ? 'bg-gray-900' : 'bg-gray-200' ?>"
                     role="switch" aria-checked="<?= $enabled ? 'true' : 'false' ?>"
                     aria-label="<?= htmlspecialchars(__('Arricchimento Automatico'), ENT_QUOTES, 'UTF-8') ?>"
                     aria-labelledby="toggle-label">
@@ -168,14 +168,14 @@ document.getElementById('toggle-enrichment').addEventListener('click', async fun
 
             if (newState) {
                 btn.classList.remove('bg-gray-200');
-                btn.classList.add('bg-blue-600');
+                btn.classList.add('bg-gray-900');
                 span.classList.remove('translate-x-0');
                 span.classList.add('translate-x-5');
                 label.textContent = <?= json_encode(__("Attivo"), JSON_HEX_TAG) ?>;
                 label.classList.remove('text-gray-500');
                 label.classList.add('text-green-700');
             } else {
-                btn.classList.remove('bg-blue-600');
+                btn.classList.remove('bg-gray-900');
                 btn.classList.add('bg-gray-200');
                 span.classList.remove('translate-x-5');
                 span.classList.add('translate-x-0');

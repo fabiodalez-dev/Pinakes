@@ -317,35 +317,36 @@ $formatEventTime = static function (?string $value) use ($timeFormatter, $create
   /* Toggle Switch Styles */
   .toggle-switch {
     position: relative;
-    width: 60px;
-    height: 32px;
-    background-color: #d1d5db;
+    width: 44px;
+    height: 24px;
+    background-color: #e5e7eb;
     border-radius: 9999px;
     transition: background-color 0.3s ease;
   }
 
   .toggle-checkbox:checked+.toggle-switch {
-    background-color: #10b981;
+    background-color: #111827;
   }
 
   .toggle-slider {
     position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 26px;
-    height: 26px;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
     background-color: white;
+    border: 1px solid #d1d5db;
     border-radius: 9999px;
     transition: transform 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
   }
 
   .toggle-checkbox:checked+.toggle-switch .toggle-slider {
-    transform: translateX(28px);
+    transform: translateX(20px);
   }
 
-  .toggle-checkbox:focus+.toggle-switch {
-    outline: 2px solid #3b82f6;
+  .toggle-checkbox:focus-visible+.toggle-switch {
+    outline: 2px solid #111827;
     outline-offset: 2px;
   }
 </style>

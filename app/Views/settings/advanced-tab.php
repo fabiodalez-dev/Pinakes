@@ -3,11 +3,6 @@
 /** @var string $csrfToken */
 use App\Support\HtmlHelper;
 ?>
-<style>
-.api-toggle-track .api-toggle-label-on { display: none; }
-.api-toggle-input:checked + .api-toggle-track .api-toggle-label-on { display: flex; }
-.api-toggle-input:checked + .api-toggle-track .api-toggle-label-off { display: none; }
-</style>
 <section data-settings-panel="advanced" class="settings-panel <?php echo $activeTab === 'advanced' ? 'block' : 'hidden'; ?>">
   <form action="<?= htmlspecialchars(url('/admin/settings/advanced'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-6">
     <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e($csrfToken); ?>">
@@ -718,25 +713,14 @@ use App\Support\HtmlHelper;
           </div>
           <label class="relative inline-flex items-center cursor-pointer">
             <input type="checkbox"
+                   id="api_enabled"
                    name="api_enabled"
                    value="1"
                    <?php echo $apiEnabled ? 'checked' : ''; ?>
-                   class="sr-only peer api-toggle-input"
+                   class="toggle-checkbox sr-only"
                    onchange="document.getElementById('api-toggle-form').submit()">
-            <div class="api-toggle-track w-20 h-10 bg-white border-4 border-gray-900 rounded-full peer
-                        peer-checked:bg-gray-900
-                        transition-all duration-300 ease-in-out
-                        relative cursor-pointer
-                        shadow-inner">
-              <span class="absolute top-0.5 left-0.5 w-8 h-8 bg-gray-900 rounded-full
-                           peer-checked:translate-x-9 peer-checked:bg-white
-                           transition-all duration-300 ease-in-out
-                           shadow-lg
-                           flex items-center justify-center text-white text-xs font-bold peer-checked:text-gray-900">
-                <span class="api-toggle-label-off uppercase tracking-wide"><?php echo HtmlHelper::e(__('OFF')); ?></span>
-                <span class="api-toggle-label-on uppercase tracking-wide"><?php echo HtmlHelper::e(__('ON')); ?></span>
-              </span>
-            </div>
+            <div class="toggle-bg w-11 h-6 bg-gray-200 rounded-full transition-colors"></div>
+            <div class="toggle-dot absolute top-[2px] left-[2px] bg-white border border-gray-300 rounded-full h-5 w-5 transition-transform"></div>
           </label>
         </div>
       </form>
