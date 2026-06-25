@@ -69,7 +69,7 @@ $renderRow = function (array $row, int $depth, array $visited = []) use (&$rende
     $renderedIds[$rowId] = true;
     $indent = str_repeat('&nbsp;&nbsp;&nbsp;&nbsp;', $depth);
     $levelBadge = [
-        'fonds'  => 'bg-purple-100 text-purple-800',
+        'fonds'  => 'bg-blue-100 text-blue-800',
         'series' => 'bg-blue-100 text-blue-800',
         'file'   => 'bg-green-100 text-green-800',
         'item'   => 'bg-gray-100 text-gray-800',

@@ -45,7 +45,7 @@ $currentSettings = $plugin->getSettings();
 $csrfToken = \App\Support\Csrf::ensureToken();
 ?>
 
-<div class="max-w-4xl mx-auto py-6 px-4">
+<div class="max-w-4xl mx-auto py-6 px-4 max-sm:!py-3">
     <!-- Header -->
     <div class="mb-6">
         <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
@@ -104,14 +104,14 @@ $csrfToken = \App\Support\Csrf::ensureToken();
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
 
         <!-- Card Configurazione API -->
-        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none">
             <div class="border-b border-gray-200 px-6 py-4">
                 <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <i class="fas fa-cog text-gray-500"></i>
                     Configurazione API
                 </h2>
             </div>
-            <div class="p-6 space-y-5">
+            <div class="p-6 space-y-5 max-sm:!p-0">
                 <!-- API Endpoint -->
                 <div>
                     <label for="api_endpoint" class="block text-sm font-medium text-gray-700 mb-2">
@@ -230,7 +230,7 @@ $csrfToken = \App\Support\Csrf::ensureToken();
     </form>
 
     <!-- Documentazione Rapida -->
-    <div class="mt-8 bg-white border border-gray-200 rounded-2xl overflow-hidden">
+    <div class="mt-8 bg-white border border-gray-200 rounded-2xl overflow-hidden max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none">
         <div class="border-b border-gray-200 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors" onclick="toggleSection('quick-docs')">
             <div class="flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -240,7 +240,7 @@ $csrfToken = \App\Support\Csrf::ensureToken();
                 <i class="fas fa-chevron-down text-gray-400 transition-transform" id="quick-docs-icon"></i>
             </div>
         </div>
-        <div id="quick-docs-content" class="p-6 space-y-4">
+        <div id="quick-docs-content" class="p-6 space-y-4 max-sm:!p-0">
             <div>
                 <h3 class="text-sm font-semibold text-gray-900 mb-2">1. Formato Richiesta</h3>
                 <div class="bg-gray-900 rounded-lg p-4 text-sm font-mono text-green-400">

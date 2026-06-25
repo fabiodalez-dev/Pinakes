@@ -14,7 +14,7 @@ use App\Support\HtmlHelper;
     <div class="px-6 py-4">
       <div class="flex items-center justify-between">
         <div class="flex items-center space-x-3">
-          <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
+          <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
             <i class="fas fa-exchange-alt text-white text-sm"></i>
           </div>
           <div>
@@ -51,7 +51,7 @@ use App\Support\HtmlHelper;
     <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700">
       <div class="p-5 border-b border-gray-200 dark:border-gray-700">
         <h2 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-          <i class="fas fa-plus-circle text-indigo-500"></i>
+          <i class="fas fa-plus-circle text-blue-500"></i>
           <?= __("Aggiungi Partner") ?>
         </h2>
       </div>
@@ -64,7 +64,7 @@ use App\Support\HtmlHelper;
             </label>
             <input type="text" name="name" required maxlength="255"
                    placeholder="<?= __("Es. Biblioteca Nazionale di Roma") ?>"
-                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -72,7 +72,7 @@ use App\Support\HtmlHelper;
             </label>
             <input type="url" name="endpoint_url" required maxlength="500"
                    placeholder="https://biblioteca.example.org/ncip"
-                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -80,19 +80,19 @@ use App\Support\HtmlHelper;
             </label>
             <input type="text" name="isil" maxlength="32"
                    placeholder="IT-XXXXX"
-                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               <?= __("Note") ?>
             </label>
             <input type="text" name="notes" maxlength="500"
-                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                   class="w-full px-3 py-2 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500">
           </div>
         </div>
         <div class="mt-4">
           <button type="submit"
-                  class="inline-flex items-center px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors">
+                  class="inline-flex items-center px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
             <i class="fas fa-plus mr-2"></i>
             <?= __("Aggiungi Partner") ?>
           </button>

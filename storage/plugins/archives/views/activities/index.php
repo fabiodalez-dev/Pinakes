@@ -25,7 +25,7 @@ $typeLabel = [
     'mandate'     => __('Mandato'),
 ];
 $typeBadge = [
-    'function'    => 'bg-purple-100 text-purple-800',
+    'function'    => 'bg-blue-100 text-blue-800',
     'activity'    => 'bg-blue-100 text-blue-800',
     'transaction' => 'bg-green-100 text-green-800',
     'task'        => 'bg-gray-100 text-gray-800',
@@ -46,7 +46,7 @@ $typeBadge = [
                 </p>
             </div>
             <a href="<?= $e(url('/admin/archives/activities/new')) ?>"
-               class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded shadow-sm">
+               class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded shadow-sm">
                 <?= __('+ Nuova attività') ?>
             </a>
         </div>

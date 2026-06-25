@@ -84,7 +84,7 @@ $tabSettingsUrl = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
 $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/settings') . '?tab=devices', ENT_QUOTES, 'UTF-8');
 ?>
 
-<div class="max-w-4xl mx-auto py-6 px-4">
+<div class="max-w-4xl mx-auto py-6 px-4 max-sm:!py-3">
 
   <!-- Header -->
   <div class="mb-6 flex items-start justify-between gap-4">
@@ -145,7 +145,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
       <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8') ?>">
 
       <!-- App access toggle -->
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-5">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div class="p-5 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <i class="fas fa-toggle-on text-blue-500"></i>
@@ -181,7 +181,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
       </div>
 
       <!-- Push notifications -->
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-5">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <div class="p-5 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <i class="fas fa-bell text-blue-500"></i>
@@ -232,7 +232,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
       </div>
 
       <!-- Save row -->
-      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 flex items-center justify-between">
+      <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 flex items-center justify-between max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
         <p class="text-xs text-gray-500 dark:text-gray-400">
           <i class="fas fa-lock mr-1"></i>
           <?= htmlspecialchars(__("L'API richiede HTTPS (eccetto loopback in sviluppo)."), ENT_QUOTES, 'UTF-8') ?>
@@ -246,7 +246,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
 
     <?php else: ?>
     <!-- ── Devices tab ────────────────────────────────────────────────────── -->
-    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
       <div class="p-5 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <h2 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <i class="fas fa-mobile-screen-button text-gray-500"></i>

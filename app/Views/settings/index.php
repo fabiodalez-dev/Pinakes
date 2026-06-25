@@ -6,7 +6,7 @@ use App\Support\HtmlHelper;
 $csrfToken = Csrf::ensureToken();
 $activeTab = $activeTab ?? 'general';
 ?>
-<div class="max-w-7xl mx-auto py-6 px-4">
+<div class="max-w-7xl mx-auto py-6 px-4 max-sm:!py-3">
   <div class="mb-8">
     <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
       <span class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gray-100 text-gray-700">
@@ -19,7 +19,7 @@ $activeTab = $activeTab ?? 'general';
     </p>
   </div>
 
-  <div class="bg-white rounded-3xl shadow-xl border border-gray-200">
+  <div class="bg-white rounded-3xl shadow-xl border border-gray-200 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
     <div class="border-b border-gray-200 px-6 py-4 flex flex-wrap gap-3">
       <button type="button" data-settings-tab="general" class="settings-tab <?php echo $activeTab === 'general' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-building text-sm mr-2"></i>
@@ -67,7 +67,7 @@ $activeTab = $activeTab ?? 'general';
       </button>
     </div>
 
-    <div class="p-6">
+    <div class="p-6 max-sm:!p-0">
       <!-- General Settings -->
       <section data-settings-panel="general" class="settings-panel <?php echo $activeTab === 'general' ? 'block' : 'hidden'; ?>">
         <form action="<?= htmlspecialchars(url('/admin/settings/general'), ENT_QUOTES, 'UTF-8') ?>" method="post" enctype="multipart/form-data" class="space-y-8">
@@ -80,7 +80,7 @@ $activeTab = $activeTab ?? 'general';
               </h2>
               <p class="text-sm text-gray-600"><?= __("Imposta il nome mostrato nel backend e il logo utilizzato nel layout.") ?></p>
             </div>
-            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
               <div>
                 <label for="app_name" class="block text-sm font-medium text-gray-700"><?= __("Nome applicazione") ?></label>
                 <input type="text"
@@ -138,7 +138,7 @@ $activeTab = $activeTab ?? 'general';
               </h2>
               <p class="text-sm text-gray-600"><?= __("Personalizza il testo descrittivo e i link ai social media nel footer del sito") ?></p>
             </div>
-            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
               <div>
                 <label for="footer_description" class="block text-sm font-medium text-gray-700"><?= __("Descrizione footer") ?></label>
                 <textarea
@@ -241,7 +241,7 @@ $activeTab = $activeTab ?? 'general';
               <p class="text-sm text-gray-600"><?= __("Scegli come inviare le email dal sistema. Puoi usare la funzione PHP <code class=\"text-xs bg-gray-100 px-1 py-0.5 rounded\">mail()</code>, PHPMailer o un server SMTP esterno.") ?></p>
             </div>
 
-            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
               <div>
                 <label for="mail_driver" class="block text-sm font-medium text-gray-700"><?= __("Metodo di invio") ?></label>
                 <select id="mail_driver" name="mail_driver" class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
@@ -265,7 +265,7 @@ $activeTab = $activeTab ?? 'general';
             </div>
           </div>
 
-          <div id="smtp-settings-card" class="border border-gray-200 rounded-2xl p-5 bg-white">
+          <div id="smtp-settings-card" class="border border-gray-200 rounded-2xl p-5 bg-white max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
             <div class="flex items-center justify-between mb-4">
               <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide"><?= __("Server SMTP") ?></h3>
               <span class="text-xs text-gray-500"><?= __("Disponibile solo con driver SMTP") ?></span>
@@ -393,7 +393,7 @@ $activeTab = $activeTab ?? 'general';
           </div>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 hover:border-gray-300 transition-colors">
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 hover:border-gray-300 transition-colors max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1">
                   <div class="flex items-center gap-3 mb-2">
@@ -417,7 +417,7 @@ $activeTab = $activeTab ?? 'general';
               </div>
             </div>
 
-            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 hover:border-gray-300 transition-colors">
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 hover:border-gray-300 transition-colors max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1">
                   <div class="flex items-center gap-3 mb-2">
@@ -441,7 +441,7 @@ $activeTab = $activeTab ?? 'general';
               </div>
             </div>
 
-            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 hover:border-gray-300 transition-colors">
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-6 hover:border-gray-300 transition-colors max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
               <div class="flex items-start justify-between gap-4">
                 <div class="flex-1">
                   <div class="flex items-center gap-3 mb-2">
@@ -553,7 +553,7 @@ $activeTab = $activeTab ?? 'general';
               </p>
             </div>
 
-            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5">
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-5 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
               <div>
                 <label for="label_format" class="block text-sm font-medium text-gray-700 mb-3">
                   <?= __("Formato Etichetta") ?>
@@ -643,7 +643,7 @@ $activeTab = $activeTab ?? 'general';
               </div>
             </div>
 
-            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-4">
+            <div class="bg-gray-50 border border-gray-200 rounded-2xl p-5 space-y-4 max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
               <?php
               $enabledProviders = array_filter(array_map('trim', explode(',', (string) \App\Support\ConfigStore::get('sharing.enabled_providers', ''))));
               $allProviders = \App\Support\SharingProviders::all();

@@ -38,7 +38,7 @@
             <span class="text-sm font-medium text-gray-700"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span>
           </div>
           <input type="checkbox" name="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" value="1" <?= $checked ?>
-                 class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                 class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
         </label>
       <?php endforeach; ?>
     </div>
@@ -62,7 +62,7 @@
           </div>
         </div>
         <input type="checkbox" name="show_frontend" value="1" <?= $settings['show_frontend'] ? 'checked' : '' ?>
-               class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+               class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
       </label>
       <label class="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors cursor-pointer">
         <div class="flex items-center gap-3">
@@ -75,7 +75,7 @@
           </div>
         </div>
         <input type="checkbox" name="show_admin" value="1" <?= $settings['show_admin'] ? 'checked' : '' ?>
-               class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+               class="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
       </label>
     </div>
   </div>
@@ -94,7 +94,7 @@
                name="anna_domain"
                list="anna_domain_options"
                value="<?= htmlspecialchars($settings['anna_domain'], ENT_QUOTES, 'UTF-8') ?>"
-               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
                autocomplete="off"
                spellcheck="false"
                maxlength="253">
@@ -111,7 +111,7 @@
                name="zlib_domain"
                list="zlib_domain_options"
                value="<?= htmlspecialchars($settings['zlib_domain'], ENT_QUOTES, 'UTF-8') ?>"
-               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-blue-500 focus:border-blue-500"
                autocomplete="off"
                spellcheck="false"
                maxlength="253">

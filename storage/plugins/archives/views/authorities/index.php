@@ -9,7 +9,7 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 
 $typeBadge = [
-    'person'    => 'bg-indigo-100 text-indigo-800',
+    'person'    => 'bg-blue-100 text-blue-800',
     'corporate' => 'bg-amber-100 text-amber-800',
     'family'    => 'bg-pink-100 text-pink-800',
 ];

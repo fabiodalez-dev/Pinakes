@@ -42,11 +42,11 @@ $csrfToken = \App\Support\Csrf::ensureToken();
 $pluginsRoute = htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8');
 ?>
 
-<div class="max-w-4xl mx-auto py-6 px-4">
+<div class="max-w-4xl mx-auto py-6 px-4 max-sm:!py-3">
     <!-- Header -->
     <div class="mb-6">
         <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
-            <i class="fas fa-compact-disc text-purple-600"></i>
+            <i class="fas fa-compact-disc text-blue-600"></i>
             Discogs - <?= __("Configurazione") ?>
         </h1>
         <p class="text-gray-600 mt-2">
@@ -89,14 +89,14 @@ $pluginsRoute = htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8');
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
 
         <!-- Card Configurazione API -->
-        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
             <div class="border-b border-gray-200 px-6 py-4">
                 <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
                     <i class="fas fa-key text-gray-500"></i>
                     <?= __("Token di Accesso") ?>
                 </h2>
             </div>
-            <div class="p-6 space-y-5">
+            <div class="p-6 space-y-5 max-sm:!p-0">
                 <!-- API Token -->
                 <div>
                     <label for="api_token" class="block text-sm font-medium text-gray-700 mb-2">
@@ -108,7 +108,7 @@ $pluginsRoute = htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8');
                                id="api_token"
                                name="api_token"
                                value=""
-                               class="block w-full rounded-xl border-gray-300 focus:border-purple-500 focus:ring-purple-500 text-sm py-3 px-4 font-mono pr-24"
+                               class="block w-full rounded-xl border-gray-300 focus:border-blue-500 focus:ring-blue-500 text-sm py-3 px-4 font-mono pr-24"
                                placeholder="<?= $hasToken ? htmlspecialchars(__('Token configurato — lascia vuoto per mantenere'), ENT_QUOTES, 'UTF-8') : 'DiscogsPersonalAccessToken' ?>">
                         <button type="button"
                                 onclick="togglePasswordVisibility('api_token')"
@@ -123,7 +123,7 @@ $pluginsRoute = htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8');
                     <p class="mt-2 text-xs text-gray-600">
                         <i class="fas fa-external-link-alt mr-1"></i>
                         <?= __("Genera il tuo token su") ?>
-                        <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener noreferrer" class="text-purple-600 hover:text-purple-800 underline">
+                        <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">
                             discogs.com/settings/developers
                         </a>
                     </p>
@@ -140,7 +140,7 @@ $pluginsRoute = htmlspecialchars(url('/admin/plugins'), ENT_QUOTES, 'UTF-8');
             <button type="submit"
                     name="save_discogs_settings"
                     value="1"
-                    class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-600 text-white text-sm font-semibold hover:bg-purple-700 transition-colors">
+                    class="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
                 <i class="fas fa-save"></i>
                 <?= __("Salva Impostazioni") ?>
             </button>

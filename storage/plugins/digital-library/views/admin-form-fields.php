@@ -12,12 +12,12 @@ $currentFileUrl = $book['file_url'] ?? '';
 $currentAudioUrl = $book['audio_url'] ?? '';
 ?>
 
-<div class="mt-6 bg-gradient-to-br from-purple-50 to-indigo-50 border-2 border-purple-200 rounded-2xl p-6">
-    <h3 class="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
-        <i class="fas fa-file-audio text-purple-600"></i>
+<div class="mt-6 bg-gradient-to-br from-blue-50 to-blue-50 border-2 border-blue-200 rounded-2xl p-6">
+    <h3 class="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+        <i class="fas fa-file-audio text-blue-600"></i>
         <?= __("Contenuti Digitali") ?>
     </h3>
-    <p class="text-sm text-purple-700 mb-4">
+    <p class="text-sm text-blue-700 mb-4">
         <i class="fas fa-info-circle mr-1"></i>
         <?= __("Carica o collega eBook (PDF/ePub) e audiobook (MP3/M4A) per renderli disponibili agli utenti.") ?>
     </p>
@@ -221,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const link = document.createElement('a');
                 link.href = displayLinkUrl;
                 link.target = '_blank';
-                link.className = 'text-xs text-purple-600 hover:underline';
+                link.className = 'text-xs text-blue-600 hover:underline';
                 link.textContent = <?= json_encode(__("Apri file"), JSON_HEX_TAG) ?>;
                 wrapper.appendChild(link);
 

@@ -39,7 +39,7 @@ if ($row['date_start'] !== null) {
 }
 
 $levelBadge = [
-    'fonds'  => 'bg-purple-100 text-purple-800',
+    'fonds'  => 'bg-blue-100 text-blue-800',
     'series' => 'bg-blue-100 text-blue-800',
     'file'   => 'bg-green-100 text-green-800',
     'item'   => 'bg-gray-100 text-gray-800',
@@ -397,7 +397,7 @@ $id = (int) $row['id'];
             </a>
         </div>
 
-        <?php $typeBadge = ['person'=>'bg-indigo-100 text-indigo-800','corporate'=>'bg-amber-100 text-amber-800','family'=>'bg-pink-100 text-pink-800']; ?>
+        <?php $typeBadge = ['person'=>'bg-blue-100 text-blue-800','corporate'=>'bg-amber-100 text-amber-800','family'=>'bg-pink-100 text-pink-800']; ?>
 
         <?php if (empty($linked_authorities)): ?>
             <p class="px-6 py-4 text-sm text-gray-500 italic">
