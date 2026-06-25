@@ -544,16 +544,12 @@ use App\Support\HtmlHelper;
 
   <!-- <?= __("Sitemap XML") ?> Section -->
   <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
-    <div class="border-b border-gray-200 px-6 py-4">
-      <div class="flex items-center gap-3">
-        <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100">
-          <i class="fas fa-sitemap text-gray-600"></i>
-        </span>
-        <div>
-          <h3 class="text-lg font-semibold text-gray-900"><?= __("Sitemap XML") ?></h3>
-          <p class="text-sm text-gray-600 mt-0.5"><?= __("Mappa del sito per i motori di ricerca") ?></p>
-        </div>
-      </div>
+    <div class="border-b border-gray-200 px-6 py-4 max-sm:!px-0 max-sm:!border-0">
+      <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+        <i class="fas fa-sitemap text-gray-500"></i>
+        <?= __("Sitemap XML") ?>
+      </h2>
+      <p class="text-sm text-gray-600 mt-1"><?= __("Mappa del sito per i motori di ricerca") ?></p>
     </div>
     <div class="p-6 space-y-6 max-sm:!p-0">
       <!-- Sitemap Info -->
@@ -687,16 +683,14 @@ use App\Support\HtmlHelper;
   ?>
 
   <div class="bg-white border border-gray-200 rounded-2xl overflow-hidden mt-6 max-sm:!bg-transparent max-sm:!rounded-none max-sm:!shadow-none max-sm:!border-0">
-    <div class="border-b border-gray-200 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors" onclick="toggleApiSection()">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <span class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gray-100">
-            <i class="fas fa-key text-gray-600"></i>
-          </span>
-          <div>
-            <h3 class="text-lg font-semibold text-gray-900"><?= __("API Pubblica") ?></h3>
-            <p class="text-sm text-gray-600 mt-0.5"><?= __("Gestisci l'accesso all'API per cercare libri via EAN, ISBN e autore") ?></p>
-          </div>
+    <div class="border-b border-gray-200 px-6 py-4 cursor-pointer hover:bg-gray-50 transition-colors max-sm:!px-0 max-sm:!border-0" onclick="toggleApiSection()">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+            <i class="fas fa-key text-gray-500"></i>
+            <?= __("API Pubblica") ?>
+          </h2>
+          <p class="text-sm text-gray-600 mt-1"><?= __("Gestisci l'accesso all'API per cercare libri via EAN, ISBN e autore") ?></p>
         </div>
         <i class="fas fa-chevron-down text-gray-400 transition-transform" id="api-section-icon"></i>
       </div>
