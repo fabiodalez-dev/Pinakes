@@ -37,6 +37,20 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.24
+
+### Backend UI homogenisation ([#196](https://github.com/fabiodalez-dev/Pinakes/pull/196))
+
+A pass over the admin interface so every page looks and behaves consistently.
+
+- **One accent colour everywhere.** Plugin pages used a mix of blue, purple and indigo; they are now all the same blue as the core admin chrome — settings pages (Mobile API, Discogs, GoodLib) and the feature pages of Archives, NCIP and Digital Library. Tailwind now also scans plugin views, so plugin classes are compiled reliably instead of depending on overlap with app views.
+- **Readable settings on mobile.** Below 640px the settings pages (app and plugin) go flat — no card boxes, a single side gutter, no doubled padding — so content is wide and legible. Desktop is unchanged. The two odd-one-out section headers in the Advanced tab (Sitemap, Public API) were aligned to the same heading style as every other section.
+- **All toggles are now identical.** The oversized OFF/ON switch on the API setting, the events visibility toggle and the bulk-enrich switch were unified to the standard grey→dark switch used across the app. A new end-to-end test turns every toggle on to guard against regressions.
+- **Clearer sitemap field.** The settings page now makes it obvious which value to submit to Google Search Console (the public URL, with a Copy button); the filesystem path is labelled as server-only.
+- **Mobile sidebar no longer scrolls the page behind it.** Opening the mobile menu now locks the page underneath the overlay (it previously kept scrolling on iOS).
+
+This is a **code-only release — no new migration**. The Mobile API plugin moves to **1.0.2**; no other bundled plugin changed.
+
 ## What's New in v0.7.23
 
 ### Mobile API ⇄ Android app coherence ([#194](https://github.com/fabiodalez-dev/Pinakes/pull/194))
