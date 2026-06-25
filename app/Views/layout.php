@@ -447,12 +447,12 @@ $htmlLang = substr($currentLocale, 0, 2);
             <?= __("Statistiche Rapide") ?>
           </div>
           <div class="grid grid-cols-<?= $isCatalogueMode ? '1' : '2' ?> gap-3 mt-3">
-            <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
+            <div class="p-3 rounded-lg bg-gray-100 border border-gray-200 text-center">
               <div class="text-2xl font-bold text-gray-900" id="stats-books">-</div>
               <div class="text-xs text-gray-600 font-medium"><?= __("Libri") ?></div>
             </div>
             <?php if (!$isCatalogueMode): ?>
-              <div class="p-3 rounded-lg bg-gray-100 border border-gray-200">
+              <div class="p-3 rounded-lg bg-gray-100 border border-gray-200 text-center">
                 <div class="text-2xl font-bold text-gray-900" id="stats-loans">-</div>
                 <div class="text-xs text-gray-600 font-medium"><?= __("Prestiti") ?></div>
               </div>
