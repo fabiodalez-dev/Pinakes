@@ -471,7 +471,7 @@ final class OpenApiController
                                                 'available' => ['type' => 'integer'],
                                                 'loaned'    => ['type' => 'integer'],
                                                 'reserved'  => ['type' => 'integer'],
-                                                'state'     => ['type' => 'string', 'enum' => ['free', 'borrowed', 'reserved']],
+                                                'state'     => ['type' => 'string', 'enum' => ['free', 'partial', 'full']],
                                             ],
                                         ]],
                                     ],
@@ -828,12 +828,16 @@ final class OpenApiController
     {
         return [
             'type'       => 'object',
-            'required'   => ['nome', 'cognome', 'email', 'password'],
+            'required'   => ['nome', 'cognome', 'email', 'telefono', 'indirizzo', 'password', 'password_confirm', 'privacy_acceptance'],
             'properties' => [
-                'nome'     => ['type' => 'string', 'maxLength' => 100],
-                'cognome'  => ['type' => 'string', 'maxLength' => 100],
-                'email'    => ['type' => 'string', 'format' => 'email'],
-                'password' => ['type' => 'string', 'minLength' => 8],
+                'nome'               => ['type' => 'string', 'maxLength' => 100],
+                'cognome'            => ['type' => 'string', 'maxLength' => 100],
+                'email'              => ['type' => 'string', 'format' => 'email', 'maxLength' => 255],
+                'telefono'           => ['type' => 'string'],
+                'indirizzo'          => ['type' => 'string'],
+                'password'           => ['type' => 'string', 'minLength' => 8, 'maxLength' => 72],
+                'password_confirm'   => ['type' => 'string', 'minLength' => 8, 'maxLength' => 72],
+                'privacy_acceptance' => ['type' => 'boolean'],
             ],
         ];
     }
@@ -872,16 +876,20 @@ final class OpenApiController
         return [
             'type'       => 'object',
             'properties' => [
-                'id'            => ['type' => 'integer'],
-                'titolo'        => ['type' => 'string'],
-                'sottotitolo'   => ['type' => 'string', 'nullable' => true],
-                'autori'        => ['type' => 'array', 'items' => ['type' => 'string']],
-                'editore'       => ['type' => 'string', 'nullable' => true],
-                'anno'          => ['type' => 'integer', 'nullable' => true],
-                'copertina_url' => ['type' => 'string', 'format' => 'uri', 'nullable' => true, 'description' => 'Absolute URL.'],
-                'disponibile'   => ['type' => 'boolean', 'description' => 'True if at least one copy is currently loanable.'],
-                'genere'        => ['type' => 'string', 'nullable' => true],
-                'lingua'        => ['type' => 'string', 'nullable' => true],
+                'id'               => ['type' => 'integer'],
+                'title'            => ['type' => 'string'],
+                'subtitle'         => ['type' => 'string', 'nullable' => true],
+                'author'           => ['type' => 'string', 'nullable' => true],
+                'publisher'        => ['type' => 'string', 'nullable' => true],
+                'genre'            => ['type' => 'string', 'nullable' => true],
+                'year'             => ['type' => 'integer', 'nullable' => true],
+                'language'         => ['type' => 'string', 'nullable' => true],
+                'media_type'       => ['type' => 'string', 'nullable' => true],
+                'isbn13'           => ['type' => 'string', 'nullable' => true],
+                'cover_url'        => ['type' => 'string', 'format' => 'uri', 'nullable' => true, 'description' => 'Absolute URL.'],
+                'copies_total'     => ['type' => 'integer'],
+                'copies_available' => ['type' => 'integer'],
+                'loanable_now'     => ['type' => 'boolean', 'description' => 'True if at least one copy is currently loanable.'],
             ],
         ];
     }
@@ -893,16 +901,47 @@ final class OpenApiController
             'allOf' => [['$ref' => '#/components/schemas/BookSummary']],
             'type'  => 'object',
             'properties' => [
-                'isbn10'          => ['type' => 'string', 'nullable' => true],
-                'isbn13'          => ['type' => 'string', 'nullable' => true],
-                'ean'             => ['type' => 'string', 'nullable' => true],
-                'descrizione'     => ['type' => 'string', 'nullable' => true],
-                'numero_pagine'   => ['type' => 'integer', 'nullable' => true],
-                'condizione'      => ['type' => 'string', 'nullable' => true],
-                'collocazione'    => ['type' => 'string', 'nullable' => true, 'description' => 'Shelf / location label.'],
-                'copie_totali'    => ['type' => 'integer', 'description' => 'Total physical copies.'],
-                'copie_disponibili' => ['type' => 'integer', 'description' => 'Copies currently loanable.'],
-                'personal_history'  => ['$ref' => '#/components/schemas/PersonalHistory'],
+                'isbn10'           => ['type' => 'string', 'nullable' => true],
+                'ean'              => ['type' => 'string', 'nullable' => true],
+                'pages'            => ['type' => 'integer', 'nullable' => true],
+                'description'      => ['type' => 'string', 'nullable' => true],
+                'format'           => ['type' => 'string', 'nullable' => true],
+                'series'           => ['type' => 'string', 'nullable' => true],
+                'condition'        => ['type' => 'string', 'nullable' => true],
+                'audio_url'        => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                'has_audio'        => ['type' => 'boolean'],
+                'ebook_url'        => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                'ebook_format'     => ['type' => 'string', 'nullable' => true],
+                'has_ebook'        => ['type' => 'boolean'],
+                'genre'            => ['type' => 'object', 'nullable' => true, 'properties' => [
+                    'id'          => ['type' => 'integer', 'nullable' => true],
+                    'name'        => ['type' => 'string', 'nullable' => true],
+                    'parent'      => ['type' => 'string', 'nullable' => true],
+                    'grandparent' => ['type' => 'string', 'nullable' => true],
+                    'subgenre'    => ['type' => 'string', 'nullable' => true],
+                ]],
+                'publishers'       => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                    'id'   => ['type' => 'integer'],
+                    'name' => ['type' => 'string'],
+                ]]],
+                'authors'          => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
+                    'id'   => ['type' => 'integer'],
+                    'name' => ['type' => 'string'],
+                    'role' => ['type' => 'string', 'nullable' => true],
+                ]]],
+                'availability'     => ['type' => 'object', 'properties' => [
+                    'copies_total'     => ['type' => 'integer'],
+                    'copies_available' => ['type' => 'integer'],
+                    'loanable_now'     => ['type' => 'boolean'],
+                    'state'            => ['type' => 'string', 'enum' => ['available', 'on_loan', 'reserved', 'unavailable']],
+                ]],
+                'location'         => ['type' => 'object', 'nullable' => true, 'properties' => [
+                    'label'         => ['type' => 'string', 'nullable' => true],
+                    'shelf_id'      => ['type' => 'integer', 'nullable' => true],
+                    'shelf_unit_id' => ['type' => 'integer', 'nullable' => true],
+                    'position'      => ['type' => 'integer', 'nullable' => true],
+                ]],
+                'personal_history' => ['$ref' => '#/components/schemas/PersonalHistory'],
             ],
         ];
     }
@@ -918,6 +957,7 @@ final class OpenApiController
                 'has_reserved'    => ['type' => 'boolean', 'description' => 'The user has a pending/active reservation for this book.'],
                 'has_wishlisted'  => ['type' => 'boolean', 'description' => 'This book is in the user\'s wishlist.'],
                 'has_active_loan' => ['type' => 'boolean', 'description' => 'The user currently has this book on loan.'],
+                'has_pending_request' => ['type' => 'boolean', 'description' => 'The user has a pending loan request for this book.'],
             ],
         ];
     }
@@ -929,8 +969,7 @@ final class OpenApiController
             'type'       => 'object',
             'properties' => [
                 'id'       => ['type' => 'integer'],
-                'nome'     => ['type' => 'string'],
-                'livello'  => ['type' => 'integer', 'description' => 'Depth: 1 = root, 2 = mid, 3 = leaf.'],
+                'name'     => ['type' => 'string'],
                 'children' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/GenreNode']],
             ],
         ];
@@ -955,15 +994,15 @@ final class OpenApiController
         return [
             'type'       => 'object',
             'properties' => [
-                'id'             => ['type' => 'integer'],
-                'libro_id'       => ['type' => 'integer'],
-                'titolo'         => ['type' => 'string'],
-                'copertina_url'  => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
-                'stato'          => ['type' => 'string', 'description' => 'e.g. in_corso, concluso, in_scadenza, scaduto, prenotato, in_attesa.'],
-                'data_prestito'  => ['type' => 'string', 'format' => 'date', 'nullable' => true],
-                'data_scadenza'  => ['type' => 'string', 'format' => 'date', 'nullable' => true],
-                'data_restituzione' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
-                'created_at'     => ['type' => 'string', 'format' => 'date-time'],
+                'id'          => ['type' => 'integer'],
+                'book_id'     => ['type' => 'integer'],
+                'title'       => ['type' => 'string'],
+                'cover_url'   => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                'status'      => ['type' => 'string', 'description' => 'Raw prestiti.stato value.'],
+                'loaned_at'   => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                'due_at'      => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                'returned_at' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                'renewals'    => ['type' => 'integer', 'nullable' => true],
             ],
         ];
     }
@@ -974,15 +1013,16 @@ final class OpenApiController
         return [
             'type'       => 'object',
             'properties' => [
-                'id'            => ['type' => 'integer'],
-                'libro_id'      => ['type' => 'integer'],
-                'titolo'        => ['type' => 'string'],
-                'copertina_url' => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
-                'stato'         => ['type' => 'string'],
-                'data_inizio'   => ['type' => 'string', 'format' => 'date', 'nullable' => true],
-                'data_fine'     => ['type' => 'string', 'format' => 'date', 'nullable' => true],
-                'queue_position'=> ['type' => 'integer', 'nullable' => true],
-                'created_at'    => ['type' => 'string', 'format' => 'date-time'],
+                'id'             => ['type' => 'integer'],
+                'book_id'        => ['type' => 'integer'],
+                'title'          => ['type' => 'string'],
+                'cover_url'      => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                'status'         => ['type' => 'string'],
+                'queue_position' => ['type' => 'integer', 'nullable' => true],
+                'requested_from' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                'requested_to'   => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                'reserved_at'    => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
+                'expires_at'     => ['type' => 'string', 'format' => 'date-time', 'nullable' => true],
             ],
         ];
     }
@@ -994,9 +1034,10 @@ final class OpenApiController
             'type'       => 'object',
             'required'   => ['book_id'],
             'properties' => [
-                'book_id'    => ['type' => 'integer'],
-                'start_date' => ['type' => 'string', 'format' => 'date', 'description' => 'Requested start date (ISO-8601). Defaults to today if omitted.'],
-                'end_date'   => ['type' => 'string', 'format' => 'date', 'description' => 'Requested end date (ISO-8601).'],
+                'book_id'      => ['type' => 'integer'],
+                'desired_date' => ['type' => 'string', 'format' => 'date', 'nullable' => true, 'description' => 'Requested start date. Today or omitted means immediate loan when a copy is free; future dates create reservations.'],
+                'start_date'   => ['type' => 'string', 'format' => 'date', 'nullable' => true, 'deprecated' => true],
+                'end_date'     => ['type' => 'string', 'format' => 'date', 'nullable' => true, 'deprecated' => true],
             ],
         ];
     }
@@ -1007,11 +1048,13 @@ final class OpenApiController
         return [
             'type'       => 'object',
             'properties' => [
-                'book_id'       => ['type' => 'integer'],
-                'titolo'        => ['type' => 'string'],
-                'copertina_url' => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
-                'disponibile'   => ['type' => 'boolean'],
-                'added_at'      => ['type' => 'string', 'format' => 'date-time'],
+                'book_id'          => ['type' => 'integer'],
+                'title'            => ['type' => 'string'],
+                'author'           => ['type' => 'string', 'nullable' => true],
+                'year'             => ['type' => 'integer', 'nullable' => true],
+                'cover_url'        => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                'copies_available' => ['type' => 'integer'],
+                'loanable_now'     => ['type' => 'boolean'],
             ],
         ];
     }
@@ -1061,10 +1104,11 @@ final class OpenApiController
     {
         return [
             'type'       => 'object',
-            'required'   => ['current_password', 'new_password'],
+            'required'   => ['current_password', 'password', 'password_confirm'],
             'properties' => [
                 'current_password' => ['type' => 'string'],
-                'new_password'     => ['type' => 'string', 'minLength' => 8],
+                'password'         => ['type' => 'string', 'minLength' => 8, 'maxLength' => 72],
+                'password_confirm' => ['type' => 'string', 'minLength' => 8, 'maxLength' => 72],
             ],
         ];
     }
@@ -1091,10 +1135,9 @@ final class OpenApiController
                 'id'         => ['type' => 'string', 'description' => 'Opaque notification identifier.'],
                 'type'       => ['type' => 'string', 'enum' => ['loan_due', 'loan_overdue', 'reservation_ready', 'new_message', 'book_available']],
                 'title'      => ['type' => 'string'],
-                'body'       => ['type' => 'string'],
-                'read'       => ['type' => 'boolean'],
-                'created_at' => ['type' => 'string', 'format' => 'date-time'],
-                'payload'    => ['type' => 'object', 'additionalProperties' => true, 'nullable' => true],
+                'message'    => ['type' => 'string'],
+                'book_id'    => ['type' => 'integer', 'nullable' => true],
+                'date'       => ['type' => 'string', 'nullable' => true, 'description' => 'ISO date or date-time associated with the notification.'],
             ],
         ];
     }

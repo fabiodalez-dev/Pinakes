@@ -313,7 +313,7 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         } catch { ctx.reservationId = 0; }
 
         // Pre-add the wishlist book so DELETE /me/wishlist/{bookId} has something to remove on call #1.
-        try { dbExec(`INSERT IGNORE INTO wishlist (utente_id, libro_id, created_at) VALUES (${ctx.userId}, ${ctx.bookId}, NOW())`); } catch {}
+        try { dbExec(`INSERT IGNORE INTO wishlist (utente_id, libro_id) VALUES (${ctx.userId}, ${ctx.bookId})`); } catch {}
     });
 
     test.afterAll(async () => {

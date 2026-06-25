@@ -5,6 +5,8 @@ use App\Support\Csrf;
 
 $pageTitle = __('Gestione Plugin');
 $pluginSettings = $pluginSettings ?? [];
+/** @var array<int,bool> $pluginHasSettings */
+$pluginHasSettings = $pluginHasSettings ?? [];
 ?>
 
 <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -296,7 +298,15 @@ $pluginSettings = $pluginSettings ?? [];
                                         <?= __("Configura Fonti") ?>
                                     </button>
                                 <?php endif; ?>
-                                <?php if ($plugin['name'] === 'discogs'): ?>
+                                <?php
+                                // Generic settings button: shown for ANY active plugin that exposes
+                                // a settings page and isn't already handled by a custom button above
+                                // (open-library / api-book-scraper / goodlib use their own modals).
+                                // Without this, plugins like Mobile API have a working settings page
+                                // (/admin/plugins/{id}/settings) that is unreachable from the UI.
+                                $hasCustomSettingsButton = $isOpenLibrary || $isApiBookScraper || $isGoodLib;
+                                ?>
+                                <?php if (!$hasCustomSettingsButton && !empty($pluginHasSettings[$plugin['id']])): ?>
                                     <a href="<?= htmlspecialchars(url('/admin/plugins') . '/' . (int) $plugin['id'] . '/settings', ENT_QUOTES, 'UTF-8') ?>"
                                         class="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition-all duration-200 text-sm font-medium inline-flex items-center">
                                         <i class="fas fa-cog mr-1"></i>

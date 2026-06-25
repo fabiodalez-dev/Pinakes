@@ -40,8 +40,35 @@ class PluginController
 
         $plugins = $this->pluginManager->getAllPlugins();
         $pluginSettings = [];
+        // Which plugins expose a settings page (so the list can show a generic
+        // "Impostazioni" button for ANY such plugin, not just a hardcoded few —
+        // otherwise e.g. the Mobile API gate is unreachable from the UI).
+        $pluginHasSettings = [];
         foreach ($plugins as $plugin) {
             $settings = $this->pluginManager->getSettings((int) $plugin['id']);
+
+            // Settings-page detection: only meaningful for active plugins (the
+            // instance must be loaded). Mirror the settings-route guard.
+            $hasSettingsPage = false;
+            if (!empty($plugin['is_active'])) {
+                try {
+                    $instance = $this->pluginManager->getPluginInstance((int) $plugin['id']);
+                    if ($instance !== null
+                        && is_callable([$instance, 'hasSettingsPage'])
+                        && $instance->hasSettingsPage()
+                        && is_callable([$instance, 'getSettingsViewPath'])
+                    ) {
+                        // Mirror settingsPage()'s guard exactly: a declared view
+                        // path that doesn't exist on disk must NOT surface a button
+                        // (the click would 404).
+                        $viewPath = $instance->getSettingsViewPath();
+                        $hasSettingsPage = is_string($viewPath) && is_file($viewPath);
+                    }
+                } catch (\Throwable $e) {
+                    $hasSettingsPage = false;
+                }
+            }
+            $pluginHasSettings[$plugin['id']] = $hasSettingsPage;
 
             // Handle Google Books API key
             if (array_key_exists('google_books_api_key', $settings)) {
@@ -298,6 +325,16 @@ class PluginController
                 'message' => __('Plugin non trovato.')
             ]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
+        // Self-rendering settings pages (e.g. Mobile API) post flat form fields and
+        // handle their OWN POST inside the view — CSRF, persistence via the plugin's
+        // saveSettings(), success message, re-render. The legacy AJAX handlers below
+        // require a nested `settings` payload; when it's absent, this is such a
+        // self-handling form, so render the settings page (which runs that logic)
+        // instead of falling through to "questo plugin non supporta impostazioni".
+        if (!is_array($body) || !array_key_exists('settings', $body)) {
+            return $this->settingsPage($request, $response, $args);
         }
 
         error_log('[PluginController] Plugin name: ' . $plugin['name']);

@@ -600,4 +600,25 @@ test.describe('Reservations', () => {
             clearBorrowerReservations();
         }
     });
+
+    test('26) {available book, desired_date=today} → immediate loan (type=loan), not a reservation', async ({ request }) => {
+        // The app's "Request loan" on an AVAILABLE title sends today's date (its
+        // date picker pre-selects the first free day = today). The backend must
+        // treat today + a free copy as an immediate pending loan, not a
+        // reservation — otherwise the available-now flow silently queues instead
+        // of requesting a loan. A FUTURE date stays a reservation (test 22).
+        clearBorrowerReservations();
+        try {
+            const book = pickAvailableBook();
+            const res = await call(request, 'POST', '/reservations', {
+                token: ctx.userToken,
+                body: { book_id: book, desired_date: todayYmd() },
+            });
+            expect(res.status(), 'created').toBe(201);
+            const j = await jsonOf(res);
+            expect(j?.data?.type, 'today + available → immediate loan').toBe('loan');
+        } finally {
+            clearBorrowerReservations();
+        }
+    });
 });

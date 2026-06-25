@@ -496,12 +496,39 @@ final class CatalogController
                 'total_copies'       => (int) ($avail['total_copies'] ?? 0),
                 'earliest_available' => $avail['earliest_available'] ?? null,
                 'unavailable_dates'  => array_values((array) ($avail['unavailable_dates'] ?? [])),
-                'days'               => array_values((array) ($avail['days'] ?? [])),
+                'days'               => $this->normalizeMobileAvailabilityDays(
+                    array_values((array) ($avail['days'] ?? [])),
+                    (int) ($avail['total_copies'] ?? 0)
+                ),
             ], []);
         } catch (\Throwable $e) {
             SecureLogger::error('[MobileApi] book availability failed: ' . $e->getMessage());
             return ResponseEnvelope::error($response, 'internal_error', __('Disponibilità non disponibile.'), 500);
         }
+    }
+
+    /**
+     * Convert the website availability labels (borrowed/reserved) into the
+     * app calendar contract: free, partial, full.
+     *
+     * @param list<array<string, mixed>> $days
+     * @return list<array<string, mixed>>
+     */
+    private function normalizeMobileAvailabilityDays(array $days, int $totalCopies): array
+    {
+        foreach ($days as &$day) {
+            $available = (int) ($day['available'] ?? 0);
+            if ($available <= 0 || $totalCopies <= 0) {
+                $day['state'] = 'full';
+            } elseif ($available < $totalCopies) {
+                $day['state'] = 'partial';
+            } else {
+                $day['state'] = 'free';
+            }
+        }
+        unset($day);
+
+        return $days;
     }
 
     private function fetchBookCore(int $bookId): ?array
