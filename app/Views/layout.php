@@ -996,19 +996,40 @@ $htmlLang = substr($currentLocale, 0, 2);
       const closeMobileMenuButton = document.getElementById('close-mobile-menu');
       const mobileMenuOverlay = document.getElementById('mobile-menu-overlay');
       const sidebar = document.getElementById('sidebar');
+      let scrollLockY = 0;
 
       function openMobileMenu() {
         sidebar.classList.remove('-translate-x-full');
         sidebar.classList.add('translate-x-0');
         mobileMenuOverlay.classList.remove('hidden');
+        // Lock the page behind the overlay. `overflow:hidden` on <body> alone is
+        // not enough on iOS Safari — touch-drag still scrolls the content under
+        // the overlay — so pin the body in place and restore on close.
+        scrollLockY = window.scrollY || document.documentElement.scrollTop || 0;
         document.body.classList.add('overflow-hidden');
+        document.body.style.position = 'fixed';
+        document.body.style.top = `-${scrollLockY}px`;
+        document.body.style.left = '0';
+        document.body.style.right = '0';
+        document.body.style.width = '100%';
       }
 
       function closeMobileMenu() {
         sidebar.classList.add('-translate-x-full');
         sidebar.classList.remove('translate-x-0');
         mobileMenuOverlay.classList.add('hidden');
+        const wasLocked = document.body.style.position === 'fixed';
         document.body.classList.remove('overflow-hidden');
+        document.body.style.position = '';
+        document.body.style.top = '';
+        document.body.style.left = '';
+        document.body.style.right = '';
+        document.body.style.width = '';
+        // Only restore scroll when we actually locked (avoid jumping to top when
+        // close fires on desktop / nav-link clicks where no lock was applied).
+        if (wasLocked) {
+          window.scrollTo(0, scrollLockY);
+        }
       }
 
       if (mobileMenuButton) {
