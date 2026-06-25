@@ -22,6 +22,7 @@
 
 * **Amministrazione**
   * [Sistema Plugin](admin/plugin.md)
+  * [Mobile API e App Android](admin/mobile-api.md)
   * [Backup e Ripristino](admin/backup.md)
   * [Configurazione](admin/configurazione.md)
   * [Template Email](admin/email-templates.md)
@@ -34,6 +35,7 @@
 
 * **Riferimento Tecnico**
   * [Installazione](tecnico/installazione.md)
+  * [Docker](tecnico/docker.md)
   * [Requisiti di Sistema](tecnico/requisiti.md)
   * [API SRU](tecnico/sru.md)
   * [Sviluppo Plugin](tecnico/plugin-dev.md)

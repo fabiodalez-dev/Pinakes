@@ -22,6 +22,7 @@
 
 * **Administration**
   * [Plugin System](/en/admin/plugins.md)
+  * [Mobile API and Android App](/en/admin/mobile-api.md)
   * [Backup and Recovery](/en/admin/backup.md)
   * [Configuration](/en/admin/configuration.md)
   * [Email Templates](/en/admin/email-templates.md)
@@ -33,6 +34,7 @@
 
 * **Technical Reference**
   * [Installation](/en/technical/installation.md)
+  * [Docker](/en/technical/docker.md)
   * [System Requirements](/en/technical/requirements.md)
   * [SRU API](/en/technical/sru.md)
   * [Plugin Development](/en/technical/plugin-dev.md)

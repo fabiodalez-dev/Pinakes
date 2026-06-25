@@ -6,13 +6,100 @@ Per l'ultimo aggiornamento consulta sempre la [pagina releases su GitHub](https:
 
 ---
 
-## In arrivo — Prestiti configurabili, Modalità privata, rotte admin EN
+## v0.7.24 — Omogeneizzazione UI backend
 
-> Release candidate in preparazione (**0.7.18-rc.1**), non ancora pubblicata come release stabile.
+**PR:** [#196](https://github.com/fabiodalez-dev/Pinakes/pull/196)
 
-- **Sistema prestiti e prenotazioni** (#157): durata predefinita, numero massimo di prestiti attivi per utente, numero massimo di rinnovi e giorni per il ritiro sono ora **configurabili** da *Impostazioni → Prestiti*. Modello di occupazione delle copie unificato e multi-copia, riassegnazione automatica della copia restituita alla prossima prenotazione in coda, automatismi di manutenzione e notifiche email differite con nuovi template. Vedi [Prestiti](guida/prestiti.md#impostazioni-configurabili-dei-prestiti).
-- **Modalità privata** (#158 / #160): nuovo interruttore che restringe l'intero sito pubblico ai soli utenti autenticati, deferendo le rotte API-key al loro gate. Vedi [Modalità Privata](admin/modalita-privata.md).
-- **Rotte amministrative in inglese** (#145 / #161): i percorsi `/admin/*` sono ora letterali inglesi (es. `/admin/books`, `/admin/loans`, `/admin/publishers`), con redirect dai vecchi percorsi italiani per retro-compatibilità.
+Passata di uniformità sull'interfaccia di amministrazione.
+
+- **Un solo colore d'accento.** Le pagine dei plugin usavano un mix di blu/viola/indigo: ora sono tutte dello stesso **blu** del backend (settings di Mobile API, Discogs, GoodLib e le feature page di Archivi, NCIP, Digital Library). Tailwind ora scansiona anche le view dei plugin, così le loro classi vengono compilate in modo affidabile.
+- **Impostazioni leggibili da mobile.** Sotto i 640px le pagine impostazioni (app e plugin) diventano **flat**: niente card, gutter laterale singolo, niente doppio padding. Desktop invariato. I titoli di sezione della scheda *Avanzate* (Sitemap, API Pubblica) sono stati allineati allo stile delle altre.
+- **Tutti i toggle identici.** Lo switch OFF/ON dell'API, il toggle visibilità eventi e lo switch di bulk-enrich sono stati unificati allo switch standard grigio→nero. Un nuovo test E2E accende ogni toggle per evitare regressioni.
+- **Campo sitemap più chiaro.** Ora è evidente quale valore inviare a Google Search Console (l'URL pubblico, con pulsante Copia); il percorso filesystem è marcato come solo-server.
+- **Sidebar mobile:** aprendo il menu il contenuto dietro l'overlay non scorre più.
+
+Release **code-only — nessuna migrazione**. Plugin **Mobile API → 1.0.2**.
+
+---
+
+## v0.7.23 — Coerenza Mobile API ⇄ app Android + CVE Slim
+
+**PR:** [#194](https://github.com/fabiodalez-dev/Pinakes/pull/194), [#192](https://github.com/fabiodalez-dev/Pinakes/pull/192)
+
+Allineamento tra il plugin **Mobile API** e l'app Android su ogni contratto.
+
+- Le **impostazioni del plugin Mobile API** sono ora raggiungibili da *Admin → Plugin → Mobile API* (prima un sito aggiornato rispondeva "accesso da app disattivato" senza modo di abilitarlo dall'interfaccia).
+- **Prestito vs prenotazione** allineato al sito: una richiesta senza data (o per oggi) su una copia disponibile diventa un **prestito immediato**; una data futura una **prenotazione**.
+- **Calendario disponibilità** normalizzato con stato `free` / `partial` / `full`.
+- **Contratto OpenAPI** riallineato ai controller (incluso lo schema di `/messages`).
+- **Sicurezza:** `slim/slim` 4.15.1 → 4.15.2 per **CVE-2026-48157** (XSS riflesso).
+
+Release code-only. Plugin **Mobile API → 1.0.1**. Disponibile anche l'[immagine Docker ufficiale](tecnico/docker.md) `fabiodalez/pinakes`.
+
+---
+
+## v0.7.22 — Autocomplete collane, universi e cicli
+
+**PR/Issue:** [#179](https://github.com/fabiodalez-dev/Pinakes/issues/179)
+
+I campi *ciclo*, *universo*, *gruppo* e *serie* della scheda libro sono ora **autocomplete Choices.js**, come autori ed editori: digiti due lettere e Pinakes suggerisce i valori esistenti, evitando duplicati per un carattere diverso. I valori nuovi si possono comunque creare. In aggiornamento le collane già in uso vengono suggerite subito (backfill in tabella `collane`). Release code-only.
+
+---
+
+## v0.7.21 — Mobile API + app Android
+
+**PR:** [#177](https://github.com/fabiodalez-dev/Pinakes/pull/177)
+
+- **Plugin Mobile API:** API REST versionata `/api/v1` per client mobile — discovery (`/health`), login email/password con token bearer, ricerca catalogo, disponibilità reale, prestiti/prenotazioni, wishlist, notifiche push, streaming di ebook/audiolibri. Su **installazione nuova** è attivo subito; su **aggiornamento** parte disattivato (abilitalo da *Admin → Plugin → Mobile API*). Vedi [Mobile API e app Android](admin/mobile-api.md).
+- **App Android nativa** ([Pinakes Android](https://github.com/fabiodalez-dev/Pinakes-Android), Kotlin / Jetpack Compose, Material 3): punta l'app all'URL della tua biblioteca e i soci sfogliano catalogo, disponibilità, prestiti/prenotazioni, ebook/audiolibri dal telefono. Token in `EncryptedSharedPreferences`; APK debug sulla pagina Releases dell'app.
+- **Upload oltre `post_max_size`:** errore **413** chiaro (con indicazione su come alzare `post_max_size`/`upload_max_filesize`) invece della fuorviante pagina "controllo di sicurezza fallito".
+- **Sicurezza:** bump `guzzlehttp/guzzle` 7.12.1 e `guzzlehttp/psr7` 2.12.1 (CVE-2026-55767 / 55568 / 55766).
+
+---
+
+## v0.7.20.2 — Suite di regressione copertine
+
+Release interna — **solo test, nessun cambiamento funzionale**. Suite E2E (5 test, [#176](https://github.com/fabiodalez-dev/Pinakes/pull/176)) che blocca download/salvataggio copertine esterne (OpenLibrary → Internet Archive) e il confine SSRF. Pacchetto byte-identico a 0.7.20.1 a parte il marcatore di versione.
+
+---
+
+## v0.7.20.1 — Copertine OpenLibrary e updater fail-closed
+
+- **Copertine da OpenLibrary** ([#173](https://github.com/fabiodalez-dev/Pinakes/issues/173)): il downloader segue ora il redirect verso Internet Archive restando **SSRF-safe** (ogni hop risolto a IP pubblico verificato e connessione *pinned*). Le copertine CDN si scaricano e vengono salvate come file locale.
+- **Updater rinforzato** ([#174](https://github.com/fabiodalez-dev/Pinakes/pull/174)): una patch pre-update presente ma rotta **abortisce** l'aggiornamento (fail-closed); errore di patch post-install mostrato come warning; il fetch delle release non segue più redirect col token.
+
+---
+
+## v0.7.20 — Profili autore, modello prestiti canonico, sicurezza
+
+**PR/Issue:** [#163](https://github.com/fabiodalez-dev/Pinakes/issues/163) / [#170](https://github.com/fabiodalez-dev/Pinakes/pull/170), [#171](https://github.com/fabiodalez-dev/Pinakes/pull/171), [#172](https://github.com/fabiodalez-dev/Pinakes/pull/172)
+
+- **Profili autore:** foto (upload con anteprima o URL) e link a fonti/siti; pagine autore ed editore ristilizzate come la scheda libro.
+- **Prestiti e prenotazioni — modello di stato canonico** (#171): motore unificato attorno a un unico modello di occupazione, **10 bug di stato** risolti (copie restituite tornano prestabili, disponibilità multi-copia corretta, coda prenotazioni senza falsi positivi/negativi). Nuovo flag `restituito_in_ritardo`.
+- **Sicurezza updater** (#172): verifica del pacchetto contro il **digest sha256** server-side di GitHub con confronto a tempo costante; token bearer scoped e mai seguito in redirect.
+- **Sessione & login:** cinque insidie che potevano sloggare un admin chiuse (logout come POST protetto da CSRF, remember-me, messaggio chiaro su mismatch CSRF, `storage/sessions` creata automaticamente).
+- **Migrazione:** **`migrate_0.7.20.sql`** (colonne foto/link autore, flag `restituito_in_ritardo`, pulizia stato prestiti una-tantum; idempotente).
+
+---
+
+## v0.7.19 — Filtri faccettati, backup & restore
+
+**PR:** [#169](https://github.com/fabiodalez-dev/Pinakes/pull/169), [#167](https://github.com/fabiodalez-dev/Pinakes/pull/167)
+
+- **Filtri faccettati del catalogo** (#169): selezionare un valore **collassa** la faccetta in una pill rimovibile e ri-scopa le altre; opzioni a zero risultati nascoste; nuova faccetta **Autore**; tutto theme-aware.
+- **Backup & restore completo** ([#162](https://github.com/fabiodalez-dev/Pinakes/issues/162) / #167): da *Admin → Aggiornamenti/Manutenzione*, archivia **database + file caricati** con restore verificato via hash (solo archivi fidati). Vedi [Backup e Ripristino](admin/backup.md).
+- **Fix scanner/copertine** ([#164](https://github.com/fabiodalez-dev/Pinakes/issues/164) / [#165](https://github.com/fabiodalez-dev/Pinakes/issues/165)): lo scanner ISBN conferma su **Invio** anche con prefisso parziale; sostituzione copertina in un passo.
+- **Robustezza install:** self-heal del `.htaccess` di root quando il docroot è la radice del progetto (layout cPanel comune); rate-limit login alzato a **15 tentativi / 5 min**.
+
+---
+
+## v0.7.18 — Prestiti configurabili, modalità privata, rotte admin EN
+
+**Issue/PR:** #157, #158, [#145](https://github.com/fabiodalez-dev/Pinakes/pull/145)
+
+- **Sistema prestiti e prenotazioni configurabile** (#157): durata predefinita, max prestiti attivi per utente (`0` = illimitato), max rinnovi e finestra di ritiro **configurabili** da *Impostazioni → Prestiti*. Modello di occupazione multi-copia, riassegnazione automatica della copia restituita alla coda, notifiche email differite dopo il commit. Migrazione **`migrate_0.7.17.sql`**.
+- **Modalità privata** (#158): interruttore che restringe l'intero sito pubblico ai soli utenti autenticati (off di default). Vedi [Modalità Privata](admin/modalita-privata.md).
+- **Rotte amministrative in inglese** (#145): i percorsi `/admin/*` sono ora letterali inglesi (`/admin/books`, `/admin/loans`, …), con redirect dai vecchi percorsi italiani (301 GET / 308 POST).
 
 ---
 
