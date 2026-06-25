@@ -12,20 +12,16 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * Serves the Swagger UI page at GET /api/v1/docs.
  *
- * Asset strategy (spec: "self-hosted, no external CDN if avoidable"):
- *   1. If public/assets/swagger-ui/swagger-ui-bundle.js exists (pre-downloaded),
- *      all three asset references point to the local copy.
- *   2. Otherwise, falls back to jsDelivr CDN (swagger-ui v5 latest).
- *      Run  npm install swagger-ui-dist  and copy the dist files to
- *      public/assets/swagger-ui/  to avoid the CDN dependency.
+ * Asset strategy: **self-hosted only, never a CDN**. The Swagger UI dist files
+ * are vendored in public/assets/swagger-ui/ and shipped in the release ZIP, so
+ * the page works offline / behind an egress firewall. To refresh them, run
+ * `npm pack swagger-ui-dist@5.18.2` and copy swagger-ui-bundle.js +
+ * swagger-ui.css into public/assets/swagger-ui/ (current vendored version: 5.18.2).
  *
  * Public endpoint — no bearer token required.
  */
 final class SwaggerUiController
 {
-    /** Swagger UI version pinned for the CDN fallback. */
-    private const SWAGGER_UI_VERSION = '5.18.2';
-
     public function page(
         ServerRequestInterface $request,
         ResponseInterface $response
@@ -137,29 +133,14 @@ HTML;
     }
 
     /**
-     * Returns the base URL for Swagger UI static assets.
+     * Base URL for the locally-vendored Swagger UI assets.
      *
-     * Local copy (preferred): public/assets/swagger-ui/ — served via the normal
-     * web server; check by testing for the bundle file on disk.
-     * CDN fallback: jsDelivr pinned to a specific Swagger UI version.
+     * Always the local `public/assets/swagger-ui/` copy — never a CDN.
+     * $siteBaseUrl already includes BASE_PATH (from baseUrl()).
      */
     private function assetsBaseUrl(string $siteBaseUrl): string
     {
-        $localBundle = $this->docRoot() . '/assets/swagger-ui/swagger-ui-bundle.js';
-
-        if (is_file($localBundle)) {
-            // Local copy available — use it. $siteBaseUrl already includes
-            // BASE_PATH (from baseUrl()), so do not append it again.
-            return rtrim($siteBaseUrl, '/') . '/assets/swagger-ui';
-        }
-
-        // Fallback: jsDelivr CDN (pinned version).
-        return 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@' . self::SWAGGER_UI_VERSION;
-    }
-
-    private function docRoot(): string
-    {
-        return defined('PUBLIC_PATH') ? (string) PUBLIC_PATH : (string) ($_SERVER['DOCUMENT_ROOT'] ?? '');
+        return rtrim($siteBaseUrl, '/') . '/assets/swagger-ui';
     }
 
     private function baseUrl(ServerRequestInterface $request): string
