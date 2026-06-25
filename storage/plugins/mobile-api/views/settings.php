@@ -84,47 +84,38 @@ $tabSettingsUrl = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
 $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/settings') . '?tab=devices', ENT_QUOTES, 'UTF-8');
 ?>
 
-<div class="flex-1 overflow-x-hidden">
+<div class="max-w-4xl mx-auto py-6 px-4">
 
-  <!-- Page Header -->
-  <div class="bg-white/50 backdrop-blur-sm border-b border-gray-200/80 dark:bg-gray-900/50 dark:border-gray-800/80 sticky top-0 z-30">
-    <div class="px-6 py-4">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center space-x-3">
-          <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center">
-            <i class="fas fa-mobile-screen-button text-white text-sm"></i>
-          </div>
-          <div>
-            <h1 class="text-xl font-bold text-gray-900 dark:text-white">
-              <?= htmlspecialchars(__('Mobile API'), ENT_QUOTES, 'UTF-8') ?>
-            </h1>
-            <p class="text-sm text-gray-500 dark:text-gray-400">
-              <?= htmlspecialchars(__("Abilita l'accesso dell'app mobile a questa biblioteca tramite l'API REST /api/v1."), ENT_QUOTES, 'UTF-8') ?>
-            </p>
-          </div>
-        </div>
-        <a href="<?= $pluginsRoute ?>"
-           class="inline-flex items-center px-4 py-2 bg-gray-800 dark:bg-gray-700 text-white text-sm rounded-lg hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
-          <i class="fas fa-arrow-left mr-2"></i>
-          <?= htmlspecialchars(__('Plugin'), ENT_QUOTES, 'UTF-8') ?>
-        </a>
-      </div>
+  <!-- Header -->
+  <div class="mb-6 flex items-start justify-between gap-4">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 flex items-center gap-3">
+        <i class="fas fa-mobile-screen-button text-blue-600"></i>
+        <?= htmlspecialchars(__('Mobile API'), ENT_QUOTES, 'UTF-8') ?>
+      </h1>
+      <p class="text-gray-600 mt-2">
+        <?= htmlspecialchars(__("Abilita l'accesso dell'app mobile a questa biblioteca tramite l'API REST /api/v1."), ENT_QUOTES, 'UTF-8') ?>
+      </p>
     </div>
+    <a href="<?= $pluginsRoute ?>" class="btn-secondary whitespace-nowrap">
+      <i class="fas fa-arrow-left mr-2"></i>
+      <?= htmlspecialchars(__('Plugin'), ENT_QUOTES, 'UTF-8') ?>
+    </a>
   </div>
 
-  <div class="p-6 space-y-6">
+  <div class="space-y-6">
 
     <?php if ($successMessage !== ''): ?>
-    <div role="status" aria-live="polite" class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4 flex items-center gap-3">
-      <i class="fas fa-check-circle text-green-500" aria-hidden="true"></i>
-      <p class="text-sm text-green-700 dark:text-green-300"><?= htmlspecialchars($successMessage, ENT_QUOTES, 'UTF-8') ?></p>
+    <div role="status" aria-live="polite" class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2">
+      <i class="fas fa-check-circle" aria-hidden="true"></i>
+      <span class="text-sm"><?= htmlspecialchars($successMessage, ENT_QUOTES, 'UTF-8') ?></span>
     </div>
     <?php endif; ?>
 
     <?php if ($errorMessage !== ''): ?>
-    <div role="alert" aria-live="assertive" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-center gap-3">
-      <i class="fas fa-exclamation-circle text-red-500" aria-hidden="true"></i>
-      <p class="text-sm text-red-700 dark:text-red-300"><?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?></p>
+    <div role="alert" aria-live="assertive" class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-center gap-2">
+      <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+      <span class="text-sm"><?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?></span>
     </div>
     <?php endif; ?>
 
@@ -133,14 +124,14 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
       <nav class="-mb-px flex space-x-6">
         <a href="<?= $tabSettingsUrl ?>"
            class="pb-3 text-sm font-medium border-b-2 transition-colors <?= $activeTab === 'settings'
-             ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+             ? 'border-blue-500 text-blue-600 dark:text-blue-400'
              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300' ?>">
           <i class="fas fa-sliders mr-1.5"></i>
           <?= htmlspecialchars(__('Impostazioni'), ENT_QUOTES, 'UTF-8') ?>
         </a>
         <a href="<?= $tabDevicesUrl ?>"
            class="pb-3 text-sm font-medium border-b-2 transition-colors <?= $activeTab === 'devices'
-             ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
+             ? 'border-blue-500 text-blue-600 dark:text-blue-400'
              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300' ?>">
           <i class="fas fa-mobile-screen-button mr-1.5"></i>
           <?= htmlspecialchars(__('Dispositivi'), ENT_QUOTES, 'UTF-8') ?>
@@ -157,14 +148,14 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-5">
         <div class="p-5 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <i class="fas fa-toggle-on text-indigo-500"></i>
+            <i class="fas fa-toggle-on text-blue-500"></i>
             <?= htmlspecialchars(__('Accesso app mobile'), ENT_QUOTES, 'UTF-8') ?>
           </h2>
         </div>
         <div class="p-5">
           <label class="flex items-start gap-3 cursor-pointer">
             <input type="checkbox" name="enabled" value="1" <?= $isEnabled ? 'checked' : '' ?>
-                   class="mt-1 h-5 w-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                   class="mt-1 h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
             <span>
               <span class="block font-medium text-gray-900 dark:text-white">
                 <?= htmlspecialchars(__('Abilita accesso app mobile'), ENT_QUOTES, 'UTF-8') ?>
@@ -176,7 +167,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
           </label>
 
           <?php if ($isEnabled): ?>
-          <div class="mt-4 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg text-sm text-indigo-700 dark:text-indigo-300 flex items-center gap-2">
+          <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
             <i class="fas fa-info-circle"></i>
             <span>
               <?= htmlspecialchars(__('API attiva. Endpoint:'), ENT_QUOTES, 'UTF-8') ?>
@@ -193,7 +184,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
       <div class="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 mb-5">
         <div class="p-5 border-b border-gray-200 dark:border-gray-700">
           <h2 class="text-base font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <i class="fas fa-bell text-indigo-500"></i>
+            <i class="fas fa-bell text-blue-500"></i>
             <?= htmlspecialchars(__('Notifiche push'), ENT_QUOTES, 'UTF-8') ?>
           </h2>
           <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
@@ -206,7 +197,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
               <?= htmlspecialchars(__('Provider push'), ENT_QUOTES, 'UTF-8') ?>
             </label>
             <select id="push_provider" name="push_provider"
-                    class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:border-blue-500 focus:ring-blue-500">
               <option value="unifiedpush" <?= $pushProvider === 'unifiedpush' ? 'selected' : '' ?>>
                 <?= htmlspecialchars(__('UnifiedPush (consigliato, nessuna credenziale centrale)'), ENT_QUOTES, 'UTF-8') ?>
               </option>
@@ -223,7 +214,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
             <input type="text" id="push_vapid_subject" name="push_vapid_subject"
                    value="<?= htmlspecialchars($vapidSubject, ENT_QUOTES, 'UTF-8') ?>"
                    placeholder="mailto:admin@example.org"
-                   class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:border-indigo-500 focus:ring-indigo-500">
+                   class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm focus:border-blue-500 focus:ring-blue-500">
           </div>
 
           <div>
@@ -232,7 +223,7 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
             </label>
             <textarea id="push_fcm_credentials" name="push_fcm_credentials" rows="3"
                       placeholder='{"type":"service_account", ...}'
-                      class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm font-mono focus:border-indigo-500 focus:ring-indigo-500"><?= htmlspecialchars($fcmCredentials, ENT_QUOTES, 'UTF-8') ?></textarea>
+                      class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm font-mono focus:border-blue-500 focus:ring-blue-500"><?= htmlspecialchars($fcmCredentials, ENT_QUOTES, 'UTF-8') ?></textarea>
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
               <?= htmlspecialchars(__('Lascia vuoto per usare solo UnifiedPush / feed in-app.'), ENT_QUOTES, 'UTF-8') ?>
             </p>
@@ -246,9 +237,8 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
           <i class="fas fa-lock mr-1"></i>
           <?= htmlspecialchars(__("L'API richiede HTTPS (eccetto loopback in sviluppo)."), ENT_QUOTES, 'UTF-8') ?>
         </p>
-        <button type="submit" name="save_mobile_api_settings" value="1"
-                class="inline-flex items-center gap-2 px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
-          <i class="fas fa-save"></i>
+        <button type="submit" name="save_mobile_api_settings" value="1" class="btn-primary">
+          <i class="fas fa-save mr-2"></i>
           <?= htmlspecialchars(__('Salva impostazioni'), ENT_QUOTES, 'UTF-8') ?>
         </button>
       </div>
