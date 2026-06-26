@@ -59,8 +59,10 @@ final class SwaggerUiController
             ENT_QUOTES,
             'UTF-8'
         );
-        $cssUrl   = $assetsBaseUrl . '/swagger-ui.css';
-        $jsUrl    = $assetsBaseUrl . '/swagger-ui-bundle.js';
+        // assetsBaseUrl is derived from the request Host (baseUrl()); escape it for the
+        // href/src HTML-attribute context, exactly like $title/$docUrl below.
+        $cssUrl   = htmlspecialchars($assetsBaseUrl . '/swagger-ui.css', ENT_QUOTES, 'UTF-8');
+        $jsUrl    = htmlspecialchars($assetsBaseUrl . '/swagger-ui-bundle.js', ENT_QUOTES, 'UTF-8');
         // openApiUrl is a URL built from trusted server state, escape for HTML context only.
         $docUrl   = htmlspecialchars($openApiUrl, ENT_QUOTES, 'UTF-8');
 
