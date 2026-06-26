@@ -187,7 +187,16 @@ class ReservationManager
                 // $reservation['data_fine_richiesta'] for the loan period).
                 $nextReservation['data_fine_richiesta'] = $endDate;
 
-                if ($this->isDateRangeAvailable($bookId, $startDate, $endDate, (int) $nextReservation['id'])) {
+                // #157: pass the promoted reservation's queue_position so the
+                // capacity gate ignores waitlist entries BEHIND it (they would
+                // otherwise block the head when the waitlist fully subscribes the
+                // copies — e.g. 1 copy + 2 queued reservations promoted 0).
+                // isset() is false for both an absent key and a NULL value, so it
+                // covers a legacy NULL queue_position without a redundant null check.
+                $headQueuePos = isset($nextReservation['queue_position'])
+                    ? (int) $nextReservation['queue_position']
+                    : null;
+                if ($this->isDateRangeAvailable($bookId, $startDate, $endDate, (int) $nextReservation['id'], $headQueuePos)) {
                     // Create the loan - check return value to handle race conditions
                     // Note: createLoanFromReservation() handles its own transaction internally
                     // when called standalone, but here we're already in a transaction
@@ -270,7 +279,7 @@ class ReservationManager
      * @param string|null $endDate End date (Y-m-d format)
      * @return bool True if at least one copy is available
      */
-    private function isDateRangeAvailable($bookId, $startDate, $endDate, ?int $excludeReservationId = null)
+    private function isDateRangeAvailable($bookId, $startDate, $endDate, ?int $excludeReservationId = null, ?int $excludeReservationsAfterQueuePos = null)
     {
         if (!$startDate || !$endDate) {
             return false;
@@ -287,7 +296,8 @@ class ReservationManager
             (int) $bookId,
             (string) $startDate,
             (string) $endDate,
-            excludeReservationId: $excludeReservationId
+            excludeReservationId: $excludeReservationId,
+            excludeReservationsAfterQueuePos: $excludeReservationsAfterQueuePos
         );
     }
 

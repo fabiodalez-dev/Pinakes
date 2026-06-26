@@ -93,11 +93,12 @@ final class CapacityService
         string $end,
         ?int $excludePrestitoId = null,
         ?int $excludeReservationId = null,
-        ?int $excludeUserId = null
+        ?int $excludeUserId = null,
+        ?int $excludeReservationsAfterQueuePos = null
     ): int {
         $intervals = array_merge(
             $this->holdingLoanIntervals($libroId, $start, $end, $excludePrestitoId, $excludeUserId),
-            $this->activeReservationIntervals($libroId, $start, $end, $excludeReservationId, $excludeUserId)
+            $this->activeReservationIntervals($libroId, $start, $end, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos)
         );
         return $this->sweepPeak($intervals);
     }
@@ -109,13 +110,14 @@ final class CapacityService
         string $end,
         ?int $excludePrestitoId = null,
         ?int $excludeReservationId = null,
-        ?int $excludeUserId = null
+        ?int $excludeUserId = null,
+        ?int $excludeReservationsAfterQueuePos = null
     ): bool {
         $total = $this->totalCopies($libroId);
         if ($total <= 0) {
             return false;
         }
-        $occ = $this->occupiedCount($libroId, $start, $end, $excludePrestitoId, $excludeReservationId, $excludeUserId);
+        $occ = $this->occupiedCount($libroId, $start, $end, $excludePrestitoId, $excludeReservationId, $excludeUserId, $excludeReservationsAfterQueuePos);
         return $occ < $total;
     }
 
@@ -150,7 +152,7 @@ final class CapacityService
      * Active reservation intervals overlapping [$start,$end], clamped to the window.
      * @return list<array{0:string,1:string}>
      */
-    private function activeReservationIntervals(int $libroId, string $start, string $end, ?int $excludeReservationId, ?int $excludeUserId): array
+    private function activeReservationIntervals(int $libroId, string $start, string $end, ?int $excludeReservationId, ?int $excludeUserId, ?int $excludeReservationsAfterQueuePos = null): array
     {
         // Canonical 3-step coalesce chain for the reservation end (no 2-step variants).
         $rEnd = 'COALESCE(r.data_fine_richiesta, DATE(r.data_scadenza_prenotazione), r.data_inizio_richiesta)';
@@ -172,6 +174,16 @@ final class CapacityService
             $sql .= ' AND r.utente_id <> ?';
             $types .= 'i';
             $params[] = $excludeUserId;
+        }
+        // Promotion gate (#157): when promoting the queue head, the waitlist
+        // entries BEHIND it must not occupy capacity — they are lower-priority
+        // and are promoted in later runs as copies free up. Exclude reservations
+        // with a known queue_position strictly greater than the promoted one.
+        // NULL queue_position rows still count (conservative — never overbook).
+        if ($excludeReservationsAfterQueuePos !== null) {
+            $sql .= ' AND NOT (r.queue_position IS NOT NULL AND r.queue_position > ?)';
+            $types .= 'i';
+            $params[] = $excludeReservationsAfterQueuePos;
         }
         return $this->fetchIntervals($sql, $types, $params);
     }
