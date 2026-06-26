@@ -63,8 +63,11 @@ final class SwaggerUiController
         // href/src HTML-attribute context, exactly like $title/$docUrl below.
         $cssUrl   = htmlspecialchars($assetsBaseUrl . '/swagger-ui.css', ENT_QUOTES, 'UTF-8');
         $jsUrl    = htmlspecialchars($assetsBaseUrl . '/swagger-ui-bundle.js', ENT_QUOTES, 'UTF-8');
-        // openApiUrl is a URL built from trusted server state, escape for HTML context only.
-        $docUrl   = htmlspecialchars($openApiUrl, ENT_QUOTES, 'UTF-8');
+        // openApiUrl is consumed inside a JS string literal (SwaggerUIBundle url:), so
+        // JSON-encode it — the correct escaper for a JS context (htmlspecialchars is for
+        // HTML, and leaves backslashes untouched). JSON_HEX_TAG blocks a </script> breakout;
+        // json_encode already emits the surrounding quotes, so the heredoc drops them below.
+        $docUrl   = json_encode($openApiUrl, JSON_HEX_TAG | JSON_UNESCAPED_SLASHES) ?: '""';
 
         return <<<HTML
 <!DOCTYPE html>
@@ -108,8 +111,21 @@ final class SwaggerUiController
   (function () {
     'use strict';
     window.onload = function () {
+      // Self-hosted, no CDN fallback: if the vendored bundle didn't load, show a
+      // diagnostic instead of a blank page (the #swagger-ui div would stay empty).
+      if (typeof SwaggerUIBundle === 'undefined') {
+        document.getElementById('swagger-ui').innerHTML =
+          '<div style="padding:24px;font-family:sans-serif;color:#b91c1c">' +
+          '<h2 style="margin:0 0 8px">API docs could not load</h2>' +
+          '<p style="margin:0;color:#334155">The Swagger UI assets failed to load. This page is ' +
+          'self-hosted with no CDN fallback — verify that ' +
+          '<code>public/assets/swagger-ui/</code> shipped with this install. ' +
+          'The raw OpenAPI spec is still available at <a href="../openapi.json">openapi.json</a>.</p>' +
+          '</div>';
+        return;
+      }
       var ui = SwaggerUIBundle({
-        url: "{$docUrl}",
+        url: {$docUrl},
         dom_id: '#swagger-ui',
         deepLinking: true,
         presets: [
