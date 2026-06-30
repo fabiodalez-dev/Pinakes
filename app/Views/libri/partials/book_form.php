@@ -288,17 +288,13 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           <!-- Book Status -->
           <div>
             <label for="stato" class="form-label"><?= __("Disponibilità") ?></label>
-            <?php $statoCorrente = $book['stato'] ?? ''; ?>
+            <?php $statoCorrente = strtolower((string) ($book['stato'] ?? '')); ?>
             <select id="stato" name="stato" class="form-input">
-              <option value="Disponibile" <?php echo strcasecmp($statoCorrente, 'Disponibile') === 0 ? 'selected' : ''; ?>><?= __("Disponibile") ?></option>
-              <option value="Non Disponibile" <?php echo strcasecmp($statoCorrente, 'Non Disponibile') === 0 ? 'selected' : ''; ?>><?= __("Non Disponibile") ?></option>
-              <option value="Prestato" <?php echo strcasecmp($statoCorrente, 'Prestato') === 0 ? 'selected' : ''; ?>><?= __("Prestato") ?></option>
-              <option value="Riservato" <?php echo strcasecmp($statoCorrente, 'Riservato') === 0 ? 'selected' : ''; ?>><?= __("Riservato") ?></option>
-              <option value="Danneggiato" <?php echo strcasecmp($statoCorrente, 'Danneggiato') === 0 ? 'selected' : ''; ?>><?= __("Danneggiato") ?></option>
-              <option value="Perso" <?php echo strcasecmp($statoCorrente, 'Perso') === 0 ? 'selected' : ''; ?>><?= __("Perso") ?></option>
-              <option value="In Riparazione" <?php echo strcasecmp($statoCorrente, 'In Riparazione') === 0 ? 'selected' : ''; ?>><?= __("In Riparazione") ?></option>
-              <option value="Fuori Catalogo" <?php echo strcasecmp($statoCorrente, 'Fuori Catalogo') === 0 ? 'selected' : ''; ?>><?= __("Fuori Catalogo") ?></option>
-              <option value="Da Inventariare" <?php echo strcasecmp($statoCorrente, 'Da Inventariare') === 0 ? 'selected' : ''; ?>><?= __("Da Inventariare") ?></option>
+              <option value="disponibile" <?php echo $statoCorrente === 'disponibile' ? 'selected' : ''; ?>><?= __("Disponibile") ?></option>
+              <option value="prestato" <?php echo $statoCorrente === 'prestato' ? 'selected' : ''; ?>><?= __("Prestato") ?></option>
+              <option value="prenotato" <?php echo $statoCorrente === 'prenotato' ? 'selected' : ''; ?>><?= __("Prenotato") ?></option>
+              <option value="danneggiato" <?php echo $statoCorrente === 'danneggiato' ? 'selected' : ''; ?>><?= __("Danneggiato") ?></option>
+              <option value="perso" <?php echo $statoCorrente === 'perso' ? 'selected' : ''; ?>><?= __("Perso") ?></option>
             </select>
             <p class="text-xs text-gray-500 mt-1"><?= __("Status attuale di questa copia del libro") ?></p>
           </div>
@@ -410,8 +406,8 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
         <div class="card-body form-section">
           <div class="form-grid-3">
             <div>
-              <label for="tipo_acquisizione" class="form-label"><?= __("Data Acquisizione") ?></label>
-              <input type="date" name="data_acquisizione" class="form-input" value="<?php echo HtmlHelper::e($book['data_acquisizione'] ?? ''); ?>" />
+              <label for="data_acquisizione" class="form-label"><?= __("Data Acquisizione") ?></label>
+              <input id="data_acquisizione" type="date" name="data_acquisizione" class="form-input" value="<?php echo HtmlHelper::e($book['data_acquisizione'] ?? ''); ?>" />
             </div>
             <div>
               <label for="tipo_acquisizione" class="form-label"><?= __("Tipo Acquisizione") ?></label>

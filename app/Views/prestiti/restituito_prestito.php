@@ -146,6 +146,8 @@ $csrfToken = Csrf::ensureToken();
                         // scadenza (restituito + restituito_in_ritardo=1 se oltre termine, I4).
                         $options = [
                             'restituito'   => __('Restituito'),
+                            'manutenzione' => __('Restituito — copia in manutenzione'),
+                            'in_restauro'  => __('Restituito — copia in restauro'),
                             'perso'        => __('Perso'),
                             'danneggiato'  => __('Danneggiato'),
                         ];

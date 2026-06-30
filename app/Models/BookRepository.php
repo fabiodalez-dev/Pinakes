@@ -345,7 +345,7 @@ class BookRepository
         $copie_totali = isset($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         $copie_disponibili = isset($data['copie_disponibili']) ? (int) $data['copie_disponibili'] : 1;
 
-        $tipo_acquisizione = $this->normalizeEnumValue($data['tipo_acquisizione'] ?? null, 'tipo_acquisizione', 'acquisto');
+        $tipo_acquisizione = $this->sanitizeAcquisitionType($data['tipo_acquisizione'] ?? null);
         $stato = $this->normalizeEnumValue($data['stato'] ?? null, 'stato', 'disponibile');
 
         $fields = [];
@@ -700,7 +700,7 @@ class BookRepository
         $copie_totali = isset($data['copie_totali']) ? (int) $data['copie_totali'] : 1;
         $copie_disponibili = isset($data['copie_disponibili']) ? (int) $data['copie_disponibili'] : 1;
 
-        $tipo_acquisizione = $this->normalizeEnumValue($data['tipo_acquisizione'] ?? null, 'tipo_acquisizione', 'acquisto');
+        $tipo_acquisizione = $this->sanitizeAcquisitionType($data['tipo_acquisizione'] ?? null);
         $stato = $this->normalizeEnumValue($data['stato'] ?? null, 'stato', 'disponibile');
 
         $setParts = [];
@@ -989,6 +989,38 @@ class BookRepository
         }
 
         return in_array($default, $options, true) ? $default : $options[0];
+    }
+
+    /**
+     * Sanitize the free-text `tipo_acquisizione` value.
+     *
+     * Since 0.7.25 the column is VARCHAR(50) (was enum('acquisto','donazione')),
+     * so the book form's free-text input — "es. Acquisto, Donazione, Prestito" —
+     * is finally persisted as typed instead of being coerced to the default.
+     *
+     * Stays safe on installs where the 0.7.25 migration hasn't run yet: if the
+     * column is still a legacy ENUM, fall back to enum coercion so the
+     * INSERT/UPDATE can never fail under strict SQL mode. Once the column is
+     * VARCHAR, the typed value is trimmed and capped to the column width; an
+     * empty value keeps the historical 'acquisto' default (matching the column
+     * default, so the field is never silently blanked).
+     */
+    private function sanitizeAcquisitionType(?string $value): string
+    {
+        // Column not yet widened (migration pending) → coerce to a valid enum
+        // value so the write can't be rejected. Once migrated, getEnumOptions
+        // returns [] and we treat the column as free text.
+        $options = $this->getEnumOptions('libri', 'tipo_acquisizione');
+        if ($options) {
+            return $this->normalizeEnumValue($value, 'tipo_acquisizione', 'acquisto');
+        }
+
+        $candidate = trim((string) ($value ?? ''));
+        if ($candidate === '') {
+            return 'acquisto';
+        }
+
+        return mb_substr($candidate, 0, 50);
     }
 
     private function syncAuthors(int $bookId, array $authorIds): void

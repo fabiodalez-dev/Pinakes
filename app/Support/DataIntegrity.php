@@ -122,6 +122,11 @@ class DataIntegrity {
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato = 'prenotato') > 0 THEN 'prenotato'
                     -- Copia in biblioteca ma assorbita da una prenotazione attiva → riservata (A1)
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id AND c.stato IN ('disponibile', 'prenotato')) > 0 THEN 'prenotato'
+                    -- Il libro HA copie ma nessuna è circolante (tutte in manutenzione/
+                    -- in_restauro/perso/danneggiato/in_trasferimento) e nessuna è
+                    -- prestata/prenotata → non è disponibile. Senza questo ramo lo stato
+                    -- resterebbe sul valore precedente (es. 'disponibile' stantio).
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = l.id) > 0 THEN 'non_disponibile'
                     ELSE l.stato
                 END
                 WHERE l.deleted_at IS NULL
@@ -375,11 +380,14 @@ class DataIntegrity {
                     -- è riservata, non 'disponibile' né stantia (A1). Evita di lasciare il libro
                     -- bloccato su uno stato precedente (es. 'prestato') dopo la restituzione.
                     WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ? AND c.stato IN ('disponibile', 'prenotato')) > 0 THEN 'prenotato'
+                    -- Come nel ricalcolo globale: copie presenti ma tutte fuori
+                    -- circolazione e nessuna prestata/prenotata → 'non_disponibile'.
+                    WHEN (SELECT COUNT(*) FROM copie c WHERE c.libro_id = ?) > 0 THEN 'non_disponibile'
                     ELSE l.stato
                 END
                 WHERE id = ?
             ");
-            $stmt->bind_param('iiiiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
+            $stmt->bind_param('iiiiiiiiii', $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId, $bookId);
             $result = $stmt->execute();
             $stmt->close();
 
@@ -896,7 +904,8 @@ class DataIntegrity {
             $stmt = $this->db->prepare("
                 UPDATE libri SET stato = CASE
                     WHEN copie_disponibili > 0 THEN 'disponibile'
-                    WHEN copie_disponibili = 0 THEN 'prestato'
+                    WHEN EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = libri.id AND c.stato = 'prestato') THEN 'prestato'
+                    WHEN EXISTS (SELECT 1 FROM copie c WHERE c.libro_id = libri.id) THEN 'non_disponibile'
                     ELSE stato
                 END
                 WHERE stato IN ('disponibile', 'prestato')

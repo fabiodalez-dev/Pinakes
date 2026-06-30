@@ -718,10 +718,19 @@ class PrestitiController
 
         // 'in_ritardo' NON è più un esito di restituzione: un rientro tardivo è
         // 'restituito' + restituito_in_ritardo=1 (I4). Gli unici esiti sono questi.
-        $allowed_status = ['restituito', 'perso', 'danneggiato'];
+        $allowed_status = ['restituito', 'manutenzione', 'in_restauro', 'perso', 'danneggiato'];
         if (!in_array($nuovo_stato, $allowed_status)) {
             return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=invalid_status')->withStatus(302);
         }
+
+        // La riparazione NON è un esito di prestito: `prestiti.stato` non ha stati
+        // 'manutenzione'/'in_restauro'. Un rientro-con-riparazione chiude il prestito
+        // come 'restituito' (a tutti gli effetti il libro è tornato) e devia la COPIA
+        // verso lo stato di riparazione (gestito dal match più sotto). Disaccoppiare
+        // l'esito-prestito dallo stato-copia tiene coerente il flusso prestiti.
+        $loan_stato = in_array($nuovo_stato, ['manutenzione', 'in_restauro'], true)
+            ? 'restituito'
+            : $nuovo_stato;
 
         $data_restituzione = date('Y-m-d');
 
@@ -754,11 +763,11 @@ class PrestitiController
             // Ritardo: un rientro oltre la scadenza è 'restituito' + flag (I4/BUG5).
             // Confronto lessicografico Y-m-d sicuro. Significativo solo per 'restituito'.
             $scadenza = (string) ($loan['data_scadenza'] ?? '');
-            $ritardo = ($nuovo_stato === 'restituito' && $scadenza !== '' && $scadenza < $data_restituzione) ? 1 : 0;
+            $ritardo = ($loan_stato === 'restituito' && $scadenza !== '' && $scadenza < $data_restituzione) ? 1 : 0;
 
             // Aggiorna il prestito (state-guard sull'attivo per evitare doppie restituzioni)
             $stmt = $db->prepare("UPDATE prestiti SET stato = ?, data_restituzione = ?, note = ?, attivo = 0, restituito_in_ritardo = ? WHERE id = ? AND attivo = 1");
-            $stmt->bind_param("sssii", $nuovo_stato, $data_restituzione, $note, $ritardo, $id);
+            $stmt->bind_param("sssii", $loan_stato, $data_restituzione, $note, $ritardo, $id);
             $stmt->execute();
             $loanAffected = $stmt->affected_rows;
             $stmt->close();
@@ -767,12 +776,19 @@ class PrestitiController
                 throw new \RuntimeException('Prestito non più restituibile (race).');
             }
 
-            // Mappa stato prestito → stato copia (form di RESTITUZIONE).
+            // Mappa esito-rientro → stato copia (form di RESTITUZIONE). Le due voci
+            // di riparazione chiudono il prestito come 'restituito' ($loan_stato) ma
+            // portano la copia fuori circolazione: il ricalcolo disponibilità la
+            // esclude e la preserva (DataIntegrity: WHERE stato IN disponibile/
+            // prestato/prenotato), così resta in riparazione finché un operatore non
+            // la rimette 'disponibile' (CopyController::updateCopy).
             $copia_stato = match ($nuovo_stato) {
-                'restituito' => 'disponibile',
-                'perso' => 'perso',
-                'danneggiato' => 'danneggiato',
-                default => 'disponibile'
+                'restituito'   => 'disponibile',
+                'manutenzione' => 'manutenzione',
+                'in_restauro'  => 'in_restauro',
+                'perso'        => 'perso',
+                'danneggiato'  => 'danneggiato',
+                default        => 'disponibile'
             };
 
             // Aggiorna lo stato della copia — solo se il prestito porta una copia

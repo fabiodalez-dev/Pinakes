@@ -19,6 +19,7 @@ $statusClasses = [
     'in_ritardo'  => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-amber-500 text-white',
     'danneggiato' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-orange-500 text-white',
     'perso'       => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-gray-700 text-white',
+    'non_disponibile' => 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-slate-500 text-white',
 ];
 $statusBadgeClass = $statusClasses[$status] ?? 'inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold bg-slate-500 text-white';
 
@@ -177,7 +178,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <div>
             <span class="<?php echo $statusBadgeClass; ?>">
               <i class="fas fa-circle text-[8px]"></i>
-              <?php echo App\Support\HtmlHelper::e(__(ucfirst($libro['stato']))); ?>
+              <?php echo App\Support\HtmlHelper::e($status === 'non_disponibile' ? __('Non Disponibile') : __(ucfirst($libro['stato']))); ?>
             </span>
           </div>
           <?php endif; ?>
