@@ -29,8 +29,9 @@ final class SwaggerUiController
         try {
             $baseUrl       = $this->baseUrl($request);
             $openApiUrl    = rtrim($baseUrl, '/') . '/api/v1/openapi.json';
+            $healthUrl     = rtrim($baseUrl, '/') . '/api/v1/health';
             $assetsBaseUrl = $this->assetsBaseUrl($baseUrl);
-            $html          = $this->buildHtml($openApiUrl, $assetsBaseUrl);
+            $html          = $this->buildHtml($openApiUrl, $healthUrl, $assetsBaseUrl);
 
             $response->getBody()->write($html);
 
@@ -52,7 +53,7 @@ final class SwaggerUiController
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private function buildHtml(string $openApiUrl, string $assetsBaseUrl): string
+    private function buildHtml(string $openApiUrl, string $healthUrl, string $assetsBaseUrl): string
     {
         $title    = htmlspecialchars(
             (string) ConfigStore::get('app.name', 'Pinakes') . ' — Mobile API docs',
@@ -63,6 +64,8 @@ final class SwaggerUiController
         // href/src HTML-attribute context, exactly like $title/$docUrl below.
         $cssUrl   = htmlspecialchars($assetsBaseUrl . '/swagger-ui.css', ENT_QUOTES, 'UTF-8');
         $jsUrl    = htmlspecialchars($assetsBaseUrl . '/swagger-ui-bundle.js', ENT_QUOTES, 'UTF-8');
+        $healthHref = htmlspecialchars($healthUrl, ENT_QUOTES, 'UTF-8');
+        $openApiHref = htmlspecialchars($openApiUrl, ENT_QUOTES, 'UTF-8');
         // openApiUrl is consumed inside a JS string literal (SwaggerUIBundle url:), so
         // JSON-encode it — the correct escaper for a JS context (htmlspecialchars is for
         // HTML, and leaves backslashes untouched). JSON_HEX_TAG blocks a </script> breakout;
@@ -101,9 +104,9 @@ final class SwaggerUiController
   <div class="pinakes-header">
     <strong>Pinakes Mobile API</strong>
     <span style="opacity:.5">|</span>
-    <a href="../health">GET /api/v1/health</a>
+    <a href="{$healthHref}">GET /api/v1/health</a>
     <span style="opacity:.5">|</span>
-    <a href="../openapi.json">openapi.json</a>
+    <a href="{$openApiHref}">openapi.json</a>
   </div>
   <div id="swagger-ui"></div>
   <script src="{$jsUrl}"></script>
@@ -120,7 +123,7 @@ final class SwaggerUiController
           '<p style="margin:0;color:#334155">The Swagger UI assets failed to load. This page is ' +
           'self-hosted with no CDN fallback — verify that ' +
           '<code>public/assets/swagger-ui/</code> shipped with this install. ' +
-          'The raw OpenAPI spec is still available at <a href="../openapi.json">openapi.json</a>.</p>' +
+          'The raw OpenAPI spec is still available at <a href="{$openApiHref}">openapi.json</a>.</p>' +
           '</div>';
         return;
       }
