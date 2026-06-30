@@ -966,7 +966,7 @@ class BookRepository
         return $ok;
     }
 
-    private function normalizeEnumValue(?string $value, string $column, string $default): string
+    private function normalizeEnumValue(mixed $value, string $column, string $default): string
     {
         if (!$this->hasColumn($column)) {
             return $default;
@@ -977,7 +977,7 @@ class BookRepository
             return $default;
         }
 
-        $candidate = trim((string) $value);
+        $candidate = $this->stringInput($value);
         if ($candidate === '') {
             return in_array($default, $options, true) ? $default : $options[0];
         }
@@ -1005,7 +1005,7 @@ class BookRepository
      * empty value keeps the historical 'acquisto' default (matching the column
      * default, so the field is never silently blanked).
      */
-    private function sanitizeAcquisitionType(?string $value): string
+    private function sanitizeAcquisitionType(mixed $value): string
     {
         // Column not yet widened (migration pending) → coerce to a valid enum
         // value so the write can't be rejected. Once migrated, getEnumOptions
@@ -1015,12 +1015,25 @@ class BookRepository
             return $this->normalizeEnumValue($value, 'tipo_acquisizione', 'acquisto');
         }
 
-        $candidate = trim((string) ($value ?? ''));
+        $candidate = $this->stringInput($value);
         if ($candidate === '') {
             return 'acquisto';
         }
 
         return mb_substr($candidate, 0, 50);
+    }
+
+    private function stringInput(mixed $value): string
+    {
+        if ($value === null || is_array($value)) {
+            return '';
+        }
+
+        if (is_object($value) && !method_exists($value, '__toString')) {
+            return '';
+        }
+
+        return trim((string) $value);
     }
 
     private function syncAuthors(int $bookId, array $authorIds): void
