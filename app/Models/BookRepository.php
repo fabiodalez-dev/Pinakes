@@ -1252,10 +1252,13 @@ class BookRepository
                 $cols['numero_serie'] = $seriesNum;
             }
         }
-        if ($this->hasColumn('traduttore') && !isset($cols['traduttore']) && !empty($data['scraped_translator'])) {
+        // Manual values are mapped into $cols above. Scraped values are only a
+        // fallback, otherwise a form submit carrying both fields would silently
+        // overwrite the librarian's typed translator/illustrator.
+        if ($this->hasColumn('traduttore') && !array_key_exists('traduttore', $cols) && !empty($data['scraped_translator'])) {
             $cols['traduttore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_translator']);
         }
-        if ($this->hasColumn('illustratore') && !isset($cols['illustratore']) && !empty($data['scraped_illustrator'])) {
+        if ($this->hasColumn('illustratore') && !array_key_exists('illustratore', $cols) && !empty($data['scraped_illustrator'])) {
             $cols['illustratore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_illustrator']);
         }
         if ($this->hasColumn('tipo_media') && !array_key_exists('tipo_media', $cols)) {
