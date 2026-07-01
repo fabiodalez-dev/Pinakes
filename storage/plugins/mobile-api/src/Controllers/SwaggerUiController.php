@@ -12,20 +12,16 @@ use Psr\Http\Message\ServerRequestInterface;
 /**
  * Serves the Swagger UI page at GET /api/v1/docs.
  *
- * Asset strategy (spec: "self-hosted, no external CDN if avoidable"):
- *   1. If public/assets/swagger-ui/swagger-ui-bundle.js exists (pre-downloaded),
- *      all three asset references point to the local copy.
- *   2. Otherwise, falls back to jsDelivr CDN (swagger-ui v5 latest).
- *      Run  npm install swagger-ui-dist  and copy the dist files to
- *      public/assets/swagger-ui/  to avoid the CDN dependency.
+ * Asset strategy: **self-hosted only, never a CDN**. The Swagger UI dist files
+ * are vendored in public/assets/swagger-ui/ and shipped in the release ZIP, so
+ * the page works offline / behind an egress firewall. To refresh them, run
+ * `npm pack swagger-ui-dist@5.18.2` and copy swagger-ui-bundle.js +
+ * swagger-ui.css into public/assets/swagger-ui/ (current vendored version: 5.18.2).
  *
  * Public endpoint — no bearer token required.
  */
 final class SwaggerUiController
 {
-    /** Swagger UI version pinned for the CDN fallback. */
-    private const SWAGGER_UI_VERSION = '5.18.2';
-
     public function page(
         ServerRequestInterface $request,
         ResponseInterface $response
@@ -33,8 +29,9 @@ final class SwaggerUiController
         try {
             $baseUrl       = $this->baseUrl($request);
             $openApiUrl    = rtrim($baseUrl, '/') . '/api/v1/openapi.json';
+            $healthUrl     = rtrim($baseUrl, '/') . '/api/v1/health';
             $assetsBaseUrl = $this->assetsBaseUrl($baseUrl);
-            $html          = $this->buildHtml($openApiUrl, $assetsBaseUrl);
+            $html          = $this->buildHtml($openApiUrl, $healthUrl, $assetsBaseUrl);
 
             $response->getBody()->write($html);
 
@@ -56,17 +53,24 @@ final class SwaggerUiController
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private function buildHtml(string $openApiUrl, string $assetsBaseUrl): string
+    private function buildHtml(string $openApiUrl, string $healthUrl, string $assetsBaseUrl): string
     {
         $title    = htmlspecialchars(
             (string) ConfigStore::get('app.name', 'Pinakes') . ' — Mobile API docs',
             ENT_QUOTES,
             'UTF-8'
         );
-        $cssUrl   = $assetsBaseUrl . '/swagger-ui.css';
-        $jsUrl    = $assetsBaseUrl . '/swagger-ui-bundle.js';
-        // openApiUrl is a URL built from trusted server state, escape for HTML context only.
-        $docUrl   = htmlspecialchars($openApiUrl, ENT_QUOTES, 'UTF-8');
+        // assetsBaseUrl is derived from the request Host (baseUrl()); escape it for the
+        // href/src HTML-attribute context, exactly like $title/$docUrl below.
+        $cssUrl   = htmlspecialchars($assetsBaseUrl . '/swagger-ui.css', ENT_QUOTES, 'UTF-8');
+        $jsUrl    = htmlspecialchars($assetsBaseUrl . '/swagger-ui-bundle.js', ENT_QUOTES, 'UTF-8');
+        $healthHref = htmlspecialchars($healthUrl, ENT_QUOTES, 'UTF-8');
+        $openApiHref = htmlspecialchars($openApiUrl, ENT_QUOTES, 'UTF-8');
+        // openApiUrl is consumed inside a JS string literal (SwaggerUIBundle url:), so
+        // JSON-encode it — the correct escaper for a JS context (htmlspecialchars is for
+        // HTML, and leaves backslashes untouched). JSON_HEX_TAG blocks a </script> breakout;
+        // json_encode already emits the surrounding quotes, so the heredoc drops them below.
+        $docUrl   = json_encode($openApiUrl, JSON_HEX_TAG | JSON_UNESCAPED_SLASHES) ?: '""';
 
         return <<<HTML
 <!DOCTYPE html>
@@ -100,9 +104,9 @@ final class SwaggerUiController
   <div class="pinakes-header">
     <strong>Pinakes Mobile API</strong>
     <span style="opacity:.5">|</span>
-    <a href="../health">GET /api/v1/health</a>
+    <a href="{$healthHref}">GET /api/v1/health</a>
     <span style="opacity:.5">|</span>
-    <a href="../openapi.json">openapi.json</a>
+    <a href="{$openApiHref}">openapi.json</a>
   </div>
   <div id="swagger-ui"></div>
   <script src="{$jsUrl}"></script>
@@ -110,8 +114,21 @@ final class SwaggerUiController
   (function () {
     'use strict';
     window.onload = function () {
+      // Self-hosted, no CDN fallback: if the vendored bundle didn't load, show a
+      // diagnostic instead of a blank page (the #swagger-ui div would stay empty).
+      if (typeof SwaggerUIBundle === 'undefined') {
+        document.getElementById('swagger-ui').innerHTML =
+          '<div style="padding:24px;font-family:sans-serif;color:#b91c1c">' +
+          '<h2 style="margin:0 0 8px">API docs could not load</h2>' +
+          '<p style="margin:0;color:#334155">The Swagger UI assets failed to load. This page is ' +
+          'self-hosted with no CDN fallback — verify that ' +
+          '<code>public/assets/swagger-ui/</code> shipped with this install. ' +
+          'The raw OpenAPI spec is still available at <a href="{$openApiHref}">openapi.json</a>.</p>' +
+          '</div>';
+        return;
+      }
       var ui = SwaggerUIBundle({
-        url: "{$docUrl}",
+        url: {$docUrl},
         dom_id: '#swagger-ui',
         deepLinking: true,
         presets: [
@@ -137,29 +154,14 @@ HTML;
     }
 
     /**
-     * Returns the base URL for Swagger UI static assets.
+     * Base URL for the locally-vendored Swagger UI assets.
      *
-     * Local copy (preferred): public/assets/swagger-ui/ — served via the normal
-     * web server; check by testing for the bundle file on disk.
-     * CDN fallback: jsDelivr pinned to a specific Swagger UI version.
+     * Always the local `public/assets/swagger-ui/` copy — never a CDN.
+     * $siteBaseUrl already includes BASE_PATH (from baseUrl()).
      */
     private function assetsBaseUrl(string $siteBaseUrl): string
     {
-        $localBundle = $this->docRoot() . '/assets/swagger-ui/swagger-ui-bundle.js';
-
-        if (is_file($localBundle)) {
-            // Local copy available — use it. $siteBaseUrl already includes
-            // BASE_PATH (from baseUrl()), so do not append it again.
-            return rtrim($siteBaseUrl, '/') . '/assets/swagger-ui';
-        }
-
-        // Fallback: jsDelivr CDN (pinned version).
-        return 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@' . self::SWAGGER_UI_VERSION;
-    }
-
-    private function docRoot(): string
-    {
-        return defined('PUBLIC_PATH') ? (string) PUBLIC_PATH : (string) ($_SERVER['DOCUMENT_ROOT'] ?? '');
+        return rtrim($siteBaseUrl, '/') . '/assets/swagger-ui';
     }
 
     private function baseUrl(ServerRequestInterface $request): string

@@ -159,6 +159,8 @@ CRITICAL_FILES=(
     "public/assets/tinymce/themes/silver/theme.min.js"
     "public/assets/tinymce/skins/ui/oxide/skin.min.css"
     "public/assets/tinymce/icons/default/icons.min.js"
+    "public/assets/swagger-ui/swagger-ui-bundle.js"
+    "public/assets/swagger-ui/swagger-ui.css"
     "public/index.php"
     "app/Support/Updater.php"
     "version.json"
