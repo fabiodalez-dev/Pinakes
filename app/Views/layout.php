@@ -111,7 +111,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
       <!-- Sidebar Header -->
       <div class="flex items-center justify-between px-6 py-5 flex-shrink-0">
-        <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
+        <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="flex flex-col items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer">
           <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center">
             <?php if ($appLogo !== ''): ?>
               <img src="<?php echo HtmlHelper::e($appLogo); ?>" alt="<?php echo HtmlHelper::e($appName); ?>"
@@ -120,8 +120,8 @@ $htmlLang = substr($currentLocale, 0, 2);
               <span class="text-gray-700 font-semibold text-lg"><?php echo HtmlHelper::e($appInitial); ?></span>
             <?php endif; ?>
           </div>
-          <div class="leading-none">
-            <span class="font-bold text-lg text-gray-900 block"><?php echo HtmlHelper::e($appName); ?></span>
+          <div class="leading-none text-center">
+            <span class="font-bold text-lg leading-tight text-gray-900 block"><?php echo HtmlHelper::e($appName); ?></span>
             <div class="text-[11px] uppercase tracking-wide font-semibold text-gray-500">
               <?= __("Library Management System") ?>
             </div>
