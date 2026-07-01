@@ -37,6 +37,29 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.25
+
+Six fixes integrated from the open pull requests, plus a schema migration.
+
+### Book form field types + copy repair ([#203](https://github.com/fabiodalez-dev/Pinakes/pull/203))
+
+- **Acquisition type is now free text.** `tipo_acquisizione` was an `enum('acquisto','donazione')`, so anything typed outside those two (e.g. "Deposito legale", "Scambio") was silently reset to the default on save. The column is now `VARCHAR(50)` and stores what the form accepts; existing values are preserved.
+- **Copies can go into repair on return.** When returning a loan you can mark the copy as *in maintenance* or *in restoration*: the loan closes as returned, the copy is held out of circulation until an operator restores it, and the borrower still receives the return notification.
+- **New derived availability state.** A book whose copies are all out of circulation is now labelled **non disponibile** by the availability engine instead of showing a stale flag — localised everywhere (catalogue, book/author/publisher pages) with its own badge colour.
+
+### Reservations, scraping & i18n
+
+- **Waitlist promotion** ([#199](https://github.com/fabiodalez-dev/Pinakes/pull/199), #157): when reservations fully subscribe a title's copies, the head of the waitlist is promoted correctly as copies free up.
+- **Scraped translator/illustrator no longer overwrite manual entries** ([#200](https://github.com/fabiodalez-dev/Pinakes/pull/200)): a submit carrying both a typed and a scraped value keeps the librarian's typed value.
+- **Publication date is free text** ([#202](https://github.com/fabiodalez-dev/Pinakes/pull/202), #201): the field no longer claims a fixed "Italian format"; it accepts any text, in all four locales.
+
+### Mobile & API
+
+- **Loan date picker on mobile** ([#198](https://github.com/fabiodalez-dev/Pinakes/pull/198)): the loan calendar forces flatpickr's own picker on phones instead of the native control.
+- **Self-hosted Swagger UI** ([#197](https://github.com/fabiodalez-dev/Pinakes/pull/197)): the API docs page (`/api/v1/docs`) serves its assets locally, with no CDN dependency.
+
+**Migration** (`migrate_0.7.25-rc.1.sql`): widens `tipo_acquisizione` to `VARCHAR(50)` and adds `non_disponibile` to the `stato` enum — idempotent, existing data preserved. The **mobile API contract is unchanged** (availability is a computed four-value state from copy counts, never the raw `stato`), so **the Android app needs no update**.
+
 ## What's New in v0.7.24
 
 ### Backend UI homogenisation ([#196](https://github.com/fabiodalez-dev/Pinakes/pull/196))
