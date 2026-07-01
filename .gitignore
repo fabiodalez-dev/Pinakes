@@ -548,6 +548,8 @@ docs/reference/analisi-sicurezza.md
 scripts/generate_dewey_json.py
 scripts/create-release-local.sh
 scripts/reinstall-test.sh
+scripts/remote-pr-verify.php
+scripts/remote-pr-verify.sh
 pinakes-v*-local.zip
 pinakes-v*-local.zip.sha256
 
