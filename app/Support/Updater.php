@@ -2250,7 +2250,7 @@ class Updater
             if ($unwritable !== []) {
                 $this->debugLog('ERROR', 'Preflight: percorsi non scrivibili', ['paths' => $unwritable]);
                 throw new Exception(sprintf(
-                    __('Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l\'utente del web server) e riprova.'),
+                    __('Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l\'utente del web server) e riprova, oppure esegui l\'aggiornamento da riga di comando come proprietario dei file: php scripts/manual-upgrade.php <zip-release>'),
                     implode(', ', array_slice($unwritable, 0, 15)) . (count($unwritable) > 15 ? ', …' : '')
                 ));
             }
@@ -2855,19 +2855,46 @@ class Updater
      *  - preservePaths     → skipped only when the target exists (same as the copy);
      *  - skipPaths, symlinks → never copied, never checked.
      *
+     * When $attemptRepair is true (production default) an unwritable path that
+     * the PHP user OWNS is self-healed with a chmod u+w before being reported:
+     * the common "right owner, missing write bit" case then requires no manual
+     * intervention at all. Paths owned by another user cannot be chmod-ed from
+     * PHP and are reported for manual fixing (or for the CLI upgrade path).
+     *
      * @return array<string> relative paths (deduplicated, sorted) that are not writable
      */
-    private function verifyWritableTargets(string $source, string $dest): array
+    private function verifyWritableTargets(string $source, string $dest, bool $attemptRepair = true): array
     {
         $source = rtrim(str_replace('\\', '/', $source), '/');
         $dest   = rtrim(str_replace('\\', '/', $dest), '/');
 
         $failures = [];
+        // Self-heal: chmod succeeds only when the PHP process owns the path
+        // (or is root), i.e. exactly the cases fixable without a sysadmin.
+        $tryRepair = function (string $path) use ($attemptRepair): bool {
+            if (!$attemptRepair) {
+                return false;
+            }
+            $perms = @fileperms($path);
+            if ($perms === false) {
+                return false;
+            }
+            $new = ($perms & 0777) | 0200 | (is_dir($path) ? 0100 : 0);
+            if (!@chmod($path, $new)) {
+                return false;
+            }
+            clearstatcache(true, $path);
+            if (is_writable($path)) {
+                $this->debugLog('INFO', 'Preflight: permessi auto-riparati (chmod u+w)', ['path' => $path]);
+                return true;
+            }
+            return false;
+        };
         // Memoize per-directory verdicts: thousands of files share few parents.
         $dirWritable = [];
-        $checkDirWritable = static function (string $dir) use (&$dirWritable): bool {
+        $checkDirWritable = static function (string $dir) use (&$dirWritable, $tryRepair): bool {
             if (!isset($dirWritable[$dir])) {
-                $dirWritable[$dir] = is_writable($dir);
+                $dirWritable[$dir] = is_writable($dir) || $tryRepair($dir);
             }
             return $dirWritable[$dir];
         };
@@ -2931,7 +2958,7 @@ class Updater
                     }
                 }
             } elseif (file_exists($targetPath)) {
-                if (!is_writable($targetPath)) {
+                if (!is_writable($targetPath) && !$tryRepair($targetPath)) {
                     $failures[$relativePath] = true;
                 }
             } else {

@@ -46,6 +46,49 @@ if (is_file(dirname(__DIR__) . '/.env') || is_file(dirname(__DIR__) . '/version.
 session_start();
 
 // ============================================================
+// CLI MODE — run the upgrade from the shell AS THE FILE OWNER.
+//
+// When the web-server PHP user cannot write somewhere in the tree
+// (e.g. it cannot create new directories under public/assets — issue
+// #205), the web updater and this page hit the same permission wall.
+// Running from the CLI executes as whoever owns the files, so the
+// wall does not exist:
+//
+//     php scripts/manual-upgrade.php /path/to/pinakes-vX.Y.Z.zip
+//
+// Same flow as the web mode (DB backup -> extract -> copy -> guarded
+// idempotent migrations); auth/CSRF are meaningless with shell access
+// and are satisfied synthetically below.
+// ============================================================
+if (PHP_SAPI === 'cli') {
+    $zipArg = $argv[1] ?? '';
+    if ($zipArg === '' || in_array($zipArg, ['-h', '--help'], true)) {
+        fwrite(STDOUT, "Usage: php scripts/manual-upgrade.php /path/to/pinakes-vX.Y.Z.zip\n");
+        exit($zipArg === '' ? 1 : 0);
+    }
+    $zipReal = realpath($zipArg);
+    if ($zipReal === false || !is_file($zipReal)) {
+        fwrite(STDERR, "ERROR: ZIP not found: {$zipArg}\n");
+        exit(1);
+    }
+    if (!str_ends_with(strtolower($zipReal), '.zip')) {
+        fwrite(STDERR, "ERROR: the file must be a .zip release package\n");
+        exit(1);
+    }
+    $cliToken = bin2hex(random_bytes(16));
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+    $_SESSION['upgrade_auth'] = true;
+    $_SESSION['upgrade_csrf'] = $cliToken;
+    $_POST['csrf_token'] = $cliToken;
+    $_FILES['zipfile'] = [
+        'name' => basename($zipReal),
+        'tmp_name' => $zipReal, // only ever opened by ZipArchive, never moved/unlinked
+        'error' => UPLOAD_ERR_OK,
+        'size' => (int) filesize($zipReal),
+    ];
+}
+
+// ============================================================
 // HELPERS
 // ============================================================
 
@@ -769,6 +812,20 @@ if (is_file($versionFile)) {
 }
 
 render:
+// CLI: plain-text report on stdout/stderr, exit code for scripting — no HTML.
+if (PHP_SAPI === 'cli') {
+    foreach ($log as $logLine) {
+        fwrite(STDOUT, $logLine . "\n");
+    }
+    if ($error !== '') {
+        fwrite(STDERR, "ERROR: " . $error . "\n");
+        exit(1);
+    }
+    if ($success !== '') {
+        fwrite(STDOUT, $success . "\n");
+    }
+    exit(0);
+}
 ?><!DOCTYPE html>
 <html lang="it">
 <head>

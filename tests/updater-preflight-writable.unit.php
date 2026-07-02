@@ -106,7 +106,9 @@ $set('skipPaths', ['installer']);
 $set('preservePaths', ['storage/uploads']);
 
 $method = $ref->getMethod('verifyWritableTargets');
-$run = fn(): array => $method->invoke($updater, $src, $dst);
+// $run(false) = solo rilevamento (nessuna riparazione) — verifica il reporting;
+// $run(true)  = comportamento di produzione (self-heal chmod u+w sui path di proprietà).
+$run = fn(bool $repair = false): array => $method->invoke($updater, $src, $dst, $repair);
 
 /* ========================= checks ========================= */
 
@@ -123,31 +125,36 @@ check(in_array('public/assets/swagger-ui', $fails, true),
 check(count(array_filter($fails, fn($p) => str_starts_with($p, 'public/assets'))) <= 2,
     '03 failures are collapsed to the offending dir(s), not one per file');
 
-// 4 — fix dei permessi → preflight pulito di nuovo
+// 4 — SELF-HEAL: il path è di proprietà dell'utente PHP → repair=true lo sistema da solo
+$fails = $run(true);
+check($fails === [], '04 self-heal: owned unwritable dir is chmod-repaired, preflight clean');
+check(is_writable("$dst/public/assets"), '05 self-heal: the dir is actually writable afterwards');
 chmod("$dst/public/assets", 0755);
-check($run() === [], '04 after fixing perms the preflight is clean');
 
-// 5 — file ESISTENTE non scrivibile → segnalato (copy() lo tronca)
+// 6 — file ESISTENTE non scrivibile → segnalato (copy() lo tronca)...
 chmod("$dst/app/x.php", 0444);
-check(in_array('app/x.php', $run(), true), '05 existing read-only target file is reported');
+check(in_array('app/x.php', $run(), true), '06 existing read-only target file is reported');
+// ...e self-healed quando repair è attivo
+check($run(true) === [] && is_writable("$dst/app/x.php"),
+    '07 self-heal: owned read-only file is chmod-repaired');
 chmod("$dst/app/x.php", 0644);
 
-// 6 — preservePaths: il target esiste → mai controllato (né copiato)
+// 8 — preservePaths: il target esiste → mai controllato (né copiato)
 chmod("$dst/storage/uploads", 0555);
 check(!in_array('storage/uploads/seed.png', $run(), true),
-    '06 preserved existing path is not checked (it will not be copied)');
+    '08 preserved existing path is not checked (it will not be copied)');
 chmod("$dst/storage/uploads", 0755);
 
-// 7 — skipPaths: mai controllato
+// 9 — skipPaths: mai controllato
 rrmdir("$dst/installer"); // non esiste a destinazione, e va comunque ignorato
 $fails = $run();
 check(!in_array('installer', $fails, true) && !in_array('installer/skipme.txt', $fails, true),
-    '07 skipped path is never checked');
+    '09 skipped path is never checked');
 
-// 8 — NUOVO file in dir ESISTENTE non scrivibile → segnalato col nome della dir
+// 10 — NUOVO file in dir ESISTENTE non scrivibile → segnalato col nome della dir
 file_put_contents("$src/app/newfile.php", "<?php\n");
 chmod("$dst/app", 0555);
-check(in_array('app', $run(), true), '08 new file under unwritable existing dir reports the dir');
+check(in_array('app', $run(), true), '10 new file under unwritable existing dir reports the dir');
 chmod("$dst/app", 0755);
 
 /* -------- done -------- */
