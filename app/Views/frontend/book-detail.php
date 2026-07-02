@@ -80,6 +80,11 @@ if (!empty($authorNames)) {
 $catalogRoute = route_path('catalog');
 $legacyCatalogRoute = route_path('catalog_legacy');
 $loginRoute = route_path('login');
+// H5: le route /api/libro|/api/book|... sono registrate per-locale ATTIVO in
+// web.php; un path hardcoded italiano andrebbe in 404 su installazioni senza
+// it_IT. route_path risolve la route per il locale corrente (stesso fallback
+// '/api/book' usato in fase di registrazione) e include il base path.
+$apiBookRoute = route_path('api_book');
 if ($bookPublisher !== '') {
     $coverAltParts[] = __('Editore %s', $bookPublisher);
 }
@@ -2516,6 +2521,8 @@ document.addEventListener('DOMContentLoaded', function() {
   const requestBtn = document.getElementById('btn-request-loan');
   if (requestBtn) {
     const libroId = <?php echo (int)$libroIdJs; ?>;
+    // Path localizzato (base path incluso): non prefissare con window.BASE_PATH.
+    const API_BOOK_BASE = <?= json_encode($apiBookRoute, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?>;
     const isLogged = <?php echo $isLoggedJs ? 'true' : 'false'; ?>;
     const meta = document.querySelector('meta[name="csrf-token"]');
     const csrf = meta ? meta.getAttribute('content') : '';
@@ -2569,7 +2576,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         let maxAvailableDate = null;
         try {
-          const availRes = await fetch(`${window.BASE_PATH}/api/libro/${libroId}/availability`);
+          const availRes = await fetch(`${API_BOOK_BASE}/${libroId}/availability`);
           if (availRes.ok) {
             const availData = await availRes.json();
             if (availData.success && availData.availability) {
@@ -2752,7 +2759,7 @@ document.addEventListener('DOMContentLoaded', function() {
               reqBody.end_date = formValues.endDate;
             }
 
-            const res = await fetch(`${window.BASE_PATH}/api/libro/${libroId}/reservation`, {
+            const res = await fetch(`${API_BOOK_BASE}/${libroId}/reservation`, {
               method: 'POST',
               credentials: 'same-origin',
               headers: {
@@ -2793,7 +2800,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const date = prompt(__('Inserisci la data di inizio (YYYY-MM-DD)'), suggestedDate);
         if (date) {
           try {
-            const res = await fetch(`${window.BASE_PATH}/api/libro/${libroId}/reservation`, {
+            const res = await fetch(`${API_BOOK_BASE}/${libroId}/reservation`, {
               method: 'POST',
               credentials: 'same-origin',
               headers: {

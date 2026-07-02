@@ -11,6 +11,7 @@ use App\Controllers\UserWishlistController;
 use App\Plugins\MobileApi\Support\AppAuthMiddleware;
 use App\Plugins\MobileApi\Support\JsonBody;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
+use App\Support\DateHelper;
 use App\Support\SecureLogger;
 use mysqli;
 use Psr\Http\Message\ResponseInterface;
@@ -201,7 +202,10 @@ final class ActionsController
         if ($desired !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desired)) {
             return ResponseEnvelope::error($response, 'invalid_date', __('Data richiesta non valida.'), 422);
         }
-        if ($desired !== '' && strtotime($desired) < strtotime(date('Y-m-d'))) {
+        // Domain "today" MUST come from DateHelper::today() (app timezone), not
+        // date() (process tz, often UTC): near midnight they disagree by a day.
+        $today = DateHelper::today();
+        if ($desired !== '' && strtotime($desired) < strtotime($today)) {
             return ResponseEnvelope::error($response, 'past_date', __('La data richiesta è nel passato.'), 422);
         }
 
@@ -216,7 +220,7 @@ final class ActionsController
             // without the today case that flow wrongly became a reservation
             // instead of a pending loan. A FUTURE date is always a reservation.
             $immediate = false;
-            if ($desired === '' || $desired === date('Y-m-d')) {
+            if ($desired === '' || $desired === $today) {
                 $manager   = new \App\Controllers\ReservationManager($this->db);
                 $immediate = $manager->isBookAvailableForImmediateLoan($bookId, null, null, $userId);
             }
@@ -701,13 +705,15 @@ final class ActionsController
 
         try {
             $items = [];
-            $today = date('Y-m-d');
+            // Domain "today" from DateHelper::today() (app timezone), so the
+            // due/overdue day boundary matches the web/cron pipeline.
+            $today = DateHelper::today();
             // Due-soon window from settings (fallback 3 days), same idea as the web reminders.
             $dueSoonDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'reminder_days_before', '3') ?? 3);
             if ($dueSoonDays < 1) {
                 $dueSoonDays = 3;
             }
-            $dueSoonLimit = date('Y-m-d', strtotime("+{$dueSoonDays} days"));
+            $dueSoonLimit = date('Y-m-d', strtotime($today . " +{$dueSoonDays} days"));
 
             // Loans due soon (active, in-progress, not yet overdue).
             $sql = "SELECT pr.id, pr.libro_id, pr.data_scadenza, l.titolo

@@ -19,6 +19,7 @@ declare(strict_types=1);
 
 use Dotenv\Dotenv;
 use App\Support\NotificationService;
+use App\Controllers\ReservationManager;
 
 // ============================================================
 // PROCESS LOCK - Prevent concurrent cron executions
@@ -105,8 +106,22 @@ try {
 
     $db->set_charset($cfg['charset']);
 
-    // Set timezone to UTC for consistency with main application
-    $db->query("SET SESSION time_zone = '+00:00'");
+    // Niente SET SESSION time_zone (M9): la coerenza sul giorno è garantita dai
+    // parametri PHP calcolati con DateHelper nel timezone applicativo; il web non
+    // imposta alcuna session timezone, quindi forzare UTC nel solo cron creava
+    // due regimi diversi per gli stessi confronti di data.
+
+    // Bootstrap I18n con il locale di installazione, come fa public/index.php per
+    // il web (H4): in CLI il locale resterebbe il default statico it_IT e le email
+    // cron uscirebbero in italiano — o fallirebbero del tutto per i template senza
+    // default hardcoded — sulle installazioni non italiane.
+    try {
+        \App\Support\I18n::loadFromDatabase($db);
+    } catch (\Throwable $e) {
+        // Fallback ai locale hardcoded se la query fallisce (es. installazione
+        // incompleta): stesso comportamento del bootstrap web.
+        logMessage("WARNING: Failed to load languages from database: " . $e->getMessage());
+    }
 
     logMessage("Database connected successfully");
 
@@ -129,7 +144,19 @@ try {
         }
     }
 
-    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + $results['wishlist_notifications'];
+    // M4: recupero delle email 'reservation_book_available' il cui invio era
+    // fallito (prenotazione già 'completata' + notifica_inviata=0). Fuori da
+    // ogni transazione: il metodo invia le email direttamente.
+    $retriedNotifications = 0;
+    try {
+        $reservationManager = new ReservationManager($db);
+        $retriedNotifications = $reservationManager->retryUnsentReservationNotifications();
+        logMessage("- Reservation availability notifications retried: " . $retriedNotifications);
+    } catch (Throwable $e) {
+        logMessage("WARNING: retryUnsentReservationNotifications failed: " . $e->getMessage());
+    }
+
+    $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + $results['wishlist_notifications'] + $retriedNotifications;
     logMessage("Total emails sent: {$totalSent}");
 
     // NOTE: Daily maintenance tasks (loan state transitions, expiry handling) are now

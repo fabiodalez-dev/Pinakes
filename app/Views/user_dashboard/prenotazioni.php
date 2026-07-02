@@ -508,6 +508,16 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
                   <span><?= __("Richiesto il %s", format_date($request['created_at'] ?? 'now', true, '/')) ?></span>
                 </div>
               </div>
+              <form method="post" action="<?= htmlspecialchars(url('/loan/cancel'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm="<?= htmlspecialchars(__('Annullare questa richiesta di prestito?'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm-button="<?= htmlspecialchars(__('Annulla richiesta'), ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
+                <input type="hidden" name="loan_id" value="<?= (int)$request['id']; ?>">
+                <button type="submit" class="btn-cancel">
+                  <i class="fas fa-trash" aria-hidden="true"></i>
+                  <span><?= __("Annulla richiesta") ?></span>
+                </button>
+              </form>
             </div>
           </div>
         </div>
@@ -578,6 +588,20 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
                 <i class="fas fa-star" aria-hidden="true"></i>
                 <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
+              <?php // Annullabile dall'utente solo finché il prestito non è partito:
+                    // 'prenotato' (attivo=1) qui, 'pendente' nella sezione richieste (M13). ?>
+              <?php if ($stato === 'prenotato'): ?>
+              <form method="post" action="<?= htmlspecialchars(url('/loan/cancel'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm="<?= htmlspecialchars(__('Annullare questo prestito programmato?'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm-button="<?= htmlspecialchars(__('Annulla prestito'), ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
+                <input type="hidden" name="loan_id" value="<?= (int)$loan['id']; ?>">
+                <button type="submit" class="btn-cancel">
+                  <i class="fas fa-trash" aria-hidden="true"></i>
+                  <span><?= __("Annulla prestito") ?></span>
+                </button>
+              </form>
+              <?php endif; ?>
             </div>
           </div>
         </div>

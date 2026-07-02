@@ -38,19 +38,54 @@ class MaintenanceService
      * Run all maintenance tasks (if not run recently)
      *
      * Returns early if already run within the cooldown period.
-     * Uses session-based caching to prevent duplicate runs.
+     * Il cooldown vero è un claim atomico su system_settings (L8): la sessione
+     * resta solo come fast-path per evitare la query a ogni request — da sola
+     * non basta, due admin in sessioni diverse eseguirebbero entrambi runAll().
      *
      * @param int $cooldownMinutes Minimum minutes between runs (default: 60)
-     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, ics_generated?: bool, errors?: array} Results or skip status
+     * @return array{skipped?: bool, reason?: string, scheduled_loans_activated?: int, expired_waitlist_reservations?: int, reservations_converted?: int, expired_reservations?: int, expired_pickups?: int, overdue_loans_updated?: int, expiration_warnings?: int, overdue_notifications?: int, wishlist_notifications?: int, reservation_notifications_retried?: int, ics_generated?: bool, errors?: array} Results or skip status
      */
     public function runIfNeeded(int $cooldownMinutes = 60): array
     {
         $cacheKey = 'maintenance_last_run';
         $now = time();
+        $cooldownSeconds = $cooldownMinutes * 60;
 
-        // Check if we ran recently (use session as simple cache)
-        if (isset($_SESSION[$cacheKey]) && ($now - $_SESSION[$cacheKey]) < ($cooldownMinutes * 60)) {
+        // Fast-path: la stessa sessione non ripete nemmeno la query di claim
+        if (isset($_SESSION[$cacheKey]) && ($now - $_SESSION[$cacheKey]) < $cooldownSeconds) {
             return ['skipped' => true, 'reason' => 'cooldown'];
+        }
+
+        // Claim atomico cross-sessione su system_settings (UNIQUE category+setting_key):
+        // il timestamp avanza solo se il cooldown è trascorso, quindi tra N processi
+        // concorrenti solo uno "vince". affected_rows: 1 = INSERT (prima esecuzione),
+        // 2 = UPDATE effettivo (claim riuscito), 0 = valore invariato (claim già
+        // preso da un altro processo dentro il cooldown).
+        try {
+            $nowValue = (string) $now;
+            $threshold = $now - $cooldownSeconds;
+            $stmt = $this->db->prepare("
+                INSERT INTO system_settings (category, setting_key, setting_value)
+                VALUES ('maintenance', 'last_run', ?)
+                ON DUPLICATE KEY UPDATE setting_value = IF(CAST(setting_value AS UNSIGNED) < ?, VALUES(setting_value), setting_value)
+            ");
+            if ($stmt) {
+                $stmt->bind_param('si', $nowValue, $threshold);
+                $stmt->execute();
+                $claimed = $stmt->affected_rows > 0;
+                $stmt->close();
+
+                if (!$claimed) {
+                    // Un altro processo ha già eseguito la manutenzione di recente:
+                    // memorizza il cooldown anche in sessione per il fast-path.
+                    $_SESSION[$cacheKey] = $now;
+                    return ['skipped' => true, 'reason' => 'cooldown'];
+                }
+            }
+        } catch (\Throwable $e) {
+            // Claim non determinabile (es. tabella mancante durante l'installazione):
+            // fail-open sul solo guard di sessione, la manutenzione è idempotente.
+            SecureLogger::warning(__('MaintenanceService claim cooldown fallito'), ['error' => $e->getMessage()]);
         }
 
         // Mark as running
@@ -66,7 +101,7 @@ class MaintenanceService
      * overdue loan updates, expired pickups, notifications, and ICS calendar generation.
      * Each task is wrapped in try-catch to prevent failures from blocking others.
      *
-     * @return array{scheduled_loans_activated: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, ics_generated: bool, errors: array} Results for each maintenance task
+     * @return array{scheduled_loans_activated: int, expired_waitlist_reservations: int, reservations_converted: int, expired_reservations: int, expired_pickups: int, overdue_loans_updated: int, expiration_warnings: int, overdue_notifications: int, wishlist_notifications: int, reservation_notifications_retried: int, ics_generated: bool, errors: array} Results for each maintenance task
      */
     public function runAll(): array
     {
@@ -80,6 +115,7 @@ class MaintenanceService
             'expiration_warnings' => 0,
             'overdue_notifications' => 0,
             'wishlist_notifications' => 0,
+            'reservation_notifications_retried' => 0,
             'ics_generated' => false,
             'errors' => []
         ];
@@ -139,6 +175,17 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'runNotifications: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore notifiche'), ['error' => $e->getMessage()]);
+        }
+
+        // M4: recupero delle email 'reservation_book_available' il cui invio era
+        // fallito (prenotazione già 'completata' + notifica_inviata=0: nessun
+        // altro codice le rilegge). FUORI da ogni transazione: invia direttamente.
+        try {
+            $reservationManager = new \App\Controllers\ReservationManager($this->db);
+            $results['reservation_notifications_retried'] = $reservationManager->retryUnsentReservationNotifications();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'retryUnsentReservationNotifications: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore recupero notifiche prenotazione'), ['error' => $e->getMessage()]);
         }
 
         // Best-effort plugin push dispatch (Mobile API): fire AFTER the email
@@ -234,14 +281,19 @@ class MaintenanceService
      */
     public function activateScheduledLoans(): int
     {
+        // "Oggi" nel timezone applicativo come parametro bound (M9): CURDATE()
+        // dipende dalla session timezone del client DB, che differiva tra cron
+        // (UTC forzato) e web (nessuna impostazione).
+        $today = DateHelper::today();
+
         // Find all scheduled loans that should be activated. data_scadenza >= today
         // guard (BUG8/D13): never promote a reservation whose whole window is already
         // past into 'da_ritirare' — its expiry cron culls it instead.
         $stmt = $this->db->prepare("
-            SELECT id, copia_id, libro_id FROM prestiti
+            SELECT id, copia_id, libro_id, data_scadenza FROM prestiti
             WHERE stato = 'prenotato'
-            AND data_prestito <= CURDATE()
-            AND data_scadenza >= CURDATE()
+            AND data_prestito <= ?
+            AND data_scadenza >= ?
             AND attivo = 1
         ");
 
@@ -249,6 +301,7 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare scheduled loans query');
         }
 
+        $stmt->bind_param('ss', $today, $today);
         $stmt->execute();
         $result = $stmt->get_result();
         $scheduledLoans = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
@@ -266,17 +319,23 @@ class MaintenanceService
             $this->db->begin_transaction();
 
             try {
-                // Calculate pickup deadline
-                $pickupDeadline = date('Y-m-d', strtotime("+{$pickupDays} days"));
+                // Calculate pickup deadline dal "oggi" applicativo, cappata a
+                // data_scadenza (L1): senza il cap un prestito con finestra corta
+                // restava ritirabile (e la copia bloccata) oltre la fine del
+                // prestito stesso.
+                $pickupDeadline = date('Y-m-d', strtotime($today . " +{$pickupDays} days"));
+                if (!empty($loan['data_scadenza']) && $loan['data_scadenza'] < $pickupDeadline) {
+                    $pickupDeadline = $loan['data_scadenza'];
+                }
 
                 // Update loan status to da_ritirare with pickup deadline
                 // State guard: only update if still in 'prenotato' state (prevents race with confirmPickup)
                 $updateStmt = $this->db->prepare("
                     UPDATE prestiti
                     SET stato = 'da_ritirare', pickup_deadline = ?
-                    WHERE id = ? AND stato = 'prenotato' AND data_scadenza >= CURDATE()
+                    WHERE id = ? AND stato = 'prenotato' AND data_scadenza >= ?
                 ");
-                $updateStmt->bind_param('si', $pickupDeadline, $loan['id']);
+                $updateStmt->bind_param('sis', $pickupDeadline, $loan['id'], $today);
                 $updateStmt->execute();
                 $affectedRows = $updateStmt->affected_rows;
                 $updateStmt->close();
@@ -361,16 +420,17 @@ class MaintenanceService
         $stmt->close();
 
         $convertedCount = 0;
-        $processedBooks = []; // Track which books we've already processed a reservation for
+        $processedBooks = []; // Track which books we've already processed in this run
 
         foreach ($reservations as $reservation) {
             $bookId = (int)$reservation['libro_id'];
 
-            // Only process one reservation per book per run (the first in queue)
-            // This prevents converting multiple reservations when only one copy is available
+            // Each book is handled once per run: the inner loop below promotes
+            // every eligible reservation for it, so later rows are redundant
             if (isset($processedBooks[$bookId])) {
                 continue;
             }
+            $processedBooks[$bookId] = true;
 
             $this->db->begin_transaction();
 
@@ -387,20 +447,23 @@ class MaintenanceService
                 }
                 $lockStmt->close();
 
-                // Use ReservationManager to process the reservation
-                // processBookAvailability() will find the first date-eligible reservation in queue
-                // and convert it to a loan if a copy is available
+                // Use ReservationManager to process the reservations: loop "finché
+                // converte" come negli altri release-path (checkExpiredPickups, L2).
+                // Prima si convertiva al massimo una prenotazione per libro per run:
+                // con 3 copie libere e 3 prenotazioni eleggibili servivano 3 giorni.
                 $reservationManager = new \App\Controllers\ReservationManager($this->db);
                 $reservationManager->setExternalTransaction(true); // TXN-003: siamo già in transazione
-                $success = $reservationManager->processBookAvailability($bookId);
+                $bookConverted = 0;
+                for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($bookId); $promoGuard++) {
+                    $bookConverted++;
+                }
 
-                if ($success) {
+                if ($bookConverted > 0) {
                     $this->db->commit();
-                    $convertedCount++;
-                    $processedBooks[$bookId] = true;
+                    $convertedCount += $bookConverted;
 
-                    // P2: invia la notifica reservation_book_available accodata durante la
-                    // transazione esterna, ora che il commit è avvenuto.
+                    // P2: invia le notifiche reservation_book_available accodate durante
+                    // la transazione esterna, ora che il commit è avvenuto.
                     try {
                         $reservationManager->flushDeferredNotifications();
                     } catch (\Throwable $e) {
@@ -408,8 +471,8 @@ class MaintenanceService
                     }
 
                     SecureLogger::info(__('MaintenanceService prenotazione convertita in prestito'), [
-                        'prenotazione_id' => $reservation['id'],
-                        'libro_id' => $bookId
+                        'libro_id' => $bookId,
+                        'convertite' => $bookConverted
                     ]);
                 } else {
                     // No copy available yet, rollback and continue
@@ -419,7 +482,7 @@ class MaintenanceService
             } catch (\Throwable $e) {
                 $this->db->rollback();
                 SecureLogger::error(__('MaintenanceService errore elaborazione prenotazione'), [
-                    'prenotazione_id' => $reservation['id'],
+                    'libro_id' => $bookId,
                     'error' => $e->getMessage()
                 ]);
             }
@@ -744,11 +807,16 @@ class MaintenanceService
      */
     public function updateOverdueLoans(): int
     {
+        // "Oggi" nel timezone applicativo come parametro bound (M9): con CURDATE()
+        // lo stesso runAll() valutava le scadenze prenotazione con l'oggi
+        // applicativo e i ritardi con l'oggi della session timezone DB.
+        $today = DateHelper::today();
+
         $stmt = $this->db->prepare("
             UPDATE prestiti
             SET stato = 'in_ritardo'
             WHERE stato = 'in_corso'
-            AND data_scadenza < CURDATE()
+            AND data_scadenza < ?
             AND attivo = 1
         ");
 
@@ -756,6 +824,7 @@ class MaintenanceService
             throw new \RuntimeException('Failed to prepare overdue loans query');
         }
 
+        $stmt->bind_param('s', $today);
         $stmt->execute();
         $affected = $this->db->affected_rows;
         $stmt->close();

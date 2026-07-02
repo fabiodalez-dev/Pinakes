@@ -321,11 +321,37 @@ class CopyController
             return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
         }
 
-        // Elimina la copia
-        $stmt = $db->prepare("DELETE FROM copie WHERE id = ?");
+        // Anche i prestiti CHIUSI referenziano copia_id e il FK fk_prestiti_copia
+        // è ON DELETE RESTRICT: senza questo check la DELETE esplode con
+        // mysqli_sql_exception (500). Una copia con storico non si elimina, si
+        // mette fuori circolazione cambiandone lo stato.
+        $stmt = $db->prepare("SELECT 1 FROM prestiti WHERE copia_id = ? LIMIT 1");
         $stmt->bind_param('i', $copyId);
         $stmt->execute();
+        $hasHistory = (bool) $stmt->get_result()->fetch_row();
         $stmt->close();
+
+        if ($hasHistory) {
+            $_SESSION['error_message'] = __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.');
+            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+        }
+
+        // Elimina la copia. Difesa in profondità: un prestito creato tra il check
+        // e la DELETE fa comunque scattare il FK — intercetta e degrada a errore
+        // gestito invece di propagare un 500.
+        try {
+            $stmt = $db->prepare("DELETE FROM copie WHERE id = ?");
+            $stmt->bind_param('i', $copyId);
+            $stmt->execute();
+            $stmt->close();
+        } catch (\mysqli_sql_exception $e) {
+            // 1451 = Cannot delete or update a parent row (vincolo FK)
+            if ((int) $e->getCode() !== 1451) {
+                throw $e;
+            }
+            $_SESSION['error_message'] = __('Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.');
+            return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
+        }
 
         // Ricalcola disponibilità del libro
         $integrity = new \App\Support\DataIntegrity($db);

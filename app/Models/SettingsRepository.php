@@ -34,16 +34,20 @@ class SettingsRepository
             throw new RuntimeException('Unable to ensure system_settings table: ' . $this->db->error);
         }
 
+        // Stessa forma di installer/database/schema.sql: la chiave è (name, locale)
+        // perché l'invio risolve i template per locale di installazione (M8).
         $emailTemplatesSql = "
             CREATE TABLE IF NOT EXISTS email_templates (
                 id INT PRIMARY KEY AUTO_INCREMENT,
-                name VARCHAR(100) NOT NULL UNIQUE,
+                name VARCHAR(100) NOT NULL,
+                locale VARCHAR(10) NOT NULL DEFAULT 'it_IT',
                 subject VARCHAR(255) NOT NULL,
                 body LONGTEXT NOT NULL,
                 description TEXT,
                 active TINYINT(1) DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY name_locale (name, locale)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
         ";
         if ($this->db->query($emailTemplatesSql) === false) {
@@ -105,10 +109,11 @@ class SettingsRepository
     /**
      * @param array<string, array{subject:string, body:string, description?:string}> $templates
      */
-    public function ensureEmailTemplates(array $templates): void
+    public function ensureEmailTemplates(array $templates, ?string $locale = null): void
     {
+        $locale = $this->resolveTemplateLocale($locale);
         foreach ($templates as $name => $template) {
-            $existing = $this->getEmailTemplate($name);
+            $existing = $this->getEmailTemplate($name, $locale);
             if ($existing !== null) {
                 continue;
             }
@@ -117,15 +122,17 @@ class SettingsRepository
                 $template['subject'],
                 $template['body'],
                 $template['description'] ?? null,
-                true
+                true,
+                $locale
             );
         }
     }
 
-    public function getEmailTemplate(string $name): ?array
+    public function getEmailTemplate(string $name, ?string $locale = null): ?array
     {
-        $stmt = $this->prepare('SELECT name, subject, body, description, active FROM email_templates WHERE name = ? LIMIT 1');
-        $stmt->bind_param('s', $name);
+        $locale = $this->resolveTemplateLocale($locale);
+        $stmt = $this->prepare('SELECT name, locale, subject, body, description, active FROM email_templates WHERE name = ? AND locale = ? LIMIT 1');
+        $stmt->bind_param('ss', $name, $locale);
         $stmt->execute();
         $result = $stmt->get_result();
         $row = $result->fetch_assoc();
@@ -136,20 +143,25 @@ class SettingsRepository
 
     /**
      * @param string[] $names
-     * @return array<string, array{name:string,subject:string,body:string,description:?string,active:int}>
+     * @return array<string, array{name:string,locale:string,subject:string,body:string,description:?string,active:int}>
      */
-    public function getEmailTemplates(array $names = []): array
+    public function getEmailTemplates(array $names = [], ?string $locale = null): array
     {
+        $locale = $this->resolveTemplateLocale($locale);
         $stmt = null;
         if (empty($names)) {
-            $sql = 'SELECT name, subject, body, description, active FROM email_templates ORDER BY name';
-            $result = $this->db->query($sql);
+            $sql = 'SELECT name, locale, subject, body, description, active FROM email_templates WHERE locale = ? ORDER BY name';
+            $stmt = $this->prepare($sql);
+            $stmt->bind_param('s', $locale);
+            $stmt->execute();
+            $result = $stmt->get_result();
         } else {
             $placeholders = implode(',', array_fill(0, count($names), '?'));
-            $sql = 'SELECT name, subject, body, description, active FROM email_templates WHERE name IN (' . $placeholders . ') ORDER BY name';
+            $sql = 'SELECT name, locale, subject, body, description, active FROM email_templates WHERE name IN (' . $placeholders . ') AND locale = ? ORDER BY name';
             $stmt = $this->prepare($sql);
-            $types = str_repeat('s', count($names));
-            $stmt->bind_param($types, ...$names);
+            $types = str_repeat('s', count($names)) . 's';
+            $params = array_merge($names, [$locale]);
+            $stmt->bind_param($types, ...$params);
             $stmt->execute();
             $result = $stmt->get_result();
         }
@@ -171,13 +183,28 @@ class SettingsRepository
         return $templates;
     }
 
-    public function saveEmailTemplate(string $name, string $subject, string $body, ?string $description = null, bool $active = true): void
+    public function saveEmailTemplate(string $name, string $subject, string $body, ?string $description = null, bool $active = true, ?string $locale = null): void
     {
-        $stmt = $this->prepare('INSERT INTO email_templates (name, subject, body, description, active) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE subject = VALUES(subject), body = VALUES(body), description = VALUES(description), active = VALUES(active)');
+        $locale = $this->resolveTemplateLocale($locale);
+        $stmt = $this->prepare('INSERT INTO email_templates (name, locale, subject, body, description, active) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE subject = VALUES(subject), body = VALUES(body), description = VALUES(description), active = VALUES(active)');
         $activeInt = $active ? 1 : 0;
-        $stmt->bind_param('ssssi', $name, $subject, $body, $description, $activeInt);
+        $stmt->bind_param('sssssi', $name, $locale, $subject, $body, $description, $activeInt);
         $stmt->execute();
         $stmt->close();
+    }
+
+    /**
+     * Locale predefinito per letture/scritture dell'editor template (M8):
+     * deve coincidere con quello usato dall'invio (EmailService legge
+     * (name, locale_installazione)), altrimenti su installazioni non italiane
+     * le modifiche admin finiscono su righe it_IT mai lette dall'invio.
+     */
+    private function resolveTemplateLocale(?string $locale): string
+    {
+        if ($locale !== null && $locale !== '') {
+            return $locale;
+        }
+        return \App\Support\I18n::getInstallationLocale();
     }
 
     private function prepare(string $sql): mysqli_stmt

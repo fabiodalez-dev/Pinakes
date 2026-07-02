@@ -110,8 +110,22 @@ try {
 
     $db->set_charset($cfg['charset']);
 
-    // Set timezone to UTC for consistency with main application
-    $db->query("SET SESSION time_zone = '+00:00'");
+    // Niente SET SESSION time_zone (M9): la coerenza sul giorno è garantita dai
+    // parametri PHP calcolati con DateHelper nel timezone applicativo; il web non
+    // imposta alcuna session timezone, quindi forzare UTC nel solo cron creava
+    // due regimi diversi per gli stessi confronti di data.
+
+    // Bootstrap I18n con il locale di installazione, come fa public/index.php per
+    // il web (H4): in CLI il locale resterebbe il default statico it_IT e le email
+    // cron uscirebbero in italiano — o fallirebbero del tutto per i template senza
+    // default hardcoded — sulle installazioni non italiane.
+    try {
+        \App\Support\I18n::loadFromDatabase($db);
+    } catch (\Throwable $e) {
+        // Fallback ai locale hardcoded se la query fallisce (es. installazione
+        // incompleta): stesso comportamento del bootstrap web.
+        logMessage("WARNING: Failed to load languages from database: " . $e->getMessage());
+    }
 
     logMessage("Database connected successfully");
 
@@ -137,6 +151,7 @@ try {
     logMessage("  - Expiration warnings: " . $results['expiration_warnings']);
     logMessage("  - Overdue notifications: " . $results['overdue_notifications']);
     logMessage("  - Wishlist notifications: " . $results['wishlist_notifications']);
+    logMessage("  - Reservation availability notifications retried: " . $results['reservation_notifications_retried']);
 
     if (!empty($results['errors'])) {
         logMessage("Errors encountered during maintenance:");

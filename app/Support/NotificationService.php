@@ -373,19 +373,24 @@ class NotificationService {
             // Get configured days before expiry warning (default: 3)
             $daysBeforeWarning = (int)ConfigStore::get('advanced.days_before_expiry_warning', 3);
 
+            // "Oggi" nel timezone applicativo come parametro bound (M9): CURDATE()
+            // dipende dalla session timezone del client DB, che differiva tra cron
+            // (UTC forzato) e web (nessuna impostazione).
+            $today = DateHelper::today();
+
             // Get loans expiring in X days
             $stmt = $this->db->prepare("
                 SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
-                       DATEDIFF(p.data_scadenza, CURDATE()) as giorni_rimasti
+                       DATEDIFF(p.data_scadenza, ?) as giorni_rimasti
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato = 'in_corso'
-                  AND p.data_scadenza = DATE_ADD(CURDATE(), INTERVAL ? DAY)
+                  AND p.data_scadenza = DATE_ADD(?, INTERVAL ? DAY)
                   AND (p.warning_sent IS NULL OR p.warning_sent = 0)
             ");
-            $stmt->bind_param('i', $daysBeforeWarning);
+            $stmt->bind_param('ssi', $today, $today, $daysBeforeWarning);
             $stmt->execute();
             $result = $stmt->get_result();
 
@@ -423,8 +428,8 @@ class NotificationService {
                     // Create in-app notification for expiring loan
                     $this->createNotification(
                         'general',
-                        'Prestito in scadenza',
-                        sprintf('"%s" prestato a %s scade fra %d giorni', $loan['libro_titolo'], $loan['utente_nome'], (int)$loan['giorni_rimasti']),
+                        __('Prestito in scadenza'),
+                        sprintf(__('"%s" prestato a %s scade fra %d giorni'), $loan['libro_titolo'], $loan['utente_nome'], (int)$loan['giorni_rimasti']),
                         '/admin/loans',
                         (int)$loan['id']
                     );
@@ -454,18 +459,24 @@ class NotificationService {
         $sentCount = 0;
 
         try {
+            // "Oggi" nel timezone applicativo come parametro bound (M9): CURDATE()
+            // dipende dalla session timezone del client DB, che differiva tra cron
+            // (UTC forzato) e web (nessuna impostazione).
+            $today = DateHelper::today();
+
             // Get overdue loans
             $stmt = $this->db->prepare("
                 SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
-                       DATEDIFF(CURDATE(), p.data_scadenza) as giorni_ritardo
+                       DATEDIFF(?, p.data_scadenza) as giorni_ritardo
                 FROM prestiti p
                 JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato IN ('in_corso', 'in_ritardo')
-                  AND p.data_scadenza < CURDATE()
+                  AND p.data_scadenza < ?
                   AND (p.overdue_notification_sent IS NULL OR p.overdue_notification_sent = 0)
             ");
+            $stmt->bind_param('ss', $today, $today);
             $stmt->execute();
             $result = $stmt->get_result();
 
@@ -478,8 +489,12 @@ class NotificationService {
 
             foreach ($loans as $loan) {
                 // ATOMIC: Mark notification as sent BEFORE sending email
-                // Only proceed if we successfully claimed this loan (affected_rows == 1)
-                $updateStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 1, stato = 'in_ritardo' WHERE id = ? AND (overdue_notification_sent IS NULL OR overdue_notification_sent = 0)");
+                // Only proceed if we successfully claimed this loan (affected_rows == 1).
+                // Guardia di stato (M3): il loop di invio (retry SMTP con sleep) può
+                // durare minuti dopo la SELECT — senza il filtro su attivo/stato il
+                // claim riporterebbe in 'in_ritardo' un prestito restituito nel
+                // frattempo (attivo=0 + stato in_ritardo: combinazione invalida).
+                $updateStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 1, stato = 'in_ritardo' WHERE id = ? AND (overdue_notification_sent IS NULL OR overdue_notification_sent = 0) AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')");
                 $updateStmt->bind_param('i', $loan['id']);
                 $updateStmt->execute();
                 $claimed = $updateStmt->affected_rows === 1;
@@ -511,12 +526,15 @@ class NotificationService {
                     );
                     $sentCount++;
                 } else {
-                    // Email failed after retries, revert both flag and stato so it can be retried next run
-                    $revertStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 0, stato = 'in_corso' WHERE id = ?");
+                    // Email failed after retries: revert ONLY the flag so the next run
+                    // retries the send. Lo stato resta 'in_ritardo' (il prestito è
+                    // genuinamente in ritardo) e la guardia di stato evita di toccare
+                    // un prestito restituito nel frattempo (M3).
+                    $revertStmt = $this->db->prepare("UPDATE prestiti SET overdue_notification_sent = 0 WHERE id = ? AND attivo = 1 AND stato = 'in_ritardo'");
                     $revertStmt->bind_param('i', $loan['id']);
                     $revertStmt->execute();
                     $revertStmt->close();
-                    SecureLogger::warning("Failed to send overdue notification for loan {$loan['id']} after retries, flags reverted");
+                    SecureLogger::warning("Failed to send overdue notification for loan {$loan['id']} after retries, flag reverted");
                 }
             }
 
@@ -552,8 +570,8 @@ class NotificationService {
                 'libro_titolo' => $loan['libro_titolo'],
                 'utente_nome' => $loan['utente_nome'],
                 'utente_email' => $loan['utente_email'],
-                'data_scadenza' => $loan['data_scadenza'],
-                'data_prestito' => $loan['data_prestito'],
+                'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
+                'data_prestito' => $this->formatEmailDate($loan['data_prestito']),
             ];
 
             // Usa sendToAdmins (template dal DB email_templates con fallback) come tutti
@@ -733,7 +751,9 @@ class NotificationService {
      * - Active reservations overlapping with today
      */
     public function hasActualAvailableCopy(int $bookId): bool {
-        $today = date('Y-m-d');
+        // App-timezone "today" (M9): date() usa la timezone del processo (spesso UTC)
+        // e a cavallo della mezzanotte sbaglierebbe il giorno di confronto.
+        $today = DateHelper::today();
 
         // Count total loanable copies (exclude non-lendable states)
         // This matches the logic in ReservationManager and other availability checks
@@ -786,7 +806,8 @@ class NotificationService {
      * @return string|null Date in Y-m-d format, or null if no loans/reservations
      */
     public function getNextAvailabilityDate(int $bookId): ?string {
-        $today = date('Y-m-d');
+        // App-timezone "today" (M9), come hasActualAvailableCopy().
+        $today = DateHelper::today();
 
         // First check if book is already available
         if ($this->hasActualAvailableCopy($bookId)) {
@@ -1167,7 +1188,7 @@ class NotificationService {
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
-                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? date('Y-m-d')),
+                'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today()),
             ];
 
             return $this->emailService->sendTemplate($loan['utente_email'], 'loan_returned', $variables);
@@ -1204,7 +1225,7 @@ class NotificationService {
                 return false;
             }
 
-            $scadenza = $loan['data_scadenza'] ?? ($loan['pickup_deadline'] ?? date('Y-m-d'));
+            $scadenza = $loan['data_scadenza'] ?? ($loan['pickup_deadline'] ?? DateHelper::today());
             $variables = [
                 'utente_nome' => $loan['utente_nome'],
                 'libro_titolo' => $loan['libro_titolo'],
@@ -1226,6 +1247,33 @@ class NotificationService {
             return false;
         }
         return $this->emailService->sendTemplate($email, 'copy_unavailable_user', $variables);
+    }
+
+    /**
+     * Notifica all'utente la scadenza automatica di una prenotazione in coda (M11):
+     * prima l'annullamento da cancelExpiredReservations() era del tutto silenzioso.
+     * Variabili attese: utente_nome, libro_titolo, data_scadenza (raw: viene
+     * formattata qui con formatEmailDate).
+     */
+    public function sendQueueReservationExpiredNotification(string $email, array $variables): bool {
+        if (empty($email)) {
+            return false;
+        }
+        if (!empty($variables['data_scadenza'])) {
+            $variables['data_scadenza'] = $this->formatEmailDate((string)$variables['data_scadenza']);
+        }
+        return $this->emailService->sendTemplate($email, 'reservation_expired', $variables);
+    }
+
+    /**
+     * Notifica all'utente l'annullamento di una prenotazione da parte dell'admin (M11).
+     * Variabili attese: utente_nome, libro_titolo, motivo.
+     */
+    public function sendReservationCancelledNotification(string $email, array $variables): bool {
+        if (empty($email)) {
+            return false;
+        }
+        return $this->emailService->sendTemplate($email, 'reservation_cancelled', $variables);
     }
 
     /**
