@@ -663,11 +663,14 @@ class PrestitiController
         $newPrestito = (string) ($updateData['data_prestito'] ?? $current['data_prestito']);
         $newScadenza = (string) ($updateData['data_scadenza'] ?? $current['data_scadenza']);
 
-        // Valida il range date (M6a): una scadenza non successiva alla partenza
-        // creerebbe un intervallo vuoto/invertito che nessun predicato di overlap
-        // intercetta. Errore dedicato, mai un 500.
+        // Valida il range date (M6a): una scadenza precedente alla partenza
+        // creerebbe un intervallo invertito che nessun predicato di overlap
+        // intercetta. Errore dedicato, mai un 500. La parità (prestito a
+        // giornata singola) è lecita: createReservation accetta end == start,
+        // quindi un rifiuto strettamente esclusivo renderebbe immodificabili
+        // i prestiti a giornata nati dal calendario utente.
         if (strtotime($newScadenza) === false || strtotime($newPrestito) === false
-            || strtotime($newScadenza) <= strtotime($newPrestito)) {
+            || strtotime($newScadenza) < strtotime($newPrestito)) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
         }
 

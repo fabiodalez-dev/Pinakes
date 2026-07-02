@@ -1002,6 +1002,10 @@ final class ActionsController
                 return ResponseEnvelope::error($response, 'not_available', __('Il libro non è disponibile per il periodo richiesto.'), 409);
             case 'max_loans_reached':
                 return ResponseEnvelope::error($response, 'max_loans_reached', __('Hai raggiunto il numero massimo di prestiti attivi.'), 409);
+            case 'not_eligible':
+                // Guardia di idoneità M7 (utente sospeso o tessera scaduta):
+                // condizione permanente lato utente, mai un errore server.
+                return ResponseEnvelope::error($response, 'not_eligible', __('Non sei idoneo al prestito: account sospeso o tessera scaduta.'), 403);
             case 'book_not_found':
                 return ResponseEnvelope::error($response, 'not_found', __('Libro non trovato.'), 404);
             case 'past_date':

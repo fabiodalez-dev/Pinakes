@@ -613,13 +613,20 @@ class EmailService {
 
         $langCode = substr($locale, 0, 2); // it_IT -> it, en_US -> en
 
+        // Il subject arriva NON escapato (L3: come header MIME non deve
+        // contenere entità HTML), ma qui viene interpolato nel markup del
+        // corpo: l'escaping va fatto a questo sink, altrimenti una variabile
+        // con metacaratteri HTML (es. {{libro_titolo}}) inietterebbe markup
+        // nel documento dell'email.
+        $titleHtml = htmlspecialchars($subject, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
         return "
         <!DOCTYPE html>
         <html lang='{$langCode}'>
         <head>
             <meta charset='UTF-8'>
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>{$subject}</title>
+            <title>{$titleHtml}</title>
         </head>
         <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
             <div style='background-color: #f8fafc; border-radius: 10px; padding: 30px; margin-bottom: 20px;'>

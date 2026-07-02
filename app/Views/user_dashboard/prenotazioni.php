@@ -278,6 +278,29 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
     gap: 1rem;
   }
 
+  .alert-outcome {
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .alert-outcome--success {
+    background: #ecfdf5;
+    border: 2px solid #a7f3d0;
+    color: #065f46;
+  }
+
+  .alert-outcome--error {
+    background: #fef2f2;
+    border: 2px solid #fecaca;
+    color: #991b1b;
+  }
+
   .alert-overdue-icon {
     flex-shrink: 0;
     width: 48px;
@@ -446,6 +469,43 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 </style>
 
 <div class="loans-container">
+  <?php
+    // Esito delle azioni POST (M13): cancelLoan/cancelReservation/
+    // changeReservationDate redirigono qui con l'esito in query string;
+    // senza questi banner un annullamento fallito (es. prestito nel
+    // frattempo convertito in 'in_corso' dall'admin) era un fallimento
+    // silenzioso: pagina ricaricata, nessuna spiegazione all'utente.
+    $outcomeSuccess = null;
+    if (isset($_GET['canceled'])) {
+        $outcomeSuccess = __('Annullamento effettuato correttamente.');
+    } elseif (isset($_GET['updated'])) {
+        $outcomeSuccess = __('Prenotazione aggiornata correttamente.');
+    }
+    $outcomeError = null;
+    if (isset($_GET['error'])) {
+        $outcomeErrorMessages = [
+            'not_found' => __('Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.'),
+            'past_date' => __('La data richiesta è nel passato.'),
+            'not_available' => __('Il libro non è disponibile per il periodo richiesto.'),
+            'book_not_found' => __('Libro non trovato.'),
+        ];
+        $outcomeError = $outcomeErrorMessages[(string) $_GET['error']]
+            ?? __('Si è verificato un errore. Riprova più tardi.');
+    }
+  ?>
+
+  <?php if ($outcomeSuccess !== null): ?>
+    <div class="alert-outcome alert-outcome--success" role="status">
+      <i class="fas fa-check-circle" aria-hidden="true"></i>
+      <span><?= HtmlHelper::e($outcomeSuccess); ?></span>
+    </div>
+  <?php elseif ($outcomeError !== null): ?>
+    <div class="alert-outcome alert-outcome--error" role="alert">
+      <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+      <span><?= HtmlHelper::e($outcomeError); ?></span>
+    </div>
+  <?php endif; ?>
+
   <?php
     $overdueCount = 0;
     foreach ($activePrestiti as $loan) {

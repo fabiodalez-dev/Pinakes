@@ -80,6 +80,44 @@ function getStatusBadge($status) {
       </div>
     <?php endif; ?>
 
+    <?php // Banner d'errore per i redirect di update()/close() verso questa pagina:
+          // senza rendering il fallimento (es. range date invertito) resterebbe silenzioso. ?>
+    <?php if(isset($_GET['error'])): ?>
+      <div class="mb-6 p-4 bg-red-50 text-red-800 rounded-lg border border-red-200 slide-in-up" role="alert">
+        <div class="flex items-center gap-2">
+          <i class="fas fa-exclamation-circle"></i>
+          <span>
+            <?php
+            // Normalizza prima dello switch: ?error[]=x arriverebbe come array (warning PHP 8).
+            $errorKey = is_scalar($_GET['error']) ? (string) $_GET['error'] : '';
+            switch ($errorKey) {
+                case 'invalid_dates':
+                    // La parità (prestito a giornata singola) è lecita: solo il range invertito è rifiutato.
+                    echo __('Errore: la data di scadenza non può essere precedente alla data di prestito.');
+                    break;
+                case 'loan_closed':
+                    echo __('Il prestito è già chiuso: la modifica non è stata salvata.');
+                    break;
+                case 'duplicate_reservation':
+                    echo __('Questo utente ha già un prestito o una prenotazione attiva per questo libro.');
+                    break;
+                case 'user_not_found':
+                case 'user_suspended':
+                case 'card_expired':
+                    echo \App\Support\LoanEligibility::errorMessage($errorKey);
+                    break;
+                case 'loan_not_closable':
+                    echo __('Prestito non trovato o non chiudibile.');
+                    break;
+                default:
+                    echo __('Errore durante l\'aggiornamento del prestito.');
+            }
+            ?>
+          </span>
+        </div>
+      </div>
+    <?php endif; ?>
+
     <?php if($pdfIdForDownload > 0): ?>
     <script>
     // Auto-trigger PDF download after loan creation
