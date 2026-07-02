@@ -32,6 +32,24 @@ jobs:
     name: Static quality checks
     runs-on: ubuntu-latest
 
+    # MySQL for the DB-backed unit tests (migration-*, book-field-types,
+    # loan-edge-cases, session-fixes). Without it those tests can't read a DB
+    # and would abort — the migration behavioural tests are mandatory per
+    # updater.md, so CI provides a real database instead of skipping them.
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: pinakes_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
     steps:
       - uses: actions/checkout@v4
 
@@ -39,6 +57,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
+          extensions: mysqli, pdo_mysql
           coverage: none
           github-token: ''
 
@@ -205,6 +224,29 @@ jobs:
           done
           [ "$FAILED" -eq 0 ] && echo "✓ Tutte le migration hanno versione ≤ $TARGET" || exit 1
 
+      # DB-backed unit tests (migration-*, book-field-types, loan-edge-cases,
+      # session-fixes) read credentials from .env and connect over TCP. Provide
+      # a CI .env pointing at the MySQL service and load the base schema so the
+      # migration behavioural tests run against a real, current-schema database.
+      - name: Prepare DB for unit tests (.env + schema)
+        run: |
+          cat > .env <<'ENVEOF'
+          DB_HOST=127.0.0.1
+          DB_PORT=3306
+          DB_USER=root
+          DB_PASS=root
+          DB_NAME=pinakes_test
+          ENVEOF
+          # Wait until MySQL answers, then import the base schema + triggers.
+          for i in $(seq 1 30); do
+            mysql -h 127.0.0.1 -u root -proot -e "SELECT 1" >/dev/null 2>&1 && break
+            sleep 2
+          done
+          mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/schema.sql
+          # Copy-occupancy triggers live in a separate file (DELIMITER-based); the
+          # mysql CLI handles DELIMITER natively. loan-edge-cases relies on them.
+          mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/triggers.sql
+
       - name: PHP unit tests (standalone .unit.php)
         run: |
           FAILED=0
@@ -214,3 +256,7 @@ jobs:
             php "$t" || FAILED=1
           done
           [ "$FAILED" -eq 0 ] && echo "✓ Tutti gli unit test PHP passati" || { echo "✗ Unit test PHP falliti"; exit 1; }
+
+      - name: Remove CI .env
+        if: always()
+        run: rm -f .env

@@ -60,9 +60,20 @@ $env    = loadEnv($root . '/.env');
 $dbName = $env['DB_NAME'] ?? '';
 $dbUser = $env['DB_USER'] ?? '';
 $dbPass = $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '');
-$socket = '/opt/homebrew/var/mysql/mysql.sock';
-
-$db = new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket);
+// Socket/host configurabili (CI non ha il socket Homebrew di macOS):
+// E2E_DB_SOCKET > .env DB_SOCKET > default macOS; se il socket non esiste,
+// fallback TCP su DB_HOST/DB_PORT. DB irraggiungibile => SKIP, non FAIL.
+$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
+try {
+    if (is_string($socket) && $socket !== '' && file_exists($socket)) {
+        $db = new mysqli(null, $dbUser, $dbPass, $dbName, 0, $socket);
+    } else {
+        $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $dbUser, $dbPass, $dbName, (int) ($env['DB_PORT'] ?? 3306));
+    }
+} catch (\Throwable $e) {
+    echo "SKIP: database not reachable (" . $e->getMessage() . ")\n";
+    exit(0);
+}
 $db->set_charset('utf8mb4');
 
 /* --------------------------------------------------------------------------

@@ -46,14 +46,23 @@ function migLoadEnv(string $path): array
 }
 
 $env = migLoadEnv($root . '/.env');
-$db = new mysqli(
-    null,
-    $env['DB_USER'] ?? '',
-    $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''),
-    $env['DB_NAME'] ?? '',
-    0,
-    '/opt/homebrew/var/mysql/mysql.sock'
-);
+// Socket/host configurabili (CI non ha il socket Homebrew di macOS):
+// E2E_DB_SOCKET > .env DB_SOCKET > default macOS; se il socket non esiste,
+// fallback TCP su DB_HOST/DB_PORT. DB irraggiungibile => SKIP, non FAIL.
+$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
+$user = $env['DB_USER'] ?? '';
+$pass = $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '');
+$name = $env['DB_NAME'] ?? '';
+try {
+    if (is_string($socket) && $socket !== '' && file_exists($socket)) {
+        $db = new mysqli(null, $user, $pass, $name, 0, $socket);
+    } else {
+        $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $user, $pass, $name, (int) ($env['DB_PORT'] ?? 3306));
+    }
+} catch (\Throwable $e) {
+    echo "SKIP: database not reachable (" . $e->getMessage() . ")\n";
+    exit(0);
+}
 $db->set_charset('utf8mb4');
 
 const SANDBOX = 'zz_mig_libri';
