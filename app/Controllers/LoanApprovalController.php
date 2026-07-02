@@ -244,6 +244,14 @@ class LoanApprovalController
             // M7 — gate di idoneità anche in APPROVAZIONE: l'utente può essere
             // stato sospeso (o la tessera può essere scaduta) tra la richiesta e
             // l'approvazione admin. Stesso gate usato da store()/createReservation.
+            // Lock della riga utente PRIMA del check (come store()): senza,
+            // una sospensione concorrente può committare tra il check e l'UPDATE.
+            $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+            $userLockStmt->bind_param('i', $utenteId);
+            $userLockStmt->execute();
+            $userLockStmt->get_result();
+            $userLockStmt->close();
+
             $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId);
             if ($eligibilityError !== null) {
                 $db->rollback();
@@ -1275,7 +1283,11 @@ class LoanApprovalController
             }
         }
         $reservationId = (int) ($data['reservation_id'] ?? 0);
-        $reason = $data['reason'] ?? '';
+        // reason arriva dal body e finisce nel template email come {{motivo}}:
+        // neutralizza input non scalare e limita la lunghezza (l'escaping HTML
+        // avviene al sink in EmailService::replaceVariables).
+        $rawReason = $data['reason'] ?? '';
+        $reason = is_scalar($rawReason) ? mb_substr(trim((string) $rawReason), 0, 500) : '';
 
         if ($reservationId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prenotazione non valido')]));

@@ -499,12 +499,12 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
   <?php if ($outcomeSuccess !== null): ?>
     <div class="alert-outcome alert-outcome--success" role="status">
       <i class="fas fa-check-circle" aria-hidden="true"></i>
-      <span><?= HtmlHelper::e($outcomeSuccess); ?></span>
+      <span><?= htmlspecialchars($outcomeSuccess, ENT_QUOTES, 'UTF-8'); ?></span>
     </div>
   <?php elseif ($outcomeError !== null): ?>
     <div class="alert-outcome alert-outcome--error" role="alert">
       <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
-      <span><?= HtmlHelper::e($outcomeError); ?></span>
+      <span><?= htmlspecialchars($outcomeError, ENT_QUOTES, 'UTF-8'); ?></span>
     </div>
   <?php endif; ?>
 
@@ -573,7 +573,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
               <form method="post" action="<?= htmlspecialchars(url('/loan/cancel'), ENT_QUOTES, 'UTF-8') ?>"
                     data-swal-confirm="<?= htmlspecialchars(__('Annullare questa richiesta di prestito?'), ENT_QUOTES, 'UTF-8') ?>"
                     data-swal-confirm-button="<?= htmlspecialchars(__('Annulla richiesta'), ENT_QUOTES, 'UTF-8') ?>">
-                <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="loan_id" value="<?= (int)$request['id']; ?>">
                 <button type="submit" class="btn-cancel">
                   <i class="fas fa-trash" aria-hidden="true"></i>
@@ -656,7 +656,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
               <form method="post" action="<?= htmlspecialchars(url('/loan/cancel'), ENT_QUOTES, 'UTF-8') ?>"
                     data-swal-confirm="<?= htmlspecialchars(__('Annullare questo prestito programmato?'), ENT_QUOTES, 'UTF-8') ?>"
                     data-swal-confirm-button="<?= htmlspecialchars(__('Annulla prestito'), ENT_QUOTES, 'UTF-8') ?>">
-                <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="loan_id" value="<?= (int)$loan['id']; ?>">
                 <button type="submit" class="btn-cancel">
                   <i class="fas fa-trash" aria-hidden="true"></i>

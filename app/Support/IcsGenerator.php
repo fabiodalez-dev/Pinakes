@@ -329,7 +329,14 @@ class IcsGenerator
         try {
             return new \DateTimeZone($tz);
         } catch (\Throwable $e) {
-            return new \DateTimeZone('Europe/Rome');
+            // 'app.timezone' presente ma invalido: prova PRIMA il timezone del
+            // costruttore (che il chiamante ha scelto apposta) e solo come
+            // ultima spiaggia Europe/Rome.
+            try {
+                return new \DateTimeZone($this->timezone);
+            } catch (\Throwable $e2) {
+                return new \DateTimeZone('Europe/Rome');
+            }
         }
     }
 

@@ -46,14 +46,23 @@ function migLoadEnv(string $path): array
 }
 
 $env = migLoadEnv($root . '/.env');
-$db = new mysqli(
-    null,
-    $env['DB_USER'] ?? '',
-    $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''),
-    $env['DB_NAME'] ?? '',
-    0,
-    '/opt/homebrew/var/mysql/mysql.sock'
-);
+// Socket/host configurabili (CI non ha il socket Homebrew di macOS):
+// E2E_DB_SOCKET > .env DB_SOCKET > default macOS; se il socket non esiste,
+// fallback TCP su DB_HOST/DB_PORT. DB irraggiungibile => SKIP, non FAIL.
+$socket = getenv('E2E_DB_SOCKET') ?: ($env['DB_SOCKET'] ?? '/opt/homebrew/var/mysql/mysql.sock');
+$user = $env['DB_USER'] ?? '';
+$pass = $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? '');
+$name = $env['DB_NAME'] ?? '';
+try {
+    if (is_string($socket) && $socket !== '' && file_exists($socket)) {
+        $db = new mysqli(null, $user, $pass, $name, 0, $socket);
+    } else {
+        $db = new mysqli($env['DB_HOST'] ?? '127.0.0.1', $user, $pass, $name, (int) ($env['DB_PORT'] ?? 3306));
+    }
+} catch (\Throwable $e) {
+    echo "SKIP: database not reachable (" . $e->getMessage() . ")\n";
+    exit(0);
+}
 $db->set_charset('utf8mb4');
 
 const T_TPL = 'zz_mig_email_templates';
@@ -99,8 +108,10 @@ $applyMigration = function () use ($db, $root): void {
     $sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.26.sql');
     // Strip -- comment lines; keep statements whole (bodies contain ';').
     $sql = preg_replace('/^\s*--.*$/m', '', $sql);
-    $sql = str_replace('`email_templates`', '`' . T_TPL . '`', $sql);
-    $sql = str_replace('`system_settings`', '`' . T_SET . '`', $sql);
+    // Sostituisci ENTRAMBE le forme: backtick (DML/DDL) e quoted (i lookup
+    // information_schema delle guardie di sezione 0 usano TABLE_NAME = '...').
+    $sql = str_replace(['`email_templates`', "'email_templates'"], ['`' . T_TPL . '`', "'" . T_TPL . "'"], $sql);
+    $sql = str_replace(['`system_settings`', "'system_settings'"], ['`' . T_SET . '`', "'" . T_SET . "'"], $sql);
     if (!$db->multi_query($sql)) {
         throw new \RuntimeException('multi_query failed: ' . $db->error);
     }
@@ -196,6 +207,46 @@ check($scalar("SELECT subject FROM `" . T_TPL . "` WHERE name='loan_overdue_admi
 // 10 — admin-configured setting value survives the re-run (ON DUPLICATE no-op)
 check($scalar("SELECT setting_value FROM `" . T_SET . "` WHERE category='loans' AND setting_key='max_loan_duration_days'") === '30',
     '10 idempotent: admin-configured setting value preserved on re-run');
+
+/* ========================= legacy-schema scenario =========================
+ * Installs whose email_templates was created by the OLD SettingsRepository
+ * fallback have NO locale column and a UNIQUE on name alone. Section 0 of the
+ * migration must upgrade that shape in place before seeding.
+ */
+$db->query('DROP TABLE `' . T_TPL . '`');
+$db->query(
+    'CREATE TABLE `' . T_TPL . '` (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        subject VARCHAR(255) NOT NULL,
+        body LONGTEXT NOT NULL,
+        description TEXT,
+        active TINYINT(1) DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+);
+$db->query("INSERT INTO `" . T_TPL . "` (name, subject, body, active) VALUES
+    ('loan_approved', 'Vecchio oggetto', '<p>corpo legacy</p>', 1)");
+
+$applyMigration();
+
+// 11 — la colonna locale è stata aggiunta (default it_IT sulla riga esistente)
+check($scalar("SELECT locale FROM `" . T_TPL . "` WHERE name='loan_approved'") === 'it_IT',
+    '11 legacy: locale column added, existing row defaults to it_IT');
+
+// 12 — l'indice UNIQUE(name) legacy è stato sostituito da name_locale
+$idx = $db->query("SHOW INDEX FROM `" . T_TPL . "` WHERE Key_name = 'name_locale'")->num_rows;
+$old = $db->query("SHOW INDEX FROM `" . T_TPL . "` WHERE Key_name = 'name'")->num_rows;
+check($idx > 0 && $old === 0, '12 legacy: UNIQUE(name) swapped for UNIQUE(name, locale)');
+
+// 13 — i seed sono entrati anche sulla tabella legacy migrata + re-run no-op
+$n = (int) $scalar("SELECT COUNT(*) FROM `" . T_TPL . "` WHERE name IN
+    ('loan_returned','reservation_expired','copy_unavailable_user','reservation_cancelled')");
+$applyMigration();
+$n2 = (int) $scalar("SELECT COUNT(*) FROM `" . T_TPL . "` WHERE name IN
+    ('loan_returned','reservation_expired','copy_unavailable_user','reservation_cancelled')");
+check($n === 16 && $n2 === 16, '13 legacy: 16 templates seeded post-upgrade, re-run adds none');
 
 migCleanup($db);
 $db->close();

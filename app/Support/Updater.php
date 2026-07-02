@@ -2957,6 +2957,14 @@ class Updater
                         $failures[$relativePath] = true;
                     }
                 }
+            } elseif (is_link($targetPath)) {
+                // File-target symlink: copyDirectory lo SOSTITUISCE (unlink+copy,
+                // mai scrittura attraverso il link) → serve la scrivibilità
+                // della directory che lo contiene, non del bersaglio del link.
+                $parent = dirname($targetPath);
+                if (!$checkDirWritable($parent)) {
+                    $failures[$relativePath] = true;
+                }
             } elseif (file_exists($targetPath)) {
                 if (!is_writable($targetPath) && !$tryRepair($targetPath)) {
                     $failures[$relativePath] = true;
@@ -3039,6 +3047,18 @@ class Updater
                 if (!is_dir($parentDir)) {
                     if (!mkdir($parentDir, 0755, true) && !is_dir($parentDir)) {
                         throw new Exception(sprintf(__('Impossibile creare directory: %s'), dirname($relativePath)));
+                    }
+                }
+                // Un file di destinazione che è un SYMLINK va sostituito, mai
+                // attraversato: copy() scriverebbe ATTRAVERSO il link, quindi un
+                // link che punta fuori dalla root permetterebbe all'upgrade di
+                // modificare file esterni all'installazione. Lo scolleghiamo e
+                // copiamo un file reale al suo posto. (Le DIRECTORY symlink
+                // restano permesse di proposito: storage/ o uploads/ montati
+                // altrove sono setup legittimi.)
+                if (is_link($targetPath)) {
+                    if (!@unlink($targetPath)) {
+                        throw new Exception(sprintf(__('Errore nella copia del file: %s'), $relativePath));
                     }
                 }
                 if (!copy(str_replace('\\', '/', $item->getPathname()), $targetPath)) {

@@ -78,7 +78,13 @@ class ReservationManager
             $notificationService = new \App\Support\NotificationService($this->db);
             foreach ($pendingExpiry as $expired) {
                 try {
-                    $notificationService->sendQueueReservationExpiredNotification($expired['email'], $expired['variables']);
+                    if (!$notificationService->sendQueueReservationExpiredNotification($expired['email'], $expired['variables'])) {
+                        // Ritorno false = invio fallito senza eccezione: logga
+                        // comunque, altrimenti la notifica si perde in silenzio.
+                        \App\Support\SecureLogger::warning('Invio notifica scadenza prenotazione differita fallito (send=false)', [
+                            'email_hash' => hash('sha256', (string) $expired['email']),
+                        ]);
+                    }
                 } catch (\Throwable $e) {
                     \App\Support\SecureLogger::error('Invio notifica scadenza prenotazione differita fallito', [
                         'error' => $e->getMessage(),
@@ -556,7 +562,9 @@ class ReservationManager
                 $stmt->execute();
                 $stmt->close();
             } else {
-                error_log("ReservationManager: Email send failed for reservation ID {$reservation['id']}, will be retried by retryUnsentReservationNotifications() on next maintenance run");
+                \App\Support\SecureLogger::warning('ReservationManager: email send failed, will be retried by retryUnsentReservationNotifications() on next maintenance run', [
+                    'reservation_id' => (int) $reservation['id'],
+                ]);
             }
 
             return $success;
@@ -871,7 +879,13 @@ class ReservationManager
 
         } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
-            error_log("cancelExpiredReservations error: " . $e->getMessage());
+            // In transazione esterna rilanciamo (stesso pattern di
+            // processBookAvailability): assorbire qui lascerebbe il chiamante
+            // committare uno stato parziale che rollbackIfOwned non ha annullato.
+            if ($this->externalTransaction) {
+                throw $e;
+            }
+            \App\Support\SecureLogger::error('cancelExpiredReservations error', ['error' => $e->getMessage()]);
             return 0;
         }
     }

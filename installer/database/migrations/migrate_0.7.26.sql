@@ -8,6 +8,37 @@
 -- keeps any existing value; REPLACE() is a no-op once the subject is fixed.
 
 -- ============================================================
+-- 0. LEGACY SCHEMA GUARDS: installs whose email_templates table was
+--    created by the OLD SettingsRepository fallback have no `locale`
+--    column and a UNIQUE on `name` alone. The seeds below (and every
+--    locale-scoped query in the app) need `locale` + UNIQUE(name,locale).
+--    All three blocks are information_schema-gated no-ops on the
+--    modern schema.
+-- ============================================================
+SET @has_locale = (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'email_templates' AND COLUMN_NAME = 'locale');
+SET @sql = IF(@has_locale = 0,
+    "ALTER TABLE `email_templates` ADD COLUMN `locale` VARCHAR(10) NOT NULL DEFAULT 'it_IT' AFTER `name`",
+    "SELECT 1");
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+SET @has_old_unique = (SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'email_templates' AND INDEX_NAME = 'name');
+SET @has_name_locale = (SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'email_templates' AND INDEX_NAME = 'name_locale');
+SET @sql = IF(@has_old_unique > 0 AND @has_name_locale = 0,
+    "ALTER TABLE `email_templates` DROP INDEX `name`",
+    "SELECT 1");
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+SET @has_name_locale = (SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'email_templates' AND INDEX_NAME = 'name_locale');
+SET @sql = IF(@has_name_locale = 0,
+    "ALTER TABLE `email_templates` ADD UNIQUE KEY `name_locale` (`name`, `locale`)",
+    "SELECT 1");
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+-- ============================================================
 -- 1. EMAIL TEMPLATES (loan_returned, reservation_expired,
 --    copy_unavailable_user, reservation_cancelled) x 4 locales.
 --    Review finding H3: these templates existed only in

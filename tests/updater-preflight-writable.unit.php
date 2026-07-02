@@ -121,8 +121,8 @@ $fails = $run();
 check(in_array('public/assets/swagger-ui', $fails, true),
     '02 issue #205: new dir under unwritable parent is reported');
 
-// 3 — il file dentro la nuova dir non genera un secondo falso positivo separato dal padre
-check(count(array_filter($fails, fn($p) => str_starts_with($p, 'public/assets'))) <= 2,
+// 3 — il file dentro la nuova dir non viene segnalato separatamente dal padre
+check(!in_array('public/assets/swagger-ui/swagger-ui-bundle.js', $fails, true),
     '03 failures are collapsed to the offending dir(s), not one per file');
 
 // 4 — SELF-HEAL: il path è di proprietà dell'utente PHP → repair=true lo sistema da solo
@@ -156,6 +156,24 @@ file_put_contents("$src/app/newfile.php", "<?php\n");
 chmod("$dst/app", 0555);
 check(in_array('app', $run(), true), '10 new file under unwritable existing dir reports the dir');
 chmod("$dst/app", 0755);
+
+// 11-12 — SYMLINK a destinazione: mai scrittura ATTRAVERSO il link.
+// Un file del pacchetto il cui target è un symlink (che punta FUORI root)
+// non deve far fallire il preflight (verrà sostituito), e copyDirectory
+// deve rimpiazzarlo con un file reale lasciando intatto il bersaglio esterno.
+$outside = "$SANDBOX/outside-secret.txt";
+file_put_contents($outside, "SEGRETO ORIGINALE\n");
+file_put_contents("$src/app/linked.txt", "contenuto nuovo dal pacchetto\n");
+symlink($outside, "$dst/app/linked.txt");
+check(!in_array('app/linked.txt', $run(), true),
+    '11 preflight: existing symlinked file target is replaceable (parent writable), not a failure');
+
+$copyMethod = $ref->getMethod('copyDirectory');
+$copyMethod->invoke($updater, $src, $dst);
+check(!is_link("$dst/app/linked.txt")
+    && file_get_contents("$dst/app/linked.txt") === "contenuto nuovo dal pacchetto\n"
+    && file_get_contents($outside) === "SEGRETO ORIGINALE\n",
+    '12 copyDirectory: symlink replaced with a real file, outside target untouched');
 
 /* -------- done -------- */
 rrmdir($SANDBOX);
