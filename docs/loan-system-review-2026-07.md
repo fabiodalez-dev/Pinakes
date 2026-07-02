@@ -404,7 +404,7 @@ prestiti" per stati `pendente`/`prenotato`.
 
 ---
 
-## Stato implementazione (2026-07-02, branch `claude/booking-loan-system-review-eymern`)
+## Stato implementazione (2026-07-02, branch `fix/loan-system-review-2026-07`)
 
 Tutti i finding H1–H5, M1–M13 e L1–L8 sono stati implementati e verificati
 (workflow multi-agente: 8 pacchetti su file disgiunti + traduzioni + 3 revisori
