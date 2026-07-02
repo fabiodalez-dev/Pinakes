@@ -421,7 +421,7 @@ Elementi introdotti:
 - `app/Support/LoanEligibility.php` — punto unico di idoneità utente
   (stato `sospeso`/`scaduto`, tessera scaduta) usato da richiesta, prenotazione,
   creazione admin e approvazione (M7).
-- `installer/database/migrations/migrate_0.7.26.sql` — seed idempotente dei
+- `installer/database/migrations/migrate_0.7.26-rc.1.sql` — seed idempotente dei
   template `loan_returned`, `reservation_expired`, `copy_unavailable_user` e
   del nuovo `reservation_cancelled` per i 4 locale, setting
   `loans.max_loan_duration_days` (default 90), fix subject `loan_overdue_admin`.

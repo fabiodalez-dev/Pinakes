@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Behavioral suite — 10 checks that migrate_0.7.26.sql upgrades an EXISTING
+ * Behavioral suite — 10 checks that migrate_0.7.26-rc.1.sql upgrades an EXISTING
  * install correctly (project rule: ALWAYS test the migration, never eyeball it).
  *
  * The migration seeds 4 email templates x 4 locales (INSERT IGNORE on
@@ -105,7 +105,7 @@ $scalar = function (string $sql) use ($db) {
 
 /** Run the REAL migration file against the sandbox tables (names rewritten). */
 $applyMigration = function () use ($db, $root): void {
-    $sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.26.sql');
+    $sql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.26-rc.1.sql');
     // Strip -- comment lines; keep statements whole (bodies contain ';').
     $sql = preg_replace('/^\s*--.*$/m', '', $sql);
     // Sostituisci ENTRAMBE le forme: backtick (DML/DDL) e quoted (i lookup
