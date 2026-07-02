@@ -128,6 +128,12 @@ final class OpenApiController
                     'MessageRequest'    => $this->messageRequestSchema(),
                     'NotificationItem'  => $this->notificationItemSchema(),
 
+                    // Reviews
+                    'Review'            => $this->reviewSchema(),
+                    'ReviewRequest'     => $this->reviewRequestSchema(),
+                    'BookReviews'       => $this->bookReviewsSchema(),
+                    'MyReview'          => $this->myReviewSchema(),
+
                     // Push
                     'PushSubscribeRequest' => $this->pushSubscribeRequestSchema(),
                     'PushPrefs'         => $this->pushPrefsSchema(),
@@ -629,6 +635,91 @@ final class OpenApiController
                     ],
                     'responses' => [
                         '200' => ['description' => 'Removed (or was not present — idempotent).', 'content' => $json],
+                        '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+            ],
+
+            '/catalog/books/{id}/reviews' => [
+                'get' => [
+                    'tags'        => ['reviews'],
+                    'summary'     => 'Book reviews (aggregate + own + approved others)',
+                    'description' => 'Reviews are MODERATED: `items` and the aggregate cover approved reviews only; `mine` is returned regardless of moderation state. `meta.next_cursor` pages the nested `data.items`. `can_review` = the caller has borrowed the title.',
+                    'operationId' => 'getBookReviews',
+                    'security'    => [['bearerAuth' => []]],
+                    'parameters'  => [
+                        ['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer'], 'description' => 'Book ID'],
+                        ['name' => 'cursor', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string'], 'description' => 'Opaque cursor for data.items'],
+                        ['name' => 'limit', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50, 'default' => 20]],
+                    ],
+                    'responses'   => [
+                        '200' => ['description' => 'Reviews payload.', 'content' => ['application/json' => ['schema' => [
+                            'allOf' => [['$ref' => '#/components/schemas/Envelope']],
+                            'properties' => ['data' => ['$ref' => '#/components/schemas/BookReviews']],
+                        ]]]],
+                        '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '404' => ['$ref' => '#/components/responses/NotFound'],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+                'put' => [
+                    'tags'        => ['reviews'],
+                    'summary'     => 'Create or update own review (idempotent upsert)',
+                    'description' => 'One review per (user, book): PUT updates the existing review or creates it. Requires having borrowed the title (403 `not_eligible` otherwise). The stored review goes back to moderation (`pending`) on every write; `meta.pending=true` signals it.',
+                    'operationId' => 'putBookReview',
+                    'security'    => [['bearerAuth' => []]],
+                    'parameters'  => [
+                        ['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer'], 'description' => 'Book ID'],
+                    ],
+                    'requestBody' => [
+                        'required' => true,
+                        'content'  => ['application/json' => ['schema' => ['$ref' => '#/components/schemas/ReviewRequest']]],
+                    ],
+                    'responses' => [
+                        '200' => ['description' => 'Stored review (pending moderation).', 'content' => ['application/json' => ['schema' => [
+                            'allOf' => [['$ref' => '#/components/schemas/Envelope']],
+                            'properties' => ['data' => ['$ref' => '#/components/schemas/Review']],
+                        ]]]],
+                        '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '403' => ['$ref' => '#/components/responses/Forbidden'],
+                        '404' => ['$ref' => '#/components/responses/NotFound'],
+                        '422' => ['$ref' => '#/components/responses/UnprocessableEntity'],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+                'delete' => [
+                    'tags'        => ['reviews'],
+                    'summary'     => 'Delete own review (idempotent)',
+                    'operationId' => 'deleteBookReview',
+                    'security'    => [['bearerAuth' => []]],
+                    'parameters'  => [
+                        ['name' => 'id', 'in' => 'path', 'required' => true, 'schema' => ['type' => 'integer'], 'description' => 'Book ID'],
+                    ],
+                    'responses' => [
+                        '200' => ['description' => 'Review deleted.', 'content' => $json],
+                        '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '404' => ['$ref' => '#/components/responses/NotFound'],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+            ],
+
+            '/me/reviews' => [
+                'get' => [
+                    'tags'        => ['reviews'],
+                    'summary'     => 'Own reviews across all books (any moderation state)',
+                    'operationId' => 'getMeReviews',
+                    'security'    => [['bearerAuth' => []]],
+                    'parameters'  => [
+                        ['name' => 'cursor', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'string']],
+                        ['name' => 'limit', 'in' => 'query', 'required' => false, 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50, 'default' => 20]],
+                    ],
+                    'responses' => [
+                        '200' => ['description' => 'Own reviews.', 'content' => ['application/json' => ['schema' => [
+                            'allOf' => [['$ref' => '#/components/schemas/Envelope']],
+                            'properties' => ['data' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/MyReview']]],
+                        ]]]],
                         '401' => ['$ref' => '#/components/responses/Unauthorized'],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
                     ],
@@ -1240,6 +1331,84 @@ final class OpenApiController
         $basePath = defined('BASE_PATH') ? (string) BASE_PATH : '';
 
         return rtrim($base . $basePath, '/');
+    }
+
+    /** @return array<string, mixed> */
+    private function reviewSchema(): array
+    {
+        return [
+            'type'        => 'object',
+            'description' => 'A single book review. `status` (pendente|approvata|rifiutata) is server-extra: reviews are moderated and a just-submitted/edited review is pending until an admin approves it.',
+            'properties'  => [
+                'id'         => ['type' => 'integer'],
+                'rating'     => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5],
+                'text'       => ['type' => 'string', 'nullable' => true],
+                'user_name'  => ['type' => 'string'],
+                'is_mine'    => ['type' => 'boolean'],
+                'status'     => ['type' => 'string', 'enum' => ['pendente', 'approvata', 'rifiutata']],
+                'created_at' => ['type' => 'string'],
+                'updated_at' => ['type' => 'string'],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function reviewRequestSchema(): array
+    {
+        return [
+            'type'       => 'object',
+            'required'   => ['rating'],
+            'properties' => [
+                'rating' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5],
+                'text'   => ['type' => 'string', 'maxLength' => 2000, 'nullable' => true],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function bookReviewsSchema(): array
+    {
+        return [
+            'type'        => 'object',
+            'description' => 'Aggregate (approved reviews only) + the caller\'s own review (any state) + other users\' approved reviews. `meta.next_cursor` pages `items`.',
+            'properties'  => [
+                'average'      => ['type' => 'number', 'format' => 'float'],
+                'count'        => ['type' => 'integer'],
+                'distribution' => [
+                    'type'       => 'object',
+                    'properties' => [
+                        '1' => ['type' => 'integer'],
+                        '2' => ['type' => 'integer'],
+                        '3' => ['type' => 'integer'],
+                        '4' => ['type' => 'integer'],
+                        '5' => ['type' => 'integer'],
+                    ],
+                ],
+                'can_review'   => ['type' => 'boolean', 'description' => 'The caller has borrowed this title (eligibility only — independent of having already reviewed).'],
+                'mine'         => ['allOf' => [['$ref' => '#/components/schemas/Review']], 'nullable' => true],
+                'items'        => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/Review']],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function myReviewSchema(): array
+    {
+        return [
+            'type'       => 'object',
+            'properties' => [
+                'id'          => ['type' => 'integer'],
+                'book_id'     => ['type' => 'integer'],
+                'book_title'  => ['type' => 'string'],
+                'book_author' => ['type' => 'string', 'nullable' => true],
+                'cover_url'   => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                'rating'      => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5],
+                'text'        => ['type' => 'string', 'nullable' => true],
+                'status'      => ['type' => 'string', 'enum' => ['pendente', 'approvata', 'rifiutata']],
+                'created_at'  => ['type' => 'string'],
+                'updated_at'  => ['type' => 'string'],
+            ],
+        ];
     }
 
     private function appVersion(): string

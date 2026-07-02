@@ -41,6 +41,7 @@ require_once __DIR__ . '/src/Controllers/ActionsController.php';
 require_once __DIR__ . '/src/Controllers/PushController.php';
 require_once __DIR__ . '/src/Controllers/OpenApiController.php';
 require_once __DIR__ . '/src/Controllers/SwaggerUiController.php';
+require_once __DIR__ . '/src/Controllers/ReviewsController.php';
 
 /**
  * Mobile API plugin.
@@ -458,6 +459,39 @@ class MobileApiPlugin
                 array $args
             ) use ($db): ResponseInterface {
                 return (new CatalogController($db))->bookAvailability($request, $response, (int) $args['id']);
+            })->add($quotaMw())->add($authMw());
+
+            // ── Book reviews (stars + text) — moderated via the core recensioni
+            //    table; PUT is an idempotent upsert; DELETE is user-scoped. ──
+            $group->get('/catalog/books/{id:[0-9]+}/reviews', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response,
+                array $args
+            ) use ($db): ResponseInterface {
+                return (new \App\Plugins\MobileApi\Controllers\ReviewsController($db))->bookReviews($request, $response, (int) $args['id']);
+            })->add($quotaMw())->add($authMw());
+
+            $group->put('/catalog/books/{id:[0-9]+}/reviews', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response,
+                array $args
+            ) use ($db): ResponseInterface {
+                return (new \App\Plugins\MobileApi\Controllers\ReviewsController($db))->submitReview($request, $response, (int) $args['id']);
+            })->add($quotaMw())->add($authMw());
+
+            $group->delete('/catalog/books/{id:[0-9]+}/reviews', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response,
+                array $args
+            ) use ($db): ResponseInterface {
+                return (new \App\Plugins\MobileApi\Controllers\ReviewsController($db))->deleteReview($request, $response, (int) $args['id']);
+            })->add($quotaMw())->add($authMw());
+
+            $group->get('/me/reviews', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response
+            ) use ($db): ResponseInterface {
+                return (new \App\Plugins\MobileApi\Controllers\ReviewsController($db))->myReviews($request, $response);
             })->add($quotaMw())->add($authMw());
 
             $group->get('/catalog/genres', function (

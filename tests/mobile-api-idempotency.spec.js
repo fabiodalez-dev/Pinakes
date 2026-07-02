@@ -165,6 +165,11 @@ const ENDPOINTS = [
     { name: 'POST /me/wishlist',                 method: 'POST',   path: '/me/wishlist',                  auth: true,  kind: 'write2xx',
         body: (ctx) => ({ book_id: ctx.bookId }) /* adding twice must not duplicate; both 2xx */ },
     { name: 'DELETE /me/wishlist/{bookId}',      method: 'DELETE', path: '/me/wishlist/{bookId}',         auth: true,  kind: 'gone2' },
+    { name: 'GET /catalog/books/{bookId}/reviews', method: 'GET', path: '/catalog/books/{bookId}/reviews', auth: true, kind: 'safeGet' },
+    { name: 'PUT /catalog/books/{bookId}/reviews', method: 'PUT',    path: '/catalog/books/{bookId}/reviews', auth: true,  kind: 'write2xx',
+        body: () => ({ rating: 5, text: 'Idempotency probe.' }) /* upsert: twice must both be 2xx (setup seeds a returned loan for eligibility) */ },
+    { name: 'DELETE /catalog/books/{bookId}/reviews', method: 'DELETE', path: '/catalog/books/{bookId}/reviews', auth: true, kind: 'gone2' },
+    { name: 'GET /me/reviews',                   method: 'GET',    path: '/me/reviews',                    auth: true,  kind: 'safeGet' },
     { name: 'POST /messages',                    method: 'POST',   path: '/messages',                     auth: true,  kind: 'write2xx',
         body: () => ({ messaggio: 'idem test message', oggetto: 'idem' }) },
     { name: 'GET /me/notifications',             method: 'GET',    path: '/me/notifications',             auth: true,  kind: 'safeGet' },
@@ -314,6 +319,15 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
 
         // Pre-add the wishlist book so DELETE /me/wishlist/{bookId} has something to remove on call #1.
         try { dbExec(`INSERT IGNORE INTO wishlist (utente_id, libro_id) VALUES (${ctx.userId}, ${ctx.bookId})`); } catch {}
+
+        // Reviews eligibility: PUT /catalog/books/{id}/reviews requires the user
+        // to have borrowed the title (prestiti stato IN restituito/in_corso). Seed
+        // a RETURNED loan (attivo=0, no copia) — inert for the occupancy triggers.
+        try {
+            dbExec(`INSERT INTO prestiti (utente_id, libro_id, data_prestito, data_scadenza, data_restituzione, stato, attivo)
+                    SELECT ${ctx.userId}, ${ctx.bookId}, DATE_SUB(CURDATE(), INTERVAL 30 DAY), DATE_SUB(CURDATE(), INTERVAL 16 DAY), DATE_SUB(CURDATE(), INTERVAL 16 DAY), 'restituito', 0
+                    WHERE NOT EXISTS (SELECT 1 FROM prestiti WHERE utente_id=${ctx.userId} AND libro_id=${ctx.bookId} AND stato='restituito')`);
+        } catch {}
     });
 
     test.afterAll(async () => {
@@ -321,6 +335,8 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         try { dbExec(`DELETE FROM mobile_push_subscriptions WHERE user_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM wishlist WHERE utente_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM prenotazioni WHERE utente_id=${ctx.userId}`); } catch {}
+        try { dbExec(`DELETE FROM recensioni WHERE utente_id=${ctx.userId}`); } catch {}
+        try { dbExec(`DELETE FROM prestiti WHERE utente_id=${ctx.userId} AND stato='restituito' AND copia_id IS NULL`); } catch {}
         // Only delete the account if THIS run created it.
         if (ctx.createdUser) {
             try { dbExec(`DELETE FROM utenti WHERE id=${ctx.userId}`); } catch {}
