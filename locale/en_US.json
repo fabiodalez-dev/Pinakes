@@ -5444,5 +5444,6 @@
   "Prenotazione aggiornata correttamente.": "Reservation updated successfully.",
   "Prestito non trovato o non chiudibile.": "Loan not found or cannot be closed.",
   "Si è verificato un errore. Riprova più tardi.": "An error occurred. Please try again later.",
-  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "You are not eligible to borrow: account suspended or card expired."
+  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "You are not eligible to borrow: account suspended or card expired.",
+  "Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l'utente del web server) e riprova.": "Update aborted before any change: the PHP process cannot write to these paths: %s. Fix the permissions (ownership/write access for the web-server user) and retry."
 }

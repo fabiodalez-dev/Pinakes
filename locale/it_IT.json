@@ -5444,5 +5444,6 @@
   "Prenotazione aggiornata correttamente.": "Prenotazione aggiornata correttamente.",
   "Prestito non trovato o non chiudibile.": "Prestito non trovato o non chiudibile.",
   "Si è verificato un errore. Riprova più tardi.": "Si è verificato un errore. Riprova più tardi.",
-  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "Non sei idoneo al prestito: account sospeso o tessera scaduta."
+  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "Non sei idoneo al prestito: account sospeso o tessera scaduta.",
+  "Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l'utente del web server) e riprova.": "Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l'utente del web server) e riprova."
 }

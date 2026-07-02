@@ -5444,5 +5444,6 @@
   "Prenotazione aggiornata correttamente.": "Réservation mise à jour avec succès.",
   "Prestito non trovato o non chiudibile.": "Prêt introuvable ou impossible à clôturer.",
   "Si è verificato un errore. Riprova più tardi.": "Une erreur s'est produite. Veuillez réessayer plus tard.",
-  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "Vous n'êtes pas éligible à l'emprunt : compte suspendu ou carte expirée."
+  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "Vous n'êtes pas éligible à l'emprunt : compte suspendu ou carte expirée.",
+  "Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l'utente del web server) e riprova.": "Mise à jour annulée avant toute modification : le processus PHP ne peut pas écrire dans ces chemins : %s. Corrigez les permissions (propriétaire/écriture pour l'utilisateur du serveur web) et réessayez."
 }

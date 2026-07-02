@@ -2240,6 +2240,21 @@ class Updater
                 }
             }
 
+            // PRE-FLIGHT (issue #205): dry-run writability check over the whole
+            // package BEFORE touching a single file. checkRequirements() only
+            // verifies root/backup/storage, so an unwritable subdirectory (e.g.
+            // public/assets on installs where the PHP user cannot create NEW
+            // entries there) used to fail MID-COPY, leaving a partially updated
+            // install. Fail here instead, listing the exact paths to fix.
+            $unwritable = $this->verifyWritableTargets($sourcePath, $this->rootPath);
+            if ($unwritable !== []) {
+                $this->debugLog('ERROR', 'Preflight: percorsi non scrivibili', ['paths' => $unwritable]);
+                throw new Exception(sprintf(
+                    __('Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l\'utente del web server) e riprova.'),
+                    implode(', ', array_slice($unwritable, 0, 15)) . (count($unwritable) > 15 ? ', …' : '')
+                ));
+            }
+
             // Log update start
             $logId = $this->logUpdateStart($currentVersion, $targetVersion, null);
 
@@ -2826,6 +2841,110 @@ class Updater
                 }
             }
         }
+    }
+
+    /**
+     * Dry-run of copyDirectory(): walk the package with the SAME skip/preserve
+     * semantics and report every target the PHP process could not write,
+     * WITHOUT modifying anything (issue #205).
+     *
+     * Rules mirror what copy()/mkdir() will actually need:
+     *  - new file/dir      → the nearest EXISTING ancestor directory must be writable;
+     *  - existing file     → the file itself must be writable (copy() truncates it);
+     *  - existing dir      → nothing to create, contents are checked individually;
+     *  - preservePaths     → skipped only when the target exists (same as the copy);
+     *  - skipPaths, symlinks → never copied, never checked.
+     *
+     * @return array<string> relative paths (deduplicated, sorted) that are not writable
+     */
+    private function verifyWritableTargets(string $source, string $dest): array
+    {
+        $source = rtrim(str_replace('\\', '/', $source), '/');
+        $dest   = rtrim(str_replace('\\', '/', $dest), '/');
+
+        $failures = [];
+        // Memoize per-directory verdicts: thousands of files share few parents.
+        $dirWritable = [];
+        $checkDirWritable = static function (string $dir) use (&$dirWritable): bool {
+            if (!isset($dirWritable[$dir])) {
+                $dirWritable[$dir] = is_writable($dir);
+            }
+            return $dirWritable[$dir];
+        };
+        // For a path that does not exist yet, mkdir/copy will need to create it
+        // under the nearest EXISTING ancestor — that is the directory that must
+        // be writable.
+        $nearestExistingAncestor = static function (string $path) use ($dest): string {
+            $dir = dirname($path);
+            while ($dir !== '' && $dir !== '/' && !is_dir($dir)) {
+                // Never walk above the install root.
+                if ($dir === $dest) {
+                    break;
+                }
+                $dir = dirname($dir);
+            }
+            return $dir;
+        };
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($source, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $relativePath = str_replace($source . '/', '', str_replace('\\', '/', $item->getPathname()));
+
+            if (str_contains($relativePath, '..') || str_contains($relativePath, "\0")) {
+                continue; // copyDirectory will reject it; not a permission issue
+            }
+            if ($item->isLink()) {
+                continue;
+            }
+
+            $targetPath = $dest . '/' . $relativePath;
+
+            $skip = false;
+            foreach ($this->skipPaths as $skipPath) {
+                if (strpos($relativePath, $skipPath) === 0) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if ($skip) {
+                continue;
+            }
+            foreach ($this->preservePaths as $preservePath) {
+                if (strpos($relativePath, $preservePath) === 0 && file_exists($targetPath)) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if ($skip) {
+                continue;
+            }
+
+            if ($item->isDir()) {
+                if (!is_dir($targetPath)) {
+                    $ancestor = $nearestExistingAncestor($targetPath);
+                    if (!$checkDirWritable($ancestor)) {
+                        $failures[$relativePath] = true;
+                    }
+                }
+            } elseif (file_exists($targetPath)) {
+                if (!is_writable($targetPath)) {
+                    $failures[$relativePath] = true;
+                }
+            } else {
+                $ancestor = $nearestExistingAncestor($targetPath);
+                if (!$checkDirWritable($ancestor)) {
+                    $failures[dirname($relativePath) === '.' ? $relativePath : dirname($relativePath)] = true;
+                }
+            }
+        }
+
+        $paths = array_keys($failures);
+        sort($paths);
+        return $paths;
     }
 
     /**
