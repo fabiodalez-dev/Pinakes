@@ -401,3 +401,47 @@ prestiti" per stati `pendente`/`prenotato`.
 2. **Seconda passata**: M1, M3, M4, M5 (integrità stato/notifiche), M7 (idoneità
    utente), M8 (editor template), M9 (unificare "oggi" su `DateHelper::today()`).
 3. **Pulizia**: M2/M6/M10–M13 e i LOW, molti dei quali one-liner.
+
+---
+
+## Stato implementazione (2026-07-02, branch `claude/booking-loan-system-review-eymern`)
+
+Tutti i finding H1–H5, M1–M13 e L1–L8 sono stati implementati e verificati
+(workflow multi-agente: 8 pacchetti su file disgiunti + traduzioni + 3 revisori
+avversariali sul diff + 2 round di fix; `php -l` pulito su tutti i file, JSON
+locale validati). Commit:
+
+| Commit | Contenuto |
+|---|---|
+| `edb10aa` | Implementazione completa dei 27 fix (32 file, +1646/−256) |
+| `32d308b` | Correzioni dai revisori: escaping SQL della migrazione conforme al runner `Updater::splitSqlStatements`, bump `version.json` → 0.7.26, mapping `not_eligible` nel mobile-api, lock-order P3 anche in `UserActionsController::cancelLoan`, escaping del subject al sink HTML (`wrapInBaseTemplate`), claim-then-send nel retry M4, pulsante annullamento anche lato admin |
+| (successivo) | Guard `is_scalar` sul banner esiti della view prenotazioni (ultimo finding low della verifica di chiusura) + questa sezione |
+
+Elementi introdotti:
+- `app/Support/LoanEligibility.php` — punto unico di idoneità utente
+  (stato `sospeso`/`scaduto`, tessera scaduta) usato da richiesta, prenotazione,
+  creazione admin e approvazione (M7).
+- `installer/database/migrations/migrate_0.7.26.sql` — seed idempotente dei
+  template `loan_returned`, `reservation_expired`, `copy_unavailable_user` e
+  del nuovo `reservation_cancelled` per i 4 locale, setting
+  `loans.max_loan_duration_days` (default 90), fix subject `loan_overdue_admin`.
+- Nuove notifiche: annullamento prenotazione admin (`reservation_cancelled`),
+  scadenza prenotazioni-coda (`reservation_expired` sul percorso coda), retry
+  post-fallimento di `reservation_book_available`
+  (`ReservationManager::retryUnsentReservationNotifications`, chiamato da
+  maintenance e cron).
+- Route web + UI per l'annullamento delle proprie richieste (`pendente`) e dei
+  prestiti schedulati (`prenotato`) da parte dell'utente (M13).
+- `DateHelper::now()` e unificazione di ogni "oggi/adesso" del dominio prestiti
+  sul timezone applicativo, cron inclusi (M9); rimosso il `SET SESSION
+  time_zone='+00:00'` dai cron.
+
+**Escluso di proposito** — L9 (sanzioni mai applicate): decidere la policy
+tariffaria è una scelta di prodotto, non un difetto; il campo `sanzione` resta
+scritto a 0.00. I gap di notifica "richiesta ricevuta", "ritiro confermato" e
+"promemoria pre-deadline ritiro" (tabella sopra) restano aperti come possibili
+migliorie di prodotto, non regressioni.
+
+**Nota di release**: `version.json` è stato portato a 0.7.26 affinché l'updater
+esegua la nuova migrazione; se la numerazione di release è gestita altrove,
+allineare il numero prima del tag.
