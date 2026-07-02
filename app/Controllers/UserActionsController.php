@@ -130,8 +130,42 @@ class UserActionsController
         $db->begin_transaction();
 
         try {
-            // Get loan details and lock
+            // ORDINE DI LOCK CANONICO (P3, M2): risolvi libro_id con una lettura
+            // NON bloccante, blocca la riga `libri` PRIMA e solo dopo il prestito
+            // — stesso pattern di cancelReservation qui sotto. Lockare prima la
+            // riga prestiti incrocerebbe i lock con i percorsi di creazione/
+            // approvazione (che vanno libri -> prestiti) causando deadlock.
             // Note: 'pendente' has attivo=0, 'prenotato' has attivo=1
+            $lookupStmt = $db->prepare("
+                SELECT libro_id
+                FROM prestiti
+                WHERE id = ? AND utente_id = ? AND (
+                    (attivo = 0 AND stato = 'pendente')
+                    OR (attivo = 1 AND stato = 'prenotato')
+                )
+            ");
+            $lookupStmt->bind_param('ii', $loanId, $uid);
+            $lookupStmt->execute();
+            $lookupRow = $lookupStmt->get_result()->fetch_assoc();
+            $lookupStmt->close();
+
+            if (!$lookupRow) {
+                $db->rollback();
+                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+            }
+
+            $libroId = (int) $lookupRow['libro_id'];
+
+            // Lock della riga libri per serializzare rilascio copia, promozione
+            // coda e ricalcolo disponibilità con gli altri percorsi sullo stesso libro.
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            // Ora blocca e ri-verifica il prestito: la lettura iniziale era non
+            // bloccante, quindi un'approvazione/annullamento concorrente può
+            // averne cambiato lo stato (o, TOCTOU, il libro) nel frattempo.
             $stmt = $db->prepare("
                 SELECT id, copia_id, stato, libro_id
                 FROM prestiti
@@ -147,7 +181,7 @@ class UserActionsController
             $loan = $result->fetch_assoc();
             $stmt->close();
 
-            if (!$loan) {
+            if (!$loan || (int) $loan['libro_id'] !== $libroId) {
                 $db->rollback();
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
             }

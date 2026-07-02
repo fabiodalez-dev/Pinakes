@@ -606,7 +606,29 @@ class ReservationManager
         $stmt->close();
 
         $sentCount = 0;
+        if ($reservations === []) {
+            return 0;
+        }
+
+        // Claim-then-send (stesso pattern di warning/overdue): i tre percorsi
+        // che invocano questo sweep (cron automatic-notifications, cron
+        // full-maintenance e runIfNeeded() da login admin) usano lock diversi
+        // e possono girare in overlap, quindi senza claim atomico due run
+        // selezionerebbero la stessa riga e l'utente riceverebbe l'email doppia.
+        $claimStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ? AND notifica_inviata = 0");
+        $revertStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 0 WHERE id = ?");
+
         foreach ($reservations as $reservation) {
+            $reservationId = (int) $reservation['id'];
+
+            // Claim atomico PRIMA dell'invio: se affected_rows è 0 un run
+            // concorrente ha già preso in carico questa riga.
+            $claimStmt->bind_param('i', $reservationId);
+            $claimStmt->execute();
+            if ($claimStmt->affected_rows < 1) {
+                continue;
+            }
+
             // Risolvi la data di fine con lo stesso coalesce canonico di
             // processBookAvailability(): una riga legacy può avere
             // data_fine_richiesta NULL ma data_scadenza_prenotazione valorizzata.
@@ -615,12 +637,17 @@ class ReservationManager
                     ? substr((string) $reservation['data_scadenza_prenotazione'], 0, 10)
                     : $reservation['data_inizio_richiesta']);
 
-            // sendReservationNotification() setta il flag solo a successo, quindi
-            // un nuovo fallimento lascia la riga eleggibile per il run successivo.
             if ($this->sendReservationNotification($reservation)) {
                 $sentCount++;
+            } else {
+                // Invio fallito: rilascia il claim così la riga resta
+                // eleggibile per il run successivo.
+                $revertStmt->bind_param('i', $reservationId);
+                $revertStmt->execute();
             }
         }
+        $claimStmt->close();
+        $revertStmt->close();
 
         return $sentCount;
     }
