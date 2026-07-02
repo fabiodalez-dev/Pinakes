@@ -77,6 +77,9 @@ final class HealthController
                     'messages'      => true,
                     'notifications' => true,
                     'push'          => $vapidPublicKey !== '',
+                    // Book reviews ride the loan history (only borrowers can
+                    // review), so they are meaningless in catalogue mode.
+                    'reviews'       => !$catalogueMode,
                 ],
                 'catalogue_mode'       => $catalogueMode,
                 'app_access_enabled'   => $appAccessEnabled,
