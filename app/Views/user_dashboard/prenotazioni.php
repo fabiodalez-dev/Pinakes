@@ -278,6 +278,29 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
     gap: 1rem;
   }
 
+  .alert-outcome {
+    border-radius: 12px;
+    padding: 1rem 1.5rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .alert-outcome--success {
+    background: #ecfdf5;
+    border: 2px solid #a7f3d0;
+    color: #065f46;
+  }
+
+  .alert-outcome--error {
+    background: #fef2f2;
+    border: 2px solid #fecaca;
+    color: #991b1b;
+  }
+
   .alert-overdue-icon {
     flex-shrink: 0;
     width: 48px;
@@ -447,6 +470,45 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
 
 <div class="loans-container">
   <?php
+    // Esito delle azioni POST (M13): cancelLoan/cancelReservation/
+    // changeReservationDate redirigono qui con l'esito in query string;
+    // senza questi banner un annullamento fallito (es. prestito nel
+    // frattempo convertito in 'in_corso' dall'admin) era un fallimento
+    // silenzioso: pagina ricaricata, nessuna spiegazione all'utente.
+    $outcomeSuccess = null;
+    if (isset($_GET['canceled'])) {
+        $outcomeSuccess = __('Annullamento effettuato correttamente.');
+    } elseif (isset($_GET['updated'])) {
+        $outcomeSuccess = __('Prenotazione aggiornata correttamente.');
+    }
+    $outcomeError = null;
+    if (isset($_GET['error'])) {
+        $outcomeErrorMessages = [
+            'not_found' => __('Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.'),
+            'past_date' => __('La data richiesta è nel passato.'),
+            'not_available' => __('Il libro non è disponibile per il periodo richiesto.'),
+            'book_not_found' => __('Libro non trovato.'),
+        ];
+        // Normalizza prima del lookup: ?error[]=x arriverebbe come array (warning PHP 8).
+        $outcomeErrorKey = is_scalar($_GET['error']) ? (string) $_GET['error'] : '';
+        $outcomeError = $outcomeErrorMessages[$outcomeErrorKey]
+            ?? __('Si è verificato un errore. Riprova più tardi.');
+    }
+  ?>
+
+  <?php if ($outcomeSuccess !== null): ?>
+    <div class="alert-outcome alert-outcome--success" role="status">
+      <i class="fas fa-check-circle" aria-hidden="true"></i>
+      <span><?= htmlspecialchars($outcomeSuccess, ENT_QUOTES, 'UTF-8'); ?></span>
+    </div>
+  <?php elseif ($outcomeError !== null): ?>
+    <div class="alert-outcome alert-outcome--error" role="alert">
+      <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+      <span><?= htmlspecialchars($outcomeError, ENT_QUOTES, 'UTF-8'); ?></span>
+    </div>
+  <?php endif; ?>
+
+  <?php
     $overdueCount = 0;
     foreach ($activePrestiti as $loan) {
         $dueAt = $loan['data_scadenza'] ?? '';
@@ -508,6 +570,16 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
                   <span><?= __("Richiesto il %s", format_date($request['created_at'] ?? 'now', true, '/')) ?></span>
                 </div>
               </div>
+              <form method="post" action="<?= htmlspecialchars(url('/loan/cancel'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm="<?= htmlspecialchars(__('Annullare questa richiesta di prestito?'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm-button="<?= htmlspecialchars(__('Annulla richiesta'), ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="hidden" name="loan_id" value="<?= (int)$request['id']; ?>">
+                <button type="submit" class="btn-cancel">
+                  <i class="fas fa-trash" aria-hidden="true"></i>
+                  <span><?= __("Annulla richiesta") ?></span>
+                </button>
+              </form>
             </div>
           </div>
         </div>
@@ -578,6 +650,20 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
                 <i class="fas fa-star" aria-hidden="true"></i>
                 <span><?= $hasReview ? __('Già recensito') : __('Lascia una recensione') ?></span>
               </button>
+              <?php // Annullabile dall'utente solo finché il prestito non è partito:
+                    // 'prenotato' (attivo=1) qui, 'pendente' nella sezione richieste (M13). ?>
+              <?php if ($stato === 'prenotato'): ?>
+              <form method="post" action="<?= htmlspecialchars(url('/loan/cancel'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm="<?= htmlspecialchars(__('Annullare questo prestito programmato?'), ENT_QUOTES, 'UTF-8') ?>"
+                    data-swal-confirm-button="<?= htmlspecialchars(__('Annulla prestito'), ENT_QUOTES, 'UTF-8') ?>">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfToken, ENT_QUOTES, 'UTF-8'); ?>">
+                <input type="hidden" name="loan_id" value="<?= (int)$loan['id']; ?>">
+                <button type="submit" class="btn-cancel">
+                  <i class="fas fa-trash" aria-hidden="true"></i>
+                  <span><?= __("Annulla prestito") ?></span>
+                </button>
+              </form>
+              <?php endif; ?>
             </div>
           </div>
         </div>

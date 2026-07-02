@@ -38,6 +38,9 @@ class ReservationManager
     /** @var array<int,array> Notifiche prenotazione da inviare dopo il commit esterno */
     private array $deferredReservationNotifications = [];
 
+    /** @var array<int,array{email: string, variables: array}> Notifiche di scadenza coda (M11) da inviare dopo il commit esterno */
+    private array $deferredExpiryNotifications = [];
+
     /**
      * Dichiara che il chiamante ha già aperto una transazione: in tal caso questo
      * manager NON aprirà una transazione propria (evita il commit implicito di una
@@ -64,6 +67,29 @@ class ReservationManager
                     'prenotazione_id' => $reservation['id'] ?? null,
                     'error' => $e->getMessage(),
                 ]);
+            }
+        }
+
+        // Stesso pattern per le notifiche di scadenza coda accodate da
+        // cancelExpiredReservations() in transazione esterna (M11).
+        $pendingExpiry = $this->deferredExpiryNotifications;
+        $this->deferredExpiryNotifications = [];
+        if ($pendingExpiry !== []) {
+            $notificationService = new \App\Support\NotificationService($this->db);
+            foreach ($pendingExpiry as $expired) {
+                try {
+                    if (!$notificationService->sendQueueReservationExpiredNotification($expired['email'], $expired['variables'])) {
+                        // Ritorno false = invio fallito senza eccezione: logga
+                        // comunque, altrimenti la notifica si perde in silenzio.
+                        \App\Support\SecureLogger::warning('Invio notifica scadenza prenotazione differita fallito (send=false)', [
+                            'email_hash' => hash('sha256', (string) $expired['email']),
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    \App\Support\SecureLogger::error('Invio notifica scadenza prenotazione differita fallito', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
         }
     }
@@ -228,8 +254,14 @@ class ReservationManager
                     // not necessarily queue_position = 1 (earlier positions may
                     // have a future start date). Decrementing everything > 1
                     // would collide positions when a non-head reservation is
-                    // promoted.
-                    $this->updateQueuePositions($bookId, (int) $nextReservation['queue_position']);
+                    // promoted. Legacy queue_position NULL: (int)NULL = 0 farebbe
+                    // decrementare TUTTE le posizioni attive — ricompattiamo
+                    // invece l'intera coda (L7).
+                    if ($headQueuePos !== null) {
+                        $this->updateQueuePositions($bookId, $headQueuePos);
+                    } else {
+                        $this->reorderQueuePositions($bookId);
+                    }
 
                     $this->commitIfOwned($ownTransaction);
 
@@ -520,15 +552,19 @@ class ReservationManager
                 $variables
             );
 
-            // Only mark as notified if email was actually sent successfully
-            // This allows retry on next cron/maintenance run if email fails
+            // Only mark as notified if email was actually sent successfully:
+            // le righe 'completata' con notifica_inviata=0 vengono riprese da
+            // retryUnsentReservationNotifications() al run di manutenzione/cron
+            // successivo (M4) — prima nessuno le rileggeva e l'email era persa.
             if ($success) {
                 $stmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ?");
                 $stmt->bind_param('i', $reservation['id']);
                 $stmt->execute();
                 $stmt->close();
             } else {
-                error_log("ReservationManager: Email send failed for reservation ID {$reservation['id']}, will retry on next run");
+                \App\Support\SecureLogger::warning('ReservationManager: email send failed, will be retried by retryUnsentReservationNotifications() on next maintenance run', [
+                    'reservation_id' => (int) $reservation['id'],
+                ]);
             }
 
             return $success;
@@ -537,6 +573,91 @@ class ReservationManager
             error_log("Failed to send reservation notification: " . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Ritenta l'invio delle email 'reservation_book_available' fallite (M4).
+     *
+     * sendReservationNotification() setta notifica_inviata solo a successo, ma la
+     * prenotazione è già 'completata' PRIMA dell'invio: senza questo sweep un
+     * hiccup SMTP al momento della promozione perdeva l'email per sempre (nessun
+     * altro codice rilegge completata + notifica_inviata=0). Finestra di 7 giorni:
+     * oltre, l'avviso non è più utile all'utente.
+     *
+     * Da chiamare FUORI da ogni transazione (invia email direttamente):
+     * MaintenanceService::runAll() e il cron automatic-notifications.
+     *
+     * @param int $limit Massimo numero di prenotazioni da riprocessare per run
+     * @return int Numero di email inviate con successo
+     */
+    public function retryUnsentReservationNotifications(int $limit = 20): int
+    {
+        $limit = max(1, $limit);
+        // "Adesso" applicativo (M9) come base della finestra di recupero
+        $cutoff = date('Y-m-d H:i:s', strtotime(\App\Support\DateHelper::now() . ' -7 days'));
+
+        $stmt = $this->db->prepare("
+            SELECT r.*, u.email, u.nome, u.cognome
+            FROM prenotazioni r
+            JOIN utenti u ON r.utente_id = u.id
+            WHERE r.stato = 'completata'
+            AND r.notifica_inviata = 0
+            AND r.data_inizio_richiesta IS NOT NULL
+            AND r.updated_at >= ?
+            ORDER BY r.updated_at ASC
+            LIMIT ?
+        ");
+        $stmt->bind_param('si', $cutoff, $limit);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $reservations = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
+
+        $sentCount = 0;
+        if ($reservations === []) {
+            return 0;
+        }
+
+        // Claim-then-send (stesso pattern di warning/overdue): i tre percorsi
+        // che invocano questo sweep (cron automatic-notifications, cron
+        // full-maintenance e runIfNeeded() da login admin) usano lock diversi
+        // e possono girare in overlap, quindi senza claim atomico due run
+        // selezionerebbero la stessa riga e l'utente riceverebbe l'email doppia.
+        $claimStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 1 WHERE id = ? AND notifica_inviata = 0");
+        $revertStmt = $this->db->prepare("UPDATE prenotazioni SET notifica_inviata = 0 WHERE id = ?");
+
+        foreach ($reservations as $reservation) {
+            $reservationId = (int) $reservation['id'];
+
+            // Claim atomico PRIMA dell'invio: se affected_rows è 0 un run
+            // concorrente ha già preso in carico questa riga.
+            $claimStmt->bind_param('i', $reservationId);
+            $claimStmt->execute();
+            if ($claimStmt->affected_rows < 1) {
+                continue;
+            }
+
+            // Risolvi la data di fine con lo stesso coalesce canonico di
+            // processBookAvailability(): una riga legacy può avere
+            // data_fine_richiesta NULL ma data_scadenza_prenotazione valorizzata.
+            $reservation['data_fine_richiesta'] = $reservation['data_fine_richiesta']
+                ?: (!empty($reservation['data_scadenza_prenotazione'])
+                    ? substr((string) $reservation['data_scadenza_prenotazione'], 0, 10)
+                    : $reservation['data_inizio_richiesta']);
+
+            if ($this->sendReservationNotification($reservation)) {
+                $sentCount++;
+            } else {
+                // Invio fallito: rilascia il claim così la riga resta
+                // eleggibile per il run successivo.
+                $revertStmt->bind_param('i', $reservationId);
+                $revertStmt->execute();
+            }
+        }
+        $claimStmt->close();
+        $revertStmt->close();
+
+        return $sentCount;
     }
 
     /**
@@ -549,8 +670,9 @@ class ReservationManager
      */
     public function isBookAvailableForImmediateLoan($bookId, ?string $startDate = null, ?string $endDate = null, ?int $excludeUserId = null): bool
     {
-        // Default to today if no dates provided
-        $startDate = $startDate ?: date('Y-m-d');
+        // Default to today (app timezone, M9): date('Y-m-d') usa la timezone del
+        // processo e a cavallo della mezzanotte sbaglierebbe il giorno richiesto.
+        $startDate = $startDate ?: \App\Support\DateHelper::today();
         $endDate = $endDate ?: $startDate;
 
         // Validate date format and ensure start <= end
@@ -626,43 +748,93 @@ class ReservationManager
      * Cancel reservations that have passed their expiration date
      *
      * Marks reservations as 'annullata' when data_scadenza_prenotazione
-     * is in the past, and reorders queue positions for affected books.
+     * is in the past, reorders queue positions for affected books and
+     * notifies the affected users (M11: prima la scadenza era silenziosa).
      *
-     * Uses transaction to ensure atomic update and queue reordering.
+     * Uses transaction to ensure atomic update and queue reordering; le
+     * notifiche partono solo DOPO il commit (differite via
+     * flushDeferredNotifications() quando la transazione è esterna).
      *
      * @return int Number of reservations cancelled
      */
     public function cancelExpiredReservations(): int
     {
         $ownTransaction = $this->beginTransactionIfNeeded();
+        $expiryNotifications = [];
 
         try {
-            // First, get affected book IDs BEFORE updating
-            // Use FOR UPDATE to lock rows and prevent concurrent modifications
+            // "Adesso" nel timezone applicativo come parametro bound (M9): NOW()
+            // dipende dalla session timezone del client DB (il cron forzava UTC,
+            // il web non imposta nulla). Un unico valore condiviso da SELECT e
+            // UPDATE garantisce anche che le due query vedano le stesse righe.
+            $now = \App\Support\DateHelper::now();
+
+            // First, lock the expiring rows BEFORE updating (FOR UPDATE, solo su
+            // prenotazioni: nessuna JOIN qui per non estendere il lock ad altre
+            // tabelle) and collect the data needed for queue reordering and for
+            // the user notifications (M11).
             $selectStmt = $this->db->prepare("
-                SELECT DISTINCT libro_id
+                SELECT id, libro_id, utente_id, data_scadenza_prenotazione
                 FROM prenotazioni
                 WHERE stato = 'attiva'
                 AND data_scadenza_prenotazione IS NOT NULL
-                AND data_scadenza_prenotazione < NOW()
+                AND data_scadenza_prenotazione < ?
                 FOR UPDATE
             ");
+            $selectStmt->bind_param('s', $now);
             $selectStmt->execute();
             $result = $selectStmt->get_result();
-            $affectedBooks = [];
-            while ($row = $result->fetch_assoc()) {
-                $affectedBooks[] = (int) $row['libro_id'];
-            }
+            $expiring = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
             $selectStmt->close();
 
-            // Now update the reservations
+            $affectedBooks = [];
+            foreach ($expiring as $row) {
+                $affectedBooks[(int) $row['libro_id']] = true;
+            }
+            $affectedBooks = array_keys($affectedBooks);
+
+            // Dati utente/titolo per le notifiche, letti ora (prima dell'UPDATE)
+            // con le righe già lockate. Libri soft-deleted esclusi: la prenotazione
+            // viene comunque annullata ma senza email (convenzione deleted_at).
+            if ($expiring !== []) {
+                $infoStmt = $this->db->prepare("
+                    SELECT u.email, u.nome, l.titolo
+                    FROM prenotazioni r
+                    JOIN utenti u ON r.utente_id = u.id
+                    JOIN libri l ON r.libro_id = l.id AND l.deleted_at IS NULL
+                    WHERE r.id = ?
+                ");
+                foreach ($expiring as $row) {
+                    $reservationId = (int) $row['id'];
+                    $infoStmt->bind_param('i', $reservationId);
+                    $infoStmt->execute();
+                    $infoResult = $infoStmt->get_result();
+                    $info = $infoResult ? $infoResult->fetch_assoc() : null;
+                    if ($info && !empty($info['email'])) {
+                        $expiryNotifications[] = [
+                            'email' => $info['email'],
+                            'variables' => [
+                                'utente_nome' => $info['nome'],
+                                'libro_titolo' => $info['titolo'],
+                                // Raw: formattata da sendQueueReservationExpiredNotification()
+                                'data_scadenza' => (string) $row['data_scadenza_prenotazione'],
+                            ],
+                        ];
+                    }
+                }
+                $infoStmt->close();
+            }
+
+            // Now update the reservations (stesso predicato e stesso $now della
+            // SELECT: annulla esattamente le righe raccolte sopra)
             $stmt = $this->db->prepare("
                 UPDATE prenotazioni
                 SET stato = 'annullata'
                 WHERE stato = 'attiva'
                 AND data_scadenza_prenotazione IS NOT NULL
-                AND data_scadenza_prenotazione < NOW()
+                AND data_scadenza_prenotazione < ?
             ");
+            $stmt->bind_param('s', $now);
             $stmt->execute();
             $cancelledCount = $this->db->affected_rows;
             $stmt->close();
@@ -679,11 +851,41 @@ class ReservationManager
             }
 
             $this->commitIfOwned($ownTransaction);
+
+            // Notifiche di scadenza (M11), MAI dentro la transazione: se la
+            // possediamo l'abbiamo appena committata e inviamo subito; se è
+            // esterna accodiamo e sarà flushDeferredNotifications() a inviare
+            // dopo il commit del chiamante (stesso pattern P2).
+            if ($expiryNotifications !== []) {
+                if ($ownTransaction) {
+                    $notificationService = new \App\Support\NotificationService($this->db);
+                    foreach ($expiryNotifications as $expired) {
+                        try {
+                            $notificationService->sendQueueReservationExpiredNotification($expired['email'], $expired['variables']);
+                        } catch (\Throwable $notifError) {
+                            \App\Support\SecureLogger::warning('Invio notifica scadenza prenotazione fallito', [
+                                'error' => $notifError->getMessage(),
+                            ]);
+                        }
+                    }
+                } else {
+                    foreach ($expiryNotifications as $expired) {
+                        $this->deferredExpiryNotifications[] = $expired;
+                    }
+                }
+            }
+
             return $cancelledCount;
 
         } catch (\Throwable $e) {
             $this->rollbackIfOwned($ownTransaction);
-            error_log("cancelExpiredReservations error: " . $e->getMessage());
+            // In transazione esterna rilanciamo (stesso pattern di
+            // processBookAvailability): assorbire qui lascerebbe il chiamante
+            // committare uno stato parziale che rollbackIfOwned non ha annullato.
+            if ($this->externalTransaction) {
+                throw $e;
+            }
+            \App\Support\SecureLogger::error('cancelExpiredReservations error', ['error' => $e->getMessage()]);
             return 0;
         }
     }

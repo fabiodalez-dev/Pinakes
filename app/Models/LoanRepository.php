@@ -6,6 +6,7 @@ namespace App\Models;
 use mysqli;
 use App\Controllers\ReservationManager;
 use App\Support\DataIntegrity;
+use App\Support\DateHelper;
 use App\Support\SecureLogger;
 
 class LoanRepository
@@ -88,8 +89,9 @@ class LoanRepository
         $sql = "UPDATE prestiti SET utente_id=?, data_prestito=?, data_scadenza=?, processed_by=? WHERE id=?";
         $stmt = $this->db->prepare($sql);
         $utente_id = (int) ($data['utente_id'] ?? 0);
-        $data_prestito = $data['data_prestito'] ?? date('Y-m-d');
-        $data_scadenza = $data['data_scadenza'] ?? date('Y-m-d', strtotime('+14 days'));
+        // "Oggi" nel timezone applicativo (M9): mai date() (TZ processo, spesso UTC).
+        $data_prestito = $data['data_prestito'] ?? DateHelper::today();
+        $data_scadenza = $data['data_scadenza'] ?? date('Y-m-d', strtotime(DateHelper::today() . ' +14 days'));
         $processed_by = $data['processed_by'] ?? null;
         $stmt->bind_param('issii', $utente_id, $data_prestito, $data_scadenza, $processed_by, $id);
         return $stmt->execute();
@@ -121,6 +123,19 @@ class LoanRepository
         return $loan ?: null;
     }
 
+    /**
+     * Chiude un prestito APERTO registrandolo come 'restituito'.
+     *
+     * Guardia di stato (H1): opera SOLO su prestiti con attivo=1 e stato
+     * in_corso/in_ritardo. Richiudere un prestito già 'restituito'
+     * sovrascriverebbe data_restituzione a oggi e ricalcolerebbe
+     * restituito_in_ritardo contro oggi (falso ritardo che inquina storico e
+     * statistiche); chiudere un prenotato/da_ritirare/pendente lo
+     * registrerebbe come consegnato — quei casi passano dai percorsi dedicati
+     * (annullamento/scadenza ritiro), che gestiscono anche la riassegnazione.
+     *
+     * @return bool false se il prestito non esiste o non è chiudibile.
+     */
     public function close(int $id): bool
     {
         $this->db->begin_transaction();
@@ -161,7 +176,7 @@ class LoanRepository
             // e ricalcolato il libro sbagliato. In quel caso (rarissimo: il
             // libro di un prestito non viene riassegnato) abortiamo invece di
             // operare su dati incoerenti.
-            $stmt = $this->db->prepare('SELECT libro_id, copia_id, data_scadenza FROM prestiti WHERE id=? FOR UPDATE');
+            $stmt = $this->db->prepare('SELECT libro_id, copia_id, data_scadenza, attivo, stato FROM prestiti WHERE id=? FOR UPDATE');
             $stmt->bind_param('i', $id);
             $stmt->execute();
             $lockedRow = $stmt->get_result()->fetch_assoc();
@@ -174,18 +189,35 @@ class LoanRepository
                 $this->db->rollback();
                 return false;
             }
+
+            // Guardia di stato (H1): solo un prestito ancora aperto è chiudibile
+            // (vedi docblock). Verificata QUI, sotto lock, così una restituzione
+            // concorrente già committata non viene rielaborata.
+            if ((int) $lockedRow['attivo'] !== 1 || !in_array($lockedRow['stato'], ['in_corso', 'in_ritardo'], true)) {
+                $this->db->rollback();
+                return false;
+            }
             $closedCopiaId = $lockedRow['copia_id'] !== null ? (int) $lockedRow['copia_id'] : null;
 
-            // Chiude il prestito (restituito + flag ritardo se oltre scadenza, I4/BUG5)
-            $today = gmdate('Y-m-d');
+            // Chiude il prestito (restituito + flag ritardo se oltre scadenza, I4/BUG5).
+            // "Oggi" nel timezone applicativo (M9), non UTC: a cavallo della
+            // mezzanotte gmdate() registrerebbe il giorno sbagliato.
+            $today = DateHelper::today();
             $scadenza = (string) ($lockedRow['data_scadenza'] ?? '');
             $ritardo = ($scadenza !== '' && $scadenza < $today) ? 1 : 0;
-            $stmt = $this->db->prepare('UPDATE prestiti SET attivo=0, data_restituzione=?, stato="restituito", restituito_in_ritardo=? WHERE id=?');
+            $stmt = $this->db->prepare('UPDATE prestiti SET attivo=0, data_restituzione=?, stato="restituito", restituito_in_ritardo=? WHERE id=? AND attivo=1');
             $stmt->bind_param('sii', $today, $ritardo, $id);
             if (!$stmt->execute()) {
                 throw new \RuntimeException('Impossibile aggiornare lo stato del prestito.');
             }
+            $closeAffected = $stmt->affected_rows;
             $stmt->close();
+            if ($closeAffected < 1) {
+                // La guardia sotto lock rende il caso teorico, ma se l'UPDATE non
+                // tocca righe il prestito non era più chiudibile: nessun effetto.
+                $this->db->rollback();
+                return false;
+            }
 
             // Determina se il libro ha altri prestiti attivi (include 'prenotato' for scheduled future loans)
             $activeCount = 0;

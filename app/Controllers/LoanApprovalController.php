@@ -7,6 +7,7 @@ use mysqli;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use App\Support\DataIntegrity;
+use App\Support\DateHelper;
 use App\Support\SecureLogger;
 use function __;
 
@@ -34,7 +35,8 @@ class LoanApprovalController
         $stmt->close();
 
         // Get all loans ready for pickup (da_ritirare)
-        $today = date('Y-m-d');
+        // "Oggi" nel timezone applicativo (M9), non in quello del processo PHP.
+        $today = DateHelper::today();
         $pickupStmt = $db->prepare("
             SELECT p.*, l.titolo, l.copertina_url,
                    CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
@@ -234,14 +236,32 @@ class LoanApprovalController
             // di default di PHP (spesso UTC in produzione): altrimenti, vicino alla
             // mezzanotte, un prestito datato oggi (lato browser/Rome) verrebbe visto come
             // futuro e finirebbe 'prenotato' invece di 'da_ritirare' (P1 timezone).
-            $appTz = \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome');
-            try {
-                $today = (new \DateTime('now', new \DateTimeZone($appTz)))->format('Y-m-d');
-            } catch (\Throwable $e) {
-                $today = date('Y-m-d');
-            }
+            // DateHelper::today() incapsula già i fallback sul timezone (M9).
+            $today = DateHelper::today();
 
             $utenteId = (int) $loan['utente_id'];
+
+            // M7 — gate di idoneità anche in APPROVAZIONE: l'utente può essere
+            // stato sospeso (o la tessera può essere scaduta) tra la richiesta e
+            // l'approvazione admin. Stesso gate usato da store()/createReservation.
+            // Lock della riga utente PRIMA del check (come store()): senza,
+            // una sospensione concorrente può committare tra il check e l'UPDATE.
+            $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+            $userLockStmt->bind_param('i', $utenteId);
+            $userLockStmt->execute();
+            $userLockStmt->get_result();
+            $userLockStmt->close();
+
+            $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId);
+            if ($eligibilityError !== null) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => \App\Support\LoanEligibility::errorMessage($eligibilityError)
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
             $dupStmt = $db->prepare("
                 SELECT id FROM prestiti
                 WHERE libro_id = ? AND utente_id = ? AND id != ?
@@ -327,6 +347,12 @@ class LoanApprovalController
                 // Base su $today (timezone applicativo) per coerenza con la
                 // classificazione immediato/futuro a cavallo della mezzanotte.
                 $pickupDeadline = date('Y-m-d', strtotime("{$today} +{$pickupDays} days"));
+                // Cap alla fine della finestra del prestito (L1): una deadline oltre
+                // data_scadenza permetterebbe di confermare il ritiro di un prestito
+                // già scaduto e terrebbe la copia impegnata oltre la finestra.
+                if ($dataScadenza !== null && $dataScadenza !== '' && $pickupDeadline > $dataScadenza) {
+                    $pickupDeadline = $dataScadenza;
+                }
             }
 
             // Step 1: Try to use pre-assigned copy first (avoids false rejection when slots are at capacity)
@@ -706,9 +732,37 @@ class LoanApprovalController
 
         try {
             $db->begin_transaction();
-            $today = date('Y-m-d');
+            $today = DateHelper::today();
 
-            // Lock and verify loan is ready for pickup
+            // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
+            // Determiniamo il libro con una lettura NON bloccante, poi acquisiamo i lock
+            // nell'ordine libri -> prestiti come approveLoan/store/renew, evitando
+            // deadlock da lock-order inversion con operazioni concorrenti sullo stesso
+            // libro (M2).
+            $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ?");
+            $bookLookup->bind_param('i', $loanId);
+            $bookLookup->execute();
+            $bookRow = $bookLookup->get_result()->fetch_assoc();
+            $bookLookup->close();
+            if (!$bookRow) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o non pronto per il ritiro')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+            $libroId = (int) $bookRow['libro_id'];
+
+            // Lock della riga `libri` SENZA filtro deleted_at: come per le restituzioni
+            // (vedi LoanRepository::close), l'evasione di un prestito già approvato deve
+            // poter procedere anche se il libro è stato soft-deleted nel frattempo.
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            // Poi lock + ri-verifica del prestito con le guardie di stato.
             // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today (for systems without MaintenanceService)
             $stmt = $db->prepare("
                 SELECT id, libro_id, copia_id, utente_id, data_prestito, data_scadenza, stato, pickup_deadline
@@ -724,6 +778,18 @@ class LoanApprovalController
             $stmt->close();
 
             if (!$loan) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o non pronto per il ritiro')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Re-verifica TOCTOU: la lettura iniziale era non bloccante per preservare
+            // l'ordine di lock canonico; se libro_id fosse cambiato nel frattempo
+            // (rarissimo) avremmo lockato il libro sbagliato: abort.
+            if ((int) $loan['libro_id'] !== $libroId) {
                 $db->rollback();
                 $response->getBody()->write(json_encode([
                     'success' => false,
@@ -753,7 +819,18 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $libroId = (int) $loan['libro_id'];
+            // Guardia L1: pickup_deadline (per prestiti storici, pre-cap) può superare
+            // data_scadenza. Non avviare un 'in_corso' la cui finestra è già interamente
+            // trascorsa: nascerebbe scaduto.
+            if (!empty($loan['data_scadenza']) && $loan['data_scadenza'] < $today) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
 
             // Update loan state to 'in_corso'
@@ -845,9 +922,36 @@ class LoanApprovalController
 
         try {
             $db->begin_transaction();
-            $today = date('Y-m-d');
+            $today = DateHelper::today();
 
-            // Lock and verify loan is in a cancellable pickup state
+            // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
+            // Lettura NON bloccante del libro, poi lock nell'ordine libri -> prestiti
+            // come approveLoan/store/renew (M2, niente lock-order inversion).
+            $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ?");
+            $bookLookup->bind_param('i', $loanId);
+            $bookLookup->execute();
+            $bookRow = $bookLookup->get_result()->fetch_assoc();
+            $bookLookup->close();
+            if (!$bookRow) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o non cancellabile')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+            $libroId = (int) $bookRow['libro_id'];
+
+            // Lock della riga `libri` SENZA filtro deleted_at: l'annullamento di un
+            // ritiro deve sempre poter procedere anche su libro soft-deleted (vedi
+            // LoanRepository::close), altrimenti prestito e copia resterebbero
+            // impegnati per sempre.
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            // Poi lock + ri-verifica del prestito con le guardie di stato.
             // Accept 'da_ritirare' OR 'prenotato' if data_prestito <= today
             $stmt = $db->prepare("
                 SELECT id, libro_id, copia_id, utente_id, stato
@@ -871,7 +975,17 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $libroId = (int) $loan['libro_id'];
+            // Re-verifica TOCTOU: se libro_id è cambiato tra la lettura non bloccante e
+            // il lock avremmo bloccato (e ricalcolato) il libro sbagliato: abort.
+            if ((int) $loan['libro_id'] !== $libroId) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o non cancellabile')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
 
             // Mark loan as expired (not picked up)
@@ -982,6 +1096,34 @@ class LoanApprovalController
         try {
             $db->begin_transaction();
 
+            // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi `prestiti`.
+            // Lettura NON bloccante del libro, poi lock nell'ordine libri -> prestiti
+            // come approveLoan/store/renew (M2, niente lock-order inversion).
+            $bookLookup = $db->prepare("SELECT libro_id FROM prestiti WHERE id = ?");
+            $bookLookup->bind_param('i', $loanId);
+            $bookLookup->execute();
+            $bookRow = $bookLookup->get_result()->fetch_assoc();
+            $bookLookup->close();
+            if (!$bookRow) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o non restituibile')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+            $libroId = (int) $bookRow['libro_id'];
+
+            // Lock della riga `libri` SENZA filtro deleted_at: la RESTITUZIONE deve
+            // sempre poter procedere anche su libro soft-deleted (vedi il commento in
+            // LoanRepository::close), altrimenti prestito e copia resterebbero
+            // occupati per sempre.
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            // Poi lock + ri-verifica del prestito con le guardie di stato.
             $stmt = $db->prepare("
                 SELECT libro_id, copia_id, stato, data_scadenza
                 FROM prestiti
@@ -1003,9 +1145,22 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $libroId = (int) $loan['libro_id'];
+            // Re-verifica TOCTOU: se libro_id è cambiato tra la lettura non bloccante e
+            // il lock avremmo bloccato (e ricalcolato) il libro sbagliato: abort.
+            if ((int) $loan['libro_id'] !== $libroId) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prestito non trovato o non restituibile')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
             $copiaId = $loan['copia_id'] ? (int) $loan['copia_id'] : null;
-            $dataRestituzione = date('Y-m-d');
+            // "Oggi" nel timezone applicativo (M9): a cavallo della mezzanotte
+            // date('Y-m-d') in UTC registrerebbe il giorno sbagliato di restituzione
+            // e falserebbe il flag di ritardo.
+            $dataRestituzione = DateHelper::today();
             // Returned-late flag: a return past the due date is restituito + flag (I4/BUG5).
             // This is the primary quick-return path — without it late returns keep the
             // flag at 0 and Stats/Recensioni undercount late returners.
@@ -1128,6 +1283,11 @@ class LoanApprovalController
             }
         }
         $reservationId = (int) ($data['reservation_id'] ?? 0);
+        // reason arriva dal body e finisce nel template email come {{motivo}}:
+        // neutralizza input non scalare e limita la lunghezza (l'escaping HTML
+        // avviene al sink in EmailService::replaceVariables).
+        $rawReason = $data['reason'] ?? '';
+        $reason = is_scalar($rawReason) ? mb_substr(trim((string) $rawReason), 0, 500) : '';
 
         if ($reservationId <= 0) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('ID prenotazione non valido')]));
@@ -1137,7 +1297,44 @@ class LoanApprovalController
         try {
             $db->begin_transaction();
 
-            $stmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND stato = 'attiva' FOR UPDATE");
+            // ORDINE DI LOCK CANONICO (P3): la riga `libri` per prima, poi
+            // `prenotazioni`. Lettura NON bloccante del libro, poi lock nell'ordine
+            // libri -> prenotazioni come approveLoan/store/renew (M2).
+            $bookLookup = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND stato = 'attiva'");
+            $bookLookup->bind_param('i', $reservationId);
+            $bookLookup->execute();
+            $bookRow = $bookLookup->get_result()->fetch_assoc();
+            $bookLookup->close();
+            if (!$bookRow) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prenotazione non trovata o già annullata')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+            $libroId = (int) $bookRow['libro_id'];
+
+            // Lock della riga `libri` SENZA filtro deleted_at: l'annullamento di una
+            // prenotazione deve sempre poter procedere anche su libro soft-deleted
+            // (vedi LoanRepository::close), per non lasciare la coda bloccata.
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            // Poi lock + ri-verifica della prenotazione. Il JOIN recupera anche
+            // destinatario e titolo per la notifica post-commit (M11), come fa
+            // rejectLoan; niente filtro deleted_at sul libro (vedi sopra).
+            $stmt = $db->prepare("
+                SELECT r.libro_id, l.titolo as libro_titolo,
+                       CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email
+                FROM prenotazioni r
+                JOIN libri l ON r.libro_id = l.id
+                JOIN utenti u ON r.utente_id = u.id
+                WHERE r.id = ? AND r.stato = 'attiva'
+                FOR UPDATE
+            ");
             $stmt->bind_param('i', $reservationId);
             $stmt->execute();
             $result = $stmt->get_result();
@@ -1153,7 +1350,21 @@ class LoanApprovalController
                 return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
             }
 
-            $libroId = (int) $reservation['libro_id'];
+            // Re-verifica TOCTOU: se libro_id è cambiato tra la lettura non bloccante e
+            // il lock avremmo bloccato (e ricalcolato) il libro sbagliato: abort.
+            if ((int) $reservation['libro_id'] !== $libroId) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => __('Prenotazione non trovata o già annullata')
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            // Dati per la notifica post-commit (M11).
+            $userEmail = (string) $reservation['utente_email'];
+            $userName = (string) $reservation['utente_nome'];
+            $bookTitle = (string) $reservation['libro_titolo'];
 
             // Cancel the reservation
             $stmt = $db->prepare("UPDATE prenotazioni SET stato = 'annullata' WHERE id = ?");
@@ -1189,6 +1400,20 @@ class LoanApprovalController
             }
 
             $db->commit();
+
+            // Notifica all'utente DOPO il commit (M11): try/catch isolato, un errore
+            // di invio non deve far fallire l'annullamento già committato.
+            try {
+                $notificationService = new \App\Support\NotificationService($db);
+                $notificationService->sendReservationCancelledNotification($userEmail, [
+                    'utente_nome' => $userName,
+                    'libro_titolo' => $bookTitle,
+                    'motivo' => $reason ?: __('Annullata dalla biblioteca')
+                ]);
+            } catch (\Throwable $notifError) {
+                \App\Support\SecureLogger::warning("[cancelReservation] Notification error for reservation {$reservationId}: " . $notifError->getMessage());
+                // Don't fail - cancellation already committed
+            }
 
             $response->getBody()->write(json_encode([
                 'success' => true,

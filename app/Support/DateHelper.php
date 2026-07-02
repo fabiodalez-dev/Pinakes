@@ -36,6 +36,33 @@ class DateHelper
         }
     }
 
+    /**
+     * Current date-time (Y-m-d H:i:s) in the application's configured timezone.
+     *
+     * Same contract as today(): every "is this moment past the deadline?"
+     * comparison in the loan/reservation pipeline must compute "now" through
+     * here and bind it as a query parameter instead of using SQL NOW(), whose
+     * value depends on the DB session timezone (the cron used to force UTC
+     * while the web sets nothing, creating two different regimes for the same
+     * comparison).
+     */
+    public static function now(): string
+    {
+        $tz = (string) ConfigStore::get('app.timezone', 'Europe/Rome');
+        try {
+            return (new \DateTime('now', new \DateTimeZone($tz)))->format('Y-m-d H:i:s');
+        } catch (\Throwable $e) {
+            // Same fallback ladder as today(): the documented default zone
+            // first, process-tz date() only as a last resort (it would
+            // reintroduce the midnight day-boundary mismatch).
+            try {
+                return (new \DateTime('now', new \DateTimeZone('Europe/Rome')))->format('Y-m-d H:i:s');
+            } catch (\Throwable $e2) {
+                return date('Y-m-d H:i:s');
+            }
+        }
+    }
+
     private static array $monthNames = [
         'gennaio' => '01', 'febbraio' => '02', 'marzo' => '03', 'aprile' => '04',
         'maggio' => '05', 'giugno' => '06', 'luglio' => '07', 'agosto' => '08',

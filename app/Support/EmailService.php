@@ -167,7 +167,10 @@ class EmailService {
                 throw new Exception("Template '{$templateName}' not found");
             }
 
-            $subject = $this->replaceVariables($template['subject'], $variables);
+            // Il subject è un header MIME, non HTML: niente escaping HTML
+            // (verrebbe mostrato letteralmente, es. "L&#039;isola"), ma le
+            // variabili vanno sanificate contro header injection (CR/LF).
+            $subject = $this->replaceVariables($template['subject'], $variables, false);
             $body = $this->replaceVariables($template['body'], $variables);
 
             return $this->sendEmail($to, $subject, $body, '', $locale);
@@ -236,25 +239,24 @@ class EmailService {
                 $locale = \App\Support\I18n::getLocale();
             }
 
-            // Try to get template in requested locale
-            $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = ? AND active = 1");
-            $stmt->bind_param('ss', $templateName, $locale);
-            $stmt->execute();
-            $result = $stmt->get_result();
-
-            if ($row = $result->fetch_assoc()) {
-                return $row;
+            // Catena di fallback: locale richiesto → fallback di variante
+            // (it_* → it_IT, altrimenti en_US) → it_IT come ultima spiaggia.
+            // L'ultimo tentativo su it_IT è necessario perché alcuni percorsi
+            // storici (editor admin, migrazioni, ensureEmailTemplates) hanno
+            // seminato/aggiornato righe solo con locale='it_IT': senza questo
+            // passo un'installazione en_US/de_DE/fr_FR non troverebbe MAI quei
+            // template e l'email andrebbe persa silenziosamente.
+            $candidateLocales = [$locale];
+            if ($locale !== 'it_IT' && $locale !== 'en_US') {
+                $candidateLocales[] = str_starts_with($locale, 'it_') ? 'it_IT' : 'en_US';
+            }
+            if (!in_array('it_IT', $candidateLocales, true)) {
+                $candidateLocales[] = 'it_IT';
             }
 
-            // Fallback logic:
-            // - Italian locales (it_IT, it_CH, etc.) → fallback to it_IT
-            // - All other locales → fallback to en_US (international standard)
-            if ($locale !== 'it_IT' && $locale !== 'en_US') {
-                $isItalianVariant = str_starts_with($locale, 'it_');
-                $fallbackLocale = $isItalianVariant ? 'it_IT' : 'en_US';
-
+            foreach ($candidateLocales as $candidateLocale) {
                 $stmt = $this->db->prepare("SELECT subject, body FROM email_templates WHERE name = ? AND locale = ? AND active = 1");
-                $stmt->bind_param('ss', $templateName, $fallbackLocale);
+                $stmt->bind_param('ss', $templateName, $candidateLocale);
                 $stmt->execute();
                 $result = $stmt->get_result();
 
@@ -428,7 +430,7 @@ class EmailService {
                         <a href="{{book_url}}" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">📚 Prenota Ora</a>
                         <a href="{{wishlist_url}}" style="background-color: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block; margin: 10px;">❤️ Gestisci Wishlist</a>
                     </p>
-                    <p><em>Questo libro è stato automaticamente rimosso dalla tua wishlist.</em></p>
+                    <p><em>📝 Puoi rimuovere questo libro dalla tua wishlist quando vuoi.</em></p>
                 '
             ],
             'reservation_book_available' => [
@@ -467,6 +469,63 @@ class EmailService {
 
                     <p>Grazie per la pazienza! 😊</p>
                 '
+            ],
+            'loan_returned' => [
+                'subject' => '✅ Restituzione confermata',
+                'body' => '
+                    <h2>Restituzione confermata</h2>
+                    <p>Ciao {{utente_nome}},</p>
+                    <p>Confermiamo la restituzione del seguente libro. Grazie!</p>
+                    <div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
+                        <p><strong>Libro:</strong> {{libro_titolo}}</p>
+                        <p><strong>Data restituzione:</strong> {{data_restituzione}}</p>
+                    </div>
+                    <p>Speriamo che la lettura ti sia piaciuta. A presto in biblioteca!</p>
+                    <p>Cordiali saluti,<br>Il team della biblioteca</p>
+                '
+            ],
+            'reservation_expired' => [
+                'subject' => '⌛ Prenotazione scaduta',
+                'body' => '
+                    <h2>Prenotazione scaduta</h2>
+                    <p>Ciao {{utente_nome}},</p>
+                    <p>La tua prenotazione per il seguente libro è scaduta ed è stata chiusa automaticamente:</p>
+                    <div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+                        <p><strong>Libro:</strong> {{libro_titolo}}</p>
+                        <p><strong>Scaduta il:</strong> {{data_scadenza}}</p>
+                    </div>
+                    <p>Se sei ancora interessato, puoi effettuare una nuova prenotazione in qualsiasi momento.</p>
+                    <p>Cordiali saluti,<br>Il team della biblioteca</p>
+                '
+            ],
+            'copy_unavailable_user' => [
+                'subject' => 'ℹ️ Aggiornamento sulla tua prenotazione',
+                'body' => '
+                    <h2>Aggiornamento sulla tua prenotazione</h2>
+                    <p>Ciao {{utente_nome}},</p>
+                    <p>Ti informiamo che la copia riservata per la tua prenotazione del seguente libro non è più disponibile:</p>
+                    <div style="background-color: #fffbeb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+                        <p><strong>Libro:</strong> {{libro_titolo}}</p>
+                        <p><strong>Motivo:</strong> {{motivo}}</p>
+                    </div>
+                    <p>Stiamo cercando di assegnarti un\'altra copia appena possibile. Se non saranno disponibili altre copie, la tua prenotazione resterà in coda e ti avviseremo non appena il libro tornerà disponibile.</p>
+                    <p>Ci scusiamo per il disagio.</p>
+                    <p>Cordiali saluti,<br>Il team della biblioteca</p>
+                '
+            ],
+            'reservation_cancelled' => [
+                'subject' => '❌ Prenotazione annullata',
+                'body' => '
+                    <h2>Prenotazione annullata</h2>
+                    <p>Ciao {{utente_nome}},</p>
+                    <p>Ti informiamo che la tua prenotazione per il seguente libro è stata annullata:</p>
+                    <div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+                        <p><strong>Libro:</strong> {{libro_titolo}}</p>
+                        <p><strong>Motivo:</strong> {{motivo}}</p>
+                    </div>
+                    <p>Se desideri ancora questo libro, puoi effettuare una nuova prenotazione in qualsiasi momento.</p>
+                    <p>Cordiali saluti,<br>Il team della biblioteca</p>
+                '
             ]
         ];
 
@@ -479,8 +538,12 @@ class EmailService {
      * Supports both Italian placeholder names (e.g., {{libro_titolo}})
      * and English aliases (e.g., {{book_title}}) for international operators.
      * Variables can be passed with either Italian or English keys.
+     *
+     * Con $escapeHtml = false (usato per il Subject, che è un header MIME e
+     * non HTML) i valori non vengono HTML-escaped ma vengono ripuliti da
+     * CR/LF per impedire header injection.
      */
-    public function replaceVariables(string $content, array $variables): string {
+    public function replaceVariables(string $content, array $variables, bool $escapeHtml = true): string {
         // Normalize English variable keys to Italian names for consistent processing
         // This ensures RAW_HTML_VARIABLES check works regardless of input key language
         $normalizedVariables = [];
@@ -496,9 +559,15 @@ class EmailService {
         }
 
         foreach ($normalizedVariables as $key => $value) {
-            $replacement = in_array($key, self::RAW_HTML_VARIABLES, true)
-                ? (string)$value
-                : htmlspecialchars((string)$value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            if ($escapeHtml) {
+                $replacement = in_array($key, self::RAW_HTML_VARIABLES, true)
+                    ? (string)$value
+                    : htmlspecialchars((string)$value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            } else {
+                // Contesto header (Subject): niente entità HTML, ma nessun
+                // CR/LF deve arrivare a PHPMailer da input utente.
+                $replacement = str_replace(["\r", "\n"], '', (string)$value);
+            }
 
             // Replace the Italian placeholder
             $content = str_replace('{{' . $key . '}}', $replacement, $content);
@@ -544,13 +613,20 @@ class EmailService {
 
         $langCode = substr($locale, 0, 2); // it_IT -> it, en_US -> en
 
+        // Il subject arriva NON escapato (L3: come header MIME non deve
+        // contenere entità HTML), ma qui viene interpolato nel markup del
+        // corpo: l'escaping va fatto a questo sink, altrimenti una variabile
+        // con metacaratteri HTML (es. {{libro_titolo}}) inietterebbe markup
+        // nel documento dell'email.
+        $titleHtml = htmlspecialchars($subject, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
         return "
         <!DOCTYPE html>
         <html lang='{$langCode}'>
         <head>
             <meta charset='UTF-8'>
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
-            <title>{$subject}</title>
+            <title>{$titleHtml}</title>
         </head>
         <body style='font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;'>
             <div style='background-color: #f8fafc; border-radius: 10px; padding: 30px; margin-bottom: 20px;'>

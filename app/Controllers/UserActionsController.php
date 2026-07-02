@@ -130,8 +130,42 @@ class UserActionsController
         $db->begin_transaction();
 
         try {
-            // Get loan details and lock
+            // ORDINE DI LOCK CANONICO (P3, M2): risolvi libro_id con una lettura
+            // NON bloccante, blocca la riga `libri` PRIMA e solo dopo il prestito
+            // — stesso pattern di cancelReservation qui sotto. Lockare prima la
+            // riga prestiti incrocerebbe i lock con i percorsi di creazione/
+            // approvazione (che vanno libri -> prestiti) causando deadlock.
             // Note: 'pendente' has attivo=0, 'prenotato' has attivo=1
+            $lookupStmt = $db->prepare("
+                SELECT libro_id
+                FROM prestiti
+                WHERE id = ? AND utente_id = ? AND (
+                    (attivo = 0 AND stato = 'pendente')
+                    OR (attivo = 1 AND stato = 'prenotato')
+                )
+            ");
+            $lookupStmt->bind_param('ii', $loanId, $uid);
+            $lookupStmt->execute();
+            $lookupRow = $lookupStmt->get_result()->fetch_assoc();
+            $lookupStmt->close();
+
+            if (!$lookupRow) {
+                $db->rollback();
+                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+            }
+
+            $libroId = (int) $lookupRow['libro_id'];
+
+            // Lock della riga libri per serializzare rilascio copia, promozione
+            // coda e ricalcolo disponibilità con gli altri percorsi sullo stesso libro.
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            // Ora blocca e ri-verifica il prestito: la lettura iniziale era non
+            // bloccante, quindi un'approvazione/annullamento concorrente può
+            // averne cambiato lo stato (o, TOCTOU, il libro) nel frattempo.
             $stmt = $db->prepare("
                 SELECT id, copia_id, stato, libro_id
                 FROM prestiti
@@ -147,7 +181,7 @@ class UserActionsController
             $loan = $result->fetch_assoc();
             $stmt->close();
 
-            if (!$loan) {
+            if (!$loan || (int) $loan['libro_id'] !== $libroId) {
                 $db->rollback();
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
             }
@@ -235,7 +269,35 @@ class UserActionsController
         $db->begin_transaction();
 
         try {
-            // Get libro_id before canceling (needed for queue reordering)
+            // CANONICAL LOCK ORDER (P3, L7): resolve libro_id with a NON-blocking
+            // read, lock the `libri` row FIRST and only then the reservation —
+            // same order as LoanRepository::close, so this path never crosses
+            // locks with the create/approve paths (which go libri -> rows).
+            $lookupStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND utente_id = ? AND stato = 'attiva'");
+            $lookupStmt->bind_param('ii', $rid, $uid);
+            $lookupStmt->execute();
+            $lookupRow = $lookupStmt->get_result()->fetch_assoc();
+            $lookupStmt->close();
+
+            if (!$lookupRow) {
+                // Check if it's actually a loan/active reservation (prestiti table) request instead?
+                // Sometimes frontend might send reservation_id for prestiti items if confusingly named
+                $db->rollback();
+                return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
+            }
+
+            $libroId = (int) $lookupRow['libro_id'];
+
+            // Lock the book row to serialize the queue reorder + availability
+            // recalculation with other paths working on the same book's queue.
+            $lockBookStmt = $db->prepare("SELECT id FROM libri WHERE id = ? FOR UPDATE");
+            $lockBookStmt->bind_param('i', $libroId);
+            $lockBookStmt->execute();
+            $lockBookStmt->close();
+
+            // Now lock and re-verify the reservation: the initial read was
+            // non-blocking, so a concurrent promotion/cancellation may have
+            // changed its state (or, TOCTOU, its book) in the meantime.
             $getStmt = $db->prepare("SELECT libro_id FROM prenotazioni WHERE id = ? AND utente_id = ? AND stato = 'attiva' FOR UPDATE");
             $getStmt->bind_param('ii', $rid, $uid);
             $getStmt->execute();
@@ -243,14 +305,10 @@ class UserActionsController
             $reservation = $result->fetch_assoc();
             $getStmt->close();
 
-            if (!$reservation) {
-                // Check if it's actually a loan/active reservation (prestiti table) request instead?
-                // Sometimes frontend might send reservation_id for prestiti items if confusingly named
+            if (!$reservation || (int) $reservation['libro_id'] !== $libroId) {
                 $db->rollback();
                 return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=not_found')->withStatus(302);
             }
-
-            $libroId = (int) $reservation['libro_id'];
 
             // Cancel the reservation
             $stmt = $db->prepare("UPDATE prenotazioni SET stato='annullata' WHERE id=? AND utente_id=?");
@@ -258,11 +316,14 @@ class UserActionsController
             $stmt->execute();
             $stmt->close();
 
-            // Reorder queue positions for remaining active reservations
+            // Reorder queue positions for remaining active reservations.
+            // FOR UPDATE like the admin twin (LoanApprovalController): without
+            // row locks two concurrent cancel/reserve leave gaps or duplicates.
             $reorderStmt = $db->prepare("
                 SELECT id FROM prenotazioni
                 WHERE libro_id = ? AND stato = 'attiva'
                 ORDER BY queue_position ASC
+                FOR UPDATE
             ");
             $reorderStmt->bind_param('i', $libroId);
             $reorderStmt->execute();
@@ -306,7 +367,9 @@ class UserActionsController
         if ($rid <= 0 || $date === '' || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             return $response->withStatus(422);
         }
-        if (strtotime($date) < strtotime(date('Y-m-d'))) {
+        // "Today" via DateHelper (M9): see loan() — avoids the midnight
+        // day-boundary mismatch between process tz and app tz.
+        if (strtotime($date) < strtotime(\App\Support\DateHelper::today())) {
             return $response->withHeader('Location', RouteTranslator::route('reservations') . '?error=past_date')->withStatus(302);
         }
 
@@ -426,13 +489,24 @@ class UserActionsController
         }
 
         $utenteId = (int) $user['id'];
-        $data_prestito = date('Y-m-d');
+
+        // User eligibility gate (M7): stato/tessera are only verified at login,
+        // so a user suspended (or with an expired card) mid-session could
+        // otherwise keep submitting loan requests.
+        if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+            return $this->back($response, ['loan_error' => 'not_eligible']);
+        }
+
+        // "Today" via DateHelper (M9): PHP process tz is often UTC while the
+        // library runs in a local zone, so a raw date('Y-m-d') near midnight
+        // would date the request to the wrong day.
+        $data_prestito = \App\Support\DateHelper::today();
         // Read configured loan duration; fallback to 30 days
         $loanDays = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'loan_duration_days', '30') ?? 30);
         if ($loanDays < 1) {
             $loanDays = 30;
         }
-        $data_scadenza = date('Y-m-d', strtotime("+{$loanDays} days"));
+        $data_scadenza = date('Y-m-d', strtotime($data_prestito . " +{$loanDays} days"));
 
         // Use transaction + lock to prevent race conditions
         $db->begin_transaction();
@@ -562,13 +636,23 @@ class UserActionsController
         if ($desired !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $desired)) {
             return $this->back($response, ['reserve_error' => 'invalid_date']);
         }
-        if ($desired !== '' && strtotime($desired) < strtotime(date('Y-m-d'))) {
+        // "Today" via DateHelper (M9): see loan() — avoids the midnight
+        // day-boundary mismatch between process tz and app tz.
+        $today = \App\Support\DateHelper::today();
+        if ($desired !== '' && strtotime($desired) < strtotime($today)) {
             return $this->back($response, ['reserve_error' => 'past_date']);
         }
         $utenteId = (int) $user['id'];
 
+        // User eligibility gate (M7): stato/tessera are only verified at login,
+        // so a user suspended (or with an expired card) mid-session could
+        // otherwise keep queueing reservations.
+        if (\App\Support\LoanEligibility::checkUser($db, $utenteId) !== null) {
+            return $this->back($response, ['reserve_error' => 'not_eligible']);
+        }
+
         // Calculate date range for availability check
-        $start = ($desired !== '') ? $desired : date('Y-m-d');
+        $start = ($desired !== '') ? $desired : $today;
         $end = date('Y-m-d', strtotime($start . ' +1 month'));
 
         // Start transaction for concurrency control

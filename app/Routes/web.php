@@ -468,6 +468,15 @@ return function (App $app): void {
         $controller = new UserActionsController();
         return $controller->cancelReservation($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
+    // Annullamento di una richiesta ('pendente') o di un prestito programmato
+    // ('prenotato') da parte dell'utente (M13): il controller esisteva ma era
+    // raggiungibile solo dal plugin mobile-api; il vincolo sugli stati
+    // annullabili è applicato dalla SELECT di cancelLoan.
+    $app->post('/loan/cancel', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new UserActionsController();
+        return $controller->cancelLoan($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
     $app->post('/reservation/change-date', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new UserActionsController();
@@ -2070,7 +2079,10 @@ return function (App $app): void {
         return $controller->books($request, $response, $db);
     });
 
-    // API to get book availability dates for calendar display
+    // API to get book availability dates for calendar display.
+    // Autenticato come il gemello /api/books/{id}/availability (L6):
+    // occupied_ranges espone le date dei prestiti degli utenti e non deve
+    // essere leggibile da client anonimi.
     $app->get('/api/libri/{id}/disponibilita', function ($request, $response, $args) use ($app) {
         $db = $app->getContainer()->get('db');
         $libroId = (int)$args['id'];
@@ -2126,7 +2138,7 @@ return function (App $app): void {
 
         $response->getBody()->write(json_encode($data, JSON_UNESCAPED_UNICODE));
         return $response->withHeader('Content-Type', 'application/json');
-    });
+    })->add(new AuthMiddleware(['admin', 'staff', 'standard', 'premium']));
 
     // NOTE: /api/libro/{id}/availability is registered via $registerRouteIfUnique
     // in the translated routes block below (line ~2147) to avoid duplicate route errors.

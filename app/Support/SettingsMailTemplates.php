@@ -145,7 +145,7 @@ HTML,
             'loan_overdue_admin' => [
                 'label' => __('Alert prestito in ritardo (Admin)'),
                 'description' => __("Avvisa gli amministratori quando un prestito entra in ritardo."),
-                'subject' => 'Prestito #{prestito_id} in ritardo',
+                'subject' => 'Prestito #{{prestito_id}} in ritardo',
                 'placeholders' => ['prestito_id','libro_titolo','utente_nome','utente_email','data_prestito','data_scadenza'],
                 'body' => <<<'HTML'
 <h2>Prestito in ritardo</h2>
@@ -340,6 +340,23 @@ HTML,
     <p><strong>Scaduta il:</strong> {{data_scadenza}}</p>
 </div>
 <p>Se sei ancora interessato, puoi effettuare una nuova prenotazione in qualsiasi momento.</p>
+<p>Cordiali saluti,<br>Il team della biblioteca</p>
+HTML,
+            ],
+            'reservation_cancelled' => [
+                'label' => __('Prenotazione annullata'),
+                'description' => __("Inviata all'utente quando una prenotazione viene annullata dall'amministrazione."),
+                'subject' => '❌ Prenotazione annullata',
+                'placeholders' => ['utente_nome', 'libro_titolo', 'motivo'],
+                'body' => <<<'HTML'
+<h2>Prenotazione annullata</h2>
+<p>Ciao {{utente_nome}},</p>
+<p>Ti informiamo che la tua prenotazione per il seguente libro è stata annullata:</p>
+<div style="background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;">
+    <p><strong>Libro:</strong> {{libro_titolo}}</p>
+    <p><strong>Motivo:</strong> {{motivo}}</p>
+</div>
+<p>Se desideri ancora questo libro, puoi effettuare una nuova prenotazione in qualsiasi momento.</p>
 <p>Cordiali saluti,<br>Il team della biblioteca</p>
 HTML,
             ],

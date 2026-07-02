@@ -22,7 +22,10 @@ class SettingsController
     {
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
-        $repository->ensureEmailTemplates($this->templateDefaults());
+        // Semina i template mancanti con il locale di installazione (M8):
+        // l'invio li risolve per (name, locale_installazione), quindi seminare
+        // sempre it_IT li renderebbe invisibili su installazioni non italiane.
+        $repository->ensureEmailTemplates($this->templateDefaults(), \App\Support\I18n::getInstallationLocale());
 
         $appSettings = $this->resolveAppSettings($repository);
         $emailSettings = $this->resolveEmailSettings($repository);
@@ -223,7 +226,8 @@ class SettingsController
 
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
-        $repository->saveEmailTemplate($template, $subject, $body, $definition['description'] ?? null, true);
+        // Salva sulla riga del locale di installazione: è quella letta dall'invio (M8).
+        $repository->saveEmailTemplate($template, $subject, $body, $definition['description'] ?? null, true, \App\Support\I18n::getInstallationLocale());
 
         $_SESSION['success_message'] = 'Template email "' . $definition['label'] . '" aggiornato correttamente.';
         return $this->redirect($response, '/admin/settings?tab=templates&template=' . urlencode($template));
@@ -287,7 +291,8 @@ class SettingsController
     private function resolveEmailTemplates(SettingsRepository $repository): array
     {
         $definitions = SettingsMailTemplates::all();
-        $records = $repository->getEmailTemplates(array_keys($definitions));
+        // L'editor mostra le righe del locale di installazione, le stesse usate dall'invio (M8).
+        $records = $repository->getEmailTemplates(array_keys($definitions), \App\Support\I18n::getInstallationLocale());
 
         $templates = [];
         foreach ($definitions as $name => $meta) {

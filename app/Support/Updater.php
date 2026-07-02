@@ -2240,6 +2240,21 @@ class Updater
                 }
             }
 
+            // PRE-FLIGHT (issue #205): dry-run writability check over the whole
+            // package BEFORE touching a single file. checkRequirements() only
+            // verifies root/backup/storage, so an unwritable subdirectory (e.g.
+            // public/assets on installs where the PHP user cannot create NEW
+            // entries there) used to fail MID-COPY, leaving a partially updated
+            // install. Fail here instead, listing the exact paths to fix.
+            $unwritable = $this->verifyWritableTargets($sourcePath, $this->rootPath);
+            if ($unwritable !== []) {
+                $this->debugLog('ERROR', 'Preflight: percorsi non scrivibili', ['paths' => $unwritable]);
+                throw new Exception(sprintf(
+                    __('Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l\'utente del web server) e riprova, oppure esegui l\'aggiornamento da riga di comando come proprietario dei file: php scripts/manual-upgrade.php <zip-release>'),
+                    implode(', ', array_slice($unwritable, 0, 15)) . (count($unwritable) > 15 ? ', …' : '')
+                ));
+            }
+
             // Log update start
             $logId = $this->logUpdateStart($currentVersion, $targetVersion, null);
 
@@ -2829,6 +2844,145 @@ class Updater
     }
 
     /**
+     * Dry-run of copyDirectory(): walk the package with the SAME skip/preserve
+     * semantics and report every target the PHP process could not write,
+     * WITHOUT modifying anything (issue #205).
+     *
+     * Rules mirror what copy()/mkdir() will actually need:
+     *  - new file/dir      → the nearest EXISTING ancestor directory must be writable;
+     *  - existing file     → the file itself must be writable (copy() truncates it);
+     *  - existing dir      → nothing to create, contents are checked individually;
+     *  - preservePaths     → skipped only when the target exists (same as the copy);
+     *  - skipPaths, symlinks → never copied, never checked.
+     *
+     * When $attemptRepair is true (production default) an unwritable path that
+     * the PHP user OWNS is self-healed with a chmod u+w before being reported:
+     * the common "right owner, missing write bit" case then requires no manual
+     * intervention at all. Paths owned by another user cannot be chmod-ed from
+     * PHP and are reported for manual fixing (or for the CLI upgrade path).
+     *
+     * @return array<string> relative paths (deduplicated, sorted) that are not writable
+     */
+    private function verifyWritableTargets(string $source, string $dest, bool $attemptRepair = true): array
+    {
+        $source = rtrim(str_replace('\\', '/', $source), '/');
+        $dest   = rtrim(str_replace('\\', '/', $dest), '/');
+
+        $failures = [];
+        // Self-heal: chmod succeeds only when the PHP process owns the path
+        // (or is root), i.e. exactly the cases fixable without a sysadmin.
+        $tryRepair = function (string $path) use ($attemptRepair): bool {
+            if (!$attemptRepair) {
+                return false;
+            }
+            $perms = @fileperms($path);
+            if ($perms === false) {
+                return false;
+            }
+            $new = ($perms & 0777) | 0200 | (is_dir($path) ? 0100 : 0);
+            if (!@chmod($path, $new)) {
+                return false;
+            }
+            clearstatcache(true, $path);
+            if (is_writable($path)) {
+                $this->debugLog('INFO', 'Preflight: permessi auto-riparati (chmod u+w)', ['path' => $path]);
+                return true;
+            }
+            return false;
+        };
+        // Memoize per-directory verdicts: thousands of files share few parents.
+        $dirWritable = [];
+        $checkDirWritable = static function (string $dir) use (&$dirWritable, $tryRepair): bool {
+            if (!isset($dirWritable[$dir])) {
+                $dirWritable[$dir] = is_writable($dir) || $tryRepair($dir);
+            }
+            return $dirWritable[$dir];
+        };
+        // For a path that does not exist yet, mkdir/copy will need to create it
+        // under the nearest EXISTING ancestor — that is the directory that must
+        // be writable.
+        $nearestExistingAncestor = static function (string $path) use ($dest): string {
+            $dir = dirname($path);
+            while ($dir !== '' && $dir !== '/' && !is_dir($dir)) {
+                // Never walk above the install root.
+                if ($dir === $dest) {
+                    break;
+                }
+                $dir = dirname($dir);
+            }
+            return $dir;
+        };
+
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($source, \RecursiveDirectoryIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::SELF_FIRST
+        );
+
+        foreach ($iterator as $item) {
+            $relativePath = str_replace($source . '/', '', str_replace('\\', '/', $item->getPathname()));
+
+            if (str_contains($relativePath, '..') || str_contains($relativePath, "\0")) {
+                continue; // copyDirectory will reject it; not a permission issue
+            }
+            if ($item->isLink()) {
+                continue;
+            }
+
+            $targetPath = $dest . '/' . $relativePath;
+
+            $skip = false;
+            foreach ($this->skipPaths as $skipPath) {
+                if (strpos($relativePath, $skipPath) === 0) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if ($skip) {
+                continue;
+            }
+            foreach ($this->preservePaths as $preservePath) {
+                if (strpos($relativePath, $preservePath) === 0 && file_exists($targetPath)) {
+                    $skip = true;
+                    break;
+                }
+            }
+            if ($skip) {
+                continue;
+            }
+
+            if ($item->isDir()) {
+                if (!is_dir($targetPath)) {
+                    $ancestor = $nearestExistingAncestor($targetPath);
+                    if (!$checkDirWritable($ancestor)) {
+                        $failures[$relativePath] = true;
+                    }
+                }
+            } elseif (is_link($targetPath)) {
+                // File-target symlink: copyDirectory lo SOSTITUISCE (unlink+copy,
+                // mai scrittura attraverso il link) → serve la scrivibilità
+                // della directory che lo contiene, non del bersaglio del link.
+                $parent = dirname($targetPath);
+                if (!$checkDirWritable($parent)) {
+                    $failures[$relativePath] = true;
+                }
+            } elseif (file_exists($targetPath)) {
+                if (!is_writable($targetPath) && !$tryRepair($targetPath)) {
+                    $failures[$relativePath] = true;
+                }
+            } else {
+                $ancestor = $nearestExistingAncestor($targetPath);
+                if (!$checkDirWritable($ancestor)) {
+                    $failures[dirname($relativePath) === '.' ? $relativePath : dirname($relativePath)] = true;
+                }
+            }
+        }
+
+        $paths = array_keys($failures);
+        sort($paths);
+        return $paths;
+    }
+
+    /**
      * Copy directory contents, respecting preserve and skip lists
      */
     private function copyDirectory(string $source, string $dest): void
@@ -2893,6 +3047,18 @@ class Updater
                 if (!is_dir($parentDir)) {
                     if (!mkdir($parentDir, 0755, true) && !is_dir($parentDir)) {
                         throw new Exception(sprintf(__('Impossibile creare directory: %s'), dirname($relativePath)));
+                    }
+                }
+                // Un file di destinazione che è un SYMLINK va sostituito, mai
+                // attraversato: copy() scriverebbe ATTRAVERSO il link, quindi un
+                // link che punta fuori dalla root permetterebbe all'upgrade di
+                // modificare file esterni all'installazione. Lo scolleghiamo e
+                // copiamo un file reale al suo posto. (Le DIRECTORY symlink
+                // restano permesse di proposito: storage/ o uploads/ montati
+                // altrove sono setup legittimi.)
+                if (is_link($targetPath)) {
+                    if (!@unlink($targetPath)) {
+                        throw new Exception(sprintf(__('Errore nella copia del file: %s'), $relativePath));
                     }
                 }
                 if (!copy(str_replace('\\', '/', $item->getPathname()), $targetPath)) {

@@ -1,0 +1,108 @@
+-- Migration script for Pinakes 0.7.26
+-- Description: seed the email templates introduced by GAP-1/2/3 plus the new
+-- 'reservation_cancelled' template for ALL shipped locales, add the
+-- 'loans.max_loan_duration_days' setting, and fix the single-brace placeholder
+-- in the 'loan_overdue_admin' subject.
+-- FULLY IDEMPOTENT: INSERT IGNORE relies on UNIQUE KEY name_locale (name, locale)
+-- and never overwrites rows an admin may have customized; the settings INSERT
+-- keeps any existing value; REPLACE() is a no-op once the subject is fixed.
+
+-- ============================================================
+-- 0. LEGACY SCHEMA GUARDS: installs whose email_templates table was
+--    created by the OLD SettingsRepository fallback have no `locale`
+--    column and a UNIQUE on `name` alone. The seeds below (and every
+--    locale-scoped query in the app) need `locale` + UNIQUE(name,locale).
+--    All three blocks are information_schema-gated no-ops on the
+--    modern schema.
+-- ============================================================
+SET @has_locale = (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'email_templates' AND COLUMN_NAME = 'locale');
+SET @sql = IF(@has_locale = 0,
+    "ALTER TABLE `email_templates` ADD COLUMN `locale` VARCHAR(10) NOT NULL DEFAULT 'it_IT' AFTER `name`",
+    "SELECT 1");
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+SET @has_old_unique = (SELECT COUNT(*) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'email_templates' AND INDEX_NAME = 'name');
+SET @has_name_locale = (SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'email_templates' AND INDEX_NAME = 'name_locale');
+SET @sql = IF(@has_old_unique > 0 AND @has_name_locale = 0,
+    "ALTER TABLE `email_templates` DROP INDEX `name`",
+    "SELECT 1");
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+SET @has_name_locale = (SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'email_templates' AND INDEX_NAME = 'name_locale');
+SET @sql = IF(@has_name_locale = 0,
+    "ALTER TABLE `email_templates` ADD UNIQUE KEY `name_locale` (`name`, `locale`)",
+    "SELECT 1");
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+-- ============================================================
+-- 1. EMAIL TEMPLATES (loan_returned, reservation_expired,
+--    copy_unavailable_user, reservation_cancelled) x 4 locales.
+--    Review finding H3: these templates existed only in
+--    SettingsMailTemplates.php and were never seeded, so the
+--    corresponding emails were silently lost on most installs.
+-- ============================================================
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('loan_returned','it_IT','✅ Restituzione confermata','<h2>Restituzione confermata</h2>\n<p>Ciao {{utente_nome}},</p>\n<p>Confermiamo la restituzione del seguente libro. Grazie!</p>\n<div style=\"background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;\">\n    <p><strong>Libro:</strong> {{libro_titolo}}</p>\n    <p><strong>Data restituzione:</strong> {{data_restituzione}}</p>\n</div>\n<p>Speriamo che la lettura ti sia piaciuta. A presto in biblioteca!</p>\n<p>Cordiali saluti,<br>Il team della biblioteca</p>','Inviata all''utente quando un prestito viene registrato come restituito.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('reservation_expired','it_IT','⌛ Prenotazione scaduta','<h2>Prenotazione scaduta</h2>\n<p>Ciao {{utente_nome}},</p>\n<p>La tua prenotazione per il seguente libro è scaduta ed è stata chiusa automaticamente:</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Libro:</strong> {{libro_titolo}}</p>\n    <p><strong>Scaduta il:</strong> {{data_scadenza}}</p>\n</div>\n<p>Se sei ancora interessato, puoi effettuare una nuova prenotazione in qualsiasi momento.</p>\n<p>Cordiali saluti,<br>Il team della biblioteca</p>','Inviata all''utente quando una prenotazione scade automaticamente senza essere stata convertita in prestito.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('copy_unavailable_user','it_IT','ℹ️ Aggiornamento sulla tua prenotazione','<h2>Aggiornamento sulla tua prenotazione</h2>\n<p>Ciao {{utente_nome}},</p>\n<p>Ti informiamo che la copia riservata per la tua prenotazione del seguente libro non è più disponibile:</p>\n<div style=\"background-color: #fffbeb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;\">\n    <p><strong>Libro:</strong> {{libro_titolo}}</p>\n    <p><strong>Motivo:</strong> {{motivo}}</p>\n</div>\n<p>Stiamo cercando di assegnarti un''altra copia appena possibile. Se non saranno disponibili altre copie, la tua prenotazione resterà in coda e ti avviseremo non appena il libro tornerà disponibile.</p>\n<p>Ci scusiamo per il disagio.</p>\n<p>Cordiali saluti,<br>Il team della biblioteca</p>','Inviata all''utente quando la copia riservata per la sua prenotazione diventa indisponibile (persa o danneggiata).',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('reservation_cancelled','it_IT','❌ Prenotazione annullata','<h2>Prenotazione annullata</h2>\n<p>Ciao {{utente_nome}},</p>\n<p>Ti informiamo che la tua prenotazione per il seguente libro è stata annullata:</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Libro:</strong> {{libro_titolo}}</p>\n    <p><strong>Motivo:</strong> {{motivo}}</p>\n</div>\n<p>Se desideri ancora questo libro, puoi effettuare una nuova prenotazione in qualsiasi momento.</p>\n<p>Cordiali saluti,<br>Il team della biblioteca</p>','Inviata all''utente quando una prenotazione viene annullata dall''amministrazione.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('loan_returned','en_US','✅ Return Confirmed','<h2>Return Confirmed</h2>\n<p>Hello {{user_name}},</p>\n<p>We confirm the return of the following book. Thank you!</p>\n<div style=\"background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;\">\n    <p><strong>Book:</strong> {{book_title}}</p>\n    <p><strong>Return date:</strong> {{data_restituzione}}</p>\n</div>\n<p>We hope you enjoyed the book. See you soon at the library!</p>\n<p>Best regards,<br>The Library Team</p>','Sent to the user when a loan is registered as returned.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('reservation_expired','en_US','⌛ Reservation Expired','<h2>Reservation Expired</h2>\n<p>Hello {{user_name}},</p>\n<p>Your reservation for the following book has expired and has been closed automatically:</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Book:</strong> {{book_title}}</p>\n    <p><strong>Expired on:</strong> {{due_date}}</p>\n</div>\n<p>If you are still interested, you can place a new reservation at any time.</p>\n<p>Best regards,<br>The Library Team</p>','Sent to the user when a reservation expires automatically without being converted into a loan.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('copy_unavailable_user','en_US','ℹ️ Update About Your Reservation','<h2>Update About Your Reservation</h2>\n<p>Hello {{user_name}},</p>\n<p>We inform you that the copy reserved for your reservation of the following book is no longer available:</p>\n<div style=\"background-color: #fffbeb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;\">\n    <p><strong>Book:</strong> {{book_title}}</p>\n    <p><strong>Reason:</strong> {{motivo}}</p>\n</div>\n<p>We are trying to assign you another copy as soon as possible. If no other copies become available, your reservation will remain in the queue and we will notify you as soon as the book is available again.</p>\n<p>We apologize for the inconvenience.</p>\n<p>Best regards,<br>The Library Team</p>','Sent to the user when the copy reserved for their reservation becomes unavailable (lost or damaged).',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('reservation_cancelled','en_US','❌ Reservation Cancelled','<h2>Reservation Cancelled</h2>\n<p>Hello {{user_name}},</p>\n<p>We inform you that your reservation for the following book has been cancelled:</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Book:</strong> {{book_title}}</p>\n    <p><strong>Reason:</strong> {{motivo}}</p>\n</div>\n<p>If you still want this book, you can place a new reservation at any time.</p>\n<p>Best regards,<br>The Library Team</p>','Sent to the user when a reservation is cancelled by the administration.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('loan_returned','de_DE','✅ Rückgabe bestätigt','<h2>Rückgabe bestätigt</h2>\n<p>Guten Tag {{user_name}},</p>\n<p>wir bestätigen die Rückgabe des folgenden Buches. Vielen Dank!</p>\n<div style=\"background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;\">\n    <p><strong>Buch:</strong> {{book_title}}</p>\n    <p><strong>Rückgabedatum:</strong> {{data_restituzione}}</p>\n</div>\n<p>Wir hoffen, die Lektüre hat Ihnen gefallen. Bis bald in der Bibliothek!</p>\n<p>Mit freundlichen Grüßen,<br>Das Bibliotheksteam</p>','Wird dem Benutzer gesendet, wenn eine Ausleihe als zurückgegeben registriert wird.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('reservation_expired','de_DE','⌛ Vormerkung abgelaufen','<h2>Vormerkung abgelaufen</h2>\n<p>Guten Tag {{user_name}},</p>\n<p>Ihre Vormerkung für das folgende Buch ist abgelaufen und wurde automatisch geschlossen:</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Buch:</strong> {{book_title}}</p>\n    <p><strong>Abgelaufen am:</strong> {{due_date}}</p>\n</div>\n<p>Wenn Sie weiterhin interessiert sind, können Sie jederzeit eine neue Vormerkung vornehmen.</p>\n<p>Mit freundlichen Grüßen,<br>Das Bibliotheksteam</p>','Wird dem Benutzer gesendet, wenn eine Vormerkung automatisch abläuft, ohne in eine Ausleihe umgewandelt worden zu sein.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('copy_unavailable_user','de_DE','ℹ️ Aktualisierung zu Ihrer Vormerkung','<h2>Aktualisierung zu Ihrer Vormerkung</h2>\n<p>Guten Tag {{user_name}},</p>\n<p>wir informieren Sie, dass das für Ihre Vormerkung reservierte Exemplar des folgenden Buches nicht mehr verfügbar ist:</p>\n<div style=\"background-color: #fffbeb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;\">\n    <p><strong>Buch:</strong> {{book_title}}</p>\n    <p><strong>Grund:</strong> {{motivo}}</p>\n</div>\n<p>Wir versuchen, Ihnen so schnell wie möglich ein anderes Exemplar zuzuweisen. Sollten keine weiteren Exemplare verfügbar sein, bleibt Ihre Vormerkung in der Warteschlange und wir benachrichtigen Sie, sobald das Buch wieder verfügbar ist.</p>\n<p>Wir entschuldigen uns für die Unannehmlichkeiten.</p>\n<p>Mit freundlichen Grüßen,<br>Das Bibliotheksteam</p>','Wird dem Benutzer gesendet, wenn das für seine Vormerkung reservierte Exemplar nicht mehr verfügbar ist (verloren oder beschädigt).',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('reservation_cancelled','de_DE','❌ Vormerkung storniert','<h2>Vormerkung storniert</h2>\n<p>Guten Tag {{user_name}},</p>\n<p>wir informieren Sie, dass Ihre Vormerkung für das folgende Buch storniert wurde:</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Buch:</strong> {{book_title}}</p>\n    <p><strong>Grund:</strong> {{motivo}}</p>\n</div>\n<p>Wenn Sie dieses Buch weiterhin möchten, können Sie jederzeit eine neue Vormerkung vornehmen.</p>\n<p>Mit freundlichen Grüßen,<br>Das Bibliotheksteam</p>','Wird dem Benutzer gesendet, wenn eine Vormerkung von der Verwaltung storniert wird.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('loan_returned','fr_FR','✅ Retour confirmé','<h2>Retour confirmé</h2>\n<p>Bonjour {{user_name}},</p>\n<p>Nous confirmons le retour du livre suivant. Merci !</p>\n<div style=\"background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;\">\n    <p><strong>Livre :</strong> {{book_title}}</p>\n    <p><strong>Date de retour :</strong> {{data_restituzione}}</p>\n</div>\n<p>Nous espérons que la lecture vous a plu. À bientôt à la bibliothèque !</p>\n<p>Cordialement,<br>L''équipe de la bibliothèque</p>','Envoyé à l''utilisateur lorsqu''un emprunt est enregistré comme retourné.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('reservation_expired','fr_FR','⌛ Réservation expirée','<h2>Réservation expirée</h2>\n<p>Bonjour {{user_name}},</p>\n<p>Votre réservation pour le livre suivant a expiré et a été clôturée automatiquement :</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Livre :</strong> {{book_title}}</p>\n    <p><strong>Expirée le :</strong> {{due_date}}</p>\n</div>\n<p>Si vous êtes toujours intéressé, vous pouvez effectuer une nouvelle réservation à tout moment.</p>\n<p>Cordialement,<br>L''équipe de la bibliothèque</p>','Envoyé à l''utilisateur lorsqu''une réservation expire automatiquement sans avoir été convertie en emprunt.',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('copy_unavailable_user','fr_FR','ℹ️ Mise à jour concernant votre réservation','<h2>Mise à jour concernant votre réservation</h2>\n<p>Bonjour {{user_name}},</p>\n<p>Nous vous informons que l''exemplaire réservé pour votre réservation du livre suivant n''est plus disponible :</p>\n<div style=\"background-color: #fffbeb; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;\">\n    <p><strong>Livre :</strong> {{book_title}}</p>\n    <p><strong>Motif :</strong> {{motivo}}</p>\n</div>\n<p>Nous essayons de vous attribuer un autre exemplaire dès que possible. Si aucun autre exemplaire n''est disponible, votre réservation restera dans la file d''attente et nous vous préviendrons dès que le livre sera de nouveau disponible.</p>\n<p>Nous nous excusons pour la gêne occasionnée.</p>\n<p>Cordialement,<br>L''équipe de la bibliothèque</p>','Envoyé à l''utilisateur lorsque l''exemplaire réservé pour sa réservation devient indisponible (perdu ou endommagé).',1,NOW(),NOW());
+
+INSERT IGNORE INTO `email_templates` (`name`, `locale`, `subject`, `body`, `description`, `active`, `created_at`, `updated_at`) VALUES ('reservation_cancelled','fr_FR','❌ Réservation annulée','<h2>Réservation annulée</h2>\n<p>Bonjour {{user_name}},</p>\n<p>Nous vous informons que votre réservation pour le livre suivant a été annulée :</p>\n<div style=\"background-color: #fef2f2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #ef4444;\">\n    <p><strong>Livre :</strong> {{book_title}}</p>\n    <p><strong>Motif :</strong> {{motivo}}</p>\n</div>\n<p>Si vous souhaitez toujours ce livre, vous pouvez effectuer une nouvelle réservation à tout moment.</p>\n<p>Cordialement,<br>L''équipe de la bibliothèque</p>','Envoyé à l''utilisateur lorsqu''une réservation est annulée par l''administration.',1,NOW(),NOW());
+
+-- ============================================================
+-- 2. MAX LOAN DURATION SETTING (review finding H2: cap on the
+--    requested loan range; 0 would mean no cap, default 90 days).
+--    ON DUPLICATE KEY no-op keeps any admin-configured value.
+-- ============================================================
+INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES ('loans', 'max_loan_duration_days', '90', 'Durata massima richiedibile per un prestito in giorni') ON DUPLICATE KEY UPDATE `setting_value` = `setting_value`;
+
+-- ============================================================
+-- 3. FIX loan_overdue_admin SUBJECT (review finding L3): the
+--    single-brace '#{prestito_id}' placeholder is never replaced
+--    by EmailService; normalize it to '#{{prestito_id}}'.
+--    REPLACE() finds nothing on already-fixed rows (idempotent).
+-- ============================================================
+UPDATE `email_templates` SET `subject` = REPLACE(`subject`, '#{prestito_id}', '#{{prestito_id}}') WHERE `name` = 'loan_overdue_admin';
+
+-- ============================================================
+-- 4. FIX wishlist_book_available FALSE CLAIM (review finding L3):
+--    the seeded body told the user the book "has been automatically
+--    removed from your wishlist" — false: it stays, it is only marked
+--    notified. Surgical REPLACE of that exact sentence per locale:
+--    idempotent (no-op once replaced) and safe for admin-customized
+--    bodies (rows without the sentence are untouched).
+-- ============================================================
+UPDATE `email_templates` SET `body` = REPLACE(`body`, 'Questo libro è stato automaticamente rimosso dalla tua wishlist.', 'Il libro resta nella tua wishlist; non riceverai altre notifiche per questo titolo.') WHERE `name` = 'wishlist_book_available';
+UPDATE `email_templates` SET `body` = REPLACE(`body`, 'This book has been automatically removed from your wishlist.', 'The book stays in your wishlist; you will not receive further notifications for this title.') WHERE `name` = 'wishlist_book_available';
+UPDATE `email_templates` SET `body` = REPLACE(`body`, 'Dieses Buch wurde automatisch von Ihrer Wunschliste entfernt.', 'Das Buch bleibt auf Ihrer Wunschliste; Sie erhalten für diesen Titel keine weiteren Benachrichtigungen.') WHERE `name` = 'wishlist_book_available';
+UPDATE `email_templates` SET `body` = REPLACE(`body`, 'Ce livre a été automatiquement retiré de votre liste de souhaits.', 'Le livre reste dans votre liste de souhaits ; vous ne recevrez plus de notifications pour ce titre.') WHERE `name` = 'wishlist_book_available';
+
+-- End of migration

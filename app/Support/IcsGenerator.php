@@ -46,19 +46,19 @@ class IcsGenerator
     {
         $events = $this->fetchEvents();
 
-        $ics = "BEGIN:VCALENDAR\r\n";
-        $ics .= "VERSION:2.0\r\n";
-        $ics .= "PRODID:-//Pinakes Library//Calendar//IT\r\n";
-        $ics .= "CALSCALE:GREGORIAN\r\n";
-        $ics .= "METHOD:PUBLISH\r\n";
-        $ics .= "X-WR-CALNAME:" . $this->escapeIcs($this->calendarName) . "\r\n";
-        $ics .= "X-WR-TIMEZONE:" . $this->timezone . "\r\n";
+        $ics = $this->icsLine('BEGIN:VCALENDAR');
+        $ics .= $this->icsLine('VERSION:2.0');
+        $ics .= $this->icsLine('PRODID:-//Pinakes Library//Calendar//IT');
+        $ics .= $this->icsLine('CALSCALE:GREGORIAN');
+        $ics .= $this->icsLine('METHOD:PUBLISH');
+        $ics .= $this->icsLine('X-WR-CALNAME:' . $this->escapeIcs($this->calendarName));
+        $ics .= $this->icsLine('X-WR-TIMEZONE:' . $this->timezone);
 
         foreach ($events as $event) {
             $ics .= $this->formatEvent($event);
         }
 
-        $ics .= "END:VCALENDAR\r\n";
+        $ics .= $this->icsLine('END:VCALENDAR');
 
         return $ics;
     }
@@ -280,28 +280,107 @@ class IcsGenerator
 
         // Use gmdate for UTC timestamps (Z suffix means UTC)
         $dtstamp = gmdate('Ymd\THis\Z');
-        $lastmod = isset($event['updated'])
-            ? gmdate('Ymd\THis\Z', strtotime($event['updated']))
-            : $dtstamp;
+        // DB timestamps (updated_at via NOW()) live in the application timezone,
+        // NOT the PHP process one: interpret them there and convert to UTC for
+        // the Z-suffixed format, otherwise the offset drifts (e.g. UTC process).
+        $lastmod = $dtstamp;
+        if (isset($event['updated'])) {
+            try {
+                $dt = new \DateTime((string) $event['updated'], $this->appTimezone());
+                $dt->setTimezone(new \DateTimeZone('UTC'));
+                $lastmod = $dt->format('Ymd\THis\Z');
+            } catch (\Throwable $e) {
+                // Malformed timestamp: fall back to DTSTAMP
+                $lastmod = $dtstamp;
+            }
+        }
 
         // Color based on type/status
         $color = $this->getEventColor($event['type'], $event['status']);
 
-        $ics = "BEGIN:VEVENT\r\n";
-        $ics .= "UID:" . $uid . "\r\n";
-        $ics .= "DTSTAMP:" . $dtstamp . "\r\n";
-        $ics .= "LAST-MODIFIED:" . $lastmod . "\r\n";
-        $ics .= $dtstart . "\r\n";
-        $ics .= $dtend . "\r\n";
-        $ics .= "SUMMARY:" . $summary . "\r\n";
-        $ics .= "DESCRIPTION:" . $description . "\r\n";
+        $ics = $this->icsLine('BEGIN:VEVENT');
+        $ics .= $this->icsLine('UID:' . $uid);
+        $ics .= $this->icsLine('DTSTAMP:' . $dtstamp);
+        $ics .= $this->icsLine('LAST-MODIFIED:' . $lastmod);
+        $ics .= $this->icsLine($dtstart);
+        $ics .= $this->icsLine($dtend);
+        $ics .= $this->icsLine('SUMMARY:' . $summary);
+        $ics .= $this->icsLine('DESCRIPTION:' . $description);
         if ($color) {
-            $ics .= "X-APPLE-CALENDAR-COLOR:" . $color . "\r\n";
+            $ics .= $this->icsLine('X-APPLE-CALENDAR-COLOR:' . $color);
         }
-        $ics .= "TRANSP:TRANSPARENT\r\n";
-        $ics .= "END:VEVENT\r\n";
+        $ics .= $this->icsLine('TRANSP:TRANSPARENT');
+        $ics .= $this->icsLine('END:VEVENT');
 
         return $ics;
+    }
+
+    /**
+     * Application timezone for interpreting DB timestamps
+     *
+     * Resolves ConfigStore 'app.timezone' like DateHelper does, falling back to
+     * the constructor timezone and finally to Europe/Rome if invalid.
+     *
+     * @return \DateTimeZone Resolved timezone object
+     */
+    private function appTimezone(): \DateTimeZone
+    {
+        $tz = (string) ConfigStore::get('app.timezone', $this->timezone);
+        try {
+            return new \DateTimeZone($tz);
+        } catch (\Throwable $e) {
+            // 'app.timezone' presente ma invalido: prova PRIMA il timezone del
+            // costruttore (che il chiamante ha scelto apposta) e solo come
+            // ultima spiaggia Europe/Rome.
+            try {
+                return new \DateTimeZone($this->timezone);
+            } catch (\Throwable $e2) {
+                return new \DateTimeZone('Europe/Rome');
+            }
+        }
+    }
+
+    /**
+     * Emit a single ICS content line, folded per RFC 5545 and CRLF-terminated
+     *
+     * @param string $line Unfolded content line (no trailing CRLF)
+     * @return string Folded line(s) ending with CRLF
+     */
+    private function icsLine(string $line): string
+    {
+        return $this->foldLine($line) . "\r\n";
+    }
+
+    /**
+     * Fold a content line to max 75 octets per physical line (RFC 5545 §3.1)
+     *
+     * Continuation lines start with a single space that counts toward the
+     * budget (74 usable octets). Multibyte-safe: mb_strcut only cuts at UTF-8
+     * character boundaries, so no byte sequence is ever split.
+     *
+     * @param string $line Unfolded content line
+     * @return string Line folded with CRLF + space continuations
+     */
+    private function foldLine(string $line): string
+    {
+        if (strlen($line) <= 75) {
+            return $line;
+        }
+
+        $out = mb_strcut($line, 0, 75, 'UTF-8');
+        $rest = substr($line, strlen($out));
+        while ($rest !== '') {
+            $chunk = mb_strcut($rest, 0, 74, 'UTF-8');
+            if ($chunk === '') {
+                // Defensive: invalid byte sequence mb_strcut refuses to cut —
+                // take one raw byte to guarantee progress.
+                $chunk = substr($rest, 0, 1);
+            }
+            $out .= "\r\n " . $chunk;
+            $rest = substr($rest, strlen($chunk));
+        }
+
+        return $out;
     }
 
     /**
