@@ -489,7 +489,9 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
             'not_available' => __('Il libro non è disponibile per il periodo richiesto.'),
             'book_not_found' => __('Libro non trovato.'),
         ];
-        $outcomeError = $outcomeErrorMessages[(string) $_GET['error']]
+        // Normalizza prima del lookup: ?error[]=x arriverebbe come array (warning PHP 8).
+        $outcomeErrorKey = is_scalar($_GET['error']) ? (string) $_GET['error'] : '';
+        $outcomeError = $outcomeErrorMessages[$outcomeErrorKey]
             ?? __('Si è verificato un errore. Riprova più tardi.');
     }
   ?>
