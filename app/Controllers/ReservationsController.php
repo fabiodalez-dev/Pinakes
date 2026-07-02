@@ -252,6 +252,16 @@ class ReservationsController
         }
 
         $userId = (int) $sessionUserId;
+
+        // User eligibility gate (M7): stato/tessera are only verified at login,
+        // so a user suspended by the admin (or whose card expired) mid-session
+        // could otherwise keep submitting loan requests.
+        $eligibilityError = \App\Support\LoanEligibility::checkUser($this->db, $userId);
+        if ($eligibilityError !== null) {
+            $response->getBody()->write(json_encode(['success' => false, 'message' => \App\Support\LoanEligibility::errorMessage($eligibilityError)]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+        }
+
         $startDate = $data['start_date'] ?? null;
         $endDate = $data['end_date'] ?? null;
 
@@ -260,24 +270,62 @@ class ReservationsController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        // If no end date specified, set it using the configured loan duration (fallback: 30 days)
-        try {
-            if (!$endDate) {
-                $loanDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
-                if ($loanDays < 1) {
-                    $loanDays = 30;
-                }
-                $endDateTime = new DateTime($startDate);
-                $endDateTime->modify("+{$loanDays} days");
-                $endDate = $endDateTime->format('Y-m-d');
+        // Date validation BEFORE any computation (H2). Without these guards the
+        // route accepted past start dates (approved loans born already expired),
+        // inverted ranges (getDateRange() returns [] -> zero conflict checks and
+        // a row with data_scadenza < data_prestito) and unbounded durations (a
+        // far end_date makes calculateAvailability iterate per-day for millions
+        // of days: memory-exhaustion DoS on an authenticated request).
+        $isValidDate = static function ($value): bool {
+            if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+                return false;
             }
+            $parsed = DateTime::createFromFormat('Y-m-d', $value);
+            return $parsed !== false && $parsed->format('Y-m-d') === $value;
+        };
 
-            // Check if dates are available
-            $requestedDates = $this->getDateRange($startDate, $endDate);
-        } catch (\Throwable $e) {
-            $response->getBody()->write(json_encode(['success' => false, 'message' => __('Formato data non valido')]));
+        if (!$isValidDate($startDate) || ($endDate && !$isValidDate($endDate))) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => 'invalid_date', 'message' => __('Formato data non valido')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
+
+        if ($startDate < \App\Support\DateHelper::today()) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => 'past_date', 'message' => __('La data di inizio non può essere nel passato')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        if ($endDate && $endDate < $startDate) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => 'invalid_range', 'message' => __('La data di fine non può precedere la data di inizio')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Configurable duration cap (anti-DoS): applies both to an explicit
+        // end_date and to the default end computed from loan_duration_days.
+        $maxDurationDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'max_loan_duration_days', '90') ?? 90);
+        if ($maxDurationDays < 1) {
+            $maxDurationDays = 90;
+        }
+
+        // If no end date specified, set it using the configured loan duration (fallback: 30 days)
+        if (!$endDate) {
+            $loanDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'loan_duration_days', '30') ?? 30);
+            if ($loanDays < 1) {
+                $loanDays = 30;
+            }
+            $loanDays = min($loanDays, $maxDurationDays);
+            $endDateTime = new DateTime($startDate);
+            $endDateTime->modify("+{$loanDays} days");
+            $endDate = $endDateTime->format('Y-m-d');
+        }
+
+        $requestedDurationDays = (int) (new DateTime($startDate))->diff(new DateTime($endDate))->days;
+        if ($requestedDurationDays > $maxDurationDays) {
+            $response->getBody()->write(json_encode(['success' => false, 'error' => 'max_duration_exceeded', 'message' => __('Il periodo richiesto supera la durata massima consentita di %d giorni', $maxDurationDays)]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        // Check if dates are available
+        $requestedDates = $this->getDateRange($startDate, $endDate);
         $rangeDays = max(count($requestedDates), 1);
         // Pass userId to exclude their own reservation from blocking them
         $availability = $this->getBookAvailabilityData($bookId, $startDate, $rangeDays + 30, $userId);

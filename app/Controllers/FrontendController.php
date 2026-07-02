@@ -1990,24 +1990,21 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $totalBooks = $row['total'] ?? 0;
         $totalPages = ceil($totalBooks / $limit);
 
-        // Query per i libri dell'autore
+        // Query per i libri dell'autore. La disponibilità arriva da
+        // l.copie_disponibili (via l.*): è il campo canonico mantenuto da
+        // DataIntegrity e usato da catalogo/scheda. Ricalcolarla qui contando i
+        // prestiti per stato ignorava overlap di date, attivo=1, pendenti con
+        // copia e copie non prestabili, mostrando disponibilità incoerenti.
         $booksQuery = "
             SELECT DISTINCT l.*,
                    (SELECT a2.nome FROM libri_autori la2 JOIN autori a2 ON la2.autore_id = a2.id
                     WHERE la2.libro_id = l.id AND la2.ruolo = 'principale' LIMIT 1) AS autore,
                    e.nome AS editore,
-                   g.nome AS genere,
-                   (l.copie_totali - COALESCE(prestiti_attivi.count, 0)) AS copie_disponibili
+                   g.nome AS genere
             FROM libri l
             JOIN libri_autori la ON l.id = la.libro_id
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id
-            LEFT JOIN (
-                SELECT libro_id, COUNT(*) as count
-                FROM prestiti
-                WHERE stato IN ('in_corso', 'in_ritardo', 'da_ritirare', 'prenotato')
-                GROUP BY libro_id
-            ) prestiti_attivi ON l.id = prestiti_attivi.libro_id
             WHERE la.autore_id = ? AND l.deleted_at IS NULL
             ORDER BY l.anno_pubblicazione DESC, l.titolo ASC
             LIMIT ? OFFSET ?

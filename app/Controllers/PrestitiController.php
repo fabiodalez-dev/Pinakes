@@ -122,9 +122,10 @@ class PrestitiController
         $data_scadenza = $data['data_scadenza'] ?? '';
         $note = trim((string) ($data['note'] ?? '')) ?: null;
 
-        // Se le date sono vuote, usa i valori di default (server timezone for consistency)
+        // Se le date sono vuote, usa i valori di default. "Oggi" nel timezone
+        // applicativo (M9): date() userebbe la TZ del processo (spesso UTC).
         if (empty($data_prestito)) {
-            $data_prestito = date('Y-m-d');
+            $data_prestito = \App\Support\DateHelper::today();
         }
         if (empty($data_scadenza)) {
             // Default loan duration read from admin settings (fallback: 30 days)
@@ -198,27 +199,32 @@ class PrestitiController
             }
             $dupReservationStmt->close();
 
+            // Serialize concurrent same-user requests: the libri lock above only
+            // mutually-excludes requests for the SAME book, so two store() calls
+            // for the same user on different books could both read activeCount
+            // below the limit and both insert. Locking the user row prevents it.
+            // Il lock è INCONDIZIONATO (M7): prima viveva nel ramo maxLoans>0,
+            // quindi con il default 0 un utente_id inesistente arrivava all'INSERT
+            // e moriva sulla FK con un 500 invece di un errore pulito.
+            $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+            $userLockStmt->bind_param('i', $utente_id);
+            $userLockStmt->execute();
+            $userLockStmt->get_result();
+            $userLockStmt->close();
+
+            // Idoneità utente (M7): esistenza + stato attivo + tessera in corso di
+            // validità, verificati sotto il lock della riga utente. Il codice
+            // restituito (user_not_found/user_suspended/card_expired) diventa il
+            // codice errore della query string.
+            $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utente_id);
+            if ($eligibilityError !== null) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/create') . '?error=' . $eligibilityError)->withStatus(302);
+            }
+
             // Enforce max active loans per user (admin setting; 0 = no limit)
             $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
             if ($maxLoans > 0) {
-                // Serialize concurrent same-user requests: the libri lock above only
-                // mutually-excludes requests for the SAME book, so two store() calls
-                // for the same user on different books could both read activeCount
-                // below the limit and both insert. Locking the user row prevents it.
-                $userLockStmt = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
-                $userLockStmt->bind_param('i', $utente_id);
-                $userLockStmt->execute();
-                // Verify the user actually exists after taking the lock: a
-                // positive-but-unknown utente_id would otherwise pass the earlier
-                // (> 0) check, count 0 active loans and reach the INSERT only to
-                // fail on the FK. Bail cleanly instead.
-                $userExists = $userLockStmt->get_result()->fetch_assoc();
-                $userLockStmt->close();
-                if (!$userExists) {
-                    $db->rollback();
-                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=missing_fields')->withStatus(302);
-                }
-
                 $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
                 $cntStmt->bind_param('i', $utente_id);
                 $cntStmt->execute();
@@ -235,12 +241,7 @@ class PrestitiController
             // "Oggi" nel timezone configurato dell'app, non nel default PHP (UTC in prod):
             // altrimenti vicino a mezzanotte un prestito datato oggi verrebbe trattato come
             // futuro (stesso bug timezone corretto in LoanApprovalController).
-            $appTz = \App\Support\ConfigStore::get('app.timezone', 'Europe/Rome');
-            try {
-                $today = (new \DateTime('now', new \DateTimeZone($appTz)))->format('Y-m-d');
-            } catch (\Throwable $e) {
-                $today = date('Y-m-d');
-            }
+            $today = \App\Support\DateHelper::today();
             $loanStartDate = date('Y-m-d', strtotime($data_prestito));
             $isImmediateLoan = ($loanStartDate <= $today);
 
@@ -445,10 +446,13 @@ class PrestitiController
                 }
             }
 
-            // Inserimento del prestito con copia_id
+            // Inserimento del prestito con copia_id. origine='diretto' (L5): questo
+            // è l'unico percorso di creazione diretta da admin — senza il tag
+            // esplicito la colonna resterebbe al default 'richiesta' e l'enum
+            // 'diretto' non verrebbe mai scritto da nessuno.
             $stmt = $db->prepare("INSERT INTO prestiti
-                (libro_id, copia_id, utente_id, data_prestito, data_scadenza, data_restituzione, stato, sanzione, renewals, processed_by, note, attivo, pickup_deadline)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                (libro_id, copia_id, utente_id, data_prestito, data_scadenza, data_restituzione, stato, origine, sanzione, renewals, processed_by, note, attivo, pickup_deadline)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
 
             $data_restituzione = null;
 
@@ -481,12 +485,13 @@ class PrestitiController
                 $copyStatus = 'prenotato';
             }
 
+            $origine = 'diretto';
             $sanzione = 0.00;
             $renewals = 0;
             $attivo = 1;
 
             $stmt->bind_param(
-                "iiissssdiisis",
+                "iiisssssdiisis",
                 $libro_id,
                 $selectedCopy['id'],
                 $utente_id,
@@ -494,6 +499,7 @@ class PrestitiController
                 $data_scadenza,
                 $data_restituzione,
                 $stato_prestito,
+                $origine,
                 $sanzione,
                 $renewals,
                 $processedBy,
@@ -572,8 +578,12 @@ class PrestitiController
 
         } catch (\Throwable $e) {
             $db->rollback();
-            // Se il messaggio di errore contiene un riferimento a un prestito già attivo
-            if (strpos($e->getMessage(), 'Esiste già un prestito attivo per questo libro') !== false) {
+            // Se il messaggio di errore contiene un riferimento a un prestito già
+            // attivo. Il frammento è quello comune al vecchio testo ("...per questo
+            // libro") e al SIGNAL reale dei trigger ("Esiste già un prestito attivo
+            // e sovrapposto per questa copia.", L5): così un SIGNAL diventa il
+            // redirect dedicato e non un 500.
+            if (str_contains($e->getMessage(), 'Esiste già un prestito attivo')) {
                 return $response->withHeader('Location', url('/admin/loans/create') . '?error=libro_in_prestito')->withStatus(302);
             } else {
                 throw $e;
@@ -631,9 +641,9 @@ class PrestitiController
         }
         $updateData['processed_by'] = $processedBy;
 
-        // Rifiuta la modifica di un prestito CHIUSO: editarlo non deve riattivarlo
-        // (I1/I2 — BUG1). Un prestito è chiuso se attivo=0 o data_restituzione valorizzata.
-        $check = $db->prepare('SELECT attivo, data_restituzione FROM prestiti WHERE id=?');
+        // Lettura NON bloccante della riga corrente: serve libro_id per il lock
+        // canonico (P3) e i valori correnti per completare i campi non inviati.
+        $check = $db->prepare('SELECT attivo, data_restituzione, libro_id, utente_id, data_prestito, data_scadenza FROM prestiti WHERE id=?');
         $check->bind_param('i', $id);
         $check->execute();
         $current = $check->get_result()->fetch_assoc();
@@ -641,18 +651,114 @@ class PrestitiController
         if (!$current) {
             return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
         }
+        // Rifiuta la modifica di un prestito CHIUSO: editarlo non deve riattivarlo
+        // (I1/I2 — BUG1). Un prestito è chiuso se attivo=0 o data_restituzione valorizzata.
+        // (Ri-verificato più sotto, sotto lock.)
         if ((int) $current['attivo'] === 0 || $current['data_restituzione'] !== null) {
             return $response->withHeader('Location', url('/admin/loans') . '?error=loan_closed')->withStatus(302);
         }
 
+        $libroId = (int) $current['libro_id'];
+        $newUserId = isset($updateData['utente_id']) ? (int) $updateData['utente_id'] : (int) $current['utente_id'];
+        $newPrestito = (string) ($updateData['data_prestito'] ?? $current['data_prestito']);
+        $newScadenza = (string) ($updateData['data_scadenza'] ?? $current['data_scadenza']);
+
+        // Valida il range date (M6a): una scadenza non successiva alla partenza
+        // creerebbe un intervallo vuoto/invertito che nessun predicato di overlap
+        // intercetta. Errore dedicato, mai un 500.
+        if (strtotime($newScadenza) === false || strtotime($newPrestito) === false
+            || strtotime($newScadenza) <= strtotime($newPrestito)) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=invalid_dates')->withStatus(302);
+        }
+
+        $db->begin_transaction();
         try {
-            $ok = $repo->update($id, $updateData);
+            // ORDINE DI LOCK CANONICO (P3): la riga `libri` PRIMA del prestito,
+            // come store/renew/close. Niente filtro deleted_at: la modifica di un
+            // prestito esistente deve poter procedere anche su libro soft-deleted
+            // (stessa regola dei rientri in LoanRepository::close()).
+            $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+            $lockBook->bind_param('i', $libroId);
+            $lockBook->execute();
+            $lockBook->get_result();
+            $lockBook->close();
+
+            // Lock del prestito e ri-verifica sotto lock: stato aperto invariato e
+            // libro_id non cambiato (TOCTOU sulla lettura non bloccante iniziale).
+            $lockLoan = $db->prepare('SELECT attivo, data_restituzione, libro_id, utente_id FROM prestiti WHERE id=? FOR UPDATE');
+            $lockLoan->bind_param('i', $id);
+            $lockLoan->execute();
+            $locked = $lockLoan->get_result()->fetch_assoc();
+            $lockLoan->close();
+            if (!$locked || (int) $locked['attivo'] === 0 || $locked['data_restituzione'] !== null) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=loan_closed')->withStatus(302);
+            }
+            if ((int) $locked['libro_id'] !== $libroId) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
+            }
+
+            // Se l'utente cambia, ri-esegui i controlli di store() (M6b): il campo
+            // arriva da hidden field e senza ricontrolli permetterebbe di aggirare
+            // idoneità e dup-check assegnando il prestito a un altro utente.
+            if ($newUserId !== (int) $locked['utente_id']) {
+                $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $newUserId);
+                if ($eligibilityError !== null) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=' . $eligibilityError)->withStatus(302);
+                }
+
+                // Dup-check (libro, nuovo utente) sugli stati attivi, escludendo il
+                // prestito in modifica — stesso predicato di store().
+                $dupStmt = $db->prepare("
+                    SELECT id FROM prestiti
+                    WHERE libro_id = ? AND utente_id = ? AND id <> ? AND (
+                        (attivo = 0 AND stato = 'pendente')
+                        OR (attivo = 1 AND stato IN ('prenotato', 'da_ritirare', 'in_corso', 'in_ritardo'))
+                    )
+                    FOR UPDATE
+                ");
+                $dupStmt->bind_param('iii', $libroId, $newUserId, $id);
+                $dupStmt->execute();
+                $hasDup = $dupStmt->get_result()->num_rows > 0;
+                $dupStmt->close();
+                if ($hasDup) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=duplicate_reservation')->withStatus(302);
+                }
+            }
+
+            // update() del repository non tocca MAI i campi lifecycle (vedi il suo
+            // docblock): qui passano solo utente/date/processed_by. I valori
+            // effettivi (campo inviato oppure valore corrente) sono passati
+            // esplicitamente: i default del repository (utente 0 / oggi) non
+            // devono mai scattare su un campo assente dal form.
+            $updateData['utente_id'] = $newUserId;
+            $updateData['data_prestito'] = $newPrestito;
+            $updateData['data_scadenza'] = $newScadenza;
+            if (!$repo->update($id, $updateData)) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
+            }
+
+            // Ricalcola la disponibilità (M6c): spostare le date di un 'prenotato'
+            // attraverso oggi cambia l'occupazione corrente e lascerebbe
+            // copie_disponibili/libri.stato stantii fino al prossimo evento.
+            $integrity = new DataIntegrity($db);
+            if (!$integrity->recalculateBookAvailability($libroId, insideTransaction: true)) {
+                throw new \RuntimeException('Impossibile ricalcolare la disponibilità del libro.');
+            }
+
+            $db->commit();
         } catch (\mysqli_sql_exception $e) {
+            $db->rollback();
             // A trigger SIGNAL (e.g. I7) surfaces here under STRICT mode — never a 500.
             \App\Support\SecureLogger::error('Loan update failed: ' . $e->getMessage());
             return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
-        }
-        if (!$ok) {
+        } catch (\Throwable $e) {
+            $db->rollback();
+            \App\Support\SecureLogger::error('Loan update failed: ' . $e->getMessage());
             return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
         }
         return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
@@ -664,7 +770,11 @@ class PrestitiController
         }
         // CSRF validated by CsrfMiddleware
         $repo = new \App\Models\LoanRepository($db);
-        $repo->close($id);
+        // false = prestito inesistente o non chiudibile (guardia di stato H1):
+        // segnala invece di fingere il successo.
+        if (!$repo->close($id)) {
+            return $response->withHeader('Location', url('/admin/loans') . '?error=loan_not_closable')->withStatus(302);
+        }
         return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
     }
 
@@ -732,11 +842,38 @@ class PrestitiController
             ? 'restituito'
             : $nuovo_stato;
 
-        $data_restituzione = date('Y-m-d');
+        // "Oggi" nel timezone applicativo (M9): con date() (TZ processo, spesso
+        // UTC) un rientro poco dopo mezzanotte verrebbe datato al giorno prima.
+        $data_restituzione = \App\Support\DateHelper::today();
 
         // Avvia transazione
         $db->begin_transaction();
         try {
+            // ORDINE DI LOCK CANONICO (P3): determina il libro del prestito con una
+            // lettura NON bloccante, poi blocca la riga `libri` PRIMA e infine quella
+            // del prestito — stesso ordine di store/approveLoan/renew/close per
+            // evitare deadlock con le approvazioni concorrenti sullo stesso libro.
+            $lookup = $db->prepare('SELECT libro_id FROM prestiti WHERE id = ?');
+            $lookup->bind_param('i', $id);
+            $lookup->execute();
+            $lrow = $lookup->get_result()->fetch_assoc();
+            $lookup->close();
+            if (!$lrow) {
+                $db->rollback();
+                return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
+            }
+            $libro_id = (int) $lrow['libro_id'];
+
+            // Lock della riga `libri`. NIENTE filtro deleted_at (come in
+            // LoanRepository::close()): la restituzione deve sempre poter procedere
+            // anche su libro soft-deleted — la regola soft-delete governa
+            // prestabilità/visibilità, non i rientri.
+            $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+            $lockBook->bind_param('i', $libro_id);
+            $lockBook->execute();
+            $lockBook->get_result();
+            $lockBook->close();
+
             // Recupera e BLOCCA il prestito: solo un prestito ancora aperto
             // (attivo=1, in_corso/in_ritardo) è restituibile (BUG4/D10 — niente
             // doppia elaborazione, niente TypeError su copia_id nullo).
@@ -757,7 +894,13 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/loans/returned/' . $id) . '?error=not_returnable')->withStatus(302);
             }
 
-            $libro_id = $loan['libro_id'];
+            // Re-verifica TOCTOU: la lettura iniziale era non bloccante per
+            // preservare l'ordine di lock canonico; se libro_id fosse cambiato nel
+            // frattempo avremmo lockato (e ricalcolato) il libro sbagliato.
+            if ((int) $loan['libro_id'] !== $libro_id) {
+                throw new \RuntimeException('libro_id del prestito cambiato durante il lock (TOCTOU).');
+            }
+
             $copia_id = $loan['copia_id'];
 
             // Ritardo: un rientro oltre la scadenza è 'restituito' + flag (I4/BUG5).
@@ -818,10 +961,24 @@ class PrestitiController
                     $reassignmentService->reassignOnReturn((int) $copia_id);
                 }
 
-                // Processa prenotazioni attive per questo libro (Future/Scheduled reservations)
+                // Processa prenotazioni attive per questo libro (Future/Scheduled
+                // reservations). Loop finché la capacità liberata converte la
+                // prossima prenotazione in coda: una restituzione può liberare più
+                // slot di uno (stesso pattern degli altri release-path, D5/BUG10).
                 $reservationManager = new \App\Controllers\ReservationManager($db);
                 $reservationManager->setExternalTransaction(true); // TXN-003: siamo già in transazione
-                $reservationManager->processBookAvailability($libro_id);
+                for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libro_id); $promoGuard++) {
+                    // continua a promuovere finché una prenotazione converte
+                }
+            } elseif ($copia_id !== null) {
+                // Esito perso/danneggiato/riparazione (M1): la copia esce dalla
+                // circolazione, ma eventuali ALTRI prestiti futuri sulla stessa
+                // copia (prenotato/da_ritirare non sovrapposti, leciti) resterebbero
+                // agganciati a una copia morta. Riassegnali subito a un'altra copia,
+                // come fa CopyController::updateCopy per lo stesso evento.
+                $reassignmentService = new \App\Services\ReservationReassignmentService($db);
+                $reassignmentService->setExternalTransaction(true);
+                $reassignmentService->reassignOnCopyLost((int) $copia_id);
             }
 
             // Ricalcola le copie disponibili DOPO l'eventuale riassegnazione/conversione
@@ -1029,9 +1186,16 @@ class PrestitiController
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=max_renewals'))->withStatus(302);
         }
 
+        // Durata del rinnovo dalla setting di durata prestito (M5b): il vecchio
+        // '+14 days' hardcoded ignorava la configurazione dell'admin.
+        $renewDays = (int) ($settingsRepo->get('loans', 'loan_duration_days', '30') ?? 30);
+        if ($renewDays < 1) {
+            $renewDays = 30;
+        }
+
         // Calculate proposed new due date for conflict checking
         $currentDueDate = $loan['data_scadenza'];
-        $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . ' +14 days'));
+        $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . " +{$renewDays} days"));
         $libroId = (int) $loan['libro_id'];
 
         // Start transaction BEFORE conflict check to prevent race conditions
@@ -1059,7 +1223,7 @@ class PrestitiController
 
             // Lock the loan row to prevent concurrent renewals and re-validate under lock
             $lockLoanStmt = $db->prepare("
-                SELECT id, attivo, stato, renewals, data_scadenza, libro_id
+                SELECT id, attivo, stato, renewals, data_scadenza, libro_id, copia_id
                 FROM prestiti WHERE id = ? FOR UPDATE
             ");
             $lockLoanStmt->bind_param('i', $id);
@@ -1095,7 +1259,7 @@ class PrestitiController
 
             // Use the locked values for calculations (in case they changed)
             $currentDueDate = $lockedLoan['data_scadenza'];
-            $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . ' +14 days'));
+            $proposedNewDueDate = date('Y-m-d', strtotime($currentDueDate . " +{$renewDays} days"));
             $currentRenewals = (int) $lockedLoan['renewals'];
             // Refresh libro_id from locked loan to ensure consistency (la riga `libri` è
             // già stata lockata sopra con lo stesso id all'inizio della transazione).
@@ -1152,15 +1316,48 @@ class PrestitiController
                 return $response->withHeader('Location', url($errorUrl . $separator . 'error=extension_conflicts'))->withStatus(302);
             }
 
+            // Overlap-check sulla COPIA del prestito rinnovato (M5c): il check di
+            // capacità sopra è a livello LIBRO e con ≥2 copie non vede un impegno
+            // schedulato proprio sulla stessa copia nel periodo di estensione.
+            // Predicato #157 completo (prestito attivo O pendente-con-copia),
+            // escludendo il prestito corrente: senza questo check l'UPDATE farebbe
+            // scattare il SIGNAL del trigger → catch-all → errore generico invece
+            // del conflitto di estensione dedicato.
+            $copiaId = $lockedLoan['copia_id'] !== null ? (int) $lockedLoan['copia_id'] : null;
+            if ($copiaId !== null) {
+                $copyOvlStmt = $db->prepare("
+                    SELECT 1 FROM prestiti
+                    WHERE copia_id = ? AND id <> ?
+                    AND data_prestito <= ? AND data_scadenza >= ?
+                    AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                          OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                    LIMIT 1
+                ");
+                $copyOvlStmt->bind_param('iiss', $copiaId, $id, $extensionEnd, $extensionStart);
+                $copyOvlStmt->execute();
+                $hasCopyOverlap = (bool) $copyOvlStmt->get_result()->fetch_row();
+                $copyOvlStmt->close();
+                if ($hasCopyOverlap) {
+                    $db->rollback();
+                    $errorUrl = $redirectTo ?? url('/admin/loans');
+                    $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+                    return $response->withHeader('Location', url($errorUrl . $separator . 'error=extension_conflicts'))->withStatus(302);
+                }
+            }
+
             // All checks passed - proceed with renewal
             $newDueDate = $proposedNewDueDate;
             $newRenewalCount = $currentRenewals + 1;
 
             // Update loan — azzera pickup_deadline così il cron checkExpiredPickups
-            // non scade un prestito già in corso e rinnovato (F2).
+            // non scade un prestito già in corso e rinnovato (F2). Azzera anche i
+            // flag di notifica (M5a): la nuova scadenza deve ricevere il suo
+            // promemoria e l'eventuale sollecito, altrimenti un prestito rinnovato
+            // dopo il warning non verrebbe mai più avvisato.
             $updateStmt = $db->prepare("
                 UPDATE prestiti
-                SET data_scadenza = ?, renewals = ?, pickup_deadline = NULL
+                SET data_scadenza = ?, renewals = ?, pickup_deadline = NULL,
+                    warning_sent = 0, overdue_notification_sent = 0
                 WHERE id = ?
             ");
             $updateStmt->bind_param("sii", $newDueDate, $newRenewalCount, $id);
