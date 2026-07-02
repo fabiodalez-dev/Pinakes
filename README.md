@@ -37,6 +37,28 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.26
+
+Book reviews reach the mobile app, the loan/reservation system gets a full review pass, plus an email-template migration.
+
+### Book reviews in the Android app ([#209](https://github.com/fabiodalez-dev/Pinakes/pull/209))
+
+- **The mobile API now serves book reviews** (stars + text): `GET/PUT/DELETE /api/v1/catalog/books/{id}/reviews` and `GET /api/v1/me/reviews`, gated by a per-instance `reviews` feature flag (off in catalogue mode).
+- **Only borrowers can review.** Writing a review requires a past or present loan of that title (`403 not_eligible` otherwise); `PUT` is an idempotent upsert (one review per user + book).
+- **Moderation stays authoritative.** A new or edited review returns to *pending*; aggregates and other users' reviews count approved reviews only, while the author always sees their own. The bundled `mobile-api` plugin moves to `1.1.0`. No schema migration — the `recensioni` table has shipped since the first release.
+
+### Loan & reservation system review ([#207](https://github.com/fabiodalez-dev/Pinakes/pull/207), #205)
+
+- A full review pass over the loan/reservation flow: 26 findings fixed (availability recalculation, reservation-queue edge cases, return-to-repair handling) plus updater hardening (a preflight writability dry-run that aborts before touching any file, and self-healing of owned permissions).
+
+### UI
+
+- **Sidebar** ([#208](https://github.com/fabiodalez-dev/Pinakes/pull/208)): the logo is stacked above the title for a cleaner header.
+
+**Migration** (`migrate_0.7.26.sql`): seeds the email templates introduced by the loan review (including the new `reservation_cancelled` template) for **all shipped locales**, adds the `loans.max_loan_duration_days` setting, and fixes a single-brace placeholder in the `loan_overdue_admin` subject. Fully idempotent — `INSERT IGNORE` never overwrites admin-customised rows, existing settings are kept, and legacy-schema installs are upgraded in place via information_schema-gated guards.
+
+---
+
 ## What's New in v0.7.25
 
 Six fixes integrated from the open pull requests, plus a schema migration.
