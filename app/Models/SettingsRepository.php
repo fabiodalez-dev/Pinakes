@@ -171,14 +171,10 @@ class SettingsRepository
             while ($row = $result->fetch_assoc()) {
                 $templates[$row['name']] = $row;
             }
-            if ($result instanceof \mysqli_result) {
-                $result->free();
-            }
+            $result->free();
         }
 
-        if ($stmt instanceof mysqli_stmt) {
-            $stmt->close();
-        }
+        $stmt->close();
 
         return $templates;
     }
