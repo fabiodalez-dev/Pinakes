@@ -730,6 +730,23 @@ class PrestitiController
                     $db->rollback();
                     return $response->withHeader('Location', url('/admin/loans') . '?error=duplicate_reservation')->withStatus(302);
                 }
+
+                // Cap prestiti attivi del NUOVO utente (M6): stesso enforcement di
+                // store() — senza, la riassegnazione admin aggira silenziosamente
+                // max_active_loans_per_user.
+                $maxLoans = (int) ((new \App\Models\SettingsRepository($db))->get('loans', 'max_active_loans_per_user', '0') ?? 0);
+                if ($maxLoans > 0) {
+                    $cntStmt = $db->prepare("SELECT COUNT(*) FROM prestiti WHERE utente_id = ? AND attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')");
+                    $cntStmt->bind_param('i', $newUserId);
+                    $cntStmt->execute();
+                    $cntResult = $cntStmt->get_result();
+                    $activeCount = (int) ($cntResult ? $cntResult->fetch_row()[0] : 0);
+                    $cntStmt->close();
+                    if ($activeCount >= $maxLoans) {
+                        $db->rollback();
+                        return $response->withHeader('Location', url('/admin/loans') . '?error=max_loans_reached')->withStatus(302);
+                    }
+                }
             }
 
             // update() del repository non tocca MAI i campi lifecycle (vedi il suo

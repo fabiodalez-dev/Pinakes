@@ -240,6 +240,20 @@ class LoanApprovalController
             $today = DateHelper::today();
 
             $utenteId = (int) $loan['utente_id'];
+
+            // M7 — gate di idoneità anche in APPROVAZIONE: l'utente può essere
+            // stato sospeso (o la tessera può essere scaduta) tra la richiesta e
+            // l'approvazione admin. Stesso gate usato da store()/createReservation.
+            $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $utenteId);
+            if ($eligibilityError !== null) {
+                $db->rollback();
+                $response->getBody()->write(json_encode([
+                    'success' => false,
+                    'message' => \App\Support\LoanEligibility::errorMessage($eligibilityError)
+                ]));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(403);
+            }
+
             $dupStmt = $db->prepare("
                 SELECT id FROM prestiti
                 WHERE libro_id = ? AND utente_id = ? AND id != ?

@@ -61,4 +61,17 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 -- ============================================================
 UPDATE `email_templates` SET `subject` = REPLACE(`subject`, '#{prestito_id}', '#{{prestito_id}}') WHERE `name` = 'loan_overdue_admin';
 
+-- ============================================================
+-- 4. FIX wishlist_book_available FALSE CLAIM (review finding L3):
+--    the seeded body told the user the book "has been automatically
+--    removed from your wishlist" — false: it stays, it is only marked
+--    notified. Surgical REPLACE of that exact sentence per locale:
+--    idempotent (no-op once replaced) and safe for admin-customized
+--    bodies (rows without the sentence are untouched).
+-- ============================================================
+UPDATE `email_templates` SET `body` = REPLACE(`body`, 'Questo libro è stato automaticamente rimosso dalla tua wishlist.', 'Il libro resta nella tua wishlist; non riceverai altre notifiche per questo titolo.') WHERE `name` = 'wishlist_book_available';
+UPDATE `email_templates` SET `body` = REPLACE(`body`, 'This book has been automatically removed from your wishlist.', 'The book stays in your wishlist; you will not receive further notifications for this title.') WHERE `name` = 'wishlist_book_available';
+UPDATE `email_templates` SET `body` = REPLACE(`body`, 'Dieses Buch wurde automatisch von Ihrer Wunschliste entfernt.', 'Das Buch bleibt auf Ihrer Wunschliste; Sie erhalten für diesen Titel keine weiteren Benachrichtigungen.') WHERE `name` = 'wishlist_book_available';
+UPDATE `email_templates` SET `body` = REPLACE(`body`, 'Ce livre a été automatiquement retiré de votre liste de souhaits.', 'Le livre reste dans votre liste de souhaits ; vous ne recevrez plus de notifications pour ce titre.') WHERE `name` = 'wishlist_book_available';
+
 -- End of migration

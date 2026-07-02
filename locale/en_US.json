@@ -5436,5 +5436,13 @@
   "Annulla prestito": "Cancel loan",
   "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date": "The loan window has already passed: cancel the pickup or change the dates",
   "Annullata dalla biblioteca": "Cancelled by the library",
-  "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Cannot delete this copy: it has a loan history. You can take it out of circulation by changing its status."
+  "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Cannot delete this copy: it has a loan history. You can take it out of circulation by changing its status.",
+  "Annullamento effettuato correttamente.": "Cancellation completed successfully.",
+  "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.": "Item not found or no longer cancellable: its status may have changed in the meantime.",
+  "Errore: la data di scadenza non può essere precedente alla data di prestito.": "Error: the due date cannot be earlier than the loan date.",
+  "Il prestito è già chiuso: la modifica non è stata salvata.": "The loan is already closed: the change was not saved.",
+  "Prenotazione aggiornata correttamente.": "Reservation updated successfully.",
+  "Prestito non trovato o non chiudibile.": "Loan not found or cannot be closed.",
+  "Si è verificato un errore. Riprova più tardi.": "An error occurred. Please try again later.",
+  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "You are not eligible to borrow: account suspended or card expired."
 }

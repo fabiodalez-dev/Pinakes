@@ -5436,5 +5436,13 @@
   "Annulla prestito": "Annulla prestito",
   "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date": "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date",
   "Annullata dalla biblioteca": "Annullata dalla biblioteca",
-  "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato."
+  "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.",
+  "Annullamento effettuato correttamente.": "Annullamento effettuato correttamente.",
+  "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.": "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.",
+  "Errore: la data di scadenza non può essere precedente alla data di prestito.": "Errore: la data di scadenza non può essere precedente alla data di prestito.",
+  "Il prestito è già chiuso: la modifica non è stata salvata.": "Il prestito è già chiuso: la modifica non è stata salvata.",
+  "Prenotazione aggiornata correttamente.": "Prenotazione aggiornata correttamente.",
+  "Prestito non trovato o non chiudibile.": "Prestito non trovato o non chiudibile.",
+  "Si è verificato un errore. Riprova più tardi.": "Si è verificato un errore. Riprova più tardi.",
+  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "Non sei idoneo al prestito: account sospeso o tessera scaduta."
 }

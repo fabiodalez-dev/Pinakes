@@ -5436,5 +5436,13 @@
   "Annulla prestito": "Ausleihe stornieren",
   "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date": "Das Ausleihfenster ist bereits verstrichen: Stornieren Sie die Abholung oder ändern Sie die Termine",
   "Annullata dalla biblioteca": "Von der Bibliothek storniert",
-  "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Das Exemplar kann nicht gelöscht werden: Es hat eine Ausleihhistorie. Sie können es aus dem Verkehr ziehen, indem Sie seinen Status ändern."
+  "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Das Exemplar kann nicht gelöscht werden: Es hat eine Ausleihhistorie. Sie können es aus dem Verkehr ziehen, indem Sie seinen Status ändern.",
+  "Annullamento effettuato correttamente.": "Stornierung erfolgreich durchgeführt.",
+  "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.": "Element nicht gefunden oder nicht mehr stornierbar: Der Status könnte sich inzwischen geändert haben.",
+  "Errore: la data di scadenza non può essere precedente alla data di prestito.": "Fehler: Das Fälligkeitsdatum darf nicht vor dem Ausleihdatum liegen.",
+  "Il prestito è già chiuso: la modifica non è stata salvata.": "Die Ausleihe ist bereits abgeschlossen: Die Änderung wurde nicht gespeichert.",
+  "Prenotazione aggiornata correttamente.": "Vormerkung erfolgreich aktualisiert.",
+  "Prestito non trovato o non chiudibile.": "Ausleihe nicht gefunden oder kann nicht abgeschlossen werden.",
+  "Si è verificato un errore. Riprova più tardi.": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
+  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "Sie sind nicht ausleihberechtigt: Konto gesperrt oder Ausweis abgelaufen."
 }

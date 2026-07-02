@@ -5436,5 +5436,13 @@
   "Annulla prestito": "Annuler l'emprunt",
   "La finestra del prestito è già trascorsa: annulla il ritiro o modifica le date": "La fenêtre d'emprunt est déjà passée : annulez le retrait ou modifiez les dates",
   "Annullata dalla biblioteca": "Annulée par la bibliothèque",
-  "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Impossible de supprimer l'exemplaire : il a un historique d'emprunts. Vous pouvez le retirer de la circulation en modifiant son statut."
+  "Impossibile eliminare la copia: ha uno storico prestiti. Puoi metterla fuori circolazione cambiandone lo stato.": "Impossible de supprimer l'exemplaire : il a un historique d'emprunts. Vous pouvez le retirer de la circulation en modifiant son statut.",
+  "Annullamento effettuato correttamente.": "Annulation effectuée avec succès.",
+  "Elemento non trovato o non più annullabile: lo stato potrebbe essere cambiato nel frattempo.": "Élément introuvable ou plus annulable : son statut a peut-être changé entre-temps.",
+  "Errore: la data di scadenza non può essere precedente alla data di prestito.": "Erreur : la date d'échéance ne peut pas être antérieure à la date de prêt.",
+  "Il prestito è già chiuso: la modifica non è stata salvata.": "Le prêt est déjà clôturé : la modification n'a pas été enregistrée.",
+  "Prenotazione aggiornata correttamente.": "Réservation mise à jour avec succès.",
+  "Prestito non trovato o non chiudibile.": "Prêt introuvable ou impossible à clôturer.",
+  "Si è verificato un errore. Riprova più tardi.": "Une erreur s'est produite. Veuillez réessayer plus tard.",
+  "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "Vous n'êtes pas éligible à l'emprunt : compte suspendu ou carte expirée."
 }
