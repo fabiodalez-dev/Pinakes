@@ -237,12 +237,15 @@ jobs:
           DB_PASS=root
           DB_NAME=pinakes_test
           ENVEOF
-          # Wait until MySQL answers, then import the base schema.
+          # Wait until MySQL answers, then import the base schema + triggers.
           for i in $(seq 1 30); do
             mysql -h 127.0.0.1 -u root -proot -e "SELECT 1" >/dev/null 2>&1 && break
             sleep 2
           done
           mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/schema.sql
+          # Copy-occupancy triggers live in a separate file (DELIMITER-based); the
+          # mysql CLI handles DELIMITER natively. loan-edge-cases relies on them.
+          mysql -h 127.0.0.1 -u root -proot pinakes_test < installer/database/triggers.sql
 
       - name: PHP unit tests (standalone .unit.php)
         run: |
