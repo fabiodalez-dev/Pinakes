@@ -111,7 +111,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
       <!-- Sidebar Header: blocco logo centrato; il close mobile è in absolute
            così non sbilancia il centraggio (visibile solo < lg) -->
-      <div class="relative flex items-center justify-center px-6 py-5 flex-shrink-0">
+      <div class="relative flex items-center justify-center px-6 flex-shrink-0">
         <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="flex flex-col items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer">
           <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center">
             <?php if ($appLogo !== ''): ?>
