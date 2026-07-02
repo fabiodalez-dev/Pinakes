@@ -109,8 +109,9 @@ $htmlLang = substr($currentLocale, 0, 2);
       class="fixed lg:static inset-y-0 left-0 z-50 w-72 lg:w-64 xl:w-72 bg-white border-r border-gray-200 shadow-lg transform -translate-x-full lg:translate-x-0 transition-all duration-300 ease-in-out flex flex-col"
       style="<?= $sidebarStyle ?>">
 
-      <!-- Sidebar Header -->
-      <div class="flex items-center justify-between px-6 py-5 flex-shrink-0">
+      <!-- Sidebar Header: blocco logo centrato; il close mobile è in absolute
+           così non sbilancia il centraggio (visibile solo < lg) -->
+      <div class="relative flex items-center justify-center px-6 py-5 flex-shrink-0">
         <a href="<?= htmlspecialchars(url('/'), ENT_QUOTES, 'UTF-8') ?>" class="flex flex-col items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer">
           <div class="w-12 h-12 rounded-xl bg-white flex items-center justify-center">
             <?php if ($appLogo !== ''): ?>
@@ -130,7 +131,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         </a>
 
         <!-- Mobile Close Button -->
-        <button id="close-mobile-menu" class="lg:hidden p-2 rounded-lg hover:bg-gray-100 transition-colors">
+        <button id="close-mobile-menu" class="lg:hidden absolute right-3 top-6 p-2 rounded-lg hover:bg-gray-100 transition-colors">
           <i class="fas fa-times text-gray-500"></i>
         </button>
       </div>
