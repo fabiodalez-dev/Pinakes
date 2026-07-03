@@ -5445,5 +5445,8 @@
   "Prestito non trovato o non chiudibile.": "Ausleihe nicht gefunden oder kann nicht abgeschlossen werden.",
   "Si è verificato un errore. Riprova più tardi.": "Ein Fehler ist aufgetreten. Bitte versuchen Sie es später erneut.",
   "Non sei idoneo al prestito: account sospeso o tessera scaduta.": "Sie sind nicht ausleihberechtigt: Konto gesperrt oder Ausweis abgelaufen.",
-  "Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l'utente del web server) e riprova, oppure esegui l'aggiornamento da riga di comando come proprietario dei file: php scripts/manual-upgrade.php <zip-release>": "Aktualisierung vor jeder Änderung abgebrochen: Der PHP-Prozess kann in diese Pfade nicht schreiben: %s. Korrigieren Sie die Berechtigungen (Eigentümer/Schreibzugriff für den Webserver-Benutzer) und versuchen Sie es erneut, oder führen Sie die Aktualisierung über die Kommandozeile als Dateieigentümer aus: php scripts/manual-upgrade.php <Release-ZIP>"
+  "Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l'utente del web server) e riprova, oppure esegui l'aggiornamento da riga di comando come proprietario dei file: php scripts/manual-upgrade.php <zip-release>": "Aktualisierung vor jeder Änderung abgebrochen: Der PHP-Prozess kann in diese Pfade nicht schreiben: %s. Korrigieren Sie die Berechtigungen (Eigentümer/Schreibzugriff für den Webserver-Benutzer) und versuchen Sie es erneut, oder führen Sie die Aktualisierung über die Kommandozeile als Dateieigentümer aus: php scripts/manual-upgrade.php <Release-ZIP>",
+  "Cartella radice": "Stammverzeichnis",
+  "Cartella backup": "Backup-Verzeichnis",
+  "Cartella storage": "Speicherverzeichnis"
 }
