@@ -257,6 +257,9 @@ jobs:
           done
           [ "$FAILED" -eq 0 ] && echo "✓ Tutti gli unit test PHP passati" || { echo "✗ Unit test PHP falliti"; exit 1; }
 
+      - name: Shell test — bin/setup-permissions.sh
+        run: bash tests/setup-permissions.test.sh
+
       - name: Remove CI .env
         if: always()
         run: rm -f .env
