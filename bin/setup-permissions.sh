@@ -101,20 +101,39 @@ OWNER_SPEC=""
 GROUP_KNOWN=0
 
 if [ -n "$FROM_CONTAINER" ]; then
-    # Docker: read the uid/gid PHP actually runs as inside the container.
+    # Docker: find the user the web/PHP WORKERS run as inside the container —
+    # NOT `id`, which returns root (the exec/master user). With php:*-apache
+    # (mod_php) the master runs as root but the workers drop to www-data, and
+    # it's the workers that read/write the files. Detect the non-root worker
+    # from the process list, then resolve its numeric uid:gid (the only thing
+    # correct across a bind-mount). Fall back to APACHE_RUN_USER, then to `id`.
     if ! command -v docker >/dev/null 2>&1; then
         echo "${RED}✗ --from-container given but 'docker' is not on PATH.${NC}" >&2; exit 1
     fi
-    _uid="$(docker exec "$FROM_CONTAINER" id -u 2>/dev/null || true)"
-    _gid="$(docker exec "$FROM_CONTAINER" id -g 2>/dev/null || true)"
+    _wu="$(docker exec "$FROM_CONTAINER" sh -c 'ps -eo user,comm 2>/dev/null | awk "\$1!=\"root\" && \$1!=\"USER\" && (\$2 ~ /apache|httpd|php|nginx/){print \$1; exit}"' 2>/dev/null || true)"
+    [ -z "$_wu" ] && _wu="$(docker exec "$FROM_CONTAINER" sh -c 'printf %s "${APACHE_RUN_USER:-}"' 2>/dev/null || true)"
+    if [ -n "$_wu" ]; then
+        _uid="$(docker exec "$FROM_CONTAINER" id -u "$_wu" 2>/dev/null || true)"
+        _gid="$(docker exec "$FROM_CONTAINER" id -g "$_wu" 2>/dev/null || true)"
+        _src="worker '$_wu'"
+    else
+        _uid="$(docker exec "$FROM_CONTAINER" id -u 2>/dev/null || true)"
+        _gid="$(docker exec "$FROM_CONTAINER" id -g 2>/dev/null || true)"
+        _src="exec user"
+    fi
     if [ -z "$_uid" ] || [ -z "$_gid" ]; then
         echo "${RED}✗ Could not read the uid/gid from container '$FROM_CONTAINER'.${NC}" >&2
         echo "  Check the name with 'docker ps' and that the container is running." >&2
         exit 1
     fi
-    OWNER_SPEC="$_uid:$_gid"     # numeric — the only thing correct across a bind-mount
+    OWNER_SPEC="$_uid:$_gid"
     GROUP_KNOWN=1
-    echo "  Container    : ${BLUE}$FROM_CONTAINER${NC} → PHP runs as uid:gid ${BLUE}$_uid:$_gid${NC}"
+    echo "  Container    : ${BLUE}$FROM_CONTAINER${NC} → PHP workers run as uid:gid ${BLUE}$_uid:$_gid${NC} (${_src})"
+    if [ "$_uid" = "0" ]; then
+        echo "  ${YELLOW}⚠ That resolved to root (0). If the app still can't write afterwards, the"
+        echo "     workers likely run as a non-root user this couldn't detect — run"
+        echo "     'docker exec $FROM_CONTAINER ps -eo user,comm' and pass it via --user/--group.${NC}"
+    fi
 else
     # Host install: detect or accept the PHP user.
     if [ -z "$PHP_USER" ]; then
