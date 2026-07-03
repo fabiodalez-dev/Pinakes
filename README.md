@@ -37,6 +37,18 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.27
+
+A follow-up to the 0.7.26 updater hardening, from a real upgrade report ([#205](https://github.com/fabiodalez-dev/Pinakes/issues/205)).
+
+### Clearer "not writable" reporting in the updater
+
+- The update panel's **system-requirements** list used to label each writable-permission check with only the folder's base name, so an install whose root directory is called `html` (common on NAS/QNAP web roots) showed a cryptic **"Write: html — Not writable"** with no way to tell which directory was meant. Each check now shows **what it is plus the full path** — e.g. `Write — Installation root (/share/…/html)`, `Write — Storage directory (…/storage)` — so the operator knows exactly which directory to make writable by the web-server user. New i18n keys added to all four locales.
+
+No schema migration. This is a display-only fix; upgrading from 0.7.26 changes nothing but the requirements labels.
+
+---
+
 ## What's New in v0.7.26
 
 Book reviews reach the mobile app, the loan/reservation system gets a full review pass, plus an email-template migration.
