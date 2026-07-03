@@ -45,7 +45,12 @@ A follow-up to the 0.7.26 updater hardening, from a real upgrade report ([#205](
 
 - The update panel's **system-requirements** list used to label each writable-permission check with only the folder's base name, so an install whose root directory is called `html` (common on NAS/QNAP web roots) showed a cryptic **"Write: html — Not writable"** with no way to tell which directory was meant. Each check now shows **what it is plus the full path** — e.g. `Write — Installation root (/share/…/html)`, `Write — Storage directory (…/storage)` — so the operator knows exactly which directory to make writable by the web-server user. New i18n keys added to all four locales.
 
-No schema migration. This is a display-only fix; upgrading from 0.7.26 changes nothing but the requirements labels.
+### One-shot permissions fixer (`bin/setup-permissions.sh`)
+
+- A CLI script that fixes **all** filesystem permissions the app and the in-app updater need, in a single run — the reliable cure for "Update failed: Unable to create directory / Not writable" on shared hosting and NAS devices. It **auto-detects the web-server (PHP) user**, hands it ownership of the **whole install tree** (the updater must create/overwrite files, so owning the root — not just a few sub-folders — is what actually matters), then applies safe modes: no `chmod 777`, executables preserved, `.env` kept non-world-readable.
+- **Dry-run by default** (shows exactly what it would do); `--apply` to run; `--user` / `--group` / `--root` overrides for any host. QNAP example: `sudo bin/setup-permissions.sh --apply --user httpdusr`.
+
+No schema migration. Both changes are operational; upgrading from 0.7.26 changes nothing but the requirements labels and adds the helper script.
 
 ---
 
