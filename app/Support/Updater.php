@@ -3797,16 +3797,21 @@ class Updater
         ];
         if (!$zipMet) $allMet = false;
 
-        $writablePaths = [
-            $this->rootPath,
-            $this->backupPath,
-            $this->rootPath . '/storage',
+        // Label each writable-target with WHAT it is + its full path, not just
+        // basename(): a bare "html" (basename of an install root at .../Web/html)
+        // told a QNAP user nothing about which directory to fix (#205). The path
+        // is admin-only (this runs in the update panel) and is exactly what the
+        // operator needs to chown/chmod.
+        $writableTargets = [
+            [__('Cartella radice'), $this->rootPath],
+            [__('Cartella backup'), $this->backupPath],
+            [__('Cartella storage'), $this->rootPath . '/storage'],
         ];
 
-        foreach ($writablePaths as $path) {
+        foreach ($writableTargets as [$label, $path]) {
             $writable = is_writable($path);
             $requirements[] = [
-                'name' => __('Scrittura') . ': ' . basename($path),
+                'name' => __('Scrittura') . ' — ' . $label . ' (' . $path . ')',
                 'required' => __('Scrivibile'),
                 'current' => $writable ? __('Scrivibile') : __('Non scrivibile'),
                 'met' => $writable
