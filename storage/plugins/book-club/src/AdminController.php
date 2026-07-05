@@ -29,7 +29,10 @@ class AdminController extends BaseController
                 return $this->notFound($response);
             }
         }
-        return $this->renderAdmin($response, 'admin/form', ['club' => $club]);
+        return $this->renderAdmin($response, 'admin/form', [
+            'club' => $club,
+            'modules' => Modules\Registry::all($this->db),
+        ]);
     }
 
     public function save(ServerRequestInterface $request, ResponseInterface $response, ?int $id): ResponseInterface
@@ -59,6 +62,7 @@ class AdminController extends BaseController
             'settings' => [
                 'moderate_proposals' => isset($body['moderate_proposals']),
                 'max_proposals_per_member' => self::intOrNull($body, 'max_proposals_per_member'),
+                'modules' => $this->pickedModules($body),
             ],
         ];
 
@@ -89,6 +93,23 @@ class AdminController extends BaseController
         $this->repo->updateClub($id, $data);
         $this->flash('success', __('Club aggiornato.'));
         return $this->redirect($response, '/admin/book-club/' . $id);
+    }
+
+    /**
+     * Enabled module slugs from the form's modules[] checkboxes, restricted
+     * to slugs the Registry actually knows.
+     *
+     * @param array<string, mixed>|object|null $body
+     * @return list<string>
+     */
+    private function pickedModules(mixed $body): array
+    {
+        $picked = is_array($body) && is_array($body['modules'] ?? null) ? $body['modules'] : [];
+        $known = array_map(
+            static fn(Modules\ModuleInterface $m): string => $m->slug(),
+            Modules\Registry::all($this->db)
+        );
+        return array_values(array_intersect($known, array_map('strval', $picked)));
     }
 
     public function delete(ServerRequestInterface $request, ResponseInterface $response, int $id): ResponseInterface

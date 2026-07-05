@@ -72,6 +72,34 @@ $action = $isEdit ? url('/admin/book-club/' . (int) $club['id'] . '/edit') : url
       </div>
     </div>
 
+    <?php $modules = $modules ?? []; ?>
+    <?php if ($modules !== []): ?>
+      <div class="border-t pt-5">
+        <label class="block text-sm font-medium text-gray-700 mb-2"><?= $e(__('Moduli attivi per questo club')) ?></label>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <?php
+            // No explicit list yet (new club or pre-modules club) → defaults.
+            $enabledSlugs = null;
+            if ($isEdit && array_key_exists('modules', $settings) && is_array($settings['modules'])) {
+                $enabledSlugs = $settings['modules'];
+            }
+          ?>
+          <?php foreach ($modules as $module): ?>
+            <?php $on = $enabledSlugs === null ? $module->defaultEnabled() : in_array($module->slug(), $enabledSlugs, true); ?>
+            <label class="flex items-start text-sm text-gray-700 border rounded-lg px-3 py-2">
+              <input type="checkbox" name="modules[]" value="<?= $e($module->slug()) ?>" class="mr-2 mt-0.5 rounded" <?= $on ? 'checked' : '' ?>>
+              <span>
+                <span class="font-medium"><?= $e($module->label()) ?></span>
+                <?php if ($module->description() !== ''): ?>
+                  <span class="block text-xs text-gray-400"><?= $e($module->description()) ?></span>
+                <?php endif; ?>
+              </span>
+            </label>
+          <?php endforeach; ?>
+        </div>
+      </div>
+    <?php endif; ?>
+
     <div class="border-t pt-5 space-y-3">
       <label class="flex items-center text-sm text-gray-700">
         <input type="checkbox" name="moderate_proposals" value="1" class="mr-2 rounded" <?= !empty($settings['moderate_proposals']) ? 'checked' : '' ?>>

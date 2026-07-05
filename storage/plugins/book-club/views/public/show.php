@@ -412,6 +412,10 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           </details>
         <?php endif; ?>
       </section>
+
+      <?php foreach (($modulePanelsMain ?? []) as $panelHtml): ?>
+        <?= $panelHtml /* module-rendered, already escaped inside the partial */ ?>
+      <?php endforeach; ?>
     </div>
 
     <!-- Sidebar -->
@@ -466,6 +470,10 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           </ul>
         </section>
       <?php endif; ?>
+
+      <?php foreach (($modulePanelsSidebar ?? []) as $sideHtml): ?>
+        <?= $sideHtml /* module-rendered, already escaped inside the partial */ ?>
+      <?php endforeach; ?>
     </div>
   </div>
 </div>

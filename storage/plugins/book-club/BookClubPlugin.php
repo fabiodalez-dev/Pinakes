@@ -18,6 +18,9 @@ require_once __DIR__ . '/src/AdminController.php';
 require_once __DIR__ . '/src/PublicController.php';
 require_once __DIR__ . '/src/PollController.php';
 require_once __DIR__ . '/src/MeetingController.php';
+require_once __DIR__ . '/src/Modules/ModuleInterface.php';
+require_once __DIR__ . '/src/Modules/AbstractModule.php';
+require_once __DIR__ . '/src/Modules/Registry.php';
 
 /**
  * Book Club — collaborative reading engine (Fase 1 / MVP of
@@ -218,6 +221,13 @@ class BookClubPlugin
         if (empty($failed)) {
             $this->seedSystemRoles();
             $this->seedDefaultWorkflowTemplate();
+        }
+
+        // Module schemas run after the core tables they reference.
+        foreach (Modules\Registry::all($this->db) as $module) {
+            $result = $module->ensureSchema();
+            $created = array_merge($created, $result['created']);
+            $failed = array_merge($failed, $result['failed']);
         }
 
         return ['created' => $created, 'failed' => $failed];
@@ -606,6 +616,16 @@ class BookClubPlugin
         $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/new', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->create($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
         $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/rsvp', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->rsvp($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
         $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/status', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->changeStatus($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
+
+        // Feature modules (reading, discussions, stats, …) attach their own
+        // routes; per-club enablement is re-checked inside each handler.
+        foreach (Modules\Registry::all($this->db) as $module) {
+            try {
+                $module->registerRoutes($app);
+            } catch (\Throwable $e) {
+                SecureLogger::error('[BookClub] module ' . $module->slug() . ' registerRoutes failed: ' . $e->getMessage());
+            }
+        }
     }
 
     // ------------------------------------------------------------------
@@ -655,6 +675,13 @@ class BookClubPlugin
         } catch (\Throwable $e) {
             // Never let the plugin break the shared maintenance pass.
             SecureLogger::error('[BookClub] onMaintenanceTick failed: ' . $e->getMessage());
+        }
+        foreach (Modules\Registry::all($this->db) as $module) {
+            try {
+                $module->onMaintenanceTick();
+            } catch (\Throwable $e) {
+                SecureLogger::error('[BookClub] module ' . $module->slug() . ' tick failed: ' . $e->getMessage());
+            }
         }
     }
 }

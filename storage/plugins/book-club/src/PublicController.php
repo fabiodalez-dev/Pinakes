@@ -49,6 +49,34 @@ class PublicController extends BaseController
             ));
         }
 
+        // Feature-module panels (reading tracker, discussions, stats, …).
+        $ctx = [
+            'club' => $club,
+            'states' => $states,
+            'membership' => $membership,
+            'isMember' => $isMember,
+            'canManage' => $canManage,
+            'loggedIn' => $this->userId() !== null,
+            'userId' => $this->userId(),
+            'csrf' => \App\Support\Csrf::ensureToken(),
+        ];
+        $modulePanelsMain = [];
+        $modulePanelsSidebar = [];
+        foreach (Modules\Registry::enabledForClub($this->db, $club) as $module) {
+            try {
+                $panel = $module->renderClubPanel($ctx);
+                if ($panel !== '') {
+                    $modulePanelsMain[] = $panel;
+                }
+                $side = $module->renderClubSidebar($ctx);
+                if ($side !== '') {
+                    $modulePanelsSidebar[] = $side;
+                }
+            } catch (\Throwable $e) {
+                SecureLogger::error('[BookClub] module ' . $module->slug() . ' panel failed: ' . $e->getMessage());
+            }
+        }
+
         return $this->renderPublic($response, 'public/show', [
             'club' => $club,
             'states' => $states,
@@ -56,6 +84,8 @@ class PublicController extends BaseController
             'isMember' => $isMember,
             'canManage' => $canManage,
             'loggedIn' => $this->userId() !== null,
+            'modulePanelsMain' => $modulePanelsMain,
+            'modulePanelsSidebar' => $modulePanelsSidebar,
             'books' => $books,
             'polls' => $this->repo->clubPolls((int) $club['id']),
             'meetings' => $this->repo->clubMeetings((int) $club['id']),
