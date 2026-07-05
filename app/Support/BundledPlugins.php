@@ -9,6 +9,7 @@ final class BundledPlugins
         'api-book-scraper',
         'archives',
         'bibframe-linked-data',
+        'book-club',
         'deezer',
         'dewey-editor',
         'digital-library',

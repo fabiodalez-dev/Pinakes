@@ -1,0 +1,38 @@
+{
+  "name": "book-club",
+  "display_name": "Book Club",
+  "description": "Gestione della lettura collaborativa: club di lettura multipli con membri e ruoli, workflow del libro configurabile (Proposto → In votazione → Scelto → In lettura → Discussione → Concluso → Archivio), proposte dal catalogo, votazioni semplici o a preferenza multipla con scadenza e chiusura automatica, incontri con RSVP e feed iCal, dashboard personale multi-club e archivio storico. Progettato per la Discussion #138: dal piccolo circolo comunale alla rete bibliotecaria.",
+  "version": "1.0.0",
+  "changelog": "v1.0.0 (Pinakes 0.7.x): prima release — Fase 1 (MVP) del piano docs/BOOK_CLUB_PLUGIN_PLAN.md. Club CRUD con privacy (pubblico/privato/su invito/nascosto), membri con ruoli di sistema (owner/moderator/member/guest), inviti via email con token, workflow a stati personalizzabile per club con log delle transizioni, proposte dal catalogo (con moderazione opzionale e limite per membro), votazioni simple/multi (N voti a testa, voto segreto o pubblico, scadenza e chiusura automatica con transizione del vincitore), incontri fisici/online con RSVP e promemoria, feed iCal per club, dashboard utente /my/book-clubs, archivio letture.",
+  "author": "Fabiodalez",
+  "author_url": "",
+  "plugin_url": "https://github.com/fabiodalez-dev/Pinakes/discussions/138",
+  "main_file": "wrapper.php",
+  "requires_php": "8.1",
+  "requires_app": "0.7.12",
+  "metadata": {
+    "category": "community",
+    "tags": [
+      "book-club",
+      "reading-groups",
+      "votazioni",
+      "incontri",
+      "ical",
+      "community"
+    ],
+    "priority": 10,
+    "features": [
+      "Club illimitati con privacy pubblico / privato / su invito / nascosto",
+      "Membri con ruoli owner / moderator / member / guest e inviti email con token",
+      "Workflow del libro a stati completamente personalizzabile per club",
+      "Proposte di lettura dal catalogo Pinakes con moderazione opzionale",
+      "Votazioni a voto singolo o preferenza multipla (N voti a testa), segrete o pubbliche, con scadenza",
+      "Chiusura automatica delle votazioni e avanzamento del libro vincitore nel workflow",
+      "Incontri fisici/online con RSVP, posti limitati e promemoria email",
+      "Feed iCal per club (Google Calendar / Apple Calendar / Outlook)",
+      "Dashboard personale multi-club e archivio storico delle letture"
+    ],
+    "optional": true,
+    "status": "phase-1"
+  }
+}

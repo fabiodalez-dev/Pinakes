@@ -194,7 +194,12 @@ class MaintenanceService
         // listening; a plugin failure is swallowed by HookManager and can never
         // abort the maintenance run.
         try {
-            (new HookManager($this->db))->doAction('mobile_api.dispatch_push');
+            $maintenanceHooks = new HookManager($this->db);
+            $maintenanceHooks->doAction('mobile_api.dispatch_push');
+            // Generic post-maintenance hook: plugins register scheduled work
+            // here (e.g. Book Club poll auto-close + meeting reminders)
+            // instead of each one needing its own dedicated dispatch line.
+            $maintenanceHooks->doAction('maintenance.after_run');
         } catch (\Throwable $e) {
             $results['errors'][] = 'dispatchPush: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore push'), ['error' => $e->getMessage()]);
