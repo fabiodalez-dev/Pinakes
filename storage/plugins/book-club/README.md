@@ -1,9 +1,28 @@
 # Book Club — plugin Pinakes
 
 Motore di **lettura collaborativa** per Pinakes (Discussion [#138](https://github.com/fabiodalez-dev/Pinakes/discussions/138)).
-Questa release implementa la **Fase 1 (MVP)** del piano di progettazione [`docs/BOOK_CLUB_PLUGIN_PLAN.md`](../../../docs/BOOK_CLUB_PLUGIN_PLAN.md).
+Implementa le **Fasi 1-4** del piano di progettazione [`docs/BOOK_CLUB_PLUGIN_PLAN.md`](../../../docs/BOOK_CLUB_PLUGIN_PLAN.md):
+il nucleo (Fase 1) più **16 moduli attivabili per club** (auto-discovery da `src/Modules/*Module.php`,
+checkbox nel form admin del club).
 
-## Funzionalità (Fase 1)
+## Moduli
+
+Attivi di default: **reading** (lettura condivisa: sezioni, tracker, progressi del club),
+**discussions** (thread con spoiler protetti dal progresso di lettura, reazioni, menzioni, moderazione),
+**library** (disponibilità copie, prestiti dei membri, lista d'attesa + ponte recensioni core),
+**voting2** (stelle, classifica Borda, eliminazione a round, voto ponderato, quorum, spareggi),
+**stats** (statistiche membro/club, rollup giornaliero, export JSON/CSV),
+**governance** (ruoli personalizzati con matrice di 12 permessi + automazioni per club).
+
+Opzionali (opt-in per club): **seasons** (stagioni con archivio storico),
+**gamification** (XP, livelli, badge, classifica), **surveys** (questionari con builder),
+**quotes** (citazioni e annotazioni con export), **challenges** (obiettivi annuali),
+**affinity** (affinità tra lettori opt-in + suggerimenti dal catalogo),
+**api** (REST read-only `/api/book-club/v1/*` con chiavi API core e OpenAPI 3.1),
+**sprints** (sessioni di lettura cronometrate), **buddy** (abbinamento lettori),
+**ai** (domande di discussione e riassunti verbali; chiave API cifrata in `plugin_settings`, cap 20 generazioni/24h).
+
+## Funzionalità del nucleo (Fase 1)
 
 - **Club illimitati** con nome, descrizione, regolamento, colore, privacy
   (`public` / `private` / `invite` / `hidden`) e limite membri opzionale.
