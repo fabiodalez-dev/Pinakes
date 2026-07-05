@@ -6,6 +6,8 @@
  * @var list<array{key: string, label: string, color: string, flags: array<string, bool>}> $states
  * @var list<array<string, mixed>> $members
  * @var list<array<string, mixed>> $roles
+ * @var list<array<string, mixed>> $customRoles   governance module: custom club roles (id, slug, name)
+ * @var bool $governanceEnabled                    governance module enabled for this club
  * @var list<array<string, mixed>> $books
  * @var list<array<string, mixed>> $polls
  * @var list<array<string, mixed>> $meetings
@@ -20,6 +22,8 @@ $stateLabels = [];
 foreach ($states as $s) {
     $stateLabels[$s['key']] = $s;
 }
+$customRoles = isset($customRoles) && is_array($customRoles) ? $customRoles : [];
+$governanceEnabled = !empty($governanceEnabled);
 $statusLabels = [
     'pending' => __('In attesa'),
     'active' => __('Attivo'),
@@ -120,7 +124,14 @@ $statusLabels = [
 
   <!-- Members -->
   <section class="bg-white rounded-xl shadow p-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= $e(__('Membri')) ?> (<?= count($members) ?>)</h2>
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-gray-900"><?= $e(__('Membri')) ?> (<?= count($members) ?>)</h2>
+      <?php if ($governanceEnabled): ?>
+        <a href="<?= $e(url('/admin/book-club/' . $clubId . '/roles')) ?>" class="text-sm text-blue-600 hover:underline">
+          <i class="fas fa-user-shield mr-1"></i><?= $e(__('Ruoli personalizzati')) ?>
+        </a>
+      <?php endif; ?>
+    </div>
     <form method="post" action="<?= $e(url('/admin/book-club/' . $clubId . '/members/add')) ?>" class="flex flex-wrap items-end gap-3 mb-5">
       <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
       <div>
@@ -162,6 +173,13 @@ $statusLabels = [
                   <?php foreach ($roles as $role): ?>
                     <option value="<?= $e($role['slug']) ?>" <?= $role['slug'] === $member['role_slug'] ? 'selected' : '' ?>><?= $e($role['name']) ?></option>
                   <?php endforeach; ?>
+                  <?php if ($customRoles !== []): ?>
+                    <optgroup label="<?= $e(__('Ruoli personalizzati')) ?>">
+                      <?php foreach ($customRoles as $customRole): ?>
+                        <option value="<?= (int) $customRole['id'] ?>" <?= (int) $customRole['id'] === (int) $member['role_id'] ? 'selected' : '' ?>><?= $e($customRole['name']) ?></option>
+                      <?php endforeach; ?>
+                    </optgroup>
+                  <?php endif; ?>
                 </select>
               </form>
             </td>

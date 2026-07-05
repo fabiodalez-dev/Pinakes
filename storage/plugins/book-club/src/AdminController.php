@@ -129,15 +129,75 @@ class AdminController extends BaseController
         if ($club === null) {
             return $this->notFound($response);
         }
+        $governanceEnabled = $this->governanceEnabledFor($club);
         return $this->renderAdmin($response, 'admin/show', [
             'club' => $club,
             'states' => $this->repo->workflowStates($club),
             'members' => $this->repo->listMembers($id),
             'roles' => $this->repo->systemRoles(),
+            'customRoles' => $governanceEnabled ? $this->clubCustomRoles($id) : [],
+            'governanceEnabled' => $governanceEnabled,
             'books' => $this->repo->clubBooks($id),
             'polls' => $this->repo->clubPolls($id),
             'meetings' => $this->repo->clubMeetings($id),
         ]);
+    }
+
+    /**
+     * Whether the governance module (custom roles + automations) is enabled
+     * for this club — gates the roles page link and the custom-role options.
+     *
+     * @param array<string, mixed> $club
+     */
+    private function governanceEnabledFor(array $club): bool
+    {
+        foreach (Modules\Registry::all($this->db) as $module) {
+            if ($module->slug() === 'governance') {
+                return Modules\Registry::clubEnabled($club, $module);
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Custom (non-system) roles of the club, for the member-role selects.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function clubCustomRoles(int $clubId): array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, slug, name FROM bookclub_roles WHERE club_id = ? AND is_system = 0 ORDER BY name ASC'
+        );
+        if ($stmt === false) {
+            return [];
+        }
+        $stmt->bind_param('i', $clubId);
+        $rows = [];
+        if ($stmt->execute()) {
+            $result = $stmt->get_result();
+            $rows = $result ? $result->fetch_all(MYSQLI_ASSOC) : [];
+        }
+        $stmt->close();
+        return $rows;
+    }
+
+    /** @return array<string, mixed>|null custom role only when owned by the club */
+    private function customRoleForClub(int $clubId, int $roleId): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, slug, name FROM bookclub_roles WHERE id = ? AND club_id = ? AND is_system = 0'
+        );
+        if ($stmt === false) {
+            return null;
+        }
+        $stmt->bind_param('ii', $roleId, $clubId);
+        $row = null;
+        if ($stmt->execute()) {
+            $row = $stmt->get_result()?->fetch_assoc() ?: null;
+        }
+        $stmt->close();
+        return $row;
     }
 
     /**
@@ -243,6 +303,13 @@ class AdminController extends BaseController
             $roleId = $this->repo->roleIdBySlug($roleSlug);
             if ($roleId !== null) {
                 $this->repo->setMemberRole($memberId, $roleId);
+            }
+        } elseif ($roleSlug !== '' && ctype_digit($roleSlug)) {
+            // Governance module: a numeric value selects a custom club role
+            // (validated to belong to THIS club before assignment).
+            $customRole = $this->customRoleForClub($id, (int) $roleSlug);
+            if ($customRole !== null) {
+                $this->repo->setMemberRole($memberId, (int) $customRole['id']);
             }
         }
         $this->flash('success', __('Membro aggiornato.'));
