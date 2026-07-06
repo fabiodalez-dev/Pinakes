@@ -51,6 +51,14 @@ final class AuthController
 
     public function login(Request $request, ResponseInterface $response): ResponseInterface
     {
+        // App-access gate FIRST, before touching any credential: with
+        // mobile_api.enabled off, login must not mint tokens that every
+        // authenticated route would then reject via AppAuthMiddleware.
+        // Same error code literal as the middleware (app_access_disabled).
+        if (!$this->appAccessEnabled()) {
+            return ResponseEnvelope::error($response, 'app_access_disabled', __('L\'accesso da app non è abilitato su questa istanza.'), 403);
+        }
+
         $body     = JsonBody::parse($request);
         $email    = trim((string) ($body['email'] ?? ''));
         $password = (string) ($body['password'] ?? '');
@@ -135,6 +143,9 @@ final class AuthController
 
     public function register(Request $request, ResponseInterface $response): ResponseInterface
     {
+        if (!$this->appAccessEnabled()) {
+            return ResponseEnvelope::error($response, 'app_access_disabled', __('L\'accesso da app non è abilitato su questa istanza.'), 403);
+        }
         if (!$this->registrationEnabled()) {
             return ResponseEnvelope::error($response, 'registration_disabled', __('La registrazione non è abilitata su questa istanza.'), 403);
         }
@@ -244,6 +255,10 @@ final class AuthController
 
     public function forgotPassword(Request $request, ResponseInterface $response): ResponseInterface
     {
+        if (!$this->appAccessEnabled()) {
+            return ResponseEnvelope::error($response, 'app_access_disabled', __('L\'accesso da app non è abilitato su questa istanza.'), 403);
+        }
+
         $body  = JsonBody::parse($request);
         $email = trim((string) ($body['email'] ?? ''));
 
@@ -369,6 +384,16 @@ final class AuthController
      * Registration discovery flag — mirrors HealthController: a dedicated
      * `registration.enabled` setting if present, else "open unless private mode".
      */
+    /**
+     * Same gate AppAuthMiddleware enforces on the authenticated surface
+     * (system_settings mobile_api.enabled), re-read per request here because
+     * the public auth endpoints run without that middleware.
+     */
+    private function appAccessEnabled(): bool
+    {
+        return (string) ConfigStore::get('mobile_api.enabled', '0') === '1';
+    }
+
     private function registrationEnabled(): bool
     {
         $setting = ConfigStore::get('registration.enabled', null);
