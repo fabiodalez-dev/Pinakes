@@ -6416,5 +6416,10 @@
   "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)": "Exposes the club in the Pinakes app (API /api/v1/bookclub with the app token)",
   "Questa modalità di voto è disponibile solo dal sito.": "This voting mode is only available on the website.",
   "Club non trovato.": "Club not found.",
-  "La data di inizio dello sprint deve essere futura.": "The sprint start time must be in the future."
+  "La data di inizio dello sprint deve essere futura.": "The sprint start time must be in the future.",
+  "Non hai i permessi per proporre libri in questo club.": "You do not have permission to propose books in this club.",
+  "Solo i membri attivi del club possono confermare la partecipazione.": "Only active club members can confirm attendance.",
+  "Il modulo lettura non è attivo per questo club.": "The reading module is not enabled for this club.",
+  "Incontro non trovato.": "Meeting not found.",
+  "Le sfide degli anni passati sono in archivio e non si possono eliminare.": "Past years' challenges are archived and cannot be deleted."
 }
