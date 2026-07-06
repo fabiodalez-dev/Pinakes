@@ -6421,5 +6421,11 @@
   "Solo i membri attivi del club possono confermare la partecipazione.": "Seuls les membres actifs du club peuvent confirmer leur participation.",
   "Il modulo lettura non è attivo per questo club.": "Le module de lecture n'est pas activé pour ce club.",
   "Incontro non trovato.": "Rencontre introuvable.",
-  "Le sfide degli anni passati sono in archivio e non si possono eliminare.": "Les défis des années passées sont archivés et ne peuvent pas être supprimés."
+  "Le sfide degli anni passati sono in archivio e non si possono eliminare.": "Les défis des années passées sont archivés et ne peuvent pas être supprimés.",
+  "Disponibilità non disponibile.": "Informations de disponibilité indisponibles.",
+  "Il testo della recensione non può superare %d caratteri.": "Le texte de la critique ne peut pas dépasser %d caractères.",
+  "La valutazione deve essere tra 1 e 5 stelle.": "La note doit être comprise entre 1 et 5 étoiles.",
+  "Nessuna recensione da eliminare.": "Aucune critique à supprimer.",
+  "Puoi recensire solo i titoli che hai preso in prestito.": "Vous ne pouvez évaluer que les titres que vous avez empruntés.",
+  "Testo della recensione non valido.": "Texte de critique non valide."
 }
