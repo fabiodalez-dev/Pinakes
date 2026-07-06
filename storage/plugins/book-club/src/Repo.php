@@ -772,6 +772,24 @@ class Repo
         );
     }
 
+    /**
+     * Expired-but-still-open polls of ONE club — the per-club lazy-close
+     * sweep the read paths (club page, mobile detail, dashboards) run so
+     * correctness never depends on the maintenance cron.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function expiredOpenPollsForClub(int $clubId): array
+    {
+        return $this->rows(
+            "SELECT * FROM bookclub_polls
+              WHERE club_id = ? AND status = 'open'
+                AND closes_at IS NOT NULL AND closes_at <= NOW()",
+            'i',
+            [$clubId]
+        );
+    }
+
     // ------------------------------------------------------------------
     // Meetings
     // ------------------------------------------------------------------

@@ -131,6 +131,9 @@ class PollController extends BaseController
         if ($club === null || !$this->canView($club) || !$this->advancedVotingEnabled($club)) {
             return $this->notFound($response);
         }
+        // Same lazy-close guarantee as show(): the list must never present
+        // a deadline-passed poll as open while vote() rejects its ballots.
+        $this->closeExpiredForClub((int) $club['id']);
         $books = $this->repo->clubBooks((int) $club['id']);
         $eligible = $this->repo->pollEligibleBooks($club, $books);
         return $this->renderPublic($response, 'public/polls', [
@@ -232,6 +235,7 @@ class PollController extends BaseController
         // Poll opening is atomic: a failure halfway (poll row without
         // options, books left mid-transition) must roll everything back —
         // an inconsistent open poll corrupts the close-time transitions.
+        $pollId = null;
         $this->db->begin_transaction();
         try {
             $pollId = $this->repo->createPoll(
@@ -468,6 +472,25 @@ class PollController extends BaseController
                 $this->resolvePoll($poll, true);
             } catch (\Throwable $e) {
                 SecureLogger::error('[BookClub] auto-close failed for poll ' . $poll['id'] . ': ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Per-club lazy close, the same guarantee show() gives for a single
+     * poll ("correctness does not depend on the cron") extended to the
+     * list/read paths: club page poll list, mobile club detail and the
+     * dashboards. Only touches polls with status='open' AND closes_at in
+     * the past, so the close side effects (tally, winner transition,
+     * bookclub.poll.closed hook) run exactly once.
+     */
+    public function closeExpiredForClub(int $clubId): void
+    {
+        foreach ($this->repo->expiredOpenPollsForClub($clubId) as $poll) {
+            try {
+                $this->resolvePoll($poll, true);
+            } catch (\Throwable $e) {
+                SecureLogger::error('[BookClub] lazy close failed for poll ' . $poll['id'] . ': ' . $e->getMessage());
             }
         }
     }

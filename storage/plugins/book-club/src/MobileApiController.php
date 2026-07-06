@@ -47,6 +47,10 @@ class MobileApiController extends BaseController
         return $this->ok($response, [
             'plugin' => 'book-club',
             'enabled' => true,
+            // The mobile_api.enabled gate: with false every authenticated
+            // endpoint answers 403 app_access_disabled, so a client can hide
+            // the whole section from this single discovery call.
+            'app_access_enabled' => $this->module->appAccessEnabled(),
             'version' => is_array($manifest) ? (string) ($manifest['version'] ?? '0') : '0',
             'requires' => ['mobile-api'],
             'endpoints' => [
@@ -110,9 +114,13 @@ class MobileApiController extends BaseController
         if ($club === null) {
             return $error !== null ? $error($response) : $this->fail($response, 'not_found', __('Club non trovato.'), 404);
         }
+        // Lazy-close expired polls before reading, mirroring the web pages:
+        // the app must never see status='open' on a poll vote() would 409.
+        (new PollController($this->db, $this->repo))->closeExpiredForClub((int) $club['id']);
         $userId = (int) $this->userId();
         $membership = $this->membership($club);
         $isMember = $membership !== null && $membership['status'] === 'active';
+        $canManage = $this->canManage($club);
         $states = $this->repo->workflowStates($club);
         $stateIndex = [];
         foreach ($states as $s) {
@@ -121,7 +129,7 @@ class MobileApiController extends BaseController
 
         $books = [];
         foreach ($this->repo->clubBooks((int) $club['id']) as $book) {
-            if ($book['state'] === BookClubPlugin::STATE_PENDING && !$this->canManage($club)) {
+            if ($book['state'] === BookClubPlugin::STATE_PENDING && !$canManage) {
                 continue;
             }
             $st = $stateIndex[$book['state']] ?? null;
@@ -149,7 +157,7 @@ class MobileApiController extends BaseController
                 'title' => (string) $poll['title'],
                 'mode' => (string) $poll['mode'],
                 'status' => (string) $poll['status'],
-                'closes_at' => $poll['closes_at'],
+                'closes_at' => self::isoUtc($poll['closes_at']),
                 'votes_per_member' => (int) $poll['votes_per_member'],
                 'voter_count' => (int) ($poll['voter_count'] ?? 0),
                 'my_option_ids' => $this->repo->userVotes((int) $poll['id'], $userId),
@@ -169,13 +177,13 @@ class MobileApiController extends BaseController
             $meetings[] = [
                 'id' => (int) $meeting['id'],
                 'title' => (string) $meeting['title'],
-                'starts_at' => (string) $meeting['starts_at'],
-                'ends_at' => $meeting['ends_at'],
+                'starts_at' => self::isoUtc($meeting['starts_at']) ?? (string) $meeting['starts_at'],
+                'ends_at' => self::isoUtc($meeting['ends_at']),
                 'kind' => (string) $meeting['kind'],
                 'status' => (string) $meeting['status'],
                 'location' => (string) ($meeting['location'] ?? ''),
                 // video links are members-only, exactly like the web UI.
-                'video_url' => $isMember || $this->canManage($club) ? (string) ($meeting['video_url'] ?? '') : '',
+                'video_url' => $isMember || $canManage ? (string) ($meeting['video_url'] ?? '') : '',
                 'agenda' => (string) ($meeting['agenda'] ?? ''),
                 'book_title' => (string) ($meeting['book_title'] ?? ''),
                 'yes_count' => (int) $meeting['yes_count'],
@@ -190,7 +198,7 @@ class MobileApiController extends BaseController
                 'slug' => (string) $club['slug'],
                 'name' => (string) $club['name'],
                 'description' => (string) ($club['description'] ?? ''),
-                'rules' => $isMember ? (string) ($club['rules'] ?? '') : '',
+                'rules' => $isMember || $canManage ? (string) ($club['rules'] ?? '') : '',
                 'color' => (string) $club['color'],
                 'privacy' => (string) $club['privacy'],
                 'member_count' => $this->repo->countActiveMembers((int) $club['id']),
@@ -212,12 +220,16 @@ class MobileApiController extends BaseController
     public function dashboard(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $userId = (int) $this->userId();
+        $pollController = new PollController($this->db, $this->repo);
         $cards = [];
         foreach ($this->repo->listClubsForUser($userId) as $clubRow) {
             $club = $this->repo->clubById((int) $clubRow['id']);
             if ($club === null || !Registry::clubEnabled($club, $this->module)) {
                 continue;
             }
+            // open_polls must not include deadline-passed polls (lazy close,
+            // one cheap SELECT per club — same guarantee as the club pages).
+            $pollController->closeExpiredForClub((int) $club['id']);
             $snapshot = $this->repo->clubSnapshot($club);
             $cards[] = [
                 'club' => [
@@ -239,12 +251,12 @@ class MobileApiController extends BaseController
                 'next_meeting' => $snapshot['next_meeting'] !== null ? [
                     'id' => (int) $snapshot['next_meeting']['id'],
                     'title' => (string) $snapshot['next_meeting']['title'],
-                    'starts_at' => (string) $snapshot['next_meeting']['starts_at'],
+                    'starts_at' => self::isoUtc($snapshot['next_meeting']['starts_at']) ?? (string) $snapshot['next_meeting']['starts_at'],
                 ] : null,
                 'open_polls' => array_map(static fn(array $p): array => [
                     'id' => (int) $p['id'],
                     'title' => (string) $p['title'],
-                    'closes_at' => $p['closes_at'],
+                    'closes_at' => self::isoUtc($p['closes_at']),
                 ], $snapshot['open_polls']),
             ];
         }
@@ -257,9 +269,14 @@ class MobileApiController extends BaseController
 
     public function join(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
-        $club = $this->clubForApi($slug, $error);
-        if ($club === null) {
-            return $error !== null ? $error($response) : $this->fail($response, 'not_found', __('Club non trovato.'), 404);
+        // Web-parity resolution (PublicController::join): existence + active
+        // + mobile module only, WITHOUT the canView gate — otherwise the
+        // invite_only branch below is unreachable for invite/hidden clubs
+        // and the documented 403 contract can never fire.
+        $club = $this->repo->clubBySlug($slug);
+        if ($club === null || (int) $club['is_active'] !== 1
+            || !Registry::clubEnabled($club, $this->module)) {
+            return $this->fail($response, 'not_found', __('Club non trovato.'), 404);
         }
         $userId = (int) $this->userId();
         $existing = $this->repo->memberRow((int) $club['id'], $userId);
@@ -294,7 +311,7 @@ class MobileApiController extends BaseController
             return $error !== null ? $error($response) : $this->fail($response, 'not_found', __('Club non trovato.'), 404);
         }
         if (!$this->can($club, 'proposals.create')) {
-            return $this->fail($response, 'forbidden', __('Solo i membri attivi del club possono votare.'), 403);
+            return $this->fail($response, 'forbidden', __('Non hai i permessi per proporre libri in questo club.'), 403);
         }
         $body = $this->jsonBody($request);
         $libroId = isset($body['libro_id']) && is_numeric($body['libro_id']) ? (int) $body['libro_id'] : 0;
@@ -413,11 +430,11 @@ class MobileApiController extends BaseController
             return $error !== null ? $error($response) : $this->fail($response, 'not_found', __('Club non trovato.'), 404);
         }
         if (!$this->isActiveMember($club)) {
-            return $this->fail($response, 'forbidden', __('Solo i membri attivi del club possono votare.'), 403);
+            return $this->fail($response, 'forbidden', __('Solo i membri attivi del club possono confermare la partecipazione.'), 403);
         }
         $meeting = $this->repo->meeting($meetingId);
         if ($meeting === null || (int) $meeting['club_id'] !== (int) $club['id'] || $meeting['status'] !== 'scheduled') {
-            return $this->fail($response, 'not_found', __('Club non trovato.'), 404);
+            return $this->fail($response, 'not_found', __('Incontro non trovato.'), 404);
         }
         $body = $this->jsonBody($request);
         $answer = (string) ($body['response'] ?? '');
@@ -450,7 +467,7 @@ class MobileApiController extends BaseController
             return $this->fail($response, 'forbidden', __('Solo i membri attivi del club possono registrare il proprio progresso.'), 403);
         }
         if (!$this->clubModuleEnabled($club, 'reading') || !class_exists(ReadingRepo::class)) {
-            return $this->fail($response, 'module_disabled', __('Questa modalità di voto è disponibile solo dal sito.'), 404);
+            return $this->fail($response, 'module_disabled', __('Il modulo lettura non è attivo per questo club.'), 404);
         }
         $book = $this->repo->clubBook($clubBookId);
         if ($book === null || (int) $book['club_id'] !== (int) $club['id'] || $book['state'] === BookClubPlugin::STATE_PENDING) {
@@ -551,6 +568,20 @@ class MobileApiController extends BaseController
             // Reading tables absent (module never activated) — no progress.
             return null;
         }
+    }
+
+    /**
+     * MySQL DATETIME → ISO-8601 UTC with Z suffix (MOBILE_API_SPEC: "dates
+     * ISO-8601 UTC; the app formats locally"). DATE-only fields (e.g.
+     * reading_starts/reading_ends) are passed through untouched by callers.
+     */
+    private static function isoUtc(mixed $datetime): ?string
+    {
+        if (!is_string($datetime) || $datetime === '') {
+            return null;
+        }
+        $ts = strtotime($datetime);
+        return $ts === false ? null : gmdate('Y-m-d\TH:i:s\Z', $ts);
     }
 
     /** @return array<string, mixed> */
