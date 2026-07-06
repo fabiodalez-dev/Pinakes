@@ -446,8 +446,12 @@ class PublicController extends BaseController
     {
         $userId = (int) $this->userId();
         $clubs = $this->repo->listClubsForUser($userId);
+        $pollController = new PollController($this->db, $this->repo);
         $cards = [];
         foreach ($clubs as $club) {
+            // Lazy-close expired polls so the "votazioni aperte" column never
+            // lists a poll whose ballots would be rejected.
+            $pollController->closeExpiredForClub((int) $club['id']);
             $cards[] = [
                 'club' => $club,
                 'snapshot' => $this->repo->clubSnapshot($club),
