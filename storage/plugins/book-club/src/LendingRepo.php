@@ -23,7 +23,8 @@ use mysqli;
  *   cancelled → the lender withdrew an offered/requested row.
  *
  * "Open" = offered/requested/active: at most ONE open row per
- * (club_book_id, lender_id) — enforced in code via hasOpenOffer().
+ * (club_book_id, lender_id) — enforced atomically by the INSERT ... WHERE NOT
+ * EXISTS guard inside createOffer(); hasOpenOffer() is only a UX pre-check.
  */
 class LendingRepo
 {

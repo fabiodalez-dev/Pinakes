@@ -303,6 +303,7 @@ class ChallengeRepo
                     'SELECT COUNT(DISTINCT la.autore_id) AS n
                        FROM bookclub_progress p
                        JOIN bookclub_books cb ON cb.id = p.club_book_id
+                       JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                        JOIN libri_autori la ON la.libro_id = cb.libro_id
                       WHERE cb.club_id = ? AND p.user_id = ?
                         AND p.finished_at >= ? AND p.finished_at < ?',
@@ -315,6 +316,7 @@ class ChallengeRepo
                     'SELECT COUNT(*) AS n
                        FROM bookclub_progress p
                        JOIN bookclub_books cb ON cb.id = p.club_book_id
+                       JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                       WHERE cb.club_id = ? AND p.user_id = ?
                         AND p.finished_at >= ? AND p.finished_at < ?',
                     'iiss',

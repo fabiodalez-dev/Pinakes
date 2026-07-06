@@ -673,15 +673,6 @@ class BookClubPlugin
     // ------------------------------------------------------------------
 
     /**
-     * Echo the club members' PUBLIC quotes for this book on the core book
-     * detail page (app/Views/frontend/book-detail.php fires the action with
-     * [$book, $bookId]). Delegates to the quotes module; a plain no-op when
-     * the module or its table is missing.
-     *
-     * @param array<string, mixed>|mixed $book
-     * @param mixed $bookId
-     */
-    /**
      * Filter target for mobile-api's 'mobile_api.openapi' hook: appends the
      * /api/v1/bookclub bridge paths when the bridge is actually mounted.
      *
@@ -693,6 +684,15 @@ class BookClubPlugin
         return \App\Plugins\BookClub\Modules\MobileModule::extendOpenApi($doc, $this->db);
     }
 
+    /**
+     * Echo the club members' PUBLIC quotes for this book on the core book
+     * detail page (app/Views/frontend/book-detail.php fires the action with
+     * [$book, $bookId]). Delegates to the quotes module; a plain no-op when
+     * the module or its table is missing.
+     *
+     * @param array<string, mixed>|mixed $book
+     * @param mixed $bookId
+     */
     public function renderBookQuotes($book = null, $bookId = null): void
     {
         $libroId = is_numeric($bookId) ? (int) $bookId : (int) (is_array($book) ? ($book['id'] ?? 0) : 0);

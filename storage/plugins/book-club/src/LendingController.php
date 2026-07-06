@@ -14,7 +14,8 @@ use Psr\Http\Message\ServerRequestInterface;
  * lender hands the copy over and either side marks it returned.
  *
  * Every handler re-checks per-club module enablement (routes are global)
- * and requires an ACTIVE membership (managers included). The state machine
+ * and requires either an ACTIVE membership or manage capability (admins/staff,
+ * who need no membership row — see mayUse()). The state machine
  * lives in LendingRepo as conditional UPDATEs, so two concurrent requests
  * for the same copy cannot both succeed ("first wins").
  */

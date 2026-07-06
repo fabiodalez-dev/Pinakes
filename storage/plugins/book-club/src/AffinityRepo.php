@@ -557,6 +557,7 @@ class AffinityRepo
         $rows = $this->rows(
             "SELECT a.id, a.nome, COUNT(DISTINCT l2.id) AS unread_count
                FROM bookclub_books cb
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                JOIN libri_autori la ON la.libro_id = cb.libro_id
                JOIN autori a ON a.id = la.autore_id
                JOIN libri_autori la2 ON la2.autore_id = a.id

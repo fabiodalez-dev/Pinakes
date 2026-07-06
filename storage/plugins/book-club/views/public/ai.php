@@ -212,7 +212,7 @@ $capReached = $recentCount >= $dailyCap;
         if (!target || !navigator.clipboard) { return; }
         navigator.clipboard.writeText(target.textContent).then(function () {
           var original = button.innerHTML;
-          button.innerHTML = '<i class="fas fa-check"></i><?= $e(__('Copiato!')) ?>';
+          button.innerHTML = '<i class="fas fa-check"></i>' + <?= json_encode(__('Copiato!'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>;
           setTimeout(function () { button.innerHTML = original; }, 1500);
         });
       });

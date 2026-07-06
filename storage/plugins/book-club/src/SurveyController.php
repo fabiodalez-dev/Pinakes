@@ -711,7 +711,7 @@ class SurveyController extends BaseController
         if (!$anonymous) {
             $headers[] = __('Inviata il');
         }
-        fputcsv($fh, $headers);
+        fputcsv($fh, array_map([self::class, 'csvSafe'], $headers));
 
         $n = 0;
         foreach ($this->surveys->answers($surveyId) as $row) {
@@ -728,7 +728,7 @@ class SurveyController extends BaseController
             if (!$anonymous) {
                 $line[] = (string) $row['created_at'];
             }
-            fputcsv($fh, $line);
+            fputcsv($fh, array_map([self::class, 'csvSafe'], $line));
         }
 
         rewind($fh);
@@ -755,6 +755,20 @@ class SurveyController extends BaseController
             'scale_1_5' => is_numeric($value) ? (string) (int) $value : '',
             default => is_string($value) ? $value : '',
         };
+    }
+
+    /**
+     * Neutralize CSV/formula injection: a cell whose first character is one of
+     * =,+,-,@,TAB,CR becomes an executable formula when the export is opened in
+     * a spreadsheet. Prefix it with a single quote. Mirrors StatsController::csvSafe().
+     */
+    private static function csvSafe(mixed $value): string
+    {
+        $cell = (string) $value;
+        if ($cell !== '' && in_array($cell[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            return "'" . $cell;
+        }
+        return $cell;
     }
 
     // ------------------------------------------------------------------

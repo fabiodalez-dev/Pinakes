@@ -420,7 +420,7 @@ class QuoteController extends BaseController
         fputcsv($fh, ['# ' . __('Citazioni')]);
         fputcsv($fh, [__('Libro'), __('Autori'), __('Citazione'), __('Pagina'), __('Nota'), __('Visibilità'), __('Creata il')]);
         foreach ($data['quotes'] as $quote) {
-            fputcsv($fh, [
+            fputcsv($fh, array_map([self::class, 'csvSafe'], [
                 (string) $quote['titolo'],
                 (string) ($quote['autori'] ?? ''),
                 (string) $quote['quote'],
@@ -428,19 +428,19 @@ class QuoteController extends BaseController
                 (string) ($quote['note'] ?? ''),
                 (string) $quote['visibility'],
                 (string) $quote['created_at'],
-            ]);
+            ]));
         }
         fwrite($fh, "\n");
         fputcsv($fh, ['# ' . __('Annotazioni')]);
         fputcsv($fh, [__('Libro'), __('Testo'), __('Visibilità'), __('Creata il'), __('Aggiornata il')]);
         foreach ($data['notes'] as $note) {
-            fputcsv($fh, [
+            fputcsv($fh, array_map([self::class, 'csvSafe'], [
                 (string) $note['titolo'],
                 (string) $note['body'],
                 (string) $note['visibility'],
                 (string) $note['created_at'],
                 (string) ($note['updated_at'] ?? ''),
-            ]);
+            ]));
         }
 
         rewind($fh);
@@ -451,5 +451,19 @@ class QuoteController extends BaseController
         return $response
             ->withHeader('Content-Type', 'text/csv; charset=utf-8')
             ->withHeader('Content-Disposition', 'attachment; filename="book-club-' . $slug . '-quotes-' . date('Ymd') . '.csv"');
+    }
+
+    /**
+     * Neutralize CSV/formula injection: a cell whose first character is one of
+     * =,+,-,@,TAB,CR becomes an executable formula when the export is opened in
+     * a spreadsheet. Prefix it with a single quote. Mirrors StatsController::csvSafe().
+     */
+    private static function csvSafe(mixed $value): string
+    {
+        $cell = (string) $value;
+        if ($cell !== '' && in_array($cell[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            return "'" . $cell;
+        }
+        return $cell;
     }
 }

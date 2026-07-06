@@ -274,7 +274,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                 var q = input.value.trim();
                 if (q.length < 2) { box.classList.add('hidden'); return; }
                 timer = setTimeout(function () {
-                  fetch('<?= $e(url('/book-club/' . $slug . '/book-search')) ?>?q=' + encodeURIComponent(q), {headers: {'Accept': 'application/json'}})
+                  fetch(<?= json_encode(url('/book-club/' . $slug . '/book-search'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?> + '?q=' + encodeURIComponent(q), {headers: {'Accept': 'application/json'}})
                     .then(function (r) { return r.json(); })
                     .then(function (data) {
                       box.innerHTML = '';

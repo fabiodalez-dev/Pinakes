@@ -33,7 +33,7 @@ $unitLabels = [
 $myPercent = $myProgress !== null ? (int) $myProgress['percent'] : 0;
 $myFinished = $myProgress !== null && !empty($myProgress['finished_at']);
 $mySectionId = $myProgress !== null && $myProgress['section_id'] !== null ? (int) $myProgress['section_id'] : null;
-$avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $aggregate['avg_percent'])));
+$avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $aggregate['avg_percent'] ?? 0)));
 ?>
 <style>
   .bc-card{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
@@ -116,7 +116,7 @@ $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $agg
     </div>
     <p class="bc-muted mt-2 mb-0">
       <?= $e(sprintf(__('%1$d lettori su %2$d membri'), (int) ($aggregate['active_readers'] ?? 0), (int) ($aggregate['members'] ?? $memberCount))) ?>
-      · <?= $e(sprintf(__('%1$d membri su %2$d hanno finito il libro'), (int) $aggregate['finished'], (int) $memberCount)) ?>
+      · <?= $e(sprintf(__('%1$d membri su %2$d hanno finito il libro'), (int) ($aggregate['finished'] ?? 0), (int) $memberCount)) ?>
     </p>
   </section>
 
