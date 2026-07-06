@@ -282,9 +282,11 @@ class ExtensionsRepo
                     TRIM(CONCAT(COALESCE(ub.nome, ''), ' ', COALESCE(ub.cognome, ''))) AS name_b
                FROM bookclub_buddies b
                JOIN bookclub_books cb ON cb.id = b.club_book_id
-               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN utenti ua ON ua.id = b.user_a
                LEFT JOIN utenti ub ON ub.id = b.user_b";
+    // ^ LEFT JOIN like SPRINT_SELECT: a soft-deleted catalog book must not
+    //   make the pairing unresolvable (accept/decline/done would 404).
 
     /**
      * All pairings involving $userId in $clubId (both sides see them).

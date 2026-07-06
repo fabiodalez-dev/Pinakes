@@ -5491,7 +5491,7 @@
   "Email utente registrato": "Registered user's email",
   "Esplora i club": "Browse clubs",
   "Fine (facoltativa)": "End (optional)",
-  "Fondatore": "Owner",
+  "Fondatore": "Founder",
   "Forse": "Maybe",
   "Gestione dei club di lettura": "Book club management",
   "Hai già %d proposte aperte: attendi che vengano votate.": "You already have %d open proposals: wait until they are voted on.",
@@ -6276,7 +6276,6 @@
   "Scopri la tua affinità di lettura con gli altri membri e i suggerimenti dal catalogo.": "Discover your reading affinity with the other members and the catalog suggestions.",
   "Segnare questa lettura in coppia come conclusa?": "Mark this buddy read as finished?",
   "Sei iscritto": "You are signed up",
-  "Sei un assistente per club di lettura di una biblioteca. Rispondi sempre in italiano, con tono cordiale e concreto.": "You are an assistant for a library's book clubs. Always answer in English, with a friendly and practical tone.",
   "Seleziona un incontro del club.": "Select a club meeting.",
   "Seleziona un libro del club.": "Select a club book.",
   "Sessioni di lettura cronometrate con partecipanti e classifica delle pagine lette": "Timed reading sessions with participants and a pages-read leaderboard",
@@ -6416,5 +6415,6 @@
   "App mobile": "Mobile app",
   "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)": "Exposes the club in the Pinakes app (API /api/v1/bookclub with the app token)",
   "Questa modalità di voto è disponibile solo dal sito.": "This voting mode is only available on the website.",
-  "Club non trovato.": "Club not found."
+  "Club non trovato.": "Club not found.",
+  "La data di inizio dello sprint deve essere futura.": "The sprint start time must be in the future."
 }

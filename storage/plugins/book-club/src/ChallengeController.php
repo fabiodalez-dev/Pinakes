@@ -83,9 +83,11 @@ class ChallengeController extends BaseController
         $isCurrentYear = $year === $currentYear;
 
         // Lazy recompute so the page never shows stale numbers, even when
-        // the maintenance cron has not run yet today. Only the current year:
-        // past years are a read-only archive of frozen snapshots.
-        if ($isCurrentYear) {
+        // the maintenance cron has not run yet today. Only the current year
+        // (past years are a frozen archive) and at most once per TTL: the
+        // recompute costs O(members × challenges) queries, so concurrent
+        // page views must not re-run it back to back.
+        if ($isCurrentYear && $this->recomputeIsStale($clubId, $year)) {
             try {
                 $this->challenges->recomputeClub($clubId, $year);
             } catch (\Throwable $e) {
@@ -223,5 +225,16 @@ class ChallengeController extends BaseController
             $this->flash('error', __('Impossibile eliminare la sfida.'));
         }
         return $this->redirect($response, $this->challengesPath($slug));
+    }
+
+    /** Recompute at most every 10 minutes; a club with no snapshot yet is stale. */
+    private function recomputeIsStale(int $clubId, int $year): bool
+    {
+        $last = $this->challenges->lastRecomputeAt($clubId, $year);
+        if ($last === null) {
+            return true;
+        }
+        $ts = strtotime($last);
+        return $ts === false || (time() - $ts) > 600;
     }
 }

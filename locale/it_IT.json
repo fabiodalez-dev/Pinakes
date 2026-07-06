@@ -6276,7 +6276,6 @@
   "Scopri la tua affinità di lettura con gli altri membri e i suggerimenti dal catalogo.": "Scopri la tua affinità di lettura con gli altri membri e i suggerimenti dal catalogo.",
   "Segnare questa lettura in coppia come conclusa?": "Segnare questa lettura in coppia come conclusa?",
   "Sei iscritto": "Sei iscritto",
-  "Sei un assistente per club di lettura di una biblioteca. Rispondi sempre in italiano, con tono cordiale e concreto.": "Sei un assistente per club di lettura di una biblioteca. Rispondi sempre in italiano, con tono cordiale e concreto.",
   "Seleziona un incontro del club.": "Seleziona un incontro del club.",
   "Seleziona un libro del club.": "Seleziona un libro del club.",
   "Sessioni di lettura cronometrate con partecipanti e classifica delle pagine lette": "Sessioni di lettura cronometrate con partecipanti e classifica delle pagine lette",
@@ -6416,5 +6415,6 @@
   "App mobile": "App mobile",
   "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)": "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)",
   "Questa modalità di voto è disponibile solo dal sito.": "Questa modalità di voto è disponibile solo dal sito.",
-  "Club non trovato.": "Club non trovato."
+  "Club non trovato.": "Club non trovato.",
+  "La data di inizio dello sprint deve essere futura.": "La data di inizio dello sprint deve essere futura."
 }

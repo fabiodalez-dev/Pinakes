@@ -194,12 +194,7 @@ class MaintenanceService
         // listening; a plugin failure is swallowed by HookManager and can never
         // abort the maintenance run.
         try {
-            $maintenanceHooks = new HookManager($this->db);
-            $maintenanceHooks->doAction('mobile_api.dispatch_push');
-            // Generic post-maintenance hook: plugins register scheduled work
-            // here (e.g. Book Club poll auto-close + meeting reminders)
-            // instead of each one needing its own dedicated dispatch line.
-            $maintenanceHooks->doAction('maintenance.after_run');
+            (new HookManager($this->db))->doAction('mobile_api.dispatch_push');
         } catch (\Throwable $e) {
             $results['errors'][] = 'dispatchPush: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore push'), ['error' => $e->getMessage()]);
@@ -215,6 +210,17 @@ class MaintenanceService
         } catch (\Throwable $e) {
             $results['errors'][] = 'generateIcsCalendar: ' . $e->getMessage();
             SecureLogger::error(__('MaintenanceService errore generazione ICS'), ['error' => $e->getMessage()]);
+        }
+
+        // Generic post-maintenance hook, fired as the TRUE last step so
+        // listeners (e.g. Book Club poll auto-close + reminders) only run
+        // once the whole maintenance pass — ICS generation included — is
+        // done. Failures are swallowed per hook and can never abort runAll.
+        try {
+            (new HookManager($this->db))->doAction('maintenance.after_run');
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'maintenanceAfterRun: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore hook post-run'), ['error' => $e->getMessage()]);
         }
 
         return $results;

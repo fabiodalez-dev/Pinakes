@@ -6276,7 +6276,6 @@
   "Scopri la tua affinità di lettura con gli altri membri e i suggerimenti dal catalogo.": "Entdecke deine Leseaffinität mit den anderen Mitgliedern und die Katalogvorschläge.",
   "Segnare questa lettura in coppia come conclusa?": "Dieses gemeinsame Lesen als abgeschlossen markieren?",
   "Sei iscritto": "Du bist angemeldet",
-  "Sei un assistente per club di lettura di una biblioteca. Rispondi sempre in italiano, con tono cordiale e concreto.": "Du bist ein Assistent für die Lesekreise einer Bibliothek. Antworte immer auf Deutsch, in freundlichem und konkretem Ton.",
   "Seleziona un incontro del club.": "Wähle ein Treffen des Clubs aus.",
   "Seleziona un libro del club.": "Wähle ein Buch des Clubs aus.",
   "Sessioni di lettura cronometrate con partecipanti e classifica delle pagine lette": "Lesesessions mit Timer, Teilnehmenden und Seiten-Rangliste",
@@ -6416,5 +6415,6 @@
   "App mobile": "Mobile App",
   "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)": "Stellt den Club in der Pinakes-App bereit (API /api/v1/bookclub mit App-Token)",
   "Questa modalità di voto è disponibile solo dal sito.": "Dieser Abstimmungsmodus ist nur auf der Website verfügbar.",
-  "Club non trovato.": "Club nicht gefunden."
+  "Club non trovato.": "Club nicht gefunden.",
+  "La data di inizio dello sprint deve essere futura.": "Die Startzeit des Sprints muss in der Zukunft liegen."
 }

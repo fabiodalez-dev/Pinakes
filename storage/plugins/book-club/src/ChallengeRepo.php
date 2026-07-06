@@ -260,6 +260,25 @@ class ChallengeRepo
         return array_map(static fn(array $r): int => (int) $r['user_id'], $rows);
     }
 
+    /**
+     * Most recent progress recompute for the club's challenges of $year —
+     * the freshness gate the lazy page-view recompute checks before
+     * re-running the O(members × challenges) metric queries.
+     */
+    public function lastRecomputeAt(int $clubId, int $year): ?string
+    {
+        $row = $this->row(
+            'SELECT MAX(cp.updated_at) AS last_run
+               FROM bookclub_challenge_progress cp
+               JOIN bookclub_challenges c ON c.id = cp.challenge_id
+              WHERE c.club_id = ? AND c.year_ref = ?',
+            'ii',
+            [$clubId, $year]
+        );
+        $last = $row['last_run'] ?? null;
+        return is_string($last) && $last !== '' ? $last : null;
+    }
+
     // ------------------------------------------------------------------
     // Metric computation (see class docblock for the formulas)
     // ------------------------------------------------------------------
@@ -275,9 +294,9 @@ class ChallengeRepo
                        JOIN bookclub_books cb ON cb.id = p.club_book_id
                        JOIN libri l ON l.id = cb.libro_id
                       WHERE cb.club_id = ? AND p.user_id = ?
-                        AND p.finished_at IS NOT NULL AND YEAR(p.finished_at) = ?',
-                    'iii',
-                    [$clubId, $userId, $year]
+                        AND p.finished_at >= ? AND p.finished_at < ?',
+                    'iiss',
+                    [$clubId, $userId, $year . '-01-01', ($year + 1) . '-01-01']
                 );
             case 'authors':
                 return $this->scalarInt(
@@ -286,9 +305,9 @@ class ChallengeRepo
                        JOIN bookclub_books cb ON cb.id = p.club_book_id
                        JOIN libri_autori la ON la.libro_id = cb.libro_id
                       WHERE cb.club_id = ? AND p.user_id = ?
-                        AND p.finished_at IS NOT NULL AND YEAR(p.finished_at) = ?',
-                    'iii',
-                    [$clubId, $userId, $year]
+                        AND p.finished_at >= ? AND p.finished_at < ?',
+                    'iiss',
+                    [$clubId, $userId, $year . '-01-01', ($year + 1) . '-01-01']
                 );
             case 'books':
             default:
@@ -297,9 +316,9 @@ class ChallengeRepo
                        FROM bookclub_progress p
                        JOIN bookclub_books cb ON cb.id = p.club_book_id
                       WHERE cb.club_id = ? AND p.user_id = ?
-                        AND p.finished_at IS NOT NULL AND YEAR(p.finished_at) = ?',
-                    'iii',
-                    [$clubId, $userId, $year]
+                        AND p.finished_at >= ? AND p.finished_at < ?',
+                    'iiss',
+                    [$clubId, $userId, $year . '-01-01', ($year + 1) . '-01-01']
                 );
         }
     }

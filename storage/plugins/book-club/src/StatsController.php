@@ -332,11 +332,25 @@ class StatsController extends BaseController
      */
     private function csvSection($fh, string $name, array $headers, array $rows): void
     {
-        fputcsv($fh, ['# ' . $name]);
-        fputcsv($fh, $headers);
+        fputcsv($fh, [self::csvSafe('# ' . $name)]);
+        fputcsv($fh, array_map([self::class, 'csvSafe'], $headers));
         foreach ($rows as $row) {
-            fputcsv($fh, $row);
+            fputcsv($fh, array_map([self::class, 'csvSafe'], $row));
         }
         fwrite($fh, "\n");
+    }
+
+    /**
+     * Neutralise spreadsheet formula injection: user-controlled cells
+     * (book titles, member names, poll titles) starting with =, +, -, @,
+     * tab or CR would otherwise execute as formulas in Excel/Sheets.
+     */
+    private static function csvSafe(mixed $value): string
+    {
+        $cell = (string) $value;
+        if ($cell !== '' && in_array($cell[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+            return "'" . $cell;
+        }
+        return $cell;
     }
 }

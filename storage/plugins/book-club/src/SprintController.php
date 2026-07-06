@@ -130,6 +130,12 @@ class SprintController extends BaseController
             $this->flash('error', __('Data e ora di inizio non valide.'));
             return $this->redirect($response, $this->sprintsPath($slug));
         }
+        // A past start would make effectiveStatus() mark the sprint as
+        // running/done immediately, so nobody could join anymore.
+        if (strtotime($startsAt) <= time()) {
+            $this->flash('error', __('La data di inizio dello sprint deve essere futura.'));
+            return $this->redirect($response, $this->sprintsPath($slug));
+        }
 
         $duration = self::intOrNull($body, 'duration_min');
         if ($duration === null || $duration < self::MIN_DURATION || $duration > self::MAX_DURATION) {

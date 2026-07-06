@@ -161,9 +161,9 @@ class Repo
         $settings = json_encode($data['settings'] ?? [], JSON_UNESCAPED_UNICODE);
         $icsToken = bin2hex(random_bytes(16));
         $ok = $this->exec(
-            'INSERT INTO bookclub_clubs (slug, name, description, rules, color, privacy, max_members, settings, ics_token, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            'ssssssissi',
+            'INSERT INTO bookclub_clubs (slug, name, description, rules, color, privacy, max_members, settings, ics_token, created_by, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'ssssssissii',
             [
                 $slug,
                 (string) $data['name'],
@@ -175,6 +175,7 @@ class Repo
                 $settings === false ? '{}' : $settings,
                 $icsToken,
                 $createdBy,
+                (int) ($data['is_active'] ?? 1),
             ]
         );
         if (!$ok) {

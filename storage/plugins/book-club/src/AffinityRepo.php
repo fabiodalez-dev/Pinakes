@@ -202,12 +202,13 @@ class AffinityRepo
             'ii',
             [$clubId, $userId]
         );
-        $this->exec(
+        $purged = $this->exec(
             'DELETE FROM bookclub_affinity WHERE club_id = ? AND (user_a = ? OR user_b = ?)',
             'iii',
             [$clubId, $userId, $userId]
         );
-        return $ok;
+        // The privacy guarantee holds only if BOTH deletes went through.
+        return $ok && $purged;
     }
 
     /**

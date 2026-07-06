@@ -122,8 +122,19 @@ class QuoteController extends BaseController
             return $this->redirect($response, $this->quotesPath($slug));
         }
 
+        // Server-side mirror of selectableBooks(): pending-moderation books
+        // are manager-only, and a direct POST must not bypass the form filter.
         $libroId = self::intOrNull($body, 'libro_id');
-        if ($libroId === null || !$this->repo->bookAlreadyInClub((int) $club['id'], $libroId)) {
+        $inClub = false;
+        if ($libroId !== null) {
+            foreach ($this->repo->clubBooks((int) $club['id']) as $clubBook) {
+                if ((int) $clubBook['libro_id'] === $libroId) {
+                    $inClub = $clubBook['state'] !== BookClubPlugin::STATE_PENDING || $this->canManage($club);
+                    break;
+                }
+            }
+        }
+        if (!$inClub) {
             $this->flash('error', __('Seleziona un libro del club.'));
             return $this->redirect($response, $this->quotesPath($slug));
         }
@@ -220,7 +231,8 @@ class QuoteController extends BaseController
         }
         $clubBookId = self::intOrNull($body, 'club_book_id');
         $clubBook = $clubBookId !== null ? $this->repo->clubBook($clubBookId) : null;
-        if ($clubBook === null || (int) $clubBook['club_id'] !== (int) $club['id']) {
+        if ($clubBook === null || (int) $clubBook['club_id'] !== (int) $club['id']
+            || ($clubBook['state'] === BookClubPlugin::STATE_PENDING && !$this->canManage($club))) {
             $this->flash('error', __('Seleziona un libro del club.'));
             return $this->redirect($response, $this->quotesPath($slug, 'notes'));
         }

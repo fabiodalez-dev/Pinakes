@@ -229,31 +229,45 @@ class PollController extends BaseController
             $books[] = $book;
         }
 
-        $pollId = $this->repo->createPoll(
-            (int) $club['id'],
-            $title,
-            self::str($body, 'description', 3000),
-            $mode,
-            $votesPerMember,
-            $anonymity,
-            $closesAt,
-            (int) $this->userId()
-        );
-        if ($pollId === null) {
+        // Poll opening is atomic: a failure halfway (poll row without
+        // options, books left mid-transition) must roll everything back —
+        // an inconsistent open poll corrupts the close-time transitions.
+        $this->db->begin_transaction();
+        try {
+            $pollId = $this->repo->createPoll(
+                (int) $club['id'],
+                $title,
+                self::str($body, 'description', 3000),
+                $mode,
+                $votesPerMember,
+                $anonymity,
+                $closesAt,
+                (int) $this->userId()
+            );
+            if ($pollId === null) {
+                throw new \RuntimeException('createPoll failed');
+            }
+            if ($quorumPct !== null || $tiebreak !== 'oldest_proposal') {
+                $this->setPollExtras($pollId, $quorumPct, $tiebreak);
+            }
+            if ($weightOwner !== null && $weightModerator !== null) {
+                $this->setPollWeights($pollId, $weightOwner, $weightModerator);
+            }
+            foreach ($books as $book) {
+                if (!$this->repo->addPollOption($pollId, (int) $book['id'])) {
+                    throw new \RuntimeException('addPollOption failed for club_book ' . (int) $book['id']);
+                }
+                if ($book['state'] !== $votingState
+                    && !$this->repo->changeBookState((int) $book['id'], (string) $book['state'], $votingState, $this->userId())) {
+                    throw new \RuntimeException('changeBookState failed for club_book ' . (int) $book['id']);
+                }
+            }
+            $this->db->commit();
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            SecureLogger::error('[BookClub] poll creation rolled back: ' . $e->getMessage());
             $this->flash('error', __('Votazione non creata, riprova.'));
             return $this->redirect($response, '/book-club/' . $slug);
-        }
-        if ($quorumPct !== null || $tiebreak !== 'oldest_proposal') {
-            $this->setPollExtras($pollId, $quorumPct, $tiebreak);
-        }
-        if ($weightOwner !== null && $weightModerator !== null) {
-            $this->setPollWeights($pollId, $weightOwner, $weightModerator);
-        }
-        foreach ($books as $book) {
-            $this->repo->addPollOption($pollId, (int) $book['id']);
-            if ($book['state'] !== $votingState) {
-                $this->repo->changeBookState((int) $book['id'], (string) $book['state'], $votingState, $this->userId());
-            }
         }
         if (function_exists('do_action')) {
             do_action('bookclub.poll.opened', $pollId);

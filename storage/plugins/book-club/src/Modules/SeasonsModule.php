@@ -81,6 +81,12 @@ class SeasonsModule extends AbstractModule
         ]);
         $this->addColumnIfMissing('bookclub_books', 'season_id', 'INT NULL DEFAULT NULL');
         $this->migrateSeasonFk();
+        // addColumnIfMissing only logs on failure: verify the column really
+        // exists so a failed ALTER surfaces in the activation result instead
+        // of reporting a healthy install.
+        if (!$this->columnExists('bookclub_books', 'season_id')) {
+            $result['failed'][] = 'bookclub_books.season_id';
+        }
         return $result;
     }
 
