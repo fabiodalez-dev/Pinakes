@@ -233,8 +233,12 @@ function seedClubWithExpiredPoll(userId) {
     const cbB = parseInt(dbQuery(`SELECT id FROM bookclub_books WHERE club_id = ${clubId} AND libro_id = ${bookB}`), 10);
 
     dbExec(
+        // closes_at seeded in UTC with a margin wider than any TZ offset: the app's
+        // web connection runs SET time_zone='+00:00' (RememberMeService), while this
+        // CLI seed runs in the server's system TZ — NOW()-1h was still in the future
+        // in UTC on non-UTC hosts, so the lazy close never saw the poll as expired.
         `INSERT INTO bookclub_polls (club_id, title, mode, votes_per_member, anonymity, closes_at, status, created_by)
-         VALUES (${clubId}, 'E2E expired poll', 'simple', 1, 'public', DATE_SUB(NOW(), INTERVAL 1 HOUR), 'open', ${userId})`
+         VALUES (${clubId}, 'E2E expired poll', 'simple', 1, 'public', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 26 HOUR), 'open', ${userId})`
     );
     const pollId = parseInt(dbQuery(
         `SELECT id FROM bookclub_polls WHERE club_id = ${clubId} AND title = 'E2E expired poll' LIMIT 1`
