@@ -173,15 +173,67 @@ class SurveyRepo
         return $this->row(self::SURVEY_SELECT . ' WHERE s.id = ?', 'i', [$surveyId]);
     }
 
-    public function createSurvey(int $clubId, ?int $clubBookId, string $title, int $anonymous, ?string $closesAt, ?int $createdBy): ?int
+    public function createSurvey(int $clubId, ?int $clubBookId, string $title, int $anonymous, ?string $opensAt, ?string $closesAt, ?int $createdBy): ?int
     {
         $ok = $this->exec(
-            "INSERT INTO bookclub_surveys (club_id, club_book_id, title, schema_json, status, anonymous, closes_at, created_by)
-             VALUES (?, ?, ?, '[]', 'draft', ?, ?, ?)",
-            'iisisi',
-            [$clubId, $clubBookId, $title, $anonymous, $closesAt, $createdBy]
+            "INSERT INTO bookclub_surveys (club_id, club_book_id, title, schema_json, status, anonymous, opens_at, closes_at, created_by)
+             VALUES (?, ?, ?, '[]', 'draft', ?, ?, ?, ?)",
+            'iisissi',
+            [$clubId, $clubBookId, $title, $anonymous, $opensAt, $closesAt, $createdBy]
         );
         return $ok ? (int) $this->db->insert_id : null;
+    }
+
+    /**
+     * Edit a draft's metadata (title, linked book, anonymity, opening and
+     * closing dates). The WHERE status = 'draft' guard makes it a no-op on
+     * published surveys, preserving the schema/settings freeze-on-publish.
+     */
+    public function updateDraftMeta(int $surveyId, ?int $clubBookId, string $title, int $anonymous, ?string $opensAt, ?string $closesAt): bool
+    {
+        return $this->exec(
+            "UPDATE bookclub_surveys
+                SET title = ?, club_book_id = ?, anonymous = ?, opens_at = ?, closes_at = ?
+              WHERE id = ? AND status = 'draft'",
+            'siissi',
+            [$title, $clubBookId, $anonymous, $opensAt, $closesAt, $surveyId]
+        );
+    }
+
+    /**
+     * Hard-delete a draft. Drafts cannot have answers (answering requires
+     * status = 'open'), so nothing else needs cleaning up; the status guard
+     * protects published surveys against a racing publish. Returns true only
+     * when a row was actually removed.
+     */
+    public function deleteDraft(int $surveyId): bool
+    {
+        $ok = $this->exec(
+            "DELETE FROM bookclub_surveys WHERE id = ? AND status = 'draft'",
+            'i',
+            [$surveyId]
+        );
+        return $ok && (int) $this->db->affected_rows > 0;
+    }
+
+    /**
+     * Scheduled opening gate: an 'open' survey whose opens_at lies in the
+     * future is visible but does not accept answers yet. NULL opens_at
+     * (or a past one) means the survey is answerable now.
+     *
+     * @param array<string, mixed> $survey
+     */
+    public static function notYetOpen(array $survey): bool
+    {
+        if ((string) ($survey['status'] ?? '') !== 'open') {
+            return false;
+        }
+        $opensAt = $survey['opens_at'] ?? null;
+        if ($opensAt === null || $opensAt === '') {
+            return false;
+        }
+        $ts = strtotime((string) $opensAt);
+        return $ts !== false && $ts > time();
     }
 
     /** Only drafts are editable: publishing freezes the schema by design. */
@@ -234,7 +286,7 @@ class SurveyRepo
     public function openSurveysWithCounts(int $clubId, int $limit = 5): array
     {
         return $this->rows(
-            "SELECT s.id, s.title, s.closes_at, s.anonymous,
+            "SELECT s.id, s.title, s.status, s.opens_at, s.closes_at, s.anonymous,
                     (SELECT COUNT(*) FROM bookclub_survey_answers a WHERE a.survey_id = s.id) AS answer_count
                FROM bookclub_surveys s
               WHERE s.club_id = ? AND s.status = 'open'

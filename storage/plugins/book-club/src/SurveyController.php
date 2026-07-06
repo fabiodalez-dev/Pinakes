@@ -143,9 +143,14 @@ class SurveyController extends BaseController
             }
         }
         $anonymous = is_array($body) && !empty($body['anonymous']) ? 1 : 0;
+        $opensAt = self::dateTimeOrNull(self::str($body, 'opens_at', 30));
         $closesAt = self::dateTimeOrNull(self::str($body, 'closes_at', 30));
+        if ($opensAt !== null && $closesAt !== null && $closesAt <= $opensAt) {
+            $this->flash('error', __('La data di chiusura deve essere successiva a quella di apertura.'));
+            return $this->redirect($response, $this->indexPath($slug));
+        }
 
-        $surveyId = $this->surveys->createSurvey((int) $club['id'], $clubBookId, $title, $anonymous, $closesAt, $this->userId());
+        $surveyId = $this->surveys->createSurvey((int) $club['id'], $clubBookId, $title, $anonymous, $opensAt, $closesAt, $this->userId());
         if ($surveyId === null) {
             $this->flash('error', __('Impossibile creare il questionario. Riprova.'));
             return $this->redirect($response, $this->indexPath($slug));
@@ -202,6 +207,8 @@ class SurveyController extends BaseController
             'myAnswer' => $myAnswer,
             'results' => $results,
             'typeLabels' => self::typeLabels(),
+            // Draft settings editor (managers): linked-book select options.
+            'books' => ($canManage && $survey['status'] === 'draft') ? $this->surveys->clubBooks((int) $club['id']) : [],
         ], (string) $survey['title'] . ' — ' . (string) $club['name']);
     }
 
@@ -319,6 +326,70 @@ class SurveyController extends BaseController
     }
 
     // ------------------------------------------------------------------
+    // POST update / delete (managers, drafts only)
+    // ------------------------------------------------------------------
+
+    /**
+     * Edit a draft's metadata: title, linked book, anonymous flag, opens_at
+     * and closes_at. Published surveys are untouchable (freeze-on-publish),
+     * enforced both here (resolveDraft) and in the repo (status guard).
+     */
+    public function update(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $surveyId): ResponseInterface
+    {
+        $resolved = $this->resolveDraft($slug, $surveyId);
+        if ($resolved === null) {
+            return $this->notFound($response);
+        }
+        [$club, ] = $resolved;
+
+        $body = $request->getParsedBody();
+        $title = self::str($body, 'title', 190);
+        if ($title === '') {
+            $this->flash('error', __('Il titolo del questionario è obbligatorio.'));
+            return $this->redirect($response, $this->surveyPath($slug, $surveyId));
+        }
+        $clubBookId = self::intOrNull($body, 'club_book_id');
+        if ($clubBookId !== null) {
+            $book = $this->repo->clubBook($clubBookId);
+            if ($book === null || (int) $book['club_id'] !== (int) $club['id']) {
+                $clubBookId = null;
+            }
+        }
+        $anonymous = is_array($body) && !empty($body['anonymous']) ? 1 : 0;
+        $opensAt = self::dateTimeOrNull(self::str($body, 'opens_at', 30));
+        $closesAt = self::dateTimeOrNull(self::str($body, 'closes_at', 30));
+        if ($opensAt !== null && $closesAt !== null && $closesAt <= $opensAt) {
+            $this->flash('error', __('La data di chiusura deve essere successiva a quella di apertura.'));
+            return $this->redirect($response, $this->surveyPath($slug, $surveyId));
+        }
+
+        if ($this->surveys->updateDraftMeta($surveyId, $clubBookId, $title, $anonymous, $opensAt, $closesAt)) {
+            $this->flash('success', __('Questionario aggiornato.'));
+        } else {
+            $this->flash('error', __('Impossibile aggiornare il questionario. Riprova.'));
+        }
+        return $this->redirect($response, $this->surveyPath($slug, $surveyId));
+    }
+
+    /**
+     * Hard-delete a draft (drafts only: answers cannot exist before publish,
+     * so nothing is lost besides the question schema).
+     */
+    public function delete(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $surveyId): ResponseInterface
+    {
+        $resolved = $this->resolveDraft($slug, $surveyId);
+        if ($resolved === null) {
+            return $this->notFound($response);
+        }
+        if ($this->surveys->deleteDraft($surveyId)) {
+            $this->flash('success', __('Bozza eliminata.'));
+            return $this->redirect($response, $this->indexPath($slug));
+        }
+        $this->flash('error', __('Impossibile eliminare la bozza. Riprova.'));
+        return $this->redirect($response, $this->surveyPath($slug, $surveyId));
+    }
+
+    // ------------------------------------------------------------------
     // POST publish / close (managers)
     // ------------------------------------------------------------------
 
@@ -381,6 +452,12 @@ class SurveyController extends BaseController
         }
         if ($survey['status'] !== 'open') {
             $this->flash('error', __('Questo questionario non accetta più risposte.'));
+            return $this->redirect($response, $this->surveyPath($slug, $surveyId));
+        }
+        // Scheduled opening: status is already 'open' but answers are gated
+        // until opens_at has passed.
+        if (SurveyRepo::notYetOpen($survey)) {
+            $this->flash('error', sprintf(__('Il questionario aprirà il %s'), date('d/m/Y H:i', (int) strtotime((string) $survey['opens_at']))));
             return $this->redirect($response, $this->surveyPath($slug, $surveyId));
         }
         $userId = (int) $this->userId();

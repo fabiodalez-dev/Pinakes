@@ -27,12 +27,11 @@ require_once __DIR__ . '/../QuoteController.php';
  *
  * Tables: bookclub_quotes, bookclub_notes.
  *
- * NOTE on visibility='public': the plan foresees surfacing public quotes on
- * the core book detail page via the `book.frontend.details` hook. This
- * module deliberately does NOT touch core files or hook into that page yet;
- * public quotes are stored with the correct visibility so a future
- * integration only needs to read `bookclub_quotes WHERE libro_id = ? AND
- * visibility = 'public'`.
+ * visibility='public': the plugin core hooks `book.frontend.details` and
+ * delegates to renderBookDetailQuotes(), which surfaces the public quotes
+ * of a catalog book on the core book detail page. Public visibility is an
+ * explicit, cross-club author choice, so that section applies NO per-club
+ * enablement check.
  */
 class QuotesModule extends AbstractModule
 {
@@ -182,5 +181,35 @@ class QuotesModule extends AbstractModule
             'quotes' => $quotes,
             'isMember' => $isMember,
         ]);
+    }
+
+    // ------------------------------------------------------------------
+    // Core book detail page (hook book.frontend.details, via plugin core)
+    // ------------------------------------------------------------------
+
+    /**
+     * HTML section with the PUBLIC quotes of a catalog book for the core
+     * book detail page, '' when there is nothing to show (missing table or
+     * no public quotes). Called by BookClubPlugin::renderBookQuotes().
+     *
+     * Public visibility is an explicit author choice that crosses club
+     * boundaries, so this deliberately performs NO per-club enablement
+     * check.
+     */
+    public function renderBookDetailQuotes(int $libroId): string
+    {
+        if ($libroId <= 0 || !$this->tableExists('bookclub_quotes')) {
+            return '';
+        }
+        try {
+            $quotes = (new QuoteRepo($this->db))->publicQuotesForBook($libroId, 5);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub:quotes] book detail section failed: ' . $e->getMessage());
+            return '';
+        }
+        if ($quotes === []) {
+            return '';
+        }
+        return $this->renderPartial('partials/book_quotes', ['quotes' => $quotes]);
     }
 }

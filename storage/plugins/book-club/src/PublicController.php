@@ -156,10 +156,16 @@ class PublicController extends BaseController
         return $this->redirect($response, '/book-club/' . $slug);
     }
 
+    /**
+     * Approve or reject a pending join request.
+     *
+     * Permission: `members.approve` (granular matrix — owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
+     */
     public function approveMember(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $memberId): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'members.approve')) {
             return $this->notFound($response);
         }
         $member = $this->repo->memberById($memberId);
@@ -186,10 +192,16 @@ class PublicController extends BaseController
     // Invitations
     // ------------------------------------------------------------------
 
+    /**
+     * Send an email invitation to join the club.
+     *
+     * Permission: `members.invite` (granular matrix — owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
+     */
     public function sendInvite(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'members.invite')) {
             return $this->notFound($response);
         }
         $body = $request->getParsedBody();
@@ -303,10 +315,19 @@ class PublicController extends BaseController
         return $this->json($response, ['results' => $results]);
     }
 
+    /**
+     * Propose a catalog book to the club.
+     *
+     * Permission: `proposals.create` (granular matrix — system 'member'
+     * role holds it, guests do not; owner/moderator and Pinakes admin/staff
+     * always pass, custom club roles per their JSON). The per-member open
+     * proposal limit and the moderation bypass below intentionally keep
+     * using canManage(): only real club managers skip them.
+     */
     public function propose(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || (!$this->isActiveMember($club) && !$this->canManage($club))) {
+        if ($club === null || !$this->can($club, 'proposals.create')) {
             return $this->notFound($response);
         }
         $body = $request->getParsedBody();
@@ -357,13 +378,19 @@ class PublicController extends BaseController
     }
 
     /**
-     * Manual workflow transition (club managers). Also used to approve or
-     * reject moderated proposals ('pending' → entry state / delete).
+     * Manual workflow transition. Also used to approve or reject moderated
+     * proposals ('pending' → entry state / delete).
+     *
+     * Permissions (granular matrix, two concerns gated separately):
+     * - proposal moderation — approving a book still in the 'pending'
+     *   moderation state, or state='reject-proposal' — requires
+     *   `proposals.approve`;
+     * - every other workflow move requires `workflow.transition`.
      */
     public function changeBookState(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $bookId): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null) {
             return $this->notFound($response);
         }
         $book = $this->repo->clubBook($bookId);
@@ -372,6 +399,14 @@ class PublicController extends BaseController
         }
         $body = $request->getParsedBody();
         $toState = self::str($body, 'state', 50);
+
+        // Moderation branch (approve a pending proposal / reject it) is
+        // gated by proposals.approve; plain transitions by workflow.transition.
+        $isModeration = $toState === 'reject-proposal'
+            || $book['state'] === BookClubPlugin::STATE_PENDING;
+        if (!$this->can($club, $isModeration ? 'proposals.approve' : 'workflow.transition')) {
+            return $this->notFound($response);
+        }
         $states = $this->repo->workflowStates($club);
 
         if ($toState === 'reject-proposal') {

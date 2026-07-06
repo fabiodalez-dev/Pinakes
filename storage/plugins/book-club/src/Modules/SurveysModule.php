@@ -23,7 +23,10 @@ require_once __DIR__ . '/../SurveyController.php';
  * (add one question at a time — short/long text, single/multi choice, 1–5
  * scale, yes/no — reorder and delete with plain forms, no JS required),
  * optionally linked to a club book, nominal or anonymous, with an optional
- * closing date. Publishing freezes the schema; members answer once each
+ * scheduled opening (opens_at: published surveys stay gated until then) and
+ * an optional closing date. Drafts can be edited (title, book, anonymity,
+ * dates) and hard-deleted. Publishing freezes the schema; members answer once
+ * each
  * (UNIQUE (survey_id, user_id)); results are aggregated per question and
  * exportable as CSV by managers.
  *
@@ -63,7 +66,7 @@ class SurveysModule extends AbstractModule
 
     public function ensureSchema(): array
     {
-        return $this->runDdl([
+        $result = $this->runDdl([
             'bookclub_surveys' => "CREATE TABLE IF NOT EXISTS bookclub_surveys (
                 id INT NOT NULL AUTO_INCREMENT,
                 club_id INT NOT NULL,
@@ -102,6 +105,14 @@ class SurveysModule extends AbstractModule
                     REFERENCES utenti (id) ON DELETE SET NULL
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ]);
+
+        // Idempotent guards for installs whose bookclub_surveys predates the
+        // scheduling columns (CREATE TABLE IF NOT EXISTS skips existing
+        // tables, so the columns above are only guaranteed on fresh installs).
+        $this->addColumnIfMissing('bookclub_surveys', 'opens_at', 'DATETIME NULL AFTER anonymous');
+        $this->addColumnIfMissing('bookclub_surveys', 'closes_at', 'DATETIME NULL AFTER opens_at');
+
+        return $result;
     }
 
     // ------------------------------------------------------------------
@@ -141,6 +152,14 @@ class SurveysModule extends AbstractModule
         $app->post(
             '/book-club/{slug:[a-z0-9\-]+}/surveys/{surveyId:[0-9]+}/questions/{index:[0-9]+}/delete',
             fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $controller->deleteQuestion($rq, $rs, (string) $a['slug'], (int) $a['surveyId'], (int) $a['index'])
+        )->add($csrfMw)->add($authMw);
+        $app->post(
+            '/book-club/{slug:[a-z0-9\-]+}/surveys/{surveyId:[0-9]+}/update',
+            fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $controller->update($rq, $rs, (string) $a['slug'], (int) $a['surveyId'])
+        )->add($csrfMw)->add($authMw);
+        $app->post(
+            '/book-club/{slug:[a-z0-9\-]+}/surveys/{surveyId:[0-9]+}/delete',
+            fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $controller->delete($rq, $rs, (string) $a['slug'], (int) $a['surveyId'])
         )->add($csrfMw)->add($authMw);
         $app->post(
             '/book-club/{slug:[a-z0-9\-]+}/surveys/{surveyId:[0-9]+}/publish',

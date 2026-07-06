@@ -172,6 +172,22 @@ class ChallengeRepo
         );
     }
 
+    /**
+     * Years for which the club has at least one challenge, newest first
+     * (the year browser on the challenges page).
+     *
+     * @return list<int>
+     */
+    public function yearsWithChallenges(int $clubId): array
+    {
+        $rows = $this->rows(
+            'SELECT DISTINCT year_ref FROM bookclub_challenges WHERE club_id = ? ORDER BY year_ref DESC',
+            'i',
+            [$clubId]
+        );
+        return array_map(static fn(array $r): int => (int) $r['year_ref'], $rows);
+    }
+
     /** @return array<string, mixed>|null */
     public function challengeById(int $challengeId): ?array
     {

@@ -86,7 +86,7 @@ class ReadingController extends BaseController
             'sections' => $this->reading->sections($bookId),
             'sectionPassed' => $this->reading->sectionPassedCounts($bookId),
             'myProgress' => $userId !== null ? $this->reading->progressRow($bookId, $userId) : null,
-            'aggregate' => $this->reading->aggregate($bookId),
+            'aggregate' => $this->reading->aggregate($bookId, (int) $club['id']),
             'memberCount' => $this->repo->countActiveMembers((int) $club['id']),
         ], (string) $book['titolo']);
     }

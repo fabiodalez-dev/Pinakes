@@ -40,9 +40,12 @@ use Psr\Http\Message\ServerRequestInterface;
  *                 winner resolves as usual. The ballot UI hides eliminated
  *                 options. An expired closes_at resolves rounds repeatedly
  *                 in one pass until a winner emerges.
- * - `weighted`    Like simple/multi, but the stored vote value is 2.0 for
- *                 club owners and 1.5 for moderators (fixed weights,
- *                 documented on the poll page); everyone else counts 1.0.
+ * - `weighted`    Like simple/multi, but the stored vote value for club
+ *                 owners and moderators is configurable per poll
+ *                 (bookclub_polls.weight_owner / weight_moderator,
+ *                 DECIMAL(4,2), clamped 1.0–5.0 at creation; NULL falls
+ *                 back to the legacy fixed 2.0 / 1.5, documented on the
+ *                 poll page); everyone else counts 1.0.
  *
  * Quorum & tie-break (any mode)
  * -----------------------------
@@ -117,6 +120,10 @@ class VotingModule extends AbstractModule
             // persisted at close time so the displayed outcome cannot flip
             // when the active-member count changes afterwards.
             $this->addColumnIfMissing('bookclub_polls', 'closed_reason', 'VARCHAR(20) NULL');
+            // Per-poll ballot weights for `weighted` polls (NULL → legacy
+            // fixed 2.0 owner / 1.5 moderator fallback in PollController).
+            $this->addColumnIfMissing('bookclub_polls', 'weight_owner', 'DECIMAL(4,2) NULL');
+            $this->addColumnIfMissing('bookclub_polls', 'weight_moderator', 'DECIMAL(4,2) NULL');
         }
 
         if ($this->tableExists('bookclub_votes')) {

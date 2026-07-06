@@ -304,6 +304,29 @@ class AiService
     // ------------------------------------------------------------------
 
     /**
+     * Human name of the language the model must answer in, derived from the
+     * session/app locale ($_SESSION['locale'], default it_IT): it_* →
+     * italiano, en_* → inglese, de_* → tedesco, fr_* → francese, anything
+     * else falls back to italiano. Returned through __() so the name reads
+     * naturally inside the (translated) system prompt.
+     */
+    public function promptLanguageName(): string
+    {
+        $locale = $_SESSION['locale'] ?? 'it_IT';
+        $prefix = strtolower(substr(is_string($locale) ? $locale : 'it_IT', 0, 2));
+        switch ($prefix) {
+            case 'en':
+                return __('inglese');
+            case 'de':
+                return __('tedesco');
+            case 'fr':
+                return __('francese');
+            default:
+                return __('italiano');
+        }
+    }
+
+    /**
      * Plain-text description of a catalog book for the questions prompt
      * (descrizione stores TinyMCE HTML → strip tags, collapse whitespace).
      */

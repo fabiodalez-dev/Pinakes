@@ -1,12 +1,15 @@
 <?php
 /**
- * Book Club — challenges module: current-year Reading Challenge page.
- * Club-wide challenges (club total vs target + my contribution), personal
- * challenges (mine highlighted), creation forms (personal for members,
- * club-wide for managers) and deletion (own personal / managers).
+ * Book Club — challenges module: per-year Reading Challenge page with a
+ * year browser (?year=YYYY; past years are read-only, no create/delete
+ * forms). Club-wide challenges (club total vs target + my contribution),
+ * personal challenges (mine highlighted), creation forms (personal for
+ * members, club-wide for managers) and deletion (own personal / managers).
  *
  * @var array<string, mixed> $club
  * @var int $year
+ * @var list<int> $years                                years with data + current, DESC
+ * @var bool $isCurrentYear                             past years render read-only
  * @var list<array<string, mixed>> $clubChallenges      user_id NULL rows
  * @var list<array<string, mixed>> $personalChallenges  user_id set rows
  * @var array<int, int> $mine                           challenge_id → my current
@@ -40,10 +43,26 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
       <span class="inline-block w-3 h-3 rounded-full mr-3" style="background: <?= $e($club['color']) ?>"></span>
       <?= $e(__('Reading Challenge')) ?> <?= (int) $year ?> — <?= $e($club['name']) ?>
     </h1>
+    <div class="flex flex-wrap items-center gap-1.5" aria-label="<?= $e(__('Anno')) ?>">
+      <span class="text-xs text-gray-400 mr-1"><?= $e(__('Anno')) ?>:</span>
+      <?php foreach ($years as $yearOption): ?>
+        <a href="<?= $e($base . '?year=' . (int) $yearOption) ?>"
+           class="px-2.5 py-1 text-xs rounded-full <?= (int) $yearOption === (int) $year ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' ?>">
+          <?= (int) $yearOption ?>
+        </a>
+      <?php endforeach; ?>
+    </div>
   </div>
   <p class="text-sm text-gray-500 mb-6">
     <?= $e(__('L\'avanzamento è ricalcolato automaticamente dal tracker di lettura: contano i libri del club segnati come finiti nell\'anno.')) ?>
   </p>
+
+  <?php if (!$isCurrentYear): ?>
+    <div class="mb-6 px-4 py-3 rounded-lg text-sm bg-gray-50 text-gray-600 border border-gray-200">
+      <i class="fas fa-box-archive mr-1"></i>
+      <?= $e(sprintf(__('Stai consultando l\'archivio del %d: le sfide degli anni passati sono in sola lettura.'), (int) $year)) ?>
+    </div>
+  <?php endif; ?>
 
   <?php if (!empty($flash)): ?>
     <div class="mb-6 px-4 py-3 rounded-lg text-sm <?= $flash['type'] === 'success' ? 'bg-green-50 text-green-800' : ($flash['type'] === 'warning' ? 'bg-yellow-50 text-yellow-800' : 'bg-red-50 text-red-800') ?>">
@@ -82,7 +101,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
               · <?= $e(sprintf(__('%d partecipanti'), (int) $challenge['participant_count'])) ?>
             </div>
           </div>
-          <?php if ($canManage): ?>
+          <?php if ($canManage && $isCurrentYear): ?>
             <form method="post" action="<?= $e($base . '/' . $challengeId . '/delete') ?>"
                   onsubmit="return confirm('<?= $e(__('Eliminare questa sfida?')) ?>');">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
@@ -112,7 +131,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
       </div>
     <?php endforeach; ?>
 
-    <?php if ($canManage): ?>
+    <?php if ($canManage && $isCurrentYear): ?>
       <form method="post" action="<?= $e($base) ?>" class="mt-4 border-t pt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <input type="hidden" name="scope" value="club">
@@ -172,7 +191,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
               · <?= $e(__('Obiettivo')) ?>: <?= (int) $challenge['target'] ?>
             </div>
           </div>
-          <?php if ($canManage || $isOwn): ?>
+          <?php if (($canManage || $isOwn) && $isCurrentYear): ?>
             <form method="post" action="<?= $e($base . '/' . $challengeId . '/delete') ?>"
                   onsubmit="return confirm('<?= $e(__('Eliminare questa sfida?')) ?>');">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
@@ -195,7 +214,7 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
       </div>
     <?php endforeach; ?>
 
-    <?php if ($isMember): ?>
+    <?php if ($isMember && $isCurrentYear): ?>
       <form method="post" action="<?= $e($base) ?>" class="mt-4 border-t pt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <input type="hidden" name="scope" value="personal">

@@ -26,14 +26,14 @@ require_once __DIR__ . '/../SeasonController.php';
  * `current`-flagged workflow state, and a per-season historical archive of
  * the archived-flag books (storico).
  *
- * Table: bookclub_seasons. Also adds bookclub_books.season_id as a PLAIN
- * column (no FK) via addColumnIfMissing: the column lives on a core plugin
- * table that this optional module must extend idempotently — a named
- * FOREIGN KEY cannot be re-ADDed safely without extra INFORMATION_SCHEMA
- * guards, and referential integrity is already enforced in code (seasons
- * are only deletable while no book references them; a dangling season_id
- * would simply fall back to "no season" through the LEFT JOINs used
- * everywhere).
+ * Table: bookclub_seasons. Also adds bookclub_books.season_id via
+ * addColumnIfMissing plus the fk_bcbooks_season FOREIGN KEY
+ * (→ bookclub_seasons.id, ON DELETE SET NULL), added idempotently through
+ * an INFORMATION_SCHEMA guard (migrateSeasonFk, same pattern as the
+ * Archives plugin's migrateArchivalUnitFilesFK): the ALTER runs only when
+ * NO foreign key already exists on that column. Orphan season_id values
+ * left behind by pre-FK installs are NULLed out first so the ALTER cannot
+ * fail on dangling references.
  */
 class SeasonsModule extends AbstractModule
 {
@@ -79,9 +79,68 @@ class SeasonsModule extends AbstractModule
                     REFERENCES bookclub_clubs (id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ]);
-        // Plain column, no FK — see class docblock for the rationale.
         $this->addColumnIfMissing('bookclub_books', 'season_id', 'INT NULL DEFAULT NULL');
+        $this->migrateSeasonFk();
         return $result;
+    }
+
+    /**
+     * Ensures fk_bcbooks_season exists on bookclub_books.season_id
+     * (→ bookclub_seasons.id, ON DELETE SET NULL). Idempotent: the ALTER
+     * runs only when INFORMATION_SCHEMA shows NO foreign key on that column
+     * (whatever its name), mirroring ArchivesPlugin::migrateArchivalUnitFilesFK.
+     * Failures are logged, never thrown — the optional module must not break
+     * plugin activation.
+     */
+    private function migrateSeasonFk(): void
+    {
+        if (!$this->tableExists('bookclub_seasons')
+            || !$this->tableExists('bookclub_books')
+            || !$this->columnExists('bookclub_books', 'season_id')) {
+            return;
+        }
+        // Any existing FK on bookclub_books.season_id (whatever its name)?
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) AS n
+               FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+               JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
+                 ON kcu.CONSTRAINT_SCHEMA = tc.CONSTRAINT_SCHEMA
+                AND kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME
+                AND kcu.TABLE_NAME = tc.TABLE_NAME
+              WHERE tc.TABLE_SCHEMA = DATABASE()
+                AND tc.TABLE_NAME = 'bookclub_books'
+                AND tc.CONSTRAINT_TYPE = 'FOREIGN KEY'
+                AND kcu.COLUMN_NAME = 'season_id'"
+        );
+        if ($stmt === false) {
+            SecureLogger::warning('[BookClub:seasons] season FK inspection prepare failed: ' . $this->db->error);
+            return;
+        }
+        $stmt->execute();
+        $row = $stmt->get_result()?->fetch_assoc();
+        $stmt->close();
+        if ($row === null || (int) ($row['n'] ?? 1) > 0) {
+            return; // Already there (or unreadable) — nothing to do.
+        }
+        // Pre-FK installs may hold dangling season_id values (season rows
+        // hard-deleted before the FK existed): NULL them out first so the
+        // ALTER cannot fail on orphan references.
+        if ($this->db->query(
+            'UPDATE bookclub_books b
+               LEFT JOIN bookclub_seasons s ON s.id = b.season_id
+                SET b.season_id = NULL
+              WHERE b.season_id IS NOT NULL AND s.id IS NULL'
+        ) === false) {
+            SecureLogger::warning('[BookClub:seasons] orphan season_id cleanup failed: ' . $this->db->error);
+            return;
+        }
+        if ($this->db->query(
+            'ALTER TABLE bookclub_books
+               ADD CONSTRAINT fk_bcbooks_season
+               FOREIGN KEY (season_id) REFERENCES bookclub_seasons (id) ON DELETE SET NULL'
+        ) === false) {
+            SecureLogger::warning('[BookClub:seasons] ADD CONSTRAINT fk_bcbooks_season failed: ' . $this->db->error);
+        }
     }
 
     // ------------------------------------------------------------------
@@ -101,6 +160,10 @@ class SeasonsModule extends AbstractModule
         $app->post(
             '/book-club/{slug:[a-z0-9\-]+}/seasons/{seasonId:[0-9]+}/update',
             fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $controller->update($rq, $rs, (string) $a['slug'], (int) $a['seasonId'])
+        )->add($csrfMw)->add($authMw);
+        $app->post(
+            '/book-club/{slug:[a-z0-9\-]+}/seasons/assign',
+            fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $controller->assign($rq, $rs, (string) $a['slug'])
         )->add($csrfMw)->add($authMw);
         $app->post(
             '/book-club/{slug:[a-z0-9\-]+}/seasons/{seasonId:[0-9]+}/current',
@@ -162,6 +225,10 @@ class SeasonsModule extends AbstractModule
             $stats = new StatsRepo($this->db);
             $seasons = $stats->tableExists('bookclub_seasons') ? $stats->seasons($clubId) : [];
             $archived = $stats->archivedBooksBySeason($clubId, StatsRepo::archivedStateKeys($states));
+            // Manual per-book season assignment (managers only, non-pending books).
+            $assignBooks = ($canManage && $seasons !== [])
+                ? $stats->assignableBooks($clubId, \App\Plugins\BookClub\BookClubPlugin::STATE_PENDING)
+                : [];
         } catch (\Throwable $e) {
             SecureLogger::error('[BookClub:seasons] panel failed: ' . $e->getMessage());
             return '';
@@ -176,6 +243,7 @@ class SeasonsModule extends AbstractModule
             'club' => $club,
             'seasons' => $seasons,
             'archivedBooks' => $archived,
+            'assignBooks' => $assignBooks,
             'canManage' => $canManage,
             'csrf' => (string) ($ctx['csrf'] ?? ''),
         ]);

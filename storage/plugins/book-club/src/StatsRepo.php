@@ -440,6 +440,48 @@ class StatsRepo
         return $cleared && $set;
     }
 
+    /**
+     * Manually assign (or clear, with NULL) the season of one club book —
+     * the "seasons/assign" form in the club-page panel.
+     */
+    public function setBookSeason(int $clubBookId, ?int $seasonId): bool
+    {
+        if (!$this->seasonsSchemaReady()) {
+            return false;
+        }
+        return $this->exec(
+            'UPDATE bookclub_books SET season_id = ? WHERE id = ?',
+            'ii',
+            [$seasonId, $clubBookId]
+        );
+    }
+
+    /**
+     * Club books eligible for manual season assignment: every book of the
+     * club except those in $excludeState (the moderation-pending state),
+     * with title/authors and the current season_id for the select.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function assignableBooks(int $clubId, string $excludeState): array
+    {
+        if (!$this->seasonsSchemaReady()) {
+            return [];
+        }
+        return $this->rows(
+            "SELECT cb.id, cb.season_id, cb.state, l.titolo,
+                    (SELECT GROUP_CONCAT(a.nome ORDER BY la.ordine_credito SEPARATOR ', ')
+                       FROM libri_autori la JOIN autori a ON a.id = la.autore_id
+                      WHERE la.libro_id = l.id) AS autori
+               FROM bookclub_books cb
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+              WHERE cb.club_id = ? AND cb.state <> ?
+              ORDER BY cb.position ASC, cb.created_at DESC",
+            'is',
+            [$clubId, $excludeState]
+        );
+    }
+
     public function seasonBookCount(int $seasonId): int
     {
         return $this->scalarInt('SELECT COUNT(*) AS n FROM bookclub_books WHERE season_id = ?', 'i', [$seasonId]);

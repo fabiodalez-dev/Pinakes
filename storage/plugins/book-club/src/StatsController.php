@@ -13,9 +13,10 @@ use Psr\Http\Message\ServerRequestInterface;
  * page, the mirrored admin page, and the full-history JSON/CSV export.
  *
  * Every handler re-checks per-club module enablement (routes are global).
- * Export is manager-only (the granular `exports.run` permission from the
- * plan's permission matrix is not implemented yet — canManage() is the
- * gate, which also covers Pinakes admin/staff).
+ * Access is gated by the granular governance matrix: the member-facing
+ * stats page requires `stats.view` (held by the system 'member' role, by
+ * owner/moderator, by Pinakes admin/staff and by custom roles granting
+ * it), exports require `exports.run` (managers + custom roles).
  */
 class StatsController extends BaseController
 {
@@ -79,19 +80,26 @@ class StatsController extends BaseController
     }
 
     // ------------------------------------------------------------------
-    // GET /book-club/{slug}/stats  (active members + managers)
+    // GET /book-club/{slug}/stats  (stats.view)
     // ------------------------------------------------------------------
 
+    /**
+     * Member-facing club statistics page.
+     *
+     * Permission: `stats.view` (granular matrix — the system 'member' role
+     * holds it, so every active member keeps access; owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
+     */
     public function show(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolve($slug);
         if ($club === null || !$this->canView($club)) {
             return $this->notFound($response);
         }
-        $canManage = $this->canManage($club);
-        if (!$this->isActiveMember($club) && !$canManage) {
+        if (!$this->can($club, 'stats.view')) {
             return $this->notFound($response);
         }
+        $canManage = $this->canManage($club);
         $data = $this->statsData($club);
         $data['club'] = $club;
         $data['canManage'] = $canManage;
@@ -116,7 +124,7 @@ class StatsController extends BaseController
     }
 
     // ------------------------------------------------------------------
-    // Export (managers)
+    // Export (exports.run)
     // ------------------------------------------------------------------
 
     /**
@@ -224,10 +232,16 @@ class StatsController extends BaseController
         ];
     }
 
+    /**
+     * Full-history JSON export.
+     *
+     * Permission: `exports.run` (granular matrix — owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
+     */
     public function exportJson(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolve($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'exports.run')) {
             return $this->notFound($response);
         }
         $json = json_encode($this->buildExport($club), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
@@ -237,10 +251,16 @@ class StatsController extends BaseController
             ->withHeader('Content-Disposition', 'attachment; filename="book-club-' . $slug . '-' . date('Ymd') . '.json"');
     }
 
+    /**
+     * Full-history CSV export (multi-section, Excel-friendly BOM).
+     *
+     * Permission: `exports.run` (granular matrix — owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
+     */
     public function exportCsv(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->resolve($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'exports.run')) {
             return $this->notFound($response);
         }
         $data = $this->buildExport($club);

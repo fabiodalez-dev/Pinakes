@@ -89,8 +89,10 @@ class LibraryRepo
 
     /**
      * Club books in the given workflow states, joined to the core catalog
-     * availability counters plus the length of the active reservation queue.
-     * With no loans/reservations data the counters simply come back as zeros.
+     * availability counters plus the length of the active reservation queue
+     * (whole-library `waitlist` and `club_waitlist`, the subset held by
+     * ACTIVE club members). With no loans/reservations data the counters
+     * simply come back as zeros.
      *
      * @param list<string> $stateKeys
      * @return list<array<string, mixed>>
@@ -111,7 +113,11 @@ class LibraryRepo
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                       WHERE la.libro_id = l.id) AS autori,
                     (SELECT COUNT(*) FROM prenotazioni pr
-                      WHERE pr.libro_id = l.id AND pr.stato = 'attiva') AS waitlist
+                      WHERE pr.libro_id = l.id AND pr.stato = 'attiva') AS waitlist,
+                    (SELECT COUNT(*) FROM prenotazioni pr2
+                       JOIN bookclub_members bm ON bm.user_id = pr2.utente_id
+                            AND bm.club_id = cb.club_id AND bm.status = 'active'
+                      WHERE pr2.libro_id = l.id AND pr2.stato = 'attiva') AS club_waitlist
                FROM bookclub_books cb
                JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
               WHERE cb.club_id = ? AND cb.state IN ($placeholders)

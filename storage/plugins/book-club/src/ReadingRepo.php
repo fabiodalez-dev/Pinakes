@@ -237,12 +237,20 @@ class ReadingRepo
     }
 
     /**
-     * Club-level aggregate for a book: average percent and number of
-     * finishers across the existing progress rows.
+     * Club-level aggregate for a book.
      *
-     * @return array{avg_percent: float, finished: int, readers: int}
+     * - avg_percent:     legacy average over the users who logged progress;
+     * - avg_percent_all: average over ALL active club members — members who
+     *   never logged any progress count as 0% (SUM of the active members'
+     *   percents divided by the active member count);
+     * - active_readers / members: participation ratio ("N lettori su M
+     *   membri");
+     * - finished / readers: finishers and loggers across ALL progress rows
+     *   (unchanged semantics).
+     *
+     * @return array{avg_percent: float, avg_percent_all: float, finished: int, readers: int, active_readers: int, members: int}
      */
-    public function aggregate(int $clubBookId): array
+    public function aggregate(int $clubBookId, int $clubId): array
     {
         $row = $this->row(
             'SELECT COALESCE(AVG(percent), 0) AS avg_percent,
@@ -253,10 +261,30 @@ class ReadingRepo
             'i',
             [$clubBookId]
         );
+        $active = $this->row(
+            "SELECT COALESCE(SUM(p.percent), 0) AS sum_percent,
+                    COUNT(p.id) AS active_readers
+               FROM bookclub_progress p
+               JOIN bookclub_members m
+                 ON m.user_id = p.user_id AND m.club_id = ? AND m.status = 'active'
+              WHERE p.club_book_id = ?",
+            'ii',
+            [$clubId, $clubBookId]
+        );
+        $membersRow = $this->row(
+            "SELECT COUNT(*) AS n FROM bookclub_members WHERE club_id = ? AND status = 'active'",
+            'i',
+            [$clubId]
+        );
+        $members = (int) ($membersRow['n'] ?? 0);
+        $sumPercent = (float) ($active['sum_percent'] ?? 0);
         return [
             'avg_percent' => (float) ($row['avg_percent'] ?? 0),
+            'avg_percent_all' => $members > 0 ? $sumPercent / $members : 0.0,
             'finished' => (int) ($row['finished'] ?? 0),
             'readers' => (int) ($row['readers'] ?? 0),
+            'active_readers' => (int) ($active['active_readers'] ?? 0),
+            'members' => $members,
         ];
     }
 

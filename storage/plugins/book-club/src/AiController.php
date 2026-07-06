@@ -51,6 +51,19 @@ class AiController extends BaseController
     }
 
     /**
+     * Shared system prompt: the target answer language follows the
+     * session/app locale (AiService::promptLanguageName) instead of being
+     * hard-coded to Italian.
+     */
+    private function systemPrompt(): string
+    {
+        return sprintf(
+            __('Sei un assistente per club di lettura di una biblioteca. Rispondi sempre in %s, con tono cordiale e concreto.'),
+            $this->ai->promptLanguageName()
+        );
+    }
+
+    /**
      * Meetings of the club that actually have minutes text (the only ones
      * summarisable).
      *
@@ -136,7 +149,7 @@ class AiController extends BaseController
         $authors = trim((string) ($clubBook['autori'] ?? ''));
         $description = $this->ai->bookDescription((int) $clubBook['libro_id']);
 
-        $system = __('Sei un assistente per club di lettura di una biblioteca. Rispondi sempre in italiano, con tono cordiale e concreto.');
+        $system = $this->systemPrompt();
         $user = sprintf(
             __('Genera esattamente 5 domande di discussione per un club del libro che ha letto «%s»%s. Le domande devono stimolare il confronto tra i membri, toccare temi, personaggi e stile, ed essere aperte (mai a risposta sì/no). Formattale come elenco numerato da 1 a 5, una domanda per riga, senza testo introduttivo né conclusivo.'),
             $title,
@@ -184,7 +197,7 @@ class AiController extends BaseController
             return $this->redirect($response, $this->aiPath($slug));
         }
 
-        $system = __('Sei un assistente per club di lettura di una biblioteca. Rispondi sempre in italiano, con tono cordiale e concreto.');
+        $system = $this->systemPrompt();
         $user = sprintf(
             __('Riassumi il verbale dell\'incontro «%s» di un club del libro. Produci un riassunto breve e strutturato in tre sezioni con questi titoli: "Sintesi", "Decisioni prese", "Prossimi passi". Usa elenchi puntati sintetici. Non inventare informazioni assenti dal verbale.'),
             (string) $meeting['title']

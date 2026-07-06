@@ -16,10 +16,16 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class MeetingController extends BaseController
 {
+    /**
+     * Schedule a meeting.
+     *
+     * Permission: `meetings.create` (granular matrix — owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
+     */
     public function create(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'meetings.create')) {
             return $this->notFound($response);
         }
         $body = $request->getParsedBody();
@@ -103,11 +109,14 @@ class MeetingController extends BaseController
 
     /**
      * Mark a meeting done/cancelled and optionally attach the minutes.
+     *
+     * Permission: `meetings.minutes` (granular matrix — owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
      */
     public function changeStatus(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $meetingId): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'meetings.minutes')) {
             return $this->notFound($response);
         }
         $meeting = $this->repo->meeting($meetingId);

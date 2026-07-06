@@ -1,7 +1,8 @@
 <?php
 /**
  * Book Club — library module panel (plan §7.10): copy availability, active
- * reservation queue and club-member loans for every book being read.
+ * reservation queue (whole library + the club members' share) and
+ * club-member loans for every book being read.
  * Loan holder names are manager-only; regular members see only a count.
  *
  * @var array<string, mixed> $club
@@ -21,6 +22,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
       $available = max(0, (int) $book['copie_disponibili']);
       $total = max(0, (int) $book['copie_totali']);
       $waitlist = max(0, (int) $book['waitlist']);
+      $clubWaitlist = max(0, (int) ($book['club_waitlist'] ?? 0));
       $loanCount = (int) ($book['member_loan_count'] ?? 0);
       $loans = is_array($book['member_loans'] ?? null) ? $book['member_loans'] : [];
       $yesRsvps = (int) ($book['max_yes_rsvps'] ?? 0);
@@ -44,6 +46,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 
           <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500 mt-2">
             <span><i class="fas fa-hourglass-half mr-1 text-gray-400"></i><?= $e(sprintf(__n('%d prenotazione in lista d\'attesa', '%d prenotazioni in lista d\'attesa', $waitlist), $waitlist)) ?></span>
+            <span><i class="fas fa-users mr-1 text-gray-400"></i><?= $e(sprintf(__('in coda dal club: %d'), $clubWaitlist)) ?></span>
             <span><i class="fas fa-book-reader mr-1 text-gray-400"></i><?= $e(sprintf(__n('%d membro del club lo ha in prestito', '%d membri del club lo hanno in prestito', $loanCount), $loanCount)) ?></span>
           </div>
 

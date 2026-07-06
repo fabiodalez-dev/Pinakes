@@ -161,6 +161,31 @@ class QuoteRepo
         );
     }
 
+    /**
+     * PUBLIC quotes of one catalog book across ALL clubs, newest first —
+     * the core book detail page section (hook book.frontend.details).
+     * Public visibility is an explicit author choice, so no per-club
+     * enablement filter applies; quotes of deleted clubs are dropped by
+     * the JOIN.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function publicQuotesForBook(int $libroId, int $limit = 5): array
+    {
+        return $this->rows(
+            "SELECT q.id, q.quote, q.page, q.created_at,
+                    u.nome AS member_nome, c.name AS club_name
+               FROM bookclub_quotes q
+               JOIN utenti u ON u.id = q.user_id
+               JOIN bookclub_clubs c ON c.id = q.club_id AND c.deleted_at IS NULL
+              WHERE q.libro_id = ? AND q.visibility = 'public'
+              ORDER BY q.created_at DESC, q.id DESC
+              LIMIT ?",
+            'ii',
+            [$libroId, max(1, min(10, $limit))]
+        );
+    }
+
     public function addQuote(int $userId, int $libroId, ?int $clubId, string $quote, ?int $page, string $note, string $visibility): ?int
     {
         if (!in_array($visibility, self::QUOTE_VISIBILITIES, true)) {

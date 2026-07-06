@@ -30,7 +30,10 @@ $base = url('/book-club/' . $slug . '/surveys');
   <?php endif; ?>
 
   <?php foreach ($open as $survey): ?>
-    <?php $answered = in_array((int) $survey['id'], $answeredIds, true); ?>
+    <?php
+      $answered = in_array((int) $survey['id'], $answeredIds, true);
+      $scheduled = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
+    ?>
     <div class="border rounded-lg px-4 py-3 mb-3 last:mb-0 flex flex-wrap items-center justify-between gap-3">
       <div>
         <a href="<?= $e($base . '/' . (int) $survey['id']) ?>" class="font-medium text-gray-900 hover:text-blue-600"><?= $e($survey['title']) ?></a>
@@ -38,6 +41,9 @@ $base = url('/book-club/' . $slug . '/surveys');
           <span><i class="fas fa-reply mr-1"></i><?= $e(sprintf(__('%d risposte'), (int) $survey['answer_count'])) ?></span>
           <?php if ((int) $survey['anonymous'] === 1): ?>
             <span><i class="fas fa-user-secret mr-1"></i><?= $e(__('Anonimo')) ?></span>
+          <?php endif; ?>
+          <?php if ($scheduled): ?>
+            <span><i class="far fa-clock mr-1"></i><?= $e(__('Apre il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['opens_at']))) ?></span>
           <?php endif; ?>
           <?php if (!empty($survey['closes_at'])): ?>
             <span><i class="far fa-clock mr-1"></i><?= $e(__('Chiude il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['closes_at']))) ?></span>
@@ -47,6 +53,8 @@ $base = url('/book-club/' . $slug . '/surveys');
       <div>
         <?php if ($answered): ?>
           <span class="inline-flex items-center px-3 py-1.5 text-xs bg-green-50 text-green-700 rounded-lg"><i class="fas fa-check mr-1"></i><?= $e(__('Hai già risposto')) ?></span>
+        <?php elseif ($scheduled): ?>
+          <span class="inline-flex items-center px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg"><i class="far fa-clock mr-1"></i><?= $e(__('Programmato')) ?></span>
         <?php elseif ($isMember): ?>
           <a href="<?= $e($base . '/' . (int) $survey['id']) ?>" class="inline-flex items-center px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg"><?= $e(__('Rispondi al questionario')) ?></a>
         <?php endif; ?>

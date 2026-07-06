@@ -1,14 +1,16 @@
 <?php
 /**
  * Book Club — poll list + advanced poll creation (voting2 module).
- * Members see every poll of the club; managers also get the full creation
- * form with all six modes, quorum and tie-break settings.
+ * Members see every poll of the club; holders of the `polls.create`
+ * permission also get the full creation form with all six modes, quorum,
+ * tie-break and weighted-vote weight settings.
  *
  * @var array<string, mixed> $club
  * @var list<array<string, mixed>> $polls
  * @var list<array<string, mixed>> $eligible  proposals usable as options
  * @var bool $isMember
- * @var bool $canManage
+ * @var bool $canManage  club managers (kept for non-creation UI)
+ * @var bool $canCreate  granular polls.create permission → creation form
  * @var array{type: string, message: string}|null $flash
  */
 declare(strict_types=1);
@@ -16,6 +18,7 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
 $csrf = \App\Support\Csrf::ensureToken();
+$canCreate = $canCreate ?? $canManage;
 $modeLabels = [
     'simple'      => __('Voto singolo'),
     'multi'       => __('Preferenza multipla'),
@@ -30,7 +33,7 @@ $modeHelp = [
     'stars'       => __('ogni membro valuta i libri che preferisce da 1 a 5 stelle; vince la somma più alta.'),
     'ranking'     => __('ogni membro ordina tutti i libri; conteggio Borda (1° = N punti).'),
     'elimination' => __('a ogni turno esce il libro ultimo classificato, fino alla finale a due.'),
-    'weighted'    => __('come il voto singolo/multiplo, ma il voto del fondatore vale 2,0 punti e quello dei moderatori 1,5.'),
+    'weighted'    => __('come il voto singolo/multiplo, ma i voti del fondatore e dei moderatori valgono di più (pesi configurabili per votazione, predefiniti 2,0 e 1,5).'),
 ];
 ?>
 <div class="max-w-3xl mx-auto px-4 py-10">
@@ -74,7 +77,7 @@ $modeHelp = [
     <?php endforeach; ?>
   </div>
 
-  <?php if ($canManage): ?>
+  <?php if ($canCreate): ?>
     <div class="bg-white rounded-xl shadow p-6 mt-6">
       <h2 class="text-lg font-semibold text-gray-900 mb-1"><?= $e(__('Apri una nuova votazione')) ?></h2>
       <p class="text-sm text-gray-500 mb-4"><?= $e(__('Tutte le modalità avanzate: stelle, classifica, eliminazione, voto ponderato, quorum e spareggio.')) ?></p>
@@ -116,6 +119,22 @@ $modeHelp = [
               <option value="admin"><?= $e(__('Spareggio: decide un moderatore')) ?></option>
             </select>
           </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <label class="block">
+              <span class="text-xs text-gray-500"><?= $e(__('Peso del voto del fondatore')) ?></span>
+              <input type="number" name="weight_owner" step="0.5" min="1" max="5" value="2.0"
+                     title="<?= $e(__('Solo per il voto ponderato: quanto vale il voto del fondatore (da 1 a 5)')) ?>"
+                     class="w-full border border-gray-300 rounded-lg px-2 py-1.5">
+            </label>
+            <label class="block">
+              <span class="text-xs text-gray-500"><?= $e(__('Peso del voto dei moderatori')) ?></span>
+              <input type="number" name="weight_moderator" step="0.5" min="1" max="5" value="1.5"
+                     title="<?= $e(__('Solo per il voto ponderato: quanto vale il voto dei moderatori (da 1 a 5)')) ?>"
+                     class="w-full border border-gray-300 rounded-lg px-2 py-1.5">
+            </label>
+          </div>
+          <p class="text-xs text-gray-400"><?= $e(__('I pesi si applicano solo alla modalità «Voto ponderato»; gli altri membri valgono sempre 1,0.')) ?></p>
 
           <div class="max-h-48 overflow-y-auto border rounded-lg p-3 space-y-1">
             <?php foreach ($eligible as $book): ?>

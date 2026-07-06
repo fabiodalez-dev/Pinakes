@@ -155,6 +155,46 @@ class SeasonController extends BaseController
     }
 
     // ------------------------------------------------------------------
+    // POST /book-club/{slug}/seasons/assign
+    // ------------------------------------------------------------------
+
+    /**
+     * Manual season assignment: managers set (or clear, empty season_id)
+     * the season of one non-pending club book. Both the book and the season
+     * must belong to the club.
+     */
+    public function assign(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
+    {
+        $club = $this->resolve($slug);
+        if ($club === null) {
+            return $this->notFound($response);
+        }
+        $body = $request->getParsedBody();
+
+        $clubBookId = self::intOrNull($body, 'club_book_id') ?? 0;
+        $book = $clubBookId > 0 ? $this->repo->clubBook($clubBookId) : null;
+        if ($book === null
+            || (int) $book['club_id'] !== (int) $club['id']
+            || (string) $book['state'] === BookClubPlugin::STATE_PENDING) {
+            $this->flash('error', __('Seleziona un libro del club.'));
+            return $this->redirect($response, $this->clubPath($slug));
+        }
+
+        $seasonId = self::intOrNull($body, 'season_id');
+        if ($seasonId !== null && $this->seasonInClub($club, $seasonId) === null) {
+            $this->flash('error', __('Stagione non valida.'));
+            return $this->redirect($response, $this->clubPath($slug));
+        }
+
+        if ($this->stats->setBookSeason($clubBookId, $seasonId)) {
+            $this->flash('success', __('Stagione del libro aggiornata.'));
+        } else {
+            $this->flash('error', __('Impossibile assegnare la stagione.'));
+        }
+        return $this->redirect($response, $this->clubPath($slug));
+    }
+
+    // ------------------------------------------------------------------
     // POST /book-club/{slug}/seasons/{seasonId}/delete
     // ------------------------------------------------------------------
 

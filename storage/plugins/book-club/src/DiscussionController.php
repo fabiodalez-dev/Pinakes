@@ -70,6 +70,12 @@ class DiscussionController extends BaseController
         ], $club['name'] . ' — ' . __('Discussioni'));
     }
 
+    /**
+     * Open a new thread (active members). Threads of kind 'announcement'
+     * additionally require the granular `posts.moderate` permission
+     * (owner/moderator and Pinakes admin/staff always pass, custom club
+     * roles per their JSON).
+     */
     public function createThread(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->clubOrNull($slug);
@@ -92,7 +98,7 @@ class DiscussionController extends BaseController
         if (!in_array($kind, DiscussionRepo::KINDS, true)) {
             $kind = 'free';
         }
-        if ($kind === 'announcement' && !$this->canManage($club)) {
+        if ($kind === 'announcement' && !$this->can($club, 'posts.moderate')) {
             $this->flash('error', __('Solo i moderatori possono pubblicare annunci.'));
             return $this->redirect($response, '/book-club/' . $slug . '/discussions');
         }
@@ -336,13 +342,19 @@ class DiscussionController extends BaseController
     }
 
     // ------------------------------------------------------------------
-    // Moderation (managers only)
+    // Moderation (posts.moderate)
     // ------------------------------------------------------------------
 
+    /**
+     * Soft-delete a post.
+     *
+     * Permission: `posts.moderate` (granular matrix — owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
+     */
     public function deletePost(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $postId): ResponseInterface
     {
         $club = $this->clubOrNull($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'posts.moderate')) {
             return $this->notFound($response);
         }
         $post = $this->discussions->post($postId);
@@ -354,10 +366,16 @@ class DiscussionController extends BaseController
         return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . (int) $post['thread_id']);
     }
 
+    /**
+     * Lock/unlock a thread.
+     *
+     * Permission: `posts.moderate` (granular matrix — owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
+     */
     public function toggleLock(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $threadId): ResponseInterface
     {
         $club = $this->clubOrNull($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'posts.moderate')) {
             return $this->notFound($response);
         }
         $thread = $this->discussions->thread($threadId);
@@ -369,10 +387,16 @@ class DiscussionController extends BaseController
         return $this->redirect($response, '/book-club/' . $slug . '/discussions/' . $threadId);
     }
 
+    /**
+     * Pin/unpin a thread.
+     *
+     * Permission: `posts.moderate` (granular matrix — owner/moderator and
+     * Pinakes admin/staff always pass, custom club roles per their JSON).
+     */
     public function togglePin(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $threadId): ResponseInterface
     {
         $club = $this->clubOrNull($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'posts.moderate')) {
             return $this->notFound($response);
         }
         $thread = $this->discussions->thread($threadId);

@@ -7,6 +7,7 @@
  * @var array<string, mixed> $club
  * @var list<array<string, mixed>> $seasons        with book_count
  * @var list<array<string, mixed>> $archivedBooks  with season_name
+ * @var list<array<string, mixed>> $assignBooks    non-pending club books (id, season_id, titolo, autori) — managers only
  * @var bool $canManage
  * @var string $csrf
  */
@@ -123,6 +124,33 @@ foreach ($archivedBooks as $book) {
         </label>
         <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg"><?= $e(__('Crea stagione')) ?></button>
       </form>
+    </details>
+  <?php endif; ?>
+
+  <?php if ($canManage && !empty($assignBooks) && $seasons !== []): ?>
+    <details class="mt-4 border-t pt-4">
+      <summary class="text-sm font-medium text-blue-600 cursor-pointer"><?= $e(__('Assegna i libri alle stagioni')) ?></summary>
+      <div class="mt-3 space-y-2">
+        <?php foreach ($assignBooks as $assignBook): ?>
+          <?php $currentSeasonId = $assignBook['season_id'] !== null ? (int) $assignBook['season_id'] : null; ?>
+          <form method="post" action="<?= $e(url('/book-club/' . $slug . '/seasons/assign')) ?>"
+                class="flex flex-wrap items-center gap-2 text-sm">
+            <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+            <input type="hidden" name="club_book_id" value="<?= (int) $assignBook['id'] ?>">
+            <span class="flex-1 min-w-0 truncate text-gray-700">
+              <i class="fas fa-book mr-1 text-gray-300"></i><?= $e($assignBook['titolo']) ?>
+              <?php if (!empty($assignBook['autori'])): ?><span class="text-gray-400"> — <?= $e($assignBook['autori']) ?></span><?php endif; ?>
+            </span>
+            <select name="season_id" class="border border-gray-300 rounded-lg px-2 py-1.5 text-xs">
+              <option value="" <?= $currentSeasonId === null ? 'selected' : '' ?>><?= $e(__('Nessuna stagione')) ?></option>
+              <?php foreach ($seasons as $seasonOption): ?>
+                <option value="<?= (int) $seasonOption['id'] ?>" <?= $currentSeasonId === (int) $seasonOption['id'] ? 'selected' : '' ?>><?= $e($seasonOption['name']) ?></option>
+              <?php endforeach; ?>
+            </select>
+            <button type="submit" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg"><?= $e(__('Assegna')) ?></button>
+          </form>
+        <?php endforeach; ?>
+      </div>
     </details>
   <?php endif; ?>
 

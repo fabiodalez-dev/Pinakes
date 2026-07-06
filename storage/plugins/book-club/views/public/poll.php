@@ -2,8 +2,9 @@
 /**
  * Book Club — poll page: ballot for members (per-mode UI: simple/multi
  * radio-or-checkbox, stars 1–5 selects, ranking position selects,
- * elimination round-scoped radio, weighted with documented fixed weights),
- * live results, winner banner, quorum banner and admin tie resolution.
+ * elimination round-scoped radio, weighted with the poll's own documented
+ * weights), live results, winner banner, quorum banner and admin tie
+ * resolution.
  *
  * @var array<string, mixed> $club
  * @var array<string, mixed> $poll
@@ -15,7 +16,8 @@
  * @var bool $quorumFailed                 closed without winner because of the quorum
  * @var list<int> $adminTiedIds            tied option ids awaiting a manager's pick
  * @var bool $isMember
- * @var bool $canManage
+ * @var bool $canManage                    club managers (kept for non-close UI)
+ * @var bool $canClose                     granular polls.close permission → close/pick-winner UI
  * @var array{type: string, message: string}|null $flash
  */
 declare(strict_types=1);
@@ -30,6 +32,7 @@ $myVoteValues = $myVoteValues ?? [];
 $eliminated = $eliminated ?? [];
 $quorumFailed = $quorumFailed ?? false;
 $adminTiedIds = $adminTiedIds ?? [];
+$canClose = $canClose ?? $canManage;
 $maxVotes = in_array($mode, ['multi', 'weighted'], true) ? (int) $poll['votes_per_member'] : 1;
 $nOptions = count($options);
 $activeCount = 0;
@@ -90,8 +93,17 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
           <?php endif; ?>
         </div>
         <?php if ($mode === 'weighted'): ?>
+          <?php
+            // Per-poll weights (voting2); NULL on legacy polls → the old fixed defaults.
+            $fmtWeight = static function (float $w): string {
+                $s = rtrim(rtrim(number_format($w, 2, ',', ''), '0'), ',');
+                return str_contains($s, ',') ? $s : $s . ',0'; // «2,0» / «1,5» / «2,25»
+            };
+            $weightOwner = isset($poll['weight_owner']) && is_numeric($poll['weight_owner']) ? (float) $poll['weight_owner'] : 2.0;
+            $weightModerator = isset($poll['weight_moderator']) && is_numeric($poll['weight_moderator']) ? (float) $poll['weight_moderator'] : 1.5;
+          ?>
           <div class="text-xs text-gray-400 mt-1">
-            <i class="fas fa-balance-scale mr-1"></i><?= $e(__('Pesi fissi: fondatore ×2,0 · moderatore ×1,5 · membro ×1,0.')) ?>
+            <i class="fas fa-balance-scale mr-1"></i><?= $e(sprintf(__('Pesi: fondatore ×%s · moderatore ×%s · membro ×1,0.'), $fmtWeight($weightOwner), $fmtWeight($weightModerator))) ?>
           </div>
         <?php endif; ?>
       </div>
@@ -126,7 +138,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
     <?php if (!$isOpen && $adminTiedIds !== []): ?>
       <div class="mt-4 px-4 py-3 rounded-lg bg-purple-50 text-purple-900 text-sm">
         <i class="fas fa-gavel mr-2"></i><?= $e(__('Parità in testa: un moderatore deve proclamare il vincitore.')) ?>
-        <?php if ($canManage): ?>
+        <?php if ($canClose): ?>
           <div class="mt-3 space-y-2">
             <?php foreach ($options as $option): ?>
               <?php if (!in_array((int) $option['id'], $adminTiedIds, true)) { continue; } ?>
@@ -236,7 +248,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
       <?php endif; ?>
     </form>
 
-    <?php if ($isOpen && $canManage): ?>
+    <?php if ($isOpen && $canClose): ?>
       <?php
         $isRoundClose = $mode === 'elimination' && $activeCount > 2;
         $confirmMsg = $isRoundClose

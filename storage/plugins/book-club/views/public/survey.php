@@ -16,6 +16,7 @@
  * @var array<string, mixed>|null $myAnswer
  * @var array{total: int, questions: list<array<string, mixed>>}|null $results
  * @var array<string, string> $typeLabels
+ * @var list<array{id: int|string, titolo: string}> $books   draft settings editor (managers)
  * @var array{type: string, message: string}|null $flash
  */
 declare(strict_types=1);
@@ -34,6 +35,8 @@ $statusBadges = [
 ];
 [$badgeClass, $badgeLabel] = $statusBadges[$status] ?? $statusBadges['draft'];
 $yesNoLabels = ['yes' => __('Sì'), 'no' => __('No')];
+// Scheduled opening: published ('open') but not answerable before opens_at.
+$notYetOpen = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
 ?>
 <div class="max-w-4xl mx-auto px-4 py-10">
   <a href="<?= $e(url('/book-club/' . $slug . '/surveys')) ?>" class="text-sm text-gray-500 hover:text-gray-700">
@@ -49,6 +52,9 @@ $yesNoLabels = ['yes' => __('Sì'), 'no' => __('No')];
           <h1 class="text-2xl font-bold text-gray-900"><?= $e($survey['title']) ?></h1>
           <div class="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-400">
             <span class="inline-flex items-center px-2 py-0.5 rounded-full <?= $e($badgeClass) ?>"><?= $e($badgeLabel) ?></span>
+            <?php if ($notYetOpen): ?>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-blue-50 text-blue-700"><i class="far fa-clock mr-1"></i><?= $e(__('Programmato')) ?></span>
+            <?php endif; ?>
             <?php if (!empty($survey['book_title'])): ?>
               <span><i class="fas fa-book mr-1"></i><?= $e($survey['book_title']) ?></span>
             <?php endif; ?>
@@ -56,6 +62,9 @@ $yesNoLabels = ['yes' => __('Sì'), 'no' => __('No')];
               <span><i class="fas fa-user-secret mr-1"></i><?= $e(__('Anonimo')) ?></span>
             <?php endif; ?>
             <span><i class="fas fa-reply mr-1"></i><?= $e(sprintf(__('%d risposte'), (int) $survey['answer_count'])) ?></span>
+            <?php if (!empty($survey['opens_at']) && ($status === 'draft' || $notYetOpen)): ?>
+              <span><i class="far fa-clock mr-1"></i><?= $e(__('Apre il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['opens_at']))) ?></span>
+            <?php endif; ?>
             <?php if (!empty($survey['closes_at'])): ?>
               <span><i class="far fa-clock mr-1"></i><?= $e(__('Chiude il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['closes_at']))) ?></span>
             <?php endif; ?>
@@ -76,6 +85,14 @@ $yesNoLabels = ['yes' => __('Sì'), 'no' => __('No')];
               <a href="<?= $e($base . '/export.csv') ?>" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg">
                 <i class="fas fa-file-csv mr-1"></i><?= $e(__('Esporta CSV')) ?>
               </a>
+            <?php else: ?>
+              <form method="post" action="<?= $e($base . '/delete') ?>"
+                    onsubmit="return confirm('<?= $e(__('Eliminare questa bozza? Le domande andranno perse.')) ?>');">
+                <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+                <button type="submit" class="px-3 py-1.5 text-xs bg-red-50 hover:bg-red-100 text-red-700 rounded-lg">
+                  <i class="fas fa-trash mr-1"></i><?= $e(__('Elimina bozza')) ?>
+                </button>
+              </form>
             <?php endif; ?>
           </div>
         <?php endif; ?>
@@ -171,6 +188,48 @@ $yesNoLabels = ['yes' => __('Sì'), 'no' => __('No')];
       </form>
     </section>
 
+    <!-- Draft settings (title, book, anonymity, opening/closing dates) -->
+    <section class="bg-white rounded-xl shadow p-6 mb-8">
+      <h2 class="text-lg font-semibold text-gray-900 mb-1"><i class="fas fa-sliders mr-2 text-gray-400"></i><?= $e(__('Modifica dettagli')) ?></h2>
+      <p class="text-xs text-gray-400 mb-4"><?= $e(__('Titolo, libro, anonimato e date sono modificabili solo finché il questionario è una bozza.')) ?></p>
+      <form method="post" action="<?= $e($base . '/update') ?>" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+        <div class="sm:col-span-2">
+          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Titolo')) ?> *</label>
+          <input type="text" name="title" maxlength="190" required value="<?= $e($survey['title']) ?>"
+                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Libro collegato (facoltativo)')) ?></label>
+          <select name="club_book_id" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+            <option value=""><?= $e(__('Nessun libro (questionario del club)')) ?></option>
+            <?php foreach ($books as $book): ?>
+              <option value="<?= (int) $book['id'] ?>" <?= (int) $book['id'] === (int) ($survey['club_book_id'] ?? 0) ? 'selected' : '' ?>><?= $e($book['titolo']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-gray-600 sm:pt-6">
+          <input type="checkbox" name="anonymous" value="1" class="rounded" <?= $anonymous ? 'checked' : '' ?>>
+          <?= $e(__('Questionario anonimo (i nomi dei rispondenti non saranno mai mostrati né esportati)')) ?>
+        </label>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Apertura programmata (facoltativa)')) ?></label>
+          <input type="datetime-local" name="opens_at" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                 value="<?= !empty($survey['opens_at']) ? $e(date('Y-m-d\TH:i', (int) strtotime((string) $survey['opens_at']))) : '' ?>">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Chiusura automatica (facoltativa)')) ?></label>
+          <input type="datetime-local" name="closes_at" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                 value="<?= !empty($survey['closes_at']) ? $e(date('Y-m-d\TH:i', (int) strtotime((string) $survey['closes_at']))) : '' ?>">
+        </div>
+        <div class="sm:col-span-2">
+          <button type="submit" class="px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white text-sm font-medium rounded-lg">
+            <i class="fas fa-check mr-1"></i><?= $e(__('Salva modifiche')) ?>
+          </button>
+        </div>
+      </form>
+    </section>
+
     <!-- Publish -->
     <section class="bg-white rounded-xl shadow p-6">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -188,7 +247,13 @@ $yesNoLabels = ['yes' => __('Sì'), 'no' => __('No')];
   <?php else: ?>
 
     <?php if ($status === 'open'): ?>
-      <?php if ($isMember && $myAnswer === null): ?>
+      <?php if ($notYetOpen): ?>
+        <!-- Scheduled opening gate: no answer form before opens_at. -->
+        <div class="bg-white rounded-xl shadow p-6 mb-8 text-sm text-gray-600">
+          <i class="far fa-clock text-blue-500 mr-1"></i>
+          <?= $e(sprintf(__('Il questionario aprirà il %s'), date('d/m/Y H:i', (int) strtotime((string) $survey['opens_at'])))) ?>
+        </div>
+      <?php elseif ($isMember && $myAnswer === null): ?>
         <!-- ========================= ANSWER FORM ========================= -->
         <section class="bg-white rounded-xl shadow p-6 mb-8">
           <h2 class="text-lg font-semibold text-gray-900 mb-1"><?= $e(__('Le tue risposte')) ?></h2>

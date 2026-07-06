@@ -32,8 +32,11 @@ use Psr\Http\Message\ServerRequestInterface;
  *                winner resolves as usual. Expired polls resolve rounds
  *                repeatedly in one pass (vote-less rounds inherit the
  *                standing of the last voted round);
- *  - weighted    like simple/multi but the vote value is fixed at 2.0 for
- *                owners and 1.5 for moderators (1.0 otherwise).
+ *  - weighted    like simple/multi but the vote value of owners and
+ *                moderators is configurable per poll (weight_owner /
+ *                weight_moderator, clamped 1.0–5.0 at creation; NULL
+ *                falls back to the legacy 2.0 / 1.5 defaults; everyone
+ *                else counts 1.0).
  *
  * Cross-mode close rules:
  *  - quorum_pct  when set and distinct voters of the final round are fewer
@@ -51,8 +54,11 @@ class PollController extends BaseController
     private const ADVANCED_MODES = ['stars', 'ranking', 'elimination', 'weighted'];
     private const ALL_MODES = ['simple', 'multi', 'stars', 'ranking', 'elimination', 'weighted'];
     private const TIEBREAKS = ['oldest_proposal', 'random', 'admin'];
-    /** Fixed ballot weights for `weighted` polls (documented on the poll page). */
+    /** Default ballot weights for `weighted` polls — fallback when the poll has no per-poll weights (legacy rows). */
     private const WEIGHTS = ['owner' => 2.0, 'moderator' => 1.5];
+    /** Clamp bounds for per-poll `weighted` weights. */
+    private const WEIGHT_MIN = 1.0;
+    private const WEIGHT_MAX = 5.0;
     /** Float comparison tolerance for DECIMAL(5,2) scores. */
     private const EPS = 0.0001;
 
@@ -109,13 +115,15 @@ class PollController extends BaseController
             'adminTiedIds' => $adminTiedIds,
             'isMember' => $this->isActiveMember($club),
             'canManage' => $this->canManage($club),
+            'canClose' => $this->can($club, 'polls.close'),
         ], (string) $poll['title']);
     }
 
     /**
      * Poll list + advanced creation form (route owned by VotingModule).
-     * Managers see the form with every mode/quorum/tiebreak field; members
-     * see the list. 404 when the voting2 module is disabled for the club.
+     * Holders of the `polls.create` permission see the form with every
+     * mode/quorum/tiebreak/weight field; everyone else sees the list only.
+     * 404 when the voting2 module is disabled for the club.
      */
     public function pollsPage(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
@@ -131,19 +139,21 @@ class PollController extends BaseController
             'eligible' => $eligible,
             'isMember' => $this->isActiveMember($club),
             'canManage' => $this->canManage($club),
+            'canCreate' => $this->can($club, 'polls.create'),
         ], __('Votazioni') . ' — ' . (string) $club['name']);
     }
 
     /**
-     * Create a poll from selected proposals (club managers). Option books
-     * move to the workflow's voting state. The advanced fields (extra
-     * modes, quorum_pct, tiebreak) are optional with safe defaults, so the
-     * simple form on the club page keeps working unchanged.
+     * Create a poll from selected proposals (granular `polls.create`
+     * permission). Option books move to the workflow's voting state. The
+     * advanced fields (extra modes, quorum_pct, tiebreak, per-poll
+     * weights) are optional with safe defaults, so the simple form on the
+     * club page keeps working unchanged.
      */
     public function create(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'polls.create')) {
             return $this->notFound($response);
         }
         $body = $request->getParsedBody();
@@ -175,6 +185,15 @@ class PollController extends BaseController
             $votesPerMember = max(1, min(20, (int) (self::intOrNull($body, 'votes_per_member') ?? 3)));
         } elseif ($mode === 'weighted') {
             $votesPerMember = max(1, min(20, (int) (self::intOrNull($body, 'votes_per_member') ?? 1)));
+        }
+
+        // Per-poll ballot weights (weighted mode only): clamped 1.0–5.0,
+        // absent/invalid input falls back to the legacy 2.0 / 1.5 defaults.
+        $weightOwner = null;
+        $weightModerator = null;
+        if ($mode === 'weighted') {
+            $weightOwner = self::clampWeight(is_array($body) ? ($body['weight_owner'] ?? null) : null, self::WEIGHTS['owner']);
+            $weightModerator = self::clampWeight(is_array($body) ? ($body['weight_moderator'] ?? null) : null, self::WEIGHTS['moderator']);
         }
         $anonymity = self::str($body, 'anonymity', 10) === 'secret' ? 'secret' : 'public';
         $closesAt = self::dateTimeOrNull(self::str($body, 'closes_at', 30));
@@ -226,6 +245,9 @@ class PollController extends BaseController
         }
         if ($quorumPct !== null || $tiebreak !== 'oldest_proposal') {
             $this->setPollExtras($pollId, $quorumPct, $tiebreak);
+        }
+        if ($weightOwner !== null && $weightModerator !== null) {
+            $this->setPollWeights($pollId, $weightOwner, $weightModerator);
         }
         foreach ($books as $book) {
             $this->repo->addPollOption($pollId, (int) $book['id']);
@@ -309,7 +331,7 @@ class PollController extends BaseController
             }
         }
 
-        $value = $mode === 'weighted' ? $this->voterWeight($club) : 1.0;
+        $value = $mode === 'weighted' ? $this->voterWeight($club, $poll) : 1.0;
 
         // Replace the previous ballot atomically.
         $userId = (int) $this->userId();
@@ -334,7 +356,7 @@ class PollController extends BaseController
     public function close(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $pollId): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->canManage($club)) {
+        if ($club === null || !$this->can($club, 'polls.close')) {
             return $this->notFound($response);
         }
         $poll = $this->repo->poll($pollId);
@@ -366,15 +388,16 @@ class PollController extends BaseController
     }
 
     /**
-     * Manager proclamation of the winner for a poll closed on an `admin`
-     * tie (route owned by VotingModule). The option must be one of the
+     * Winner proclamation (granular `polls.close` permission) for a poll
+     * closed on an `admin` tie (route owned by VotingModule). The option
+     * must be one of the
      * tied top options; the winner then advances in the workflow and every
      * other option book returns to the entry state.
      */
     public function pickWinner(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $pollId, int $optionId): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
-        if ($club === null || !$this->advancedVotingEnabled($club) || !$this->canManage($club)) {
+        if ($club === null || !$this->advancedVotingEnabled($club) || !$this->can($club, 'polls.close')) {
             return $this->notFound($response);
         }
         $poll = $this->repo->poll($pollId);
@@ -953,11 +976,37 @@ class PollController extends BaseController
         return isset($row['r']) && $row['r'] !== null ? (int) $row['r'] : null;
     }
 
-    /** Fixed weight of the current member's ballot in `weighted` polls. */
-    private function voterWeight(array $club): float
+    /**
+     * Weight of the current member's ballot in `weighted` polls: the
+     * poll's own weight_owner/weight_moderator when set (re-clamped
+     * defensively), otherwise the legacy fixed defaults. Everyone who is
+     * neither owner nor moderator counts 1.0.
+     *
+     * @param array<string, mixed> $club
+     * @param array<string, mixed> $poll
+     */
+    private function voterWeight(array $club, array $poll): float
     {
         $membership = $this->membership($club);
-        return self::WEIGHTS[(string) ($membership['role_slug'] ?? '')] ?? 1.0;
+        $role = (string) ($membership['role_slug'] ?? '');
+        if (!isset(self::WEIGHTS[$role])) {
+            return 1.0;
+        }
+        $column = $role === 'owner' ? 'weight_owner' : 'weight_moderator';
+        $raw = $poll[$column] ?? null;
+        if ($raw !== null && is_numeric($raw)) {
+            return max(self::WEIGHT_MIN, min(self::WEIGHT_MAX, (float) $raw));
+        }
+        return self::WEIGHTS[$role];
+    }
+
+    /** Clamp a posted per-poll weight to [1.0, 5.0]; non-numeric input → $default. */
+    private static function clampWeight(mixed $raw, float $default): float
+    {
+        if (!is_numeric($raw)) {
+            return $default;
+        }
+        return max(self::WEIGHT_MIN, min(self::WEIGHT_MAX, (float) $raw));
     }
 
     /** Whether the voting2 module is enabled for $club (Registry lookup). */
@@ -1134,6 +1183,24 @@ class PollController extends BaseController
             return;
         }
         $stmt->bind_param('si', $reason, $pollId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    /**
+     * Persist the per-poll `weighted` ballot weights. Best-effort like
+     * setClosedReason(): on installs where the voting2 columns are missing
+     * the prepare fails, the poll keeps NULL weights and voterWeight()
+     * falls back to the legacy defaults.
+     */
+    private function setPollWeights(int $pollId, float $weightOwner, float $weightModerator): void
+    {
+        $stmt = $this->db->prepare('UPDATE bookclub_polls SET weight_owner = ?, weight_moderator = ? WHERE id = ?');
+        if ($stmt === false) {
+            SecureLogger::warning('[BookClub:voting2] setPollWeights prepare failed: ' . $this->db->error);
+            return;
+        }
+        $stmt->bind_param('ddi', $weightOwner, $weightModerator, $pollId);
         $stmt->execute();
         $stmt->close();
     }

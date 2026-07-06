@@ -13,7 +13,7 @@
  * @var list<array<string, mixed>> $sections
  * @var array<int, int> $sectionPassed          section_id → members past it
  * @var array<string, mixed>|null $myProgress
- * @var array{avg_percent: float, finished: int, readers: int} $aggregate
+ * @var array{avg_percent: float, avg_percent_all: float, finished: int, readers: int, active_readers: int, members: int} $aggregate
  * @var int $memberCount
  * @var array{type: string, message: string}|null $flash
  */
@@ -33,7 +33,7 @@ $unitLabels = [
 $myPercent = $myProgress !== null ? (int) $myProgress['percent'] : 0;
 $myFinished = $myProgress !== null && !empty($myProgress['finished_at']);
 $mySectionId = $myProgress !== null && $myProgress['section_id'] !== null ? (int) $myProgress['section_id'] : null;
-$avgPercent = max(0.0, min(100.0, (float) $aggregate['avg_percent']));
+$avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $aggregate['avg_percent'])));
 ?>
 <div class="max-w-4xl mx-auto px-4 py-10">
   <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="text-sm text-gray-500 hover:text-gray-700">
@@ -79,15 +79,15 @@ $avgPercent = max(0.0, min(100.0, (float) $aggregate['avg_percent']));
   <section class="bg-white rounded-xl shadow p-6 mb-8">
     <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= $e(__('Il club sta leggendo')) ?></h2>
     <div class="flex items-center justify-between text-sm text-gray-500 mb-1">
-      <span><?= $e(__('Avanzamento medio del club')) ?></span>
+      <span><?= $e(__('avanzamento medio del club')) ?></span>
       <span class="font-medium text-gray-700"><?= number_format($avgPercent, 0) ?>%</span>
     </div>
     <div class="h-2.5 bg-gray-100 rounded-full overflow-hidden">
       <div class="h-full rounded-full" style="width: <?= number_format($avgPercent, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></div>
     </div>
     <p class="text-xs text-gray-400 mt-2">
-      <?= $e(sprintf(__('%1$d membri su %2$d hanno finito il libro'), (int) $aggregate['finished'], (int) $memberCount)) ?>
-      · <?= $e(sprintf(__('%d lettori hanno registrato un progresso'), (int) $aggregate['readers'])) ?>
+      <?= $e(sprintf(__('%1$d lettori su %2$d membri'), (int) ($aggregate['active_readers'] ?? 0), (int) ($aggregate['members'] ?? $memberCount))) ?>
+      · <?= $e(sprintf(__('%1$d membri su %2$d hanno finito il libro'), (int) $aggregate['finished'], (int) $memberCount)) ?>
     </p>
   </section>
 

@@ -166,7 +166,7 @@ class ReadingModule extends AbstractModule
             $items[] = [
                 'book' => $book,
                 'mine' => $userId !== null ? $reading->progressRow($bookId, $userId) : null,
-                'aggregate' => $reading->aggregate($bookId),
+                'aggregate' => $reading->aggregate($bookId, (int) $club['id']),
             ];
         }
 

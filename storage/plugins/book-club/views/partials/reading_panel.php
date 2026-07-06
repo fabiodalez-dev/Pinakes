@@ -5,7 +5,7 @@
  * link to the full reading tracker page.
  *
  * @var array<string, mixed> $club
- * @var list<array{book: array<string, mixed>, mine: array<string, mixed>|null, aggregate: array{avg_percent: float, finished: int, readers: int}}> $items
+ * @var list<array{book: array<string, mixed>, mine: array<string, mixed>|null, aggregate: array{avg_percent: float, avg_percent_all: float, finished: int, readers: int, active_readers: int, members: int}}> $items
  * @var int $memberCount
  * @var bool $isMember
  */
@@ -22,7 +22,7 @@ $slug = (string) $club['slug'];
       $mine = $item['mine'];
       $aggregate = $item['aggregate'];
       $myPercent = $mine !== null ? max(0, min(100, (int) $mine['percent'])) : 0;
-      $avgPercent = max(0.0, min(100.0, (float) $aggregate['avg_percent']));
+      $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $aggregate['avg_percent'])));
       $readingUrl = url('/book-club/' . $slug . '/reading/' . (int) $book['id']);
     ?>
     <div class="border rounded-lg px-4 py-3 mb-3">
@@ -45,7 +45,7 @@ $slug = (string) $club['slug'];
           <?php endif; ?>
 
           <div class="flex items-center justify-between text-xs text-gray-400 mt-2 mb-0.5">
-            <span><?= $e(__('Avanzamento medio del club')) ?></span>
+            <span><?= $e(__('avanzamento medio del club')) ?></span>
             <span class="font-medium text-gray-600"><?= number_format($avgPercent, 0) ?>%</span>
           </div>
           <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -53,7 +53,10 @@ $slug = (string) $club['slug'];
           </div>
 
           <div class="flex items-center justify-between mt-2">
-            <span class="text-xs text-gray-400"><?= $e(sprintf(__('%1$d membri su %2$d hanno finito il libro'), (int) $aggregate['finished'], (int) $memberCount)) ?></span>
+            <span class="text-xs text-gray-400">
+              <?= $e(sprintf(__('%1$d lettori su %2$d membri'), (int) ($aggregate['active_readers'] ?? 0), (int) ($aggregate['members'] ?? $memberCount))) ?>
+              · <?= $e(sprintf(__('%1$d membri su %2$d hanno finito il libro'), (int) $aggregate['finished'], (int) $memberCount)) ?>
+            </span>
             <a href="<?= $e($readingUrl) ?>" class="text-xs text-blue-600 hover:underline whitespace-nowrap">
               <?= $e(__('Apri il tracker di lettura')) ?> <i class="fas fa-arrow-right ml-1"></i>
             </a>

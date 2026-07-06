@@ -10,9 +10,11 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
- * Challenges module (plan §7.16 — Reading Challenge): current-year challenge
- * list with progress bars, creation (personal for members, club-wide for
- * managers) and deletion (own personal challenges, or anything for managers).
+ * Challenges module (plan §7.16 — Reading Challenge): per-year challenge
+ * list with progress bars (?year=YYYY browser; past years render read-only,
+ * without create/delete forms), creation (personal for members, club-wide
+ * for managers, always for the current year) and deletion (own personal
+ * challenges, or anything for managers).
  *
  * Progress is recomputed lazily on every page view (and by the maintenance
  * tick) from the Reading module's tracker — see ChallengeRepo for the
@@ -67,15 +69,36 @@ class ChallengeController extends BaseController
         }
         $clubId = (int) $club['id'];
         $userId = $this->userId();
-        $year = (int) date('Y');
+
+        // Year browser: ?year=YYYY (2000-2100), default = current year.
+        $currentYear = (int) date('Y');
+        $year = $currentYear;
+        $query = $request->getQueryParams();
+        if (isset($query['year']) && is_numeric($query['year'])) {
+            $requested = (int) $query['year'];
+            if ($requested >= 2000 && $requested <= 2100) {
+                $year = $requested;
+            }
+        }
+        $isCurrentYear = $year === $currentYear;
 
         // Lazy recompute so the page never shows stale numbers, even when
-        // the maintenance cron has not run yet today.
-        try {
-            $this->challenges->recomputeClub($clubId, $year);
-        } catch (\Throwable $e) {
-            SecureLogger::warning('[BookClub:challenges] lazy recompute failed for club ' . $clubId . ': ' . $e->getMessage());
+        // the maintenance cron has not run yet today. Only the current year:
+        // past years are a read-only archive of frozen snapshots.
+        if ($isCurrentYear) {
+            try {
+                $this->challenges->recomputeClub($clubId, $year);
+            } catch (\Throwable $e) {
+                SecureLogger::warning('[BookClub:challenges] lazy recompute failed for club ' . $clubId . ': ' . $e->getMessage());
+            }
         }
+
+        // Selector: every year with data, plus the current one.
+        $years = $this->challenges->yearsWithChallenges($clubId);
+        if (!in_array($currentYear, $years, true)) {
+            $years[] = $currentYear;
+        }
+        rsort($years);
 
         $clubChallenges = [];
         $personalChallenges = [];
@@ -90,6 +113,8 @@ class ChallengeController extends BaseController
         return $this->renderPublic($response, 'public/challenges', [
             'club' => $club,
             'year' => $year,
+            'years' => $years,
+            'isCurrentYear' => $isCurrentYear,
             'clubChallenges' => $clubChallenges,
             'personalChallenges' => $personalChallenges,
             'mine' => $userId !== null ? $this->challenges->userProgressMap($clubId, $year, $userId) : [],
