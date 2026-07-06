@@ -6329,5 +6329,8 @@
   "pag. %d": "pag. %d",
   "proposta inviata": "proposta inviata",
   "ti ha invitato": "ti ha invitato",
-  "Moduli attivi per questo club": "Moduli attivi per questo club"
+  "Moduli attivi per questo club": "Moduli attivi per questo club",
+  "Una delle proposte selezionate non è valida o è già in un'altra votazione aperta.": "Una delle proposte selezionate non è valida o è già in un'altra votazione aperta.",
+  "Gli ospiti non possono votare.": "Gli ospiti non possono votare.",
+  "Questo invito è riservato a un altro indirizzo email.": "Questo invito è riservato a un altro indirizzo email."
 }

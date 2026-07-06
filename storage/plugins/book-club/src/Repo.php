@@ -587,6 +587,47 @@ class Repo
         );
     }
 
+    /** @return list<int> club_book ids that are options of a still-open poll */
+    public function bookIdsInOpenPolls(int $clubId): array
+    {
+        $rows = $this->rows(
+            "SELECT DISTINCT o.club_book_id
+               FROM bookclub_poll_options o
+               JOIN bookclub_polls p ON p.id = o.poll_id
+              WHERE p.club_id = ? AND p.status = 'open'",
+            'i',
+            [$clubId]
+        );
+        return array_map(static fn(array $r): int => (int) $r['club_book_id'], $rows);
+    }
+
+    /**
+     * Books allowed into a NEW poll: their state must be the entry state or
+     * carry the `votable` flag (so books already in voting, currently being
+     * read or archived stay out), and they must not be options of another
+     * open poll — double-booking corrupts the post-close transitions.
+     *
+     * @param array<string, mixed> $club hydrated club row
+     * @param list<array<string, mixed>> $books rows from clubBooks()
+     * @return list<array<string, mixed>>
+     */
+    public function pollEligibleBooks(array $club, array $books): array
+    {
+        $states = $this->workflowStates($club);
+        $allowedStates = [self::entryStateKey($states) => true];
+        foreach ($states as $state) {
+            if (!empty($state['flags']['votable'])) {
+                $allowedStates[$state['key']] = true;
+            }
+        }
+        $inOpenPoll = array_flip($this->bookIdsInOpenPolls((int) $club['id']));
+        return array_values(array_filter(
+            $books,
+            static fn(array $b): bool =>
+                isset($allowedStates[(string) $b['state']]) && !isset($inOpenPoll[(int) $b['id']])
+        ));
+    }
+
     /** @return array<string, mixed>|null */
     public function searchCatalogById(int $libroId): ?array
     {

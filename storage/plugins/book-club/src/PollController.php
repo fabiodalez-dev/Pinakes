@@ -82,10 +82,18 @@ class PollController extends BaseController
             ? $this->myVoteValues($pollId, $userId, $mode === 'elimination' ? $round : null)
             : [];
 
+        // The close outcome is persisted in closed_reason at close time so
+        // it cannot flip when membership changes afterwards; polls closed
+        // before the column existed (NULL) fall back to recomputing.
         $isClosedNoWinner = $poll['status'] === 'closed' && $poll['winner_club_book_id'] === null;
-        $quorumFailed = $isClosedNoWinner && $this->quorumMissed($poll, $round);
+        $closedReason = isset($poll['closed_reason']) ? (string) $poll['closed_reason'] : '';
+        $quorumFailed = $isClosedNoWinner && ($closedReason !== ''
+            ? $closedReason === 'quorum'
+            : $this->quorumMissed($poll, $round));
         $adminTiedIds = [];
-        if ($isClosedNoWinner && !$quorumFailed && (string) ($poll['tiebreak'] ?? 'oldest_proposal') === 'admin') {
+        if ($isClosedNoWinner && !$quorumFailed
+            && (string) ($poll['tiebreak'] ?? 'oldest_proposal') === 'admin'
+            && ($closedReason === '' || $closedReason === 'admin_tie')) {
             $adminTiedIds = $this->adminTiedIds($options, $eliminated);
         }
 
@@ -116,10 +124,7 @@ class PollController extends BaseController
             return $this->notFound($response);
         }
         $books = $this->repo->clubBooks((int) $club['id']);
-        $eligible = array_values(array_filter(
-            $books,
-            static fn(array $b): bool => $b['state'] !== BookClubPlugin::STATE_PENDING
-        ));
+        $eligible = $this->repo->pollEligibleBooks($club, $books);
         return $this->renderPublic($response, 'public/polls', [
             'club' => $club,
             'polls' => $this->repo->clubPolls((int) $club['id']),
@@ -187,12 +192,19 @@ class PollController extends BaseController
         $states = $this->repo->workflowStates($club);
         $votingState = Repo::votingStateKey($states);
 
-        // Validate every option: must belong to this club and not be pending.
+        // Validate every option: must belong to this club, sit in a votable
+        // state and not already be part of another open poll (double-booked
+        // options corrupt the post-close workflow transitions).
+        $eligibleIds = array_map(
+            static fn(array $b): int => (int) $b['id'],
+            $this->repo->pollEligibleBooks($club, $this->repo->clubBooks((int) $club['id']))
+        );
         $books = [];
         foreach ($optionIds as $clubBookId) {
             $book = $this->repo->clubBook($clubBookId);
-            if ($book === null || (int) $book['club_id'] !== (int) $club['id'] || $book['state'] === BookClubPlugin::STATE_PENDING) {
-                $this->flash('error', __('Una delle proposte selezionate non è valida.'));
+            if ($book === null || (int) $book['club_id'] !== (int) $club['id']
+                || !in_array($clubBookId, $eligibleIds, true)) {
+                $this->flash('error', __('Una delle proposte selezionate non è valida o è già in un\'altra votazione aperta.'));
                 return $this->redirect($response, '/book-club/' . $slug);
             }
             $books[] = $book;
@@ -241,6 +253,12 @@ class PollController extends BaseController
         }
         if (!$this->isActiveMember($club)) {
             $this->flash('error', __('Solo i membri attivi possono votare.'));
+            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+        }
+        // Guests are read-only members: no ballots in any mode.
+        $membership = $this->membership($club);
+        if (($membership['role_slug'] ?? '') === 'guest') {
+            $this->flash('error', __('Gli ospiti non possono votare.'));
             return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
         }
         $poll = $this->repo->poll($pollId);
@@ -369,7 +387,10 @@ class PollController extends BaseController
             || (string) ($poll['tiebreak'] ?? 'oldest_proposal') !== 'admin') {
             return $this->redirect($response, $back);
         }
-        if ($this->quorumMissed($poll, $this->displayRound($poll))) {
+        // Trust the persisted close outcome; recompute only for legacy rows.
+        $closedReason = isset($poll['closed_reason']) ? (string) $poll['closed_reason'] : '';
+        if ($closedReason !== '' ? $closedReason !== 'admin_tie'
+            : $this->quorumMissed($poll, $this->displayRound($poll))) {
             $this->flash('error', __('Quorum non raggiunto'));
             return $this->redirect($response, $back);
         }
@@ -390,6 +411,7 @@ class PollController extends BaseController
             $this->flash('error', __('Vincitore non salvato, riprova.'));
             return $this->redirect($response, $back);
         }
+        $this->setClosedReason($pollId, 'winner');
         $this->transitionBooks($poll, $optionId);
         if (function_exists('do_action')) {
             do_action('bookclub.poll.closed', $pollId, (int) $winner['club_book_id']);
@@ -596,6 +618,7 @@ class PollController extends BaseController
             if (!$this->repo->closePoll($pollId, null)) {
                 return 'noop';
             }
+            $this->setClosedReason($pollId, 'quorum');
             $this->transitionBooks($poll, null);
             if (function_exists('do_action')) {
                 do_action('bookclub.poll.closed', $pollId, null);
@@ -612,6 +635,7 @@ class PollController extends BaseController
             if (!$this->repo->closePoll($pollId, null)) {
                 return 'noop';
             }
+            $this->setClosedReason($pollId, 'admin_tie');
             // Books stay in the voting state until a manager picks the winner.
             if (function_exists('do_action')) {
                 do_action('bookclub.poll.closed', $pollId, null);
@@ -623,6 +647,7 @@ class PollController extends BaseController
         if (!$this->repo->closePoll($pollId, $winnerBookId)) {
             return 'noop'; // already closed by a concurrent request/cron pass
         }
+        $this->setClosedReason($pollId, $winner !== null ? 'winner' : 'no_winner');
         $this->transitionBooks($poll, $winner !== null ? (int) $winner['id'] : null);
         if (function_exists('do_action')) {
             do_action('bookclub.poll.closed', $pollId, $winnerBookId);
@@ -661,9 +686,21 @@ class PollController extends BaseController
             foreach ($active as $option) {
                 $roundVotes += $scores[(int) $option['id']]['votes'] ?? 0;
             }
-            if ($roundVotes === 0 && $prevScores !== null) {
-                $scores = $prevScores;
-                $scoreRound = $prevRound;
+            if ($roundVotes === 0) {
+                if ($prevScores !== null) {
+                    $scores = $prevScores;
+                    $scoreRound = $prevRound;
+                } else {
+                    // Entering a round nobody voted in (a manager advanced
+                    // the round manually and the deadline then expired):
+                    // inherit the standing of the last voted round from the
+                    // DB instead of scoring every survivor 0.
+                    $lastVoted = $this->maxVotedRound($pollId);
+                    if ($lastVoted !== null && $lastVoted < $round) {
+                        $scores = $this->roundScores($pollId, $lastVoted);
+                        $scoreRound = $lastVoted;
+                    }
+                }
             }
             foreach ($active as $i => $option) {
                 $active[$i]['score'] = $scores[(int) $option['id']]['score'] ?? 0.0;
@@ -693,6 +730,7 @@ class PollController extends BaseController
                 if (!$this->repo->closePoll($pollId, null)) {
                     return 'noop';
                 }
+                $this->setClosedReason($pollId, 'quorum');
                 $this->transitionBooks($poll, null);
                 if (function_exists('do_action')) {
                     do_action('bookclub.poll.closed', $pollId, null);
@@ -705,6 +743,7 @@ class PollController extends BaseController
                 if (!$this->repo->closePoll($pollId, null)) {
                     return 'noop';
                 }
+                $this->setClosedReason($pollId, 'admin_tie');
                 if (function_exists('do_action')) {
                     do_action('bookclub.poll.closed', $pollId, null);
                 }
@@ -721,6 +760,7 @@ class PollController extends BaseController
             if (!$this->repo->closePoll($pollId, $winnerBookId)) {
                 return 'noop';
             }
+            $this->setClosedReason($pollId, $winner !== null ? 'winner' : 'no_winner');
             $this->transitionBooks($poll, $winner !== null ? (int) $winner['id'] : null);
             if (function_exists('do_action')) {
                 do_action('bookclub.poll.closed', $pollId, $winnerBookId);
@@ -1076,6 +1116,24 @@ class PollController extends BaseController
             return;
         }
         $stmt->bind_param('i', $pollId);
+        $stmt->execute();
+        $stmt->close();
+    }
+
+    /**
+     * Persist why the poll closed ('winner', 'no_winner', 'quorum',
+     * 'admin_tie') so the page and pickWinner() never re-derive the outcome
+     * from data that can drift (membership churn). Best-effort: on installs
+     * where the voting2 column is missing the UPDATE just fails silently
+     * and the legacy recompute path applies.
+     */
+    private function setClosedReason(int $pollId, string $reason): void
+    {
+        $stmt = $this->db->prepare('UPDATE bookclub_polls SET closed_reason = ? WHERE id = ?');
+        if ($stmt === false) {
+            return;
+        }
+        $stmt->bind_param('si', $reason, $pollId);
         $stmt->execute();
         $stmt->close();
     }

@@ -143,11 +143,12 @@ class MeetingController extends BaseController
         if ($club === null || (int) $club['is_active'] !== 1) {
             return $this->notFound($response);
         }
-        if ($club['privacy'] !== 'public') {
-            $token = (string) ($request->getQueryParams()['token'] ?? '');
-            if ($token === '' || !hash_equals((string) $club['ics_token'], $token)) {
-                return $this->notFound($response);
-            }
+        // The token is accepted for public clubs too: it proves membership
+        // and unlocks the members-only fields (video-conference links).
+        $token = (string) ($request->getQueryParams()['token'] ?? '');
+        $tokenValid = $token !== '' && hash_equals((string) $club['ics_token'], $token);
+        if ($club['privacy'] !== 'public' && !$tokenValid) {
+            return $this->notFound($response);
         }
 
         $lines = [
@@ -175,7 +176,10 @@ class MeetingController extends BaseController
                 $summary .= ' — ' . (string) $meeting['book_title'];
             }
             $description = trim((string) ($meeting['agenda'] ?? ''));
-            if (!empty($meeting['video_url'])) {
+            // video_url is members-only everywhere else (club page, REST
+            // API): include it only when the feed URL carried the club
+            // token, never in the anonymous public-club feed.
+            if ($tokenValid && !empty($meeting['video_url'])) {
                 // Real newline here — icsEscape() turns it into the literal
                 // "\n" sequence required by RFC 5545.
                 $description .= ($description !== '' ? "\n" : '') . (string) $meeting['video_url'];

@@ -113,6 +113,10 @@ class VotingModule extends AbstractModule
             $this->addColumnIfMissing('bookclub_polls', 'quorum_pct', 'TINYINT NULL');
             $this->addColumnIfMissing('bookclub_polls', 'tiebreak', "ENUM('oldest_proposal','random','admin') NOT NULL DEFAULT 'oldest_proposal'");
             $this->addColumnIfMissing('bookclub_polls', 'round', 'INT NOT NULL DEFAULT 1');
+            // Why the poll closed ('winner','no_winner','quorum','admin_tie'):
+            // persisted at close time so the displayed outcome cannot flip
+            // when the active-member count changes afterwards.
+            $this->addColumnIfMissing('bookclub_polls', 'closed_reason', 'VARCHAR(20) NULL');
         }
 
         if ($this->tableExists('bookclub_votes')) {

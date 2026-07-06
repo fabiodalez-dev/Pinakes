@@ -6329,5 +6329,8 @@
   "pag. %d": "S. %d",
   "proposta inviata": "Vorschlag gesendet",
   "ti ha invitato": "hat dich eingeladen",
-  "Moduli attivi per questo club": "Aktive Module für diesen Club"
+  "Moduli attivi per questo club": "Aktive Module für diesen Club",
+  "Una delle proposte selezionate non è valida o è già in un'altra votazione aperta.": "Einer der ausgewählten Vorschläge ist ungültig oder bereits Teil einer anderen offenen Abstimmung.",
+  "Gli ospiti non possono votare.": "Gäste können nicht abstimmen.",
+  "Questo invito è riservato a un altro indirizzo email.": "Diese Einladung ist für eine andere E-Mail-Adresse bestimmt."
 }

@@ -6329,5 +6329,8 @@
   "pag. %d": "p. %d",
   "proposta inviata": "proposition envoyée",
   "ti ha invitato": "vous a invité",
-  "Moduli attivi per questo club": "Modules actifs pour ce club"
+  "Moduli attivi per questo club": "Modules actifs pour ce club",
+  "Una delle proposte selezionate non è valida o è già in un'altra votazione aperta.": "L'une des propositions sélectionnées n'est pas valide ou figure déjà dans un autre vote ouvert.",
+  "Gli ospiti non possono votare.": "Les invités ne peuvent pas voter.",
+  "Questo invito è riservato a un altro indirizzo email.": "Cette invitation est réservée à une autre adresse e-mail."
 }

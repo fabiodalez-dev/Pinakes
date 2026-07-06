@@ -31,10 +31,10 @@ foreach ($books as $book) {
     $booksByState[(string) $book['state']][] = $book;
 }
 $pendingProposals = $booksByState[\App\Plugins\BookClub\BookClubPlugin::STATE_PENDING] ?? [];
-$icsUrl = url('/book-club/' . $slug . '/calendar.ics');
-if ($club['privacy'] !== 'public') {
-    $icsUrl .= '?token=' . $e($club['ics_token']);
-}
+// Members always get the tokenized feed URL: the token proves membership
+// and unlocks the members-only fields (e.g. video-conference links) that
+// the anonymous public-club feed omits.
+$icsUrl = url('/book-club/' . $slug . '/calendar.ics') . '?token=' . $e($club['ics_token']);
 $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybrid' => __('Ibrido')];
 ?>
 <div class="max-w-6xl mx-auto px-4 py-10">
@@ -271,13 +271,10 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
 
         <?php if ($canManage): ?>
           <?php
-            // Proposals eligible as poll options: everything except pending.
-            $eligible = [];
-            foreach ($books as $book) {
-                if ($book['state'] !== \App\Plugins\BookClub\BookClubPlugin::STATE_PENDING) {
-                    $eligible[] = $book;
-                }
-            }
+            // Proposals eligible as poll options: votable/entry states only,
+            // never books already in another open poll (computed by the
+            // controller via Repo::pollEligibleBooks).
+            $eligible = $pollEligible ?? [];
           ?>
           <details class="mt-4 border-t pt-4">
             <summary class="text-sm font-medium text-blue-600 cursor-pointer"><?= $e(__('Apri una nuova votazione')) ?></summary>

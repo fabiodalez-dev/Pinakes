@@ -86,6 +86,7 @@ class PublicController extends BaseController
             'loggedIn' => $this->userId() !== null,
             'modulePanelsMain' => $modulePanelsMain,
             'modulePanelsSidebar' => $modulePanelsSidebar,
+            'pollEligible' => $canManage ? $this->repo->pollEligibleBooks($club, $books) : [],
             'books' => $books,
             'polls' => $this->repo->clubPolls((int) $club['id']),
             'meetings' => $this->repo->clubMeetings((int) $club['id']),
@@ -245,6 +246,14 @@ class PublicController extends BaseController
         }
         if ($club['max_members'] !== null && $this->repo->countActiveMembers((int) $club['id']) >= (int) $club['max_members']) {
             $this->flash('error', __('Il club ha raggiunto il numero massimo di membri.'));
+            return $this->redirect($response, '/book-club');
+        }
+        // The invitation is bound to the invited address: a forwarded or
+        // leaked link must not let a different account into an invite-only
+        // or hidden club.
+        $sessionEmail = (string) ($this->sessionUser()['email'] ?? '');
+        if ($sessionEmail === '' || strcasecmp($sessionEmail, (string) $invitation['email']) !== 0) {
+            $this->flash('error', __('Questo invito è riservato a un altro indirizzo email.'));
             return $this->redirect($response, '/book-club');
         }
         $userId = (int) $this->userId();

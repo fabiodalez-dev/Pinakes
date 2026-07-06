@@ -73,11 +73,11 @@ class LibraryController extends BaseController
             $this->flash('error', __('Valutazione non valida (1-5 stelle)'));
             return $this->redirect($response, $clubPath);
         }
-        if (strlen($titolo) > 255) {
+        if (mb_strlen($titolo) > 255) {
             $this->flash('error', __('Titolo troppo lungo (max 255 caratteri)'));
             return $this->redirect($response, $clubPath);
         }
-        if (strlen($descrizione) > 2000) {
+        if (mb_strlen($descrizione) > 2000) {
             $this->flash('error', __('Descrizione troppo lunga (max 2000 caratteri)'));
             return $this->redirect($response, $clubPath);
         }
