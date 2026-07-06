@@ -66,14 +66,19 @@ class BookClubPlugin
     // Lifecycle
     // ------------------------------------------------------------------
 
+    /**
+     * Registration-time hook. Deliberately does NOT create the schema:
+     * bundled optional plugins are auto-registered DISABLED on every fresh
+     * install and app update (PluginManager::autoRegisterBundledPlugins,
+     * metadata.optional=true), and installs that never activate the Book
+     * Club must not carry its ~30 tables. The schema is created by
+     * onActivate() — which PluginManager also re-runs on version upgrades
+     * of active plugins, so guarded DDL there covers updates too (same
+     * pattern as the Archives plugin wrapper).
+     */
     public function onInstall(): void
     {
-        $result = $this->ensureSchema();
-        if (!empty($result['failed'])) {
-            throw new \RuntimeException(
-                '[BookClub] Schema install failed for: ' . implode(', ', $result['failed'])
-            );
-        }
+        SecureLogger::debug('[BookClub] Plugin registered (schema deferred to activation)');
     }
 
     public function onActivate(): void
