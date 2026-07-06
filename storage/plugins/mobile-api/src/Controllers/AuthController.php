@@ -391,7 +391,26 @@ final class AuthController
      */
     private function appAccessEnabled(): bool
     {
-        return (string) ConfigStore::get('mobile_api.enabled', '0') === '1';
+        // Read system_settings directly: ConfigStore only surfaces a hardcoded
+        // whitelist of core categories, so ConfigStore::get('mobile_api.enabled')
+        // would ALWAYS return the default '0' and 403 every login (the same trap
+        // MobileApiPlugin::isAppAccessEnabled() documents — same query as
+        // book-club's MobileModule::appAccessEnabled()).
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT setting_value FROM system_settings WHERE category = 'mobile_api' AND setting_key = 'enabled' LIMIT 1"
+            );
+            if ($stmt === false) {
+                return false;
+            }
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
+            $stmt->close();
+            return $row !== null && (string) $row['setting_value'] === '1';
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function registrationEnabled(): bool

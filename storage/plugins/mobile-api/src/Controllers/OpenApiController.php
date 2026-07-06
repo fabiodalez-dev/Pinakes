@@ -20,6 +20,14 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class OpenApiController
 {
+    /** Optional hook manager: lets sibling plugins (e.g. book-club) extend the document. */
+    private ?\App\Support\HookManager $hooks;
+
+    public function __construct(?\App\Support\HookManager $hooks = null)
+    {
+        $this->hooks = $hooks;
+    }
+
     public function document(
         ServerRequestInterface $request,
         ResponseInterface $response
@@ -28,6 +36,17 @@ final class OpenApiController
             $baseUrl = $this->baseUrl($request);
             $version = $this->appVersion();
             $doc     = $this->build($baseUrl, $version);
+
+            // Cross-plugin extension point: active plugins that mount routes under
+            // /api/v1 (book-club bridge) document them here, so the add-endpoint ⇒
+            // add-manifest-row guard in tests/mobile-api-idempotency.spec.js can
+            // see the whole surface.
+            if ($this->hooks !== null) {
+                $extended = $this->hooks->applyFilters('mobile_api.openapi', $doc);
+                if (is_array($extended)) {
+                    $doc = $extended;
+                }
+            }
 
             $json = json_encode($doc, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             if ($json === false) {

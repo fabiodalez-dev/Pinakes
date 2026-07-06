@@ -89,7 +89,6 @@ class MobileApiPlugin
     private const PUSH_VAPID_PRIVATE_KEY    = 'push_vapid_private_key';
 
     private \mysqli $db;
-    /** @phpstan-ignore property.onlyWritten */
     private HookManager $hookManager;
     private ?int $pluginId = null;
 
@@ -364,7 +363,7 @@ class MobileApiPlugin
                 ServerRequestInterface $request,
                 ResponseInterface $response
             ): ResponseInterface {
-                return (new \App\Plugins\MobileApi\Controllers\OpenApiController())->document($request, $response);
+                return (new \App\Plugins\MobileApi\Controllers\OpenApiController($this->hookManager))->document($request, $response);
             });
 
             $group->get('/docs', function (
