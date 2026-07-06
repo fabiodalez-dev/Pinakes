@@ -12,21 +12,35 @@ Envelope (identico alle convenzioni mobile-api):
 4xx → {"success": false, "error": {"code": "...", "message": "..."}}
 ```
 
-Codici errore ricorrenti: `not_found` (404 — club inesistente, non visibile
-al token o con modulo mobile disattivato), `forbidden` (403), `poll_closed`,
-`club_full`, `invite_only`, `banned`, `limit_reached`, `duplicate`,
-`mode_not_supported`, `module_disabled`, `no_seats`, `empty_ballot`,
-`too_many`, `invalid_option`, `internal_error`.
+Codici errore ricorrenti: `not_found` (404 — club/incontro inesistente, non
+visibile al token o con modulo mobile disattivato), `forbidden` (403),
+`poll_closed`, `club_full`, `invite_only`, `banned`, `limit_reached`,
+`duplicate`, `invalid_book`, `mode_not_supported`, `module_disabled`,
+`no_seats`, `empty_ballot`, `too_many`, `invalid_option`,
+`invalid_response`, `invalid_credentials`, `internal_error`.
+Dai middleware del plugin mobile-api arrivano inoltre:
+`app_access_disabled` (403 — accesso app spento: `mobile_api.enabled` ≠ '1';
+emesso anche da `POST /api/v1/auth/login|register|forgot-password`) e
+`unauthorized` (401 — token mancante, revocato o scaduto).
+
+**Formati data**: i campi DATETIME (`closes_at`, `starts_at`, `ends_at`,
+`created_at`, `updated_at`, `last_used_at`) sono **ISO-8601 UTC** con
+suffisso `Z` (`2026-07-06T09:30:00Z`); i campi solo-data
+(`reading_starts`, `reading_ends`) restano `yyyy-MM-dd`.
 
 ## Discovery
 
 ```
 GET /api/v1/bookclub/health        (nessun token)
-→ data: { plugin, enabled: true, version, requires: ["mobile-api"], endpoints: [...] }
+→ data: { plugin, enabled: true, app_access_enabled: bool, version,
+          requires: ["mobile-api"], endpoints: [...] }
 ```
 
 L'app la interroga dopo il login (o all'avvio): **2xx → mostra la sezione
 Book Club; 404 → plugin non attivo, sezione nascosta.**
+`app_access_enabled` riflette il gate `mobile_api.enabled`: con `false`
+ogni endpoint autenticato risponde 403 `app_access_disabled`, quindi la
+sezione va nascosta senza una seconda chiamata.
 
 ## Lettura
 

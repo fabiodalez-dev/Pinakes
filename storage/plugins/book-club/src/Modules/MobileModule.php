@@ -113,9 +113,10 @@ final class MobileModule extends AbstractModule
     /**
      * Same gate the mobile-api plugin applies to its own surface
      * (system_settings mobile_api.enabled). AppAuthMiddleware re-checks it
-     * per request; reading it here only mirrors the wiring exactly.
+     * per request; reading it here mirrors the wiring exactly. Public so
+     * the health endpoint can advertise the gate in its payload.
      */
-    private function appAccessEnabled(): bool
+    public function appAccessEnabled(): bool
     {
         try {
             $stmt = $this->db->prepare(
