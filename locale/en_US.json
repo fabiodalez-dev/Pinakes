@@ -6412,5 +6412,9 @@
   "inglese": "English",
   "italiano": "English",
   "tedesco": "German",
-  "È una tua offerta": "This is your offer"
+  "È una tua offerta": "This is your offer",
+  "App mobile": "Mobile app",
+  "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)": "Exposes the club in the Pinakes app (API /api/v1/bookclub with the app token)",
+  "Questa modalità di voto è disponibile solo dal sito.": "This voting mode is only available on the website.",
+  "Club non trovato.": "Club not found."
 }

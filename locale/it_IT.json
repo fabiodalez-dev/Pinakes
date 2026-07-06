@@ -6412,5 +6412,9 @@
   "inglese": "inglese",
   "italiano": "italiano",
   "tedesco": "tedesco",
-  "È una tua offerta": "È una tua offerta"
+  "È una tua offerta": "È una tua offerta",
+  "App mobile": "App mobile",
+  "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)": "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)",
+  "Questa modalità di voto è disponibile solo dal sito.": "Questa modalità di voto è disponibile solo dal sito.",
+  "Club non trovato.": "Club non trovato."
 }
