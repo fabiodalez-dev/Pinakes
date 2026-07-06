@@ -757,11 +757,27 @@ class Repo
 
     public function closePoll(int $pollId, ?int $winnerClubBookId): bool
     {
-        return $this->exec(
-            "UPDATE bookclub_polls SET status = 'closed', closed_at = NOW(), winner_club_book_id = ? WHERE id = ? AND status = 'open'",
-            'ii',
-            [$winnerClubBookId, $pollId]
+        // Idempotency guard: return true ONLY when this call actually flipped the
+        // row open → closed. exec() returns true even when the WHERE status='open'
+        // clause matches nothing, so two concurrent resolvePoll() readers could both
+        // pass the `if (!closePoll(...))` gate and double-run transitionBooks() + the
+        // poll.closed hook. Checking affected_rows makes the loser see false → 'noop'.
+        $stmt = $this->db->prepare(
+            "UPDATE bookclub_polls SET status = 'closed', closed_at = NOW(), winner_club_book_id = ? WHERE id = ? AND status = 'open'"
         );
+        if ($stmt === false) {
+            SecureLogger::error('[BookClub] closePoll prepare failed: ' . $this->db->error);
+            return false;
+        }
+        $stmt->bind_param('ii', $winnerClubBookId, $pollId);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[BookClub] closePoll execute failed: ' . $stmt->error);
+            $stmt->close();
+            return false;
+        }
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+        return $affected > 0;
     }
 
     /** @return list<array<string, mixed>> */
