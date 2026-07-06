@@ -211,6 +211,12 @@ class ChallengeController extends BaseController
         if ($challenge === null || (int) $challenge['club_id'] !== (int) $club['id']) {
             return $this->notFound($response);
         }
+        // Past years are a frozen archive: the view hides the buttons, but
+        // the endpoint must reject direct POSTs too.
+        if ((int) $challenge['year_ref'] !== (int) date('Y')) {
+            $this->flash('error', __('Le sfide degli anni passati sono in archivio e non si possono eliminare.'));
+            return $this->redirect($response, $this->challengesPath($slug));
+        }
         $userId = $this->userId();
         $ownPersonal = $challenge['user_id'] !== null
             && $userId !== null

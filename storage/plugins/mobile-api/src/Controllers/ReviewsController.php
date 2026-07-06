@@ -324,8 +324,8 @@ class ReviewsController
                     'rating'      => (int) $r['stelle'],
                     'text'        => $r['descrizione'] !== null && $r['descrizione'] !== '' ? (string) $r['descrizione'] : null,
                     'status'      => (string) $r['stato'],
-                    'created_at'  => (string) $r['created_at'],
-                    'updated_at'  => (string) $r['updated_at'],
+                    'created_at'  => self::isoUtc($r['created_at'] ?? null),
+                    'updated_at'  => self::isoUtc($r['updated_at'] ?? null),
                 ];
             }, $rows);
 
@@ -398,9 +398,24 @@ class ReviewsController
             // Extra vs the app contract (clients ignore unknown fields): lets
             // future app versions surface "pending approval" without an API bump.
             'status'     => (string) ($row['stato'] ?? ''),
-            'created_at' => (string) ($row['created_at'] ?? ''),
-            'updated_at' => (string) ($row['updated_at'] ?? ''),
+            'created_at' => self::isoUtc($row['created_at'] ?? null) ?? '',
+            'updated_at' => self::isoUtc($row['updated_at'] ?? null) ?? '',
         ];
+    }
+
+    /**
+     * MySQL DATETIME → ISO-8601 UTC with Z suffix (MOBILE_API_SPEC: "dates
+     * ISO-8601 UTC; the app formats locally"). Interprets the wall-clock
+     * value in the current PHP timezone, same as gmdate elsewhere in the
+     * plugin (see ActionsController::notifications generated_at).
+     */
+    private static function isoUtc(mixed $datetime): ?string
+    {
+        if (!is_string($datetime) || $datetime === '') {
+            return null;
+        }
+        $ts = strtotime($datetime);
+        return $ts === false ? null : gmdate('Y-m-d\TH:i:s\Z', $ts);
     }
 
     /** Absolute cover URL: pass through externals, resolve local paths. */

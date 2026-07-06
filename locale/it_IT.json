@@ -6416,5 +6416,16 @@
   "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)": "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)",
   "Questa modalità di voto è disponibile solo dal sito.": "Questa modalità di voto è disponibile solo dal sito.",
   "Club non trovato.": "Club non trovato.",
-  "La data di inizio dello sprint deve essere futura.": "La data di inizio dello sprint deve essere futura."
+  "La data di inizio dello sprint deve essere futura.": "La data di inizio dello sprint deve essere futura.",
+  "Non hai i permessi per proporre libri in questo club.": "Non hai i permessi per proporre libri in questo club.",
+  "Solo i membri attivi del club possono confermare la partecipazione.": "Solo i membri attivi del club possono confermare la partecipazione.",
+  "Il modulo lettura non è attivo per questo club.": "Il modulo lettura non è attivo per questo club.",
+  "Incontro non trovato.": "Incontro non trovato.",
+  "Le sfide degli anni passati sono in archivio e non si possono eliminare.": "Le sfide degli anni passati sono in archivio e non si possono eliminare.",
+  "Disponibilità non disponibile.": "Disponibilità non disponibile.",
+  "Il testo della recensione non può superare %d caratteri.": "Il testo della recensione non può superare %d caratteri.",
+  "La valutazione deve essere tra 1 e 5 stelle.": "La valutazione deve essere tra 1 e 5 stelle.",
+  "Nessuna recensione da eliminare.": "Nessuna recensione da eliminare.",
+  "Puoi recensire solo i titoli che hai preso in prestito.": "Puoi recensire solo i titoli che hai preso in prestito.",
+  "Testo della recensione non valido.": "Testo della recensione non valido."
 }

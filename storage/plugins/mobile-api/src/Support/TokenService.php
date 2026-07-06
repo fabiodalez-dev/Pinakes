@@ -185,8 +185,8 @@ final class TokenService
                     'id'           => (int) $row['id'],
                     'device_name'  => $row['device_name'] !== null ? (string) $row['device_name'] : null,
                     'platform'     => $row['platform'] !== null ? (string) $row['platform'] : null,
-                    'created_at'   => $row['created_at'] !== null ? (string) $row['created_at'] : null,
-                    'last_used_at' => $row['last_used_at'] !== null ? (string) $row['last_used_at'] : null,
+                    'created_at'   => self::isoUtc($row['created_at'] ?? null),
+                    'last_used_at' => self::isoUtc($row['last_used_at'] ?? null),
                     'is_current'   => $currentTokenId !== null && (int) $row['id'] === $currentTokenId,
                 ];
             }
@@ -218,5 +218,19 @@ final class TokenService
         }
 
         return mb_substr($value, 0, $max);
+    }
+
+    /**
+     * MySQL DATETIME → ISO-8601 UTC with Z suffix (MOBILE_API_SPEC: "dates
+     * ISO-8601 UTC; the app formats locally"). Interprets the wall-clock
+     * value in the current PHP timezone, like gmdate elsewhere in the plugin.
+     */
+    private static function isoUtc(mixed $datetime): ?string
+    {
+        if (!is_string($datetime) || $datetime === '') {
+            return null;
+        }
+        $ts = strtotime($datetime);
+        return $ts === false ? null : gmdate('Y-m-d\TH:i:s\Z', $ts);
     }
 }

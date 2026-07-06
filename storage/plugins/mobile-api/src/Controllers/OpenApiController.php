@@ -20,6 +20,14 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 final class OpenApiController
 {
+    /** Optional hook manager: lets sibling plugins (e.g. book-club) extend the document. */
+    private ?\App\Support\HookManager $hooks;
+
+    public function __construct(?\App\Support\HookManager $hooks = null)
+    {
+        $this->hooks = $hooks;
+    }
+
     public function document(
         ServerRequestInterface $request,
         ResponseInterface $response
@@ -28,6 +36,17 @@ final class OpenApiController
             $baseUrl = $this->baseUrl($request);
             $version = $this->appVersion();
             $doc     = $this->build($baseUrl, $version);
+
+            // Cross-plugin extension point: active plugins that mount routes under
+            // /api/v1 (book-club bridge) document them here, so the add-endpoint ⇒
+            // add-manifest-row guard in tests/mobile-api-idempotency.spec.js can
+            // see the whole surface.
+            if ($this->hooks !== null) {
+                $extended = $this->hooks->applyFilters('mobile_api.openapi', $doc);
+                if (is_array($extended)) {
+                    $doc = $extended;
+                }
+            }
 
             $json = json_encode($doc, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
             if ($json === false) {
@@ -244,7 +263,7 @@ final class OpenApiController
                             'properties' => ['data' => ['$ref' => '#/components/schemas/LoginResponse']],
                         ]]]],
                         '401' => ['description' => 'Invalid credentials.', 'content' => $json],
-                        '403' => ['$ref' => '#/components/responses/Forbidden'],
+                        '403' => ['description' => 'App access disabled on this instance (code app_access_disabled), email not verified or account not active.', 'content' => $json],
                         '429' => ['$ref' => '#/components/responses/TooManyRequests'],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
                     ],
@@ -860,7 +879,7 @@ final class OpenApiController
             'type'       => 'object',
             'required'   => ['code', 'message'],
             'properties' => [
-                'code'    => ['type' => 'string', 'description' => 'Machine-readable error code, e.g. invalid_credentials, app_disabled, rate_limited.'],
+                'code'    => ['type' => 'string', 'description' => 'Machine-readable error code, e.g. invalid_credentials, app_access_disabled, rate_limited.'],
                 'message' => ['type' => 'string', 'description' => 'Human-readable message in the instance locale. Safe to display; never leaks internals.'],
             ],
         ];
@@ -1346,8 +1365,8 @@ final class OpenApiController
                 'user_name'  => ['type' => 'string'],
                 'is_mine'    => ['type' => 'boolean'],
                 'status'     => ['type' => 'string', 'enum' => ['pendente', 'approvata', 'rifiutata']],
-                'created_at' => ['type' => 'string'],
-                'updated_at' => ['type' => 'string'],
+                'created_at' => ['type' => 'string', 'format' => 'date-time', 'example' => '2026-07-06T09:30:00Z'],
+                'updated_at' => ['type' => 'string', 'format' => 'date-time', 'example' => '2026-07-06T09:30:00Z'],
             ],
         ];
     }
@@ -1405,8 +1424,8 @@ final class OpenApiController
                 'rating'      => ['type' => 'integer', 'minimum' => 1, 'maximum' => 5],
                 'text'        => ['type' => 'string', 'nullable' => true],
                 'status'      => ['type' => 'string', 'enum' => ['pendente', 'approvata', 'rifiutata']],
-                'created_at'  => ['type' => 'string'],
-                'updated_at'  => ['type' => 'string'],
+                'created_at'  => ['type' => 'string', 'format' => 'date-time', 'example' => '2026-07-06T09:30:00Z'],
+                'updated_at'  => ['type' => 'string', 'format' => 'date-time', 'example' => '2026-07-06T09:30:00Z'],
             ],
         ];
     }

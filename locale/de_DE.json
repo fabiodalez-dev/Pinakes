@@ -6416,5 +6416,16 @@
   "Espone il club nell'app Pinakes (API /api/v1/bookclub con token dell'app)": "Stellt den Club in der Pinakes-App bereit (API /api/v1/bookclub mit App-Token)",
   "Questa modalità di voto è disponibile solo dal sito.": "Dieser Abstimmungsmodus ist nur auf der Website verfügbar.",
   "Club non trovato.": "Club nicht gefunden.",
-  "La data di inizio dello sprint deve essere futura.": "Die Startzeit des Sprints muss in der Zukunft liegen."
+  "La data di inizio dello sprint deve essere futura.": "Die Startzeit des Sprints muss in der Zukunft liegen.",
+  "Non hai i permessi per proporre libri in questo club.": "Du hast keine Berechtigung, in diesem Club Bücher vorzuschlagen.",
+  "Solo i membri attivi del club possono confermare la partecipazione.": "Nur aktive Clubmitglieder können die Teilnahme bestätigen.",
+  "Il modulo lettura non è attivo per questo club.": "Das Lesemodul ist für diesen Club nicht aktiviert.",
+  "Incontro non trovato.": "Treffen nicht gefunden.",
+  "Le sfide degli anni passati sono in archivio e non si possono eliminare.": "Die Challenges vergangener Jahre sind archiviert und können nicht gelöscht werden.",
+  "Disponibilità non disponibile.": "Verfügbarkeitsinformationen nicht verfügbar.",
+  "Il testo della recensione non può superare %d caratteri.": "Der Rezensionstext darf %d Zeichen nicht überschreiten.",
+  "La valutazione deve essere tra 1 e 5 stelle.": "Die Bewertung muss zwischen 1 und 5 Sternen liegen.",
+  "Nessuna recensione da eliminare.": "Keine Rezension zum Löschen.",
+  "Puoi recensire solo i titoli che hai preso in prestito.": "Du kannst nur Titel rezensieren, die du ausgeliehen hast.",
+  "Testo della recensione non valido.": "Ungültiger Rezensionstext."
 }
