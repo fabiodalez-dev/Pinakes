@@ -155,7 +155,7 @@ class LibraryModule extends AbstractModule
         $states = is_array($ctx['states'] ?? null) ? $ctx['states'] : [];
         $isMember = !empty($ctx['isMember']);
         $canManage = !empty($ctx['canManage']);
-        $userId = isset($ctx['userId']) && $ctx['userId'] !== null ? (int) $ctx['userId'] : null;
+        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : null;
         $library = new LibraryRepo($this->db);
 
         // ---- Availability (§7.10) ----

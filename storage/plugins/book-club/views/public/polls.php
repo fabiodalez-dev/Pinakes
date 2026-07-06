@@ -10,7 +10,7 @@
  * @var list<array<string, mixed>> $eligible  proposals usable as options
  * @var bool $isMember
  * @var bool $canManage  club managers (kept for non-creation UI)
- * @var bool $canCreate  granular polls.create permission → creation form
+ * @var bool|null $canCreate  granular polls.create permission → creation form
  * @var array{type: string, message: string}|null $flash
  */
 declare(strict_types=1);

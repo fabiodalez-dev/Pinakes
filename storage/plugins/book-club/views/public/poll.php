@@ -11,13 +11,13 @@
  * @var list<array<string, mixed>> $options
  * @var array<int, list<string>> $voters   option_id → names (public polls only)
  * @var list<int> $myVotes                 option ids picked by the current user
- * @var array<int, float> $myVoteValues    option_id → my vote value (stars/ranking)
- * @var array<int, int> $eliminated        option_id → eliminated_in_round (elimination)
- * @var bool $quorumFailed                 closed without winner because of the quorum
- * @var list<int> $adminTiedIds            tied option ids awaiting a manager's pick
+ * @var array<int, float>|null $myVoteValues    option_id → my vote value (stars/ranking)
+ * @var array<int, int>|null $eliminated        option_id → eliminated_in_round (elimination)
+ * @var bool|null $quorumFailed                 closed without winner because of the quorum
+ * @var list<int>|null $adminTiedIds            tied option ids awaiting a manager's pick
  * @var bool $isMember
  * @var bool $canManage                    club managers (kept for non-close UI)
- * @var bool $canClose                     granular polls.close permission → close/pick-winner UI
+ * @var bool|null $canClose                     granular polls.close permission → close/pick-winner UI
  * @var array{type: string, message: string}|null $flash
  */
 declare(strict_types=1);
@@ -271,7 +271,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
             <span class="bc-muted small"><?= $e(sprintf(__('Puoi selezionare fino a %d libri.'), $maxVotes)) ?></span>
           <?php endif; ?>
         </div>
-      <?php elseif ($isOpen && !$isMember): ?>
+      <?php elseif ($isOpen): ?>
         <p class="bc-muted pt-2 mb-0"><?= $e(__('Solo i membri attivi del club possono votare.')) ?></p>
       <?php endif; ?>
     </form>

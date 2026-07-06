@@ -87,7 +87,7 @@ class AffinityController extends BaseController
             'canManage' => $canManage,
             'optedIn' => $optedIn,
             'optedInCount' => $this->affinity->optedInCount($clubId),
-            'myAffinities' => $optedIn && $userId !== null ? $this->affinity->affinitiesFor($clubId, $userId) : [],
+            'myAffinities' => $optedIn ? $this->affinity->affinitiesFor($clubId, $userId) : [],
             'topGenres' => $topGenres,
             'suggestedBooks' => $this->affinity->suggestedBooks($clubId, $genreIds, 10),
             'similarAuthors' => $this->affinity->similarAuthors($clubId, $finishedKeys, 5),

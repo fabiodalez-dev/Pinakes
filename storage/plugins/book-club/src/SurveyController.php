@@ -304,7 +304,7 @@ class SurveyController extends BaseController
             return $this->redirect($response, $this->surveyPath($slug, $surveyId));
         }
         [$schema[$index], $schema[$target]] = [$schema[$target], $schema[$index]];
-        $this->surveys->updateSchemaJson($surveyId, (string) json_encode(array_values($schema), JSON_UNESCAPED_UNICODE));
+        $this->surveys->updateSchemaJson($surveyId, (string) json_encode($schema, JSON_UNESCAPED_UNICODE));
         return $this->redirect($response, $this->surveyPath($slug, $surveyId));
     }
 
@@ -318,7 +318,7 @@ class SurveyController extends BaseController
         $schema = SurveyRepo::decodeSchema((string) $survey['schema_json']);
         if (isset($schema[$index])) {
             array_splice($schema, $index, 1);
-            if ($this->surveys->updateSchemaJson($surveyId, (string) json_encode(array_values($schema), JSON_UNESCAPED_UNICODE))) {
+            if ($this->surveys->updateSchemaJson($surveyId, (string) json_encode($schema, JSON_UNESCAPED_UNICODE))) {
                 $this->flash('success', __('Domanda eliminata.'));
             }
         }

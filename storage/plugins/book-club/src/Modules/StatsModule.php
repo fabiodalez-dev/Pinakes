@@ -120,7 +120,7 @@ class StatsModule extends AbstractModule
         }
         $clubId = (int) $club['id'];
         $states = is_array($ctx['states'] ?? null) ? $ctx['states'] : [];
-        $userId = isset($ctx['userId']) && $ctx['userId'] !== null ? (int) $ctx['userId'] : null;
+        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : null;
 
         try {
             $stats = new StatsRepo($this->db);

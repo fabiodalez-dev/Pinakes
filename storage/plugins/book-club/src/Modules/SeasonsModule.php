@@ -123,7 +123,8 @@ class SeasonsModule extends AbstractModule
             return;
         }
         $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         if ($row === null || (int) ($row['n'] ?? 1) > 0) {
             return; // Already there (or unreadable) — nothing to do.

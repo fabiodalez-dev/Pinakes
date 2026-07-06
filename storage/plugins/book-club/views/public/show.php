@@ -34,7 +34,7 @@ $pendingProposals = $booksByState[\App\Plugins\BookClub\BookClubPlugin::STATE_PE
 // Members always get the tokenized feed URL: the token proves membership
 // and unlocks the members-only fields (e.g. video-conference links) that
 // the anonymous public-club feed omits.
-$icsUrl = url('/book-club/' . $slug . '/calendar.ics') . '?token=' . $e($club['ics_token']);
+$icsUrl = url('/book-club/' . $slug . '/calendar.ics') . '?token=' . $club['ics_token'];
 $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybrid' => __('Ibrido')];
 ?>
 <style>
@@ -96,7 +96,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
         <div class="bc-hero-meta">
           <span><i class="fas fa-users me-1"></i><?= (int) $memberCount ?> <?= $e(__('membri')) ?><?= $club['max_members'] !== null ? ' / ' . (int) $club['max_members'] : '' ?></span>
           <?php if ($isMember || $canManage): ?>
-            <a href="<?= $icsUrl ?>"><i class="fas fa-calendar-alt me-1"></i><?= $e(__('Calendario iCal')) ?></a>
+            <a href="<?= htmlspecialchars($icsUrl, ENT_QUOTES, 'UTF-8') ?>"><i class="fas fa-calendar-alt me-1"></i><?= $e(__('Calendario iCal')) ?></a>
           <?php endif; ?>
         </div>
       </div>

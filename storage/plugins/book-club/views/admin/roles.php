@@ -32,11 +32,18 @@ $activePerms = static function (mixed $json): array {
     return $set;
 };
 ?>
-<div class="p-6 max-w-5xl mx-auto space-y-8">
+<div class="min-h-screen bg-gray-50 py-6">
+<div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
   <div>
-    <a href="<?= $e(url('/admin/book-club/' . $clubId)) ?>" class="text-sm text-gray-500 hover:text-gray-700">
-      <i class="fas fa-arrow-left mr-1"></i><?= $e($club['name']) ?>
-    </a>
+    <nav class="flex items-center text-sm text-gray-500 mb-2">
+      <a href="<?= $e(url('/admin/dashboard')) ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
+      <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+      <a href="<?= $e(url('/admin/book-club')) ?>" class="hover:text-gray-700"><?= $e(__('Book Club')) ?></a>
+      <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+      <a href="<?= $e(url('/admin/book-club/' . $clubId)) ?>" class="hover:text-gray-700"><?= $e($club['name']) ?></a>
+      <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+      <span class="text-gray-900 font-medium"><?= $e(__('Ruoli personalizzati')) ?></span>
+    </nav>
     <h1 class="text-2xl font-bold text-gray-900 mt-2">
       <i class="fas fa-user-shield mr-2 text-gray-400"></i><?= $e(__('Ruoli personalizzati')) ?>
     </h1>
@@ -52,7 +59,7 @@ $activePerms = static function (mixed $json): array {
   <?php endif; ?>
 
   <!-- Existing custom roles -->
-  <section class="bg-white rounded-xl shadow p-6">
+  <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= $e(__('Ruoli del club')) ?> (<?= count($roles) ?>)</h2>
     <?php if ($roles === []): ?>
       <p class="text-sm text-gray-400"><?= $e(__('Nessun ruolo personalizzato: creane uno qui sotto.')) ?></p>
@@ -89,7 +96,7 @@ $activePerms = static function (mixed $json): array {
                   </label>
                 <?php endforeach; ?>
               </div>
-              <button type="submit" class="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"><?= $e(__('Salva ruolo')) ?></button>
+              <button type="submit" class="px-4 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 text-white rounded-lg"><?= $e(__('Salva ruolo')) ?></button>
             </form>
             <?php if ($inUse): ?>
               <p class="text-xs text-gray-400 mt-3">
@@ -111,7 +118,7 @@ $activePerms = static function (mixed $json): array {
   </section>
 
   <!-- Create a new role -->
-  <section class="bg-white rounded-xl shadow p-6">
+  <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-1"><?= $e(__('Nuovo ruolo')) ?></h2>
     <p class="text-sm text-gray-500 mb-4"><?= $e(__('Esempi: Bibliotecario, Organizzatore eventi, Curatore Fantasy, Tesoriere.')) ?></p>
     <form method="post" action="<?= $e($formAction) ?>" class="space-y-3">
@@ -129,9 +136,10 @@ $activePerms = static function (mixed $json): array {
           </label>
         <?php endforeach; ?>
       </div>
-      <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+      <button type="submit" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg">
         <i class="fas fa-plus mr-1"></i><?= $e(__('Crea ruolo')) ?>
       </button>
     </form>
   </section>
+</div>
 </div>

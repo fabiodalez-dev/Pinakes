@@ -412,7 +412,7 @@ class Repo
      */
     public function saveWorkflowStates(array $club, array $states): bool
     {
-        $json = json_encode(array_values($states), JSON_UNESCAPED_UNICODE);
+        $json = json_encode($states, JSON_UNESCAPED_UNICODE);
         if ($json === false) {
             return false;
         }
@@ -681,7 +681,7 @@ class Repo
                     COUNT(v.id) AS vote_count
                FROM bookclub_poll_options o
                JOIN bookclub_books cb ON cb.id = o.club_book_id
-               JOIN libri l ON l.id = cb.libro_id
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN bookclub_votes v ON v.option_id = o.id
               WHERE o.poll_id = ?
               GROUP BY o.id, o.club_book_id, cb.state, cb.created_at, l.titolo, l.copertina_url, l.id
@@ -781,7 +781,7 @@ class Repo
                        (SELECT COUNT(*) FROM bookclub_meeting_rsvps r WHERE r.meeting_id = mt.id AND r.response = 'maybe') AS maybe_count
                   FROM bookclub_meetings mt
                   LEFT JOIN bookclub_books cb ON cb.id = mt.club_book_id
-                  LEFT JOIN libri l ON l.id = cb.libro_id";
+                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL";
 
     /** @return list<array<string, mixed>> */
     public function clubMeetings(int $clubId): array

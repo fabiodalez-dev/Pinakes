@@ -171,7 +171,7 @@ class GamificationModule extends AbstractModule
             return '';
         }
         $clubId = (int) $club['id'];
-        $userId = isset($ctx['userId']) && $ctx['userId'] !== null ? (int) $ctx['userId'] : null;
+        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : null;
 
         try {
             $gam = new GamificationRepo($this->db);

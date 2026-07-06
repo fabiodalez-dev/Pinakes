@@ -211,9 +211,7 @@ class ReviewsController
             if ($created) {
                 try {
                     $notifier = new \App\Support\NotificationService($this->db);
-                    if (method_exists($notifier, 'notifyNewReview')) {
-                        $notifier->notifyNewReview($reviewId);
-                    }
+                    $notifier->notifyNewReview($reviewId);
                 } catch (\Throwable $e) {
                     SecureLogger::warning('[MobileApi] notifyNewReview failed: ' . $e->getMessage());
                 }
@@ -393,7 +391,7 @@ class ReviewsController
         return [
             'id'         => (int) ($row['id'] ?? 0),
             'rating'     => (int) ($row['stelle'] ?? 0),
-            'text'       => isset($row['descrizione']) && $row['descrizione'] !== null && $row['descrizione'] !== ''
+            'text'       => isset($row['descrizione']) && $row['descrizione'] !== ''
                 ? (string) $row['descrizione'] : null,
             'user_name'  => (string) ($row['user_name'] ?? ''),
             'is_mine'    => $isMine,

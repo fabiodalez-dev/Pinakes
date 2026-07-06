@@ -13,7 +13,7 @@
  * @var list<array<string, mixed>> $sections
  * @var array<int, int> $sectionPassed          section_id → members past it
  * @var array<string, mixed>|null $myProgress
- * @var array{avg_percent: float, avg_percent_all: float, finished: int, readers: int, active_readers: int, members: int} $aggregate
+ * @var array<string, mixed> $aggregate
  * @var int $memberCount
  * @var array{type: string, message: string}|null $flash
  */

@@ -28,12 +28,19 @@ foreach ($topProposers as $proposer) {
     $maxProposer = max($maxProposer, (int) $proposer['n']);
 }
 ?>
-<div class="p-6 max-w-7xl mx-auto space-y-8">
+<div class="min-h-screen bg-gray-50 py-6">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
   <div class="flex flex-wrap items-center justify-between gap-3">
     <div>
-      <a href="<?= $e(url('/admin/book-club/' . $clubId)) ?>" class="text-sm text-gray-500 hover:text-gray-700">
-        <i class="fas fa-arrow-left mr-1"></i><?= $e($club['name']) ?>
-      </a>
+      <nav class="flex items-center text-sm text-gray-500 mb-2">
+        <a href="<?= $e(url('/admin/dashboard')) ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
+        <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+        <a href="<?= $e(url('/admin/book-club')) ?>" class="hover:text-gray-700"><?= $e(__('Book Club')) ?></a>
+        <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+        <a href="<?= $e(url('/admin/book-club/' . $clubId)) ?>" class="hover:text-gray-700"><?= $e($club['name']) ?></a>
+        <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+        <span class="text-gray-900 font-medium"><?= $e(__('Statistiche')) ?></span>
+      </nav>
       <h1 class="text-2xl font-bold text-gray-900 mt-2 flex items-center">
         <span class="inline-block w-4 h-4 rounded-full mr-3" style="background: <?= $e($club['color']) ?>"></span>
         <?= $e(__('Statistiche')) ?> — <?= $e($club['name']) ?>
@@ -55,19 +62,19 @@ foreach ($topProposers as $proposer) {
 
   <!-- Headline tiles -->
   <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <div class="bg-white rounded-xl shadow p-5 text-center">
+    <div class="bg-white rounded-xl border border-gray-200 shadow p-5 text-center">
       <div class="text-3xl font-bold text-gray-900"><?= (int) $finished ?></div>
       <div class="text-xs text-gray-400 mt-1"><i class="fas fa-flag-checkered mr-1"></i><?= $e(__('Libri conclusi')) ?></div>
     </div>
-    <div class="bg-white rounded-xl shadow p-5 text-center">
+    <div class="bg-white rounded-xl border border-gray-200 shadow p-5 text-center">
       <div class="text-3xl font-bold text-gray-900"><?= (int) $meetingsDone ?></div>
       <div class="text-xs text-gray-400 mt-1"><i class="fas fa-calendar-check mr-1"></i><?= $e(__('Incontri svolti')) ?></div>
     </div>
-    <div class="bg-white rounded-xl shadow p-5 text-center">
+    <div class="bg-white rounded-xl border border-gray-200 shadow p-5 text-center">
       <div class="text-3xl font-bold text-gray-900"><?= (int) $membersActive ?></div>
       <div class="text-xs text-gray-400 mt-1"><i class="fas fa-users mr-1"></i><?= $e(__('Membri attivi')) ?></div>
     </div>
-    <div class="bg-white rounded-xl shadow p-5 text-center">
+    <div class="bg-white rounded-xl border border-gray-200 shadow p-5 text-center">
       <div class="text-3xl font-bold text-gray-900">
         <?= $avgStars !== null ? $e(number_format($avgStars, 1)) . ' <i class="fas fa-star text-yellow-400 text-xl"></i>' : '—' ?>
       </div>
@@ -76,7 +83,7 @@ foreach ($topProposers as $proposer) {
   </div>
 
   <!-- Books per workflow state -->
-  <section class="bg-white rounded-xl shadow p-6">
+  <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= $e(__('Libri per stato')) ?></h2>
     <?php foreach ($stateRows as $row): ?>
       <div class="flex items-center gap-3 mb-2">
@@ -96,7 +103,7 @@ foreach ($topProposers as $proposer) {
   </section>
 
   <!-- Top proposers -->
-  <section class="bg-white rounded-xl shadow p-6">
+  <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= $e(__('Top proponenti')) ?></h2>
     <?php if ($topProposers === []): ?>
       <p class="text-sm text-gray-400"><?= $e(__('Nessun libro proposto finora.')) ?></p>
@@ -111,4 +118,5 @@ foreach ($topProposers as $proposer) {
       </div>
     <?php endforeach; ?>
   </section>
+</div>
 </div>

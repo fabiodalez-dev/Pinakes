@@ -154,7 +154,7 @@ class SurveyRepo
                (SELECT COUNT(*) FROM bookclub_survey_answers a WHERE a.survey_id = s.id) AS answer_count
           FROM bookclub_surveys s
           LEFT JOIN bookclub_books cb ON cb.id = s.club_book_id
-          LEFT JOIN libri l ON l.id = cb.libro_id";
+          LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL";
 
     /** @return list<array<string, mixed>> open first, then drafts, then closed */
     public function listSurveys(int $clubId, bool $includeDrafts): array

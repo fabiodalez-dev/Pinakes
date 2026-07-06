@@ -212,7 +212,7 @@ class ApiController extends BaseController
                         l.titolo AS book_title
                    FROM bookclub_meetings mt
                    LEFT JOIN bookclub_books cb ON cb.id = mt.club_book_id
-                   LEFT JOIN libri l ON l.id = cb.libro_id
+                   LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                   WHERE mt.club_id = ? AND mt.status = 'scheduled' AND mt.starts_at >= NOW()
                   ORDER BY mt.starts_at ASC",
                 'i',

@@ -143,7 +143,7 @@ class ChallengesModule extends AbstractModule
         if (empty($ctx['isMember'])) {
             return '';
         }
-        $userId = isset($ctx['userId']) && $ctx['userId'] !== null ? (int) $ctx['userId'] : null;
+        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : null;
         if ($userId === null) {
             return '';
         }

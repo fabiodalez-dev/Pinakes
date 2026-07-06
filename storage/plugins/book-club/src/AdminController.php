@@ -194,7 +194,8 @@ class AdminController extends BaseController
         $stmt->bind_param('ii', $roleId, $clubId);
         $row = null;
         if ($stmt->execute()) {
-            $row = $stmt->get_result()?->fetch_assoc() ?: null;
+            $res = $stmt->get_result();
+            $row = $res ? ($res->fetch_assoc() ?: null) : null;
         }
         $stmt->close();
         return $row;

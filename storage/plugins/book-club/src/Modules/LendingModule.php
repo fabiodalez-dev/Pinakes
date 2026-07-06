@@ -145,7 +145,7 @@ class LendingModule extends AbstractModule
         if (!$isMember && !$canManage) {
             return '';
         }
-        $userId = isset($ctx['userId']) && $ctx['userId'] !== null ? (int) $ctx['userId'] : 0;
+        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : 0;
 
         try {
             $lending = new LendingRepo($this->db);

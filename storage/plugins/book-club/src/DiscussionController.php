@@ -204,7 +204,7 @@ class DiscussionController extends BaseController
             return false;
         }
         $class = 'App\\Plugins\\BookClub\\ReadingRepo';
-        if (!class_exists($class, false) || !method_exists($class, 'userPassedSection')) {
+        if (!class_exists($class, false)) {
             return false;
         }
         try {
@@ -290,9 +290,6 @@ class DiscussionController extends BaseController
         $tokens = [];
         foreach ($matches[1] as $token) {
             $tokens[mb_strtolower($token)] = true;
-        }
-        if ($tokens === []) {
-            return;
         }
         $seen = [];
         foreach ($this->discussions->activeMembers($clubId) as $member) {

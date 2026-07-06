@@ -12,11 +12,16 @@ $isEdit = $club !== null;
 $settings = $isEdit ? ($club['settings'] ?? []) : [];
 $action = $isEdit ? url('/admin/book-club/' . (int) $club['id'] . '/edit') : url('/admin/book-club/new');
 ?>
-<div class="p-6 max-w-3xl mx-auto">
+<div class="min-h-screen bg-gray-50 py-6">
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
   <div class="mb-6">
-    <a href="<?= $e(url('/admin/book-club')) ?>" class="text-sm text-gray-500 hover:text-gray-700">
-      <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Book Club')) ?>
-    </a>
+    <nav class="flex items-center text-sm text-gray-500 mb-2">
+      <a href="<?= $e(url('/admin/dashboard')) ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
+      <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+      <a href="<?= $e(url('/admin/book-club')) ?>" class="hover:text-gray-700"><?= $e(__('Book Club')) ?></a>
+      <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+      <span class="text-gray-900 font-medium"><?= $isEdit ? $e(__('Modifica club')) : $e(__('Nuovo club')) ?></span>
+    </nav>
     <h1 class="text-2xl font-bold text-gray-900 mt-2">
       <?= $isEdit ? $e(__('Modifica club')) : $e(__('Nuovo club')) ?>
     </h1>
@@ -28,7 +33,7 @@ $action = $isEdit ? url('/admin/book-club/' . (int) $club['id'] . '/edit') : url
     </div>
   <?php endif; ?>
 
-  <form method="post" action="<?= $e($action) ?>" class="bg-white rounded-xl shadow p-6 space-y-5">
+  <form method="post" action="<?= $e($action) ?>" class="bg-white rounded-xl border border-gray-200 shadow p-6 space-y-5">
     <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
     <div>
@@ -108,7 +113,7 @@ $action = $isEdit ? url('/admin/book-club/' . (int) $club['id'] . '/edit') : url
       <div class="flex items-center gap-3">
         <label class="text-sm text-gray-700"><?= $e(__('Massimo proposte aperte per membro')) ?></label>
         <input type="number" name="max_proposals_per_member" min="1" style="width:6rem"
-               value="<?= isset($settings['max_proposals_per_member']) && $settings['max_proposals_per_member'] !== null ? (int) $settings['max_proposals_per_member'] : '' ?>"
+               value="<?= isset($settings['max_proposals_per_member']) ? (int) $settings['max_proposals_per_member'] : '' ?>"
                placeholder="<?= $e(__('illimitato')) ?>"
                class="border border-gray-300 rounded-lg px-3 py-1.5">
       </div>
@@ -123,7 +128,7 @@ $action = $isEdit ? url('/admin/book-club/' . (int) $club['id'] . '/edit') : url
     </div>
 
     <div class="flex items-center justify-between pt-2">
-      <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+      <button type="submit" class="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg">
         <?= $isEdit ? $e(__('Salva modifiche')) : $e(__('Crea club')) ?>
       </button>
     </div>
@@ -136,4 +141,5 @@ $action = $isEdit ? url('/admin/book-club/' . (int) $club['id'] . '/edit') : url
       <button type="submit" class="text-sm text-red-600 hover:underline"><?= $e(__('Elimina club')) ?></button>
     </form>
   <?php endif; ?>
+</div>
 </div>

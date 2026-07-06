@@ -123,7 +123,7 @@ class BuddyModule extends AbstractModule
         }
         // Pairings are personal: the panel exists for active members only.
         $isMember = !empty($ctx['isMember']);
-        $userId = isset($ctx['userId']) && $ctx['userId'] !== null ? (int) $ctx['userId'] : null;
+        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : null;
         if (!$isMember || $userId === null) {
             return '';
         }

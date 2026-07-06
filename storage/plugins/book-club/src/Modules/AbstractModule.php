@@ -104,7 +104,8 @@ abstract class AbstractModule implements ModuleInterface
         }
         $stmt->bind_param('s', $table);
         $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         return (int) ($row['n'] ?? 0) > 0;
     }
@@ -120,7 +121,8 @@ abstract class AbstractModule implements ModuleInterface
         }
         $stmt->bind_param('ss', $table, $column);
         $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         return (int) ($row['n'] ?? 0) > 0;
     }

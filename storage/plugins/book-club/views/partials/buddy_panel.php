@@ -72,7 +72,7 @@ $statusMeta = [
                 <i class="fas fa-times"></i><?= $e(__('Rifiuta')) ?>
               </button>
             </form>
-          <?php elseif ($status === 'proposed' && $iProposed): ?>
+          <?php elseif ($status === 'proposed'): ?>
             <form method="post" action="<?= $e($base . '/' . $pairingId . '/decline') ?>"
                   onsubmit="return confirm('<?= $e(__('Ritirare questa proposta?')) ?>');">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">

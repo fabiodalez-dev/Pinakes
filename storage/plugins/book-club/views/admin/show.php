@@ -6,7 +6,7 @@
  * @var list<array{key: string, label: string, color: string, flags: array<string, bool>}> $states
  * @var list<array<string, mixed>> $members
  * @var list<array<string, mixed>> $roles
- * @var list<array<string, mixed>> $customRoles   governance module: custom club roles (id, slug, name)
+ * @var mixed $customRoles   governance module: custom club roles (id, slug, name)
  * @var bool $governanceEnabled                    governance module enabled for this club
  * @var list<array<string, mixed>> $books
  * @var list<array<string, mixed>> $polls
@@ -32,12 +32,17 @@ $statusLabels = [
     'banned' => __('Bandito'),
 ];
 ?>
-<div class="p-6 max-w-7xl mx-auto space-y-8">
+<div class="min-h-screen bg-gray-50 py-6">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
   <div class="flex items-center justify-between">
     <div>
-      <a href="<?= $e(url('/admin/book-club')) ?>" class="text-sm text-gray-500 hover:text-gray-700">
-        <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Book Club')) ?>
-      </a>
+      <nav class="flex items-center text-sm text-gray-500 mb-2">
+        <a href="<?= $e(url('/admin/dashboard')) ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
+        <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+        <a href="<?= $e(url('/admin/book-club')) ?>" class="hover:text-gray-700"><?= $e(__('Book Club')) ?></a>
+        <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+        <span class="text-gray-900 font-medium"><?= $e($club['name']) ?></span>
+      </nav>
       <h1 class="text-2xl font-bold text-gray-900 mt-2 flex items-center">
         <span class="inline-block w-4 h-4 rounded-full mr-3" style="background: <?= $e($club['color']) ?>"></span>
         <?= $e($club['name']) ?>
@@ -61,7 +66,7 @@ $statusLabels = [
   <?php endif; ?>
 
   <!-- Workflow editor -->
-  <section class="bg-white rounded-xl shadow p-6">
+  <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-1"><?= $e(__('Workflow del libro')) ?></h2>
     <p class="text-sm text-gray-500 mb-4"><?= $e(__('Stati ordinati che ogni libro attraversa. Il primo stato accoglie le proposte; il vincitore di una votazione avanza allo stato successivo.')) ?></p>
     <form method="post" action="<?= $e(url('/admin/book-club/' . $clubId . '/workflow')) ?>" id="bc-workflow-form">
@@ -94,7 +99,7 @@ $statusLabels = [
       </table>
       <div class="flex items-center gap-3 mt-4">
         <button type="button" id="bc-add-state" class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg"><i class="fas fa-plus mr-1"></i><?= $e(__('Aggiungi stato')) ?></button>
-        <button type="submit" class="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"><?= $e(__('Salva workflow')) ?></button>
+        <button type="submit" class="px-4 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 text-white rounded-lg"><?= $e(__('Salva workflow')) ?></button>
         <span class="text-xs text-gray-400"><?= $e(__('Attenzione: rinominare una chiave non migra i libri già in quello stato.')) ?></span>
       </div>
     </form>
@@ -123,7 +128,7 @@ $statusLabels = [
   </section>
 
   <!-- Members -->
-  <section class="bg-white rounded-xl shadow p-6">
+  <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
     <div class="flex items-center justify-between mb-4">
       <h2 class="text-lg font-semibold text-gray-900"><?= $e(__('Membri')) ?> (<?= count($members) ?>)</h2>
       <?php if ($governanceEnabled): ?>
@@ -146,7 +151,7 @@ $statusLabels = [
           <?php endforeach; ?>
         </select>
       </div>
-      <button type="submit" class="px-4 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg"><?= $e(__('Aggiungi membro')) ?></button>
+      <button type="submit" class="px-4 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 text-white rounded-lg"><?= $e(__('Aggiungi membro')) ?></button>
     </form>
     <table class="min-w-full text-sm">
       <thead>
@@ -201,7 +206,7 @@ $statusLabels = [
   </section>
 
   <!-- Books by state -->
-  <section class="bg-white rounded-xl shadow p-6">
+  <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
     <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= $e(__('Libri del club')) ?> (<?= count($books) ?>)</h2>
     <?php if (empty($books)): ?>
       <p class="text-gray-400 text-sm"><?= $e(__('Nessun libro: le proposte dei membri appariranno qui.')) ?></p>
@@ -229,7 +234,7 @@ $statusLabels = [
 
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
     <!-- Polls -->
-    <section class="bg-white rounded-xl shadow p-6">
+    <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
       <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= $e(__('Votazioni')) ?></h2>
       <?php if (empty($polls)): ?>
         <p class="text-gray-400 text-sm"><?= $e(__('Nessuna votazione.')) ?></p>
@@ -246,7 +251,7 @@ $statusLabels = [
     </section>
 
     <!-- Meetings -->
-    <section class="bg-white rounded-xl shadow p-6">
+    <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
       <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= $e(__('Incontri')) ?></h2>
       <?php if (empty($meetings)): ?>
         <p class="text-gray-400 text-sm"><?= $e(__('Nessun incontro.')) ?></p>
@@ -265,4 +270,5 @@ $statusLabels = [
       <?php endforeach; ?>
     </section>
   </div>
+</div>
 </div>

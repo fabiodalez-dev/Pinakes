@@ -15,14 +15,20 @@ $privacyLabels = [
     'hidden' => __('Nascosto'),
 ];
 ?>
-<div class="p-6 max-w-7xl mx-auto">
+<div class="min-h-screen bg-gray-50 py-6">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
   <div class="flex items-center justify-between mb-6">
     <div>
+      <nav class="flex items-center text-sm text-gray-500 mb-2">
+        <a href="<?= $e(url('/admin/dashboard')) ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
+        <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+        <span class="text-gray-900 font-medium"><?= $e(__('Book Club')) ?></span>
+      </nav>
       <h1 class="text-2xl font-bold text-gray-900"><?= $e(__('Book Club')) ?></h1>
       <p class="text-sm text-gray-500 mt-1"><?= $e(__('Gestione dei club di lettura')) ?></p>
     </div>
     <a href="<?= $e(url('/admin/book-club/new')) ?>"
-       class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+       class="inline-flex items-center px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white text-sm font-medium rounded-lg">
       <i class="fas fa-plus mr-2"></i><?= $e(__('Nuovo club')) ?>
     </a>
   </div>
@@ -33,7 +39,7 @@ $privacyLabels = [
     </div>
   <?php endif; ?>
 
-  <div class="bg-white rounded-xl shadow overflow-hidden">
+  <div class="bg-white rounded-xl border border-gray-200 shadow overflow-hidden">
     <table class="min-w-full divide-y divide-gray-200">
       <thead class="bg-gray-50">
         <tr>
@@ -78,4 +84,5 @@ $privacyLabels = [
       </tbody>
     </table>
   </div>
+</div>
 </div>

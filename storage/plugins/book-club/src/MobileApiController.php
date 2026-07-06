@@ -537,7 +537,8 @@ class MobileApiController extends BaseController
             }
             $stmt->bind_param('ii', $clubBookId, $userId);
             $stmt->execute();
-            $row = $stmt->get_result()?->fetch_assoc();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
             $stmt->close();
             if ($row === null || $row === false) {
                 return null;

@@ -200,7 +200,8 @@ class GovernanceController extends BaseController
         $stmt->bind_param('ii', $roleId, $clubId);
         $row = null;
         if ($stmt->execute()) {
-            $row = $stmt->get_result()?->fetch_assoc() ?: null;
+            $res = $stmt->get_result();
+            $row = $res ? ($res->fetch_assoc() ?: null) : null;
         }
         $stmt->close();
         return $row;
@@ -219,7 +220,8 @@ class GovernanceController extends BaseController
         $stmt->bind_param('ii', $roleId, $roleId);
         $n = 1;
         if ($stmt->execute()) {
-            $row = $stmt->get_result()?->fetch_assoc();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
             $n = (int) ($row['n'] ?? 1);
         }
         $stmt->close();
@@ -256,7 +258,8 @@ class GovernanceController extends BaseController
         $stmt->bind_param('is', $clubId, $slug);
         $taken = false;
         if ($stmt->execute()) {
-            $taken = $stmt->get_result()?->fetch_assoc() !== null;
+            $res = $stmt->get_result();
+            $taken = $res && $res->fetch_assoc() !== null;
         }
         $stmt->close();
         return $taken;

@@ -125,7 +125,7 @@ class DiscussionRepo
             'SELECT s.id, s.title, l.titolo AS book_title
                FROM bookclub_sections s
                JOIN bookclub_books cb ON cb.id = s.club_book_id
-               JOIN libri l ON l.id = cb.libro_id
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
               WHERE cb.club_id = ?
               ORDER BY l.titolo ASC, s.id ASC',
             'i',
@@ -191,7 +191,7 @@ class DiscussionRepo
                   FROM bookclub_threads t
                   LEFT JOIN utenti u ON u.id = t.created_by
                   LEFT JOIN bookclub_books cb ON cb.id = t.club_book_id
-                  LEFT JOIN libri l ON l.id = cb.libro_id" . $sectionJoin;
+                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL" . $sectionJoin;
     }
 
     /**

@@ -150,7 +150,8 @@ class VotingModule extends AbstractModule
         }
         $stmt->bind_param('ss', $table, $column);
         $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         return isset($row['COLUMN_TYPE']) ? (string) $row['COLUMN_TYPE'] : null;
     }

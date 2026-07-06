@@ -65,7 +65,8 @@ class AiService
             return null;
         }
         $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         $this->pluginId = isset($row['id']) ? (int) $row['id'] : null;
         return $this->pluginId;
@@ -265,7 +266,7 @@ class AiService
                FROM bookclub_ai_outputs o
                LEFT JOIN utenti u ON u.id = o.created_by
                LEFT JOIN bookclub_books cb ON o.kind = 'questions' AND cb.id = o.entity_id
-               LEFT JOIN libri l ON l.id = cb.libro_id
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN bookclub_meetings mt ON o.kind = 'minutes' AND mt.id = o.entity_id
               WHERE o.club_id = ?
               ORDER BY o.created_at DESC, o.id DESC
@@ -296,7 +297,8 @@ class AiService
         }
         $stmt->bind_param('ii', $clubId, $hours);
         $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         return (int) ($row['n'] ?? 0);
     }
@@ -347,7 +349,8 @@ class AiService
         }
         $stmt->bind_param('i', $libroId);
         $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         $plain = trim(html_entity_decode(strip_tags((string) ($row['descrizione'] ?? '')), ENT_QUOTES, 'UTF-8'));
         $plain = (string) preg_replace('/\s+/u', ' ', $plain);

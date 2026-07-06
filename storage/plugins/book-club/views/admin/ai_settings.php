@@ -17,11 +17,16 @@ declare(strict_types=1);
 
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 ?>
-<div class="p-6 max-w-3xl mx-auto">
+<div class="min-h-screen bg-gray-50 py-6">
+<div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
   <div class="mb-6">
-    <a href="<?= $e(url('/admin/book-club')) ?>" class="text-sm text-gray-500 hover:text-gray-700">
-      <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Book Club')) ?>
-    </a>
+    <nav class="flex items-center text-sm text-gray-500 mb-2">
+      <a href="<?= $e(url('/admin/dashboard')) ?>" class="hover:text-gray-700"><i class="fas fa-home"></i></a>
+      <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+      <a href="<?= $e(url('/admin/book-club')) ?>" class="hover:text-gray-700"><?= $e(__('Book Club')) ?></a>
+      <i class="fas fa-chevron-right mx-2 text-xs text-gray-400"></i>
+      <span class="text-gray-900 font-medium"><?= $e(__('Impostazioni assistente IA')) ?></span>
+    </nav>
     <h1 class="text-2xl font-bold text-gray-900 mt-2">
       <i class="fas fa-wand-magic-sparkles mr-2 text-gray-400"></i><?= $e(__('Impostazioni assistente IA')) ?>
     </h1>
@@ -41,7 +46,7 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
       <?= $e(__('Plugin Book Club non trovato nel registro dei plugin.')) ?>
     </div>
   <?php else: ?>
-    <form method="post" action="<?= $e(url('/admin/book-club/ai')) ?>" class="bg-white rounded-xl shadow p-6 space-y-5" autocomplete="off">
+    <form method="post" action="<?= $e(url('/admin/book-club/ai')) ?>" class="bg-white rounded-xl border border-gray-200 shadow p-6 space-y-5" autocomplete="off">
       <input type="hidden" name="csrf_token" value="<?= $e(\App\Support\Csrf::ensureToken()) ?>">
 
       <label class="flex items-start gap-3">
@@ -92,10 +97,11 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
         <p class="text-xs text-gray-400">
           <i class="fas fa-hand mr-1"></i><?= $e(__('Limite di sicurezza fisso: 20 generazioni per club nelle 24 ore.')) ?>
         </p>
-        <button type="submit" class="px-5 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
+        <button type="submit" class="px-5 py-2 text-sm bg-gray-800 hover:bg-gray-700 text-white rounded-lg">
           <i class="fas fa-save mr-1"></i><?= $e(__('Salva impostazioni')) ?>
         </button>
       </div>
     </form>
   <?php endif; ?>
+</div>
 </div>

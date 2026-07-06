@@ -250,7 +250,7 @@ class PollController extends BaseController
             if ($quorumPct !== null || $tiebreak !== 'oldest_proposal') {
                 $this->setPollExtras($pollId, $quorumPct, $tiebreak);
             }
-            if ($weightOwner !== null && $weightModerator !== null) {
+            if ($weightOwner !== null) {
                 $this->setPollWeights($pollId, $weightOwner, $weightModerator);
             }
             foreach ($books as $book) {
@@ -883,7 +883,7 @@ class PollController extends BaseController
      */
     private function quorumMissed(array $poll, int $round): bool
     {
-        $pct = isset($poll['quorum_pct']) && $poll['quorum_pct'] !== null ? (int) $poll['quorum_pct'] : 0;
+        $pct = isset($poll['quorum_pct']) ? (int) $poll['quorum_pct'] : 0;
         if ($pct <= 0) {
             return false;
         }
@@ -985,9 +985,10 @@ class PollController extends BaseController
         }
         $stmt->bind_param('i', $pollId);
         $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
-        return isset($row['r']) && $row['r'] !== null ? (int) $row['r'] : null;
+        return isset($row['r']) ? (int) $row['r'] : null;
     }
 
     /**
@@ -1129,7 +1130,8 @@ class PollController extends BaseController
         }
         $stmt->bind_param('ii', $pollId, $round);
         $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
         $stmt->close();
         return (int) ($row['n'] ?? 0);
     }

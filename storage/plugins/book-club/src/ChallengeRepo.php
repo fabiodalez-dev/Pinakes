@@ -292,7 +292,7 @@ class ChallengeRepo
                     'SELECT COALESCE(SUM(COALESCE(l.numero_pagine, ' . self::PAGES_FALLBACK . ')), 0) AS n
                        FROM bookclub_progress p
                        JOIN bookclub_books cb ON cb.id = p.club_book_id
-                       JOIN libri l ON l.id = cb.libro_id
+                       JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                       WHERE cb.club_id = ? AND p.user_id = ?
                         AND p.finished_at >= ? AND p.finished_at < ?',
                     'iiss',

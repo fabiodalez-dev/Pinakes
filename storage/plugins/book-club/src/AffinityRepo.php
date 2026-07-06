@@ -396,7 +396,7 @@ class AffinityRepo
             "SELECT pr.user_id, l.genere_id AS dim, COUNT(*) AS value
                FROM bookclub_progress pr
                JOIN bookclub_books cb ON cb.id = pr.club_book_id
-               JOIN libri l ON l.id = cb.libro_id
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
               WHERE cb.club_id = ? AND pr.finished_at IS NOT NULL AND l.genere_id IS NOT NULL
                 AND pr.user_id IN ($ph)
               GROUP BY pr.user_id, l.genere_id",

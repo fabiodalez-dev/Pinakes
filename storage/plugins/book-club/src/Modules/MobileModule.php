@@ -100,7 +100,8 @@ final class MobileModule extends AbstractModule
                 return false;
             }
             $stmt->execute();
-            $row = $stmt->get_result()?->fetch_assoc();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
             $stmt->close();
             return (int) ($row['is_active'] ?? 0) === 1;
         } catch (\Throwable $e) {
@@ -124,7 +125,8 @@ final class MobileModule extends AbstractModule
                 return false;
             }
             $stmt->execute();
-            $row = $stmt->get_result()?->fetch_assoc();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
             $stmt->close();
             return (string) ($row['setting_value'] ?? '0') === '1';
         } catch (\Throwable $e) {

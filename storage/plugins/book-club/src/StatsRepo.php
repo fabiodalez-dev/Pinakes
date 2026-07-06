@@ -590,7 +590,7 @@ class StatsRepo
                     TRIM(CONCAT(COALESCE(u.nome, ''), ' ', COALESCE(u.cognome, ''))) AS changed_by_name
                FROM bookclub_book_state_log sl
                JOIN bookclub_books cb ON cb.id = sl.club_book_id
-               JOIN libri l ON l.id = cb.libro_id
+               JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN utenti u ON u.id = sl.changed_by
               WHERE cb.club_id = ?
               ORDER BY sl.changed_at ASC, sl.id ASC",
@@ -607,7 +607,7 @@ class StatsRepo
                     p.created_at, p.closes_at, p.closed_at, lw.titolo AS winner_title
                FROM bookclub_polls p
                LEFT JOIN bookclub_books wb ON wb.id = p.winner_club_book_id
-               LEFT JOIN libri lw ON lw.id = wb.libro_id
+               LEFT JOIN libri lw ON lw.id = wb.libro_id AND lw.deleted_at IS NULL
               WHERE p.club_id = ?
               ORDER BY p.created_at ASC, p.id ASC',
             'i',

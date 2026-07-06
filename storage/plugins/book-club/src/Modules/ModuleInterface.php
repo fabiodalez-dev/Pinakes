@@ -40,7 +40,7 @@ interface ModuleInterface
      * Attach the module's Slim routes. Called once per request at
      * app.routes.register time, regardless of per-club enablement.
      *
-     * @param \Slim\App<\Psr\Container\ContainerInterface|null> $app
+     * @param \Slim\App $app
      */
     public function registerRoutes($app): void;
 

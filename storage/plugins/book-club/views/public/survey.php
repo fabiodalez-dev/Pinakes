@@ -363,7 +363,7 @@ $notYetOpen = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
             </div>
           </form>
         </section>
-      <?php elseif ($isMember && $myAnswer !== null): ?>
+      <?php elseif ($isMember): ?>
         <div class="bc-card bc-muted">
           <i class="fas fa-check-circle me-1" style="color:var(--success-color)"></i>
           <?= $e(__('Hai già risposto a questo questionario.')) ?>
@@ -371,7 +371,7 @@ $notYetOpen = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
             <?= $e(__('I risultati saranno visibili alla chiusura.')) ?>
           <?php endif; ?>
         </div>
-      <?php elseif (!$isMember && !$canManage): ?>
+      <?php elseif (!$canManage): ?>
         <p class="bc-muted mb-4"><?= $e(__('Solo i membri attivi del club possono rispondere ai questionari.')) ?></p>
       <?php endif; ?>
     <?php endif; ?>

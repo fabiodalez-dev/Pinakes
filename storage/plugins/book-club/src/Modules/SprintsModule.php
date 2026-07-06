@@ -143,7 +143,7 @@ class SprintsModule extends AbstractModule
             return '';
         }
         $isMember = !empty($ctx['isMember']);
-        $userId = isset($ctx['userId']) && $ctx['userId'] !== null ? (int) $ctx['userId'] : null;
+        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : null;
 
         try {
             $ext = new ExtensionsRepo($this->db);

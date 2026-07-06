@@ -158,7 +158,7 @@ class ReadingModule extends AbstractModule
             return '';
         }
 
-        $userId = isset($ctx['userId']) && $ctx['userId'] !== null ? (int) $ctx['userId'] : null;
+        $userId = isset($ctx['userId']) ? (int) $ctx['userId'] : null;
         $memberCount = $this->repo->countActiveMembers((int) $club['id']);
         $items = [];
         foreach ($books as $book) {

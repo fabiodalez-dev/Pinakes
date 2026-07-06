@@ -5,7 +5,7 @@
  * link to the full reading tracker page.
  *
  * @var array<string, mixed> $club
- * @var list<array{book: array<string, mixed>, mine: array<string, mixed>|null, aggregate: array{avg_percent: float, avg_percent_all: float, finished: int, readers: int, active_readers: int, members: int}}> $items
+ * @var list<array{book: array<string, mixed>, mine: array<string, mixed>|null, aggregate: array<string, mixed>}> $items
  * @var int $memberCount
  * @var bool $isMember
  */

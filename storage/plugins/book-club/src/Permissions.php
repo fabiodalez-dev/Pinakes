@@ -170,7 +170,8 @@ final class Permissions
         }
         $stmt->bind_param('i', $userId);
         if ($stmt->execute()) {
-            $row = $stmt->get_result()?->fetch_assoc();
+            $res = $stmt->get_result();
+            $row = $res ? $res->fetch_assoc() : null;
             $type = (string) ($row['tipo_utente'] ?? '');
         }
         $stmt->close();
@@ -197,7 +198,8 @@ final class Permissions
         $stmt->bind_param('ii', $clubId, $userId);
         $row = null;
         if ($stmt->execute()) {
-            $row = $stmt->get_result()?->fetch_assoc() ?: null;
+            $res = $stmt->get_result();
+            $row = $res ? ($res->fetch_assoc() ?: null) : null;
         }
         $stmt->close();
         return self::$memberCache[$key] = $row;
