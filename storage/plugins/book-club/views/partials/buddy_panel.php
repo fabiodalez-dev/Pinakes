@@ -19,70 +19,73 @@ $slug = (string) $club['slug'];
 $base = url('/book-club/' . $slug . '/buddy');
 
 $statusMeta = [
-    'proposed' => [__('In attesa'), 'bg-yellow-100 text-yellow-800'],
-    'active' => [__('Attiva'), 'bg-green-100 text-green-800'],
-    'done' => [__('Conclusa'), 'bg-gray-100 text-gray-600'],
+    'proposed' => [__('In attesa'), 'bc-badge-warn'],
+    'active' => [__('Attiva'), 'bc-badge-open'],
+    'done' => [__('Conclusa'), 'bc-badge-closed'],
 ];
 ?>
-<section class="bg-white rounded-xl shadow p-6">
-  <h2 class="text-lg font-semibold text-gray-900 mb-4"><i class="fas fa-user-friends mr-2 text-gray-400"></i><?= $e(__('Buddy Reading')) ?></h2>
+<section class="bc-card">
+  <div class="bc-section-header">
+    <i class="fas fa-user-friends"></i>
+    <h2><?= $e(__('Buddy Reading')) ?></h2>
+  </div>
 
   <?php if ($pairings === []): ?>
-    <p class="text-sm text-gray-400 mb-2"><?= $e(__('Nessuna lettura in coppia: proponine una a un altro membro!')) ?></p>
+    <p class="bc-muted mb-2"><?= $e(__('Nessuna lettura in coppia: proponine una a un altro membro!')) ?></p>
   <?php endif; ?>
 
   <?php foreach ($pairings as $pairing): ?>
     <?php
       $pairingId = (int) $pairing['id'];
       $status = (string) $pairing['status'];
-      [$statusLabel, $statusClass] = $statusMeta[$status] ?? [$status, 'bg-gray-100 text-gray-600'];
+      [$statusLabel, $statusClass] = $statusMeta[$status] ?? [$status, 'bc-badge-closed'];
       $iAmA = (int) $pairing['user_a'] === $userId;
       $partnerName = $iAmA ? (string) $pairing['name_b'] : (string) $pairing['name_a'];
       $iProposed = (int) $pairing['created_by'] === $userId;
     ?>
-    <div class="border rounded-lg px-4 py-3 mb-3">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-medium text-gray-900 truncate"><i class="fas fa-book mr-1 text-gray-300"></i><?= $e($pairing['book_title']) ?></span>
-            <span class="px-2 py-0.5 rounded-full text-xs font-medium <?= $statusClass ?>"><?= $e($statusLabel) ?></span>
+    <div class="border rounded-3 px-3 py-3 mb-3">
+      <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+        <div class="overflow-hidden">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="fw-semibold text-truncate"><i class="fas fa-book me-1 text-muted"></i><?= $e($pairing['book_title']) ?></span>
+            <span class="bc-badge <?= $statusClass ?>"><?= $e($statusLabel) ?></span>
           </div>
-          <div class="text-xs text-gray-400 mt-0.5">
-            <i class="far fa-user mr-1"></i><?= $e(sprintf(__('In coppia con %s'), $partnerName)) ?>
+          <div class="bc-muted small mt-1">
+            <i class="far fa-user me-1"></i><?= $e(sprintf(__('In coppia con %s'), $partnerName)) ?>
             <?php if ($status === 'proposed'): ?>
               · <?= $iProposed ? $e(__('proposta inviata')) : $e(__('ti ha invitato')) ?>
             <?php endif; ?>
           </div>
         </div>
 
-        <div class="flex items-center gap-2 shrink-0">
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
           <?php if ($status === 'proposed' && !$iProposed): ?>
             <form method="post" action="<?= $e($base . '/' . $pairingId . '/accept') ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <button type="submit" class="px-3 py-1.5 text-xs bg-gray-900 hover:bg-gray-700 text-white rounded-lg">
-                <i class="fas fa-check mr-1"></i><?= $e(__('Accetta')) ?>
+              <button type="submit" class="bc-btn bc-btn-sm">
+                <i class="fas fa-check"></i><?= $e(__('Accetta')) ?>
               </button>
             </form>
             <form method="post" action="<?= $e($base . '/' . $pairingId . '/decline') ?>">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <button type="submit" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg">
-                <i class="fas fa-times mr-1"></i><?= $e(__('Rifiuta')) ?>
+              <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
+                <i class="fas fa-times"></i><?= $e(__('Rifiuta')) ?>
               </button>
             </form>
           <?php elseif ($status === 'proposed' && $iProposed): ?>
             <form method="post" action="<?= $e($base . '/' . $pairingId . '/decline') ?>"
                   onsubmit="return confirm('<?= $e(__('Ritirare questa proposta?')) ?>');">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <button type="submit" class="text-xs text-red-500 hover:text-red-700 whitespace-nowrap">
-                <i class="fas fa-trash mr-1"></i><?= $e(__('Ritira')) ?>
+              <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
+                <i class="fas fa-trash"></i><?= $e(__('Ritira')) ?>
               </button>
             </form>
           <?php elseif ($status === 'active'): ?>
             <form method="post" action="<?= $e($base . '/' . $pairingId . '/done') ?>"
                   onsubmit="return confirm('<?= $e(__('Segnare questa lettura in coppia come conclusa?')) ?>');">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <button type="submit" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg">
-                <i class="fas fa-flag-checkered mr-1"></i><?= $e(__('Concludi')) ?>
+              <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
+                <i class="fas fa-flag-checkered"></i><?= $e(__('Concludi')) ?>
               </button>
             </form>
           <?php endif; ?>
@@ -92,31 +95,33 @@ $statusMeta = [
   <?php endforeach; ?>
 
   <?php if ($books !== [] && $partners !== []): ?>
-    <form method="post" action="<?= $e($base . '/propose') ?>" class="mt-4 border-t pt-4 grid grid-cols-1 sm:grid-cols-5 gap-3 items-end">
+    <form method="post" action="<?= $e($base . '/propose') ?>" class="mt-4 pt-4 border-top">
       <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-      <div class="sm:col-span-2">
-        <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Libro in lettura')) ?></label>
-        <select name="club_book_id" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
-          <?php foreach ($books as $book): ?>
-            <option value="<?= (int) $book['id'] ?>"><?= $e($book['titolo']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div class="sm:col-span-2">
-        <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Compagno di lettura')) ?></label>
-        <select name="partner_id" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
-          <?php foreach ($partners as $partner): ?>
-            <option value="<?= (int) $partner['user_id'] ?>"><?= $e($partner['name']) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <div>
-        <button type="submit" class="w-full px-4 py-2 bg-gray-900 hover:bg-gray-700 text-white text-sm rounded-lg">
-          <i class="fas fa-paper-plane mr-1"></i><?= $e(__('Proponi')) ?>
-        </button>
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-sm-5">
+          <label class="form-label bc-muted small fw-semibold mb-1"><?= $e(__('Libro in lettura')) ?></label>
+          <select name="club_book_id" required class="form-select">
+            <?php foreach ($books as $book): ?>
+              <option value="<?= (int) $book['id'] ?>"><?= $e($book['titolo']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-12 col-sm-5">
+          <label class="form-label bc-muted small fw-semibold mb-1"><?= $e(__('Compagno di lettura')) ?></label>
+          <select name="partner_id" required class="form-select">
+            <?php foreach ($partners as $partner): ?>
+              <option value="<?= (int) $partner['user_id'] ?>"><?= $e($partner['name']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+        <div class="col-12 col-sm-2">
+          <button type="submit" class="bc-btn w-100">
+            <i class="fas fa-paper-plane"></i><?= $e(__('Proponi')) ?>
+          </button>
+        </div>
       </div>
     </form>
   <?php elseif ($books === []): ?>
-    <p class="text-xs text-gray-400 mt-2"><?= $e(__('Nessun libro attualmente in lettura: la coppia si propone sui libri in corso.')) ?></p>
+    <p class="bc-muted small mt-2 mb-0"><?= $e(__('Nessun libro attualmente in lettura: la coppia si propone sui libri in corso.')) ?></p>
   <?php endif; ?>
 </section>

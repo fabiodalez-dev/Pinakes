@@ -36,19 +36,22 @@ $countdown = static function (int $seconds): string {
 };
 $now = time();
 ?>
-<section class="bg-white rounded-xl shadow p-6">
-  <div class="flex items-center justify-between mb-4">
-    <h2 class="text-lg font-semibold text-gray-900"><i class="fas fa-stopwatch mr-2 text-gray-400"></i><?= $e(__('Reading Sprint')) ?></h2>
-    <a href="<?= $e($base) ?>" class="text-xs text-blue-600 hover:underline whitespace-nowrap">
-      <?= $e(__('Tutti gli sprint')) ?> <i class="fas fa-arrow-right ml-1"></i>
+<section class="bc-card">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div class="bc-section-header mb-0">
+      <i class="fas fa-stopwatch"></i>
+      <h2><?= $e(__('Reading Sprint')) ?></h2>
+    </div>
+    <a href="<?= $e($base) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
+      <?= $e(__('Tutti gli sprint')) ?> <i class="fas fa-arrow-right"></i>
     </a>
   </div>
 
   <?php if ($next === null): ?>
-    <p class="text-sm text-gray-400">
+    <p class="bc-muted mb-0">
       <?= $e(__('Nessuno sprint in programma.')) ?>
       <?php if ($isMember): ?>
-        <a href="<?= $e($base) ?>" class="text-blue-600 hover:underline"><?= $e(__('Organizzane uno!')) ?></a>
+        <a href="<?= $e($base) ?>"><?= $e(__('Organizzane uno!')) ?></a>
       <?php endif; ?>
     </p>
   <?php else: ?>
@@ -56,34 +59,34 @@ $now = time();
       $startTs = (int) strtotime((string) $next['starts_at']);
       $endTs = $startTs + (int) $next['duration_min'] * 60;
     ?>
-    <div class="flex flex-wrap items-center justify-between gap-3">
-      <div class="min-w-0">
-        <div class="font-medium text-gray-900 truncate"><?= $e($next['title']) ?></div>
-        <div class="text-xs text-gray-400 mt-0.5">
-          <i class="far fa-clock mr-1"></i><?= $e(date('d/m/Y H:i', $startTs)) ?>
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div class="overflow-hidden">
+        <div class="fw-semibold text-truncate"><?= $e($next['title']) ?></div>
+        <div class="bc-muted small mt-1">
+          <i class="far fa-clock me-1"></i><?= $e(date('d/m/Y H:i', $startTs)) ?>
           · <?= $e(sprintf(__('%d minuti'), (int) $next['duration_min'])) ?>
           <?php if (!empty($next['book_title'])): ?>
-            · <i class="fas fa-book mr-1"></i><?= $e($next['book_title']) ?>
+            · <i class="fas fa-book me-1"></i><?= $e($next['book_title']) ?>
           <?php endif; ?>
           · <?= $e(sprintf(__('%d partecipanti'), (int) $next['participant_count'])) ?>
         </div>
         <?php if ($nextStatus === 'running'): ?>
-          <p class="text-sm text-green-700 mt-1"><i class="fas fa-book-open mr-1"></i><?= $e(sprintf(__('In corso — termina tra %s'), $countdown($endTs - $now))) ?></p>
+          <p class="small text-success fw-semibold mt-1 mb-0"><i class="fas fa-book-open me-1"></i><?= $e(sprintf(__('In corso — termina tra %s'), $countdown($endTs - $now))) ?></p>
         <?php else: ?>
-          <p class="text-sm text-blue-700 mt-1"><i class="fas fa-play mr-1"></i><?= $e(sprintf(__('Inizia tra %s'), $countdown($startTs - $now))) ?></p>
+          <p class="small fw-semibold mt-1 mb-0"><i class="fas fa-play me-1"></i><?= $e(sprintf(__('Inizia tra %s'), $countdown($startTs - $now))) ?></p>
         <?php endif; ?>
       </div>
 
       <?php if ($isMember && $nextStatus === 'scheduled'): ?>
         <?php if ($joined): ?>
-          <span class="px-3 py-1.5 text-xs bg-green-50 text-green-700 rounded-lg whitespace-nowrap">
-            <i class="fas fa-check mr-1"></i><?= $e(__('Sei iscritto')) ?>
+          <span class="bc-badge bc-badge-open text-nowrap">
+            <i class="fas fa-check"></i><?= $e(__('Sei iscritto')) ?>
           </span>
         <?php else: ?>
           <form method="post" action="<?= $e($base . '/' . (int) $next['id'] . '/join') ?>">
             <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-            <button type="submit" class="px-3 py-1.5 text-xs bg-gray-900 hover:bg-gray-700 text-white rounded-lg whitespace-nowrap">
-              <i class="fas fa-user-plus mr-1"></i><?= $e(__('Partecipa')) ?>
+            <button type="submit" class="bc-btn bc-btn-sm">
+              <i class="fas fa-user-plus"></i><?= $e(__('Partecipa')) ?>
             </button>
           </form>
         <?php endif; ?>

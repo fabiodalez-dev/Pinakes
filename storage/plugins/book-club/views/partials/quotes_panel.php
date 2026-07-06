@@ -13,31 +13,38 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
 ?>
-<section class="bg-white rounded-xl shadow p-6">
-  <div class="flex items-center justify-between mb-4">
-    <h2 class="text-lg font-semibold text-gray-900"><i class="fas fa-quote-left mr-2 text-gray-400"></i><?= $e(__('Citazioni recenti')) ?></h2>
-    <a class="text-sm text-blue-600 hover:underline whitespace-nowrap" href="<?= $e(url('/book-club/' . $slug . '/quotes')) ?>">
-      <?= $e(__('Tutte le citazioni')) ?> <i class="fas fa-arrow-right ml-1"></i>
+<section class="bc-card">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div class="bc-section-header mb-0">
+      <i class="fas fa-quote-left"></i>
+      <h2><?= $e(__('Citazioni recenti')) ?></h2>
+    </div>
+    <a class="bc-btn bc-btn-outline bc-btn-sm" href="<?= $e(url('/book-club/' . $slug . '/quotes')) ?>">
+      <?= $e(__('Tutte le citazioni')) ?> <i class="fas fa-arrow-right"></i>
     </a>
   </div>
 
   <?php if ($quotes === []): ?>
-    <p class="text-sm text-gray-400"><?= $e(__('Ancora nessuna citazione: aggiungi la prima!')) ?></p>
+    <p class="bc-muted mb-0"><?= $e(__('Ancora nessuna citazione: aggiungi la prima!')) ?></p>
   <?php endif; ?>
 
-  <?php foreach ($quotes as $quote): ?>
-    <?php $memberName = trim((string) $quote['member_nome'] . ' ' . (string) $quote['member_cognome']); ?>
-    <div class="border-t first:border-t-0 py-3">
-      <blockquote class="text-sm text-gray-700 italic border-l-2 pl-3" style="border-color: <?= $e($club['color']) ?>">
-        “<?= $e(mb_strlen((string) $quote['quote']) > 220 ? mb_substr((string) $quote['quote'], 0, 220) . '…' : (string) $quote['quote']) ?>”
-      </blockquote>
-      <div class="text-xs text-gray-400 mt-1.5">
-        <span class="font-medium text-gray-500"><?= $e($quote['titolo']) ?></span>
-        <?php if ($quote['page'] !== null): ?>
-          · <?= $e(sprintf(__('pag. %d'), (int) $quote['page'])) ?>
-        <?php endif; ?>
-        · <i class="far fa-user mr-0.5"></i><?= $e($memberName) ?>
+  <div>
+    <?php foreach ($quotes as $quote): ?>
+      <?php $memberName = trim((string) $quote['member_nome'] . ' ' . (string) $quote['member_cognome']); ?>
+      <div class="bc-list-item">
+        <div class="flex-grow-1 overflow-hidden">
+          <blockquote class="fst-italic ps-3 border-start border-3 mb-1" style="border-color: <?= $e($club['color']) ?> !important">
+            “<?= $e(mb_strlen((string) $quote['quote']) > 220 ? mb_substr((string) $quote['quote'], 0, 220) . '…' : (string) $quote['quote']) ?>”
+          </blockquote>
+          <div class="bc-muted small mt-1">
+            <span class="fw-semibold"><?= $e($quote['titolo']) ?></span>
+            <?php if ($quote['page'] !== null): ?>
+              · <?= $e(sprintf(__('pag. %d'), (int) $quote['page'])) ?>
+            <?php endif; ?>
+            · <i class="far fa-user me-1"></i><?= $e($memberName) ?>
+          </div>
+        </div>
       </div>
-    </div>
-  <?php endforeach; ?>
+    <?php endforeach; ?>
+  </div>
 </section>

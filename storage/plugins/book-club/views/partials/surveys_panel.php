@@ -17,16 +17,19 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 $slug = (string) $club['slug'];
 $base = url('/book-club/' . $slug . '/surveys');
 ?>
-<section class="bg-white rounded-xl shadow p-6">
-  <div class="flex items-center justify-between mb-4">
-    <h2 class="text-lg font-semibold text-gray-900"><i class="fas fa-clipboard-list mr-2 text-gray-400"></i><?= $e(__('Questionari')) ?></h2>
-    <a href="<?= $e($base) ?>" class="text-xs text-blue-600 hover:underline whitespace-nowrap">
-      <?= $e(__('Tutti i questionari')) ?> <i class="fas fa-arrow-right ml-1"></i>
+<section class="bc-card">
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+    <div class="bc-section-header mb-0">
+      <i class="fas fa-clipboard-list"></i>
+      <h2><?= $e(__('Questionari')) ?></h2>
+    </div>
+    <a href="<?= $e($base) ?>" class="bc-btn bc-btn-outline bc-btn-sm">
+      <?= $e(__('Tutti i questionari')) ?> <i class="fas fa-arrow-right"></i>
     </a>
   </div>
 
   <?php if ($open === []): ?>
-    <p class="text-sm text-gray-400"><?= $e(__('Nessun questionario aperto al momento.')) ?></p>
+    <p class="bc-muted mb-0"><?= $e(__('Nessun questionario aperto al momento.')) ?></p>
   <?php endif; ?>
 
   <?php foreach ($open as $survey): ?>
@@ -34,29 +37,29 @@ $base = url('/book-club/' . $slug . '/surveys');
       $answered = in_array((int) $survey['id'], $answeredIds, true);
       $scheduled = \App\Plugins\BookClub\SurveyRepo::notYetOpen($survey);
     ?>
-    <div class="border rounded-lg px-4 py-3 mb-3 last:mb-0 flex flex-wrap items-center justify-between gap-3">
+    <div class="border rounded-3 px-3 py-3 mb-3 d-flex flex-wrap align-items-center justify-content-between gap-3">
       <div>
-        <a href="<?= $e($base . '/' . (int) $survey['id']) ?>" class="font-medium text-gray-900 hover:text-blue-600"><?= $e($survey['title']) ?></a>
-        <div class="text-xs text-gray-400 mt-1 flex flex-wrap gap-x-4 gap-y-1">
-          <span><i class="fas fa-reply mr-1"></i><?= $e(sprintf(__('%d risposte'), (int) $survey['answer_count'])) ?></span>
+        <a href="<?= $e($base . '/' . (int) $survey['id']) ?>" class="fw-semibold"><?= $e($survey['title']) ?></a>
+        <div class="bc-muted small mt-1 d-flex flex-wrap gap-3">
+          <span><i class="fas fa-reply me-1"></i><?= $e(sprintf(__('%d risposte'), (int) $survey['answer_count'])) ?></span>
           <?php if ((int) $survey['anonymous'] === 1): ?>
-            <span><i class="fas fa-user-secret mr-1"></i><?= $e(__('Anonimo')) ?></span>
+            <span><i class="fas fa-user-secret me-1"></i><?= $e(__('Anonimo')) ?></span>
           <?php endif; ?>
           <?php if ($scheduled): ?>
-            <span><i class="far fa-clock mr-1"></i><?= $e(__('Apre il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['opens_at']))) ?></span>
+            <span><i class="far fa-clock me-1"></i><?= $e(__('Apre il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['opens_at']))) ?></span>
           <?php endif; ?>
           <?php if (!empty($survey['closes_at'])): ?>
-            <span><i class="far fa-clock mr-1"></i><?= $e(__('Chiude il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['closes_at']))) ?></span>
+            <span><i class="far fa-clock me-1"></i><?= $e(__('Chiude il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $survey['closes_at']))) ?></span>
           <?php endif; ?>
         </div>
       </div>
       <div>
         <?php if ($answered): ?>
-          <span class="inline-flex items-center px-3 py-1.5 text-xs bg-green-50 text-green-700 rounded-lg"><i class="fas fa-check mr-1"></i><?= $e(__('Hai già risposto')) ?></span>
+          <span class="bc-badge bc-badge-open"><i class="fas fa-check"></i><?= $e(__('Hai già risposto')) ?></span>
         <?php elseif ($scheduled): ?>
-          <span class="inline-flex items-center px-3 py-1.5 text-xs bg-blue-50 text-blue-700 rounded-lg"><i class="far fa-clock mr-1"></i><?= $e(__('Programmato')) ?></span>
+          <span class="bc-badge bc-badge-closed"><i class="far fa-clock"></i><?= $e(__('Programmato')) ?></span>
         <?php elseif ($isMember): ?>
-          <a href="<?= $e($base . '/' . (int) $survey['id']) ?>" class="inline-flex items-center px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg"><?= $e(__('Rispondi al questionario')) ?></a>
+          <a href="<?= $e($base . '/' . (int) $survey['id']) ?>" class="bc-btn bc-btn-sm"><?= $e(__('Rispondi al questionario')) ?></a>
         <?php endif; ?>
       </div>
     </div>

@@ -30,55 +30,58 @@ $channelLabels = [
     'both' => __('Email + in-app'),
 ];
 ?>
-<section class="bg-white rounded-xl shadow p-6">
-  <h2 class="text-lg font-semibold text-gray-900 mb-1"><i class="fas fa-robot mr-2 text-gray-400"></i><?= $e(__('Automazioni')) ?></h2>
-  <p class="text-sm text-gray-500 mb-4"><?= $e(__('Promemoria automatici inviati ai membri attivi dal cron di manutenzione. Ogni avviso parte una sola volta per libro o votazione.')) ?></p>
+<section class="bc-card">
+  <div class="bc-section-header mb-1">
+    <i class="fas fa-robot"></i>
+    <h2><?= $e(__('Automazioni')) ?></h2>
+  </div>
+  <p class="bc-muted mb-4"><?= $e(__('Promemoria automatici inviati ai membri attivi dal cron di manutenzione. Ogni avviso parte una sola volta per libro o votazione.')) ?></p>
 
   <form method="post" action="<?= $e(url('/book-club/' . $slug . '/automations')) ?>">
     <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-    <div class="space-y-3">
+    <div class="d-flex flex-column gap-3">
       <?php foreach ($rows as $trigger => $meta): ?>
         <?php
           $auto = $automations[$trigger] ?? ['channel' => 'email', 'offset_hours' => 24, 'is_active' => 0];
           $offset = max(1, min(168, (int) ($auto['offset_hours'] ?? 24)));
         ?>
-        <div class="border rounded-lg px-4 py-3">
-          <div class="flex flex-wrap items-center justify-between gap-3">
-            <label class="flex items-center text-sm font-medium text-gray-900 cursor-pointer">
-              <input type="checkbox" name="active[<?= $e($trigger) ?>]" value="1" class="mr-2 rounded"
+        <div class="border rounded-3 px-3 py-3">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+            <label class="d-flex align-items-center gap-2 fw-semibold mb-0" style="cursor: pointer">
+              <input type="checkbox" name="active[<?= $e($trigger) ?>]" value="1" class="form-check-input mt-0"
                      <?= (int) ($auto['is_active'] ?? 0) === 1 ? 'checked' : '' ?>>
-              <i class="fas <?= $e($meta['icon']) ?> mr-2 text-gray-400"></i><?= $e($meta['label']) ?>
+              <i class="fas <?= $e($meta['icon']) ?> text-muted"></i><?= $e($meta['label']) ?>
             </label>
-            <div class="flex items-center gap-2 text-sm">
-              <label class="text-xs text-gray-400"><?= $e(__('Anticipo (ore)')) ?></label>
+            <div class="d-flex align-items-center gap-2">
+              <label class="form-label bc-muted small mb-0"><?= $e(__('Anticipo (ore)')) ?></label>
               <input type="number" name="offset[<?= $e($trigger) ?>]" min="1" max="168" value="<?= $offset ?>"
-                     class="border border-gray-300 rounded-lg px-2 py-1 w-20 text-sm">
-              <select name="channel[<?= $e($trigger) ?>]" class="border border-gray-300 rounded-lg px-2 py-1 text-sm">
+                     class="form-control form-control-sm" style="width: 5.5rem">
+              <select name="channel[<?= $e($trigger) ?>]" class="form-select form-select-sm w-auto">
                 <?php foreach ($channelLabels as $value => $label): ?>
                   <option value="<?= $e($value) ?>" <?= ($auto['channel'] ?? 'email') === $value ? 'selected' : '' ?>><?= $e($label) ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
           </div>
-          <p class="text-xs text-gray-400 mt-1"><?= $e($meta['help']) ?></p>
+          <p class="bc-muted small mt-1 mb-0"><?= $e($meta['help']) ?></p>
         </div>
       <?php endforeach; ?>
 
       <!-- Informational: handled by the plugin core, not editable -->
-      <div class="border rounded-lg px-4 py-3 bg-gray-50">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <span class="flex items-center text-sm font-medium text-gray-500">
-            <i class="fas fa-calendar-check mr-2 text-gray-400"></i><?= $e(__('Promemoria incontro')) ?>
+      <div class="border rounded-3 px-3 py-3 bg-light">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+          <span class="d-flex align-items-center gap-2 fw-semibold text-muted">
+            <i class="fas fa-calendar-check"></i><?= $e(__('Promemoria incontro')) ?>
           </span>
-          <span class="text-xs text-gray-400">
-            <i class="fas fa-lock mr-1"></i><?= $e(__('24 ore prima · email · gestito dal sistema')) ?>
+          <span class="bc-muted small">
+            <i class="fas fa-lock me-1"></i><?= $e(__('24 ore prima · email · gestito dal sistema')) ?>
           </span>
         </div>
-        <p class="text-xs text-gray-400 mt-1"><?= $e(__('Il promemoria degli incontri è sempre attivo e viene inviato dal nucleo del plugin.')) ?></p>
+        <p class="bc-muted small mt-1 mb-0"><?= $e(__('Il promemoria degli incontri è sempre attivo e viene inviato dal nucleo del plugin.')) ?></p>
       </div>
     </div>
 
-    <button type="submit" class="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+    <button type="submit" class="bc-btn mt-4">
       <?= $e(__('Salva automazioni')) ?>
     </button>
   </form>

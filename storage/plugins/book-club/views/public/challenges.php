@@ -33,55 +33,85 @@ $metricLabels = [
 ];
 $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $current / max(1, $target) * 100));
 ?>
-<div class="max-w-4xl mx-auto px-4 py-10">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="text-sm text-gray-500 hover:text-gray-700">
-    <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Torna al club')) ?>
+<style>
+  .bc-card{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
+  .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
+  .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
+  .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
+  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:999px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:all .2s ease;white-space:nowrap}
+  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color);transform:translateY(-1px)}
+  .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent;transform:translateY(-1px)}
+  .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
+  .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
+  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem}
+  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:999px;font-size:.75rem;font-weight:600}
+  .bc-badge-open{background:rgba(16,185,129,.12);color:var(--success-color)}
+  .bc-badge-closed{background:var(--accent-color);color:var(--text-light)}
+  .bc-badge-warn{background:rgba(245,158,11,.14);color:#92400e}
+  .bc-muted{color:var(--text-light);font-size:.85rem}
+  .bc-hero{background:var(--primary-color);color:#fff;border-radius:22px;padding:clamp(1.75rem,4vw,2.5rem);margin-bottom:2rem}
+  .bc-hero h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;letter-spacing:-.03em;margin:0 0 .5rem;color:#fff}
+  .bc-hero p{opacity:.9;margin:0}
+  .bc-progress{height:8px;background:var(--accent-color);border-radius:999px;overflow:hidden}
+  .bc-progress>span{display:block;height:100%;border-radius:999px;background:var(--primary-color)}
+  .bc-list-item{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 0;border-top:1px solid var(--border-color)}
+  .bc-list-item:first-child{border-top:none}
+  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:8px;box-shadow:var(--card-shadow)}
+  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
+</style>
+<div class="container py-4">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none">
+    <i class="fas fa-arrow-left me-1"></i><?= $e(__('Torna al club')) ?>
   </a>
 
-  <div class="flex flex-wrap items-center justify-between gap-3 mt-4 mb-2">
-    <h1 class="text-2xl font-bold text-gray-900 flex items-center">
-      <span class="inline-block w-3 h-3 rounded-full mr-3" style="background: <?= $e($club['color']) ?>"></span>
-      <?= $e(__('Reading Challenge')) ?> <?= (int) $year ?> — <?= $e($club['name']) ?>
-    </h1>
-    <div class="flex flex-wrap items-center gap-1.5" aria-label="<?= $e(__('Anno')) ?>">
-      <span class="text-xs text-gray-400 mr-1"><?= $e(__('Anno')) ?>:</span>
+  <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mt-3 mb-2">
+    <div class="bc-section-header mb-0">
+      <span class="bc-chip" style="background: <?= $e($club['color']) ?>"></span>
+      <h1><?= $e(__('Reading Challenge')) ?> <?= (int) $year ?> — <?= $e($club['name']) ?></h1>
+    </div>
+    <div class="d-flex flex-wrap align-items-center gap-2" aria-label="<?= $e(__('Anno')) ?>">
+      <span class="bc-muted small me-1"><?= $e(__('Anno')) ?>:</span>
       <?php foreach ($years as $yearOption): ?>
         <a href="<?= $e($base . '?year=' . (int) $yearOption) ?>"
-           class="px-2.5 py-1 text-xs rounded-full <?= (int) $yearOption === (int) $year ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200' ?>">
+           class="bc-btn bc-btn-sm <?= (int) $yearOption === (int) $year ? '' : 'bc-btn-outline' ?>">
           <?= (int) $yearOption ?>
         </a>
       <?php endforeach; ?>
     </div>
   </div>
-  <p class="text-sm text-gray-500 mb-6">
+  <p class="bc-muted mb-4">
     <?= $e(__('L\'avanzamento è ricalcolato automaticamente dal tracker di lettura: contano i libri del club segnati come finiti nell\'anno.')) ?>
   </p>
 
   <?php if (!$isCurrentYear): ?>
-    <div class="mb-6 px-4 py-3 rounded-lg text-sm bg-gray-50 text-gray-600 border border-gray-200">
-      <i class="fas fa-box-archive mr-1"></i>
+    <div class="mb-4 p-3 border rounded-3 bc-muted">
+      <i class="fas fa-box-archive me-1"></i>
       <?= $e(sprintf(__('Stai consultando l\'archivio del %d: le sfide degli anni passati sono in sola lettura.'), (int) $year)) ?>
     </div>
   <?php endif; ?>
 
   <?php if (!empty($flash)): ?>
-    <div class="mb-6 px-4 py-3 rounded-lg text-sm <?= $flash['type'] === 'success' ? 'bg-green-50 text-green-800' : ($flash['type'] === 'warning' ? 'bg-yellow-50 text-yellow-800' : 'bg-red-50 text-red-800') ?>">
+    <div class="alert <?= $flash['type'] === 'success' ? 'alert-success' : ($flash['type'] === 'warning' ? 'alert-warning' : 'alert-danger') ?>">
       <?= $e($flash['message']) ?>
     </div>
   <?php endif; ?>
 
   <?php if (!$readingReady): ?>
-    <div class="mb-6 px-4 py-3 rounded-lg text-sm bg-yellow-50 text-yellow-800">
-      <i class="fas fa-triangle-exclamation mr-1"></i>
+    <div class="alert alert-warning">
+      <i class="fas fa-triangle-exclamation me-1"></i>
       <?= $e(__('Il modulo Lettura condivisa non è installato: l\'avanzamento delle sfide non può essere calcolato.')) ?>
     </div>
   <?php endif; ?>
 
   <!-- Club-wide challenges -->
-  <section class="bg-white rounded-xl shadow p-6 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4"><i class="fas fa-users mr-2 text-gray-400"></i><?= $e(__('Sfide del club')) ?></h2>
+  <section class="bc-card">
+    <div class="bc-section-header">
+      <i class="fas fa-users"></i>
+      <h2><?= $e(__('Sfide del club')) ?></h2>
+    </div>
     <?php if ($clubChallenges === []): ?>
-      <p class="text-sm text-gray-400"><?= $e(sprintf(__('Nessuna sfida di club per il %d.'), (int) $year)) ?></p>
+      <p class="bc-muted mb-0"><?= $e(sprintf(__('Nessuna sfida di club per il %d.'), (int) $year)) ?></p>
     <?php endif; ?>
     <?php foreach ($clubChallenges as $challenge): ?>
       <?php
@@ -91,11 +121,11 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
         $myShare = (int) ($mine[$challengeId] ?? 0);
         $percent = $pct($total, $target);
       ?>
-      <div class="border rounded-lg px-4 py-3 mb-3">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="font-medium text-gray-900 truncate"><?= $e($challenge['title']) ?></div>
-            <div class="text-xs text-gray-400 mt-0.5">
+      <div class="border rounded-3 p-3 mb-3">
+        <div class="d-flex align-items-start justify-content-between gap-3">
+          <div style="min-width:0">
+            <div class="fw-medium text-truncate"><?= $e($challenge['title']) ?></div>
+            <div class="bc-muted small mt-1">
               <?= $e($metricLabels[(string) $challenge['metric']] ?? (string) $challenge['metric']) ?>
               · <?= $e(__('Obiettivo')) ?>: <?= (int) $challenge['target'] ?>
               · <?= $e(sprintf(__('%d partecipanti'), (int) $challenge['participant_count'])) ?>
@@ -105,57 +135,55 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
             <form method="post" action="<?= $e($base . '/' . $challengeId . '/delete') ?>"
                   onsubmit="return confirm('<?= $e(__('Eliminare questa sfida?')) ?>');">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <button type="submit" class="text-xs text-red-500 hover:text-red-700 whitespace-nowrap">
-                <i class="fas fa-trash mr-1"></i><?= $e(__('Elimina')) ?>
+              <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
+                <i class="fas fa-trash"></i><?= $e(__('Elimina')) ?>
               </button>
             </form>
           <?php endif; ?>
         </div>
-        <div class="flex items-center justify-between text-xs text-gray-400 mt-2 mb-0.5">
+        <div class="d-flex align-items-center justify-content-between bc-muted small mt-2 mb-1">
           <span><?= $e(__('Avanzamento del club')) ?></span>
-          <span class="font-medium text-gray-600"><?= $total ?> / <?= $target ?></span>
+          <span class="fw-medium"><?= $total ?> / <?= $target ?></span>
         </div>
-        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div class="h-full rounded-full" style="width: <?= number_format($percent, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></div>
+        <div class="bc-progress">
+          <span style="width: <?= number_format($percent, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></span>
         </div>
-        <div class="flex items-center justify-between mt-1.5 text-xs text-gray-400">
+        <div class="d-flex align-items-center justify-content-between mt-1 bc-muted small">
           <?php if ($isMember): ?>
-            <span><?= $e(__('Il mio contributo')) ?>: <span class="font-medium text-gray-600"><?= $myShare ?></span></span>
+            <span><?= $e(__('Il mio contributo')) ?>: <span class="fw-medium"><?= $myShare ?></span></span>
           <?php else: ?>
             <span></span>
           <?php endif; ?>
           <?php if ($total >= $target): ?>
-            <span class="text-green-600 font-medium"><i class="fas fa-flag-checkered mr-1"></i><?= $e(__('Sfida completata!')) ?></span>
+            <span class="fw-medium" style="color:var(--success-color)"><i class="fas fa-flag-checkered me-1"></i><?= $e(__('Sfida completata!')) ?></span>
           <?php endif; ?>
         </div>
       </div>
     <?php endforeach; ?>
 
     <?php if ($canManage && $isCurrentYear): ?>
-      <form method="post" action="<?= $e($base) ?>" class="mt-4 border-t pt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+      <form method="post" action="<?= $e($base) ?>" class="row g-3 align-items-end mt-1 border-top pt-3">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <input type="hidden" name="scope" value="club">
-        <div class="sm:col-span-2">
-          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Titolo')) ?></label>
-          <input type="text" name="title" required maxlength="190"
-                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        <div class="col-12 col-md-6">
+          <label class="form-label small"><?= $e(__('Titolo')) ?></label>
+          <input type="text" name="title" required maxlength="190" class="form-control">
         </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Metrica')) ?></label>
-          <select name="metric" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        <div class="col-6 col-md-3">
+          <label class="form-label small"><?= $e(__('Metrica')) ?></label>
+          <select name="metric" class="form-select">
             <?php foreach ($metricLabels as $key => $label): ?>
               <option value="<?= $e($key) ?>"><?= $e($label) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Obiettivo annuale')) ?></label>
-          <input type="number" name="target" min="1" max="1000000" required
-                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        <div class="col-6 col-md-3">
+          <label class="form-label small"><?= $e(__('Obiettivo annuale')) ?></label>
+          <input type="number" name="target" min="1" max="1000000" required class="form-control">
         </div>
-        <div class="sm:col-span-4">
-          <button type="submit" class="px-4 py-2 text-sm bg-gray-900 hover:bg-gray-700 text-white rounded-lg">
-            <i class="fas fa-plus mr-1"></i><?= $e(__('Nuova sfida di club')) ?>
+        <div class="col-12">
+          <button type="submit" class="bc-btn">
+            <i class="fas fa-plus"></i><?= $e(__('Nuova sfida di club')) ?>
           </button>
         </div>
       </form>
@@ -163,10 +191,13 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
   </section>
 
   <!-- Personal challenges -->
-  <section class="bg-white rounded-xl shadow p-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4"><i class="fas fa-bullseye mr-2 text-gray-400"></i><?= $e(__('Sfide personali')) ?></h2>
+  <section class="bc-card">
+    <div class="bc-section-header">
+      <i class="fas fa-bullseye"></i>
+      <h2><?= $e(__('Sfide personali')) ?></h2>
+    </div>
     <?php if ($personalChallenges === []): ?>
-      <p class="text-sm text-gray-400"><?= $e(sprintf(__('Nessuna sfida personale per il %d.'), (int) $year)) ?></p>
+      <p class="bc-muted mb-0"><?= $e(sprintf(__('Nessuna sfida personale per il %d.'), (int) $year)) ?></p>
     <?php endif; ?>
     <?php foreach ($personalChallenges as $challenge): ?>
       <?php
@@ -176,16 +207,16 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
         $isOwn = $userId !== null && (int) $challenge['user_id'] === $userId;
         $percent = $pct($current, $target);
       ?>
-      <div class="border rounded-lg px-4 py-3 mb-3 <?= $isOwn ? 'ring-2 ring-blue-500 border-transparent' : '' ?>">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="font-medium text-gray-900 truncate">
+      <div class="border rounded-3 p-3 mb-3" <?= $isOwn ? 'style="border-color:var(--primary-color) !important;border-width:2px"' : '' ?>>
+        <div class="d-flex align-items-start justify-content-between gap-3">
+          <div style="min-width:0">
+            <div class="fw-medium text-truncate">
               <?= $e($challenge['title']) ?>
               <?php if ($isOwn): ?>
-                <span class="ml-1 inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-blue-100 text-blue-800"><?= $e(__('La tua sfida')) ?></span>
+                <span class="bc-badge ms-1" style="background:var(--accent-color);color:var(--primary-color)"><?= $e(__('La tua sfida')) ?></span>
               <?php endif; ?>
             </div>
-            <div class="text-xs text-gray-400 mt-0.5">
+            <div class="bc-muted small mt-1">
               <?= $e($challenge['owner_name']) ?>
               · <?= $e($metricLabels[(string) $challenge['metric']] ?? (string) $challenge['metric']) ?>
               · <?= $e(__('Obiettivo')) ?>: <?= (int) $challenge['target'] ?>
@@ -195,50 +226,48 @@ $pct = static fn(int $current, int $target): float => min(100.0, max(0.0, $curre
             <form method="post" action="<?= $e($base . '/' . $challengeId . '/delete') ?>"
                   onsubmit="return confirm('<?= $e(__('Eliminare questa sfida?')) ?>');">
               <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <button type="submit" class="text-xs text-red-500 hover:text-red-700 whitespace-nowrap">
-                <i class="fas fa-trash mr-1"></i><?= $e(__('Elimina')) ?>
+              <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
+                <i class="fas fa-trash"></i><?= $e(__('Elimina')) ?>
               </button>
             </form>
           <?php endif; ?>
         </div>
-        <div class="flex items-center justify-between text-xs text-gray-400 mt-2 mb-0.5">
+        <div class="d-flex align-items-center justify-content-between bc-muted small mt-2 mb-1">
           <span><?= $e(__('Avanzamento')) ?></span>
-          <span class="font-medium text-gray-600"><?= $current ?> / <?= $target ?></span>
+          <span class="fw-medium"><?= $current ?> / <?= $target ?></span>
         </div>
-        <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
-          <div class="h-full rounded-full <?= $isOwn ? 'bg-blue-600' : 'bg-gray-400' ?>" style="width: <?= number_format($percent, 1, '.', '') ?>%"></div>
+        <div class="bc-progress">
+          <span style="width: <?= number_format($percent, 1, '.', '') ?>%;<?= $isOwn ? '' : 'background:var(--text-muted)' ?>"></span>
         </div>
         <?php if ($current >= $target): ?>
-          <div class="text-right mt-1.5 text-xs text-green-600 font-medium"><i class="fas fa-flag-checkered mr-1"></i><?= $e(__('Sfida completata!')) ?></div>
+          <div class="text-end mt-1 small fw-medium" style="color:var(--success-color)"><i class="fas fa-flag-checkered me-1"></i><?= $e(__('Sfida completata!')) ?></div>
         <?php endif; ?>
       </div>
     <?php endforeach; ?>
 
     <?php if ($isMember && $isCurrentYear): ?>
-      <form method="post" action="<?= $e($base) ?>" class="mt-4 border-t pt-4 grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+      <form method="post" action="<?= $e($base) ?>" class="row g-3 align-items-end mt-1 border-top pt-3">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
         <input type="hidden" name="scope" value="personal">
-        <div class="sm:col-span-2">
-          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Titolo')) ?></label>
-          <input type="text" name="title" required maxlength="190" placeholder="<?= $e(__('Es. 12 libri in un anno')) ?>"
-                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        <div class="col-12 col-md-6">
+          <label class="form-label small"><?= $e(__('Titolo')) ?></label>
+          <input type="text" name="title" required maxlength="190" placeholder="<?= $e(__('Es. 12 libri in un anno')) ?>" class="form-control">
         </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Metrica')) ?></label>
-          <select name="metric" class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        <div class="col-6 col-md-3">
+          <label class="form-label small"><?= $e(__('Metrica')) ?></label>
+          <select name="metric" class="form-select">
             <?php foreach ($metricLabels as $key => $label): ?>
               <option value="<?= $e($key) ?>"><?= $e($label) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
-        <div>
-          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Obiettivo annuale')) ?></label>
-          <input type="number" name="target" min="1" max="1000000" required
-                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        <div class="col-6 col-md-3">
+          <label class="form-label small"><?= $e(__('Obiettivo annuale')) ?></label>
+          <input type="number" name="target" min="1" max="1000000" required class="form-control">
         </div>
-        <div class="sm:col-span-4">
-          <button type="submit" class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg">
-            <i class="fas fa-plus mr-1"></i><?= $e(__('Nuova sfida personale')) ?>
+        <div class="col-12">
+          <button type="submit" class="bc-btn">
+            <i class="fas fa-plus"></i><?= $e(__('Nuova sfida personale')) ?>
           </button>
         </div>
       </form>

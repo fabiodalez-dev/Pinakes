@@ -16,53 +16,90 @@ $privacyLabels = [
     'invite' => __('Su invito'),
 ];
 ?>
-<div class="max-w-6xl mx-auto px-4 py-10">
-  <div class="flex items-center justify-between mb-8">
-    <div>
-      <h1 class="text-3xl font-bold text-gray-900"><?= $e(__('Club di lettura')) ?></h1>
-      <p class="text-gray-500 mt-1"><?= $e(__('Leggi insieme: proposte, votazioni e incontri.')) ?></p>
+<style>
+  .bc-card{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
+  .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
+  .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
+  .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
+  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:999px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:all .2s ease;white-space:nowrap}
+  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color);transform:translateY(-1px)}
+  .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent;transform:translateY(-1px)}
+  .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
+  .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
+  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem}
+  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:999px;font-size:.75rem;font-weight:600}
+  .bc-badge-open{background:rgba(16,185,129,.12);color:var(--success-color)}
+  .bc-badge-closed{background:var(--accent-color);color:var(--text-light)}
+  .bc-badge-warn{background:rgba(245,158,11,.14);color:#92400e}
+  .bc-muted{color:var(--text-light);font-size:.85rem}
+  .bc-hero{background:var(--primary-color);color:#fff;border-radius:22px;padding:clamp(1.75rem,4vw,2.5rem);margin-bottom:2rem}
+  .bc-hero h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;letter-spacing:-.03em;margin:0 0 .5rem;color:#fff}
+  .bc-hero p{opacity:.9;margin:0}
+  .bc-progress{height:8px;background:var(--accent-color);border-radius:999px;overflow:hidden}
+  .bc-progress>span{display:block;height:100%;border-radius:999px;background:var(--primary-color)}
+  .bc-list-item{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 0;border-top:1px solid var(--border-color)}
+  .bc-list-item:first-child{border-top:none}
+  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:8px;box-shadow:var(--card-shadow)}
+  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
+</style>
+<style>
+  /* Page-local helpers (directory page only). */
+  .bc-club-card{display:block;position:relative;overflow:hidden;height:100%;color:inherit;text-decoration:none;transition:transform .2s ease,box-shadow .2s ease}
+  .bc-club-card:hover{transform:translateY(-4px);box-shadow:var(--card-shadow-hover);color:inherit}
+  .bc-club-card h2{font-size:1.1rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
+  .bc-club-accent{position:absolute;top:0;left:0;right:0;height:6px}
+  .bc-empty{text-align:center;padding:4rem 1rem;color:var(--text-light)}
+  .bc-empty i{display:block;font-size:2.5rem;margin-bottom:1rem}
+</style>
+<div class="container py-4">
+  <div class="bc-hero">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+      <div>
+        <h1><?= $e(__('Club di lettura')) ?></h1>
+        <p><?= $e(__('Leggi insieme: proposte, votazioni e incontri.')) ?></p>
+      </div>
+      <?php if ($loggedIn): ?>
+        <a href="<?= $e(url('/my/book-clubs')) ?>" class="bc-btn">
+          <i class="fas fa-book-reader"></i><?= $e(__('I miei club')) ?>
+        </a>
+      <?php endif; ?>
     </div>
-    <?php if ($loggedIn): ?>
-      <a href="<?= $e(url('/my/book-clubs')) ?>" class="inline-flex items-center px-4 py-2 bg-gray-900 hover:bg-gray-700 text-white text-sm font-medium rounded-lg">
-        <i class="fas fa-book-reader mr-2"></i><?= $e(__('I miei club')) ?>
-      </a>
-    <?php endif; ?>
   </div>
 
   <?php if (!empty($flash)): ?>
-    <div class="mb-6 px-4 py-3 rounded-lg text-sm <?= $flash['type'] === 'success' ? 'bg-green-50 text-green-800' : ($flash['type'] === 'warning' ? 'bg-yellow-50 text-yellow-800' : 'bg-red-50 text-red-800') ?>">
+    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : ($flash['type'] === 'warning' ? 'warning' : 'danger') ?>">
       <?= $e($flash['message']) ?>
     </div>
   <?php endif; ?>
 
   <?php if (empty($clubs)): ?>
-    <div class="text-center py-16 text-gray-400">
-      <i class="fas fa-book-open text-4xl mb-4"></i>
-      <p><?= $e(__('Nessun club di lettura attivo al momento.')) ?></p>
+    <div class="bc-empty">
+      <i class="fas fa-book-open"></i>
+      <p class="mb-0"><?= $e(__('Nessun club di lettura attivo al momento.')) ?></p>
     </div>
   <?php endif; ?>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <div class="row g-4">
     <?php foreach ($clubs as $club): ?>
-      <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>"
-         class="block bg-white rounded-xl shadow hover:shadow-md transition-shadow overflow-hidden">
-        <div class="h-2" style="background: <?= $e($club['color']) ?>"></div>
-        <div class="p-5">
-          <div class="flex items-center justify-between mb-2">
-            <h2 class="text-lg font-semibold text-gray-900"><?= $e($club['name']) ?></h2>
+      <div class="col-12 col-md-6 col-lg-4">
+        <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>" class="bc-card bc-club-card mb-0">
+          <span class="bc-club-accent" style="background: <?= $e($club['color']) ?>"></span>
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <h2><?= $e($club['name']) ?></h2>
             <?php if (isset($mine[(int) $club['id']])): ?>
-              <span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800">
+              <span class="bc-badge <?= $mine[(int) $club['id']] === 'active' ? 'bc-badge-open' : 'bc-badge-warn' ?>">
                 <?= $mine[(int) $club['id']] === 'active' ? $e(__('Membro')) : $e(__('In attesa')) ?>
               </span>
             <?php endif; ?>
           </div>
-          <p class="text-sm text-gray-500 line-clamp-3"><?= $e(mb_substr((string) ($club['description'] ?? ''), 0, 180)) ?></p>
-          <div class="flex items-center gap-4 mt-4 text-xs text-gray-400">
-            <span><i class="fas fa-users mr-1"></i><?= (int) $club['member_count'] ?><?= $club['max_members'] !== null ? '/' . (int) $club['max_members'] : '' ?></span>
-            <span><i class="fas fa-lock mr-1"></i><?= $e($privacyLabels[$club['privacy']] ?? $club['privacy']) ?></span>
+          <p class="bc-muted"><?= $e(mb_substr((string) ($club['description'] ?? ''), 0, 180)) ?></p>
+          <div class="d-flex align-items-center gap-3 bc-muted small mt-3">
+            <span><i class="fas fa-users me-1"></i><?= (int) $club['member_count'] ?><?= $club['max_members'] !== null ? '/' . (int) $club['max_members'] : '' ?></span>
+            <span><i class="fas fa-lock me-1"></i><?= $e($privacyLabels[$club['privacy']] ?? $club['privacy']) ?></span>
           </div>
-        </div>
-      </a>
+        </a>
+      </div>
     <?php endforeach; ?>
   </div>
 </div>

@@ -70,19 +70,52 @@ switch ($mode) {
 }
 $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
 ?>
-<div class="max-w-3xl mx-auto px-4 py-10">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="text-sm text-gray-500 hover:text-gray-700">
-    <i class="fas fa-arrow-left mr-1"></i><?= $e($club['name']) ?>
+<style>
+  .bc-card{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
+  .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
+  .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
+  .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
+  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:999px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:all .2s ease;white-space:nowrap}
+  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color);transform:translateY(-1px)}
+  .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent;transform:translateY(-1px)}
+  .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
+  .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
+  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem}
+  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:999px;font-size:.75rem;font-weight:600}
+  .bc-badge-open{background:rgba(16,185,129,.12);color:var(--success-color)}
+  .bc-badge-closed{background:var(--accent-color);color:var(--text-light)}
+  .bc-badge-warn{background:rgba(245,158,11,.14);color:#92400e}
+  .bc-muted{color:var(--text-light);font-size:.85rem}
+  .bc-hero{background:var(--primary-color);color:#fff;border-radius:22px;padding:clamp(1.75rem,4vw,2.5rem);margin-bottom:2rem}
+  .bc-hero h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;letter-spacing:-.03em;margin:0 0 .5rem;color:#fff}
+  .bc-hero p{opacity:.9;margin:0}
+  .bc-progress{height:8px;background:var(--accent-color);border-radius:999px;overflow:hidden}
+  .bc-progress>span{display:block;height:100%;border-radius:999px;background:var(--primary-color)}
+  .bc-list-item{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 0;border-top:1px solid var(--border-color)}
+  .bc-list-item:first-child{border-top:none}
+  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:8px;box-shadow:var(--card-shadow)}
+  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
+</style>
+<div class="container py-4">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none d-inline-flex align-items-center gap-2 mb-3">
+    <i class="fas fa-arrow-left"></i><?= $e($club['name']) ?>
   </a>
 
-  <div class="bg-white rounded-xl shadow p-6 mt-4">
-    <div class="flex items-start justify-between">
+  <?php if (!empty($flash)): ?>
+    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : ($flash['type'] === 'warning' ? 'warning' : 'danger') ?>">
+      <?= $e($flash['message']) ?>
+    </div>
+  <?php endif; ?>
+
+  <div class="bc-card">
+    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900"><?= $e($poll['title']) ?></h1>
+        <h1 class="h3 fw-bold mb-1"><?= $e($poll['title']) ?></h1>
         <?php if (!empty($poll['description'])): ?>
-          <p class="text-gray-500 mt-2 whitespace-pre-line"><?= $e($poll['description']) ?></p>
+          <p class="bc-muted mb-2" style="white-space: pre-line"><?= $e($poll['description']) ?></p>
         <?php endif; ?>
-        <div class="text-xs text-gray-400 mt-2">
+        <div class="bc-muted small">
           <?= $e($modeLine) ?>
           · <?= $poll['anonymity'] === 'secret' ? $e(__('voto segreto')) : $e(__('voto pubblico')) ?>
           <?php if (!empty($poll['quorum_pct'])): ?>
@@ -102,52 +135,46 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
             $weightOwner = isset($poll['weight_owner']) && is_numeric($poll['weight_owner']) ? (float) $poll['weight_owner'] : 2.0;
             $weightModerator = isset($poll['weight_moderator']) && is_numeric($poll['weight_moderator']) ? (float) $poll['weight_moderator'] : 1.5;
           ?>
-          <div class="text-xs text-gray-400 mt-1">
-            <i class="fas fa-balance-scale mr-1"></i><?= $e(sprintf(__('Pesi: fondatore ×%s · moderatore ×%s · membro ×1,0.'), $fmtWeight($weightOwner), $fmtWeight($weightModerator))) ?>
+          <div class="bc-muted small mt-1">
+            <i class="fas fa-balance-scale me-1"></i><?= $e(sprintf(__('Pesi: fondatore ×%s · moderatore ×%s · membro ×1,0.'), $fmtWeight($weightOwner), $fmtWeight($weightModerator))) ?>
           </div>
         <?php endif; ?>
       </div>
-      <span class="px-3 py-1 text-xs rounded-full <?= $isOpen ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-500' ?>">
+      <span class="bc-badge <?= $isOpen ? 'bc-badge-open' : 'bc-badge-closed' ?>">
         <?= $isOpen ? $e(__('Aperta')) : $e(__('Chiusa')) ?>
       </span>
     </div>
 
-    <?php if (!empty($flash)): ?>
-      <div class="mt-4 px-4 py-3 rounded-lg text-sm <?= $flash['type'] === 'success' ? 'bg-green-50 text-green-800' : ($flash['type'] === 'warning' ? 'bg-yellow-50 text-yellow-800' : 'bg-red-50 text-red-800') ?>">
-        <?= $e($flash['message']) ?>
-      </div>
-    <?php endif; ?>
-
     <?php if (!$isOpen && $poll['winner_club_book_id'] !== null): ?>
       <?php foreach ($options as $option): ?>
         <?php if ((int) $option['club_book_id'] === (int) $poll['winner_club_book_id']): ?>
-          <div class="mt-4 px-4 py-3 rounded-lg bg-blue-50 text-blue-900 text-sm">
-            <i class="fas fa-trophy mr-2"></i><?= $e(sprintf(__('Il club ha scelto: %s'), (string) $option['titolo'])) ?>
+          <div class="bc-card mt-4 mb-0" style="border-left: 4px solid var(--success-color)">
+            <i class="fas fa-trophy me-2" style="color: var(--success-color)"></i><?= $e(sprintf(__('Il club ha scelto: %s'), (string) $option['titolo'])) ?>
           </div>
         <?php endif; ?>
       <?php endforeach; ?>
     <?php endif; ?>
 
     <?php if (!$isOpen && $quorumFailed): ?>
-      <div class="mt-4 px-4 py-3 rounded-lg bg-yellow-50 text-yellow-900 text-sm">
-        <i class="fas fa-exclamation-triangle mr-2"></i><strong><?= $e(__('Quorum non raggiunto')) ?></strong>
+      <div class="alert alert-warning mt-4 mb-0">
+        <i class="fas fa-exclamation-triangle me-2"></i><strong><?= $e(__('Quorum non raggiunto')) ?></strong>
         — <?= $e(__('la votazione si è chiusa senza vincitore e le proposte tornano tra i libri proposti.')) ?>
       </div>
     <?php endif; ?>
 
     <?php if (!$isOpen && $adminTiedIds !== []): ?>
-      <div class="mt-4 px-4 py-3 rounded-lg bg-purple-50 text-purple-900 text-sm">
-        <i class="fas fa-gavel mr-2"></i><?= $e(__('Parità in testa: un moderatore deve proclamare il vincitore.')) ?>
+      <div class="bc-card mt-4 mb-0" style="border-left: 4px solid var(--warning-color)">
+        <i class="fas fa-gavel me-2" style="color: var(--warning-color)"></i><?= $e(__('Parità in testa: un moderatore deve proclamare il vincitore.')) ?>
         <?php if ($canClose): ?>
-          <div class="mt-3 space-y-2">
+          <div class="mt-3 d-flex flex-column gap-2">
             <?php foreach ($options as $option): ?>
               <?php if (!in_array((int) $option['id'], $adminTiedIds, true)) { continue; } ?>
               <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/pick-winner/' . (int) $option['id'])) ?>"
-                    class="flex items-center justify-between gap-3"
+                    class="d-flex align-items-center justify-content-between gap-3"
                     onsubmit="return confirm('<?= $e(__('Proclamare questo libro vincitore? Avanzerà nel workflow.')) ?>');">
                 <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-                <span class="font-medium"><?= $e($option['titolo']) ?></span>
-                <button type="submit" class="px-3 py-1 text-xs bg-purple-600 hover:bg-purple-700 text-white rounded-lg">
+                <span class="fw-semibold"><?= $e($option['titolo']) ?></span>
+                <button type="submit" class="bc-btn bc-btn-sm">
                   <?= $e(__('Proclama vincitore')) ?>
                 </button>
               </form>
@@ -157,7 +184,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
       </div>
     <?php endif; ?>
 
-    <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/vote')) ?>" class="mt-6 space-y-3">
+    <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/vote')) ?>" class="mt-4">
       <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
       <?php foreach ($options as $option): ?>
         <?php
@@ -167,12 +194,13 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
           $isWinner = !$isOpen && $poll['winner_club_book_id'] !== null && (int) $option['club_book_id'] === (int) $poll['winner_club_book_id'];
           $canBallot = $isOpen && $isMember && !$isEliminated;
         ?>
-        <label class="block border rounded-lg p-3 <?= $isWinner ? 'border-blue-300 bg-blue-50/40' : 'border-gray-200' ?> <?= $isEliminated ? 'opacity-50' : '' ?> <?= $canBallot && !in_array($mode, ['stars', 'ranking'], true) ? 'cursor-pointer hover:border-blue-300' : '' ?>">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
+        <label class="d-block border rounded-3 p-3 mb-2 <?= $isEliminated ? 'opacity-50' : '' ?>"
+               <?= $isWinner ? 'style="border-color: var(--success-color)"' : '' ?>>
+          <div class="d-flex align-items-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
               <?php if ($canBallot): ?>
                 <?php if ($mode === 'stars'): ?>
-                  <select name="stars[<?= $optId ?>]" class="border border-gray-300 rounded-lg px-1.5 py-1 text-sm"
+                  <select name="stars[<?= $optId ?>]" class="form-select form-select-sm w-auto"
                           title="<?= $e(__('Stelle (0 = nessun voto)')) ?>">
                     <?php $mine = isset($myVoteValues[$optId]) ? (int) $myVoteValues[$optId] : 0; ?>
                     <option value="0">–</option>
@@ -181,7 +209,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
                     <?php endfor; ?>
                   </select>
                 <?php elseif ($mode === 'ranking'): ?>
-                  <select name="ranks[<?= $optId ?>]" required class="border border-gray-300 rounded-lg px-1.5 py-1 text-sm"
+                  <select name="ranks[<?= $optId ?>]" required class="form-select form-select-sm w-auto"
                           title="<?= $e(__('Posizione in classifica (1 = preferito)')) ?>">
                     <?php $myRank = isset($myVoteValues[$optId]) ? $nOptions - (int) $myVoteValues[$optId] + 1 : 0; ?>
                     <option value=""><?= $e(__('Posizione')) ?></option>
@@ -191,60 +219,60 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
                   </select>
                 <?php elseif ($mode === 'elimination'): ?>
                   <input type="radio" name="options[]" value="<?= $optId ?>"
-                         <?= in_array($optId, $myVotes, true) ? 'checked' : '' ?> class="rounded">
+                         <?= in_array($optId, $myVotes, true) ? 'checked' : '' ?> class="form-check-input mt-0 flex-shrink-0">
                 <?php else: ?>
                   <input type="<?= $maxVotes > 1 ? 'checkbox' : 'radio' ?>" name="options[]" value="<?= $optId ?>"
-                         <?= in_array($optId, $myVotes, true) ? 'checked' : '' ?> class="rounded">
+                         <?= in_array($optId, $myVotes, true) ? 'checked' : '' ?> class="form-check-input mt-0 flex-shrink-0">
                 <?php endif; ?>
               <?php endif; ?>
               <?php if (!empty($option['copertina_url'])): ?>
-                <img src="<?= $e($option['copertina_url']) ?>" alt="" class="w-8 h-12 object-cover rounded shadow-sm" loading="lazy">
+                <img src="<?= $e($option['copertina_url']) ?>" alt="" class="bc-cover flex-shrink-0" loading="lazy">
               <?php endif; ?>
               <div>
-                <div class="font-medium text-gray-900">
+                <div class="fw-semibold">
                   <?= $e($option['titolo']) ?><?= $isWinner ? ' 🏆' : '' ?>
                   <?php if ($isEliminated): ?>
-                    <span class="ml-2 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-500">
+                    <span class="bc-badge bc-badge-closed ms-2">
                       <?= $e(sprintf(__('Eliminato al turno %d'), (int) $eliminated[$optId])) ?>
                     </span>
                   <?php endif; ?>
                 </div>
-                <?php if (!empty($option['autori'])): ?><div class="text-sm text-gray-500"><?= $e($option['autori']) ?></div><?php endif; ?>
+                <?php if (!empty($option['autori'])): ?><div class="bc-muted"><?= $e($option['autori']) ?></div><?php endif; ?>
               </div>
             </div>
-            <div class="text-right text-sm text-gray-500 whitespace-nowrap">
+            <div class="text-end bc-muted text-nowrap">
               <?php if ($showScores): ?>
-                <div class="font-medium text-gray-700"><?= $e($fmtScore((float) $option['score'])) ?> <?= $e(__('punti')) ?></div>
+                <div class="fw-semibold" style="color: var(--text-color)"><?= $e($fmtScore((float) $option['score'])) ?> <?= $e(__('punti')) ?></div>
               <?php endif; ?>
               <?= (int) $option['vote_count'] ?> <?= $e(__n('voto', 'voti', (int) $option['vote_count'])) ?>
             </div>
           </div>
-          <div class="mt-2 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div class="h-full rounded-full" style="width: <?= number_format($pct, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></div>
+          <div class="bc-progress mt-2">
+            <span style="width: <?= number_format($pct, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></span>
           </div>
           <?php if (!empty($voters[$optId])): ?>
-            <div class="mt-1 text-xs text-gray-400"><?= $e(implode(', ', $voters[$optId])) ?></div>
+            <div class="bc-muted small mt-1"><?= $e(implode(', ', $voters[$optId])) ?></div>
           <?php endif; ?>
         </label>
       <?php endforeach; ?>
 
       <?php if ($isOpen && $isMember): ?>
-        <div class="flex items-center justify-between pt-2">
-          <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pt-2">
+          <button type="submit" class="bc-btn">
             <?= $myVotes === [] ? $e(__('Vota')) : $e(__('Aggiorna il mio voto')) ?>
           </button>
           <?php if ($mode === 'stars'): ?>
-            <span class="text-xs text-gray-400"><?= $e(__('Valuta da 1 a 5 stelle solo i libri che ti interessano.')) ?></span>
+            <span class="bc-muted small"><?= $e(__('Valuta da 1 a 5 stelle solo i libri che ti interessano.')) ?></span>
           <?php elseif ($mode === 'ranking'): ?>
-            <span class="text-xs text-gray-400"><?= $e(__('Assegna una posizione a ogni libro: 1 = preferito.')) ?></span>
+            <span class="bc-muted small"><?= $e(__('Assegna una posizione a ogni libro: 1 = preferito.')) ?></span>
           <?php elseif ($mode === 'elimination'): ?>
-            <span class="text-xs text-gray-400"><?= $e(sprintf(__('Un voto per turno: siamo al turno %d.'), $round)) ?></span>
+            <span class="bc-muted small"><?= $e(sprintf(__('Un voto per turno: siamo al turno %d.'), $round)) ?></span>
           <?php elseif ($maxVotes > 1): ?>
-            <span class="text-xs text-gray-400"><?= $e(sprintf(__('Puoi selezionare fino a %d libri.'), $maxVotes)) ?></span>
+            <span class="bc-muted small"><?= $e(sprintf(__('Puoi selezionare fino a %d libri.'), $maxVotes)) ?></span>
           <?php endif; ?>
         </div>
       <?php elseif ($isOpen && !$isMember): ?>
-        <p class="text-sm text-gray-400 pt-2"><?= $e(__('Solo i membri attivi del club possono votare.')) ?></p>
+        <p class="bc-muted pt-2 mb-0"><?= $e(__('Solo i membri attivi del club possono votare.')) ?></p>
       <?php endif; ?>
     </form>
 
@@ -255,10 +283,10 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
             ? __('Concludere il turno corrente? Il libro ultimo classificato sarà eliminato.')
             : __('Chiudere la votazione adesso? Il libro più votato avanzerà nel workflow.');
       ?>
-      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/close')) ?>" class="mt-6 border-t pt-4"
+      <form method="post" action="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'] . '/close')) ?>" class="mt-4 pt-3 border-top"
             onsubmit="return confirm('<?= $e($confirmMsg) ?>');">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-        <button type="submit" class="text-sm text-red-600 hover:underline">
+        <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm">
           <?= $isRoundClose ? $e(__('Concludi il turno')) : $e(__('Chiudi la votazione adesso')) ?>
         </button>
       </form>

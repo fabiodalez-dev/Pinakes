@@ -14,8 +14,11 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
 ?>
-<section class="bg-white rounded-xl shadow p-6">
-  <h2 class="text-lg font-semibold text-gray-900 mb-4"><i class="fas fa-book-open mr-2 text-gray-400"></i><?= $e(__('Lettura condivisa')) ?></h2>
+<section class="bc-card">
+  <div class="bc-section-header">
+    <i class="fas fa-book-open"></i>
+    <h2><?= $e(__('Lettura condivisa')) ?></h2>
+  </div>
   <?php foreach ($items as $item): ?>
     <?php
       $book = $item['book'];
@@ -25,40 +28,40 @@ $slug = (string) $club['slug'];
       $avgPercent = max(0.0, min(100.0, (float) ($aggregate['avg_percent_all'] ?? $aggregate['avg_percent'])));
       $readingUrl = url('/book-club/' . $slug . '/reading/' . (int) $book['id']);
     ?>
-    <div class="border rounded-lg px-4 py-3 mb-3">
-      <div class="flex items-start gap-3">
+    <div class="border rounded-3 px-3 py-3 mb-3">
+      <div class="d-flex align-items-start gap-3">
         <?php if (!empty($book['copertina_url'])): ?>
-          <img src="<?= $e($book['copertina_url']) ?>" alt="" class="w-10 h-14 object-cover rounded shadow-sm" loading="lazy">
+          <img src="<?= $e($book['copertina_url']) ?>" alt="" class="bc-cover flex-shrink-0" loading="lazy">
         <?php endif; ?>
-        <div class="flex-1 min-w-0">
-          <div class="font-medium text-gray-900"><?= $e($book['titolo']) ?></div>
-          <?php if (!empty($book['autori'])): ?><div class="text-sm text-gray-500"><?= $e($book['autori']) ?></div><?php endif; ?>
+        <div class="flex-grow-1 overflow-hidden">
+          <div class="fw-semibold"><?= $e($book['titolo']) ?></div>
+          <?php if (!empty($book['autori'])): ?><div class="bc-muted"><?= $e($book['autori']) ?></div><?php endif; ?>
 
           <?php if ($isMember): ?>
-            <div class="flex items-center justify-between text-xs text-gray-400 mt-2 mb-0.5">
+            <div class="d-flex align-items-center justify-content-between bc-muted small mt-2 mb-1">
               <span><?= $e(__('Il mio progresso')) ?></span>
-              <span class="font-medium text-gray-600"><?= $myPercent ?>%</span>
+              <span class="fw-semibold"><?= $myPercent ?>%</span>
             </div>
-            <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div class="h-full rounded-full bg-blue-600" style="width: <?= $myPercent ?>%"></div>
+            <div class="bc-progress">
+              <span style="width: <?= $myPercent ?>%"></span>
             </div>
           <?php endif; ?>
 
-          <div class="flex items-center justify-between text-xs text-gray-400 mt-2 mb-0.5">
+          <div class="d-flex align-items-center justify-content-between bc-muted small mt-2 mb-1">
             <span><?= $e(__('avanzamento medio del club')) ?></span>
-            <span class="font-medium text-gray-600"><?= number_format($avgPercent, 0) ?>%</span>
+            <span class="fw-semibold"><?= number_format($avgPercent, 0) ?>%</span>
           </div>
-          <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div class="h-full rounded-full" style="width: <?= number_format($avgPercent, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></div>
+          <div class="bc-progress">
+            <span style="width: <?= number_format($avgPercent, 1, '.', '') ?>%; background: <?= $e($club['color']) ?>"></span>
           </div>
 
-          <div class="flex items-center justify-between mt-2">
-            <span class="text-xs text-gray-400">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mt-2">
+            <span class="bc-muted small">
               <?= $e(sprintf(__('%1$d lettori su %2$d membri'), (int) ($aggregate['active_readers'] ?? 0), (int) ($aggregate['members'] ?? $memberCount))) ?>
               · <?= $e(sprintf(__('%1$d membri su %2$d hanno finito il libro'), (int) $aggregate['finished'], (int) $memberCount)) ?>
             </span>
-            <a href="<?= $e($readingUrl) ?>" class="text-xs text-blue-600 hover:underline whitespace-nowrap">
-              <?= $e(__('Apri il tracker di lettura')) ?> <i class="fas fa-arrow-right ml-1"></i>
+            <a href="<?= $e($readingUrl) ?>" class="small text-nowrap">
+              <?= $e(__('Apri il tracker di lettura')) ?> <i class="fas fa-arrow-right ms-1"></i>
             </a>
           </div>
         </div>

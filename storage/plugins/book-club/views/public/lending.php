@@ -31,11 +31,11 @@ $statusLabels = [
 ];
 $statusBadge = static function (string $status) use ($e, $statusLabels): string {
     $classes = match ($status) {
-        'offered' => 'bg-blue-50 text-blue-700',
-        'requested' => 'bg-amber-50 text-amber-700',
-        'active' => 'bg-green-50 text-green-700',
-        'returned' => 'bg-gray-100 text-gray-600',
-        default => 'bg-gray-100 text-gray-400',
+        'offered' => 'bc-badge-open',
+        'requested' => 'bc-badge-warn',
+        'active' => 'bc-badge-warn',
+        'returned' => 'bc-badge-closed',
+        default => 'bc-badge-closed',
     };
     $icon = match ($status) {
         'offered' => 'fa-hand-holding-heart',
@@ -44,48 +44,78 @@ $statusBadge = static function (string $status) use ($e, $statusLabels): string 
         'returned' => 'fa-check',
         default => 'fa-ban',
     };
-    return '<span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs whitespace-nowrap ' . $classes . '">'
-        . '<i class="fas ' . $icon . ' mr-1"></i>' . $e($statusLabels[$status] ?? $status) . '</span>';
+    return '<span class="bc-badge text-nowrap ' . $classes . '">'
+        . '<i class="fas ' . $icon . '"></i>' . $e($statusLabels[$status] ?? $status) . '</span>';
 };
 $formatDate = static fn(string $d): string => date('d/m/Y', (int) strtotime($d));
 $bookLine = static function (array $loan) use ($e): string {
-    $html = '<span class="font-medium text-gray-900">' . $e($loan['titolo']) . '</span>';
+    $html = '<span class="fw-semibold">' . $e($loan['titolo']) . '</span>';
     if (!empty($loan['autori'])) {
-        $html .= ' <span class="text-sm text-gray-500">— ' . $e($loan['autori']) . '</span>';
+        $html .= ' <span class="bc-muted">— ' . $e($loan['autori']) . '</span>';
     }
     return $html;
 };
 ?>
-<div class="max-w-4xl mx-auto px-4 py-10">
-  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="text-sm text-gray-500 hover:text-gray-700">
-    <i class="fas fa-arrow-left mr-1"></i><?= $e(__('Torna al club')) ?>
+<style>
+  .bc-card{background:var(--white);border-radius:20px;box-shadow:var(--card-shadow);padding:clamp(1.5rem,3vw,2rem);margin-bottom:1.5rem}
+  .bc-section-header{display:flex;align-items:center;gap:.75rem;margin-bottom:1.25rem}
+  .bc-section-header i{color:var(--primary-color);font-size:1.15rem}
+  .bc-section-header h2,.bc-section-header h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;margin:0;color:var(--text-color)}
+  .bc-btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.55rem 1.4rem;border-radius:999px;border:1.5px solid var(--button-color);background:var(--button-color);color:var(--button-text-color);font-weight:600;font-size:.9rem;cursor:pointer;text-decoration:none;transition:all .2s ease;white-space:nowrap}
+  .bc-btn:hover{background:var(--button-hover);border-color:var(--button-hover);color:var(--button-text-color);transform:translateY(-1px)}
+  .bc-btn-outline{background:transparent;color:var(--text-color);border:1px solid var(--border-color)}
+  .bc-btn-outline:hover{border-color:var(--primary-color);color:var(--primary-color);background:transparent;transform:translateY(-1px)}
+  .bc-btn-danger{background:transparent;border:1px solid var(--danger-color);color:var(--danger-color)}
+  .bc-btn-danger:hover{background:var(--danger-color);border-color:var(--danger-color);color:#fff}
+  .bc-btn-sm{padding:.3rem .9rem;font-size:.8rem}
+  .bc-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.25rem .75rem;border-radius:999px;font-size:.75rem;font-weight:600}
+  .bc-badge-open{background:rgba(16,185,129,.12);color:var(--success-color)}
+  .bc-badge-closed{background:var(--accent-color);color:var(--text-light)}
+  .bc-badge-warn{background:rgba(245,158,11,.14);color:#92400e}
+  .bc-muted{color:var(--text-light);font-size:.85rem}
+  .bc-hero{background:var(--primary-color);color:#fff;border-radius:22px;padding:clamp(1.75rem,4vw,2.5rem);margin-bottom:2rem}
+  .bc-hero h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;letter-spacing:-.03em;margin:0 0 .5rem;color:#fff}
+  .bc-hero p{opacity:.9;margin:0}
+  .bc-progress{height:8px;background:var(--accent-color);border-radius:999px;overflow:hidden}
+  .bc-progress>span{display:block;height:100%;border-radius:999px;background:var(--primary-color)}
+  .bc-list-item{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;padding:.9rem 0;border-top:1px solid var(--border-color)}
+  .bc-list-item:first-child{border-top:none}
+  .bc-cover{width:44px;height:64px;object-fit:cover;border-radius:8px;box-shadow:var(--card-shadow)}
+  .bc-chip{display:inline-block;width:.8rem;height:.8rem;border-radius:50%;flex:none}
+</style>
+<div class="container py-4">
+  <a href="<?= $e(url('/book-club/' . $slug)) ?>" class="bc-muted text-decoration-none d-inline-flex align-items-center gap-2 mb-3">
+    <i class="fas fa-arrow-left"></i><?= $e(__('Torna al club')) ?>
   </a>
 
-  <div class="flex flex-wrap items-center justify-between gap-3 mt-4 mb-2">
-    <h1 class="text-2xl font-bold text-gray-900 flex items-center">
-      <span class="inline-block w-3 h-3 rounded-full mr-3" style="background: <?= $e($club['color']) ?>"></span>
-      <?= $e(__('Prestito tra membri')) ?> — <?= $e($club['name']) ?>
+  <div class="bc-hero">
+    <h1 class="d-flex align-items-center gap-3">
+      <span class="bc-chip" style="background: <?= $e($club['color']) ?>"></span>
+      <span><?= $e(__('Prestito tra membri')) ?> — <?= $e($club['name']) ?></span>
     </h1>
+    <p><?= $e(__('Qui i membri si prestano le proprie copie personali: le copie della biblioteca si prenotano dalla scheda del libro.')) ?></p>
   </div>
-  <p class="text-sm text-gray-500 mb-6"><?= $e(__('Qui i membri si prestano le proprie copie personali: le copie della biblioteca si prenotano dalla scheda del libro.')) ?></p>
 
   <?php if (!empty($flash)): ?>
-    <div class="mb-6 px-4 py-3 rounded-lg text-sm <?= $flash['type'] === 'success' ? 'bg-green-50 text-green-800' : ($flash['type'] === 'warning' ? 'bg-yellow-50 text-yellow-800' : 'bg-red-50 text-red-800') ?>">
+    <div class="alert alert-<?= $flash['type'] === 'success' ? 'success' : ($flash['type'] === 'warning' ? 'warning' : 'danger') ?>">
       <?= $e($flash['message']) ?>
     </div>
   <?php endif; ?>
 
   <!-- Offer a personal copy -->
-  <section class="bg-white rounded-xl shadow p-6 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4"><i class="fas fa-hand-holding-heart mr-2 text-gray-400"></i><?= $e(__('Offri una tua copia')) ?></h2>
+  <section class="bc-card">
+    <div class="bc-section-header">
+      <i class="fas fa-hand-holding-heart"></i>
+      <h2><?= $e(__('Offri una tua copia')) ?></h2>
+    </div>
     <?php if ($books === []): ?>
-      <p class="text-sm text-gray-400"><?= $e(__('Nessun libro nel club: aggiungi prima un libro per offrirne una copia.')) ?></p>
+      <p class="bc-muted mb-0"><?= $e(__('Nessun libro nel club: aggiungi prima un libro per offrirne una copia.')) ?></p>
     <?php else: ?>
-      <form method="post" action="<?= $e($base . '/offer') ?>" class="grid grid-cols-1 sm:grid-cols-6 gap-3">
+      <form method="post" action="<?= $e($base . '/offer') ?>" class="row g-3">
         <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-        <div class="sm:col-span-6">
-          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Libro')) ?></label>
-          <select name="club_book_id" required class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        <div class="col-12">
+          <label class="form-label small fw-semibold"><?= $e(__('Libro')) ?></label>
+          <select name="club_book_id" required class="form-select">
             <?php foreach ($books as $book): ?>
               <option value="<?= (int) $book['id'] ?>">
                 <?= $e($book['titolo']) ?><?= !empty($book['autori']) ? ' — ' . $e($book['autori']) : '' ?>
@@ -93,15 +123,15 @@ $bookLine = static function (array $loan) use ($e): string {
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="sm:col-span-6">
-          <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Note sulla copia (facoltative)')) ?></label>
+        <div class="col-12">
+          <label class="form-label small fw-semibold"><?= $e(__('Note sulla copia (facoltative)')) ?></label>
           <input type="text" name="notes" maxlength="500"
                  placeholder="<?= $e(__('Es. edizione tascabile, qualche sottolineatura a matita…')) ?>"
-                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                 class="form-control">
         </div>
-        <div class="sm:col-span-6">
-          <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
-            <i class="fas fa-plus mr-1"></i><?= $e(__('Offri la copia')) ?>
+        <div class="col-12">
+          <button type="submit" class="bc-btn">
+            <i class="fas fa-plus"></i><?= $e(__('Offri la copia')) ?>
           </button>
         </div>
       </form>
@@ -109,48 +139,52 @@ $bookLine = static function (array $loan) use ($e): string {
   </section>
 
   <!-- Open offers -->
-  <section class="bg-white rounded-xl shadow p-6 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4"><i class="fas fa-book-open mr-2 text-gray-400"></i><?= $e(__('Copie offerte dai membri')) ?></h2>
+  <section class="bc-card">
+    <div class="bc-section-header">
+      <i class="fas fa-book-open"></i>
+      <h2><?= $e(__('Copie offerte dai membri')) ?></h2>
+    </div>
     <?php if ($openOffers === []): ?>
-      <p class="text-sm text-gray-400"><?= $e(__('Nessuna copia disponibile al momento.')) ?></p>
+      <p class="bc-muted mb-0"><?= $e(__('Nessuna copia disponibile al momento.')) ?></p>
     <?php endif; ?>
     <?php foreach ($openOffers as $offer): ?>
       <?php
         $lenderName = trim((string) $offer['lender_nome'] . ' ' . (string) $offer['lender_cognome']);
         $isMine = (int) $offer['lender_id'] === $userId;
       ?>
-      <div class="border-t first:border-t-0 py-4">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div><?= $bookLine($offer) ?></div>
-            <div class="text-xs text-gray-400 mt-1">
-              <i class="far fa-user mr-0.5"></i><?= $e(sprintf(__('Offerta da %s'), $lenderName)) ?>
-              · <?= $e($formatDate((string) $offer['offered_at'])) ?>
-            </div>
-            <?php if ((string) ($offer['notes'] ?? '') !== ''): ?>
-              <p class="text-sm text-gray-500 mt-1"><i class="far fa-sticky-note mr-1 text-gray-300"></i><?= $e($offer['notes']) ?></p>
-            <?php endif; ?>
+      <div class="bc-list-item flex-wrap">
+        <div class="flex-grow-1">
+          <div><?= $bookLine($offer) ?></div>
+          <div class="bc-muted mt-1">
+            <i class="far fa-user me-1"></i><?= $e(sprintf(__('Offerta da %s'), $lenderName)) ?>
+            · <?= $e($formatDate((string) $offer['offered_at'])) ?>
           </div>
-          <?php if ($isMine): ?>
-            <span class="text-xs text-gray-400"><?= $e(__('È una tua offerta')) ?></span>
-          <?php else: ?>
-            <form method="post" action="<?= $e($base . '/' . (int) $offer['id'] . '/request') ?>">
-              <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <button type="submit" class="px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg whitespace-nowrap">
-                <i class="fas fa-hand-paper mr-1"></i><?= $e(__('Richiedi in prestito')) ?>
-              </button>
-            </form>
+          <?php if ((string) ($offer['notes'] ?? '') !== ''): ?>
+            <p class="bc-muted mt-1 mb-0"><i class="far fa-sticky-note me-1"></i><?= $e($offer['notes']) ?></p>
           <?php endif; ?>
         </div>
+        <?php if ($isMine): ?>
+          <span class="bc-muted flex-shrink-0"><?= $e(__('È una tua offerta')) ?></span>
+        <?php else: ?>
+          <form method="post" action="<?= $e($base . '/' . (int) $offer['id'] . '/request') ?>" class="flex-shrink-0">
+            <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+            <button type="submit" class="bc-btn bc-btn-sm">
+              <i class="fas fa-hand-paper"></i><?= $e(__('Richiedi in prestito')) ?>
+            </button>
+          </form>
+        <?php endif; ?>
       </div>
     <?php endforeach; ?>
   </section>
 
   <!-- My offers -->
-  <section class="bg-white rounded-xl shadow p-6 mb-8">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4"><i class="fas fa-hand-holding mr-2 text-gray-400"></i><?= $e(__('Le mie offerte')) ?></h2>
+  <section class="bc-card">
+    <div class="bc-section-header">
+      <i class="fas fa-hand-holding"></i>
+      <h2><?= $e(__('Le mie offerte')) ?></h2>
+    </div>
     <?php if ($myOffers === []): ?>
-      <p class="text-sm text-gray-400"><?= $e(__('Non hai ancora offerto nessuna copia.')) ?></p>
+      <p class="bc-muted mb-0"><?= $e(__('Non hai ancora offerto nessuna copia.')) ?></p>
     <?php endif; ?>
     <?php foreach ($myOffers as $loan): ?>
       <?php
@@ -158,76 +192,77 @@ $bookLine = static function (array $loan) use ($e): string {
         $status = (string) $loan['status'];
         $borrowerName = trim((string) ($loan['borrower_nome'] ?? '') . ' ' . (string) ($loan['borrower_cognome'] ?? ''));
       ?>
-      <div class="border-t first:border-t-0 py-4">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div><?= $bookLine($loan) ?></div>
-            <div class="text-xs text-gray-400 mt-1">
-              <?= $e($formatDate((string) $loan['offered_at'])) ?>
-              <?php if ($status === 'requested' && $borrowerName !== ''): ?>
-                · <i class="far fa-user mr-0.5"></i><?= $e(sprintf(__('Richiesta da %s'), $borrowerName)) ?>
-              <?php elseif ($status === 'active' && $borrowerName !== ''): ?>
-                · <i class="far fa-user mr-0.5"></i><?= $e(sprintf(__('Prestata a %s'), $borrowerName)) ?>
-                <?php if (!empty($loan['due_on'])): ?>
-                  · <?= $e(sprintf(__('Da restituire entro il %s'), $formatDate((string) $loan['due_on']))) ?>
-                <?php endif; ?>
-              <?php elseif ($status === 'returned' && !empty($loan['returned_at'])): ?>
-                · <?= $e(sprintf(__('Restituita il %s'), $formatDate((string) $loan['returned_at']))) ?>
+      <div class="bc-list-item flex-wrap">
+        <div class="flex-grow-1">
+          <div><?= $bookLine($loan) ?></div>
+          <div class="bc-muted mt-1">
+            <?= $e($formatDate((string) $loan['offered_at'])) ?>
+            <?php if ($status === 'requested' && $borrowerName !== ''): ?>
+              · <i class="far fa-user me-1"></i><?= $e(sprintf(__('Richiesta da %s'), $borrowerName)) ?>
+            <?php elseif ($status === 'active' && $borrowerName !== ''): ?>
+              · <i class="far fa-user me-1"></i><?= $e(sprintf(__('Prestata a %s'), $borrowerName)) ?>
+              <?php if (!empty($loan['due_on'])): ?>
+                · <?= $e(sprintf(__('Da restituire entro il %s'), $formatDate((string) $loan['due_on']))) ?>
               <?php endif; ?>
-            </div>
-            <?php if ((string) ($loan['notes'] ?? '') !== ''): ?>
-              <p class="text-sm text-gray-500 mt-1"><i class="far fa-sticky-note mr-1 text-gray-300"></i><?= $e($loan['notes']) ?></p>
+            <?php elseif ($status === 'returned' && !empty($loan['returned_at'])): ?>
+              · <?= $e(sprintf(__('Restituita il %s'), $formatDate((string) $loan['returned_at']))) ?>
             <?php endif; ?>
           </div>
-          <?= $statusBadge($status) ?>
+          <?php if ((string) ($loan['notes'] ?? '') !== ''): ?>
+            <p class="bc-muted mt-1 mb-0"><i class="far fa-sticky-note me-1"></i><?= $e($loan['notes']) ?></p>
+          <?php endif; ?>
+
+          <?php if ($status === 'requested'): ?>
+            <div class="d-flex flex-wrap align-items-end gap-2 mt-3">
+              <form method="post" action="<?= $e($base . '/' . $lid . '/handover') ?>" class="d-flex flex-wrap align-items-end gap-2">
+                <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+                <div>
+                  <label class="form-label small fw-semibold"><?= $e(__('Data di riconsegna (facoltativa)')) ?></label>
+                  <input type="date" name="due_on" class="form-control form-control-sm">
+                </div>
+                <button type="submit" class="bc-btn bc-btn-sm">
+                  <i class="fas fa-handshake"></i><?= $e(__('Consegna la copia')) ?>
+                </button>
+              </form>
+              <form method="post" action="<?= $e($base . '/' . $lid . '/decline') ?>">
+                <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+                <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
+                  <?= $e(__('Rifiuta la richiesta')) ?>
+                </button>
+              </form>
+            </div>
+          <?php endif; ?>
+
+          <?php if ($status === 'active'): ?>
+            <form method="post" action="<?= $e($base . '/' . $lid . '/return') ?>" class="mt-3">
+              <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+              <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
+                <i class="fas fa-undo"></i><?= $e(__('Segna come restituita')) ?>
+              </button>
+            </form>
+          <?php endif; ?>
+
+          <?php if ($status === 'offered' || $status === 'requested'): ?>
+            <form method="post" action="<?= $e($base . '/' . $lid . '/cancel') ?>" class="mt-2"
+                  onsubmit="return confirm('<?= $e(__('Annullare questa offerta?')) ?>');">
+              <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+              <button type="submit" class="bc-btn bc-btn-danger bc-btn-sm"><?= $e(__('Annulla l\'offerta')) ?></button>
+            </form>
+          <?php endif; ?>
         </div>
-
-        <?php if ($status === 'requested'): ?>
-          <div class="flex flex-wrap items-end gap-2 mt-3">
-            <form method="post" action="<?= $e($base . '/' . $lid . '/handover') ?>" class="flex flex-wrap items-end gap-2">
-              <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1"><?= $e(__('Data di riconsegna (facoltativa)')) ?></label>
-                <input type="date" name="due_on" class="border border-gray-200 rounded-lg px-3 py-1.5 text-xs">
-              </div>
-              <button type="submit" class="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg">
-                <i class="fas fa-handshake mr-1"></i><?= $e(__('Consegna la copia')) ?>
-              </button>
-            </form>
-            <form method="post" action="<?= $e($base . '/' . $lid . '/decline') ?>">
-              <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-              <button type="submit" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg">
-                <?= $e(__('Rifiuta la richiesta')) ?>
-              </button>
-            </form>
-          </div>
-        <?php endif; ?>
-
-        <?php if ($status === 'active'): ?>
-          <form method="post" action="<?= $e($base . '/' . $lid . '/return') ?>" class="mt-3">
-            <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-            <button type="submit" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg">
-              <i class="fas fa-undo mr-1"></i><?= $e(__('Segna come restituita')) ?>
-            </button>
-          </form>
-        <?php endif; ?>
-
-        <?php if ($status === 'offered' || $status === 'requested'): ?>
-          <form method="post" action="<?= $e($base . '/' . $lid . '/cancel') ?>" class="mt-2"
-                onsubmit="return confirm('<?= $e(__('Annullare questa offerta?')) ?>');">
-            <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-            <button type="submit" class="px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded-lg"><?= $e(__('Annulla l\'offerta')) ?></button>
-          </form>
-        <?php endif; ?>
+        <?= $statusBadge($status) ?>
       </div>
     <?php endforeach; ?>
   </section>
 
   <!-- My borrowings -->
-  <section class="bg-white rounded-xl shadow p-6">
-    <h2 class="text-lg font-semibold text-gray-900 mb-4"><i class="fas fa-book-reader mr-2 text-gray-400"></i><?= $e(__('I miei prestiti ricevuti')) ?></h2>
+  <section class="bc-card">
+    <div class="bc-section-header">
+      <i class="fas fa-book-reader"></i>
+      <h2><?= $e(__('I miei prestiti ricevuti')) ?></h2>
+    </div>
     <?php if ($myBorrowings === []): ?>
-      <p class="text-sm text-gray-400"><?= $e(__('Non hai richiesto nessuna copia in prestito.')) ?></p>
+      <p class="bc-muted mb-0"><?= $e(__('Non hai richiesto nessuna copia in prestito.')) ?></p>
     <?php endif; ?>
     <?php foreach ($myBorrowings as $loan): ?>
       <?php
@@ -235,31 +270,29 @@ $bookLine = static function (array $loan) use ($e): string {
         $status = (string) $loan['status'];
         $lenderName = trim((string) $loan['lender_nome'] . ' ' . (string) $loan['lender_cognome']);
       ?>
-      <div class="border-t first:border-t-0 py-4">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div><?= $bookLine($loan) ?></div>
-            <div class="text-xs text-gray-400 mt-1">
-              <i class="far fa-user mr-0.5"></i><?= $e(sprintf(__('Prestata da %s'), $lenderName)) ?>
-              <?php if ($status === 'requested'): ?>
-                · <?= $e(__('In attesa della consegna')) ?>
-              <?php elseif ($status === 'active' && !empty($loan['due_on'])): ?>
-                · <?= $e(sprintf(__('Da restituire entro il %s'), $formatDate((string) $loan['due_on']))) ?>
-              <?php elseif ($status === 'returned' && !empty($loan['returned_at'])): ?>
-                · <?= $e(sprintf(__('Restituita il %s'), $formatDate((string) $loan['returned_at']))) ?>
-              <?php endif; ?>
-            </div>
+      <div class="bc-list-item flex-wrap">
+        <div class="flex-grow-1">
+          <div><?= $bookLine($loan) ?></div>
+          <div class="bc-muted mt-1">
+            <i class="far fa-user me-1"></i><?= $e(sprintf(__('Prestata da %s'), $lenderName)) ?>
+            <?php if ($status === 'requested'): ?>
+              · <?= $e(__('In attesa della consegna')) ?>
+            <?php elseif ($status === 'active' && !empty($loan['due_on'])): ?>
+              · <?= $e(sprintf(__('Da restituire entro il %s'), $formatDate((string) $loan['due_on']))) ?>
+            <?php elseif ($status === 'returned' && !empty($loan['returned_at'])): ?>
+              · <?= $e(sprintf(__('Restituita il %s'), $formatDate((string) $loan['returned_at']))) ?>
+            <?php endif; ?>
           </div>
-          <?= $statusBadge($status) ?>
+          <?php if ($status === 'active'): ?>
+            <form method="post" action="<?= $e($base . '/' . $lid . '/return') ?>" class="mt-3">
+              <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+              <button type="submit" class="bc-btn bc-btn-outline bc-btn-sm">
+                <i class="fas fa-undo"></i><?= $e(__('Segna come restituita')) ?>
+              </button>
+            </form>
+          <?php endif; ?>
         </div>
-        <?php if ($status === 'active'): ?>
-          <form method="post" action="<?= $e($base . '/' . $lid . '/return') ?>" class="mt-3">
-            <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
-            <button type="submit" class="px-3 py-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg">
-              <i class="fas fa-undo mr-1"></i><?= $e(__('Segna come restituita')) ?>
-            </button>
-          </form>
-        <?php endif; ?>
+        <?= $statusBadge($status) ?>
       </div>
     <?php endforeach; ?>
   </section>
