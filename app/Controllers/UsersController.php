@@ -93,15 +93,15 @@ class UsersController
         }
 
         // Validate input lengths
-        if (strlen($nome) > 100 || strlen($cognome) > 100) {
+        if (mb_strlen($nome) > 100 || mb_strlen($cognome) > 100) {
             return $response->withHeader('Location', url('/admin/users/create?error=name_too_long'))->withStatus(302);
         }
 
-        if (strlen($email) > 255) {
+        if (mb_strlen($email) > 255) {
             return $response->withHeader('Location', url('/admin/users/create?error=email_too_long'))->withStatus(302);
         }
 
-        if (strlen($telefono) > 20) {
+        if (mb_strlen($telefono) > 20) {
             return $response->withHeader('Location', url('/admin/users/create?error=phone_too_long'))->withStatus(302);
         }
 
@@ -370,11 +370,12 @@ class UsersController
             $newPassword = (string) $data['password'];
 
             // Validate password complexity (max 72 — bcrypt silently truncates beyond)
-            if (strlen($newPassword) < 8) {
+            if (mb_strlen($newPassword) < 8) {
                 $_SESSION['error_message'] = __('La password deve essere lunga almeno 8 caratteri.');
                 return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=password_too_short'))->withStatus(302);
             }
 
+            // bcrypt truncates at 72 BYTES, so this limit is deliberately byte-based.
             if (strlen($newPassword) > 72) {
                 $_SESSION['error_message'] = __('La password non può superare i 72 caratteri.');
                 return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=password_too_long'))->withStatus(302);

@@ -88,12 +88,15 @@ class RecensioniController
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        if (strlen($titolo) > 255) {
+        // mb_strlen: i limiti dei messaggi sono in caratteri, non in byte —
+        // con strlen() un titolo UTF-8 con accenti/emoji da meno di 255
+        // caratteri veniva rifiutato (es. 130 emoji = 520 byte).
+        if (mb_strlen($titolo) > 255) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('Titolo troppo lungo (max 255 caratteri)')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
 
-        if (strlen($descrizione) > 2000) {
+        if (mb_strlen($descrizione) > 2000) {
             $response->getBody()->write(json_encode(['success' => false, 'message' => __('Descrizione troppo lunga (max 2000 caratteri)')]));
             return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
         }
