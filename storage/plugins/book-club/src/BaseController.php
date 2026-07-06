@@ -88,6 +88,23 @@ abstract class BaseController
     }
 
     /**
+     * Granular permission check backed by the governance matrix
+     * (Permissions::can): Pinakes admin/staff always pass, system roles map
+     * to their fixed grants (owner/moderator → all), custom club roles use
+     * their permissions JSON. Falls back to canManage() if the Permissions
+     * class is unavailable (defensive: it ships with the plugin core).
+     *
+     * @param array<string, mixed> $club
+     */
+    protected function can(array $club, string $perm): bool
+    {
+        if (class_exists(Permissions::class)) {
+            return Permissions::can($this->db, $club, $this->userId(), $perm);
+        }
+        return $this->canManage($club);
+    }
+
+    /**
      * Whether the current visitor may see the club page at all. Hidden and
      * invite-only clubs are members-only; public/private club pages are
      * browsable by anyone (join is what privacy gates).

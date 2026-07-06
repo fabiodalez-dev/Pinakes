@@ -18,6 +18,7 @@ require_once __DIR__ . '/src/AdminController.php';
 require_once __DIR__ . '/src/PublicController.php';
 require_once __DIR__ . '/src/PollController.php';
 require_once __DIR__ . '/src/MeetingController.php';
+require_once __DIR__ . '/src/Permissions.php';
 require_once __DIR__ . '/src/Modules/ModuleInterface.php';
 require_once __DIR__ . '/src/Modules/AbstractModule.php';
 require_once __DIR__ . '/src/Modules/Registry.php';
@@ -92,6 +93,8 @@ class BookClubPlugin
             // reminders — drives poll auto-close + meeting reminders even on
             // installs whose only "cron" is the on-admin-login fallback.
             $this->registerHookInDb('maintenance.after_run', 'onMaintenanceTick', 10);
+            // Public quotes of the quotes module on the core book detail page.
+            $this->registerHookInDb('book.frontend.details', 'renderBookQuotes', 10);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -651,6 +654,37 @@ class BookClubPlugin
           </a>
 
         HTML;
+    }
+
+    // ------------------------------------------------------------------
+    // Book detail page (hook: book.frontend.details — action, echoes HTML)
+    // ------------------------------------------------------------------
+
+    /**
+     * Echo the club members' PUBLIC quotes for this book on the core book
+     * detail page (app/Views/frontend/book-detail.php fires the action with
+     * [$book, $bookId]). Delegates to the quotes module; a plain no-op when
+     * the module or its table is missing.
+     *
+     * @param array<string, mixed>|mixed $book
+     * @param mixed $bookId
+     */
+    public function renderBookQuotes($book = null, $bookId = null): void
+    {
+        $libroId = is_numeric($bookId) ? (int) $bookId : (int) (is_array($book) ? ($book['id'] ?? 0) : 0);
+        if ($libroId <= 0) {
+            return;
+        }
+        try {
+            foreach (Modules\Registry::all($this->db) as $module) {
+                if ($module->slug() === 'quotes' && method_exists($module, 'renderBookDetailQuotes')) {
+                    echo $module->renderBookDetailQuotes($libroId);
+                    return;
+                }
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] renderBookQuotes failed: ' . $e->getMessage());
+        }
     }
 
     // ------------------------------------------------------------------
