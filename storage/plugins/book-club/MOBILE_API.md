@@ -5,7 +5,11 @@ pensati per l'app Pinakes (Android/iOS). Richiedono il plugin **mobile-api**
 attivo: l'autenticazione è lo **stesso bearer token** che l'app ottiene da
 `POST /api/v1/auth/login` — nessun login aggiuntivo.
 
-Envelope (identico alle convenzioni mobile-api):
+Envelope — **ATTENZIONE: diverso dal core mobile-api.** Il core risponde
+`{"data": ..., "meta": {...}, "error": null}` (nessun campo `success`);
+il ponte book-club usa invece l'envelope seguente. Un client che parla con
+entrambe le superfici deve gestire le due forme (l'app Android lo fa con un
+parser dedicato, `BookClubEnvelope`):
 
 ```json
 200 → {"success": true,  "data": { ... }}

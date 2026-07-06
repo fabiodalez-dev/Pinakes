@@ -179,6 +179,27 @@ const ENDPOINTS = [
     { name: 'POST /me/push/subscribe',           method: 'POST',   path: '/me/push/subscribe',            auth: true,  kind: 'write2xx',
         body: () => ({ provider: 'unifiedpush', endpoint: 'https://example.com/idem-push', public_key: 'k', auth: 'a' }) },
     { name: 'DELETE /me/push/subscribe',         method: 'DELETE', path: '/me/push/subscribe',            auth: true,  kind: 'write2xx' /* unsubscribe is idempotent: both 2xx */ },
+
+    // ── Book Club bridge (/api/v1/bookclub, mounted by the book-club plugin) ──
+    // skipIf: the plugin is optional — rows only run when the bridge answers
+    // (probed in beforeAll via /bookclub/health) and the referenced data exists.
+    // The openapi guard stays coherent: the bridge documents itself through the
+    // 'mobile_api.openapi' filter only while active, so paths and rows
+    // appear/disappear together. Placeholders resolve from ctx like {bookId}.
+    { name: 'GET /bookclub/health',              method: 'GET',    path: '/bookclub/health',              auth: false, kind: 'doc',      skipIf: (c) => !c.bookclubActive },
+    { name: 'GET /bookclub/clubs',               method: 'GET',    path: '/bookclub/clubs',               auth: true,  kind: 'safeGet',  skipIf: (c) => !c.bookclubActive },
+    { name: 'GET /bookclub/clubs/{bookclubSlug}', method: 'GET',   path: '/bookclub/clubs/{bookclubSlug}', auth: true, kind: 'safeGet',  skipIf: (c) => !c.bookclubActive || !c.bookclubSlug },
+    { name: 'GET /bookclub/me/dashboard',        method: 'GET',    path: '/bookclub/me/dashboard',        auth: true,  kind: 'safeGet',  skipIf: (c) => !c.bookclubActive },
+    { name: 'POST /bookclub/clubs/{slug}/join',  method: 'POST',   path: '/bookclub/clubs/{bookclubSlug}/join', auth: true, kind: 'write2xx', skipIf: (c) => !c.bookclubActive || !c.bookclubSlug
+        /* re-join of an active member is a no-op 2xx */ },
+    { name: 'POST /bookclub/clubs/{slug}/proposals', method: 'POST', path: '/bookclub/clubs/{bookclubSlug}/proposals', auth: true, kind: 'conflict2', skipIf: (c) => !c.bookclubActive || !c.bookclubSlug || !c.bookId,
+        body: (c) => ({ libro_id: c.bookId }), firstAny: true /* proposing may be closed/duplicate -> 1st can be 4xx; 2nd identical must be >= 400 */ },
+    { name: 'POST /bookclub/clubs/{slug}/polls/{pollId}/vote', method: 'POST', path: '/bookclub/clubs/{bookclubSlug}/polls/{bookclubPollId}/vote', auth: true, kind: 'write2xx', skipIf: (c) => !c.bookclubActive || !c.bookclubPollId,
+        body: (c) => ({ options: [c.bookclubOptionId] }) /* re-vote replaces the ballot: both 2xx */ },
+    { name: 'POST /bookclub/clubs/{slug}/meetings/{meetingId}/rsvp', method: 'POST', path: '/bookclub/clubs/{bookclubSlug}/meetings/{bookclubMeetingId}/rsvp', auth: true, kind: 'write2xx', skipIf: (c) => !c.bookclubActive || !c.bookclubMeetingId,
+        body: () => ({ response: 'no' }) /* 'no' never hits seat gating: both 2xx */ },
+    { name: 'POST /bookclub/clubs/{slug}/books/{clubBookId}/progress', method: 'POST', path: '/bookclub/clubs/{bookclubSlug}/books/{bookclubClubBookId}/progress', auth: true, kind: 'write2xx', skipIf: (c) => !c.bookclubActive || !c.bookclubClubBookId,
+        body: () => ({ percent: 10 }) /* upsert: both 2xx */ },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -328,6 +349,35 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
                     SELECT ${ctx.userId}, ${ctx.bookId}, DATE_SUB(CURDATE(), INTERVAL 30 DAY), DATE_SUB(CURDATE(), INTERVAL 16 DAY), DATE_SUB(CURDATE(), INTERVAL 16 DAY), 'restituito', 0
                     WHERE NOT EXISTS (SELECT 1 FROM prestiti WHERE utente_id=${ctx.userId} AND libro_id=${ctx.bookId} AND stato='restituito')`);
         } catch {}
+
+        // ── Book Club bridge probe (optional plugin) ────────────────────────
+        // The bridge answers /bookclub/health only when both plugins are active.
+        // When it does, opportunistically pick existing club data and make the
+        // test user an active member so the write rows exercise real paths;
+        // every missing piece just skips its row (skipIf).
+        ctx.bookclubActive = false;
+        try {
+            const health = await call(request, 'GET', `${API}/bookclub/health`, {});
+            ctx.bookclubActive = health.status() === 200;
+        } catch {}
+        if (ctx.bookclubActive) {
+            try {
+                const club = dbScalar(`SELECT CONCAT(id, '|', slug) FROM bookclub_clubs WHERE privacy='public' AND is_active=1 ORDER BY id LIMIT 1`) || '';
+                const [clubId, slug] = club.split('|');
+                if (clubId && slug) {
+                    ctx.bookclubSlug = slug;
+                    // Membership is established by the join manifest row itself
+                    // (declaration order precedes the other write rows), through
+                    // the production join path — no raw INSERT with role ids.
+                    const poll = dbScalar(`SELECT CONCAT(p.id, '|', o.id) FROM bookclub_polls p JOIN bookclub_poll_options o ON o.poll_id=p.id
+                                           WHERE p.club_id=${clubId} AND p.status='open' AND p.mode IN ('simple','multi') ORDER BY p.id, o.id LIMIT 1`) || '';
+                    const [pollId, optionId] = poll.split('|');
+                    if (pollId) { ctx.bookclubPollId = pollId; ctx.bookclubOptionId = parseInt(optionId, 10); }
+                    ctx.bookclubMeetingId = dbScalar(`SELECT id FROM bookclub_meetings WHERE club_id=${clubId} AND status='scheduled' AND starts_at >= NOW() ORDER BY starts_at LIMIT 1`) || undefined;
+                    ctx.bookclubClubBookId = dbScalar(`SELECT id FROM bookclub_books WHERE club_id=${clubId} ORDER BY id LIMIT 1`) || undefined;
+                }
+            } catch {}
+        }
     });
 
     test.afterAll(async () => {
@@ -337,6 +387,10 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         try { dbExec(`DELETE FROM prenotazioni WHERE utente_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM recensioni WHERE utente_id=${ctx.userId}`); } catch {}
         try { dbExec(`DELETE FROM prestiti WHERE utente_id=${ctx.userId} AND stato='restituito' AND copia_id IS NULL`); } catch {}
+        try { dbExec(`DELETE FROM bookclub_progress WHERE user_id=${ctx.userId}`); } catch {}
+        try { dbExec(`DELETE FROM bookclub_votes WHERE user_id=${ctx.userId}`); } catch {}
+        try { dbExec(`DELETE FROM bookclub_meeting_rsvps WHERE user_id=${ctx.userId}`); } catch {}
+        try { dbExec(`DELETE FROM bookclub_members WHERE user_id=${ctx.userId}`); } catch {}
         // Only delete the account if THIS run created it.
         if (ctx.createdUser) {
             try { dbExec(`DELETE FROM utenti WHERE id=${ctx.userId}`); } catch {}
@@ -368,6 +422,9 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
     // Data-driven: two calls per endpoint, contract enforced by the shared runner.
     for (const e of ENDPOINTS) {
         test(`2× ${e.name} [${e.kind}]`, async ({ request }) => {
+            // Optional-plugin rows (book-club bridge) no-op when the plugin or
+            // the referenced data is absent on this instance.
+            test.skip(Boolean(e.skipIf && e.skipIf(ctx)), 'optional plugin/data not available on this instance');
             await runTwice(request, e, ctx);
         });
     }

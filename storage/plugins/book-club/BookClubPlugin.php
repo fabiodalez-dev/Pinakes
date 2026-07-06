@@ -103,6 +103,10 @@ class BookClubPlugin
             $this->registerHookInDb('maintenance.after_run', 'onMaintenanceTick', 10);
             // Public quotes of the quotes module on the core book detail page.
             $this->registerHookInDb('book.frontend.details', 'renderBookQuotes', 10);
+            // Documents the /api/v1/bookclub bridge inside mobile-api's
+            // /api/v1/openapi.json, so the add-endpoint => add-manifest-row
+            // guard sees the whole surface.
+            $this->registerHookInDb('mobile_api.openapi', 'extendMobileOpenApi', 10);
             $this->db->commit();
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -677,6 +681,18 @@ class BookClubPlugin
      * @param array<string, mixed>|mixed $book
      * @param mixed $bookId
      */
+    /**
+     * Filter target for mobile-api's 'mobile_api.openapi' hook: appends the
+     * /api/v1/bookclub bridge paths when the bridge is actually mounted.
+     *
+     * @param array<string, mixed> $doc
+     * @return array<string, mixed>
+     */
+    public function extendMobileOpenApi(array $doc): array
+    {
+        return \App\Plugins\BookClub\Modules\MobileModule::extendOpenApi($doc, $this->db);
+    }
+
     public function renderBookQuotes($book = null, $bookId = null): void
     {
         $libroId = is_numeric($bookId) ? (int) $bookId : (int) (is_array($book) ? ($book['id'] ?? 0) : 0);
