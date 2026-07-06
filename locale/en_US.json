@@ -6421,5 +6421,11 @@
   "Solo i membri attivi del club possono confermare la partecipazione.": "Only active club members can confirm attendance.",
   "Il modulo lettura non è attivo per questo club.": "The reading module is not enabled for this club.",
   "Incontro non trovato.": "Meeting not found.",
-  "Le sfide degli anni passati sono in archivio e non si possono eliminare.": "Past years' challenges are archived and cannot be deleted."
+  "Le sfide degli anni passati sono in archivio e non si possono eliminare.": "Past years' challenges are archived and cannot be deleted.",
+  "Disponibilità non disponibile.": "Availability information is unavailable.",
+  "Il testo della recensione non può superare %d caratteri.": "The review text cannot exceed %d characters.",
+  "La valutazione deve essere tra 1 e 5 stelle.": "The rating must be between 1 and 5 stars.",
+  "Nessuna recensione da eliminare.": "No review to delete.",
+  "Puoi recensire solo i titoli che hai preso in prestito.": "You can only review titles you have borrowed.",
+  "Testo della recensione non valido.": "Invalid review text."
 }
