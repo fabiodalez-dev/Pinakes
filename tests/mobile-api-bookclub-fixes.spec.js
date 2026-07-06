@@ -290,7 +290,8 @@ test.describe.serial('Mobile API contract fixes — E2E', () => {
         });
         expect(res.status()).toBe(403);
         const body = await res.json();
-        expect(body.success).toBe(false);
+        // Core mobile-api envelope: {data, meta, error} — no `success` field.
+        expect(body.data).toBeNull();
         expect(body.error.code).toBe('app_access_disabled');
     });
 
@@ -318,7 +319,8 @@ test.describe.serial('Mobile API contract fixes — E2E', () => {
         });
         expect(res.status()).toBe(200);
         const body = await res.json();
-        expect(body.success).toBe(true);
+        // Core mobile-api envelope: {data, meta, error} — no `success` field.
+        expect(body.error).toBeNull();
         expect(typeof body.data.token).toBe('string');
         token = body.data.token;
     });
