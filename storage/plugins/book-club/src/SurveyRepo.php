@@ -130,8 +130,12 @@ class SurveyRepo
     }
 
     /**
-     * Next stable question key ("q1", "q2", …). Keys never get reused after
-     * a delete, so stored answers can never point at the wrong question.
+     * Next question key ("q1", "q2", …), derived from the highest existing
+     * number. Deleting the highest-numbered question and adding a new one
+     * therefore REUSES that key — which is safe because the schema is only
+     * ever edited while the survey is in `draft` (see updateSchemaJson's
+     * `status = 'draft'` guard); answers are collected only after it goes
+     * `open`, so no stored answer can point at a since-reused key.
      *
      * @param list<array{key: string, type: string, label: string, options: list<string>, required: bool}> $schema
      */
