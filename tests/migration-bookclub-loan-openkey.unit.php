@@ -140,7 +140,11 @@ check(
     str_contains($src, "CONCAT(club_book_id, ':', lender_id)")
         && str_contains($src, "status IN ('offered','requested','active')")
         && str_contains($src, 'uq_bcmloan_open')
-        && str_contains($src, 'VIRTUAL')
+        // Anchor to the actual column definition (… END) VIRTUAL), not the word
+        // "VIRTUAL" anywhere — the module comment says "VIRTUAL, not STORED", so a
+        // bare str_contains would be a comment-only false green, symmetric with the
+        // negative STORED check below.
+        && preg_match('/END\)\s+VIRTUAL/', $src) === 1
         && !preg_match('/END\)\s+STORED/', $src),
     "LendingModule source defines the open_key expression + uq_bcmloan_open, and uses VIRTUAL (not STORED, which 1215s on the FK table)"
 );
