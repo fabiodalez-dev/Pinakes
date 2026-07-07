@@ -32,6 +32,10 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
           <?= __("Compila tutti i campi obbligatori prima di salvare.") ?>
         <?php elseif ($errorKey === 'email_exists'): ?>
           <?= __("Email già registrata") ?>
+        <?php elseif ($errorKey === 'cf_exists'): ?>
+          <?= __("Codice fiscale già registrato") ?>
+        <?php elseif ($errorKey === 'tessera_exists'): ?>
+          <?= __("Codice tessera già assegnato") ?>
         <?php elseif ($errorKey === 'db_error'): ?>
           <?= __("Impossibile aggiornare l'utente. Riprova più tardi.") ?>
         <?php elseif ($errorKey === 'csrf'): ?>

@@ -102,13 +102,18 @@ class UsersController
         }
 
         // Reject a duplicate email up front with a clear message instead of letting the
-        // INSERT trip the UNIQUE(email) constraint (which, with mysqli in exception mode,
-        // would surface as a 500).
-        $dupStmt = $db->prepare("SELECT id FROM utenti WHERE email = ? LIMIT 1");
-        $dupStmt->bind_param('s', $email);
-        $dupStmt->execute();
-        $emailTaken = $dupStmt->get_result()->num_rows > 0;
-        $dupStmt->close();
+        // INSERT trip the UNIQUE(email) constraint. The SELECT is wrapped too: mysqli is in
+        // exception mode, so even a read failure here would otherwise throw and 500.
+        try {
+            $dupStmt = $db->prepare("SELECT id FROM utenti WHERE email = ? LIMIT 1");
+            $dupStmt->bind_param('s', $email);
+            $dupStmt->execute();
+            $emailTaken = $dupStmt->get_result()->num_rows > 0;
+            $dupStmt->close();
+        } catch (\mysqli_sql_exception $e) {
+            \App\Support\SecureLogger::error('[Users] email lookup failed: ' . $e->getMessage());
+            return $response->withHeader('Location', url('/admin/users/create?error=db_error'))->withStatus(302);
+        }
         if ($emailTaken) {
             return $response->withHeader('Location', url('/admin/users/create?error=email_exists'))->withStatus(302);
         }
@@ -202,15 +207,15 @@ class UsersController
             $dataTokenReset
         );
 
-        // Exception mode: a failed INSERT throws. Catch the email UNIQUE violation (a race
-        // past the pre-check) as email_exists, everything else as a generic db_error — never
-        // a 500.
+        // Exception mode: a failed INSERT throws. Map a UNIQUE violation (1062) to the
+        // precise field that collided (email / codice_tessera / cod_fiscale) — the admin can
+        // input all three — everything else is a generic db_error, never a 500.
         try {
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
         } catch (\mysqli_sql_exception $e) {
-            $code = $e->getCode() === 1062 ? 'email_exists' : 'db_error';
-            if ($e->getCode() !== 1062) {
+            $code = \App\Support\UniqueViolation::errorCode($e);
+            if ($code === 'db_error') {
                 \App\Support\SecureLogger::error('[Users] create INSERT failed: ' . $e->getMessage());
             }
             return $response->withHeader('Location', url('/admin/users/create?error=' . $code))->withStatus(302);
@@ -323,12 +328,18 @@ class UsersController
         }
 
         // Reject an email already used by ANOTHER user with a clear message, rather than
-        // letting the UPDATE trip UNIQUE(email) and 500 under mysqli exception mode.
-        $dupStmt = $db->prepare("SELECT id FROM utenti WHERE email = ? AND id != ? LIMIT 1");
-        $dupStmt->bind_param('si', $email, $id);
-        $dupStmt->execute();
-        $emailTaken = $dupStmt->get_result()->num_rows > 0;
-        $dupStmt->close();
+        // letting the UPDATE trip UNIQUE(email). The SELECT is wrapped: mysqli exception mode
+        // would otherwise turn a read failure here into a 500.
+        try {
+            $dupStmt = $db->prepare("SELECT id FROM utenti WHERE email = ? AND id != ? LIMIT 1");
+            $dupStmt->bind_param('si', $email, $id);
+            $dupStmt->execute();
+            $emailTaken = $dupStmt->get_result()->num_rows > 0;
+            $dupStmt->close();
+        } catch (\mysqli_sql_exception $e) {
+            \App\Support\SecureLogger::error('[Users] email lookup failed for user ' . $id . ': ' . $e->getMessage());
+            return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=db_error'))->withStatus(302);
+        }
         if ($emailTaken) {
             return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=email_exists'))->withStatus(302);
         }
@@ -452,14 +463,14 @@ class UsersController
             $id
         );
 
-        // Exception mode: a failed UPDATE throws. Catch the email UNIQUE violation (a race
-        // past the pre-check) as email_exists, everything else as a generic db_error.
+        // Exception mode: a failed UPDATE throws. Map a UNIQUE violation (1062) to the precise
+        // field (email / codice_tessera / cod_fiscale); everything else is a generic db_error.
         try {
             $stmt->execute();
         } catch (\mysqli_sql_exception $e) {
             $stmt->close();
-            $code = $e->getCode() === 1062 ? 'email_exists' : 'db_error';
-            if ($e->getCode() !== 1062) {
+            $code = \App\Support\UniqueViolation::errorCode($e);
+            if ($code === 'db_error') {
                 \App\Support\SecureLogger::error('[Users] update failed for user ' . $id . ': ' . $e->getMessage());
             }
             return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=' . $code))->withStatus(302);

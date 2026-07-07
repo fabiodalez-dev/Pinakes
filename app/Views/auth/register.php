@@ -63,6 +63,8 @@ $registerRoute = route_path('register');
                   <?= __('Errore di sicurezza, riprova') ?>
                 <?php elseif ($_GET['error'] === 'email_exists'): ?>
                   <?= __('Email già registrata') ?>
+                <?php elseif ($_GET['error'] === 'cf_exists'): ?>
+                  <?= __('Codice fiscale già registrato') ?>
                 <?php elseif ($_GET['error'] === 'missing_fields'): ?>
                   <?= __('Compila tutti i campi richiesti') ?>
                 <?php elseif ($_GET['error'] === 'privacy_required'): ?>

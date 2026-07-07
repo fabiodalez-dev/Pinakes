@@ -18,6 +18,10 @@ $errorKey = (string)($_GET['error'] ?? '');
           <?= __("Compila tutti i campi obbligatori prima di salvare.") ?>
         <?php elseif ($errorKey === 'email_exists'): ?>
           <?= __("Email già registrata") ?>
+        <?php elseif ($errorKey === 'cf_exists'): ?>
+          <?= __("Codice fiscale già registrato") ?>
+        <?php elseif ($errorKey === 'tessera_exists'): ?>
+          <?= __("Codice tessera già assegnato") ?>
         <?php elseif ($errorKey === 'name_too_long'): ?>
           <?= __("Nome o cognome troppo lungo (massimo 100 caratteri)") ?>
         <?php elseif ($errorKey === 'email_too_long'): ?>

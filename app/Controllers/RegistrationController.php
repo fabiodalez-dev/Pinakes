@@ -10,6 +10,7 @@ use App\Support\ConfigStore;
 use App\Support\NotificationService;
 use App\Support\RouteTranslator;
 use App\Support\SecureLogger;
+use App\Support\UniqueViolation;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -90,15 +91,21 @@ class RegistrationController
         if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=password_needs_upper_lower_number')->withStatus(302);
         }
-        // Check existing email
-        $stmt = $db->prepare("SELECT id FROM utenti WHERE email = ? LIMIT 1");
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        if ($stmt->get_result()->num_rows > 0) {
+        // Check existing email. The SELECT is wrapped too: mysqli is in exception mode,
+        // so even a read failure here would otherwise throw and 500 the registration.
+        try {
+            $stmt = $db->prepare("SELECT id FROM utenti WHERE email = ? LIMIT 1");
+            $stmt->bind_param('s', $email);
+            $stmt->execute();
+            $emailTaken = $stmt->get_result()->num_rows > 0;
             $stmt->close();
+        } catch (\mysqli_sql_exception $e) {
+            SecureLogger::error('[Registration] email lookup failed: ' . $e->getMessage());
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=db')->withStatus(302);
+        }
+        if ($emailTaken) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=email_exists')->withStatus(302);
         }
-        $stmt->close();
 
         $codice_tessera = $this->generateTessera($db);
         $hash = password_hash($password, PASSWORD_DEFAULT);
@@ -166,16 +173,17 @@ class RegistrationController
         ");
         $stmt->bind_param($types, ...$values);
         // mysqli runs in exception mode (ConfigStore), so a failed INSERT throws instead of
-        // returning false — an unguarded execute() surfaces as a 500. Map the email UNIQUE
-        // violation (error 1062, e.g. a race past the pre-check above) to the same clear
-        // "email already registered" message, and any other DB error to a generic one.
+        // returning false — an unguarded execute() surfaces as a 500. A UNIQUE violation
+        // (1062) can be on email OR cod_fiscale (both user-entered) — map to the precise
+        // field so the user is told which one is taken; anything else is a generic error.
         try {
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
         } catch (\mysqli_sql_exception $e) {
-            $errCode = $e->getCode() === 1062 ? 'email_exists' : 'db';
-            if ($e->getCode() !== 1062) {
+            $errCode = $e->getCode() === 1062 ? UniqueViolation::errorCode($e) : 'db';
+            if ($errCode === 'db_error' || $errCode === 'db') {
                 SecureLogger::error('[Registration] user INSERT failed: ' . $e->getMessage());
+                $errCode = 'db';
             }
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=' . $errCode)->withStatus(302);
         } finally {
