@@ -101,6 +101,18 @@ class UsersController
             return $response->withHeader('Location', url('/admin/users/create?error=email_too_long'))->withStatus(302);
         }
 
+        // Reject a duplicate email up front with a clear message instead of letting the
+        // INSERT trip the UNIQUE(email) constraint (which, with mysqli in exception mode,
+        // would surface as a 500).
+        $dupStmt = $db->prepare("SELECT id FROM utenti WHERE email = ? LIMIT 1");
+        $dupStmt->bind_param('s', $email);
+        $dupStmt->execute();
+        $emailTaken = $dupStmt->get_result()->num_rows > 0;
+        $dupStmt->close();
+        if ($emailTaken) {
+            return $response->withHeader('Location', url('/admin/users/create?error=email_exists'))->withStatus(302);
+        }
+
         if (mb_strlen($telefono, 'UTF-8') > 20) {
             return $response->withHeader('Location', url('/admin/users/create?error=phone_too_long'))->withStatus(302);
         }
@@ -190,13 +202,21 @@ class UsersController
             $dataTokenReset
         );
 
-        if (!$stmt->execute()) {
+        // Exception mode: a failed INSERT throws. Catch the email UNIQUE violation (a race
+        // past the pre-check) as email_exists, everything else as a generic db_error — never
+        // a 500.
+        try {
+            $stmt->execute();
+            $userId = (int) $stmt->insert_id;
+        } catch (\mysqli_sql_exception $e) {
+            $code = $e->getCode() === 1062 ? 'email_exists' : 'db_error';
+            if ($e->getCode() !== 1062) {
+                \App\Support\SecureLogger::error('[Users] create INSERT failed: ' . $e->getMessage());
+            }
+            return $response->withHeader('Location', url('/admin/users/create?error=' . $code))->withStatus(302);
+        } finally {
             $stmt->close();
-            return $response->withHeader('Location', url('/admin/users/create?error=db_error'))->withStatus(302);
         }
-
-        $userId = (int) $stmt->insert_id;
-        $stmt->close();
 
         $notifier = new NotificationService($db);
 
@@ -300,6 +320,17 @@ class UsersController
 
         if (!$isAdmin && $telefono === '') {
             return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=missing_fields'))->withStatus(302);
+        }
+
+        // Reject an email already used by ANOTHER user with a clear message, rather than
+        // letting the UPDATE trip UNIQUE(email) and 500 under mysqli exception mode.
+        $dupStmt = $db->prepare("SELECT id FROM utenti WHERE email = ? AND id != ? LIMIT 1");
+        $dupStmt->bind_param('si', $email, $id);
+        $dupStmt->execute();
+        $emailTaken = $dupStmt->get_result()->num_rows > 0;
+        $dupStmt->close();
+        if ($emailTaken) {
+            return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=email_exists'))->withStatus(302);
         }
 
         $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
@@ -421,12 +452,19 @@ class UsersController
             $id
         );
 
-        $success = $stmt->execute();
-        $stmt->close();
-
-        if (!$success) {
-            return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=db_error'))->withStatus(302);
+        // Exception mode: a failed UPDATE throws. Catch the email UNIQUE violation (a race
+        // past the pre-check) as email_exists, everything else as a generic db_error.
+        try {
+            $stmt->execute();
+        } catch (\mysqli_sql_exception $e) {
+            $stmt->close();
+            $code = $e->getCode() === 1062 ? 'email_exists' : 'db_error';
+            if ($e->getCode() !== 1062) {
+                \App\Support\SecureLogger::error('[Users] update failed for user ' . $id . ': ' . $e->getMessage());
+            }
+            return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=' . $code))->withStatus(302);
         }
+        $stmt->close();
 
         // Audit logging for critical actions
         if (($original['tipo_utente'] ?? '') !== $role) {
