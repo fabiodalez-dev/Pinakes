@@ -219,20 +219,30 @@ class LendingRepo
     public function createOffer(int $clubId, int $clubBookId, int $lenderId, string $notes): ?int
     {
         $notesOrNull = $notes !== '' ? $notes : null;
-        // Atomic check-and-insert: the controller's hasOpenOffer() pre-check
-        // is only UX — two concurrent submits must not both insert, so the
-        // one-open-offer invariant is re-enforced inside the INSERT itself.
-        $ok = $this->execAffected(
-            "INSERT INTO bookclub_member_loans (club_id, club_book_id, lender_id, status, notes)
-             SELECT ?, ?, ?, 'offered', ? FROM DUAL
-              WHERE NOT EXISTS (
-                    SELECT 1 FROM bookclub_member_loans
-                     WHERE club_book_id = ? AND lender_id = ?
-                       AND status IN ('offered','requested','active')
-              )",
-            'iiisii',
-            [$clubId, $clubBookId, $lenderId, $notesOrNull, $clubBookId, $lenderId]
-        );
+        // Atomic check-and-insert: the controller's hasOpenOffer() pre-check is only
+        // UX. The NOT EXISTS clause blocks the common case, and the UNIQUE index on the
+        // generated open_key column (see LendingModule) is the real backstop — under
+        // REPEATABLE READ two concurrent inserts can both pass NOT EXISTS, and the
+        // second then trips the constraint (error 1062), which we treat as "already
+        // has an open offer" and return null, exactly like the NOT EXISTS path.
+        try {
+            $ok = $this->execAffected(
+                "INSERT INTO bookclub_member_loans (club_id, club_book_id, lender_id, status, notes)
+                 SELECT ?, ?, ?, 'offered', ? FROM DUAL
+                  WHERE NOT EXISTS (
+                        SELECT 1 FROM bookclub_member_loans
+                         WHERE club_book_id = ? AND lender_id = ?
+                           AND status IN ('offered','requested','active')
+                  )",
+                'iiisii',
+                [$clubId, $clubBookId, $lenderId, $notesOrNull, $clubBookId, $lenderId]
+            );
+        } catch (\mysqli_sql_exception $e) {
+            if ($e->getCode() === 1062) {
+                return null;
+            }
+            throw $e;
+        }
         return $ok > 0 ? (int) $this->db->insert_id : null;
     }
 

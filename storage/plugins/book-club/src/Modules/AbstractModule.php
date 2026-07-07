@@ -138,6 +138,34 @@ abstract class AbstractModule implements ModuleInterface
         }
     }
 
+    protected function indexExists(string $table, string $index): bool
+    {
+        $stmt = $this->db->prepare(
+            'SELECT COUNT(*) AS n FROM INFORMATION_SCHEMA.STATISTICS
+              WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?'
+        );
+        if ($stmt === false) {
+            return false;
+        }
+        $stmt->bind_param('ss', $table, $index);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        return (int) ($row['n'] ?? 0) > 0;
+    }
+
+    /** Idempotent ALTER TABLE … ADD UNIQUE KEY. $columns is trusted plugin code. */
+    protected function addUniqueIndexIfMissing(string $table, string $index, string $columns): void
+    {
+        if ($this->indexExists($table, $index)) {
+            return;
+        }
+        if ($this->db->query("ALTER TABLE {$table} ADD UNIQUE KEY {$index} ({$columns})") === false) {
+            SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD UNIQUE KEY {$table}.{$index} failed: " . $this->db->error);
+        }
+    }
+
     // ------------------------------------------------------------------
     // Rendering
     // ------------------------------------------------------------------

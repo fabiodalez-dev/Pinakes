@@ -58,9 +58,22 @@ class LendingModule extends AbstractModule
     // Schema
     // ------------------------------------------------------------------
 
+    /**
+     * The generated column + UNIQUE index enforce the "at most one OPEN loan per
+     * (club_book_id, lender_id)" invariant atomically at the DB level: open_key is
+     * the pair key while the loan is open and NULL otherwise (MySQL allows many
+     * NULLs in a UNIQUE index), so any number of closed/cancelled/returned rows
+     * coexist but a second concurrent open offer hits the constraint. This is the
+     * backstop the INSERT … WHERE NOT EXISTS in LendingRepo::createOffer() can't
+     * guarantee on its own under REPEATABLE READ.
+     */
+    private const OPEN_KEY_DEF =
+        "VARCHAR(32) GENERATED ALWAYS AS (CASE WHEN status IN ('offered','requested','active') "
+        . "THEN CONCAT(club_book_id, ':', lender_id) ELSE NULL END) STORED";
+
     public function ensureSchema(): array
     {
-        return $this->runDdl([
+        $result = $this->runDdl([
             'bookclub_member_loans' => "CREATE TABLE IF NOT EXISTS bookclub_member_loans (
                 id INT NOT NULL AUTO_INCREMENT,
                 club_id INT NOT NULL,
@@ -73,11 +86,13 @@ class LendingModule extends AbstractModule
                 offered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 lent_at DATETIME NULL,
                 returned_at DATETIME NULL,
+                open_key " . self::OPEN_KEY_DEF . ",
                 PRIMARY KEY (id),
                 KEY idx_bcmloan_club_status (club_id, status),
                 KEY idx_bcmloan_book (club_book_id),
                 KEY idx_bcmloan_lender (lender_id),
                 KEY idx_bcmloan_borrower (borrower_id),
+                UNIQUE KEY uq_bcmloan_open (open_key),
                 CONSTRAINT fk_bcmloan_club FOREIGN KEY (club_id)
                     REFERENCES bookclub_clubs (id) ON DELETE CASCADE,
                 CONSTRAINT fk_bcmloan_book FOREIGN KEY (club_book_id)
@@ -86,6 +101,31 @@ class LendingModule extends AbstractModule
                     REFERENCES utenti (id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ]);
+
+        // Migration for installs created before the open_key invariant existed
+        // (e.g. book-club shipped in 0.7.29-rc.1/rc.2). Idempotent: guarded on the
+        // column/index presence so it's a no-op on fresh installs and safe to re-run.
+        if (!$this->columnExists('bookclub_member_loans', 'open_key')) {
+            // Resolve any pre-existing duplicate OPEN loans first, else adding the
+            // UNIQUE index would fail: keep the earliest open row per
+            // (club_book_id, lender_id) and cancel the rest.
+            $this->db->query(
+                "UPDATE bookclub_member_loans m
+                    JOIN (
+                        SELECT club_book_id, lender_id, MIN(id) AS keep_id
+                          FROM bookclub_member_loans
+                         WHERE status IN ('offered','requested','active')
+                         GROUP BY club_book_id, lender_id
+                        HAVING COUNT(*) > 1
+                    ) d ON d.club_book_id = m.club_book_id AND d.lender_id = m.lender_id
+                    SET m.status = 'cancelled'
+                  WHERE m.status IN ('offered','requested','active') AND m.id <> d.keep_id"
+            );
+            $this->addColumnIfMissing('bookclub_member_loans', 'open_key', self::OPEN_KEY_DEF);
+        }
+        $this->addUniqueIndexIfMissing('bookclub_member_loans', 'uq_bcmloan_open', 'open_key');
+
+        return $result;
     }
 
     // ------------------------------------------------------------------
