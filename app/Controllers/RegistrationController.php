@@ -9,6 +9,7 @@ use App\Support\Mailer;
 use App\Support\ConfigStore;
 use App\Support\NotificationService;
 use App\Support\RouteTranslator;
+use App\Support\SecureLogger;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -164,27 +165,42 @@ class RegistrationController
             INSERT INTO utenti ({$columns}) VALUES ({$placeholders})
         ");
         $stmt->bind_param($types, ...$values);
-        if (!$stmt->execute()) {
+        // mysqli runs in exception mode (ConfigStore), so a failed INSERT throws instead of
+        // returning false — an unguarded execute() surfaces as a 500. Map the email UNIQUE
+        // violation (error 1062, e.g. a race past the pre-check above) to the same clear
+        // "email already registered" message, and any other DB error to a generic one.
+        try {
+            $stmt->execute();
+            $userId = (int) $stmt->insert_id;
+        } catch (\mysqli_sql_exception $e) {
+            $errCode = $e->getCode() === 1062 ? 'email_exists' : 'db';
+            if ($e->getCode() !== 1062) {
+                SecureLogger::error('[Registration] user INSERT failed: ' . $e->getMessage());
+            }
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=' . $errCode)->withStatus(302);
+        } finally {
             $stmt->close();
-            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=db')->withStatus(302);
         }
-        $userId = (int) $stmt->insert_id;
-        $stmt->close();
 
-        // GDPR: Log consent in audit trail (Article 7 compliance)
-        $this->logConsent($db, $userId, 'privacy_policy', true, $privacy_policy_version, $request);
+        // The account is now created. Everything below is a best-effort side-effect
+        // (audit log, welcome/admin emails, in-app notice): a failure here — an SMTP
+        // outage, a missing consent_log table on an old install — must NOT turn a
+        // successful registration into a 500. Log it and still land the user on success.
+        try {
+            // GDPR: Log consent in audit trail (Article 7 compliance)
+            $this->logConsent($db, $userId, 'privacy_policy', true, $privacy_policy_version, $request);
 
-        // Send notification emails using new service
-        $notificationService = new NotificationService($db);
-
-        // Send welcome email to user
-        $notificationService->sendUserRegistrationPending($userId);
-
-        // Notify admins of new registration (email)
-        $notificationService->notifyNewUserRegistration($userId);
-
-        // Create in-app notification for admins
-        $notificationService->notifyNewUserInApp($userId, $nome . ' ' . $cognome, $email);
+            // Send notification emails using new service
+            $notificationService = new NotificationService($db);
+            // Send welcome email to user
+            $notificationService->sendUserRegistrationPending($userId);
+            // Notify admins of new registration (email)
+            $notificationService->notifyNewUserRegistration($userId);
+            // Create in-app notification for admins
+            $notificationService->notifyNewUserInApp($userId, $nome . ' ' . $cognome, $email);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[Registration] post-registration side-effect failed (account ' . $userId . ' was created): ' . $e->getMessage());
+        }
 
         // Redirect to success page
         return $response->withHeader('Location', RouteTranslator::route('register_success'))->withStatus(302);

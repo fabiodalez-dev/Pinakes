@@ -30,6 +30,8 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
       <div class="mb-6 border border-red-200 bg-red-50 text-red-700 rounded-lg px-4 py-3 text-sm" role="alert">
         <?php if ($errorKey === 'missing_fields'): ?>
           <?= __("Compila tutti i campi obbligatori prima di salvare.") ?>
+        <?php elseif ($errorKey === 'email_exists'): ?>
+          <?= __("Email già registrata") ?>
         <?php elseif ($errorKey === 'db_error'): ?>
           <?= __("Impossibile aggiornare l'utente. Riprova più tardi.") ?>
         <?php elseif ($errorKey === 'csrf'): ?>
