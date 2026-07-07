@@ -127,14 +127,26 @@ abstract class AbstractModule implements ModuleInterface
         return (int) ($row['n'] ?? 0) > 0;
     }
 
-    /** Idempotent ALTER TABLE … ADD COLUMN. $definition is trusted plugin code. */
+    /**
+     * Idempotent ALTER TABLE … ADD COLUMN. $definition is trusted plugin code.
+     *
+     * The query is wrapped in try/catch because the app runs mysqli in exception mode
+     * (mysqli_report(MYSQLI_REPORT_ERROR)), so a failing ALTER throws rather than returning
+     * false — and an uncaught throw here would propagate out of ensureSchema()/onActivate()
+     * and 500 the whole app on every request. A failed migration is logged and skipped;
+     * the feature degrades instead of taking the site down.
+     */
     protected function addColumnIfMissing(string $table, string $column, string $definition): void
     {
         if ($this->columnExists($table, $column)) {
             return;
         }
-        if ($this->db->query("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}") === false) {
-            SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD COLUMN {$table}.{$column} failed: " . $this->db->error);
+        try {
+            if ($this->db->query("ALTER TABLE {$table} ADD COLUMN {$column} {$definition}") === false) {
+                SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD COLUMN {$table}.{$column} failed: " . $this->db->error);
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD COLUMN {$table}.{$column} failed: " . $e->getMessage());
         }
     }
 
@@ -155,14 +167,19 @@ abstract class AbstractModule implements ModuleInterface
         return (int) ($row['n'] ?? 0) > 0;
     }
 
-    /** Idempotent ALTER TABLE … ADD UNIQUE KEY. $columns is trusted plugin code. */
+    /** Idempotent ALTER TABLE … ADD UNIQUE KEY. $columns is trusted plugin code. Same
+     *  exception-safety rationale as addColumnIfMissing(). */
     protected function addUniqueIndexIfMissing(string $table, string $index, string $columns): void
     {
         if ($this->indexExists($table, $index)) {
             return;
         }
-        if ($this->db->query("ALTER TABLE {$table} ADD UNIQUE KEY {$index} ({$columns})") === false) {
-            SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD UNIQUE KEY {$table}.{$index} failed: " . $this->db->error);
+        try {
+            if ($this->db->query("ALTER TABLE {$table} ADD UNIQUE KEY {$index} ({$columns})") === false) {
+                SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD UNIQUE KEY {$table}.{$index} failed: " . $this->db->error);
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD UNIQUE KEY {$table}.{$index} failed: " . $e->getMessage());
         }
     }
 
