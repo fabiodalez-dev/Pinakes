@@ -110,8 +110,8 @@ class UsersController
             $dupStmt->execute();
             $emailTaken = $dupStmt->get_result()->num_rows > 0;
             $dupStmt->close();
-        } catch (\mysqli_sql_exception $e) {
-            \App\Support\SecureLogger::error('[Users] email lookup failed: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Users] email lookup failed (errno ' . (int) $e->getCode() . ')');
             return $response->withHeader('Location', url('/admin/users/create?error=db_error'))->withStatus(302);
         }
         if ($emailTaken) {
@@ -213,10 +213,10 @@ class UsersController
         try {
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
-        } catch (\mysqli_sql_exception $e) {
-            $code = \App\Support\UniqueViolation::errorCode($e);
+        } catch (\Throwable $e) {
+            $code = ($e instanceof \mysqli_sql_exception) ? \App\Support\UniqueViolation::errorCode($e) : 'db_error';
             if ($code === 'db_error') {
-                \App\Support\SecureLogger::error('[Users] create INSERT failed: ' . $e->getMessage());
+                \App\Support\SecureLogger::error('[Users] create INSERT failed (errno ' . (int) $e->getCode() . ')');
             }
             return $response->withHeader('Location', url('/admin/users/create?error=' . $code))->withStatus(302);
         } finally {
@@ -336,8 +336,8 @@ class UsersController
             $dupStmt->execute();
             $emailTaken = $dupStmt->get_result()->num_rows > 0;
             $dupStmt->close();
-        } catch (\mysqli_sql_exception $e) {
-            \App\Support\SecureLogger::error('[Users] email lookup failed for user ' . $id . ': ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            \App\Support\SecureLogger::error('[Users] email lookup failed for user ' . $id . ' (errno ' . (int) $e->getCode() . ')');
             return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=db_error'))->withStatus(302);
         }
         if ($emailTaken) {
@@ -467,11 +467,11 @@ class UsersController
         // field (email / codice_tessera / cod_fiscale); everything else is a generic db_error.
         try {
             $stmt->execute();
-        } catch (\mysqli_sql_exception $e) {
+        } catch (\Throwable $e) {
             $stmt->close();
-            $code = \App\Support\UniqueViolation::errorCode($e);
+            $code = ($e instanceof \mysqli_sql_exception) ? \App\Support\UniqueViolation::errorCode($e) : 'db_error';
             if ($code === 'db_error') {
-                \App\Support\SecureLogger::error('[Users] update failed for user ' . $id . ': ' . $e->getMessage());
+                \App\Support\SecureLogger::error('[Users] update failed for user ' . $id . ' (errno ' . (int) $e->getCode() . ')');
             }
             return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=' . $code))->withStatus(302);
         }

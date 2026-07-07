@@ -99,8 +99,11 @@ class RegistrationController
             $stmt->execute();
             $emailTaken = $stmt->get_result()->num_rows > 0;
             $stmt->close();
-        } catch (\mysqli_sql_exception $e) {
-            SecureLogger::error('[Registration] email lookup failed: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            // \Throwable, not \mysqli_sql_exception: if exceptions were ever off, prepare()
+            // returns false and bind_param() raises a \Error. Log only the errno — never the
+            // raw driver message, which for a duplicate carries the offending email/CF.
+            SecureLogger::error('[Registration] email lookup failed (errno ' . (int) $e->getCode() . ')');
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=db')->withStatus(302);
         }
         if ($emailTaken) {
@@ -179,10 +182,11 @@ class RegistrationController
         try {
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
-        } catch (\mysqli_sql_exception $e) {
-            $errCode = $e->getCode() === 1062 ? UniqueViolation::errorCode($e) : 'db';
-            if ($errCode === 'db_error' || $errCode === 'db') {
-                SecureLogger::error('[Registration] user INSERT failed: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            $errCode = ($e instanceof \mysqli_sql_exception) ? UniqueViolation::errorCode($e) : 'db_error';
+            if ($errCode === 'db_error') {
+                // errno only — the raw "Duplicate entry '<value>'" message would leak PII.
+                SecureLogger::error('[Registration] user INSERT failed (errno ' . (int) $e->getCode() . ')');
                 $errCode = 'db';
             }
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=' . $errCode)->withStatus(302);
