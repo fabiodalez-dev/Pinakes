@@ -94,7 +94,8 @@ test.describe.serial('Loan overlap model (#157) — 35 scenarios', () => {
         AND NOT EXISTS (
           SELECT 1 FROM prestiti p
           WHERE p.copia_id = c.id
-            AND p.data_prestito <= '${end}' AND p.data_scadenza >= '${start}'
+            AND p.data_prestito <= '${end}'
+            AND (p.stato = 'in_ritardo' OR p.data_scadenza >= '${start}')
             AND ((p.attivo = 1 AND p.stato IN ('in_corso','in_ritardo','da_ritirare','prenotato'))
                  OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL))
         )`);
@@ -501,5 +502,42 @@ test.describe.serial('Loan overlap model (#157) — 35 scenarios', () => {
     expect(freeCopies(b, dISO(3), dISO(8))).toBe(0);            // da_ritirare holds it
     dbQuery(`UPDATE prestiti SET stato='in_corso' WHERE id=${id}`);
     expect(freeCopies(b, dISO(3), dISO(8))).toBe(0);            // in_corso holds it
+  });
+
+  // ════════════════════════════════════════════════════════════════════════
+  // GROUP G — overdue (in_ritardo) keeps its copy blocked open-ended
+  //   Regression for the availability bug: an unreturned overdue loan has a
+  //   PAST data_scadenza, so the naive `data_scadenza >= start` predicate let a
+  //   later request slip in → double-booking of a physical copy still on loan.
+  // ════════════════════════════════════════════════════════════════════════
+
+  test('G.36 an overdue (in_ritardo) unreturned loan keeps its copy occupied for a LATER window', () => {
+    const b = mkBook('G36'); const c = mkCopy(b, 1, 'prestato');
+    // Due 10 days ago, never returned, still active/overdue.
+    expect(tryInsertLoan({ bookId: b, copyId: c, userId: u1, start: dISO(-30), end: dISO(-10), stato: 'in_ritardo', attivo: 1 }).ok).toBe(true);
+    // A window well AFTER the (past) due date must still see the copy as taken.
+    expect(freeCopies(b, dISO(5), dISO(9))).toBe(0);
+  });
+
+  test('G.37 availability calendar reports 0 for future dates while an overdue loan is unreturned', async ({ page }) => {
+    await adminLogin(page);
+    const b = mkBook('G37'); const c = mkCopy(b, 1, 'prestato');
+    tryInsertLoan({ bookId: b, copyId: c, userId: u1, start: dISO(-40), end: dISO(-5), stato: 'in_ritardo', attivo: 1 });
+    const data = await availabilityByDate(page, b);
+    expect(data).toBeTruthy();
+    const byDate = Object.fromEntries((Array.isArray(data.days) ? data.days : []).map(d => [d.date, Number(d.available)]));
+    const fut = dISO(7);
+    expect(byDate[fut], `availability-calendar days[] must include ${fut}`).not.toBeUndefined();
+    expect(byDate[fut]).toBe(0);
+  });
+
+  test('G.38 the DB trigger blocks a new overlapping loan on a copy held by an overdue loan', () => {
+    const b = mkBook('G38'); const c = mkCopy(b, 1, 'prestato');
+    expect(tryInsertLoan({ bookId: b, copyId: c, userId: u1, start: dISO(-25), end: dISO(-8), stato: 'in_ritardo', attivo: 1 }).ok).toBe(true);
+    // A future loan on the SAME copy must be rejected by the trigger (SIGNAL 45000),
+    // because the overdue loan still occupies the copy open-ended.
+    const r = tryInsertLoan({ bookId: b, copyId: c, userId: u2, start: dISO(3), end: dISO(12), stato: 'prenotato', attivo: 1 });
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/sovrapposto|45000/i);
   });
 });

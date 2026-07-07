@@ -369,7 +369,7 @@ class LoanApprovalController
                         WHERE p.copia_id = c.id
                         AND p.id != ?
                         AND p.data_prestito <= ?
-                        AND p.data_scadenza >= ?
+                        AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
                         AND (
                             (p.attivo = 1 AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
@@ -396,7 +396,7 @@ class LoanApprovalController
                 $loanCountStmt = $db->prepare("
                     SELECT COUNT(*) as count FROM prestiti
                     WHERE libro_id = ? AND id != ?
-                    AND data_prestito <= ? AND data_scadenza >= ?
+                    AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
                     AND (
                         (attivo = 1 AND stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
                         OR (stato = 'pendente' AND copia_id IS NOT NULL)
@@ -438,12 +438,12 @@ class LoanApprovalController
                 $overlapStmt = $db->prepare("
                     SELECT c.id FROM copie c
                     WHERE c.libro_id = ?
-                    AND c.stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')
+                    AND c.stato IN ('disponibile', 'prenotato')
                     AND NOT EXISTS (
                         SELECT 1 FROM prestiti p
                         WHERE p.copia_id = c.id
                         AND p.data_prestito <= ?
-                        AND p.data_scadenza >= ?
+                        AND (p.stato = 'in_ritardo' OR p.data_scadenza >= ?)
                         AND (
                             (p.attivo = 1 AND p.stato IN ('in_corso', 'prenotato', 'da_ritirare', 'in_ritardo'))
                             OR (p.stato = 'pendente' AND p.copia_id IS NOT NULL)
@@ -490,7 +490,7 @@ class LoanApprovalController
             $overlapCopyStmt = $db->prepare("
                 SELECT 1 FROM prestiti
                 WHERE copia_id = ? AND id != ?
-                AND data_prestito <= ? AND data_scadenza >= ?
+                AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
                 AND (
                     (attivo = 1 AND stato IN ('in_corso','prenotato','da_ritirare','in_ritardo'))
                     OR (stato = 'pendente' AND copia_id IS NOT NULL)
