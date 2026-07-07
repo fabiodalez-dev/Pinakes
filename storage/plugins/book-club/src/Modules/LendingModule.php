@@ -67,9 +67,13 @@ class LendingModule extends AbstractModule
      * backstop the INSERT … WHERE NOT EXISTS in LendingRepo::createOffer() can't
      * guarantee on its own under REPEATABLE READ.
      */
+    // VIRTUAL, not STORED: bookclub_member_loans has three foreign keys, and adding a
+    // STORED generated column forces an ALGORITHM=COPY table rebuild that re-creates those
+    // FKs and fails with "ERROR 1215: Cannot add foreign key constraint". A VIRTUAL column
+    // adds INPLACE (no rebuild) and can still back a UNIQUE index (MySQL 5.7+).
     private const OPEN_KEY_DEF =
         "VARCHAR(32) GENERATED ALWAYS AS (CASE WHEN status IN ('offered','requested','active') "
-        . "THEN CONCAT(club_book_id, ':', lender_id) ELSE NULL END) STORED";
+        . "THEN CONCAT(club_book_id, ':', lender_id) ELSE NULL END) VIRTUAL";
 
     public function ensureSchema(): array
     {

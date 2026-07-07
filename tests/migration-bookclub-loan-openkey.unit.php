@@ -69,14 +69,21 @@ $db->set_charset('utf8mb4');
 const SANDBOX = 'zz_mig_member_loans';
 
 // The generated-column definition the migration adds. Kept in sync with
-// LendingModule::OPEN_KEY_DEF via the drift guard (check 1).
+// LendingModule::OPEN_KEY_DEF via the drift guard (check 1). MUST be VIRTUAL, not
+// STORED: the real table has foreign keys and a STORED column forces a rebuild that
+// fails with "1215 Cannot add foreign key constraint" — the sandbox below reproduces
+// that FK condition so this test catches a regression back to STORED.
 const OPEN_KEY_DEF =
     "VARCHAR(32) GENERATED ALWAYS AS (CASE WHEN status IN ('offered','requested','active') "
-    . "THEN CONCAT(club_book_id, ':', lender_id) ELSE NULL END) STORED";
+    . "THEN CONCAT(club_book_id, ':', lender_id) ELSE NULL END) VIRTUAL";
+
+const SANDBOX_PARENT = 'zz_mig_loan_parent';
 
 function mlCleanup(mysqli $db): void
 {
+    // Child first (FK), then parent.
     $db->query('DROP TABLE IF EXISTS `' . SANDBOX . '`');
+    $db->query('DROP TABLE IF EXISTS `' . SANDBOX_PARENT . '`');
 }
 
 set_exception_handler(static function (\Throwable $e) use ($db): void {
@@ -132,12 +139,20 @@ $src = (string) file_get_contents($root . '/storage/plugins/book-club/src/Module
 check(
     str_contains($src, "CONCAT(club_book_id, ':', lender_id)")
         && str_contains($src, "status IN ('offered','requested','active')")
-        && str_contains($src, 'uq_bcmloan_open'),
-    "LendingModule source still defines the open_key expression + uq_bcmloan_open"
+        && str_contains($src, 'uq_bcmloan_open')
+        && str_contains($src, 'VIRTUAL')
+        && !preg_match('/END\)\s+STORED/', $src),
+    "LendingModule source defines the open_key expression + uq_bcmloan_open, and uses VIRTUAL (not STORED, which 1215s on the FK table)"
 );
 
-/* ---- build the OLD sandbox schema (no open_key, no unique index) ---- */
+/* ---- build the OLD sandbox schema (no open_key, no unique index) ----
+ * A foreign key is REQUIRED here: the real bookclub_member_loans has three FKs, and
+ * that's exactly what makes a STORED generated column fail (the ADD COLUMN rebuild
+ * re-creates the FKs → 1215). Without a FK the sandbox would pass even with STORED — the
+ * false-green that shipped the bug. The parent + FK reproduce the real condition. */
 mlCleanup($db);
+$db->query("CREATE TABLE `" . SANDBOX_PARENT . "` (id INT NOT NULL, PRIMARY KEY (id)) ENGINE=InnoDB");
+$db->query("INSERT INTO `" . SANDBOX_PARENT . "` (id) VALUES (1)");
 $db->query(
     "CREATE TABLE `" . SANDBOX . "` (
         id INT NOT NULL AUTO_INCREMENT,
@@ -149,7 +164,8 @@ $db->query(
         offered_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (id),
         KEY idx_book (club_book_id),
-        KEY idx_lender (lender_id)
+        KEY idx_lender (lender_id),
+        CONSTRAINT fk_sandbox_parent FOREIGN KEY (club_id) REFERENCES `" . SANDBOX_PARENT . "` (id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
 );
 
