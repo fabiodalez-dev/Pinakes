@@ -348,6 +348,7 @@ class MobileApiPlugin
     {
         $plugin = $this;
         $db     = $this->db;
+        $hookManager = $this->hookManager;
         $appAccessEnabled = $this->isAppAccessEnabled();
 
         // Shared per-token quota + bearer auth for the authenticated surface.
@@ -357,13 +358,17 @@ class MobileApiPlugin
         $authMw  = static fn (): AppAuthMiddleware => new AppAuthMiddleware($db, $appAccessEnabled);
         $quotaMw = static fn (): TokenQuotaMiddleware => new TokenQuotaMiddleware();
 
-        $group = $app->group('/api/v1', function (\Slim\Routing\RouteCollectorProxy $group) use ($plugin, $db, $authMw, $quotaMw): void {
+        $group = $app->group('/api/v1', function (\Slim\Routing\RouteCollectorProxy $group) use ($plugin, $db, $authMw, $quotaMw, $hookManager): void {
             // ── OpenAPI document + Swagger UI (public, no token) ──────────────
+            // Capture $hookManager via use(): inside a Slim route closure $this is
+            // bound to the container, not the plugin, so $this->hookManager would be
+            // null and the mobile_api.openapi filter (book-club bridge paths) would
+            // never run.
             $group->get('/openapi.json', function (
                 ServerRequestInterface $request,
                 ResponseInterface $response
-            ): ResponseInterface {
-                return (new \App\Plugins\MobileApi\Controllers\OpenApiController($this->hookManager))->document($request, $response);
+            ) use ($hookManager): ResponseInterface {
+                return (new \App\Plugins\MobileApi\Controllers\OpenApiController($hookManager))->document($request, $response);
             });
 
             $group->get('/docs', function (
