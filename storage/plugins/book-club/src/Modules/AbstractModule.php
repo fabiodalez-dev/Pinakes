@@ -167,8 +167,15 @@ abstract class AbstractModule implements ModuleInterface
         return (int) ($row['n'] ?? 0) > 0;
     }
 
-    /** Idempotent ALTER TABLE … ADD UNIQUE KEY. $columns is trusted plugin code. Same
-     *  exception-safety rationale as addColumnIfMissing(). */
+    /**
+     * Idempotent ALTER TABLE … ADD UNIQUE KEY. $columns is trusted plugin code. Same
+     * exception-safety rationale as addColumnIfMissing() (never 500 the app on a schema
+     * migration), BUT logged at ERROR, not warning: a UNIQUE index is a data-integrity
+     * backstop (e.g. uq_bcmloan_open enforces one open loan per pair), so if it can't be
+     * created the invariant is silently unenforced — that must surface to monitoring/alerting
+     * rather than degrade unnoticed. Soft-fail is deliberate; the ERROR level is what makes
+     * the missing constraint observable in production.
+     */
     protected function addUniqueIndexIfMissing(string $table, string $index, string $columns): void
     {
         if ($this->indexExists($table, $index)) {
@@ -176,10 +183,10 @@ abstract class AbstractModule implements ModuleInterface
         }
         try {
             if ($this->db->query("ALTER TABLE {$table} ADD UNIQUE KEY {$index} ({$columns})") === false) {
-                SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD UNIQUE KEY {$table}.{$index} failed: " . $this->db->error);
+                SecureLogger::error('[BookClub:' . $this->slug() . "] ADD UNIQUE KEY {$table}.{$index} FAILED — DB invariant NOT enforced: " . $this->db->error);
             }
         } catch (\Throwable $e) {
-            SecureLogger::warning('[BookClub:' . $this->slug() . "] ADD UNIQUE KEY {$table}.{$index} failed: " . $e->getMessage());
+            SecureLogger::error('[BookClub:' . $this->slug() . "] ADD UNIQUE KEY {$table}.{$index} FAILED — DB invariant NOT enforced: " . $e->getMessage());
         }
     }
 
