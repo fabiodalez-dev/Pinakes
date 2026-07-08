@@ -151,11 +151,11 @@ class LoanPdfGenerator
         }
 
         // Library name (centered, bold, large)
-        $pdf->SetFont('helvetica', 'B', 18);
+        $pdf->SetFont('dejavusans', 'B', 18);
         $pdf->Cell(0, 10, $appName, 0, 1, 'C');
 
         // Document title (centered, regular, medium)
-        $pdf->SetFont('helvetica', '', 14);
+        $pdf->SetFont('dejavusans', '', 14);
         $pdf->Cell(0, 8, __('Ricevuta di Prestito'), 0, 1, 'C');
 
         // Separator line
@@ -170,7 +170,7 @@ class LoanPdfGenerator
      */
     private function renderLoanDetails(TCPDF $pdf, array $loan): void
     {
-        $pdf->SetFont('helvetica', '', 10);
+        $pdf->SetFont('dejavusans', '', 10);
 
         // Section 1: Loan Information
         $this->renderSection($pdf, __('Informazioni Prestito'), [
@@ -225,13 +225,13 @@ class LoanPdfGenerator
     private function renderSection(TCPDF $pdf, string $title, array $fields): void
     {
         // Section title (gray background)
-        $pdf->SetFont('helvetica', 'B', 12);
+        $pdf->SetFont('dejavusans', 'B', 12);
         $pdf->SetFillColor(240, 240, 240);
         $pdf->Cell(0, 8, $title, 0, 1, 'L', true);
         $pdf->Ln(2);
 
         // Fields (label: value pairs)
-        $pdf->SetFont('helvetica', '', 10);
+        $pdf->SetFont('dejavusans', '', 10);
         foreach ($fields as $label => $value) {
             if ($label === '') {
                 // Special case: no label (e.g., notes)
@@ -257,7 +257,7 @@ class LoanPdfGenerator
         $pdf->Ln(3);
 
         // Generation timestamp (centered, small, gray)
-        $pdf->SetFont('helvetica', 'I', 8);
+        $pdf->SetFont('dejavusans', 'I', 8);
         $pdf->SetTextColor(128, 128, 128);
         $tz = ConfigStore::get('app.timezone', 'Europe/Rome');
         try {
