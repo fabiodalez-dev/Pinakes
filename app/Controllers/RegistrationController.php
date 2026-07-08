@@ -10,7 +10,6 @@ use App\Support\ConfigStore;
 use App\Support\NotificationService;
 use App\Support\RouteTranslator;
 use App\Support\SecureLogger;
-use App\Support\UniqueViolation;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
@@ -107,7 +106,11 @@ class RegistrationController
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=db')->withStatus(302);
         }
         if ($emailTaken) {
-            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=email_exists')->withStatus(302);
+            // Public form: a GENERIC "already registered" message, never field-specific.
+            // Saying which field (email / codice fiscale) is taken would let an anonymous
+            // visitor enumerate members (privacy leak, esp. for the CF). Admin flows keep
+            // the precise messages — see UsersController.
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=already_registered')->withStatus(302);
         }
 
         $codice_tessera = $this->generateTessera($db);
@@ -183,9 +186,13 @@ class RegistrationController
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
         } catch (\Throwable $e) {
-            $errCode = ($e instanceof \mysqli_sql_exception) ? UniqueViolation::errorCode($e) : 'db_error';
-            if ($errCode === 'db_error') {
-                // errno only — the raw "Duplicate entry '<value>'" message would leak PII.
+            // Public form: collapse ANY unique-key duplicate (email / cod_fiscale /
+            // codice_tessera) into one GENERIC message so an anonymous visitor can't tell
+            // which field is taken (member enumeration). Only a genuine non-duplicate DB
+            // error falls through to the generic 'db' message + errno-only log.
+            if ($e instanceof \mysqli_sql_exception && $e->getCode() === 1062) {
+                $errCode = 'already_registered';
+            } else {
                 SecureLogger::error('[Registration] user INSERT failed (errno ' . (int) $e->getCode() . ')');
                 $errCode = 'db';
             }
