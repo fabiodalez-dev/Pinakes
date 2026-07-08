@@ -998,7 +998,21 @@ class PrestitiController
                 // come fa CopyController::updateCopy per lo stesso evento.
                 $reassignmentService = new \App\Services\ReservationReassignmentService($db);
                 $reassignmentService->setExternalTransaction(true);
-                $reassignmentService->reassignOnCopyLost((int) $copia_id);
+                // A lost copy can hold MORE THAN ONE non-overlapping future reservation
+                // (period-based pre-booking, see the comment above). reassignOnCopyLost()
+                // handles a single hold, so loop until none is left pointing at the dead
+                // copy — each call either reassigns the hold to another copy or nulls its
+                // copia_id, so it always makes progress (bounded guard for safety).
+                for ($reassignGuard = 0; $reassignGuard < 1000; $reassignGuard++) {
+                    $stillHeld = $db->query(
+                        "SELECT 1 FROM prestiti WHERE copia_id = " . (int) $copia_id
+                        . " AND stato IN ('prenotato','da_ritirare') AND attivo = 1 LIMIT 1"
+                    );
+                    if (!$stillHeld || $stillHeld->num_rows === 0) {
+                        break;
+                    }
+                    $reassignmentService->reassignOnCopyLost((int) $copia_id);
+                }
             }
 
             // Ricalcola le copie disponibili DOPO l'eventuale riassegnazione/conversione
@@ -1191,6 +1205,17 @@ class PrestitiController
             $errorUrl = $redirectTo ?? url('/admin/loans');
             $separator = strpos($errorUrl, '?') === false ? '?' : '&';
             return $response->withHeader('Location', url($errorUrl . $separator . 'error=loan_not_picked_up'))->withStatus(302);
+        }
+
+        // Borrower eligibility: a suspended / card-expired user must not keep the book via
+        // repeated renewals. This is the single-point-eligibility invariant that store(),
+        // update()'s reassignment and approveLoan() all enforce — renew() was the one
+        // benefit-conferring write path that skipped it.
+        $eligibilityError = \App\Support\LoanEligibility::checkUser($db, (int) $loan['utente_id']);
+        if ($eligibilityError !== null) {
+            $errorUrl = $redirectTo ?? url('/admin/loans');
+            $separator = strpos($errorUrl, '?') === false ? '?' : '&';
+            return $response->withHeader('Location', url($errorUrl . $separator . 'error=' . $eligibilityError))->withStatus(302);
         }
 
         // Check renewal limit (max_renewals configurabile, default 3) — F2

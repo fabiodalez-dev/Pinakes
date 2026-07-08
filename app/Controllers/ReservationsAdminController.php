@@ -249,7 +249,24 @@ class ReservationsAdminController
             $integrity = new \App\Support\DataIntegrity($db);
             $integrity->recalculateBookAvailability($libroId, insideTransaction: true);
 
+            // Cancelling/completing an active reservation frees a slot: promote the next
+            // queued reservation(s) right away, exactly like every other release path
+            // (LoanApproval, Prestiti, …) — otherwise the next in line waits for the
+            // periodic MaintenanceService sweep and the book looks free in the meantime.
+            $reservationManager = null;
+            if ($oldStato === 'attiva' && $stato !== 'attiva') {
+                $reservationManager = new \App\Controllers\ReservationManager($db);
+                $reservationManager->setExternalTransaction(true); // already inside a transaction
+                for ($promoGuard = 0; $promoGuard < 1000 && $reservationManager->processBookAvailability($libroId); $promoGuard++) {
+                    // promote until the freed capacity is exhausted
+                }
+            }
+
             $db->commit();
+
+            if ($reservationManager !== null) {
+                $reservationManager->flushDeferredNotifications();
+            }
             return $response->withHeader('Location', url('/admin/reservations') . '?updated=1')->withStatus(302);
 
         } catch (\Throwable $e) {

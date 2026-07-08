@@ -261,6 +261,7 @@ class ReservationReassignmentService
             WHERE copia_id = ?
             AND stato IN ('prenotato', 'da_ritirare')
             AND attivo = 1
+            ORDER BY data_prestito ASC, id ASC
             LIMIT 1
         ");
         $stmt->bind_param('i', $copiaId);
