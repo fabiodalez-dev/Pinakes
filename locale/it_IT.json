@@ -6440,5 +6440,9 @@
   "L'utente ha già un prestito attivo per questo libro": "L'utente ha già un prestito attivo per questo libro",
   "L'utente ha già una prenotazione attiva per questo libro": "L'utente ha già una prenotazione attiva per questo libro",
   "Errore durante l'annullamento della prenotazione": "Errore durante l'annullamento della prenotazione",
-  "Hai già una prenotazione attiva per questo libro": "Hai già una prenotazione attiva per questo libro"
+  "Hai già una prenotazione attiva per questo libro": "Hai già una prenotazione attiva per questo libro",
+  "Tessera": "Tessera",
+  "%d utenti": "%d utenti",
+  "%d utenti filtrati su %d totali": "%d utenti filtrati su %d totali",
+  "Nessun utente da esportare.": "Nessun utente da esportare."
 }

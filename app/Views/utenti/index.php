@@ -668,100 +668,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // PDF export
     document.getElementById('export-pdf').addEventListener('click', function() {
-      const currentData = table.rows({search: 'applied'}).data().toArray();
-      if (currentData.length === 0) {
-        if (window.Swal) {
-          Swal.fire({
-            icon: 'info',
-            title: __('Nessun dato'),
-            text: __('Non ci sono dati da esportare')
-          });
-        }
-        return;
-      }
-
-      // Create PDF content using jsPDF
-      if (typeof window.jspdf === 'undefined') {
-        // Load jsPDF if not available
-        const script = document.createElement('script');
-        script.src = <?= json_encode(assetUrl("js/jspdf.umd.min.js"), JSON_HEX_TAG) ?>;
-        script.onload = function() {
-          generatePDF(currentData);
-        };
-        document.head.appendChild(script);
-      } else {
-        generatePDF(currentData);
-      }
+      // Server-side PDF export: navigate to /admin/users/export-pdf with the current filter
+      // values so the PDF matches the on-screen list. The old client-side jsPDF path was
+      // dead (the jsPDF asset was never shipped) and couldn't render non-Latin-1 names.
+      const params = new URLSearchParams();
+      const s = document.getElementById('search_text');
+      const r = document.getElementById('role_filter');
+      const st = document.getElementById('status_filter');
+      const cf = document.getElementById('created_from');
+      if (s && s.value.trim()) params.set('search_text', s.value.trim());
+      if (r && r.value) params.set('role_filter', r.value);
+      if (st && st.value) params.set('status_filter', st.value);
+      if (cf && cf.value) params.set('created_from', cf.value);
+      const base = (window.BASE_PATH || '') + '/admin/users/export-pdf';
+      const qs = params.toString();
+      window.location.href = qs ? `${base}?${qs}` : base;
     });
-
-    function generatePDF(data) {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-
-      // Title
-      doc.setFontSize(18);
-      doc.text(__('Elenco Utenti - Biblioteca'), 14, 22);
-
-      // Date
-      doc.setFontSize(11);
-      doc.text(`${__('Generato il:')} ${formatDateLocale(new Date())}`, 14, 30);
-
-      // Total count
-      doc.text(`${__('Totale utenti:')} ${data.length}`, 14, 38);
-
-      // Table headers
-      const headers = [__('Nome'), __('Cognome'), __('Email'), __('Ruolo'), __('Stato')];
-      let yPos = 50;
-
-      // Set font for table
-      doc.setFontSize(10);
-
-      // Column widths
-      const colWidths = [40, 40, 60, 25, 25];
-      const startX = 14;
-
-      // Draw headers
-      headers.forEach((header, i) => {
-        doc.text(header, startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0), yPos);
-      });
-
-      yPos += 8;
-
-      // Draw data
-      data.forEach((row, index) => {
-        if (yPos > 280) {
-          doc.addPage();
-          yPos = 20;
-        }
-
-        const rowData = [
-          (decodeHtml(row.nome) || '').substring(0, 20),
-          (decodeHtml(row.cognome) || '').substring(0, 20),
-          (row.email || '').substring(0, 35),
-          (row.tipo_utente || '').substring(0, 15),
-          (row.stato || '').substring(0, 15)
-        ];
-
-        rowData.forEach((cell, i) => {
-          doc.text(cell, startX + colWidths.slice(0, i).reduce((a, b) => a + b, 0), yPos);
-        });
-
-        yPos += 7;
-      });
-
-      // Save the PDF
-      doc.save(`utenti_${new Date().toISOString().slice(0, 10)}.pdf`);
-
-      if (window.Swal) {
-        Swal.fire({
-          icon: 'success',
-          title: __('PDF generato!'),
-          text: __('Il download dovrebbe iniziare automaticamente'),
-          timer: 2000,
-          showConfirmButton: false
-        });
-      }
-    }
   }
 
 });

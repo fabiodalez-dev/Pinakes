@@ -159,4 +159,81 @@ class UtentiApiController
         $response->getBody()->write(json_encode($payload, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
         return $response->withHeader('Content-Type', 'application/json');
     }
+
+    /**
+     * Server-side PDF export of the (filtered) users list. Applies the SAME filters as
+     * list() — search_text / role_filter / status_filter / created_from — so the PDF is
+     * "what you see", then streams a TCPDF built by UsersPdfGenerator (Unicode-safe).
+     */
+    public function exportPdf(Request $request, Response $response, mysqli $db): Response
+    {
+        $q = $request->getQueryParams();
+
+        $where = ' WHERE 1=1 ';
+        $params = [];
+        $types = '';
+
+        $search_value = trim((string)($q['search_text'] ?? ($q['search_value'] ?? '')));
+        if ($search_value !== '') {
+            $searchParam = "%$search_value%";
+            $where .= ' AND (u.nome LIKE ? OR u.cognome LIKE ? OR u.email LIKE ? OR u.telefono LIKE ? OR u.codice_tessera LIKE ?)';
+            $params = array_fill(0, 5, $searchParam);
+            $types = 'sssss';
+        }
+        $role = trim((string)($q['role_filter'] ?? ''));
+        if ($role !== '') {
+            $where .= ' AND u.tipo_utente = ? ';
+            $params[] = $role;
+            $types .= 's';
+        }
+        $status = trim((string)($q['status_filter'] ?? ''));
+        if ($status !== '') {
+            $where .= ' AND u.stato = ? ';
+            $params[] = $status;
+            $types .= 's';
+        }
+        $createdFrom = trim((string)($q['created_from'] ?? ''));
+        if ($createdFrom !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $createdFrom)) {
+            $where .= ' AND DATE(u.created_at) >= ? ';
+            $params[] = $createdFrom;
+            $types .= 's';
+        }
+
+        // Unfiltered total for the header summary ("N filtered out of M total").
+        $total = 0;
+        if ($totRes = $db->query('SELECT COUNT(*) AS c FROM utenti')) {
+            $total = (int)($totRes->fetch_assoc()['c'] ?? 0);
+        }
+
+        // All matching rows, capped so a very large library can't build a runaway PDF.
+        $sql = "SELECT u.nome, u.cognome, u.email, u.telefono, u.tipo_utente, u.stato, u.codice_tessera
+                FROM utenti u $where
+                ORDER BY u.cognome ASC, u.nome ASC
+                LIMIT 5000";
+        $stmt = $db->prepare($sql);
+        if ($stmt === false) {
+            AppLog::error('utenti.export.prepare_failed', ['error' => $db->error]);
+            return $response->withStatus(500);
+        }
+        if (!empty($params)) {
+            $stmt->bind_param($types, ...$params);
+        }
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $rows = [];
+        while ($r = $res->fetch_assoc()) {
+            // Localize the enum labels the same way the on-screen columns present them.
+            $r['tipo_utente'] = __((string)($r['tipo_utente'] ?? ''));
+            $r['stato'] = __((string)($r['stato'] ?? ''));
+            $rows[] = $r;
+        }
+        $stmt->close();
+
+        $pdf = (new \App\Support\UsersPdfGenerator())->generate($rows, $total);
+        $filename = 'utenti_' . date('Ymd') . '.pdf';
+        $response->getBody()->write($pdf);
+        return $response
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'attachment; filename="' . $filename . '"');
+    }
 }

@@ -1858,6 +1858,14 @@ return function (App $app): void {
         return $controller->list($request, $response, $db);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
+    // Server-side PDF export of the (filtered) users list — reuses UtentiApiController's
+    // filter logic so the PDF matches the on-screen table. Replaces a dead client-side jsPDF.
+    $app->get('/admin/users/export-pdf', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\UtentiApiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->exportPdf($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(10, 60))->add(new AdminAuthMiddleware());
+
     // Reservations (admin)
     $app->get('/admin/reservations', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
