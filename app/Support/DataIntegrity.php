@@ -17,6 +17,10 @@ class DataIntegrity {
      */
     public function recalculateAllBookAvailability(bool $insideTransaction = false): array {
         $results = ['updated' => 0, 'errors' => []];
+        // App-timezone "today" (DateHelper), interpolated below instead of the DB's CURDATE():
+        // stored dates are app-tz, so CURDATE() (DB session tz) drifts by a day in the window
+        // around local midnight. Validated Y-m-d string → safe to interpolate.
+        $today = \App\Support\DateHelper::today();
 
         try {
             if (!$insideTransaction) {
@@ -67,7 +71,7 @@ class DataIntegrity {
                             AND (
                                 ( p.attivo = 1 AND (
                                     p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                    OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE() AND p.data_scadenza >= CURDATE())
+                                    OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND p.data_scadenza >= '{$today}')
                                 ) )
                                 OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                             )
@@ -80,8 +84,8 @@ class DataIntegrity {
                         WHERE pr.libro_id = l.id
                         AND pr.stato = 'attiva'
                         AND pr.data_inizio_richiesta IS NOT NULL
-                        AND pr.data_inizio_richiesta <= CURDATE()
-                        AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= CURDATE()
+                        AND pr.data_inizio_richiesta <= '{$today}'
+                        AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
                     ),
                     0
                 ),
@@ -100,7 +104,7 @@ class DataIntegrity {
                                 AND (
                                     ( p.attivo = 1 AND (
                                         p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE() AND p.data_scadenza >= CURDATE())
+                                        OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND p.data_scadenza >= '{$today}')
                                     ) )
                                     OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                                 )
@@ -113,8 +117,8 @@ class DataIntegrity {
                             WHERE pr.libro_id = l.id
                             AND pr.stato = 'attiva'
                             AND pr.data_inizio_richiesta IS NOT NULL
-                            AND pr.data_inizio_richiesta <= CURDATE()
-                            AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= CURDATE()
+                            AND pr.data_inizio_richiesta <= '{$today}'
+                            AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
                         ),
                         0
                     ) > 0 THEN 'disponibile'
@@ -273,6 +277,9 @@ class DataIntegrity {
      * Supports being called inside or outside a transaction
      */
     public function recalculateBookAvailability(int $bookId, bool $insideTransaction = false): bool {
+        // App-timezone "today" (see recalculateAllBookAvailability) — interpolated in place of
+        // the DB CURDATE() so the availability comparisons don't drift around local midnight.
+        $today = \App\Support\DateHelper::today();
         try {
             if (!$insideTransaction) {
                 $this->db->begin_transaction();
@@ -323,7 +330,7 @@ class DataIntegrity {
                             AND (
                                 ( p.attivo = 1 AND (
                                     p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                    OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE() AND p.data_scadenza >= CURDATE())
+                                    OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND p.data_scadenza >= '{$today}')
                                 ) )
                                 OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                             )
@@ -336,8 +343,8 @@ class DataIntegrity {
                         WHERE pr.libro_id = ?
                         AND pr.stato = 'attiva'
                         AND pr.data_inizio_richiesta IS NOT NULL
-                        AND pr.data_inizio_richiesta <= CURDATE()
-                        AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= CURDATE()
+                        AND pr.data_inizio_richiesta <= '{$today}'
+                        AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
                     ),
                     0
                 ),
@@ -356,7 +363,7 @@ class DataIntegrity {
                                 AND (
                                     ( p.attivo = 1 AND (
                                         p.stato IN ('in_corso', 'in_ritardo', 'da_ritirare')
-                                        OR (p.stato = 'prenotato' AND p.data_prestito <= CURDATE() AND p.data_scadenza >= CURDATE())
+                                        OR (p.stato = 'prenotato' AND p.data_prestito <= '{$today}' AND p.data_scadenza >= '{$today}')
                                     ) )
                                     OR ( p.attivo = 0 AND p.stato = 'pendente' AND p.copia_id IS NOT NULL )
                                 )
@@ -369,8 +376,8 @@ class DataIntegrity {
                             WHERE pr.libro_id = ?
                             AND pr.stato = 'attiva'
                             AND pr.data_inizio_richiesta IS NOT NULL
-                            AND pr.data_inizio_richiesta <= CURDATE()
-                            AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= CURDATE()
+                            AND pr.data_inizio_richiesta <= '{$today}'
+                            AND COALESCE(pr.data_fine_richiesta, DATE(pr.data_scadenza_prenotazione), pr.data_inizio_richiesta) >= '{$today}'
                         ),
                         0
                     ) > 0 THEN 'disponibile'

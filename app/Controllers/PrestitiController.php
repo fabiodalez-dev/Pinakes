@@ -716,6 +716,15 @@ class PrestitiController
             // arriva da hidden field e senza ricontrolli permetterebbe di aggirare
             // idoneità e dup-check assegnando il prestito a un altro utente.
             if ($newUserId !== (int) $locked['utente_id']) {
+                // Lock the target user's row before the eligibility + max-loans checks, so two
+                // concurrent reassignments to the same user can't both pass the COUNT and
+                // overshoot max_active_loans_per_user (store() takes the same lock — #12).
+                $newUserLock = $db->prepare("SELECT id FROM utenti WHERE id = ? FOR UPDATE");
+                $newUserLock->bind_param('i', $newUserId);
+                $newUserLock->execute();
+                $newUserLock->get_result();
+                $newUserLock->close();
+
                 $eligibilityError = \App\Support\LoanEligibility::checkUser($db, $newUserId);
                 if ($eligibilityError !== null) {
                     $db->rollback();
@@ -741,6 +750,20 @@ class PrestitiController
                     return $response->withHeader('Location', url('/admin/loans') . '?error=duplicate_reservation')->withStatus(302);
                 }
 
+                // Also block a user who already holds an ACTIVE queue reservation for this
+                // book (store()/approveLoan() enforce this too — #10). Without it a reassign
+                // leaves the user with both a loan and a queue reservation for the same book,
+                // the state the other paths forbid, which confuses queue promotion.
+                $resDupStmt = $db->prepare("SELECT id FROM prenotazioni WHERE libro_id = ? AND utente_id = ? AND stato = 'attiva' FOR UPDATE");
+                $resDupStmt->bind_param('ii', $libroId, $newUserId);
+                $resDupStmt->execute();
+                $hasResDup = $resDupStmt->get_result()->num_rows > 0;
+                $resDupStmt->close();
+                if ($hasResDup) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=duplicate_reservation')->withStatus(302);
+                }
+
                 // Cap prestiti attivi del NUOVO utente (M6): stesso enforcement di
                 // store() — senza, la riassegnazione admin aggira silenziosamente
                 // max_active_loans_per_user.
@@ -756,6 +779,46 @@ class PrestitiController
                         $db->rollback();
                         return $response->withHeader('Location', url('/admin/loans') . '?error=max_loans_reached')->withStatus(302);
                     }
+                }
+            }
+
+            // #11: if the loan is being RESCHEDULED, re-check the new window against
+            // overlapping loans + queue reservations vs capacity (renew() does this — update()
+            // used to accept any new dates and only recalc counters, silently extending a loan
+            // over a queued reservation). Only when the dates actually change.
+            if ($newPrestito !== (string) $current['data_prestito'] || $newScadenza !== (string) $current['data_scadenza']) {
+                $ovlLoanStmt = $db->prepare("
+                    SELECT COUNT(*) AS c FROM prestiti
+                    WHERE libro_id = ? AND id != ? AND attivo = 1
+                    AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo')
+                    AND data_prestito <= ? AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                ");
+                $ovlLoanStmt->bind_param('iiss', $libroId, $id, $newScadenza, $newPrestito);
+                $ovlLoanStmt->execute();
+                $ovlLoans = (int) ($ovlLoanStmt->get_result()->fetch_assoc()['c'] ?? 0);
+                $ovlLoanStmt->close();
+
+                $ovlResStmt = $db->prepare("
+                    SELECT COUNT(*) AS c FROM prenotazioni
+                    WHERE libro_id = ? AND stato = 'attiva'
+                    AND COALESCE(data_inizio_richiesta, DATE(data_scadenza_prenotazione)) <= ?
+                    AND COALESCE(data_fine_richiesta, DATE(data_scadenza_prenotazione)) >= ?
+                ");
+                $ovlResStmt->bind_param('iss', $libroId, $newScadenza, $newPrestito);
+                $ovlResStmt->execute();
+                $ovlRes = (int) ($ovlResStmt->get_result()->fetch_assoc()['c'] ?? 0);
+                $ovlResStmt->close();
+
+                $totCopStmt = $db->prepare("SELECT COUNT(*) AS t FROM copie WHERE libro_id = ? AND stato NOT IN ('perso','danneggiato','manutenzione','in_restauro','in_trasferimento')");
+                $totCopStmt->bind_param('i', $libroId);
+                $totCopStmt->execute();
+                $totCop = (int) ($totCopStmt->get_result()->fetch_assoc()['t'] ?? 0);
+                $totCopStmt->close();
+
+                // This loan holds 1 slot in the new window; if the rest would exceed capacity, reject.
+                if (1 + $ovlLoans + $ovlRes > $totCop) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans') . '?error=no_copies_available')->withStatus(302);
                 }
             }
 
