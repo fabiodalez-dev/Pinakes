@@ -6431,5 +6431,9 @@
   "La valutazione deve essere tra 1 e 5 stelle.": "Die Bewertung muss zwischen 1 und 5 Sternen liegen.",
   "Nessuna recensione da eliminare.": "Keine Rezension zum Löschen.",
   "Puoi recensire solo i titoli che hai preso in prestito.": "Du kannst nur Titel rezensieren, die du ausgeliehen hast.",
-  "Testo della recensione non valido.": "Ungültiger Rezensionstext."
+  "Testo della recensione non valido.": "Ungültiger Rezensionstext.",
+  "Proxy fidati (reverse proxy)": "Vertrauenswürdige Proxys (Reverse Proxy)",
+  "Se Pinakes è dietro un reverse proxy (NAS/QNAP/Synology/nginx/Docker) che termina il TLS, elenca qui gli IP o le reti (CIDR) del proxy: solo così l'app accetta l'header X-Forwarded-Proto e l'API non risponde \"HTTPS richiesto\" anche su HTTPS reale.": "Wenn Pinakes hinter einem Reverse Proxy (NAS/QNAP/Synology/nginx/Docker) läuft, der TLS terminiert, tragen Sie hier die IPs oder Netze (CIDR) des Proxys ein: nur dann akzeptiert die App den X-Forwarded-Proto-Header und die API antwortet nicht mehr mit „HTTPS erforderlich“ – auch über echtes HTTPS.",
+  "Rilevato un reverse proxy da %s che inoltra HTTPS, ma quell'indirizzo non è ancora fidato: l'app riceverebbe un errore HTTPS. Aggiungilo alla lista qui sopra e salva.": "Reverse Proxy unter %s erkannt, der HTTPS weiterleitet, aber diese Adresse ist noch nicht vertrauenswürdig: die App würde einen HTTPS-Fehler erhalten. Fügen Sie sie oben zur Liste hinzu und speichern Sie.",
+  "Aggiungi %s": "%s hinzufügen"
 }

@@ -6431,5 +6431,9 @@
   "La valutazione deve essere tra 1 e 5 stelle.": "La valutazione deve essere tra 1 e 5 stelle.",
   "Nessuna recensione da eliminare.": "Nessuna recensione da eliminare.",
   "Puoi recensire solo i titoli che hai preso in prestito.": "Puoi recensire solo i titoli che hai preso in prestito.",
-  "Testo della recensione non valido.": "Testo della recensione non valido."
+  "Testo della recensione non valido.": "Testo della recensione non valido.",
+  "Proxy fidati (reverse proxy)": "Proxy fidati (reverse proxy)",
+  "Se Pinakes è dietro un reverse proxy (NAS/QNAP/Synology/nginx/Docker) che termina il TLS, elenca qui gli IP o le reti (CIDR) del proxy: solo così l'app accetta l'header X-Forwarded-Proto e l'API non risponde \"HTTPS richiesto\" anche su HTTPS reale.": "Se Pinakes è dietro un reverse proxy (NAS/QNAP/Synology/nginx/Docker) che termina il TLS, elenca qui gli IP o le reti (CIDR) del proxy: solo così l'app accetta l'header X-Forwarded-Proto e l'API non risponde \"HTTPS richiesto\" anche su HTTPS reale.",
+  "Rilevato un reverse proxy da %s che inoltra HTTPS, ma quell'indirizzo non è ancora fidato: l'app riceverebbe un errore HTTPS. Aggiungilo alla lista qui sopra e salva.": "Rilevato un reverse proxy da %s che inoltra HTTPS, ma quell'indirizzo non è ancora fidato: l'app riceverebbe un errore HTTPS. Aggiungilo alla lista qui sopra e salva.",
+  "Aggiungi %s": "Aggiungi %s"
 }

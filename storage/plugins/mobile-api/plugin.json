@@ -2,7 +2,7 @@
   "name": "mobile-api",
   "display_name": "Mobile API",
   "description": "API REST/JSON versionata (/api/v1) per l'app companion mobile di Pinakes: discovery, autenticazione a token per dispositivo, ricerca catalogo, prestiti/prenotazioni, wishlist, profilo, messaggi e notifiche push. Disattivata per default finché non viene abilitata.",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "",

@@ -20,16 +20,91 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 final class ProxyTrust
 {
     /**
-     * Whether the request's TCP peer is in the configured TRUSTED_PROXIES list.
+     * The configured trusted-proxy entries (exact IPs / CIDRs), from BOTH the
+     * TRUSTED_PROXIES env var AND the `mobile_api.trusted_proxies` admin setting.
+     * Either source is enough — so an operator behind a reverse proxy (QNAP/Synology/
+     * nginx/Docker) can fix the "HTTPS required / 426" case from the settings UI without
+     * editing .env.
+     *
+     * @return list<string>
+     */
+    /** Per-request cache of the DB setting so the middleware doesn't re-query per call. */
+    private static ?string $settingCache = null;
+
+    public static function trustedEntries(): array
+    {
+        $sources = [];
+        $env = $_ENV['TRUSTED_PROXIES'] ?? getenv('TRUSTED_PROXIES');
+        if (is_string($env)) {
+            $sources[] = $env;
+        }
+        // The mobile_api.trusted_proxies admin setting lives in system_settings; ConfigStore
+        // only exposes a fixed set of known paths, so read it directly (mirrors how the
+        // plugin persists it via its settings repo).
+        $sources[] = self::settingValue();
+
+        $entries = [];
+        foreach ($sources as $raw) {
+            foreach (explode(',', $raw) as $entry) {
+                $entry = trim($entry);
+                if ($entry !== '') {
+                    $entries[] = $entry;
+                }
+            }
+        }
+        return $entries;
+    }
+
+    /**
+     * Read mobile_api.trusted_proxies straight from system_settings (ConfigStore only
+     * exposes a fixed set of known paths). Cached per request. Any failure yields '' — a
+     * settings read must never turn the HTTPS gate into a hard error.
+     */
+    private static function settingValue(): string
+    {
+        if (self::$settingCache !== null) {
+            return self::$settingCache;
+        }
+        self::$settingCache = '';
+
+        $host   = (string) ($_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'localhost');
+        $name   = (string) ($_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: '');
+        $user   = (string) ($_ENV['DB_USER'] ?? getenv('DB_USER') ?: '');
+        $pass   = (string) ($_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: ($_ENV['DB_PASSWORD'] ?? getenv('DB_PASSWORD') ?: ''));
+        $port   = (int) ($_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: 3306);
+        $socket = (string) ($_ENV['DB_SOCKET'] ?? getenv('DB_SOCKET') ?: '');
+        if ($name === '' || $user === '') {
+            return self::$settingCache;
+        }
+
+        try {
+            $db = $socket !== ''
+                ? new \mysqli(null, $user, $pass, $name, 0, $socket)
+                : new \mysqli($host, $user, $pass, $name, $port);
+            $stmt = $db->prepare("SELECT setting_value FROM system_settings WHERE category = 'mobile_api' AND setting_key = 'trusted_proxies' LIMIT 1");
+            if ($stmt !== false) {
+                $stmt->execute();
+                $res = $stmt->get_result();
+                $row = $res ? $res->fetch_row() : null;
+                if ($row !== null && is_string($row[0])) {
+                    self::$settingCache = $row[0];
+                }
+                $stmt->close();
+            }
+            $db->close();
+        } catch (\Throwable $e) {
+            // stay with '' — never break the HTTPS gate on a settings-read failure
+        }
+
+        return self::$settingCache;
+    }
+
+    /**
+     * Whether the request's TCP peer is in the configured trusted-proxy list
+     * (TRUSTED_PROXIES env + mobile_api.trusted_proxies setting).
      */
     public static function isTrustedProxy(Request $request): bool
     {
-        $trustedRaw = $_ENV['TRUSTED_PROXIES'] ?? getenv('TRUSTED_PROXIES');
-        $trustedEnv = is_string($trustedRaw) ? trim($trustedRaw) : '';
-        if ($trustedEnv === '') {
-            return false;
-        }
-
         $server     = $request->getServerParams();
         $remoteAddr = trim((string) ($server['REMOTE_ADDR'] ?? ''));
         if ($remoteAddr === '') {
@@ -41,7 +116,11 @@ final class ProxyTrust
             return false;
         }
 
-        $entries = array_map('trim', explode(',', $trustedEnv));
+        $entries = self::trustedEntries();
+        if ($entries === []) {
+            return false;
+        }
+
         foreach ($entries as $entry) {
             if ($entry === '') {
                 continue;
