@@ -5,6 +5,39 @@ namespace App\Support;
 
 final class Mailer
 {
+    /** Per-request cache of the SMTP reachability probe (null = not yet checked). */
+    private static ?bool $smtpReachable = null;
+
+    /**
+     * Whether the configured SMTP server accepts a TCP connection. Used as a circuit-breaker
+     * before a notification BATCH so a down/misconfigured SMTP costs one short probe instead
+     * of hammering it with a full retry cycle for every recipient. Cached per request, and
+     * always true for the `mail` driver (no host to probe). Logs once when it trips.
+     */
+    public static function isSmtpReachable(): bool
+    {
+        if (self::$smtpReachable !== null) {
+            return self::$smtpReachable;
+        }
+        $driver = (string)ConfigStore::get('mail.driver', 'mail');
+        if ($driver !== 'smtp' && $driver !== 'phpmailer') {
+            return self::$smtpReachable = true;
+        }
+        $host = (string)ConfigStore::get('mail.smtp.host', '');
+        if ($host === '') {
+            return self::$smtpReachable = true; // no host configured — let the send path decide
+        }
+        $port = (int)ConfigStore::get('mail.smtp.port', 587);
+        $errno = 0; $errstr = '';
+        $fp = @stream_socket_client('tcp://' . $host . ':' . $port, $errno, $errstr, 4, STREAM_CLIENT_CONNECT);
+        if ($fp) {
+            fclose($fp);
+            return self::$smtpReachable = true;
+        }
+        SecureLogger::warning("SMTP host {$host}:{$port} unreachable ({$errstr}) — skipping email sends this run");
+        return self::$smtpReachable = false;
+    }
+
     public static function send(string $to, string $subject, string $htmlBody, ?string $textBody = null): bool
     {
         $fromEmail = (string)ConfigStore::get('mail.from_email', 'no-reply@localhost');
@@ -138,6 +171,10 @@ final class Mailer
             $host = (string)ConfigStore::get('mail.smtp.host', '');
             if ($host !== '') {
                 $mailer->isSMTP();
+                // PHPMailer's default Timeout is 300s: if the SMTP host accepts the TCP
+                // connection but then stalls, a single send would block the (cron) request
+                // for 5 minutes. Cap it — the raw-socket path already uses 10s.
+                $mailer->Timeout = (int)ConfigStore::get('mail.smtp.timeout', 10);
                 $mailer->Host = $host;
                 $mailer->Port = (int)ConfigStore::get('mail.smtp.port', 587);
                 $enc  = (string)ConfigStore::get('mail.smtp.encryption', 'tls');
