@@ -1286,6 +1286,15 @@ class NotificationService {
      * @return bool True if email was sent successfully
      */
     private function sendWithRetry(string $email, string $template, array $variables, int $maxRetries = 3, int $retryDelayMs = 1000): bool {
+        // Circuit-breaker: if the SMTP server is unreachable, don't run the full retry cycle
+        // (maxRetries attempts + 1s sleeps) for every recipient in a batch — they would all
+        // fail the same way, hanging the run. Mailer::isSmtpReachable() probes once per
+        // request (cached) and logs a single warning, so a down SMTP costs one short probe
+        // instead of N × maxRetries connection timeouts.
+        if (!\App\Support\Mailer::isSmtpReachable()) {
+            return false;
+        }
+
         $lastError = '';
 
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
