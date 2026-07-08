@@ -136,17 +136,28 @@ async function dismissSwal(page) {
   } catch (_) { /* already closed */ }
 }
 
-/** Return today's date as YYYY-MM-DD. */
-function todayISO() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Reservation dates are validated server-side against DateHelper::today(), which
+// runs in the app timezone (Europe/Rome by default). The CI runner is UTC, so a
+// plain `new Date()` yields the UTC calendar day — and when CI runs late in the UTC
+// day (Rome is an hour or two ahead), that's Rome's *yesterday*, which the server
+// rejects as `past_date`. Compute these dates in the app timezone so the test's
+// "today" always matches the server's, regardless of where the runner clock sits.
+const APP_TZ = 'Europe/Rome';
+/** Format a Date as YYYY-MM-DD in the app timezone (en-CA gives ISO order). */
+function isoInAppTz(date) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TZ, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(date);
 }
 
-/** Return a future date as YYYY-MM-DD. */
+/** Return today's date (app timezone) as YYYY-MM-DD. */
+function todayISO() {
+  return isoInAppTz(new Date());
+}
+
+/** Return a future date (app timezone) as YYYY-MM-DD. */
 function futureISO(daysFromNow) {
-  const d = new Date();
-  d.setDate(d.getDate() + daysFromNow);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return isoInAppTz(new Date(Date.now() + daysFromNow * 86400000));
 }
 
 /**
