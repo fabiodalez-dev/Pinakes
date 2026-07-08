@@ -957,7 +957,7 @@ class NotificationService {
                 'pickup_instructions' => 'Recati in biblioteca durante gli orari di apertura per ritirare il libro.'
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_approved', $variables);
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_approved', $variables, \App\Support\I18n::getInstallationLocale());
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan approved notification: " . $e->getMessage());
@@ -994,7 +994,7 @@ class NotificationService {
                 'motivo_rifiuto' => $reason ?: __('Nessun motivo specificato')
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_rejected', $variables);
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_rejected', $variables, \App\Support\I18n::getInstallationLocale());
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan rejected notification: " . $e->getMessage());
@@ -1024,7 +1024,7 @@ class NotificationService {
                 'motivo_rifiuto' => $reason ?: __('Nessun motivo specificato')
             ];
 
-            return $this->emailService->sendTemplate($userEmail, 'loan_rejected', $variables);
+            return $this->emailService->sendTemplate($userEmail, 'loan_rejected', $variables, \App\Support\I18n::getInstallationLocale());
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan rejected notification (direct): " . $e->getMessage());
@@ -1070,7 +1070,7 @@ class NotificationService {
                 'pickup_instructions' => __('Recati in biblioteca durante gli orari di apertura per ritirare il libro.')
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_ready', $variables);
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_ready', $variables, \App\Support\I18n::getInstallationLocale());
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send pickup ready notification: " . $e->getMessage());
@@ -1107,7 +1107,7 @@ class NotificationService {
                 'scadenza_ritiro' => $loan['pickup_deadline'] ? $this->formatEmailDate($loan['pickup_deadline']) : ''
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_expired', $variables);
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_expired', $variables, \App\Support\I18n::getInstallationLocale());
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send pickup expired notification: " . $e->getMessage());
@@ -1144,7 +1144,7 @@ class NotificationService {
                 'motivo' => $reason ?: __('Ritiro non effettuato entro la scadenza')
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_cancelled', $variables);
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_pickup_cancelled', $variables, \App\Support\I18n::getInstallationLocale());
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send pickup cancelled notification: " . $e->getMessage());
@@ -1156,7 +1156,7 @@ class NotificationService {
      * Send reservation book available notification
      */
     public function sendReservationBookAvailable(string $email, array $variables): bool {
-        return $this->emailService->sendTemplate($email, 'reservation_book_available', $variables);
+        return $this->emailService->sendTemplate($email, 'reservation_book_available', $variables, \App\Support\I18n::getInstallationLocale());
     }
 
     /**
@@ -1191,7 +1191,7 @@ class NotificationService {
                 'data_restituzione' => $this->formatEmailDate($loan['data_restituzione'] ?? DateHelper::today()),
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_returned', $variables);
+            return $this->emailService->sendTemplate($loan['utente_email'], 'loan_returned', $variables, \App\Support\I18n::getInstallationLocale());
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send loan returned notification: " . $e->getMessage());
             return false;
@@ -1232,7 +1232,7 @@ class NotificationService {
                 'data_scadenza' => $this->formatEmailDate($scadenza),
             ];
 
-            return $this->emailService->sendTemplate($loan['utente_email'], 'reservation_expired', $variables);
+            return $this->emailService->sendTemplate($loan['utente_email'], 'reservation_expired', $variables, \App\Support\I18n::getInstallationLocale());
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send reservation expired notification: " . $e->getMessage());
             return false;
@@ -1246,7 +1246,7 @@ class NotificationService {
         if (empty($email)) {
             return false;
         }
-        return $this->emailService->sendTemplate($email, 'copy_unavailable_user', $variables);
+        return $this->emailService->sendTemplate($email, 'copy_unavailable_user', $variables, \App\Support\I18n::getInstallationLocale());
     }
 
     /**
@@ -1262,7 +1262,7 @@ class NotificationService {
         if (!empty($variables['data_scadenza'])) {
             $variables['data_scadenza'] = $this->formatEmailDate((string)$variables['data_scadenza']);
         }
-        return $this->emailService->sendTemplate($email, 'reservation_expired', $variables);
+        return $this->emailService->sendTemplate($email, 'reservation_expired', $variables, \App\Support\I18n::getInstallationLocale());
     }
 
     /**
@@ -1273,7 +1273,7 @@ class NotificationService {
         if (empty($email)) {
             return false;
         }
-        return $this->emailService->sendTemplate($email, 'reservation_cancelled', $variables);
+        return $this->emailService->sendTemplate($email, 'reservation_cancelled', $variables, \App\Support\I18n::getInstallationLocale());
     }
 
     /**
@@ -1290,7 +1290,7 @@ class NotificationService {
 
         for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
             try {
-                if ($this->emailService->sendTemplate($email, $template, $variables)) {
+                if ($this->emailService->sendTemplate($email, $template, $variables, \App\Support\I18n::getInstallationLocale())) {
                     if ($attempt > 1) {
                         SecureLogger::info("Email to {$email} succeeded on attempt {$attempt}");
                     }

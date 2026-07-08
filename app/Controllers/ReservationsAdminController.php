@@ -235,8 +235,23 @@ class ReservationsAdminController
                 }
             }
 
-            $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=? WHERE id=?");
-            $stmt->bind_param('sssssi', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $id);
+            // #13: reactivating a cancelled/completed reservation must NOT keep its old
+            // (small) queue_position — that would jump it ahead of everyone who waited
+            // continuously. Append it to the tail, exactly like store() does.
+            $reactivating = ($oldStato !== 'attiva' && $stato === 'attiva');
+            if ($reactivating) {
+                $posStmt = $db->prepare("SELECT COALESCE(MAX(queue_position), 0) + 1 AS position FROM prenotazioni WHERE libro_id = ? AND stato = 'attiva'");
+                $posStmt->bind_param('i', $libroId);
+                $posStmt->execute();
+                $newPosition = (int) ($posStmt->get_result()->fetch_assoc()['position'] ?? 1);
+                $posStmt->close();
+
+                $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=?, queue_position=? WHERE id=?");
+                $stmt->bind_param('sssssii', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $newPosition, $id);
+            } else {
+                $stmt = $db->prepare("UPDATE prenotazioni SET stato=?, data_prenotazione=?, data_scadenza_prenotazione=?, data_inizio_richiesta=?, data_fine_richiesta=? WHERE id=?");
+                $stmt->bind_param('sssssi', $stato, $startDt, $endDt, $dataInizioRichiesta, $dataFineRichiesta, $id);
+            }
             if (!$stmt->execute()) {
                 throw new \RuntimeException('Reservation update failed');
             }

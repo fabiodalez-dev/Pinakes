@@ -543,7 +543,7 @@ class PrestitiController
 
                 // Get book and user details for notification
                 $infoStmt = $db->prepare("
-                    SELECT l.titolo, CONCAT(u.nome, ' ', u.cognome) as utente_nome
+                    SELECT l.titolo, CONCAT(u.nome, ' ', u.cognome) as utente_nome, p.stato
                     FROM prestiti p
                     JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                     JOIN utenti u ON p.utente_id = u.id
@@ -562,6 +562,16 @@ class PrestitiController
                         url('/admin/loans'),
                         $newLoanId
                     );
+
+                    // #14: an admin-created (origine='diretto') loan sent the borrower no
+                    // confirmation, unlike the request→approve flow which always emails.
+                    // Mirror approveLoan() for the scheduled states. 'in_corso' means the
+                    // patron is at the desk right now, so no email is needed there.
+                    if (($loanInfo['stato'] ?? '') === 'prenotato') {
+                        $notificationService->sendLoanApprovedNotification($newLoanId);
+                    } elseif (($loanInfo['stato'] ?? '') === 'da_ritirare') {
+                        $notificationService->sendPickupReadyNotification($newLoanId);
+                    }
                 }
             } catch (\Throwable $e) {
                 SecureLogger::warning(__('Notifica prestito fallita'), ['error' => $e->getMessage()]);

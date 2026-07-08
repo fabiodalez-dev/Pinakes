@@ -129,7 +129,11 @@ $loanActionTranslations = array_merge([
   };
 
   const sendRequest = async (url, payload, csrf) => {
-    const response = await fetch(url, {
+    // Prefix the app base path so the admin loan actions work on subdirectory installs
+    // (e.g. https://host/biblioteca/…). The call sites pass root-relative paths like
+    // '/admin/loans/approve'; without BASE_PATH they'd 404 and the action silently fails.
+    const base = (typeof window !== 'undefined' && window.BASE_PATH) ? window.BASE_PATH : '';
+    const response = await fetch(base + url, {
       method: 'POST',
       credentials: 'same-origin',
       headers: {

@@ -43,6 +43,20 @@ class ReservationsController
     public function getBookAvailability($request, $response, $args)
     {
         $bookId = (int) $args['id'];
+
+        // A soft-deleted (or non-existent) book must not leak availability — getBookTotalCopies()
+        // counts copie rows directly, which survive the book's soft-delete, so this public
+        // endpoint would otherwise serve real counts for an invisible book.
+        $existsStmt = $this->db->prepare("SELECT 1 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $existsStmt->bind_param('i', $bookId);
+        $existsStmt->execute();
+        $bookExists = $existsStmt->get_result()->num_rows > 0;
+        $existsStmt->close();
+        if (!$bookExists) {
+            $response->getBody()->write(json_encode(['error' => true, 'message' => __('Libro non trovato')]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(404);
+        }
+
         $totalCopies = $this->getBookTotalCopies($bookId);
 
         // Get current and future loans for this book. Approved states always
