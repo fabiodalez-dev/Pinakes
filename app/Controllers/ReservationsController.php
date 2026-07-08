@@ -121,6 +121,12 @@ class ReservationsController
                 // even though they haven't picked it up yet
                 $endDateLoan = $loan['data_scadenza']
                     ?? (new DateTime($startDateLoan))->add(new DateInterval('P7D'))->format('Y-m-d');
+            } elseif ($loanStatus === 'in_ritardo' && empty($loan['data_restituzione'])) {
+                // Overdue and not yet returned: the copy is physically still out and its
+                // original data_scadenza is in the PAST — using it would free the copy on
+                // the availability calendar and let a new request slip in (double-booking).
+                // Keep it blocked open-ended until it is actually returned.
+                $endDateLoan = '9999-12-31';
             } else {
                 // For other states: data_restituzione > data_scadenza > null
                 $endDateLoan = $loan['data_restituzione'] ?? $loan['data_scadenza'] ?? null;

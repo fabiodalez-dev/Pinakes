@@ -14,6 +14,23 @@ if (php_sapi_name() !== 'cli') {
     die("This script can only be run from the command line.");
 }
 
+// Process lock: prevent two overlapping runs from both expiring the same
+// reservation and desyncing copy state / reassignment (mirrors maintenance.php).
+$lockFile = __DIR__ . '/../storage/cache/check-expired-reservations.lock';
+$lockDir = dirname($lockFile);
+if (!is_dir($lockDir)) {
+    @mkdir($lockDir, 0755, true);
+}
+$lockHandle = fopen($lockFile, 'c');
+if ($lockHandle === false || !flock($lockHandle, LOCK_EX | LOCK_NB)) {
+    fwrite(STDERR, "INFO: another check-expired-reservations run is in progress. Exiting.\n");
+    exit(0);
+}
+register_shutdown_function(static function () use ($lockHandle) {
+    flock($lockHandle, LOCK_UN);
+    fclose($lockHandle);
+});
+
 // Load environment
 $dotenv = Dotenv::createImmutable(__DIR__ . '/..');
 $dotenv->load();
@@ -29,8 +46,10 @@ if ($db->connect_error) {
 echo "[" . date('Y-m-d H:i:s') . "] Starting expired reservations check...\n";
 
 // Find expired reservations (prestiti with stato='prenotato' and data_scadenza < TODAY)
-// attivi=1
-$today = date('Y-m-d');
+// attivi=1. "Today" must be the app timezone (DateHelper), not the PHP process tz —
+// the rest of the loan pipeline compares against app-tz dates, so a raw date() here
+// would skip/early-expire reservations in the pre-midnight local offset window.
+$today = \App\Support\DateHelper::today();
 
 $stmt = $db->prepare("
     SELECT id, libro_id, copia_id, utente_id
@@ -57,18 +76,27 @@ while ($reservation = $result->fetch_assoc()) {
 
     $db->begin_transaction();
     try {
-        // Mark as expired
+        // Mark as expired — mark-then-act: the state guard + affected_rows check make
+        // this idempotent, so a concurrent run (or a row whose state changed since the
+        // SELECT) does NOT re-free the copy and re-run reassignment.
         $updateStmt = $db->prepare("
             UPDATE prestiti
             SET stato = 'scaduto',
                 attivo = 0,
                 updated_at = NOW(),
                 note = CONCAT(COALESCE(note, ''), '\n[System] Scaduta il ', DATE_FORMAT(CURDATE(), '%d/%m/%Y'))
-            WHERE id = ?
+            WHERE id = ? AND stato = 'prenotato' AND attivo = 1
         ");
         $updateStmt->bind_param('i', $id);
         $updateStmt->execute();
+        $claimed = $updateStmt->affected_rows === 1;
         $updateStmt->close();
+
+        if (!$claimed) {
+            // Already expired/changed by another run — skip without touching the copy.
+            $db->rollback();
+            continue;
+        }
 
         // If a copy was assigned, make it available (if currently 'prenotato')
         if ($copiaId) {
