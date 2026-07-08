@@ -179,38 +179,39 @@ class UsersController
         $telefono = $telefono !== '' ? $telefono : null;
         $emailVerificata = $isAdmin ? 1 : 1; // l'admin crea utenti già verificati
 
-        $stmt = $db->prepare("INSERT INTO utenti (
-            nome, cognome, email, telefono, password, indirizzo, cod_fiscale, data_nascita, sesso,
-            codice_tessera, data_scadenza_tessera, stato, tipo_utente, note_utente,
-            email_verificata, token_reset_password, data_token_reset
-        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
-
         $types = str_repeat('s', 14) . 'i' . str_repeat('s', 2);
-        $stmt->bind_param(
-            $types,
-            $nome,
-            $cognome,
-            $email,
-            $telefono,
-            $passwordHash,
-            $indirizzo,
-            $cod_fiscale,
-            $dataNascita,
-            $sesso,
-            $codiceTessera,
-            $dataScadenzaTessera,
-            $stato,
-            $role,
-            $note,
-            $emailVerificata,
-            $tokenReset,
-            $dataTokenReset
-        );
 
-        // Exception mode: a failed INSERT throws. Map a UNIQUE violation (1062) to the
-        // precise field that collided (email / codice_tessera / cod_fiscale) — the admin can
-        // input all three — everything else is a generic db_error, never a 500.
+        // Exception mode: a failed INSERT throws. prepare()/bind_param() can throw too under
+        // MYSQLI_REPORT_STRICT, so they're inside the try — map a UNIQUE violation (1062) to
+        // the precise field that collided (email / codice_tessera / cod_fiscale); the admin can
+        // input all three; everything else is a generic db_error, never a 500.
+        $stmt = null;
         try {
+            $stmt = $db->prepare("INSERT INTO utenti (
+                nome, cognome, email, telefono, password, indirizzo, cod_fiscale, data_nascita, sesso,
+                codice_tessera, data_scadenza_tessera, stato, tipo_utente, note_utente,
+                email_verificata, token_reset_password, data_token_reset
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+            $stmt->bind_param(
+                $types,
+                $nome,
+                $cognome,
+                $email,
+                $telefono,
+                $passwordHash,
+                $indirizzo,
+                $cod_fiscale,
+                $dataNascita,
+                $sesso,
+                $codiceTessera,
+                $dataScadenzaTessera,
+                $stato,
+                $role,
+                $note,
+                $emailVerificata,
+                $tokenReset,
+                $dataTokenReset
+            );
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
         } catch (\Throwable $e) {
@@ -220,7 +221,10 @@ class UsersController
             }
             return $response->withHeader('Location', url('/admin/users/create?error=' . $code))->withStatus(302);
         } finally {
-            $stmt->close();
+            // $stmt stays null if prepare() itself threw — guard the close().
+            if ($stmt instanceof \mysqli_stmt) {
+                $stmt->close();
+            }
         }
 
         $notifier = new NotificationService($db);
@@ -433,42 +437,46 @@ class UsersController
             $dataTokenReset = null;
         }
 
-        $stmt = $db->prepare("UPDATE utenti SET
-            nome = ?, cognome = ?, email = ?, telefono = ?, password = ?, indirizzo = ?, cod_fiscale = ?,
-            data_nascita = ?, sesso = ?, codice_tessera = ?, data_scadenza_tessera = ?,
-            stato = ?, tipo_utente = ?, note_utente = ?, email_verificata = ?,
-            token_reset_password = ?, data_token_reset = ?
-            WHERE id = ?");
-
         $types = str_repeat('s', 14) . 'i' . str_repeat('s', 2) . 'i';
-        $stmt->bind_param(
-            $types,
-            $nome,
-            $cognome,
-            $email,
-            $telefono,
-            $passwordHash,
-            $indirizzo,
-            $cod_fiscale,
-            $dataNascita,
-            $sesso,
-            $codiceTessera,
-            $dataScadenzaTessera,
-            $stato,
-            $role,
-            $note,
-            $emailVerificata,
-            $tokenReset,
-            $dataTokenReset,
-            $id
-        );
 
-        // Exception mode: a failed UPDATE throws. Map a UNIQUE violation (1062) to the precise
-        // field (email / codice_tessera / cod_fiscale); everything else is a generic db_error.
+        // Exception mode: a failed UPDATE throws. prepare()/bind_param() can throw too under
+        // MYSQLI_REPORT_STRICT, so they're inside the try — map a UNIQUE violation (1062) to the
+        // precise field (email / codice_tessera / cod_fiscale); everything else is a generic db_error.
+        $stmt = null;
         try {
+            $stmt = $db->prepare("UPDATE utenti SET
+                nome = ?, cognome = ?, email = ?, telefono = ?, password = ?, indirizzo = ?, cod_fiscale = ?,
+                data_nascita = ?, sesso = ?, codice_tessera = ?, data_scadenza_tessera = ?,
+                stato = ?, tipo_utente = ?, note_utente = ?, email_verificata = ?,
+                token_reset_password = ?, data_token_reset = ?
+                WHERE id = ?");
+            $stmt->bind_param(
+                $types,
+                $nome,
+                $cognome,
+                $email,
+                $telefono,
+                $passwordHash,
+                $indirizzo,
+                $cod_fiscale,
+                $dataNascita,
+                $sesso,
+                $codiceTessera,
+                $dataScadenzaTessera,
+                $stato,
+                $role,
+                $note,
+                $emailVerificata,
+                $tokenReset,
+                $dataTokenReset,
+                $id
+            );
             $stmt->execute();
         } catch (\Throwable $e) {
-            $stmt->close();
+            // $stmt stays null if prepare() itself threw — guard the close().
+            if ($stmt instanceof \mysqli_stmt) {
+                $stmt->close();
+            }
             $code = ($e instanceof \mysqli_sql_exception) ? \App\Support\UniqueViolation::errorCode($e) : 'db_error';
             if ($code === 'db_error') {
                 \App\Support\SecureLogger::error('[Users] update failed for user ' . $id . ' (errno ' . (int) $e->getCode() . ')');

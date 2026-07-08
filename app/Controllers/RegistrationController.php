@@ -174,15 +174,18 @@ class RegistrationController
             $values[] = $cod_fiscale;
         }
 
-        $stmt = $db->prepare("
-            INSERT INTO utenti ({$columns}) VALUES ({$placeholders})
-        ");
-        $stmt->bind_param($types, ...$values);
         // mysqli runs in exception mode (ConfigStore), so a failed INSERT throws instead of
         // returning false — an unguarded execute() surfaces as a 500. A UNIQUE violation
         // (1062) can be on email OR cod_fiscale (both user-entered) — map to the precise
         // field so the user is told which one is taken; anything else is a generic error.
+        // prepare()/bind_param() are inside the try too: under MYSQLI_REPORT_STRICT they can
+        // throw as well, and must route to ?error=db, not bubble up as a 500.
+        $stmt = null;
         try {
+            $stmt = $db->prepare("
+                INSERT INTO utenti ({$columns}) VALUES ({$placeholders})
+            ");
+            $stmt->bind_param($types, ...$values);
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
         } catch (\Throwable $e) {
@@ -198,7 +201,10 @@ class RegistrationController
             }
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=' . $errCode)->withStatus(302);
         } finally {
-            $stmt->close();
+            // $stmt stays null if prepare() itself threw — guard the close().
+            if ($stmt instanceof \mysqli_stmt) {
+                $stmt->close();
+            }
         }
 
         // The account is now created. Everything below is a best-effort side-effect
