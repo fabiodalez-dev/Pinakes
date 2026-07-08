@@ -76,8 +76,12 @@ class LibraryModule extends AbstractModule
                 PRIMARY KEY (id),
                 UNIQUE KEY uq_bcrevmeta_review (recensione_id),
                 KEY idx_bcrevmeta_club (club_id),
-                CONSTRAINT fk_bcrevmeta_review FOREIGN KEY (recensione_id)
-                    REFERENCES recensioni (id) ON DELETE CASCADE,
+                -- NO hard FK to the core `recensioni` table: a plugin can't rely on a core
+                -- table's presence or exact id type across installs. On instances where
+                -- `recensioni` is missing (it's only in schema.sql, never backfilled by a
+                -- migration) or its id is `int unsigned`, the FK made activation fail with
+                -- 1824 / 3780. recensione_id stays an indexed column (UNIQUE above); orphan
+                -- meta rows are harmless and cleaned up in app code when a review is deleted.
                 CONSTRAINT fk_bcrevmeta_club FOREIGN KEY (club_id)
                     REFERENCES bookclub_clubs (id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
