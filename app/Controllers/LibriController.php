@@ -2716,7 +2716,7 @@ class LibriController
         $totalHeight += 3.5; // App name
 
         // Calculate title height (using getStringHeight)
-        $pdf->SetFont('helvetica', 'B', $fontSizeTitle);
+        $pdf->SetFont('dejavusans', 'B', $fontSizeTitle);
         $titleHeight = $pdf->getStringHeight($availableWidth, $titolo);
         $totalHeight += $titleHeight + 0.5;
 
@@ -2758,20 +2758,20 @@ class LibriController
         $currentY = $margin + $verticalOffset;
 
         // App name
-        $pdf->SetFont('helvetica', 'B', $fontSizeApp);
+        $pdf->SetFont('dejavusans', 'B', $fontSizeApp);
         $pdf->SetXY($margin, $currentY);
         $pdf->Cell($availableWidth, 3, $appNameShort, 0, 0, 'C');
         $currentY += 3.5;
 
         // Titolo libro (wrapped)
-        $pdf->SetFont('helvetica', 'B', $fontSizeTitle);
+        $pdf->SetFont('dejavusans', 'B', $fontSizeTitle);
         $pdf->SetXY($margin, $currentY);
         $pdf->MultiCell($availableWidth, 2.5, $titolo, 0, 'C', false, 1);
         $currentY = $pdf->GetY() + 0.5;
 
         // Autore
         if ($includeAuthor) {
-            $pdf->SetFont('helvetica', '', $fontSizeAuthor);
+            $pdf->SetFont('dejavusans', '', $fontSizeAuthor);
             $pdf->SetXY($margin, $currentY);
             $pdf->Cell($availableWidth, 2, $autoreShort, 0, 0, 'C');
             $currentY += 2.5;
@@ -2787,7 +2787,7 @@ class LibriController
 
             // EAN text under barcode
             if (!empty($eanText)) {
-                $pdf->SetFont('helvetica', '', $fontSizeSmall);
+                $pdf->SetFont('dejavusans', '', $fontSizeSmall);
                 $pdf->SetXY($margin, $currentY);
                 $pdf->Cell($availableWidth, 2, $eanText, 0, 0, 'C');
                 $currentY += 2;
@@ -2796,7 +2796,7 @@ class LibriController
 
         // Dewey classification
         if ($includeDewey) {
-            $pdf->SetFont('helvetica', 'I', $fontSizeSmall);
+            $pdf->SetFont('dejavusans', 'I', $fontSizeSmall);
             $pdf->SetXY($margin, $currentY);
             $deweyShort = mb_substr($dewey, 0, 15);
             $pdf->Cell($availableWidth, 2, "Dewey: {$deweyShort}", 0, 0, 'C');
@@ -2805,7 +2805,7 @@ class LibriController
 
         // Position/Collocazione
         if ($posColText) {
-            $pdf->SetFont('helvetica', 'B', $fontSizePosition);
+            $pdf->SetFont('dejavusans', 'B', $fontSizePosition);
             $pdf->SetXY($margin, $currentY);
             $posShort = mb_substr($posColText, 0, 12);
             $pdf->Cell($availableWidth, 3, $posShort, 0, 0, 'C');
@@ -2903,20 +2903,20 @@ class LibriController
         $currentY = $margin + $verticalOffset;
 
         // App name
-        $pdf->SetFont('helvetica', 'B', $fontSizeApp);
+        $pdf->SetFont('dejavusans', 'B', $fontSizeApp);
         $pdf->SetXY($margin, $currentY);
         $pdf->Cell($availableWidth, 4, $appName, 0, 0, 'C');
         $currentY += 4.5;
 
         // Titolo libro
-        $pdf->SetFont('helvetica', 'B', $fontSizeTitle);
+        $pdf->SetFont('dejavusans', 'B', $fontSizeTitle);
         $pdf->SetXY($margin, $currentY);
         $pdf->Cell($availableWidth, 3.5, $titolo, 0, 0, 'C');
         $currentY += 4;
 
         // Autore ed editore
         if ($includeInfo) {
-            $pdf->SetFont('helvetica', '', $fontSizeAuthor);
+            $pdf->SetFont('dejavusans', '', $fontSizeAuthor);
             $pdf->SetXY($margin, $currentY);
             $pdf->Cell($availableWidth, 2.5, $infoText, 0, 0, 'C');
             $currentY += 3;
@@ -2932,7 +2932,7 @@ class LibriController
 
             // EAN text under barcode
             if (!empty($eanText)) {
-                $pdf->SetFont('helvetica', '', $fontSizeSmall);
+                $pdf->SetFont('dejavusans', '', $fontSizeSmall);
                 $pdf->SetXY($margin, $currentY);
                 $pdf->Cell($availableWidth, 2.5, $eanText, 0, 0, 'C');
                 $currentY += 2.5;
@@ -2941,7 +2941,7 @@ class LibriController
 
         // Dewey classification
         if ($includeDewey) {
-            $pdf->SetFont('helvetica', 'I', $fontSizeSmall);
+            $pdf->SetFont('dejavusans', 'I', $fontSizeSmall);
             $pdf->SetXY($margin, $currentY);
             $deweyShort = mb_substr($dewey, 0, 20);
             $pdf->Cell($availableWidth, 2.5, "Dewey: {$deweyShort}", 0, 0, 'C');
@@ -2950,7 +2950,7 @@ class LibriController
 
         // Position text
         if ($includePosition) {
-            $pdf->SetFont('helvetica', 'B', $fontSizeAuthor);
+            $pdf->SetFont('dejavusans', 'B', $fontSizeAuthor);
             $pdf->SetXY($margin, $currentY);
             $pdf->Cell($availableWidth, 3, $positionText, 0, 0, 'C');
             $currentY += 3.5;
@@ -2958,7 +2958,7 @@ class LibriController
 
         // Collocazione
         if ($includeCollocazione) {
-            $pdf->SetFont('helvetica', 'B', $fontSizePosition);
+            $pdf->SetFont('dejavusans', 'B', $fontSizePosition);
             $pdf->SetXY($margin, $currentY);
             $pdf->Cell($availableWidth, 4, $collocazione, 0, 0, 'C');
         }
