@@ -82,6 +82,11 @@ class MobileApiPlugin
     private const PUSH_PROVIDER_KEY        = 'push_provider';
     private const PUSH_VAPID_SUBJECT_KEY   = 'push_vapid_subject';
     private const PUSH_FCM_CREDENTIALS_KEY = 'push_fcm_credentials';
+    // Trusted reverse-proxy peers (IP / CIDR, comma-separated). When the app-facing
+    // request arrives over a proxy that terminates TLS, X-Forwarded-Proto: https is only
+    // honoured from these peers (see ProxyTrust). Configurable here so operators behind a
+    // NAS/reverse proxy don't have to edit .env to stop the /api/v1 HTTPS 426.
+    private const TRUSTED_PROXIES_KEY      = 'trusted_proxies';
     // VAPID keypair (RFC 8292), generated once per instance. Public key is shared
     // with the app (applicationServerKey) and sent as the `k=` value; the private
     // key is stored encrypted at rest (SettingsEncryption).
@@ -680,6 +685,7 @@ class MobileApiPlugin
             'enabled'              => $repo->get(self::ENABLE_CATEGORY, self::ENABLE_KEY, '0') ?? '0',
             'push_provider'        => $repo->get(self::ENABLE_CATEGORY, self::PUSH_PROVIDER_KEY, 'unifiedpush') ?? 'unifiedpush',
             'push_vapid_subject'   => $repo->get(self::ENABLE_CATEGORY, self::PUSH_VAPID_SUBJECT_KEY, '') ?? '',
+            'trusted_proxies'      => $repo->get(self::ENABLE_CATEGORY, self::TRUSTED_PROXIES_KEY, '') ?? '',
             'push_fcm_credentials' => $this->fcmCredentials(),
             'push_vapid_public_key' => $repo->get(self::ENABLE_CATEGORY, self::PUSH_VAPID_PUBLIC_KEY, '') ?? '',
         ];
@@ -750,6 +756,30 @@ class MobileApiPlugin
                 $repo->set(self::ENABLE_CATEGORY, self::ENABLE_KEY, $value);
                 // Keep ConfigStore's cache coherent for in-request reads.
                 \App\Support\ConfigStore::set(self::ENABLE_CATEGORY . '.' . self::ENABLE_KEY, $value);
+            }
+
+            if (array_key_exists('trusted_proxies', $settings)) {
+                // Keep only valid IPs / CIDRs so an invalid entry can't poison ProxyTrust's
+                // parser; store as a normalised comma list. ConfigStore::set keeps the value
+                // readable in the same request (ProxyTrust reads it via ConfigStore::get).
+                $clean = [];
+                foreach (explode(',', (string) $settings['trusted_proxies']) as $entry) {
+                    $entry = trim($entry);
+                    if ($entry === '') {
+                        continue;
+                    }
+                    if (strpos($entry, '/') !== false) {
+                        [$net, $len] = explode('/', $entry, 2);
+                        if (filter_var($net, FILTER_VALIDATE_IP) !== false && ctype_digit($len)) {
+                            $clean[] = $entry;
+                        }
+                    } elseif (filter_var($entry, FILTER_VALIDATE_IP) !== false) {
+                        $clean[] = $entry;
+                    }
+                }
+                $value = implode(', ', $clean);
+                $repo->set(self::ENABLE_CATEGORY, self::TRUSTED_PROXIES_KEY, $value);
+                \App\Support\ConfigStore::set(self::ENABLE_CATEGORY . '.' . self::TRUSTED_PROXIES_KEY, $value);
             }
 
             if (array_key_exists('push_provider', $settings)) {

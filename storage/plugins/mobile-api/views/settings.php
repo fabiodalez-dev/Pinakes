@@ -57,6 +57,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             'push_provider'        => $pushProvider,
             'push_vapid_subject'   => (string) ($_POST['push_vapid_subject'] ?? ''),
             'push_fcm_credentials' => (string) ($_POST['push_fcm_credentials'] ?? ''),
+            'trusted_proxies'      => (string) ($_POST['trusted_proxies'] ?? ''),
         ])) {
             $successMessage = __('Impostazioni salvate correttamente.');
         } else {
@@ -72,6 +73,25 @@ $isEnabled = (($settings['enabled'] ?? '0') === '1');
 $pushProvider = (string) ($settings['push_provider'] ?? 'unifiedpush');
 /** @var string $vapidSubject */
 $vapidSubject = (string) ($settings['push_vapid_subject'] ?? '');
+/** @var string $trustedProxies */
+$trustedProxies = (string) ($settings['trusted_proxies'] ?? '');
+
+// Reverse-proxy auto-diagnosis: if THIS admin request arrived with X-Forwarded-Proto set
+// by a proxy whose IP isn't trusted yet, the app-facing /api/v1 will 426 ("HTTPS required")
+// even over real HTTPS. Detect it so we can offer the exact IP to add.
+$fwdProto = strtolower(trim((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')));
+$proxyRemoteAddr = trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+$proxyTrusted = false;
+if ($proxyRemoteAddr !== '') {
+    foreach (\App\Plugins\MobileApi\Support\ProxyTrust::trustedEntries() as $entry) {
+        if ($entry === $proxyRemoteAddr) {
+            $proxyTrusted = true;
+            break;
+        }
+    }
+}
+$isLoopbackPeer = ($proxyRemoteAddr === '::1' || preg_match('/^127\./', $proxyRemoteAddr) === 1);
+$showProxyHint = ($fwdProto !== '' && $proxyRemoteAddr !== '' && !$proxyTrusted && !$isLoopbackPeer);
 /** @var string $fcmCredentials */
 $fcmCredentials = (string) ($settings['push_fcm_credentials'] ?? '');
 $csrfToken = \App\Support\Csrf::ensureToken();
@@ -227,6 +247,30 @@ $tabDevicesUrl  = htmlspecialchars(url('/admin/plugins/' . $resolvedId . '/setti
             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
               <?= htmlspecialchars(__('Lascia vuoto per usare solo UnifiedPush / feed in-app.'), ENT_QUOTES, 'UTF-8') ?>
             </p>
+          </div>
+
+          <div>
+            <label for="trusted_proxies" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <?= htmlspecialchars(__('Proxy fidati (reverse proxy)'), ENT_QUOTES, 'UTF-8') ?>
+            </label>
+            <input type="text" id="trusted_proxies" name="trusted_proxies"
+                   value="<?= htmlspecialchars($trustedProxies, ENT_QUOTES, 'UTF-8') ?>"
+                   placeholder="127.0.0.1, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16"
+                   class="block w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm font-mono focus:border-blue-500 focus:ring-blue-500">
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              <?= htmlspecialchars(__('Se Pinakes è dietro un reverse proxy (NAS/QNAP/Synology/nginx/Docker) che termina il TLS, elenca qui gli IP o le reti (CIDR) del proxy: solo così l\'app accetta l\'header X-Forwarded-Proto e l\'API non risponde "HTTPS richiesto" anche su HTTPS reale.'), ENT_QUOTES, 'UTF-8') ?>
+            </p>
+            <?php if ($showProxyHint): ?>
+              <div class="mt-2 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/30 p-3 text-xs text-amber-800 dark:text-amber-200">
+                <i class="fas fa-triangle-exclamation mr-1"></i>
+                <?= htmlspecialchars(sprintf(__('Rilevato un reverse proxy da %s che inoltra HTTPS, ma quell\'indirizzo non è ancora fidato: l\'app riceverebbe un errore HTTPS. Aggiungilo alla lista qui sopra e salva.'), $proxyRemoteAddr), ENT_QUOTES, 'UTF-8') ?>
+                <button type="button"
+                        onclick="var f=document.getElementById('trusted_proxies');f.value=(f.value.trim()?f.value.trim().replace(/,\s*$/,'')+', ':'')+<?= json_encode($proxyRemoteAddr, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;"
+                        class="ml-1 underline font-medium">
+                  <?= htmlspecialchars(sprintf(__('Aggiungi %s'), $proxyRemoteAddr), ENT_QUOTES, 'UTF-8') ?>
+                </button>
+              </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
