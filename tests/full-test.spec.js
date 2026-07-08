@@ -902,6 +902,54 @@ test.describe.serial('Phase 5: Scraping-Pro Plugin', () => {
     }
   });
 
+  test('5.2b Activate book-club (bundled) and verify its schema lands', async () => {
+    // book-club IS in App\Support\BundledPlugins::LIST, so /admin/plugins auto-registers
+    // it. Regression guard for the activation failure where bookclub_review_meta's hard FK
+    // to the core `recensioni` table aborted the CREATE on installs without it: activate
+    // through the real admin UI and assert every book-club table (including the one that
+    // used to fail) is created. Runs in both Test A (fresh) and Test B (post-upgrade).
+    const bcId = Number(String(dbQuery(
+      `SELECT id FROM plugins WHERE name='book-club' LIMIT 1`
+    )).trim() || '0');
+    expect(bcId, 'book-club must be auto-registered as a bundled plugin').toBeGreaterThan(0);
+
+    await page.goto(`${BASE}/admin/plugins`);
+    await page.waitForLoadState('domcontentloaded');
+    await page.waitForSelector('[data-plugin-id]', { timeout: 10000 }).catch(() => {});
+    const card = page.locator(`[data-plugin-id="${bcId}"]`).first();
+    expect(await card.isVisible({ timeout: 3000 }).catch(() => false)).toBeTruthy();
+
+    // If it isn't already active, activate it and make sure NO error dialog appears
+    // ("Schema activation failed for: bookclub_review_meta" was the reported failure).
+    const activateBtn = card.locator('button:has-text("Attiva")');
+    if (await activateBtn.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await activateBtn.click();
+      const confirmBtn = page.locator('.swal2-confirm:visible');
+      if (await confirmBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+        await confirmBtn.click();
+      }
+      const sawError = await page.locator('.swal2-popup .swal2-icon.swal2-error')
+        .isVisible({ timeout: 4000 }).catch(() => false);
+      expect(sawError, 'book-club activation must not raise a schema error').toBeFalsy();
+      await page.waitForFunction(
+        () => document.querySelector('.swal2-popup .swal2-icon.swal2-success') !== null,
+        { timeout: 10000 },
+      ).catch(() => {});
+      await page.keyboard.press('Enter').catch(() => {});
+      await page.waitForLoadState('domcontentloaded');
+    }
+
+    // The plugin is active and its schema — including the previously-failing table — exists.
+    expect(String(dbQuery(`SELECT is_active FROM plugins WHERE id=${bcId}`)).trim())
+      .toBe('1');
+    for (const t of ['bookclub_clubs', 'bookclub_review_meta', 'bookclub_member_loans']) {
+      const exists = String(dbQuery(
+        `SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='${t}'`
+      )).trim();
+      expect(exists, `${t} must exist after book-club activation`).toBe('1');
+    }
+  });
+
   test('5.3 Import book with scraping-pro (if active)', async () => {
     // 5.2's plugin activation reloads the plugins list asynchronously; let that
     // navigation settle, then retry once so this goto isn't interrupted by it.
