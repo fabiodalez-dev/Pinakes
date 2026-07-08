@@ -159,4 +159,61 @@ test.describe.serial('Plugin integrity regression (#101)', () => {
         expect(tail, 'Main file not found error in recent log').not.toContain('Main file not found');
         expect(tail, 'Failed to load plugin recent log').not.toMatch(/Failed to load plugin/);
     });
+
+    test('6. Every activatable plugin activates cleanly (schema lands)', async () => {
+        // Generalises the book-club activation failure (#233): book-club shipped a
+        // hard FK to a core table that doesn't exist on every install, so its very
+        // first CREATE TABLE aborted the whole activation — and that reached a real
+        // user. The same blind spot exists for EVERY plugin, and for any added later.
+        //
+        // Here we activate every plugin that isn't already active and assert its
+        // onActivate/ensureSchema succeeds (a failure comes back from the endpoint as
+        // { success:false, message:"... Schema activation failed for: <table> ..." })
+        // and that it ends up active. The plugin list is read from the DB, so a plugin
+        // added in the future is covered automatically — no per-plugin test to write.
+        //
+        // The three external-API plugins (see test 4) are the deliberate exception:
+        // their onActivate reaches out to discogs/deezer/musicbrainz and legitimately
+        // throws when the CI host is offline, so they stay opt-in and are excluded.
+        const EXTERNAL_OPT_IN = ['discogs', 'deezer', 'musicbrainz'];
+
+        await page.goto(`${BASE}/admin/plugins`);
+        await page.waitForLoadState('domcontentloaded');
+        const csrf = await page.evaluate(() =>
+            document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+        );
+
+        const plugins = dbQuery('SELECT id, name FROM plugins WHERE is_active = 0 ORDER BY id')
+            .split('\n')
+            .filter(Boolean)
+            .map((r) => {
+                const parts = r.split('\t');
+                return { id: Number(parts[0]), name: parts.slice(1).join('\t') };
+            })
+            .filter((p) => !EXTERNAL_OPT_IN.includes(p.name));
+
+        test.skip(plugins.length === 0, 'no activatable inactive plugins');
+
+        const failures = [];
+        for (const p of plugins) {
+            const res = await page.evaluate(async ({ base, id, token }) => {
+                const r = await fetch(`${base}/admin/plugins/${id}/activate`, {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'X-CSRF-Token': token, 'Content-Type': 'application/json' },
+                    body: '{}',
+                });
+                let data = {};
+                try { data = await r.json(); } catch (_) { /* non-JSON body */ }
+                return { status: r.status, data };
+            }, { base: BASE, id: p.id, token: csrf });
+
+            const active = dbQuery(`SELECT is_active FROM plugins WHERE id=${p.id}`);
+            if (!res.data.success || active !== '1') {
+                failures.push(`${p.name} (#${p.id}): ${res.data.message || ('HTTP ' + res.status)}`);
+            }
+        }
+
+        expect(failures, `plugin activation failed:\n${failures.join('\n')}`).toHaveLength(0);
+    });
 });
