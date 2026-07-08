@@ -90,15 +90,28 @@ class RegistrationController
         if (!preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/[0-9]/', $password)) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=password_needs_upper_lower_number')->withStatus(302);
         }
-        // Check existing email
-        $stmt = $db->prepare("SELECT id FROM utenti WHERE email = ? LIMIT 1");
-        $stmt->bind_param('s', $email);
-        $stmt->execute();
-        if ($stmt->get_result()->num_rows > 0) {
+        // Check existing email. The SELECT is wrapped too: mysqli is in exception mode,
+        // so even a read failure here would otherwise throw and 500 the registration.
+        try {
+            $stmt = $db->prepare("SELECT id FROM utenti WHERE email = ? LIMIT 1");
+            $stmt->bind_param('s', $email);
+            $stmt->execute();
+            $emailTaken = $stmt->get_result()->num_rows > 0;
             $stmt->close();
-            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=email_exists')->withStatus(302);
+        } catch (\Throwable $e) {
+            // \Throwable, not \mysqli_sql_exception: if exceptions were ever off, prepare()
+            // returns false and bind_param() raises a \Error. Log only the errno — never the
+            // raw driver message, which for a duplicate carries the offending email/CF.
+            SecureLogger::error('[Registration] email lookup failed (errno ' . (int) $e->getCode() . ')');
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=db')->withStatus(302);
         }
-        $stmt->close();
+        if ($emailTaken) {
+            // Public form: a GENERIC "already registered" message, never field-specific.
+            // Saying which field (email / codice fiscale) is taken would let an anonymous
+            // visitor enumerate members (privacy leak, esp. for the CF). Admin flows keep
+            // the precise messages — see UsersController.
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=already_registered')->withStatus(302);
+        }
 
         $codice_tessera = $this->generateTessera($db);
         $hash = password_hash($password, PASSWORD_DEFAULT);
@@ -166,16 +179,22 @@ class RegistrationController
         ");
         $stmt->bind_param($types, ...$values);
         // mysqli runs in exception mode (ConfigStore), so a failed INSERT throws instead of
-        // returning false — an unguarded execute() surfaces as a 500. Map the email UNIQUE
-        // violation (error 1062, e.g. a race past the pre-check above) to the same clear
-        // "email already registered" message, and any other DB error to a generic one.
+        // returning false — an unguarded execute() surfaces as a 500. A UNIQUE violation
+        // (1062) can be on email OR cod_fiscale (both user-entered) — map to the precise
+        // field so the user is told which one is taken; anything else is a generic error.
         try {
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
-        } catch (\mysqli_sql_exception $e) {
-            $errCode = $e->getCode() === 1062 ? 'email_exists' : 'db';
-            if ($e->getCode() !== 1062) {
-                SecureLogger::error('[Registration] user INSERT failed: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            // Public form: collapse ANY unique-key duplicate (email / cod_fiscale /
+            // codice_tessera) into one GENERIC message so an anonymous visitor can't tell
+            // which field is taken (member enumeration). Only a genuine non-duplicate DB
+            // error falls through to the generic 'db' message + errno-only log.
+            if ($e instanceof \mysqli_sql_exception && $e->getCode() === 1062) {
+                $errCode = 'already_registered';
+            } else {
+                SecureLogger::error('[Registration] user INSERT failed (errno ' . (int) $e->getCode() . ')');
+                $errCode = 'db';
             }
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=' . $errCode)->withStatus(302);
         } finally {
