@@ -6440,5 +6440,9 @@
   "L'utente ha già un prestito attivo per questo libro": "Der Benutzer hat bereits eine aktive Ausleihe für dieses Buch",
   "L'utente ha già una prenotazione attiva per questo libro": "Der Benutzer hat bereits eine aktive Reservierung für dieses Buch",
   "Errore durante l'annullamento della prenotazione": "Fehler beim Stornieren der Reservierung",
-  "Hai già una prenotazione attiva per questo libro": "Du hast bereits eine aktive Reservierung für dieses Buch"
+  "Hai già una prenotazione attiva per questo libro": "Du hast bereits eine aktive Reservierung für dieses Buch",
+  "Tessera": "Ausweis",
+  "%d utenti": "%d Benutzer",
+  "%d utenti filtrati su %d totali": "%d gefilterte Benutzer von %d insgesamt",
+  "Nessun utente da esportare.": "Keine Benutzer zum Exportieren."
 }

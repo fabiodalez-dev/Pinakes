@@ -6440,5 +6440,9 @@
   "L'utente ha già un prestito attivo per questo libro": "The user already has an active loan for this book",
   "L'utente ha già una prenotazione attiva per questo libro": "The user already has an active reservation for this book",
   "Errore durante l'annullamento della prenotazione": "Error while cancelling the reservation",
-  "Hai già una prenotazione attiva per questo libro": "You already have an active reservation for this book"
+  "Hai già una prenotazione attiva per questo libro": "You already have an active reservation for this book",
+  "Tessera": "Card",
+  "%d utenti": "%d users",
+  "%d utenti filtrati su %d totali": "%d filtered users out of %d total",
+  "Nessun utente da esportare.": "No users to export."
 }
