@@ -571,7 +571,7 @@ form.hero-search-form {
 
     .carousel-book-card {
         flex: 0 0 280px;
-        background: white;
+        background: var(--white);
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -695,7 +695,7 @@ form.hero-search-form {
 
     .home-events {
         padding: 4rem 0;
-        background: #ffffff;
+        background: var(--white);
     }
 
     .home-events__header {
@@ -708,12 +708,12 @@ form.hero-search-form {
     .home-events__title {
         font-size: clamp(2rem, 3vw, 2.5rem);
         font-weight: 800;
-        color: #111827;
+        color: var(--text-color);
         margin: 0;
     }
 
     .home-events__subtitle {
-        color: #4b5563;
+        color: var(--text-light);
         max-width: 640px;
         margin: 0;
         font-size: 1rem;
@@ -761,8 +761,8 @@ form.hero-search-form {
     }
 
     .home-events-grid .event-card {
-        background: #fff;
-        border: 1px solid #e5e7eb;
+        background: var(--white);
+        border: 1px solid var(--border-color);
         border-radius: 16px;
         overflow: hidden;
         display: flex;
@@ -777,7 +777,7 @@ form.hero-search-form {
 
     .home-events-grid .event-card__thumb {
         height: 230px;
-        background: #f3f4f6;
+        background: var(--light-bg);
     }
 
     .home-events-grid .event-card__thumb img {
@@ -790,7 +790,7 @@ form.hero-search-form {
         display: flex;
         align-items: center;
         justify-content: center;
-        color: #9ca3af;
+        color: var(--text-muted);
         font-size: 2rem;
         height: 100%;
     }
@@ -806,7 +806,7 @@ form.hero-search-form {
     .home-events-grid .event-card__title {
         font-size: 1.15rem;
         font-weight: 700;
-        color: #111827;
+        color: var(--text-color);
         margin: 0;
     }
 
@@ -822,7 +822,7 @@ form.hero-search-form {
     .home-events-grid .event-card__meta {
         font-size: 0.95rem;
         font-weight: 600;
-        color: #4b5563;
+        color: var(--text-light);
     }
 
     .home-events-grid .event-card__button {

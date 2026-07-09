@@ -98,8 +98,8 @@ $additional_css = "
     }
 
     .event-hero {
-        background: #f8fafc;
-        border-bottom: 1px solid #e5e7eb;
+        background: var(--light-bg);
+        border-bottom: 1px solid var(--border-color);
         padding: 4.5rem 0 3.5rem;
         margin-bottom: 1.5rem;
     }
@@ -109,7 +109,7 @@ $additional_css = "
         align-items: center;
         gap: 0.4rem;
         font-size: 0.95rem;
-        color: #6b7280;
+        color: var(--text-light);
         margin-bottom: 1rem;
         flex-wrap: wrap;
     }
@@ -125,19 +125,19 @@ $additional_css = "
         gap: 0.4rem;
         padding: 0.4rem 0.9rem;
         border-radius: 999px;
-        border: 1px solid #e5e7eb;
-        background: #fff;
+        border: 1px solid var(--border-color);
+        background: var(--white);
         font-size: 0.85rem;
         font-weight: 600;
         text-transform: uppercase;
         margin-bottom: 1rem;
-        color: #6b7280;
+        color: var(--text-light);
     }
 
     .event-title {
         font-size: clamp(2rem, 4vw, 3.25rem);
         font-weight: 800;
-        color: #111827;
+        color: var(--text-color);
         letter-spacing: -0.02em;
         margin-bottom: 1.25rem;
     }
@@ -158,7 +158,7 @@ $additional_css = "
     }
 
     .event-section {
-        background: #fff;
+        background: var(--white);
         padding: 3rem 0 4rem;
     }
 
@@ -166,15 +166,15 @@ $additional_css = "
         border: none;
         border-radius: 24px;
         padding: clamp(1.75rem, 4vw, 3rem);
-        background: #fff;
+        background: var(--white);
     }
 
     .event-cover {
         border-radius: 20px;
         overflow: hidden;
         margin-bottom: 2rem;
-        border: 1px solid #f1f5f9;
-        background: #f8fafc;
+        border: 1px solid var(--accent-color);
+        background: var(--light-bg);
     }
 
     .event-cover img {
@@ -276,13 +276,13 @@ $additional_css = "
     .event-body {
         font-size: 1.05rem;
         line-height: 1.8;
-        color: #1f2937;
+        color: var(--text-color);
     }
 
     .event-back {
         margin-top: 2.5rem;
         padding-top: 1.5rem;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--border-color);
     }
 
     .event-back a {
@@ -295,9 +295,9 @@ $additional_css = "
     }
 
     .related-events {
-        background: #f8fafc;
+        background: var(--light-bg);
         padding: 3rem 0 4rem;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--border-color);
     }
 
     .related-heading {
@@ -308,7 +308,7 @@ $additional_css = "
     .related-heading h2 {
         font-size: 2rem;
         font-weight: 700;
-        color: #111827;
+        color: var(--text-color);
         margin-bottom: 0.5rem;
     }
 
@@ -331,8 +331,8 @@ $additional_css = "
     }
 
     .related-card {
-        background: #fff;
-        border: 1px solid #e5e7eb;
+        background: var(--white);
+        border: 1px solid var(--border-color);
         border-radius: 18px;
         overflow: hidden;
         transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -345,7 +345,7 @@ $additional_css = "
 
     .related-thumb {
         height: 170px;
-        background: #f3f4f6;
+        background: var(--accent-color);
         display: block;
     }
 
@@ -365,7 +365,7 @@ $additional_css = "
         gap: 0.4rem;
         font-size: 0.9rem;
         font-weight: 600;
-        color: #6b7280;
+        color: var(--text-light);
         margin-bottom: 0.5rem;
     }
 
@@ -373,7 +373,7 @@ $additional_css = "
         font-size: 1.05rem;
         font-weight: 700;
         margin-bottom: 0.75rem;
-        color: #111827;
+        color: var(--text-color);
     }
 
     .related-title a {

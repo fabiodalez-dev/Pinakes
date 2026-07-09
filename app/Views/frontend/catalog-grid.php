@@ -235,17 +235,17 @@ $getBookStatusBadge = static function ($book) {
 }
 
 .status-available {
-    background: rgba(16, 185, 129, 0.9);
+    background: color-mix(in srgb, var(--success-color) 90%, transparent);
     color: white;
 }
 
 .status-borrowed {
-    background: rgba(239, 68, 68, 0.9);
+    background: color-mix(in srgb, var(--danger-color) 90%, transparent);
     color: white;
 }
 
 .status-reserved {
-    background: rgba(245, 158, 11, 0.9);
+    background: color-mix(in srgb, var(--warning-color) 90%, transparent);
     color: white;
 }
 

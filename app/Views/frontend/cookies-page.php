@@ -23,7 +23,7 @@ main {
 .cookie-header h1 {
     font-size: clamp(2rem, 4vw, 2.75rem);
     font-weight: 800;
-    color: #111827;
+    color: var(--text-color);
     letter-spacing: -0.02em;
     margin-bottom: 1rem;
 }
@@ -47,7 +47,7 @@ main {
 .cookie-content h2,
 .cookie-content h3,
 .cookie-content h4 {
-    color: #111827;
+    color: var(--text-color);
     margin-top: 2rem;
     font-weight: 700;
 }

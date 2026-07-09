@@ -63,11 +63,11 @@ $additional_css = "
         --success-color: #10b981;
         --warning-color: #f59e0b;
         --error-color: #ef4444;
-        --text-primary: #1f2937;
-        --text-secondary: #6b7280;
+        --text-primary: var(--text-color, #1f2937);
+        --text-secondary: var(--text-light, #6b7280);
         --text-muted: #9ca3af;
         --bg-primary: #ffffff;
-        --bg-secondary: #f9fafb;
+        --bg-secondary: var(--light-bg, #f9fafb);
         --bg-tertiary: #f3f4f6;
         --border-color: #e5e7eb;
         --border-light: #f3f4f6;
@@ -820,12 +820,12 @@ $additional_css = "
     }
 
     .status-available {
-        background: rgba(16, 185, 129, 0.9);
+        background: color-mix(in srgb, var(--success-color) 90%, transparent);
         color: white;
     }
 
     .status-borrowed {
-        background: rgba(239, 68, 68, 0.9);
+        background: color-mix(in srgb, var(--danger-color) 90%, transparent);
         color: white;
     }
 
@@ -1101,7 +1101,7 @@ $additional_css = "
     }
 
     .pagination .page-item.disabled .page-link {
-        color: #9ca3af;
+        color: var(--text-muted);
         border-color: #d1d5db;
         background-color: transparent;
         box-shadow: none;
