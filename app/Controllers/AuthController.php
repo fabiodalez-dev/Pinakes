@@ -62,7 +62,12 @@ class AuthController
         $data = (array) ($request->getParsedBody() ?? []);
         $email = trim($data['email'] ?? '');
         $password = $data['password'] ?? '';
-        $remember = !empty($data['remember']);
+        // The login form posts this checkbox as `remember_me` (see
+        // app/Views/auth/login.php). Accept the legacy `remember` name too so a
+        // stale cached form still works, but `remember_me` is the real field —
+        // reading only `remember` meant the box was silently ignored, no token
+        // cookie was ever created, and every session expired despite the tick.
+        $remember = !empty($data['remember_me']) || !empty($data['remember']);
         $returnUrl = $this->sanitizeReturnUrl($data['return_url'] ?? null);
 
         // CSRF validated by CsrfMiddleware
