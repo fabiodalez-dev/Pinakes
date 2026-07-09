@@ -6444,5 +6444,18 @@
   "Tessera": "Card",
   "%d utenti": "%d users",
   "%d utenti filtrati su %d totali": "%d filtered users out of %d total",
-  "Nessun utente da esportare.": "No users to export."
+  "Nessun utente da esportare.": "No users to export.",
+  "Nessuna copia disponibile per la stampa delle etichette.": "No copies available to print labels.",
+  "Inserisci un codice inventario.": "Enter an inventory code.",
+  "Nessun prestito attivo trovato per questo codice copia.": "No active loan found for this copy code.",
+  "Trovati più prestiti attivi per questo codice: gestiscili manualmente.": "Multiple active loans found for this code: handle them manually.",
+  "Nessuna copia trovata con questo codice inventario.": "No copy found with this inventory code.",
+  "Il codice copia inserito appartiene a un altro libro.": "The entered copy code belongs to another book.",
+  "La copia indicata non è disponibile per il periodo richiesto.": "The specified copy is not available for the requested period.",
+  "Codice copia (inventario)": "Copy code (inventory)",
+  "Inserisci o scansiona il codice inventario di una copia specifica": "Enter or scan the inventory code of a specific copy",
+  "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.": "Optional. If left empty, an available copy will be assigned automatically.",
+  "Stampa etichette copie": "Print copy labels",
+  "Restituzione rapida con codice copia": "Quick return by copy code",
+  "Restituisci copia": "Return copy"
 }

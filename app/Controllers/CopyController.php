@@ -47,6 +47,72 @@ class CopyController
     }
 
     /**
+     * Resolve a copy by its numero_inventario (per-copy code) and report whether
+     * it is loanable right now. Returns JSON:
+     *   {found:false}                                  when no such code exists
+     *   {found:true, copy_id, libro_id, titolo, stato, available:bool}
+     *
+     * "available" mirrors the loan-availability rules used elsewhere: a copy is
+     * loanable now only if its state is 'disponibile' AND no active/holding loan
+     * (or copy-bound pending reservation) currently holds it.
+     */
+    public function byCode(Request $request, Response $response, mysqli $db): Response
+    {
+        $params = $request->getQueryParams();
+        $code = trim((string) ($params['code'] ?? ''));
+
+        if ($code === '') {
+            $response->getBody()->write((string) json_encode(['found' => false]));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        // `copie` has no deleted_at — filter the soft-delete on the joined book.
+        $stmt = $db->prepare("
+            SELECT c.id AS copy_id, c.libro_id, c.stato, l.titolo
+            FROM copie c
+            JOIN libri l ON l.id = c.libro_id
+            WHERE c.numero_inventario = ? AND l.deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->bind_param('s', $code);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) {
+            $response->getBody()->write((string) json_encode(['found' => false]));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        $copyId = (int) $row['copy_id'];
+        $available = false;
+        if ($row['stato'] === 'disponibile') {
+            $chk = $db->prepare("
+                SELECT 1 FROM prestiti
+                WHERE copia_id = ?
+                  AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                        OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+                LIMIT 1
+            ");
+            $chk->bind_param('i', $copyId);
+            $chk->execute();
+            $held = (bool) $chk->get_result()->fetch_row();
+            $chk->close();
+            $available = !$held;
+        }
+
+        $response->getBody()->write((string) json_encode([
+            'found'    => true,
+            'copy_id'  => $copyId,
+            'libro_id' => (int) $row['libro_id'],
+            'titolo'   => $row['titolo'],
+            'stato'    => $row['stato'],
+            'available' => $available,
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
      * Aggiorna lo stato di una singola copia
      */
     public function updateCopy(Request $request, Response $response, mysqli $db, int $copyId): Response

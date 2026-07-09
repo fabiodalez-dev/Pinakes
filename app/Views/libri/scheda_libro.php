@@ -886,7 +886,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   <?php if (!empty($copie) && count($copie) > 0): ?>
   <div class="mt-6">
     <div class="card">
-      <div class="card-header">
+      <div class="card-header flex items-center justify-between gap-4 flex-wrap">
         <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <i class="fas fa-clone text-primary"></i>
           <?= __("Copie Fisiche") ?>
@@ -904,6 +904,11 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <?php endif; ?>
           </span>
         </h2>
+        <a href="<?= htmlspecialchars(url('/admin/books/' . (int)$libro['id'] . '/copy-labels-pdf'), ENT_QUOTES, 'UTF-8') ?>"
+           target="_blank" rel="noopener"
+           class="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-800 text-white text-sm rounded-lg hover:bg-gray-900 transition-colors font-medium">
+          <i class="fas fa-tags"></i><?= __("Stampa etichette copie") ?>
+        </a>
       </div>
       <div class="card-body p-0">
         <div class="overflow-x-auto">

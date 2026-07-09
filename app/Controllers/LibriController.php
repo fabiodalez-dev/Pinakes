@@ -2692,11 +2692,137 @@ class LibriController
     }
 
     /**
+     * Generate a multi-label PDF with ONE label per physical copy of a book.
+     * Each label carries that copy's numero_inventario as human-readable text
+     * AND as a scannable Code128 barcode (reuses the same label machinery as the
+     * book-level label, only the barcode payload/text is the per-copy code).
+     */
+    public function generateCopyLabelsPDF(Request $request, Response $response, mysqli $db, int $id): Response
+    {
+        $repo = new \App\Models\BookRepository($db);
+        $libro = $repo->getById($id);
+
+        if (!$libro) {
+            throw new HttpNotFoundException($request);
+        }
+
+        // Load all copies of this book. `copie` has no deleted_at (it CASCADEs on
+        // libri delete), so the soft-delete guard lives on the joined `libri` row.
+        $copie = [];
+        $copiesStmt = $db->prepare("
+            SELECT c.*
+            FROM copie c
+            JOIN libri l ON l.id = c.libro_id
+            WHERE c.libro_id = ? AND l.deleted_at IS NULL
+            ORDER BY c.numero_inventario ASC
+        ");
+        $copiesStmt->bind_param('i', $id);
+        $copiesStmt->execute();
+        $copiesResult = $copiesStmt->get_result();
+        while ($copyRow = $copiesResult->fetch_assoc()) {
+            $copie[] = $copyRow;
+        }
+        $copiesStmt->close();
+
+        if (count($copie) === 0) {
+            $_SESSION['error_message'] = __('Nessuna copia disponibile per la stampa delle etichette.');
+            return $response->withHeader('Location', url('/admin/books/' . $id))->withStatus(302);
+        }
+
+        // Get application name and label settings from settings
+        $settingsRepo = new \App\Models\SettingsRepository($db);
+        $appName = $settingsRepo->get('app', 'name', 'Biblioteca');
+
+        // Get label dimensions from settings (default to 25x38mm)
+        $labelWidth = (int) ($settingsRepo->get('label', 'width', (string) \App\Support\ConfigStore::get('label.width', 25)));
+        $labelHeight = (int) ($settingsRepo->get('label', 'height', (string) \App\Support\ConfigStore::get('label.height', 38)));
+        if ($labelWidth < 10 || $labelWidth > 100)
+            $labelWidth = 25;
+        if ($labelHeight < 10 || $labelHeight > 100)
+            $labelHeight = 38;
+
+        $orientation = $labelWidth > $labelHeight ? 'L' : 'P';
+
+        // Collocazione is the same for every copy of the book
+        $collocazione = '';
+        if (!empty($libro['scaffale_id']) && !empty($libro['mensola_id']) && !empty($libro['posizione_progressiva'])) {
+            $collStmt = $db->prepare("SELECT s.codice as scaffale_codice, m.numero_livello
+                                  FROM scaffali s, mensole m
+                                  WHERE s.id = ? AND m.id = ?");
+            $scaffaleId = (int) $libro['scaffale_id'];
+            $mensolaId = (int) $libro['mensola_id'];
+            $collStmt->bind_param('ii', $scaffaleId, $mensolaId);
+            $collStmt->execute();
+            $collResult = $collStmt->get_result();
+            if ($collRow = $collResult->fetch_assoc()) {
+                $collocazione = $collRow['scaffale_codice'] . '.' . $collRow['numero_livello'] . '.' . $libro['posizione_progressiva'];
+            }
+            $collStmt->close();
+        }
+
+        // Author string (same for every copy)
+        $autoriStr = '';
+        if (!empty($libro['autori'])) {
+            if (is_array($libro['autori'])) {
+                $autoriStr = implode(', ', array_map(function ($a) {
+                    return $a['nome'] ?? '';
+                }, $libro['autori']));
+            } else {
+                $autoriStr = (string) $libro['autori'];
+            }
+        }
+
+        // Position text fallback (used when no full collocazione is available)
+        $positionText = '';
+        if (!empty($libro['scaffale_codice']) && !empty($libro['mensola_livello']) && !empty($libro['posizione_progressiva'])) {
+            $positionText = $libro['scaffale_codice'] . '.' . $libro['mensola_livello'] . '.' . $libro['posizione_progressiva'];
+        } elseif (isset($libro['posizione_progressiva']) && $libro['posizione_progressiva'] > 0) {
+            $positionText = 'Pos. ' . $libro['posizione_progressiva'];
+        }
+
+        $pdf = new \TCPDF($orientation, 'mm', [$labelWidth, $labelHeight], true, 'UTF-8', false);
+        $pdf->SetCreator($appName);
+        $pdf->SetAuthor($appName);
+        $pdf->SetTitle('Etichette copie - ' . $libro['titolo']);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+
+        $isPortrait = $labelHeight > $labelWidth;
+        $margin = max(1, min(3, $labelWidth * 0.05));
+        $pdf->SetMargins($margin, $margin, $margin);
+        $pdf->SetAutoPageBreak(false, 0);
+
+        $availableWidth = $labelWidth - ($margin * 2);
+        $availableHeight = $labelHeight - ($margin * 2);
+
+        foreach ($copie as $copia) {
+            $numeroInventario = (string) ($copia['numero_inventario'] ?? '');
+
+            // Per-copy barcode: the inventory code as a scannable Code128 symbol,
+            // with the same code repeated as human-readable text under the bars.
+            $barcodePayload = ['value' => $numeroInventario, 'type' => 'C128'];
+
+            $pdf->AddPage();
+            if ($isPortrait) {
+                $this->renderPortraitLabel($pdf, $appName, $libro, $autoriStr, $collocazione, $barcodePayload, $positionText, $availableWidth, $availableHeight, $margin, $numeroInventario);
+            } else {
+                $this->renderLandscapeLabel($pdf, $appName, $libro, $autoriStr, $collocazione, $barcodePayload, $positionText, $availableWidth, $availableHeight, $margin, $numeroInventario);
+            }
+        }
+
+        $pdfContent = $pdf->Output('', 'S');
+        $response->getBody()->write($pdfContent);
+        return $response
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'inline; filename="etichette_copie_' . $id . '.pdf"');
+    }
+
+    /**
      * Render portrait (vertical) label layout
      * Optimized for narrow spine labels like 25x38mm, 25x40mm, 34x48mm
      * Includes: App name, Title, Author, EAN barcode, EAN text, Dewey, Collocazione
      */
-    private function renderPortraitLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
+    private function renderPortraitLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin, ?string $barcodeTextOverride = null): void
     {
         // Calculate font sizes proportional to label width
         $fontSizeApp = max(4, min(7, $availableWidth * 0.25));
@@ -2715,8 +2841,9 @@ class LibriController
         $maxAuthorChars = (int) ($availableWidth * 1.5);
         $autoreShort = !empty($autoriStr) ? mb_substr($autoriStr, 0, $maxAuthorChars) : '';
 
-        // EAN/ISBN text (for display under barcode)
-        $eanText = $libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '';
+        // EAN/ISBN text (for display under barcode). When an override is supplied
+        // (per-copy labels), show the copy's inventory code instead of the ISBN.
+        $eanText = $barcodeTextOverride ?? ($libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '');
 
         // Dewey classification
         $dewey = $libro['classificazione_dewey'] ?? '';
@@ -2827,7 +2954,7 @@ class LibriController
      * Optimized for larger labels like 70x36mm, 50x25mm, 52x30mm
      * Includes: App name, Title, Author/Publisher, EAN barcode, EAN text, Dewey, Collocazione
      */
-    private function renderLandscapeLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin): void
+    private function renderLandscapeLabel($pdf, string $appName, array $libro, string $autoriStr, string $collocazione, array $barcode, string $positionText, float $availableWidth, float $availableHeight, float $margin, ?string $barcodeTextOverride = null): void
     {
         // Calculate font sizes proportional to label height
         $fontSizeApp = max(6, min(10, $availableHeight * 0.25));
@@ -2857,8 +2984,9 @@ class LibriController
             $infoText = mb_substr($infoText, 0, $maxInfoChars);
         }
 
-        // EAN/ISBN text (for display under barcode)
-        $eanText = $libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '';
+        // EAN/ISBN text (for display under barcode). When an override is supplied
+        // (per-copy labels), show the copy's inventory code instead of the ISBN.
+        $eanText = $barcodeTextOverride ?? ($libro['ean'] ?? $libro['isbn13'] ?? $libro['isbn10'] ?? '');
 
         // Dewey classification
         $dewey = $libro['classificazione_dewey'] ?? '';

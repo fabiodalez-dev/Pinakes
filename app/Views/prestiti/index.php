@@ -171,6 +171,24 @@ function getStatusBadge($status) {
       </div>
     </div>
 
+    <!-- Quick return by copy code (numero_inventario) -->
+    <div class="bg-white rounded-xl border border-gray-200 shadow-sm mb-8 p-5">
+      <form method="post" action="<?= htmlspecialchars(url('/admin/loans/return-by-code'), ENT_QUOTES, 'UTF-8') ?>" class="flex flex-col sm:flex-row sm:items-end gap-3">
+        <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+        <div class="flex-1">
+          <label for="return_copy_code" class="block text-sm font-medium text-gray-700 mb-1">
+            <i class="fas fa-undo-alt text-blue-600 mr-1"></i><?= __("Restituzione rapida con codice copia") ?>
+          </label>
+          <input type="text" name="numero_inventario" id="return_copy_code" autocomplete="off"
+                 placeholder="<?= __('Inserisci o scansiona il codice inventario di una copia specifica') ?>"
+                 class="block w-full rounded-lg border border-gray-300 px-4 py-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <button type="submit" class="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors">
+          <i class="fas fa-check mr-2"></i><?= __("Restituisci copia") ?>
+        </button>
+      </form>
+    </div>
+
 
     <!-- Pending Loan Requests Widget -->
     <?php if (!empty($pending_loans)): ?>

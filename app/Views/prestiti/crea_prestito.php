@@ -65,6 +65,15 @@ $isItalian = str_starts_with($currentLocale, 'it');
         case 'max_loans_reached':
           echo __('L\'utente ha raggiunto il numero massimo di prestiti attivi consentiti. Restituisci un libro prima di crearne un altro.');
           break;
+        case 'copy_not_found':
+          echo __('Nessuna copia trovata con questo codice inventario.');
+          break;
+        case 'copy_wrong_book':
+          echo __('Il codice copia inserito appartiene a un altro libro.');
+          break;
+        case 'copy_not_available':
+          echo __('La copia indicata non è disponibile per il periodo richiesto.');
+          break;
         default:
           echo __('Errore durante la creazione del prestito.');
       }
@@ -106,6 +115,15 @@ $isItalian = str_starts_with($currentLocale, 'it');
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Codice copia (numero_inventario) — opzionale -->
+    <div>
+      <label for="copy_code" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Codice copia (inventario)") ?></label>
+      <input type="text" name="copy_code" id="copy_code" autocomplete="off"
+             placeholder="<?= __('Inserisci o scansiona il codice inventario di una copia specifica') ?>"
+             class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+      <p class="mt-1 text-xs text-gray-500"><?= __("Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.") ?></p>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -6444,5 +6444,18 @@
   "Tessera": "Carte",
   "%d utenti": "%d utilisateurs",
   "%d utenti filtrati su %d totali": "%d utilisateurs filtrés sur %d au total",
-  "Nessun utente da esportare.": "Aucun utilisateur à exporter."
+  "Nessun utente da esportare.": "Aucun utilisateur à exporter.",
+  "Nessuna copia disponibile per la stampa delle etichette.": "Aucun exemplaire disponible pour imprimer les étiquettes.",
+  "Inserisci un codice inventario.": "Saisissez un code d'inventaire.",
+  "Nessun prestito attivo trovato per questo codice copia.": "Aucun prêt actif trouvé pour ce code d'exemplaire.",
+  "Trovati più prestiti attivi per questo codice: gestiscili manualmente.": "Plusieurs prêts actifs trouvés pour ce code : gérez-les manuellement.",
+  "Nessuna copia trovata con questo codice inventario.": "Aucun exemplaire trouvé avec ce code d'inventaire.",
+  "Il codice copia inserito appartiene a un altro libro.": "Le code d'exemplaire saisi appartient à un autre livre.",
+  "La copia indicata non è disponibile per il periodo richiesto.": "L'exemplaire indiqué n'est pas disponible pour la période demandée.",
+  "Codice copia (inventario)": "Code d'exemplaire (inventaire)",
+  "Inserisci o scansiona il codice inventario di una copia specifica": "Saisissez ou scannez le code d'inventaire d'un exemplaire spécifique",
+  "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.": "Facultatif. Si vide, un exemplaire disponible sera attribué automatiquement.",
+  "Stampa etichette copie": "Imprimer les étiquettes des exemplaires",
+  "Restituzione rapida con codice copia": "Retour rapide par code d'exemplaire",
+  "Restituisci copia": "Rendre l'exemplaire"
 }

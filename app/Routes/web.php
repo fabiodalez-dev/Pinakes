@@ -1263,6 +1263,14 @@ return function (App $app): void {
         return $controller->generateLabelPDF($request, $response, $db, (int) $args['id']);
     })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
 
+    // Per-copy labels: one label per physical copy, each carrying its numero_inventario
+    // as text + Code128 barcode.
+    $app->get('/admin/books/{id:\d+}/copy-labels-pdf', function ($request, $response, $args) use ($app) {
+        $controller = new LibriController();
+        $db = $app->getContainer()->get('db');
+        return $controller->generateCopyLabelsPDF($request, $response, $db, (int) $args['id']);
+    })->add(new \App\Middleware\RateLimitMiddleware(30, 60))->add(new AdminAuthMiddleware()); // 30 requests per minute
+
     // Fetch cover for a book via scraping
     $app->post('/api/libri/{id:\d+}/fetch-cover', function ($request, $response, $args) use ($app) {
         $controller = new LibriController();
@@ -1453,6 +1461,13 @@ return function (App $app): void {
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     // Copy management routes
+    // Resolve a physical copy by its numero_inventario (per-copy code) → JSON.
+    $app->get('/admin/copies/by-code', function ($request, $response) use ($app) {
+        $controller = new \App\Controllers\CopyController();
+        $db = $app->getContainer()->get('db');
+        return $controller->byCode($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(60, 60))->add(new AdminAuthMiddleware());
+
     $app->post('/admin/books/copies/{id:\d+}/update', function ($request, $response, $args) use ($app) {
         $controller = new \App\Controllers\CopyController();
         $db = $app->getContainer()->get('db');
@@ -1830,6 +1845,15 @@ return function (App $app): void {
         $controller = new PrestitiController();
         $db = $app->getContainer()->get('db');
         return $controller->renew($request, $response, $db, (int) $args['id']);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    // Return a loan by scanning/typing the physical copy code (numero_inventario)
+    $app->post('/admin/loans/return-by-code', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->returnByCode($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     $app->get('/admin/loans/details/{id:\d+}', function ($request, $response, $args) use ($app) {
         $controller = new PrestitiController();
