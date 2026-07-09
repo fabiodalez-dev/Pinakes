@@ -477,6 +477,11 @@ class LibraryThingImportController
                         }
                     }
 
+                    // Rebuild the denormalized FULLTEXT search_index. Runs
+                    // post-commit (autocommit) so it captures both the base import
+                    // and any ISBN scraping enrichment (content + authors) above.
+                    \App\Support\SearchIndexBuilder::rebuild($db, (int) $bookId);
+
                 } catch (\Throwable $e) {
                     $db->rollback();
                     $title = $parsedData['titolo'] ?? ($rawData[1] ?? '');

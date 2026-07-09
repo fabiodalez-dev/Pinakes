@@ -904,9 +904,12 @@ $htmlLang = substr($currentLocale, 0, 2);
                     case 'book':
                       iconClass = 'fas fa-book-open';
                       iconColor = 'text-blue-500';
-                      // Show author and optionally ISBN
+                      // Show subtitle, author and optionally ISBN
+                      if (item.subtitle) {
+                        identifierHtml = `<div class="text-xs italic text-gray-500 dark:text-gray-400 mt-0.5">${escapeHtml(String(item.subtitle))}</div>`;
+                      }
                       if (item.identifier) {
-                        identifierHtml = `<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${escapeHtml(String(item.identifier))}</div>`;
+                        identifierHtml += `<div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${escapeHtml(String(item.identifier))}</div>`;
                       }
                       if (item.isbn) {
                         identifierHtml += `<div class="text-xs text-gray-400 dark:text-gray-500 font-mono">${escapeHtml(String(item.isbn))}</div>`;
@@ -1176,8 +1179,11 @@ $htmlLang = substr($currentLocale, 0, 2);
                     case 'book':
                       iconClass = 'fas fa-book-open';
                       iconColor = 'text-blue-500';
+                      if (item.subtitle) {
+                        identifierHtml = `<div class="text-xs italic text-gray-500 mt-1">${escapeHtml(String(item.subtitle))}</div>`;
+                      }
                       if (item.identifier) {
-                        identifierHtml = `<div class="text-xs text-gray-500 mt-1">${escapeHtml(String(item.identifier))}</div>`;
+                        identifierHtml += `<div class="text-xs text-gray-500 mt-1">${escapeHtml(String(item.identifier))}</div>`;
                       }
                       break;
                     case 'author':
