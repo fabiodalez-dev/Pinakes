@@ -35,78 +35,10 @@ final class SearchIndexBuilder
      */
     public static function rebuild(\mysqli $db, int $bookId): void
     {
-        if ($bookId <= 0 || !self::columnExists($db)) {
+        if ($bookId <= 0) {
             return;
         }
-
-        try {
-            // Match the migration's backfill: a book with many authors/publishers
-            // must not have its GROUP_CONCAT silently truncated at the 1024-byte
-            // default, otherwise runtime and backfill would produce different
-            // values. Best-effort — a failure here must not break the rebuild.
-            try {
-                $db->query('SET SESSION group_concat_max_len = 1000000');
-            } catch (\Throwable $ignored) {
-            }
-
-            $hasJunction = SchemaInfo::hasLibriEditori($db);
-
-            // Secondary publishers (issue #143) folded in only when the junction
-            // table exists; otherwise search_index carries the primary publisher.
-            $junctionJoin = $hasJunction
-                ? "LEFT JOIN (
-                        SELECT le.libro_id, GROUP_CONCAT(e2.nome SEPARATOR ' ') AS editori_sec
-                        FROM libri_editori le
-                        JOIN editori e2 ON e2.id = le.editore_id
-                        WHERE le.libro_id = ?
-                        GROUP BY le.libro_id
-                    ) ex ON ex.libro_id = l.id"
-                : '';
-            $junctionField = $hasJunction ? 'ex.editori_sec,' : '';
-
-            // Raw columns may be stored HTML-entity-encoded (e.g. `L&#039;orologio`,
-            // `Q&amp;A`), which FULLTEXT tokenizes wrong (`l`,`039`,`orologio`).
-            // Decode the common entities on the FINAL concatenated value — the
-            // IDENTICAL REPLACE chain lives in migrate_0.7.31.sql's backfill so
-            // runtime and backfill produce the same content. &amp; is decoded
-            // OUTERMOST (last) so `&amp;lt;` does not double-decode.
-            $sql = "UPDATE libri l
-                LEFT JOIN (
-                        SELECT la.libro_id, GROUP_CONCAT(a.nome SEPARATOR ' ') AS autori
-                        FROM libri_autori la
-                        JOIN autori a ON a.id = la.autore_id
-                        WHERE la.libro_id = ?
-                        GROUP BY la.libro_id
-                    ) ax ON ax.libro_id = l.id
-                LEFT JOIN editori e ON e.id = l.editore_id
-                {$junctionJoin}
-                SET l.search_index = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
-                        CONCAT_WS(' ',
-                            l.titolo, l.sottotitolo, ax.autori, e.nome, {$junctionField}
-                            l.isbn10, l.isbn13, l.ean, l.parole_chiave,
-                            COALESCE(l.descrizione_plain, l.descrizione))
-                    , '&#039;', ''''), '&#39;', ''''), '&quot;', '\"'), '&lt;', '<'), '&gt;', '>'), '&nbsp;', ' '), '&amp;', '&')
-                WHERE l.id = ? AND l.deleted_at IS NULL";
-
-            $stmt = $db->prepare($sql);
-            if ($stmt === false) {
-                return;
-            }
-            if ($hasJunction) {
-                $stmt->bind_param('iii', $bookId, $bookId, $bookId);
-            } else {
-                $stmt->bind_param('ii', $bookId, $bookId);
-            }
-            $stmt->execute();
-            $stmt->close();
-        } catch (\Throwable $e) {
-            // The search index is a derived cache — never let a rebuild failure
-            // break the surrounding save. Log and move on.
-            SecureLogger::warning('SearchIndexBuilder::rebuild failed', [
-                'book_id' => $bookId,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        self::rebuildMany($db, [$bookId]);
     }
 
     /**
@@ -233,10 +165,102 @@ final class SearchIndexBuilder
      */
     public static function rebuildMany(\mysqli $db, array $bookIds): void
     {
-        foreach ($bookIds as $bookId) {
-            self::rebuild($db, (int) $bookId);
+        // De-dupe + drop non-positive ids.
+        $ids = [];
+        foreach ($bookIds as $id) {
+            $id = (int) $id;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+        $ids = array_values($ids);
+        if ($ids === [] || !self::columnExists($db)) {
+            return;
+        }
+
+        try {
+            // Match the migration's backfill: a book with many authors/publishers
+            // must not have its GROUP_CONCAT silently truncated at the 1024-byte
+            // default. Set once for the whole batch — best-effort.
+            try {
+                $db->query('SET SESSION group_concat_max_len = 1000000');
+            } catch (\Throwable $ignored) {
+            }
+
+            $hasJunction = SchemaInfo::hasLibriEditori($db);
+
+            // ONE UPDATE per chunk (not per book): renaming/merging a prolific
+            // author/publisher with thousands of linked books would otherwise fire
+            // thousands of synchronous UPDATEs on the request thread. Chunk so the
+            // IN(...) placeholder count stays well under the bind limit.
+            foreach (array_chunk($ids, self::REBUILD_CHUNK) as $chunk) {
+                $ph = implode(',', array_fill(0, count($chunk), '?'));
+
+                // Secondary publishers (issue #143) folded in only when the
+                // junction table exists; both correlated subqueries are scoped to
+                // the chunk's ids so they stay cheap.
+                $junctionJoin = $hasJunction
+                    ? "LEFT JOIN (
+                            SELECT le.libro_id, GROUP_CONCAT(e2.nome SEPARATOR ' ') AS editori_sec
+                            FROM libri_editori le
+                            JOIN editori e2 ON e2.id = le.editore_id
+                            WHERE le.libro_id IN ({$ph})
+                            GROUP BY le.libro_id
+                        ) ex ON ex.libro_id = l.id"
+                    : '';
+                $junctionField = $hasJunction ? 'ex.editori_sec,' : '';
+
+                // Raw columns may be stored HTML-entity-encoded (e.g.
+                // `L&#039;orologio`, `Q&amp;A`), which FULLTEXT tokenizes wrong.
+                // Decode the common entities on the FINAL concatenated value — the
+                // IDENTICAL REPLACE chain lives in migrate_0.7.31.sql's backfill so
+                // runtime and backfill produce the same content. &amp; is decoded
+                // OUTERMOST (last) so `&amp;lt;` does not double-decode.
+                $sql = "UPDATE libri l
+                    LEFT JOIN (
+                            SELECT la.libro_id, GROUP_CONCAT(a.nome SEPARATOR ' ') AS autori
+                            FROM libri_autori la
+                            JOIN autori a ON a.id = la.autore_id
+                            WHERE la.libro_id IN ({$ph})
+                            GROUP BY la.libro_id
+                        ) ax ON ax.libro_id = l.id
+                    LEFT JOIN editori e ON e.id = l.editore_id
+                    {$junctionJoin}
+                    SET l.search_index = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                            CONCAT_WS(' ',
+                                l.titolo, l.sottotitolo, ax.autori, e.nome, {$junctionField}
+                                l.isbn10, l.isbn13, l.ean, l.parole_chiave,
+                                COALESCE(l.descrizione_plain, l.descrizione))
+                        , '&#039;', ''''), '&#39;', ''''), '&quot;', '\"'), '&lt;', '<'), '&gt;', '>'), '&nbsp;', ' '), '&amp;', '&')
+                    WHERE l.id IN ({$ph}) AND l.deleted_at IS NULL";
+
+                $stmt = $db->prepare($sql);
+                if ($stmt === false) {
+                    continue;
+                }
+                // Bind the chunk's ids once per IN(...): author subquery,
+                // [junction subquery], then the outer WHERE — same order as the SQL.
+                $bind = $chunk;                          // author subquery
+                if ($hasJunction) {
+                    $bind = array_merge($bind, $chunk);  // junction subquery
+                }
+                $bind = array_merge($bind, $chunk);      // outer WHERE
+                $stmt->bind_param(str_repeat('i', count($bind)), ...$bind);
+                $stmt->execute();
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            // The search index is a derived cache — never let a rebuild failure
+            // break the surrounding save. Log and move on.
+            SecureLogger::warning('SearchIndexBuilder::rebuildMany failed', [
+                'count' => count($ids),
+                'error' => $e->getMessage(),
+            ]);
         }
     }
+
+    /** Books per batch UPDATE — keeps the IN(...) placeholder count bounded. */
+    private const REBUILD_CHUNK = 500;
 
     /**
      * Build the WHERE fragment for a user book search against a FULLTEXT

@@ -56,6 +56,14 @@ $isbn = '979' . random_int(1000000000, 9999999999);
 function ltSicCleanup(mysqli $db, string $tag): void
 {
     $like = $tag . '%';
+    // FK-safe: delete child rows (created by upsertBook / syncSeriesAfterImport)
+    // before the parent libri rows, else the DELETE FROM libri fails on FK.
+    foreach (['libri_collane', 'libri_editori', 'libri_autori'] as $child) {
+        $stmt = $db->prepare("DELETE FROM {$child} WHERE libro_id IN (SELECT id FROM (SELECT id FROM libri WHERE titolo LIKE ?) t)");
+        $stmt->bind_param('s', $like);
+        $stmt->execute();
+        $stmt->close();
+    }
     $stmt = $db->prepare('DELETE FROM libri WHERE titolo LIKE ?');
     $stmt->bind_param('s', $like);
     $stmt->execute();
