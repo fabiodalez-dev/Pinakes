@@ -242,12 +242,14 @@ final class SearchIndexBuilder
      * Build the WHERE fragment for a user book search against a FULLTEXT
      * column (typically `l.search_index`).
      *
-     * Long tokens (>= 3 chars, above innodb_ft_min_token_size) are folded into a
-     * single BOOLEAN-mode AGAINST string as `+token*` (prefix, AND semantics —
-     * every word must match). Tokens shorter than 3 chars, which FULLTEXT can
-     * not index, fall back to a `LIKE '%token%'` on the same column so 1–2 char
-     * searches keep working. All parts are ANDed together, preserving the
-     * original "every word must match somewhere" behaviour.
+     * Tokens that MySQL can index safely are folded into a single BOOLEAN-mode
+     * AGAINST string as `+token*` (prefix, AND semantics — every word must
+     * match). Stopwords, tokens shorter than innodb_ft_min_token_size and terms
+     * with punctuation that the FULLTEXT parser would split (`C++`, `Q&A`,
+     * `L'orologio`) fall back to a `LIKE '%token%'` filter on the same column.
+     * All parts are ANDed together, preserving the original "every word must
+     * match somewhere" behaviour without letting unindexable required terms zero
+     * out otherwise valid results.
      *
      * UPGRADE-WINDOW SAFETY: when the `search_index` column does not exist yet
      * (new PHP deployed but the admin has not run the 0.7.31 DB migration),
@@ -271,7 +273,7 @@ final class SearchIndexBuilder
         // Pre-migration: the denormalized FULLTEXT column is not there yet.
         // Match on the real columns instead so search does not 500.
         if (!self::columnExists($db)) {
-            return self::buildLegacyCondition($column, $searchQuery);
+            return self::buildLegacyCondition($db, $column, $searchQuery);
         }
 
         $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
@@ -282,18 +284,16 @@ final class SearchIndexBuilder
         $types = '';
 
         foreach ($words as $word) {
-            $wordBase = rtrim($word, '*');
-            $sanitizedBase = self::escapeFulltextWord($wordBase, false);
-            if ($sanitizedBase === '') {
+            $wordBase = trim(rtrim($word, '*'));
+            if ($wordBase === '') {
                 continue;
             }
-            if (strlen($wordBase) >= 3) {
-                $booleanTerms[] = '+' . self::escapeFulltextWord($word)
-                    . (str_ends_with($word, '*') ? '' : '*');
+            $fulltextTerm = self::fulltextTermForWord($wordBase);
+            if ($fulltextTerm !== null) {
+                $booleanTerms[] = '+' . $fulltextTerm . '*';
             } else {
-                // Below ft_min_token_size — FULLTEXT can't match it, LIKE fallback.
-                $parts[] = "{$column} LIKE ?";
-                $params[] = '%' . $wordBase . '%';
+                $parts[] = "{$column} LIKE ? ESCAPE '\\\\'";
+                $params[] = self::likePattern($wordBase);
                 $types .= 's';
             }
         }
@@ -318,22 +318,21 @@ final class SearchIndexBuilder
 
     /**
      * Pre-migration fallback: the `search_index` column does not exist yet, so
-     * build the condition over the REAL columns that a book always carries
-     * (titolo, sottotitolo, isbn10, isbn13, ean). For each word we emit an
-     * OR-of-LIKE over those five columns, ANDed across words (every word must
-     * match somewhere), mirroring the normal path's "all words required"
-     * semantics and returning the same {sql,params,types} shape so callers bind
-     * generically.
+     * build the condition over the real book columns plus author/publisher
+     * subqueries. For each word we emit an OR-of-LIKE, ANDed across words (every
+     * word must match somewhere), mirroring the normal path's semantics and
+     * returning the same {sql,params,types} shape so callers bind generically.
      *
      * The table alias is derived from $column: the part before '.', e.g. 'l'
      * from 'l.search_index' (empty when there is no dot).
      *
      * @return array{sql:string, params:array<int,string>, types:string}|null
      */
-    private static function buildLegacyCondition(string $column, string $searchQuery): ?array
+    private static function buildLegacyCondition(\mysqli $db, string $column, string $searchQuery): ?array
     {
         $dot = strpos($column, '.');
         $prefix = $dot === false ? '' : substr($column, 0, $dot + 1);
+        $descExpr = self::descriptionExpr($db, $prefix);
 
         $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
@@ -342,10 +341,19 @@ final class SearchIndexBuilder
         $types = '';
 
         foreach ($words as $word) {
-            $like = '%' . $word . '%';
-            $parts[] = "({$prefix}titolo LIKE ? OR {$prefix}sottotitolo LIKE ?"
-                . " OR {$prefix}isbn10 LIKE ? OR {$prefix}isbn13 LIKE ? OR {$prefix}ean LIKE ?)";
-            for ($i = 0; $i < 5; $i++) {
+            $like = self::likePattern($word);
+            $bookIdExpr = $prefix . 'id';
+            $publisherIdExpr = $prefix . 'editore_id';
+            $parts[] = "({$prefix}titolo LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}sottotitolo LIKE ? ESCAPE '\\\\'"
+                . " OR {$descExpr} LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}parole_chiave LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}isbn10 LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}isbn13 LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}ean LIKE ? ESCAPE '\\\\'"
+                . " OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = {$bookIdExpr} AND a.nome LIKE ? ESCAPE '\\\\')"
+                . " OR EXISTS (SELECT 1 FROM editori e WHERE e.id = {$publisherIdExpr} AND e.nome LIKE ? ESCAPE '\\\\'))";
+            for ($i = 0; $i < 9; $i++) {
                 $params[] = $like;
                 $types .= 's';
             }
@@ -363,28 +371,83 @@ final class SearchIndexBuilder
     }
 
     /**
-     * Strip FULLTEXT BOOLEAN MODE operators from a word. MySQL FULLTEXT has no
-     * backslash escaping, so the operators (+ - > < ( ) ~ * " @) must be
-     * removed. A trailing '*' (prefix wildcard) is preserved when allowed.
+     * Return a single safe FULLTEXT token for a raw user word, or null when
+     * FULLTEXT would ignore/split it and the caller should use LIKE instead.
      */
-    private static function escapeFulltextWord(string $word, bool $allowTrailingWildcard = true): string
+    private static function fulltextTermForWord(string $word): ?string
     {
-        $hasTrailingWildcard = $allowTrailingWildcard && str_ends_with($word, '*');
-        if ($hasTrailingWildcard) {
-            $word = substr($word, 0, -1);
+        $tokens = self::fulltextTokens($word);
+        if (count($tokens) !== 1) {
+            return null;
         }
 
-        $word = str_replace(
-            ['+', '-', '>', '<', '(', ')', '~', '*', '"', '@'],
-            '',
-            $word
-        );
-
-        if ($hasTrailingWildcard && $word !== '') {
-            $word .= '*';
+        $token = $tokens[0];
+        if (mb_strlen($token, 'UTF-8') < 3) {
+            return null;
         }
 
-        return $word;
+        if (self::isDefaultFulltextStopword($token)) {
+            return null;
+        }
+
+        return $token;
+    }
+
+    /**
+     * Approximate MySQL/InnoDB's word tokenization for deciding whether a user
+     * term is safe to require in BOOLEAN MODE.
+     *
+     * @return list<string>
+     */
+    private static function fulltextTokens(string $word): array
+    {
+        if (preg_match_all('/[\p{L}\p{N}_]+/u', $word, $matches) !== 1) {
+            return [];
+        }
+        return array_values(array_filter($matches[0], static fn(string $token): bool => $token !== ''));
+    }
+
+    private static function isDefaultFulltextStopword(string $token): bool
+    {
+        static $stopwords = [
+            'a' => true, 'about' => true, 'an' => true, 'are' => true,
+            'as' => true, 'at' => true, 'be' => true, 'by' => true,
+            'com' => true, 'de' => true, 'en' => true, 'for' => true,
+            'from' => true, 'how' => true, 'i' => true, 'in' => true,
+            'is' => true, 'it' => true, 'la' => true, 'of' => true,
+            'on' => true, 'or' => true, 'that' => true, 'the' => true,
+            'this' => true, 'to' => true, 'was' => true, 'what' => true,
+            'when' => true, 'where' => true, 'who' => true, 'will' => true,
+            'with' => true, 'und' => true, 'www' => true,
+        ];
+
+        return isset($stopwords[mb_strtolower($token, 'UTF-8')]);
+    }
+
+    private static function likePattern(string $term): string
+    {
+        return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+    }
+
+    private static ?bool $hasDescrizionePlain = null;
+
+    private static function descriptionExpr(\mysqli $db, string $prefix): string
+    {
+        if (self::$hasDescrizionePlain === null) {
+            try {
+                $res = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
+                self::$hasDescrizionePlain = $res !== false && $res->num_rows > 0;
+                if ($res instanceof \mysqli_result) {
+                    $res->free();
+                }
+            } catch (\Throwable $e) {
+                self::$hasDescrizionePlain = false;
+            }
+        }
+
+        return self::$hasDescrizionePlain
+            ? "COALESCE(NULLIF({$prefix}descrizione_plain, ''), {$prefix}descrizione)"
+            : "{$prefix}descrizione";
     }
 
     /** @var bool|null */

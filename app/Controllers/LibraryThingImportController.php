@@ -1287,24 +1287,17 @@ class LibraryThingImportController
 
         if ($existingBookId !== null) {
             $this->log("[upsertBook] UPDATING existing book ID: $existingBookId");
+            $conflictingBookIds = [];
 
             // Clear ISBNs from other books if they conflict (TSV data is authoritative)
             if (!empty($data['isbn13'])) {
-                $stmt = $db->prepare("UPDATE libri SET isbn13 = NULL WHERE isbn13 = ? AND id != ? AND deleted_at IS NULL");
-                $stmt->bind_param('si', $data['isbn13'], $existingBookId);
-                $stmt->execute();
-                $conflictsCleared = $stmt->affected_rows;
-                $stmt->close();
+                $conflictsCleared = $this->clearIdentifierConflicts($db, 'isbn13', (string) $data['isbn13'], $existingBookId, $conflictingBookIds);
                 if ($conflictsCleared > 0) {
                     $this->log("[upsertBook] Cleared ISBN13 '{$data['isbn13']}' from $conflictsCleared conflicting book(s)");
                 }
             }
             if (!empty($data['isbn10'])) {
-                $stmt = $db->prepare("UPDATE libri SET isbn10 = NULL WHERE isbn10 = ? AND id != ? AND deleted_at IS NULL");
-                $stmt->bind_param('si', $data['isbn10'], $existingBookId);
-                $stmt->execute();
-                $conflictsCleared = $stmt->affected_rows;
-                $stmt->close();
+                $conflictsCleared = $this->clearIdentifierConflicts($db, 'isbn10', (string) $data['isbn10'], $existingBookId, $conflictingBookIds);
                 if ($conflictsCleared > 0) {
                     $this->log("[upsertBook] Cleared ISBN10 '{$data['isbn10']}' from $conflictsCleared conflicting book(s)");
                 }
@@ -1312,11 +1305,7 @@ class LibraryThingImportController
 
             // Clear EAN conflicts (same pattern as ISBN13/ISBN10)
             if (!empty($data['ean'])) {
-                $stmt = $db->prepare("UPDATE libri SET ean = NULL WHERE ean = ? AND id != ? AND deleted_at IS NULL");
-                $stmt->bind_param('si', $data['ean'], $existingBookId);
-                $stmt->execute();
-                $conflictsCleared = $stmt->affected_rows;
-                $stmt->close();
+                $conflictsCleared = $this->clearIdentifierConflicts($db, 'ean', (string) $data['ean'], $existingBookId, $conflictingBookIds);
                 if ($conflictsCleared > 0) {
                     $this->log("[upsertBook] Cleared EAN '{$data['ean']}' from $conflictsCleared conflicting book(s)");
                 }
@@ -1327,21 +1316,78 @@ class LibraryThingImportController
             // way CsvImportController::syncImportedSeries does, so LT-imported
             // books appear in /admin/series and getBookMemberships finds them.
             $this->syncSeriesAfterImport($db, $existingBookId, $data);
+            if (!empty($conflictingBookIds)) {
+                \App\Support\SearchIndexBuilder::rebuildMany($db, array_values($conflictingBookIds));
+            }
             return ['id' => $existingBookId, 'action' => 'updated'];
         } else {
+            $conflictingBookIds = [];
             // Clear EAN conflicts for new inserts
             if (!empty($data['ean'])) {
-                $stmt = $db->prepare("UPDATE libri SET ean = NULL WHERE ean = ? AND deleted_at IS NULL");
-                $stmt->bind_param('s', $data['ean']);
-                $stmt->execute();
-                $stmt->close();
+                $this->clearIdentifierConflicts($db, 'ean', (string) $data['ean'], null, $conflictingBookIds);
             }
 
             $this->log("[upsertBook] INSERTING new book: {$data['titolo']}");
             $newBookId = $this->insertBook($db, $data, $editorId, $genreId);
             $this->syncSeriesAfterImport($db, $newBookId, $data);
+            if (!empty($conflictingBookIds)) {
+                \App\Support\SearchIndexBuilder::rebuildMany($db, array_values($conflictingBookIds));
+            }
             return ['id' => $newBookId, 'action' => 'created'];
         }
+    }
+
+    /**
+     * Clear a duplicate ISBN/EAN from non-deleted books and remember affected ids
+     * so their denormalized search_index can be rebuilt in the same transaction.
+     *
+     * @param array<int,int> $affectedBookIds
+     */
+    private function clearIdentifierConflicts(
+        \mysqli $db,
+        string $column,
+        string $value,
+        ?int $excludeBookId,
+        array &$affectedBookIds
+    ): int {
+        if (!in_array($column, ['isbn10', 'isbn13', 'ean'], true) || $value === '') {
+            return 0;
+        }
+
+        $excludeSql = $excludeBookId !== null ? ' AND id != ?' : '';
+        $select = $db->prepare("SELECT id FROM libri WHERE {$column} = ?{$excludeSql} AND deleted_at IS NULL");
+        if ($select === false) {
+            return 0;
+        }
+        if ($excludeBookId !== null) {
+            $select->bind_param('si', $value, $excludeBookId);
+        } else {
+            $select->bind_param('s', $value);
+        }
+        $select->execute();
+        $res = $select->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $id = (int) ($row['id'] ?? 0);
+            if ($id > 0) {
+                $affectedBookIds[$id] = $id;
+            }
+        }
+        $select->close();
+
+        $stmt = $db->prepare("UPDATE libri SET {$column} = NULL WHERE {$column} = ?{$excludeSql} AND deleted_at IS NULL");
+        if ($stmt === false) {
+            return 0;
+        }
+        if ($excludeBookId !== null) {
+            $stmt->bind_param('si', $value, $excludeBookId);
+        } else {
+            $stmt->bind_param('s', $value);
+        }
+        $stmt->execute();
+        $affected = $stmt->affected_rows;
+        $stmt->close();
+
+        return max(0, $affected);
     }
 
     /**
