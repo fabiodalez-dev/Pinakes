@@ -6457,5 +6457,13 @@
   "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.": "Facultatif. Si vide, un exemplaire disponible sera attribué automatiquement.",
   "Stampa etichette copie": "Imprimer les étiquettes des exemplaires",
   "Restituzione rapida con codice copia": "Retour rapide par code d'exemplaire",
-  "Restituisci copia": "Rendre l'exemplaire"
+  "Restituisci copia": "Rendre l'exemplaire",
+  "Scansiona": "Scanner",
+  "Scansiona codice a barre": "Scanner le code-barres",
+  "Inquadra il codice a barre nella cornice": "Placez le code-barres dans le cadre",
+  "Avvio della fotocamera in corso...": "Démarrage de la caméra…",
+  "Impossibile accedere alla fotocamera. Controlla i permessi del browser.": "Impossible d'accéder à la caméra. Vérifiez les autorisations du navigateur.",
+  "Nessuna fotocamera trovata su questo dispositivo.": "Aucune caméra détectée sur cet appareil.",
+  "Questo browser non supporta l'accesso alla fotocamera.": "Ce navigateur ne prend pas en charge l'accès à la caméra.",
+  "Impossibile avviare lo scanner.": "Impossible de démarrer le scanner."
 }

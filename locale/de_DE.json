@@ -6457,5 +6457,13 @@
   "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.": "Optional. Wenn leer, wird automatisch ein verfügbares Exemplar zugewiesen.",
   "Stampa etichette copie": "Exemplar-Etiketten drucken",
   "Restituzione rapida con codice copia": "Schnelle Rückgabe per Exemplarcode",
-  "Restituisci copia": "Exemplar zurückgeben"
+  "Restituisci copia": "Exemplar zurückgeben",
+  "Scansiona": "Scannen",
+  "Scansiona codice a barre": "Barcode scannen",
+  "Inquadra il codice a barre nella cornice": "Richten Sie die Kamera auf den Barcode im Rahmen",
+  "Avvio della fotocamera in corso...": "Kamera wird gestartet …",
+  "Impossibile accedere alla fotocamera. Controlla i permessi del browser.": "Kamerazugriff nicht möglich. Überprüfen Sie die Browser-Berechtigungen.",
+  "Nessuna fotocamera trovata su questo dispositivo.": "Keine Kamera auf diesem Gerät gefunden.",
+  "Questo browser non supporta l'accesso alla fotocamera.": "Dieser Browser unterstützt keinen Kamerazugriff.",
+  "Impossibile avviare lo scanner.": "Scanner konnte nicht gestartet werden."
 }

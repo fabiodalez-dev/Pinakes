@@ -6457,5 +6457,13 @@
   "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.": "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.",
   "Stampa etichette copie": "Stampa etichette copie",
   "Restituzione rapida con codice copia": "Restituzione rapida con codice copia",
-  "Restituisci copia": "Restituisci copia"
+  "Restituisci copia": "Restituisci copia",
+  "Scansiona": "Scansiona",
+  "Scansiona codice a barre": "Scansiona codice a barre",
+  "Inquadra il codice a barre nella cornice": "Inquadra il codice a barre nella cornice",
+  "Avvio della fotocamera in corso...": "Avvio della fotocamera in corso...",
+  "Impossibile accedere alla fotocamera. Controlla i permessi del browser.": "Impossibile accedere alla fotocamera. Controlla i permessi del browser.",
+  "Nessuna fotocamera trovata su questo dispositivo.": "Nessuna fotocamera trovata su questo dispositivo.",
+  "Questo browser non supporta l'accesso alla fotocamera.": "Questo browser non supporta l'accesso alla fotocamera.",
+  "Impossibile avviare lo scanner.": "Impossibile avviare lo scanner."
 }

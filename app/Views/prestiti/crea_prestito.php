@@ -120,9 +120,15 @@ $isItalian = str_starts_with($currentLocale, 'it');
     <!-- Codice copia (numero_inventario) — opzionale -->
     <div>
       <label for="copy_code" class="block text-gray-700 dark:text-gray-300 font-medium"><?= __("Codice copia (inventario)") ?></label>
-      <input type="text" name="copy_code" id="copy_code" autocomplete="off"
-             placeholder="<?= __('Inserisci o scansiona il codice inventario di una copia specifica') ?>"
-             class="mt-1 block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+      <div class="mt-1 flex gap-2">
+        <input type="text" name="copy_code" id="copy_code" autocomplete="off"
+               placeholder="<?= __('Inserisci o scansiona il codice inventario di una copia specifica') ?>"
+               class="block w-full rounded-lg border border-gray-300 px-4 py-2 dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+        <button type="button" data-copy-scan data-copy-scan-target="copy_code"
+                class="inline-flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
+          <i class="fas fa-camera"></i><span class="hidden sm:inline"><?= __("Scansiona") ?></span>
+        </button>
+      </div>
       <p class="mt-1 text-xs text-gray-500"><?= __("Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.") ?></p>
     </div>
 
@@ -682,4 +688,19 @@ $isItalian = str_starts_with($currentLocale, 'it');
       setupAutocomplete('libro_search', 'libro_suggest', 'libro_id', window.BASE_PATH + '/api/search/libri', true);
     });
   </script>
+
+  <!-- Camera barcode scanner (Phase 2) -->
+  <script>
+    window.copyScannerI18n = {
+      title: <?= json_encode(__("Scansiona codice a barre"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      instruction: <?= json_encode(__("Inquadra il codice a barre nella cornice"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      starting: <?= json_encode(__("Avvio della fotocamera in corso..."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      cancel: <?= json_encode(__("Annulla"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      permissionDenied: <?= json_encode(__("Impossibile accedere alla fotocamera. Controlla i permessi del browser."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      noCamera: <?= json_encode(__("Nessuna fotocamera trovata su questo dispositivo."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      unsupported: <?= json_encode(__("Questo browser non supporta l'accesso alla fotocamera."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      genericError: <?= json_encode(__("Impossibile avviare lo scanner."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
+    };
+  </script>
+  <script src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
 </section>

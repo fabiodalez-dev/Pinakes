@@ -6457,5 +6457,13 @@
   "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.": "Optional. If left empty, an available copy will be assigned automatically.",
   "Stampa etichette copie": "Print copy labels",
   "Restituzione rapida con codice copia": "Quick return by copy code",
-  "Restituisci copia": "Return copy"
+  "Restituisci copia": "Return copy",
+  "Scansiona": "Scan",
+  "Scansiona codice a barre": "Scan barcode",
+  "Inquadra il codice a barre nella cornice": "Point the camera at the barcode inside the frame",
+  "Avvio della fotocamera in corso...": "Starting camera…",
+  "Impossibile accedere alla fotocamera. Controlla i permessi del browser.": "Cannot access the camera. Check your browser permissions.",
+  "Nessuna fotocamera trovata su questo dispositivo.": "No camera found on this device.",
+  "Questo browser non supporta l'accesso alla fotocamera.": "This browser does not support camera access.",
+  "Impossibile avviare lo scanner.": "Unable to start the scanner."
 }

@@ -179,9 +179,15 @@ function getStatusBadge($status) {
           <label for="return_copy_code" class="block text-sm font-medium text-gray-700 mb-1">
             <i class="fas fa-undo-alt text-blue-600 mr-1"></i><?= __("Restituzione rapida con codice copia") ?>
           </label>
-          <input type="text" name="numero_inventario" id="return_copy_code" autocomplete="off"
-                 placeholder="<?= __('Inserisci o scansiona il codice inventario di una copia specifica') ?>"
-                 class="block w-full rounded-lg border border-gray-300 px-4 py-2 focus:ring-blue-500 focus:border-blue-500">
+          <div class="flex gap-2">
+            <input type="text" name="numero_inventario" id="return_copy_code" autocomplete="off"
+                   placeholder="<?= __('Inserisci o scansiona il codice inventario di una copia specifica') ?>"
+                   class="block w-full rounded-lg border border-gray-300 px-4 py-2 focus:ring-blue-500 focus:border-blue-500">
+            <button type="button" data-copy-scan data-copy-scan-target="return_copy_code"
+                    class="inline-flex items-center gap-2 whitespace-nowrap px-4 py-2 bg-gray-100 text-gray-900 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors font-medium">
+              <i class="fas fa-camera"></i><span class="hidden sm:inline"><?= __("Scansiona") ?></span>
+            </button>
+          </div>
         </div>
         <button type="submit" class="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition-colors">
           <i class="fas fa-check mr-2"></i><?= __("Restituisci copia") ?>
@@ -765,3 +771,18 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 });
 </script>
+
+<!-- Camera barcode scanner (Phase 2) -->
+<script>
+    window.copyScannerI18n = {
+      title: <?= json_encode(__("Scansiona codice a barre"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      instruction: <?= json_encode(__("Inquadra il codice a barre nella cornice"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      starting: <?= json_encode(__("Avvio della fotocamera in corso..."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      cancel: <?= json_encode(__("Annulla"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      permissionDenied: <?= json_encode(__("Impossibile accedere alla fotocamera. Controlla i permessi del browser."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      noCamera: <?= json_encode(__("Nessuna fotocamera trovata su questo dispositivo."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      unsupported: <?= json_encode(__("Questo browser non supporta l'accesso alla fotocamera."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+      genericError: <?= json_encode(__("Impossibile avviare lo scanner."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
+    };
+</script>
+<script src="<?= htmlspecialchars(assetUrl('copy-scanner.bundle.js'), ENT_QUOTES, 'UTF-8') ?>" defer></script>
