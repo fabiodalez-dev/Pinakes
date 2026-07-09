@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Loan / reservation OVERLAP suite (#157) — 35 real-world scenarios.
+ * Loan / reservation OVERLAP suite (#157) — 39 real-world scenarios.
  *
  * Validates the unified "a copy is occupied" model end-to-end:
  *
@@ -66,7 +66,7 @@ function dISO(off) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-test.describe.serial('Loan overlap model (#157) — 35 scenarios', () => {
+test.describe.serial('Loan overlap model (#157) — 39 scenarios', () => {
   /** @type {number} */ let u1;
   /** @type {number} */ let u2;
   /** @type {number} */ let u3;
@@ -259,14 +259,15 @@ test.describe.serial('Loan overlap model (#157) — 35 scenarios', () => {
       await Promise.all([page.waitForURL(/\/admin\//, { timeout: 15000 }), page.click('button[type="submit"]')]);
     }
   }
-  async function adminStoreLoan(page, { bookId, userId, start, end }) {
+  async function adminStoreLoan(page, { bookId, userId, start, end, copyCode = '' }) {
     const csrf = await page.evaluate(() => document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '');
-    return page.evaluate(async ({ base, bookId, userId, start, end, csrf }) => {
+    return page.evaluate(async ({ base, bookId, userId, start, end, copyCode, csrf }) => {
       const body = new URLSearchParams({ csrf_token: csrf, libro_id: String(bookId), utente_id: String(userId), data_prestito: start, data_scadenza: end });
+      if (copyCode) body.set('copy_code', copyCode);
       // follow the redirect so r.url carries the ?error= / ?success= query
       const r = await fetch(base + '/admin/prestiti/crea', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: body.toString() });
       return { status: r.status, location: r.url || '' };
-    }, { base: BASE, bookId, userId, start, end, csrf });
+    }, { base: BASE, bookId, userId, start, end, copyCode, csrf });
   }
 
   test('C.18 admin manual loan succeeds on a free copy', async ({ page }) => {
@@ -326,6 +327,24 @@ test.describe.serial('Loan overlap model (#157) — 35 scenarios', () => {
     // the capacity check — both copies are held, so it must be refused.
     const res = await adminStoreLoan(page, { bookId: b, userId: u3, start: dISO(2), end: dISO(9) });
     expect(res.location).toMatch(/no_copies_available/);
+  });
+
+  test('C.23b admin forced copy respects active reservation capacity', async ({ page }) => {
+    await adminLogin(page);
+    await page.goto(`${BASE}/admin/dashboard`);
+    const b = mkBook('C23b'); mkCopy(b, 1);
+    dbQuery(`INSERT INTO prenotazioni
+             (libro_id, utente_id, data_inizio_richiesta, data_fine_richiesta, data_scadenza_prenotazione, queue_position, stato, created_at, updated_at)
+             VALUES (${b}, ${u1}, '${dISO(2)}', '${dISO(9)}', '${dISO(9)}', 1, 'attiva', NOW(), NOW())`);
+    const res = await adminStoreLoan(page, {
+      bookId: b,
+      userId: u2,
+      start: dISO(3),
+      end: dISO(8),
+      copyCode: `${TAG}-${b}-1`,
+    });
+    expect(res.location).toMatch(/no_copies_available/);
+    expect(qInt(`SELECT COUNT(*) FROM prestiti WHERE libro_id=${b} AND utente_id=${u2}`)).toBe(0);
   });
 
   // ════════════════════════════════════════════════════════════════════════

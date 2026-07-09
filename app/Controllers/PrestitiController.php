@@ -309,6 +309,15 @@ class PrestitiController
                     return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_not_available')->withStatus(302);
                 }
 
+                // A forced physical-copy scan must still respect the book-level
+                // capacity gate: active prenotazioni do not pin this copia_id, but
+                // they reserve one capacity unit for the requested period.
+                $capacity = new \App\Services\CapacityService($db);
+                if (!$capacity->hasFreeCapacity($libro_id, $data_prestito, $data_scadenza)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=no_copies_available')->withStatus(302);
+                }
+
                 $selectedCopy = ['id' => $forcedCopyId];
             }
 
