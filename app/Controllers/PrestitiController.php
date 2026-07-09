@@ -251,7 +251,83 @@ class PrestitiController
             $copyRepo = new \App\Models\CopyRepository($db);
             $selectedCopy = null;
 
-            if ($isImmediateLoan) {
+            // OPTIONAL per-copy code (numero_inventario): when supplied, the operator
+            // is loaning a SPECIFIC physical copy (e.g. scanned/typed at the desk).
+            // Resolve it, verify it belongs to the selected book and is free for the
+            // requested period, then force it. When empty, fall through to the normal
+            // auto-assign paths below (fully backward compatible).
+            $copyCode = trim((string) ($data['copy_code'] ?? ''));
+            if ($copyCode !== '') {
+                // Lock ONLY the copie row here — the requested book is already
+                // locked above (line ~155), so JOINing+locking libri would lock a
+                // (potentially different) book row second and invert lock order →
+                // deadlock risk when a scanned code belongs to another book.
+                // Soft-delete stays covered: the copy_wrong_book check below
+                // requires this copy to belong to $libro_id, which was resolved
+                // under `deleted_at IS NULL`.
+                $codeStmt = $db->prepare("
+                    SELECT c.id, c.stato, c.libro_id
+                    FROM copie c
+                    WHERE c.numero_inventario = ?
+                    LIMIT 1
+                    FOR UPDATE
+                ");
+                $codeStmt->bind_param('s', $copyCode);
+                $codeStmt->execute();
+                $codeRow = $codeStmt->get_result()->fetch_assoc();
+                $codeStmt->close();
+
+                if (!$codeRow) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_not_found')->withStatus(302);
+                }
+                if ((int) $codeRow['libro_id'] !== $libro_id) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_wrong_book')->withStatus(302);
+                }
+
+                $forcedCopyId = (int) $codeRow['id'];
+
+                // Must be in a lendable state and have no overlapping hold for the period.
+                $lendable = in_array($codeRow['stato'], ['disponibile', 'prenotato'], true);
+                if ($lendable) {
+                    $ovStmt = $db->prepare("
+                        SELECT 1 FROM prestiti
+                        WHERE copia_id = ?
+                          AND data_prestito <= ?
+                          AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                          AND (
+                                (attivo = 1 AND stato IN ('in_corso','da_ritirare','prenotato','in_ritardo'))
+                                OR (stato = 'pendente' AND copia_id IS NOT NULL)
+                          )
+                        LIMIT 1
+                    ");
+                    $ovStmt->bind_param('iss', $forcedCopyId, $data_scadenza, $data_prestito);
+                    $ovStmt->execute();
+                    if ($ovStmt->get_result()->fetch_row()) {
+                        $lendable = false;
+                    }
+                    $ovStmt->close();
+                }
+
+                if (!$lendable) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=copy_not_available')->withStatus(302);
+                }
+
+                // A forced physical-copy scan must still respect the book-level
+                // capacity gate: active prenotazioni do not pin this copia_id, but
+                // they reserve one capacity unit for the requested period.
+                $capacity = new \App\Services\CapacityService($db);
+                if (!$capacity->hasFreeCapacity($libro_id, $data_prestito, $data_scadenza)) {
+                    $db->rollback();
+                    return $response->withHeader('Location', url('/admin/loans/create') . '?error=no_copies_available')->withStatus(302);
+                }
+
+                $selectedCopy = ['id' => $forcedCopyId];
+            }
+
+            if ($selectedCopy === null && $isImmediateLoan) {
                 // For immediate loans, verify book-level availability (including prenotazioni)
                 // Step 1: Count total lendable copies
                 $totalCopiesStmt = $db->prepare("SELECT COUNT(*) as total FROM copie WHERE libro_id = ? AND stato NOT IN ('perso', 'danneggiato', 'manutenzione', 'in_restauro', 'in_trasferimento')");
@@ -322,7 +398,7 @@ class PrestitiController
                 $overlapStmt->close();
                 // Note: No fallback to getAvailableByBookId - if primary query finds no copy,
                 // all copies have overlapping loans for the requested period
-            } else {
+            } elseif ($selectedCopy === null) {
                 // For FUTURE loans, find a copy that has no overlapping active loans
                 // Also verify book-level availability (considering prenotazioni)
 
@@ -1152,13 +1228,74 @@ class PrestitiController
         }
     }
 
+    /**
+     * Return a loan identified by the physical copy's code (numero_inventario).
+     *
+     * Finds the single ACTIVE (attivo=1, in_corso/in_ritardo) loan whose copy has
+     * the given inventory code, then closes it through the SAME canonical return
+     * path used by the return button (processReturn) — no duplicated return logic.
+     */
+    public function returnByCode(Request $request, Response $response, mysqli $db): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $code = trim((string) ($data['numero_inventario'] ?? ''));
+        if ($code === '') {
+            $_SESSION['error_message'] = __('Inserisci un codice inventario.');
+            return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
+        }
+
+        // Resolve the active loan for this copy code. numero_inventario is UNIQUE and
+        // only one loan per copy can be active at a time, so at most one row is
+        // expected; the ambiguity guard is defence-in-depth. `copie` has no
+        // deleted_at — the soft-delete guard lives on the joined `libri` row.
+        $stmt = $db->prepare("
+            SELECT p.id
+            FROM prestiti p
+            JOIN copie c ON c.id = p.copia_id
+            JOIN libri l ON l.id = c.libro_id
+            WHERE c.numero_inventario = ?
+              AND l.deleted_at IS NULL
+              AND p.attivo = 1
+              AND p.stato IN ('in_corso','in_ritardo')
+        ");
+        $stmt->bind_param('s', $code);
+        $stmt->execute();
+        $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        $stmt->close();
+
+        if (count($rows) === 0) {
+            $_SESSION['error_message'] = __('Nessun prestito attivo trovato per questo codice copia.');
+            return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
+        }
+        if (count($rows) > 1) {
+            $_SESSION['error_message'] = __('Trovati più prestiti attivi per questo codice: gestiscili manualmente.');
+            return $response->withHeader('Location', url('/admin/loans'))->withStatus(302);
+        }
+
+        $loanId = (int) $rows[0]['id'];
+
+        // Delegate to the canonical return handler: mark as 'restituito' and send the
+        // operator back to the loans list on both success and failure.
+        $delegated = $request->withParsedBody([
+            'stato'       => 'restituito',
+            'redirect_to' => '/admin/loans',
+            'csrf_token'  => $data['csrf_token'] ?? '',
+        ]);
+        return $this->processReturn($delegated, $response, $db, $loanId);
+    }
+
     public function details(Request $request, Response $response, mysqli $db, int $id): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
             return $guard;
         }
         $stmt = $db->prepare("
-            SELECT prestiti.*, libri.titolo AS libro_titolo, 
+            SELECT prestiti.*, libri.titolo AS libro_titolo,
                    CONCAT(utenti.nome, ' ', utenti.cognome) AS utente_nome,
                    utenti.email AS utente_email,
                    CONCAT(staff.nome, ' ', staff.cognome) AS processed_by_name

@@ -47,6 +47,83 @@ class CopyController
     }
 
     /**
+     * Whether a copy is currently "held" by any HOLDING commitment: an active loan
+     * (prenotato/da_ritirare/in_corso/in_ritardo) or a copy-bound pending
+     * reservation (attivo=0, stato='pendente', copia_id NOT NULL). Single source of
+     * truth for the copy-availability predicate used across byCode()/updateCopy().
+     */
+    private function isCopyHeld(\mysqli $db, int $copyId): bool
+    {
+        $stmt = $db->prepare("
+            SELECT 1 FROM prestiti
+            WHERE copia_id = ?
+              AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                    OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
+            LIMIT 1
+        ");
+        $stmt->bind_param('i', $copyId);
+        $stmt->execute();
+        $held = (bool) $stmt->get_result()->fetch_row();
+        $stmt->close();
+        return $held;
+    }
+
+    /**
+     * Resolve a copy by its numero_inventario (per-copy code) and report whether
+     * it is loanable right now. Returns JSON:
+     *   {found:false}                                  when no such code exists
+     *   {found:true, copy_id, libro_id, titolo, stato, available:bool}
+     *
+     * "available" mirrors the loan-availability rules used elsewhere: a copy is
+     * loanable now only if its state is 'disponibile' AND no active/holding loan
+     * (or copy-bound pending reservation) currently holds it.
+     */
+    public function byCode(Request $request, Response $response, mysqli $db): Response
+    {
+        $params = $request->getQueryParams();
+        $code = trim((string) ($params['code'] ?? ''));
+
+        if ($code === '') {
+            $response->getBody()->write((string) json_encode(['found' => false]));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        // `copie` has no deleted_at — filter the soft-delete on the joined book.
+        $stmt = $db->prepare("
+            SELECT c.id AS copy_id, c.libro_id, c.stato, l.titolo
+            FROM copie c
+            JOIN libri l ON l.id = c.libro_id
+            WHERE c.numero_inventario = ? AND l.deleted_at IS NULL
+            LIMIT 1
+        ");
+        $stmt->bind_param('s', $code);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) {
+            $response->getBody()->write((string) json_encode(['found' => false]));
+            return $response->withHeader('Content-Type', 'application/json');
+        }
+
+        $copyId = (int) $row['copy_id'];
+        $available = false;
+        if ($row['stato'] === 'disponibile') {
+            $available = !$this->isCopyHeld($db, $copyId);
+        }
+
+        $response->getBody()->write((string) json_encode([
+            'found'    => true,
+            'copy_id'  => $copyId,
+            'libro_id' => (int) $row['libro_id'],
+            'titolo'   => $row['titolo'],
+            'stato'    => $row['stato'],
+            'available' => $available,
+        ]));
+        return $response->withHeader('Content-Type', 'application/json');
+    }
+
+    /**
      * Aggiorna lo stato di una singola copia
      */
     public function updateCopy(Request $request, Response $response, mysqli $db, int $copyId): Response
@@ -96,18 +173,7 @@ class CopyController
         // (prenotato/da_ritirare/in_corso/in_ritardo) o pendente-con-copia? Blocca il
         // passaggio a stati non prestabili senza prima liberarla (I10/BUG7a/D12):
         // anche un ritiro in attesa o una prenotazione futura trattengono la copia.
-        $stmt = $db->prepare("
-            SELECT 1
-            FROM prestiti
-            WHERE copia_id = ?
-              AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
-                    OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
-            LIMIT 1
-        ");
-        $stmt->bind_param('i', $copyId);
-        $stmt->execute();
-        $copyHeld = (bool) $stmt->get_result()->fetch_row();
-        $stmt->close();
+        $copyHeld = $this->isCopyHeld($db, $copyId);
 
         // GESTIONE CAMBIO STATO -> "PRESTATO"
         // Non permettere cambio diretto a "prestato", deve usare il sistema prestiti
@@ -207,18 +273,7 @@ class CopyController
                     return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
                 }
 
-                $recheck = $db->prepare("
-                    SELECT 1 FROM prestiti
-                    WHERE copia_id = ?
-                      AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
-                            OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
-                    LIMIT 1
-                ");
-                $recheck->bind_param('i', $copyId);
-                $recheck->execute();
-                $heldNow = (bool) $recheck->get_result()->fetch_row();
-                $recheck->close();
-                if ($heldNow) {
+                if ($this->isCopyHeld($db, $copyId)) {
                     $db->rollback();
                     $_SESSION['error_message'] = __('Impossibile modificare una copia attualmente impegnata in un prestito o una prenotazione. Prima liberala (chiudi o annulla il prestito) oppure impostala su "Disponibile".');
                     return $response->withHeader('Location', url("/admin/books/{$libroId}"))->withStatus(302);
@@ -297,18 +352,7 @@ class CopyController
 
         // Verifica se la copia è trattenuta da QUALSIASI impegno HOLDING (prestito
         // attivo o pendente-con-copia, incluse prenotazioni future e ritiri in attesa).
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count
-            FROM prestiti
-            WHERE copia_id = ?
-              AND ( (attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
-                    OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL) )
-        ");
-        $stmt->bind_param('i', $copyId);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        $hasPrestito = (int) $result->fetch_assoc()['count'] > 0;
-        $stmt->close();
+        $hasPrestito = $this->isCopyHeld($db, $copyId);
 
         if ($hasPrestito) {
             $_SESSION['error_message'] = __('Impossibile eliminare una copia attualmente impegnata in un prestito o una prenotazione.');

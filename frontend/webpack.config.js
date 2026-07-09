@@ -11,6 +11,7 @@ module.exports = (_, argv = {}) => {
     entry: {
       main: './js/index.js',
       vendor: './js/vendor.js',
+      'copy-scanner': './js/copy-scanner.js',
     },
     module: {
       rules: [
@@ -21,6 +22,12 @@ module.exports = (_, argv = {}) => {
             loader: 'babel-loader',
             options: { presets: ['@babel/preset-env'] },
           },
+        },
+        {
+          // Emit the zxing-wasm binary as a same-origin asset under public/assets
+          // so the library never fetches it from a CDN (blocked by connect-src 'self').
+          test: /\.wasm$/,
+          type: 'asset/resource',
         },
         {
           test: /\.css$/i,

@@ -433,7 +433,7 @@ $app->add(function ($request, $handler) use ($httpsDetected) {
     // Content Security Policy - restrictive but allows inline scripts/styles (required by app)
     // Permette asset da CDN esterni (cdnjs, Google Fonts) per funzionalità estese
     $csp = "default-src 'self'; " .
-           "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; " .
+           "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://cdnjs.cloudflare.com; " .
            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; " .
            "img-src 'self' data: blob: http: https:; " .
            "font-src 'self' data: https://fonts.gstatic.com https://cdnjs.cloudflare.com; " .
