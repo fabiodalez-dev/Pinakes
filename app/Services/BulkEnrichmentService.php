@@ -454,6 +454,11 @@ class BulkEnrichmentService
                 $this->enrichAuthorsIfEmpty($bookId, $scraped['authors']);
             }
 
+            // Rebuild the denormalized FULLTEXT search_index now that both the
+            // enriched content (committed above) and any added authors are
+            // persisted.
+            \App\Support\SearchIndexBuilder::rebuild($this->db, (int) $bookId);
+
             $result['status'] = 'enriched';
             $result['fields_updated'] = $fieldsUpdated;
 

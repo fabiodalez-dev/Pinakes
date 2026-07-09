@@ -196,17 +196,36 @@ class PublisherRepository
             $referente_nome, $referente_telefono, $referente_email, $codice_fiscale,
             $id
         );
-        return $stmt->execute();
+        $result = $stmt->execute();
+
+        // The publisher name is embedded in every linked book's search_index
+        // (primary editore_id OR the libri_editori junction) — rebuild them. The
+        // links are unchanged by an edit, so querying the affected set is safe.
+        if ($result) {
+            \App\Support\SearchIndexBuilder::rebuildForPublisher($this->db, $id);
+        }
+
+        return $result;
     }
 
     public function delete(int $id): bool
     {
+        // Snapshot the linked books BEFORE the FK is nulled / cascade fires so
+        // their search_index (which embeds this publisher's name) can be rebuilt.
+        $affectedBookIds = \App\Support\SearchIndexBuilder::bookIdsForPublisher($this->db, $id);
+
         $stmt = $this->db->prepare('UPDATE libri SET editore_id=NULL WHERE editore_id=?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt = $this->db->prepare('DELETE FROM editori WHERE id=?');
         $stmt->bind_param('i', $id);
-        return $stmt->execute();
+        $result = $stmt->execute();
+
+        if ($result) {
+            \App\Support\SearchIndexBuilder::rebuildMany($this->db, $affectedBookIds);
+        }
+
+        return $result;
     }
 
     public function findByName(string $name): ?int
@@ -267,6 +286,16 @@ class PublisherRepository
         // predating the migration (table absent → fall back to editore_id only).
         $junctionRes = $this->db->query("SHOW TABLES LIKE 'libri_editori'");
         $hasJunction = ($junctionRes instanceof \mysqli_result && $junctionRes->num_rows > 0);
+
+        // Snapshot the books linked to ANY merged publisher (primary FK or
+        // junction) BEFORE the re-point / cascade moves the rows, so search_index
+        // can be rebuilt after commit (the merged name affects all these books).
+        $affectedBookIds = [];
+        foreach (array_merge([$primaryId], $duplicateIds) as $mergedId) {
+            foreach (\App\Support\SearchIndexBuilder::bookIdsForPublisher($this->db, (int) $mergedId) as $bid) {
+                $affectedBookIds[$bid] = $bid;
+            }
+        }
 
         // Start transaction
         $this->db->begin_transaction();
@@ -346,6 +375,11 @@ class PublisherRepository
             }
 
             $this->db->commit();
+
+            // Rebuild search_index for the affected books now the surviving
+            // links all point at the primary publisher.
+            \App\Support\SearchIndexBuilder::rebuildMany($this->db, array_values($affectedBookIds));
+
             return $primaryId;
         } catch (\Throwable $e) {
             $this->db->rollback();

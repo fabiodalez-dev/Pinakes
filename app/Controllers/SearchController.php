@@ -10,19 +10,6 @@ use App\Support\HtmlHelper;
 
 class SearchController
 {
-    private static ?bool $hasDescrizionePlain = null;
-
-    private static function descriptionExpr(mysqli $db): string
-    {
-        if (self::$hasDescrizionePlain === null) {
-            $result = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
-            self::$hasDescrizionePlain = $result && $result->num_rows > 0;
-        }
-        return self::$hasDescrizionePlain
-            ? 'COALESCE(l.descrizione_plain, l.descrizione)'
-            : 'l.descrizione';
-    }
-
     public function authors(Request $request, Response $response, mysqli $db): Response
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
@@ -129,11 +116,12 @@ class SearchController
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $rows=[];
-        if ($q !== '') {
-            $s = '%'.$q.'%';
-            // Search by title, subtitle, ISBN10, ISBN13, or EAN
+        $cond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $q);
+        if ($cond !== null) {
+            // Denormalized FULLTEXT: search_index folds title, subtitle, authors,
+            // publisher, ISBN/EAN and keywords, so one MATCH replaces the OR-of-LIKE.
             $stmt = $db->prepare("
-                SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.stato,
+                SELECT l.id, l.titolo, l.sottotitolo, l.isbn10, l.isbn13, l.ean, l.stato,
                        (SELECT GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ')
                         FROM libri_autori la
                         JOIN autori a ON la.autore_id = a.id
@@ -141,10 +129,10 @@ class SearchController
                        l.copie_disponibili,
                        l.copie_totali
                 FROM libri l
-                WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR " . self::descriptionExpr($db) . " LIKE ?)
+                WHERE l.deleted_at IS NULL AND {$cond['sql']}
                 ORDER BY l.titolo
             ");
-            $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
+            $stmt->bind_param($cond['types'], ...$cond['params']);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($r = $res->fetch_assoc()) {
@@ -170,6 +158,7 @@ class SearchController
                 $rows[] = [
                     'id' => (int)$r['id'],
                     'label' => $label,
+                    'sottotitolo' => !empty($r['sottotitolo']) ? HtmlHelper::decode($r['sottotitolo']) : '',
                     'isbn' => $isbn,
                     'copie_disponibili' => (int)$r['copie_disponibili'],
                     'copie_totali' => (int)$r['copie_totali'],
@@ -250,20 +239,24 @@ class SearchController
     private function searchBooks(mysqli $db, string $query): array
     {
         $results = [];
-        $s = '%'.$query.'%';
+        $cond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $query);
+        if ($cond === null) {
+            return $results;
+        }
 
-        // Search by ISBN, EAN, title, subtitle, description - include author via subquery
+        // Denormalized FULLTEXT: search_index folds ISBN/EAN, title, subtitle,
+        // authors, publisher and keywords, so one MATCH replaces the OR-of-LIKE.
         $stmt = $db->prepare("
-            SELECT l.id, l.titolo AS label, l.isbn10, l.isbn13, l.ean,
+            SELECT l.id, l.titolo AS label, l.sottotitolo, l.isbn10, l.isbn13, l.ean,
                    (SELECT GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ')
                     FROM libri_autori la
                     JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id) AS autori
             FROM libri l
-            WHERE l.deleted_at IS NULL AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR l.titolo LIKE ? OR l.sottotitolo LIKE ? OR " . self::descriptionExpr($db) . " LIKE ?)
+            WHERE l.deleted_at IS NULL AND {$cond['sql']}
             ORDER BY l.titolo LIMIT 10
         ");
-        $stmt->bind_param('ssssss', $s, $s, $s, $s, $s, $s);
+        $stmt->bind_param($cond['types'], ...$cond['params']);
         $stmt->execute();
         $res = $stmt->get_result();
 
@@ -289,6 +282,7 @@ class SearchController
             $results[] = [
                 'id' => $row['id'],
                 'label' => $label,
+                'subtitle' => !empty($row['sottotitolo']) ? HtmlHelper::decode($row['sottotitolo']) : '',
                 'identifier' => $identifier,
                 'isbn' => $isbn,
                 'type' => 'book',
@@ -362,21 +356,22 @@ class SearchController
     private function searchBooksWithDetails(mysqli $db, string $query): array
     {
         $results = [];
-        $s = '%'.$query.'%';
+        $cond = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $query);
+        if ($cond === null) {
+            return $results;
+        }
 
-        // Search books with author and cover details for preview
-        // Include books where the title, subtitle, ISBN, EAN, OR author name matches
+        // Denormalized FULLTEXT: search_index already folds in the author names,
+        // so the libri_autori/autori LEFT JOIN (and its DISTINCT dedupe) are gone.
         $stmt = $db->prepare("
-            SELECT DISTINCT l.id, l.titolo, l.copertina_url, l.anno_pubblicazione,
+            SELECT l.id, l.titolo, l.sottotitolo, l.copertina_url, l.anno_pubblicazione,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale
             FROM libri l
-            LEFT JOIN libri_autori la ON l.id = la.libro_id
-            LEFT JOIN autori a ON la.autore_id = a.id
-            WHERE l.deleted_at IS NULL AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR " . self::descriptionExpr($db) . " LIKE ? OR l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ? OR a.nome LIKE ?)
+            WHERE l.deleted_at IS NULL AND {$cond['sql']}
             ORDER BY l.titolo LIMIT 8
         ");
-        $stmt->bind_param('sssssss', $s, $s, $s, $s, $s, $s, $s);
+        $stmt->bind_param($cond['types'], ...$cond['params']);
         $stmt->execute();
         $res = $stmt->get_result();
 
@@ -390,6 +385,7 @@ class SearchController
             $results[] = [
                 'id' => $row['id'],
                 'title' => HtmlHelper::decode($row['titolo']),
+                'subtitle' => !empty($row['sottotitolo']) ? HtmlHelper::decode($row['sottotitolo']) : '',
                 'author' => HtmlHelper::decode($row['autore_principale'] ?? ''),
                 'year' => $row['anno_pubblicazione'],
                 'cover' => $absoluteCoverUrl,

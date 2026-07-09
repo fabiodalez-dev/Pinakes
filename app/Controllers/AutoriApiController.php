@@ -267,6 +267,17 @@ class AutoriApiController
         $placeholders = implode(',', array_fill(0, count($cleanIds), '?'));
         $types = str_repeat('i', count($cleanIds));
 
+        // Snapshot the books linked to these authors BEFORE the DELETE removes
+        // the libri_autori rows, so we can rebuild their denormalized
+        // search_index (which folds author names) afterwards. Without this the
+        // deleted authors' names would linger in search_index.
+        $affectedBookIds = [];
+        foreach ($cleanIds as $authorId) {
+            foreach (\App\Support\SearchIndexBuilder::bookIdsForAuthor($db, (int) $authorId) as $bookId) {
+                $affectedBookIds[$bookId] = $bookId;
+            }
+        }
+
         // Start transaction for atomic delete
         $db->begin_transaction();
 
@@ -299,6 +310,10 @@ class AutoriApiController
 
             // Commit transaction
             $db->commit();
+
+            // Rebuild the search_index of the (now author-less) books so the
+            // deleted authors' names no longer surface in catalog search.
+            \App\Support\SearchIndexBuilder::rebuildMany($db, array_values($affectedBookIds));
         } catch (\Throwable $e) {
             $db->rollback();
             AppLog::error('autori.bulk_delete.transaction_failed', ['error' => $e->getMessage()]);

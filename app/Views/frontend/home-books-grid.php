@@ -45,6 +45,11 @@ $getBookStatusBadge = static function ($book) {
                         <?= htmlspecialchars(html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
                     </a>
                 </h3>
+                <?php if (!empty($book['sottotitolo'])): ?>
+                    <p class="book-subtitle">
+                        <?= htmlspecialchars(html_entity_decode($book['sottotitolo'], ENT_QUOTES, 'UTF-8')) ?>
+                    </p>
+                <?php endif; ?>
                 <?php if (!empty($book['autore'])): ?>
                     <p class="book-author">
                         <?= htmlspecialchars(html_entity_decode($book['autore'], ENT_QUOTES, 'UTF-8')) ?>
@@ -190,6 +195,19 @@ $getBookStatusBadge = static function ($book) {
 
 .book-title a:hover {
     color: var(--dark-color);
+}
+
+.book-subtitle {
+    font-size: 0.9rem;
+    font-style: italic;
+    line-height: 1.35;
+    margin-top: -0.25rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary, #6b7280);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
 }
 
 .book-author {

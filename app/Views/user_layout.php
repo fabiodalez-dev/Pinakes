@@ -1154,6 +1154,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                         const bookUrl = sanitizeUrl(book.url ?? '#');
                         const coverUrl = sanitizeUrl(book.cover ?? '');
                         const bookTitle = escapeHtml(book.title ?? '');
+                        const bookSubtitle = escapeHtml(book.subtitle ?? '');
                         const bookAuthor = escapeHtml(book.author ?? '');
                         const bookYear = escapeHtml(book.year ?? '');
 
@@ -1161,6 +1162,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                             '<img src="' + coverUrl + '" alt="' + bookTitle + '" class="search-book-cover" style="width: 40px; height: 60px; object-fit: cover; border-radius: 0.25rem; margin-right: 0.75rem;">' +
                             '<div class="search-book-info">' +
                             '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: #000000;">' + bookTitle + '</div>' +
+                            (book.subtitle ? '<div class="search-book-subtitle" style="font-size: 0.75rem; font-style: italic; color: #6b7280; margin-bottom: 0.125rem; text-align: left;">' + bookSubtitle + '</div>' : '') +
                             (book.author ? '<div class="search-book-author" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.125rem; text-align: left;">' + bookAuthor + '</div>' : '') +
                             (book.year ? '<div class="search-book-year" style="font-size: 0.75rem; color: #9ca3af; text-align: left;">' + bookYear + '</div>' : '') +
                             '</div>' +

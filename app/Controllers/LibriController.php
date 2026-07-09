@@ -1131,6 +1131,11 @@ class LibriController
                 $this->deleteLocalCoverFile($intermediateCover, $finalCover);
             }
 
+            // Rebuild the denormalized FULLTEXT search_index now that the book row
+            // (createBasic + updateOptionals) and its author links (syncAuthors) are
+            // all persisted and readable.
+            \App\Support\SearchIndexBuilder::rebuild($db, (int) $id);
+
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiunto con successo!');
 
@@ -1820,6 +1825,11 @@ class LibriController
                 // replaced it (#F002); no-ops when intermediate === final.
                 $this->deleteLocalCoverFile($intermediateCover, $finalCover);
             }
+
+            // Rebuild the denormalized FULLTEXT search_index now that the book row
+            // (updateBasic + updateOptionals) and its re-synced author links are
+            // all persisted and readable.
+            \App\Support\SearchIndexBuilder::rebuild($db, (int) $id);
 
             // Set a success message in the session
             $_SESSION['success_message'] = __('Libro aggiornato con successo!');

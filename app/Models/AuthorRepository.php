@@ -230,6 +230,13 @@ class AuthorRepository
 
         $result = $stmt->execute();
 
+        // The author name is embedded in every linked book's denormalized
+        // search_index — rebuild them so the change is searchable. The links are
+        // unchanged by an edit, so querying the affected set here is safe.
+        if ($result) {
+            \App\Support\SearchIndexBuilder::rebuildForAuthor($this->db, $id);
+        }
+
         // Plugin hook: After author save
         \App\Support\Hooks::do('author.save.after', [$id, $data]);
 
@@ -407,6 +414,16 @@ class AuthorRepository
             return null;
         }
 
+        // Snapshot the books linked to ANY merged author BEFORE the re-point /
+        // DELETE removes the linking rows, so search_index can be rebuilt after
+        // commit (the merged name change affects every one of these books).
+        $affectedBookIds = [];
+        foreach (array_merge([$primaryId], $duplicateIds) as $mergedId) {
+            foreach (\App\Support\SearchIndexBuilder::bookIdsForAuthor($this->db, (int) $mergedId) as $bid) {
+                $affectedBookIds[$bid] = $bid;
+            }
+        }
+
         // Start transaction
         $this->db->begin_transaction();
 
@@ -450,6 +467,11 @@ class AuthorRepository
             }
 
             $this->db->commit();
+
+            // Rebuild search_index for the affected books now the surviving links
+            // all point at the primary author.
+            \App\Support\SearchIndexBuilder::rebuildMany($this->db, array_values($affectedBookIds));
+
             return $primaryId;
         } catch (\Throwable $e) {
             $this->db->rollback();
@@ -460,12 +482,22 @@ class AuthorRepository
 
     public function delete(int $id): bool
     {
+        // Snapshot the linked books BEFORE removing the junction rows so their
+        // search_index (which embeds this author's name) can be rebuilt after.
+        $affectedBookIds = \App\Support\SearchIndexBuilder::bookIdsForAuthor($this->db, $id);
+
         // Optionally handle cascade in DB; here, remove links then author
         $stmt = $this->db->prepare('DELETE FROM libri_autori WHERE autore_id=?');
         $stmt->bind_param('i', $id);
         $stmt->execute();
         $stmt = $this->db->prepare('DELETE FROM autori WHERE id=?');
         $stmt->bind_param('i', $id);
-        return $stmt->execute();
+        $result = $stmt->execute();
+
+        if ($result) {
+            \App\Support\SearchIndexBuilder::rebuildMany($this->db, $affectedBookIds);
+        }
+
+        return $result;
     }
 }
