@@ -2307,7 +2307,10 @@ ob_start();
 <?php if (!empty($related_books) && count($related_books) > 0): ?>
 <section class="py-5" style="background: var(--light-bg); margin-top: 3rem;">
     <div class="container">
-        <h3 class="text-center mb-5" style="font-weight: 700; font-size: 2rem; color: var(--text-color);"><?= __("Potrebbero interessarti") ?></h3>
+        <h2 class="section-title">
+            <i class="fas fa-lightbulb"></i>
+            <?= __("Potrebbero interessarti") ?>
+        </h2>
         <div class="row g-4">
             <?php foreach($related_books as $related): ?>
             <div class="col-lg-4 col-md-6">
