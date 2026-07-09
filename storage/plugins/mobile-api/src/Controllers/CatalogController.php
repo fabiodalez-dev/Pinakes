@@ -61,22 +61,43 @@ final class CatalogController
             $params = $request->getQueryParams();
 
             $limit  = $this->clampLimit($params['limit'] ?? null);
+
+            // Sort order — mirrors the web catalog's options. Keyset pagination
+            // stays stable by always tie-breaking on the unique id in the same
+            // direction as the chosen sort column.
+            $sort = $this->sortSpec(isset($params['sort']) ? (string) $params['sort'] : null);
+
             $cursor = CursorCodec::decode(isset($params['cursor']) ? (string) $params['cursor'] : null);
-            // The cursor is opaque to clients but only ever carries the keyset
-            // anchor (last seen id). It is NEVER trusted as authorization input.
-            $afterId = 0;
-            if (is_array($cursor) && isset($cursor['last_id']) && is_numeric($cursor['last_id'])) {
-                $afterId = (int) $cursor['last_id'];
+            // The cursor is opaque to clients and only carries the last row's sort
+            // anchor (value + id). It is NEVER trusted as authorization input. A
+            // cursor minted under a different sort is ignored so switching the sort
+            // order restarts cleanly from the first page.
+            $anchor = null;
+            if (is_array($cursor)
+                && ($cursor['sort'] ?? null) === $sort['key']
+                && isset($cursor['last_id']) && is_numeric($cursor['last_id'])
+                && array_key_exists('last_val', $cursor)
+            ) {
+                $anchor = ['id' => (int) $cursor['last_id'], 'val' => $cursor['last_val']];
             }
 
             [$conditions, $bindParams, $bindTypes] = $this->buildFilters($params);
 
-            // Keyset anchor: id < afterId, newest-first (descending id) — stable
-            // and index-friendly. afterId == 0 means "first page".
-            if ($afterId > 0) {
-                $conditions[]  = 'l.id < ?';
-                $bindParams[]  = $afterId;
-                $bindTypes    .= 'i';
+            // Keyset anchor in the chosen sort direction; id breaks ties so no row
+            // is skipped or repeated across pages. Null anchor == first page.
+            if ($anchor !== null) {
+                $cmp = $sort['dir'] === 'ASC' ? '>' : '<';
+                if ($sort['col'] === 'l.id') {
+                    $conditions[]  = "l.id {$cmp} ?";
+                    $bindParams[]  = $anchor['id'];
+                    $bindTypes    .= 'i';
+                } else {
+                    $conditions[]  = "({$sort['col']} {$cmp} ? OR ({$sort['col']} = ? AND l.id {$cmp} ?))";
+                    $bindParams[]  = (string) $anchor['val'];
+                    $bindParams[]  = (string) $anchor['val'];
+                    $bindParams[]  = $anchor['id'];
+                    $bindTypes    .= 'ssi';
+                }
             }
 
             $where = 'l.deleted_at IS NULL';
@@ -105,7 +126,7 @@ final class CatalogController
                 LEFT JOIN generi sg ON l.sottogenere_id = sg.id
                 WHERE {$where}
                 GROUP BY l.id
-                ORDER BY l.id DESC
+                ORDER BY {$sort['order']}
                 LIMIT ?
             ";
 
@@ -138,8 +159,15 @@ final class CatalogController
 
             $nextCursor = null;
             if ($hasMore && $rows !== []) {
-                $lastId     = (int) $rows[count($rows) - 1]['id'];
-                $nextCursor = CursorCodec::encode(['last_id' => $lastId]);
+                $last    = $rows[count($rows) - 1];
+                $lastVal = $sort['col'] === 'l.id'
+                    ? (int) $last['id']
+                    : (string) ($last[$sort['field']] ?? '');
+                $nextCursor = CursorCodec::encode([
+                    'sort'     => $sort['key'],
+                    'last_id'  => (int) $last['id'],
+                    'last_val' => $lastVal,
+                ]);
             }
 
             $meta = [
@@ -964,6 +992,34 @@ final class CatalogController
     }
 
     // ─── Small utilities ─────────────────────────────────────────────────────
+
+    /**
+     * Resolve the `sort` query param to a keyset-safe spec. Mirrors the web
+     * catalog's options. `col`/`dir` drive the keyset anchor; `order` is the full
+     * ORDER BY (tie-broken on the unique id); `field` is the result-row key whose
+     * value seeds the next cursor. Author sorts are intentionally omitted for now
+     * (the principal author is a per-row subquery, not keyset-friendly).
+     *
+     * @return array{key:string, col:string, dir:string, order:string, field:string}
+     */
+    private function sortSpec(?string $sort): array
+    {
+        switch ($sort) {
+            case 'oldest':
+                return ['key' => 'oldest', 'col' => 'l.id', 'dir' => 'ASC',
+                        'order' => 'l.id ASC', 'field' => 'id'];
+            case 'title_asc':
+                return ['key' => 'title_asc', 'col' => 'l.titolo', 'dir' => 'ASC',
+                        'order' => 'l.titolo ASC, l.id ASC', 'field' => 'titolo'];
+            case 'title_desc':
+                return ['key' => 'title_desc', 'col' => 'l.titolo', 'dir' => 'DESC',
+                        'order' => 'l.titolo DESC, l.id DESC', 'field' => 'titolo'];
+            case 'newest':
+            default:
+                return ['key' => 'newest', 'col' => 'l.id', 'dir' => 'DESC',
+                        'order' => 'l.id DESC', 'field' => 'id'];
+        }
+    }
 
     private function clampLimit(mixed $raw): int
     {
