@@ -35,78 +35,10 @@ final class SearchIndexBuilder
      */
     public static function rebuild(\mysqli $db, int $bookId): void
     {
-        if ($bookId <= 0 || !self::columnExists($db)) {
+        if ($bookId <= 0) {
             return;
         }
-
-        try {
-            // Match the migration's backfill: a book with many authors/publishers
-            // must not have its GROUP_CONCAT silently truncated at the 1024-byte
-            // default, otherwise runtime and backfill would produce different
-            // values. Best-effort — a failure here must not break the rebuild.
-            try {
-                $db->query('SET SESSION group_concat_max_len = 1000000');
-            } catch (\Throwable $ignored) {
-            }
-
-            $hasJunction = SchemaInfo::hasLibriEditori($db);
-
-            // Secondary publishers (issue #143) folded in only when the junction
-            // table exists; otherwise search_index carries the primary publisher.
-            $junctionJoin = $hasJunction
-                ? "LEFT JOIN (
-                        SELECT le.libro_id, GROUP_CONCAT(e2.nome SEPARATOR ' ') AS editori_sec
-                        FROM libri_editori le
-                        JOIN editori e2 ON e2.id = le.editore_id
-                        WHERE le.libro_id = ?
-                        GROUP BY le.libro_id
-                    ) ex ON ex.libro_id = l.id"
-                : '';
-            $junctionField = $hasJunction ? 'ex.editori_sec,' : '';
-
-            // Raw columns may be stored HTML-entity-encoded (e.g. `L&#039;orologio`,
-            // `Q&amp;A`), which FULLTEXT tokenizes wrong (`l`,`039`,`orologio`).
-            // Decode the common entities on the FINAL concatenated value — the
-            // IDENTICAL REPLACE chain lives in migrate_0.7.31.sql's backfill so
-            // runtime and backfill produce the same content. &amp; is decoded
-            // OUTERMOST (last) so `&amp;lt;` does not double-decode.
-            $sql = "UPDATE libri l
-                LEFT JOIN (
-                        SELECT la.libro_id, GROUP_CONCAT(a.nome SEPARATOR ' ') AS autori
-                        FROM libri_autori la
-                        JOIN autori a ON a.id = la.autore_id
-                        WHERE la.libro_id = ?
-                        GROUP BY la.libro_id
-                    ) ax ON ax.libro_id = l.id
-                LEFT JOIN editori e ON e.id = l.editore_id
-                {$junctionJoin}
-                SET l.search_index = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
-                        CONCAT_WS(' ',
-                            l.titolo, l.sottotitolo, ax.autori, e.nome, {$junctionField}
-                            l.isbn10, l.isbn13, l.ean, l.parole_chiave,
-                            COALESCE(l.descrizione_plain, l.descrizione))
-                    , '&#039;', ''''), '&#39;', ''''), '&quot;', '\"'), '&lt;', '<'), '&gt;', '>'), '&nbsp;', ' '), '&amp;', '&')
-                WHERE l.id = ? AND l.deleted_at IS NULL";
-
-            $stmt = $db->prepare($sql);
-            if ($stmt === false) {
-                return;
-            }
-            if ($hasJunction) {
-                $stmt->bind_param('iii', $bookId, $bookId, $bookId);
-            } else {
-                $stmt->bind_param('ii', $bookId, $bookId);
-            }
-            $stmt->execute();
-            $stmt->close();
-        } catch (\Throwable $e) {
-            // The search index is a derived cache — never let a rebuild failure
-            // break the surrounding save. Log and move on.
-            SecureLogger::warning('SearchIndexBuilder::rebuild failed', [
-                'book_id' => $bookId,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        self::rebuildMany($db, [$bookId]);
     }
 
     /**
@@ -233,21 +165,115 @@ final class SearchIndexBuilder
      */
     public static function rebuildMany(\mysqli $db, array $bookIds): void
     {
-        foreach ($bookIds as $bookId) {
-            self::rebuild($db, (int) $bookId);
+        // De-dupe + drop non-positive ids.
+        $ids = [];
+        foreach ($bookIds as $id) {
+            $id = (int) $id;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+        $ids = array_values($ids);
+        if ($ids === [] || !self::columnExists($db)) {
+            return;
+        }
+
+        try {
+            // Match the migration's backfill: a book with many authors/publishers
+            // must not have its GROUP_CONCAT silently truncated at the 1024-byte
+            // default. Set once for the whole batch — best-effort.
+            try {
+                $db->query('SET SESSION group_concat_max_len = 1000000');
+            } catch (\Throwable $ignored) {
+            }
+
+            $hasJunction = SchemaInfo::hasLibriEditori($db);
+
+            // ONE UPDATE per chunk (not per book): renaming/merging a prolific
+            // author/publisher with thousands of linked books would otherwise fire
+            // thousands of synchronous UPDATEs on the request thread. Chunk so the
+            // IN(...) placeholder count stays well under the bind limit.
+            foreach (array_chunk($ids, self::REBUILD_CHUNK) as $chunk) {
+                $ph = implode(',', array_fill(0, count($chunk), '?'));
+
+                // Secondary publishers (issue #143) folded in only when the
+                // junction table exists; both correlated subqueries are scoped to
+                // the chunk's ids so they stay cheap.
+                $junctionJoin = $hasJunction
+                    ? "LEFT JOIN (
+                            SELECT le.libro_id, GROUP_CONCAT(e2.nome SEPARATOR ' ') AS editori_sec
+                            FROM libri_editori le
+                            JOIN editori e2 ON e2.id = le.editore_id
+                            WHERE le.libro_id IN ({$ph})
+                            GROUP BY le.libro_id
+                        ) ex ON ex.libro_id = l.id"
+                    : '';
+                $junctionField = $hasJunction ? 'ex.editori_sec,' : '';
+
+                // Raw columns may be stored HTML-entity-encoded (e.g.
+                // `L&#039;orologio`, `Q&amp;A`), which FULLTEXT tokenizes wrong.
+                // Decode the common entities on the FINAL concatenated value — the
+                // IDENTICAL REPLACE chain lives in migrate_0.7.31.sql's backfill so
+                // runtime and backfill produce the same content. &amp; is decoded
+                // OUTERMOST (last) so `&amp;lt;` does not double-decode.
+                $sql = "UPDATE libri l
+                    LEFT JOIN (
+                            SELECT la.libro_id, GROUP_CONCAT(a.nome SEPARATOR ' ') AS autori
+                            FROM libri_autori la
+                            JOIN autori a ON a.id = la.autore_id
+                            WHERE la.libro_id IN ({$ph})
+                            GROUP BY la.libro_id
+                        ) ax ON ax.libro_id = l.id
+                    LEFT JOIN editori e ON e.id = l.editore_id
+                    {$junctionJoin}
+                    SET l.search_index = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
+                            CONCAT_WS(' ',
+                                l.titolo, l.sottotitolo, ax.autori, e.nome, {$junctionField}
+                                l.isbn10, l.isbn13, l.ean, l.parole_chiave,
+                                COALESCE(l.descrizione_plain, l.descrizione))
+                        , '&#039;', ''''), '&#39;', ''''), '&quot;', '\"'), '&lt;', '<'), '&gt;', '>'), '&nbsp;', ' '), '&amp;', '&')
+                    WHERE l.id IN ({$ph}) AND l.deleted_at IS NULL";
+
+                $stmt = $db->prepare($sql);
+                if ($stmt === false) {
+                    continue;
+                }
+                // Bind the chunk's ids once per IN(...): author subquery,
+                // [junction subquery], then the outer WHERE — same order as the SQL.
+                $bind = $chunk;                          // author subquery
+                if ($hasJunction) {
+                    $bind = array_merge($bind, $chunk);  // junction subquery
+                }
+                $bind = array_merge($bind, $chunk);      // outer WHERE
+                $stmt->bind_param(str_repeat('i', count($bind)), ...$bind);
+                $stmt->execute();
+                $stmt->close();
+            }
+        } catch (\Throwable $e) {
+            // The search index is a derived cache — never let a rebuild failure
+            // break the surrounding save. Log and move on.
+            SecureLogger::warning('SearchIndexBuilder::rebuildMany failed', [
+                'count' => count($ids),
+                'error' => $e->getMessage(),
+            ]);
         }
     }
+
+    /** Books per batch UPDATE — keeps the IN(...) placeholder count bounded. */
+    private const REBUILD_CHUNK = 500;
 
     /**
      * Build the WHERE fragment for a user book search against a FULLTEXT
      * column (typically `l.search_index`).
      *
-     * Long tokens (>= 3 chars, above innodb_ft_min_token_size) are folded into a
-     * single BOOLEAN-mode AGAINST string as `+token*` (prefix, AND semantics —
-     * every word must match). Tokens shorter than 3 chars, which FULLTEXT can
-     * not index, fall back to a `LIKE '%token%'` on the same column so 1–2 char
-     * searches keep working. All parts are ANDed together, preserving the
-     * original "every word must match somewhere" behaviour.
+     * Tokens that MySQL can index safely are folded into a single BOOLEAN-mode
+     * AGAINST string as `+token*` (prefix, AND semantics — every word must
+     * match). Stopwords, tokens shorter than innodb_ft_min_token_size and terms
+     * with punctuation that the FULLTEXT parser would split (`C++`, `Q&A`,
+     * `L'orologio`) fall back to a `LIKE '%token%'` filter on the same column.
+     * All parts are ANDed together, preserving the original "every word must
+     * match somewhere" behaviour without letting unindexable required terms zero
+     * out otherwise valid results.
      *
      * UPGRADE-WINDOW SAFETY: when the `search_index` column does not exist yet
      * (new PHP deployed but the admin has not run the 0.7.31 DB migration),
@@ -271,7 +297,7 @@ final class SearchIndexBuilder
         // Pre-migration: the denormalized FULLTEXT column is not there yet.
         // Match on the real columns instead so search does not 500.
         if (!self::columnExists($db)) {
-            return self::buildLegacyCondition($column, $searchQuery);
+            return self::buildLegacyCondition($db, $column, $searchQuery);
         }
 
         $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
@@ -282,18 +308,16 @@ final class SearchIndexBuilder
         $types = '';
 
         foreach ($words as $word) {
-            $wordBase = rtrim($word, '*');
-            $sanitizedBase = self::escapeFulltextWord($wordBase, false);
-            if ($sanitizedBase === '') {
+            $wordBase = trim(rtrim($word, '*'));
+            if ($wordBase === '') {
                 continue;
             }
-            if (strlen($wordBase) >= 3) {
-                $booleanTerms[] = '+' . self::escapeFulltextWord($word)
-                    . (str_ends_with($word, '*') ? '' : '*');
+            $fulltextTerm = self::fulltextTermForWord($wordBase);
+            if ($fulltextTerm !== null) {
+                $booleanTerms[] = '+' . $fulltextTerm . '*';
             } else {
-                // Below ft_min_token_size — FULLTEXT can't match it, LIKE fallback.
-                $parts[] = "{$column} LIKE ?";
-                $params[] = '%' . $wordBase . '%';
+                $parts[] = "{$column} LIKE ? ESCAPE '\\\\'";
+                $params[] = self::likePattern($wordBase);
                 $types .= 's';
             }
         }
@@ -318,22 +342,21 @@ final class SearchIndexBuilder
 
     /**
      * Pre-migration fallback: the `search_index` column does not exist yet, so
-     * build the condition over the REAL columns that a book always carries
-     * (titolo, sottotitolo, isbn10, isbn13, ean). For each word we emit an
-     * OR-of-LIKE over those five columns, ANDed across words (every word must
-     * match somewhere), mirroring the normal path's "all words required"
-     * semantics and returning the same {sql,params,types} shape so callers bind
-     * generically.
+     * build the condition over the real book columns plus author/publisher
+     * subqueries. For each word we emit an OR-of-LIKE, ANDed across words (every
+     * word must match somewhere), mirroring the normal path's semantics and
+     * returning the same {sql,params,types} shape so callers bind generically.
      *
      * The table alias is derived from $column: the part before '.', e.g. 'l'
      * from 'l.search_index' (empty when there is no dot).
      *
      * @return array{sql:string, params:array<int,string>, types:string}|null
      */
-    private static function buildLegacyCondition(string $column, string $searchQuery): ?array
+    private static function buildLegacyCondition(\mysqli $db, string $column, string $searchQuery): ?array
     {
         $dot = strpos($column, '.');
         $prefix = $dot === false ? '' : substr($column, 0, $dot + 1);
+        $descExpr = self::descriptionExpr($db, $prefix);
 
         $words = preg_split('/\s+/', $searchQuery, -1, PREG_SPLIT_NO_EMPTY) ?: [];
 
@@ -342,10 +365,19 @@ final class SearchIndexBuilder
         $types = '';
 
         foreach ($words as $word) {
-            $like = '%' . $word . '%';
-            $parts[] = "({$prefix}titolo LIKE ? OR {$prefix}sottotitolo LIKE ?"
-                . " OR {$prefix}isbn10 LIKE ? OR {$prefix}isbn13 LIKE ? OR {$prefix}ean LIKE ?)";
-            for ($i = 0; $i < 5; $i++) {
+            $like = self::likePattern($word);
+            $bookIdExpr = $prefix . 'id';
+            $publisherIdExpr = $prefix . 'editore_id';
+            $parts[] = "({$prefix}titolo LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}sottotitolo LIKE ? ESCAPE '\\\\'"
+                . " OR {$descExpr} LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}parole_chiave LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}isbn10 LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}isbn13 LIKE ? ESCAPE '\\\\'"
+                . " OR {$prefix}ean LIKE ? ESCAPE '\\\\'"
+                . " OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = {$bookIdExpr} AND a.nome LIKE ? ESCAPE '\\\\')"
+                . " OR EXISTS (SELECT 1 FROM editori e WHERE e.id = {$publisherIdExpr} AND e.nome LIKE ? ESCAPE '\\\\'))";
+            for ($i = 0; $i < 9; $i++) {
                 $params[] = $like;
                 $types .= 's';
             }
@@ -363,28 +395,83 @@ final class SearchIndexBuilder
     }
 
     /**
-     * Strip FULLTEXT BOOLEAN MODE operators from a word. MySQL FULLTEXT has no
-     * backslash escaping, so the operators (+ - > < ( ) ~ * " @) must be
-     * removed. A trailing '*' (prefix wildcard) is preserved when allowed.
+     * Return a single safe FULLTEXT token for a raw user word, or null when
+     * FULLTEXT would ignore/split it and the caller should use LIKE instead.
      */
-    private static function escapeFulltextWord(string $word, bool $allowTrailingWildcard = true): string
+    private static function fulltextTermForWord(string $word): ?string
     {
-        $hasTrailingWildcard = $allowTrailingWildcard && str_ends_with($word, '*');
-        if ($hasTrailingWildcard) {
-            $word = substr($word, 0, -1);
+        $tokens = self::fulltextTokens($word);
+        if (count($tokens) !== 1) {
+            return null;
         }
 
-        $word = str_replace(
-            ['+', '-', '>', '<', '(', ')', '~', '*', '"', '@'],
-            '',
-            $word
-        );
-
-        if ($hasTrailingWildcard && $word !== '') {
-            $word .= '*';
+        $token = $tokens[0];
+        if (mb_strlen($token, 'UTF-8') < 3) {
+            return null;
         }
 
-        return $word;
+        if (self::isDefaultFulltextStopword($token)) {
+            return null;
+        }
+
+        return $token;
+    }
+
+    /**
+     * Approximate MySQL/InnoDB's word tokenization for deciding whether a user
+     * term is safe to require in BOOLEAN MODE.
+     *
+     * @return list<string>
+     */
+    private static function fulltextTokens(string $word): array
+    {
+        if (preg_match_all('/[\p{L}\p{N}_]+/u', $word, $matches) !== 1) {
+            return [];
+        }
+        return array_values(array_filter($matches[0], static fn(string $token): bool => $token !== ''));
+    }
+
+    private static function isDefaultFulltextStopword(string $token): bool
+    {
+        static $stopwords = [
+            'a' => true, 'about' => true, 'an' => true, 'are' => true,
+            'as' => true, 'at' => true, 'be' => true, 'by' => true,
+            'com' => true, 'de' => true, 'en' => true, 'for' => true,
+            'from' => true, 'how' => true, 'i' => true, 'in' => true,
+            'is' => true, 'it' => true, 'la' => true, 'of' => true,
+            'on' => true, 'or' => true, 'that' => true, 'the' => true,
+            'this' => true, 'to' => true, 'was' => true, 'what' => true,
+            'when' => true, 'where' => true, 'who' => true, 'will' => true,
+            'with' => true, 'und' => true, 'www' => true,
+        ];
+
+        return isset($stopwords[mb_strtolower($token, 'UTF-8')]);
+    }
+
+    private static function likePattern(string $term): string
+    {
+        return '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term) . '%';
+    }
+
+    private static ?bool $hasDescrizionePlain = null;
+
+    private static function descriptionExpr(\mysqli $db, string $prefix): string
+    {
+        if (self::$hasDescrizionePlain === null) {
+            try {
+                $res = $db->query("SHOW COLUMNS FROM libri LIKE 'descrizione_plain'");
+                self::$hasDescrizionePlain = $res !== false && $res->num_rows > 0;
+                if ($res instanceof \mysqli_result) {
+                    $res->free();
+                }
+            } catch (\Throwable $e) {
+                self::$hasDescrizionePlain = false;
+            }
+        }
+
+        return self::$hasDescrizionePlain
+            ? "COALESCE(NULLIF({$prefix}descrizione_plain, ''), {$prefix}descrizione)"
+            : "{$prefix}descrizione";
     }
 
     /** @var bool|null */

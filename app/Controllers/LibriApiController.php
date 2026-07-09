@@ -40,20 +40,12 @@ class LibriApiController
         $types = '';
 
         if ($search_text !== '') {
-            $nameExpr = $this->hasTableColumn($db, 'autori', 'cognome')
-                ? "CONCAT(a.nome, ' ', a.cognome)"
-                : 'a.nome';
-            $descExpr = $this->hasTableColumn($db, 'libri', 'descrizione_plain')
-                ? "COALESCE(NULLIF(l.descrizione_plain, ''), l.descrizione)"
-                : 'l.descrizione';
-            $where .= " AND (l.titolo LIKE ? OR l.sottotitolo LIKE ? OR {$descExpr} LIKE ? OR l.parole_chiave LIKE ? OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id=a.id WHERE la.libro_id=l.id AND $nameExpr LIKE ?)) ";
-            $searchParam = '%' . $search_text . '%';
-            $params[] = $searchParam;
-            $params[] = $searchParam;
-            $params[] = $searchParam;
-            $params[] = $searchParam;
-            $params[] = $searchParam;
-            $types .= 'sssss';
+            $searchCondition = \App\Support\SearchIndexBuilder::buildSearchCondition($db, 'l.search_index', $search_text);
+            if ($searchCondition !== null) {
+                $where .= ' AND ' . $searchCondition['sql'] . ' ';
+                $params = array_merge($params, $searchCondition['params']);
+                $types .= $searchCondition['types'];
+            }
         }
         if ($search_isbn !== '') {
             $where .= " AND (l.isbn10 LIKE ? OR l.isbn13 LIKE ? OR l.ean LIKE ?) ";
