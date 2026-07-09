@@ -2279,22 +2279,22 @@ ob_start();
 
 <!-- Series Section (other volumes in the same collana) -->
 <?php if (!empty($seriesBooks)): ?>
-<section class="py-4" style="margin-top: 2rem;">
+<section class="py-3" style="margin-top: 1.5rem;">
     <div class="container">
-        <h3 class="text-center mb-4" style="font-weight: 700; font-size: 1.5rem; color: #1a1a1a;">
-            <i class="fas fa-layer-group" style="color: #6366f1;"></i>
+        <h3 class="text-center mb-3" style="font-weight: 600; font-size: 1.05rem;">
+            <i class="fas fa-layer-group" style="color: var(--primary-color);"></i>
             <?= __("Nella stessa collana") ?>: <em><?= htmlspecialchars($collana, ENT_QUOTES, 'UTF-8') ?></em>
         </h3>
-        <div class="d-flex flex-wrap justify-content-center gap-3">
+        <div class="d-flex flex-wrap justify-content-center gap-2">
             <?php foreach ($seriesBooks as $sb):
                 $sbPath = book_path(['id' => $sb['id'], 'titolo' => $sb['titolo'], 'autore_principale' => $sb['autore_principale'] ?? '']);
             ?>
             <a href="<?= htmlspecialchars(url($sbPath), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none">
-                <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill" style="background: #eef2ff; border: 1px solid #c7d2fe; transition: all .2s;">
+                <div class="d-flex align-items-center gap-2 px-2 py-1 rounded-pill" style="background: color-mix(in srgb, var(--primary-color) 8%, transparent); border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent); transition: all .2s;">
                     <?php if (!empty($sb['numero_serie'])): ?>
-                    <span class="badge" style="background: #6366f1; color: white; font-size: 0.75rem;"><?= htmlspecialchars($sb['numero_serie'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="badge" style="background: var(--primary-color); color: #fff; font-size: 0.7rem;"><?= htmlspecialchars($sb['numero_serie'], ENT_QUOTES, 'UTF-8') ?></span>
                     <?php endif; ?>
-                    <span style="color: #4338ca; font-weight: 500;"><?= htmlspecialchars($sb['titolo'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span style="color: var(--primary-color); font-weight: 500; font-size: 0.85rem;"><?= htmlspecialchars($sb['titolo'], ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
             </a>
             <?php endforeach; ?>
