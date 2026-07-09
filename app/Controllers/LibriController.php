@@ -2592,37 +2592,14 @@ class LibriController
         }
 
         // Get application name and label settings from settings
-        $settingsRepo = new \App\Models\SettingsRepository($db);
-        $appName = $settingsRepo->get('app', 'name', 'Biblioteca');
-
-        // Get label dimensions from settings (default to 25x38mm)
-        $labelWidth = (int) ($settingsRepo->get('label', 'width', (string) \App\Support\ConfigStore::get('label.width', 25)));
-        $labelHeight = (int) ($settingsRepo->get('label', 'height', (string) \App\Support\ConfigStore::get('label.height', 38)));
-
-        // Ensure dimensions are within reasonable bounds
-        if ($labelWidth < 10 || $labelWidth > 100)
-            $labelWidth = 25;
-        if ($labelHeight < 10 || $labelHeight > 100)
-            $labelHeight = 38;
-
-        // Determine orientation based on dimensions
-        $orientation = $labelWidth > $labelHeight ? 'L' : 'P';
+        $settings = $this->resolveLabelSettings($db);
+        $appName = $settings['appName'];
+        $labelWidth = $settings['labelWidth'];
+        $labelHeight = $settings['labelHeight'];
+        $orientation = $settings['orientation'];
 
         // Get collocazione data
-        $collocazione = '';
-        if (!empty($libro['scaffale_id']) && !empty($libro['mensola_id']) && !empty($libro['posizione_progressiva'])) {
-            $stmt = $db->prepare("SELECT s.codice as scaffale_codice, m.numero_livello
-                                  FROM scaffali s, mensole m
-                                  WHERE s.id = ? AND m.id = ?");
-            $scaffaleId = (int) $libro['scaffale_id'];
-            $mensolaId = (int) $libro['mensola_id'];
-            $stmt->bind_param('ii', $scaffaleId, $mensolaId);
-            $stmt->execute();
-            $result = $stmt->get_result();
-            if ($row = $result->fetch_assoc()) {
-                $collocazione = $row['scaffale_codice'] . '.' . $row['numero_livello'] . '.' . $libro['posizione_progressiva'];
-            }
-        }
+        $collocazione = $this->resolveCollocazione($db, $libro);
 
         // Create PDF with TCPDF using configured dimensions
         $pdf = new \TCPDF($orientation, 'mm', [$labelWidth, $labelHeight], true, 'UTF-8', false);
@@ -2652,16 +2629,7 @@ class LibriController
         $availableHeight = $labelHeight - ($margin * 2);
 
         // Handle autori
-        $autoriStr = '';
-        if (!empty($libro['autori'])) {
-            if (is_array($libro['autori'])) {
-                $autoriStr = implode(', ', array_map(function ($a) {
-                    return $a['nome'] ?? '';
-                }, $libro['autori']));
-            } else {
-                $autoriStr = (string) $libro['autori'];
-            }
-        }
+        $autoriStr = $this->buildAuthorString($libro);
 
         // Barcode data
         $barcodePayload = $this->prepareBarcodePayload($libro, $libro['isbn13'] ?? $libro['ean'] ?? $libro['isbn10'] ?? '');
@@ -2730,47 +2698,17 @@ class LibriController
         }
 
         // Get application name and label settings from settings
-        $settingsRepo = new \App\Models\SettingsRepository($db);
-        $appName = $settingsRepo->get('app', 'name', 'Biblioteca');
-
-        // Get label dimensions from settings (default to 25x38mm)
-        $labelWidth = (int) ($settingsRepo->get('label', 'width', (string) \App\Support\ConfigStore::get('label.width', 25)));
-        $labelHeight = (int) ($settingsRepo->get('label', 'height', (string) \App\Support\ConfigStore::get('label.height', 38)));
-        if ($labelWidth < 10 || $labelWidth > 100)
-            $labelWidth = 25;
-        if ($labelHeight < 10 || $labelHeight > 100)
-            $labelHeight = 38;
-
-        $orientation = $labelWidth > $labelHeight ? 'L' : 'P';
+        $settings = $this->resolveLabelSettings($db);
+        $appName = $settings['appName'];
+        $labelWidth = $settings['labelWidth'];
+        $labelHeight = $settings['labelHeight'];
+        $orientation = $settings['orientation'];
 
         // Collocazione is the same for every copy of the book
-        $collocazione = '';
-        if (!empty($libro['scaffale_id']) && !empty($libro['mensola_id']) && !empty($libro['posizione_progressiva'])) {
-            $collStmt = $db->prepare("SELECT s.codice as scaffale_codice, m.numero_livello
-                                  FROM scaffali s, mensole m
-                                  WHERE s.id = ? AND m.id = ?");
-            $scaffaleId = (int) $libro['scaffale_id'];
-            $mensolaId = (int) $libro['mensola_id'];
-            $collStmt->bind_param('ii', $scaffaleId, $mensolaId);
-            $collStmt->execute();
-            $collResult = $collStmt->get_result();
-            if ($collRow = $collResult->fetch_assoc()) {
-                $collocazione = $collRow['scaffale_codice'] . '.' . $collRow['numero_livello'] . '.' . $libro['posizione_progressiva'];
-            }
-            $collStmt->close();
-        }
+        $collocazione = $this->resolveCollocazione($db, $libro);
 
         // Author string (same for every copy)
-        $autoriStr = '';
-        if (!empty($libro['autori'])) {
-            if (is_array($libro['autori'])) {
-                $autoriStr = implode(', ', array_map(function ($a) {
-                    return $a['nome'] ?? '';
-                }, $libro['autori']));
-            } else {
-                $autoriStr = (string) $libro['autori'];
-            }
-        }
+        $autoriStr = $this->buildAuthorString($libro);
 
         // Position text fallback (used when no full collocazione is available)
         $positionText = '';
@@ -2815,6 +2753,82 @@ class LibriController
         return $response
             ->withHeader('Content-Type', 'application/pdf')
             ->withHeader('Content-Disposition', 'inline; filename="etichette_copie_' . $id . '.pdf"');
+    }
+
+    /**
+     * Load the label configuration shared by the book- and copy-level label PDFs:
+     * application name plus the clamped label width/height (mm) and derived
+     * orientation. Single source of truth so both label routes read settings identically.
+     *
+     * @return array{appName: string, labelWidth: int, labelHeight: int, orientation: string}
+     */
+    private function resolveLabelSettings(mysqli $db): array
+    {
+        $settingsRepo = new \App\Models\SettingsRepository($db);
+        $appName = $settingsRepo->get('app', 'name', 'Biblioteca');
+
+        // Get label dimensions from settings (default to 25x38mm)
+        $labelWidth = (int) ($settingsRepo->get('label', 'width', (string) \App\Support\ConfigStore::get('label.width', 25)));
+        $labelHeight = (int) ($settingsRepo->get('label', 'height', (string) \App\Support\ConfigStore::get('label.height', 38)));
+
+        // Ensure dimensions are within reasonable bounds
+        if ($labelWidth < 10 || $labelWidth > 100)
+            $labelWidth = 25;
+        if ($labelHeight < 10 || $labelHeight > 100)
+            $labelHeight = 38;
+
+        // Determine orientation based on dimensions
+        return [
+            'appName' => $appName,
+            'labelWidth' => $labelWidth,
+            'labelHeight' => $labelHeight,
+            'orientation' => $labelWidth > $labelHeight ? 'L' : 'P',
+        ];
+    }
+
+    /**
+     * Build the "scaffale.livello.posizione" collocazione string for a book, or ''
+     * when the book is not fully shelved. Shared by book- and copy-level labels
+     * (collocazione is identical for every copy of a book).
+     */
+    private function resolveCollocazione(mysqli $db, array $libro): string
+    {
+        $collocazione = '';
+        if (!empty($libro['scaffale_id']) && !empty($libro['mensola_id']) && !empty($libro['posizione_progressiva'])) {
+            $stmt = $db->prepare("SELECT s.codice as scaffale_codice, m.numero_livello
+                                  FROM scaffali s, mensole m
+                                  WHERE s.id = ? AND m.id = ?");
+            $scaffaleId = (int) $libro['scaffale_id'];
+            $mensolaId = (int) $libro['mensola_id'];
+            $stmt->bind_param('ii', $scaffaleId, $mensolaId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            if ($row = $result->fetch_assoc()) {
+                $collocazione = $row['scaffale_codice'] . '.' . $row['numero_livello'] . '.' . $libro['posizione_progressiva'];
+            }
+            $stmt->close();
+        }
+        return $collocazione;
+    }
+
+    /**
+     * Flatten a book's authors into a comma-separated display string. Accepts either
+     * the array-of-authors shape (each with a 'nome') or a pre-joined string.
+     * Shared by book- and copy-level labels (author string is identical per copy).
+     */
+    private function buildAuthorString(array $libro): string
+    {
+        $autoriStr = '';
+        if (!empty($libro['autori'])) {
+            if (is_array($libro['autori'])) {
+                $autoriStr = implode(', ', array_map(function ($a) {
+                    return $a['nome'] ?? '';
+                }, $libro['autori']));
+            } else {
+                $autoriStr = (string) $libro['autori'];
+            }
+        }
+        return $autoriStr;
     }
 
     /**

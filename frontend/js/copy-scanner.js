@@ -217,6 +217,14 @@ function scanBarcode() {
       })
       .catch((err) => {
         if (settled) return;
+        // getUserMedia may have already resolved (stream assigned) before video.play()
+        // rejected (e.g. AbortError, hardware yanked mid-stream). Release the camera
+        // so the LED goes off instead of staying on until the user hits Cancel.
+        if (stream) {
+          stream.getTracks().forEach((track) => track.stop());
+          stream = null;
+          video.srcObject = null;
+        }
         let msg = t('genericError');
         if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
           msg = t('permissionDenied');

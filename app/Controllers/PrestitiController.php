@@ -258,11 +258,17 @@ class PrestitiController
             // auto-assign paths below (fully backward compatible).
             $copyCode = trim((string) ($data['copy_code'] ?? ''));
             if ($copyCode !== '') {
+                // Lock ONLY the copie row here — the requested book is already
+                // locked above (line ~155), so JOINing+locking libri would lock a
+                // (potentially different) book row second and invert lock order →
+                // deadlock risk when a scanned code belongs to another book.
+                // Soft-delete stays covered: the copy_wrong_book check below
+                // requires this copy to belong to $libro_id, which was resolved
+                // under `deleted_at IS NULL`.
                 $codeStmt = $db->prepare("
                     SELECT c.id, c.stato, c.libro_id
                     FROM copie c
-                    JOIN libri l ON l.id = c.libro_id
-                    WHERE c.numero_inventario = ? AND l.deleted_at IS NULL
+                    WHERE c.numero_inventario = ?
                     LIMIT 1
                     FOR UPDATE
                 ");
