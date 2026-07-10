@@ -141,4 +141,43 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     const editLink = nextCard.locator(`a[href*="#bc-meeting-${meetingId}"]`);
     await expect(editLink).toBeVisible();
   });
+
+  test('⑤ edit a member: role and status change from the admin club page', async () => {
+    const clubId = Number(dbQuery(`SELECT id FROM bookclub_clubs WHERE name=${sqlStr(CLUB_NAME)} ORDER BY id DESC LIMIT 1`) || '0');
+    const memberEmail = 'e2e-bcfixes@example.test';
+    const memberUserId = Number(dbQuery(`SELECT id FROM utenti WHERE email=${sqlStr(memberEmail)} LIMIT 1`) || '0');
+    expect(memberUserId, 'the member test user must exist').toBeGreaterThan(0);
+
+    await page.goto(`${BASE}/admin/book-club/${clubId}`);
+    await page.waitForLoadState('domcontentloaded');
+
+    // Add the member through the admin form.
+    await page.locator('form[action*="/members/add"] input[name="email"]').fill(memberEmail);
+    await page.locator('form[action*="/members/add"] button[type="submit"]').click();
+    await page.waitForLoadState('networkidle');
+
+    const memberId = Number(dbQuery(
+      `SELECT id FROM bookclub_members WHERE club_id=${clubId} AND user_id=${memberUserId} ORDER BY id DESC LIMIT 1`
+    ) || '0');
+    expect(memberId, 'member must have been added').toBeGreaterThan(0);
+
+    // Change the role via the inline dropdown (auto-submits on change → full
+    // page POST + redirect). Wait for that navigation, then poll the DB.
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+      page.locator('tr', { hasText: memberEmail }).locator('select[name="role"]').selectOption('moderator'),
+    ]);
+    await expect.poll(() => dbQuery(
+      `SELECT r.slug FROM bookclub_members m JOIN bookclub_roles r ON r.id=m.role_id WHERE m.id=${memberId}`
+    ), { timeout: 8000 }).toBe('moderator');
+
+    // Change the status via the inline dropdown.
+    await page.goto(`${BASE}/admin/book-club/${clubId}`);
+    await page.waitForLoadState('domcontentloaded');
+    await Promise.all([
+      page.waitForNavigation({ waitUntil: 'domcontentloaded' }).catch(() => {}),
+      page.locator('tr', { hasText: memberEmail }).locator('select[name="status"]').selectOption('suspended'),
+    ]);
+    await expect.poll(() => dbQuery(`SELECT status FROM bookclub_members WHERE id=${memberId}`), { timeout: 8000 }).toBe('suspended');
+  });
 });
