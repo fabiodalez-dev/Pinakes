@@ -17,10 +17,6 @@ class PrivacyController
         $pageContent = $config['page_content'] ?? '<p>La tua privacy è importante per noi.</p>';
 
         $cookieBannerEnabled = $config['cookie_banner_enabled'] ?? true;
-        $cookieBannerLanguage = $config['cookie_banner_language'] ?? 'it';
-        $cookieBannerCountry = $config['cookie_banner_country'] ?? 'it';
-        $cookieStatementLink = $config['cookie_statement_link'] ?? '';
-        $cookieTechnologiesLink = $config['cookie_technologies_link'] ?? '';
 
         $appName = ConfigStore::get('app.name', 'Biblioteca');
         $title = $pageTitle . ' - ' . $appName;

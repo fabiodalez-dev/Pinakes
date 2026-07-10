@@ -519,8 +519,6 @@ class SettingsController
             'page_content' => $repository->get('privacy', 'page_content', $config['page_content'] ?? ''),
             'cookie_policy_content' => $repository->get('privacy', 'cookie_policy_content', $config['cookie_policy_content'] ?? ''),
             'cookie_banner_enabled' => $cookieBannerEnabled,
-            'cookie_banner_language' => $repository->get('privacy', 'cookie_banner_language', $config['cookie_banner_language'] ?? 'it'),
-            'cookie_banner_country' => $repository->get('privacy', 'cookie_banner_country', $config['cookie_banner_country'] ?? 'it'),
             'cookie_statement_link' => $repository->get('privacy', 'cookie_statement_link', $config['cookie_statement_link'] ?? ''),
             'cookie_technologies_link' => $repository->get('privacy', 'cookie_technologies_link', $config['cookie_technologies_link'] ?? ''),
             'show_analytics' => $showAnalytics,
@@ -541,8 +539,6 @@ class SettingsController
             'page_content' => HtmlHelper::sanitizeHtml((string) ($data['page_content'] ?? '')),
             'cookie_policy_content' => HtmlHelper::sanitizeHtml((string) ($data['cookie_policy_content'] ?? '')),
             'cookie_banner_enabled' => isset($data['cookie_banner_enabled']) && $data['cookie_banner_enabled'] === '1',
-            'cookie_banner_language' => strtolower(trim((string) ($data['cookie_banner_language'] ?? 'it'))),
-            'cookie_banner_country' => strtoupper(trim((string) ($data['cookie_banner_country'] ?? 'IT'))),
             'cookie_statement_link' => trim((string) ($data['cookie_statement_link'] ?? '')),
             'cookie_technologies_link' => trim((string) ($data['cookie_technologies_link'] ?? '')),
         ];

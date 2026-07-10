@@ -83,40 +83,6 @@ use App\Support\HtmlHelper;
           </label>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label for="cookie_banner_language" class="block text-sm font-medium text-gray-700"><?= __("Lingua") ?></label>
-            <select id="cookie_banner_language"
-                    name="cookie_banner_language"
-                    class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
-              <option value="it" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'it' ? 'selected' : ''; ?>><?= __("Italiano (IT)") ?></option>
-              <option value="en" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'en' ? 'selected' : ''; ?>><?= __("English (EN)") ?></option>
-              <option value="de" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'de' ? 'selected' : ''; ?>><?= __("Deutsch (DE)") ?></option>
-              <option value="es" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'es' ? 'selected' : ''; ?>><?= __("Español (ES)") ?></option>
-              <option value="fr" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'fr' ? 'selected' : ''; ?>><?= __("Français (FR)") ?></option>
-              <option value="nl" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'nl' ? 'selected' : ''; ?>><?= __("Nederlands (NL)") ?></option>
-              <option value="pl" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'pl' ? 'selected' : ''; ?>><?= __("Polski (PL)") ?></option>
-              <option value="da" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'da' ? 'selected' : ''; ?>><?= __("Dansk (DA)") ?></option>
-              <option value="bg" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'bg' ? 'selected' : ''; ?>><?= __("Български (BG)") ?></option>
-              <option value="ca" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'ca' ? 'selected' : ''; ?>><?= __("Català (CA)") ?></option>
-              <option value="sk" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'sk' ? 'selected' : ''; ?>><?= __("Slovenčina (SK)") ?></option>
-              <option value="he" <?php echo ($privacySettings['cookie_banner_language'] ?? 'it') === 'he' ? 'selected' : ''; ?>><?= __("עברית (HE)") ?></option>
-            </select>
-          </div>
-
-          <div>
-            <label for="cookie_banner_country" class="block text-sm font-medium text-gray-700"><?= __("Paese") ?></label>
-            <input type="text"
-                   id="cookie_banner_country"
-                   name="cookie_banner_country"
-                   value="<?php echo HtmlHelper::e($privacySettings['cookie_banner_country'] ?? 'it'); ?>"
-                   maxlength="2"
-                   class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 uppercase"
-                   placeholder="<?= __('IT') ?>" />
-            <p class="mt-1 text-xs text-gray-500"><?= __("Codice ISO 2 lettere (es: IT, FR, GB)") ?></p>
-          </div>
-        </div>
-
         <div>
           <label for="cookie_statement_link" class="block text-sm font-medium text-gray-700"><?= __("Link Cookie Statement") ?></label>
           <input type="url"
