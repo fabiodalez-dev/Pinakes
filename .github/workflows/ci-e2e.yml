@@ -306,6 +306,11 @@ jobs:
           npx playwright test tests/interop-specific.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
+      - name: "book-club-uwe.spec.js — meeting/member edit + external book proposals (#138)"
+        run: |
+          npx playwright test tests/book-club-uwe.spec.js \
+            --config=tests/playwright.config.js \
+            --workers=1
 
       # ── Artifacts on failure ─────────────────────────────────────────────────
       - name: Upload Playwright report
