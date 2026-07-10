@@ -524,7 +524,7 @@ $profileReservationCoverUrl = static function (array $item): string {
                     data-swal-confirm-button="<?= htmlspecialchars(__('Annulla prenotazione'), ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                 <input type="hidden" name="reservation_id" value="<?php echo (int)$p['id']; ?>">
-                <button type="submit" class="btn-cancel">
+                <button type="submit" class="btn-cancel" data-reservation-id="<?php echo (int)$p['id']; ?>">
                   <i class="fas fa-trash"></i>
                   <span><?= __('Annulla prenotazione') ?></span>
                 </button>

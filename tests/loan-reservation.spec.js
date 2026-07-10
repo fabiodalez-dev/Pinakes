@@ -615,7 +615,7 @@ test.describe.serial('Loan / Reservation Lifecycle', () => {
 
     // The cancel form uses a SweetAlert confirmation (data-swal-confirm), NOT a
     // native confirm() dialog — so we click the trigger, then confirm in the modal.
-    const cancelBtn = userPage.locator('.btn-cancel').first();
+    const cancelBtn = userPage.locator(`.btn-cancel[data-reservation-id="${reservationId}"]`).first();
     await expect(cancelBtn).toBeVisible({ timeout: 5000 });
     await cancelBtn.click();
 

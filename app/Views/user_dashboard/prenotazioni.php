@@ -717,7 +717,7 @@ function resolveCoverUrl(array $item, string $key = 'copertina_url'): string {
                     data-swal-confirm-button="<?= htmlspecialchars(__('Annulla prenotazione'), ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="csrf_token" value="<?= HtmlHelper::e($csrfToken); ?>">
                 <input type="hidden" name="reservation_id" value="<?= (int)$reservation['id']; ?>">
-                <button type="submit" class="btn-cancel">
+                <button type="submit" class="btn-cancel" data-reservation-id="<?= (int)$reservation['id']; ?>">
                   <i class="fas fa-trash" aria-hidden="true"></i>
                   <span><?= __("Annulla prenotazione") ?></span>
                 </button>
