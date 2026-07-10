@@ -231,6 +231,11 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
               <div>
                 <div class="fw-semibold">
                   <?= $e($option['titolo']) ?><?= $isWinner ? ' 🏆' : '' ?>
+                  <?php if (!empty($option['is_external'])): ?>
+                    <span class="bc-badge bc-badge-warn ms-2" title="<?= $e(__('Questo libro non è ancora nel catalogo della biblioteca.')) ?>">
+                      <i class="fas fa-book-medical me-1"></i><?= $e(__('Proposta esterna')) ?>
+                    </span>
+                  <?php endif; ?>
                   <?php if ($isEliminated): ?>
                     <span class="bc-badge bc-badge-closed ms-2">
                       <?= $e(sprintf(__('Eliminato al turno %d'), (int) $eliminated[$optId])) ?>
