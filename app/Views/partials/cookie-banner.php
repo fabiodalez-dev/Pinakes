@@ -90,7 +90,19 @@ $cookieBannerTexts = [
                 },
                 preferences: {
                     title: <?= json_encode($cookieBannerTexts['preferences_title'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
-                    description: <?= json_encode($cookieBannerTexts['preferences_description'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+                    description: <?php
+                        // Append the admin-entered "Cookie technologies" link to the
+                        // preferences description when set (silktide has no dedicated
+                        // field for it), so the previously-inert setting now surfaces
+                        // a real, clickable link in the preferences modal.
+                        $prefDescription = (string) $cookieBannerTexts['preferences_description'];
+                        $cookieTechLink = trim((string) ConfigStore::get('privacy.cookie_technologies_link', ''));
+                        if ($cookieTechLink !== '') {
+                            $prefDescription .= '<p><a href="' . htmlspecialchars($cookieTechLink, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener noreferrer">'
+                                . htmlspecialchars(__('Tecnologie e cookie utilizzati'), ENT_QUOTES, 'UTF-8') . '</a></p>';
+                        }
+                        echo json_encode($prefDescription, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+                    ?>,
                     statementUrl: <?php
                         // Honour the admin-entered "Cookie statement link" when set,
                         // otherwise fall back to the built-in cookies page. Previously

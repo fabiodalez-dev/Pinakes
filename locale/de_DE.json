@@ -6473,5 +6473,6 @@
   "Durata massima richiedibile": "Maximale anfragbare Dauer",
   "Periodo massimo che un utente può richiedere per un prestito o una prenotazione. Le richieste che superano questo limite vengono rifiutate.": "Der längste Zeitraum, den ein Benutzer für eine Ausleihe oder Reservierung anfragen kann. Anfragen, die dieses Limit überschreiten, werden abgelehnt.",
   "Durata massima prestito (giorni)": "Maximale Ausleihdauer (Tage)",
-  "Valore compreso tra 1 e 3650 giorni. Predefinito: 90 giorni": "Wert zwischen 1 und 3650 Tagen. Standard: 90 Tage"
+  "Valore compreso tra 1 e 3650 giorni. Predefinito: 90 giorni": "Wert zwischen 1 und 3650 Tagen. Standard: 90 Tage",
+  "Tecnologie e cookie utilizzati": "Verwendete Technologien und Cookies"
 }
