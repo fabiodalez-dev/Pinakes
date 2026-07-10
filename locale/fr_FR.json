@@ -6465,5 +6465,11 @@
   "Impossibile accedere alla fotocamera. Controlla i permessi del browser.": "Impossible d'accéder à la caméra. Vérifiez les autorisations du navigateur.",
   "Nessuna fotocamera trovata su questo dispositivo.": "Aucune caméra détectée sur cet appareil.",
   "Questo browser non supporta l'accesso alla fotocamera.": "Ce navigateur ne prend pas en charge l'accès à la caméra.",
-  "Impossibile avviare lo scanner.": "Impossible de démarrer le scanner."
+  "Impossibile avviare lo scanner.": "Impossible de démarrer le scanner.",
+  "Codice copia:": "Code d'exemplaire :",
+  "Copia:": "Exemplaire :",
+  "Sottotitolo:": "Sous-titre :",
+  "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente. Se inserisci o scansioni un codice, il libro viene identificato in automatico.": "Facultatif. Si vide, un exemplaire disponible est attribué automatiquement. Si vous saisissez ou scannez un code, le livre est identifié automatiquement.",
+  "Copia identificata: %s": "Exemplaire identifié : %s",
+  "Questa copia non è disponibile ora.": "Cet exemplaire n'est pas disponible actuellement."
 }

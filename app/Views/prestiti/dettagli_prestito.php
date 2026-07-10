@@ -56,7 +56,16 @@ function formatLoanStatus($status) {
             <a href="<?= htmlspecialchars(url('/admin/books/edit/' . (int)($prestito['libro_id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="text-blue-600 underline hover:text-blue-800 transition-colors">
               <?= App\Support\HtmlHelper::e($prestito['libro_titolo'] ?? __('Non disponibile')); ?>
             </a>
+            <?php if (!empty($prestito['libro_sottotitolo'])): ?>
+              <br><small class="text-gray-500"><?= App\Support\HtmlHelper::e($prestito['libro_sottotitolo']); ?></small>
+            <?php endif; ?>
           </div>
+          <?php if (!empty($prestito['copia_inventario'])): ?>
+          <div>
+            <span class="font-semibold text-gray-600"><?= __("Copia:") ?></span>
+            <span class="text-gray-800 font-mono"><?= App\Support\HtmlHelper::e($prestito['copia_inventario']); ?></span>
+          </div>
+          <?php endif; ?>
           <div>
             <span class="font-semibold text-gray-600"><?= __("Utente:") ?></span>
             <span class="text-gray-800">

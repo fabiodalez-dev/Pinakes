@@ -1295,12 +1295,14 @@ class PrestitiController
             return $guard;
         }
         $stmt = $db->prepare("
-            SELECT prestiti.*, libri.titolo AS libro_titolo,
+            SELECT prestiti.*, libri.titolo AS libro_titolo, libri.sottotitolo AS libro_sottotitolo,
+                   copie.numero_inventario AS copia_inventario,
                    CONCAT(utenti.nome, ' ', utenti.cognome) AS utente_nome,
                    utenti.email AS utente_email,
                    CONCAT(staff.nome, ' ', staff.cognome) AS processed_by_name
-            FROM prestiti 
+            FROM prestiti
             LEFT JOIN libri ON prestiti.libro_id = libri.id AND libri.deleted_at IS NULL
+            LEFT JOIN copie ON prestiti.copia_id = copie.id
             LEFT JOIN utenti ON prestiti.utente_id = utenti.id
             LEFT JOIN utenti staff ON prestiti.processed_by = staff.id
             WHERE prestiti.id = ?

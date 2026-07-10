@@ -6465,5 +6465,11 @@
   "Impossibile accedere alla fotocamera. Controlla i permessi del browser.": "Kamerazugriff nicht möglich. Überprüfen Sie die Browser-Berechtigungen.",
   "Nessuna fotocamera trovata su questo dispositivo.": "Keine Kamera auf diesem Gerät gefunden.",
   "Questo browser non supporta l'accesso alla fotocamera.": "Dieser Browser unterstützt keinen Kamerazugriff.",
-  "Impossibile avviare lo scanner.": "Scanner konnte nicht gestartet werden."
+  "Impossibile avviare lo scanner.": "Scanner konnte nicht gestartet werden.",
+  "Codice copia:": "Exemplarcode:",
+  "Copia:": "Exemplar:",
+  "Sottotitolo:": "Untertitel:",
+  "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente. Se inserisci o scansioni un codice, il libro viene identificato in automatico.": "Optional. Wenn leer, wird automatisch ein verfügbares Exemplar zugewiesen. Wenn du einen Code eingibst oder scannst, wird das Buch automatisch identifiziert.",
+  "Copia identificata: %s": "Exemplar erkannt: %s",
+  "Questa copia non è disponibile ora.": "Dieses Exemplar ist derzeit nicht verfügbar."
 }

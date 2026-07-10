@@ -6465,5 +6465,11 @@
   "Impossibile accedere alla fotocamera. Controlla i permessi del browser.": "Impossibile accedere alla fotocamera. Controlla i permessi del browser.",
   "Nessuna fotocamera trovata su questo dispositivo.": "Nessuna fotocamera trovata su questo dispositivo.",
   "Questo browser non supporta l'accesso alla fotocamera.": "Questo browser non supporta l'accesso alla fotocamera.",
-  "Impossibile avviare lo scanner.": "Impossibile avviare lo scanner."
+  "Impossibile avviare lo scanner.": "Impossibile avviare lo scanner.",
+  "Codice copia:": "Codice copia:",
+  "Copia:": "Copia:",
+  "Sottotitolo:": "Sottotitolo:",
+  "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente. Se inserisci o scansioni un codice, il libro viene identificato in automatico.": "Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente. Se inserisci o scansioni un codice, il libro viene identificato in automatico.",
+  "Copia identificata: %s": "Copia identificata: %s",
+  "Questa copia non è disponibile ora.": "Questa copia non è disponibile ora."
 }

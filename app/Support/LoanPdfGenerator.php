@@ -182,12 +182,21 @@ class LoanPdfGenerator
 
         $pdf->Ln(3);
 
-        // Section 2: Book Information
-        $this->renderSection($pdf, __('Dettagli Libro'), [
+        // Section 2: Book Information. Subtitle and per-copy inventory code are
+        // conditional: not every book has a subtitle, and a loan predating the
+        // copy-tracking work (or on an unnumbered copy) has no numero_inventario.
+        $bookFields = [
             __('Titolo:') => $loan['libro'] ?? __('Non disponibile'),
-            __('Autori:') => $loan['autori'] ?? __('Non specificato'),
-            __('ISBN:') => $loan['isbn13'] ?? $loan['isbn10'] ?? __('Non disponibile'),
-        ]);
+        ];
+        if (!empty($loan['libro_sottotitolo'])) {
+            $bookFields[__('Sottotitolo:')] = $loan['libro_sottotitolo'];
+        }
+        $bookFields[__('Autori:')] = $loan['autori'] ?? __('Non specificato');
+        $bookFields[__('ISBN:')] = $loan['isbn13'] ?? $loan['isbn10'] ?? __('Non disponibile');
+        if (!empty($loan['copia_inventario'])) {
+            $bookFields[__('Codice copia:')] = $loan['copia_inventario'];
+        }
+        $this->renderSection($pdf, __('Dettagli Libro'), $bookFields);
 
         $pdf->Ln(3);
 
