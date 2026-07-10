@@ -72,7 +72,7 @@ class CopyController
      * Resolve a copy by its numero_inventario (per-copy code) and report whether
      * it is loanable right now. Returns JSON:
      *   {found:false}                                  when no such code exists
-     *   {found:true, copy_id, libro_id, titolo, stato, available:bool}
+     *   {found:true, copy_id, libro_id, titolo, sottotitolo, stato, available:bool}
      *
      * "available" mirrors the loan-availability rules used elsewhere: a copy is
      * loanable now only if its state is 'disponibile' AND no active/holding loan
@@ -90,7 +90,7 @@ class CopyController
 
         // `copie` has no deleted_at — filter the soft-delete on the joined book.
         $stmt = $db->prepare("
-            SELECT c.id AS copy_id, c.libro_id, c.stato, l.titolo
+            SELECT c.id AS copy_id, c.libro_id, c.stato, l.titolo, l.sottotitolo
             FROM copie c
             JOIN libri l ON l.id = c.libro_id
             WHERE c.numero_inventario = ? AND l.deleted_at IS NULL
@@ -117,6 +117,7 @@ class CopyController
             'copy_id'  => $copyId,
             'libro_id' => (int) $row['libro_id'],
             'titolo'   => $row['titolo'],
+            'sottotitolo' => (string) ($row['sottotitolo'] ?? ''),
             'stato'    => $row['stato'],
             'available' => $available,
         ]));

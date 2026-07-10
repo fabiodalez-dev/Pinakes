@@ -129,7 +129,8 @@ $isItalian = str_starts_with($currentLocale, 'it');
           <i class="fas fa-camera"></i><span class="hidden sm:inline"><?= __("Scansiona") ?></span>
         </button>
       </div>
-      <p class="mt-1 text-xs text-gray-500"><?= __("Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente.") ?></p>
+      <p class="mt-1 text-xs text-gray-500"><?= __("Facoltativo. Se vuoto, una copia disponibile verrà assegnata automaticamente. Se inserisci o scansioni un codice, il libro viene identificato in automatico.") ?></p>
+      <p id="copy_code_status" class="mt-1 text-xs hidden" role="status" aria-live="polite"></p>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -276,7 +277,10 @@ $isItalian = str_starts_with($currentLocale, 'it');
         firstAvailable: <?= json_encode(__("Prima data disponibile: %s"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         availableOnDate: <?= json_encode(__("Disponibile nella data selezionata"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
         notAvailableOnDate: <?= json_encode(__("Non disponibile nella data selezionata"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
-        selectBook: <?= json_encode(__("Seleziona un libro per vedere la disponibilità"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
+        selectBook: <?= json_encode(__("Seleziona un libro per vedere la disponibilità"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        copyResolved: <?= json_encode(__("Copia identificata: %s"), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        copyNotFound: <?= json_encode(__("Nessuna copia trovata con questo codice inventario."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>,
+        copyNotAvailable: <?= json_encode(__("Questa copia non è disponibile ora."), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) ?>
       };
 
       // Book availability data
@@ -555,12 +559,18 @@ $isItalian = str_starts_with($currentLocale, 'it');
               const statusIcon = isAvailable ? 'fa-check-circle' : 'fa-clock';
               const countColor = isAvailable ? '#16a34a' : '#92400e';
 
+              // Subtitle as a separate <div> (not a <span>) so the click
+              // handler's querySelector('span') still returns the title label.
+              const subtitleHtml = item.sottotitolo
+                ? '<div style="font-size: 0.75rem; color: #6b7280; margin-left: 1.25rem; margin-top: 0.125rem;">' + escapeHtml(item.sottotitolo) + '</div>'
+                : '';
               return '<div class="suggestion-item" data-id="' + itemId + '" data-copies="' + copieDisponibili + '" data-total="' + copieTotali + '">' +
                 '<div style="display: flex; align-items: center; gap: 0.5rem;">' +
                 '<i class="fas ' + statusIcon + '" style="color: ' + iconColor + ';"></i>' +
                 '<span style="flex: 1;">' + escapeHtml(item.label) + '</span>' +
                 '<span style="font-size: 0.75rem; font-weight: 600; color: ' + countColor + ';">' + copieDisponibili + '/' + copieTotali + '</span>' +
                 '</div>' +
+                subtitleHtml +
                 '</div>';
             }
             return '<div class="suggestion-item" data-id="' + itemId + '">' + escapeHtml(item.label) + '</div>';
@@ -686,6 +696,78 @@ $isItalian = str_starts_with($currentLocale, 'it');
       // Initialize autocompletes
       setupAutocomplete('utente_search', 'utente_suggest', 'utente_id', window.BASE_PATH + '/api/search/utenti', false);
       setupAutocomplete('libro_search', 'libro_suggest', 'libro_id', window.BASE_PATH + '/api/search/libri', true);
+
+      // Copy-code resolver (#238): entering or scanning an inventory code
+      // identifies the book automatically, so the operator never has to also
+      // search for the right title (and can't accidentally pick the wrong one).
+      // The scanner dispatches 'input'/'change' on this field after decoding,
+      // so this handler covers both manual entry and camera scan.
+      function setupCopyCodeResolver() {
+        const copyEl = document.getElementById('copy_code');
+        const statusEl = document.getElementById('copy_code_status');
+        const libroSearchEl = document.getElementById('libro_search');
+        const libroIdEl = document.getElementById('libro_id');
+        if (!copyEl || !libroSearchEl || !libroIdEl) return;
+
+        let debounceTimer = null;
+        let lastResolved = '';
+
+        function setStatus(text, tone) {
+          if (!statusEl) return;
+          if (!text) {
+            statusEl.classList.add('hidden');
+            statusEl.textContent = '';
+            return;
+          }
+          statusEl.textContent = text;
+          statusEl.classList.remove('hidden', 'text-green-600', 'text-amber-600', 'text-red-600', 'text-gray-500');
+          statusEl.classList.add(tone || 'text-gray-500');
+        }
+
+        function resolve() {
+          const code = copyEl.value.trim();
+          if (code === '') { lastResolved = ''; setStatus('', null); return; }
+          if (code === lastResolved) return;
+
+          fetch(window.BASE_PATH + '/admin/copies/by-code?code=' + encodeURIComponent(code), {
+            headers: { 'Accept': 'application/json' }
+          })
+            .then(function(r) { if (!r.ok) throw new Error('by-code failed'); return r.json(); })
+            .then(function(data) {
+              if (!data || !data.found || !data.libro_id) {
+                setStatus(i18n.copyNotFound, 'text-red-600');
+                return;
+              }
+              lastResolved = code;
+              // Fill the book field from the resolved copy.
+              libroIdEl.value = String(data.libro_id);
+              let title = data.titolo || '';
+              if (data.sottotitolo) { title += ' — ' + data.sottotitolo; }
+              libroSearchEl.value = title;
+              // Refresh the calendar availability for the identified book.
+              if (typeof fetchBookAvailability === 'function') {
+                fetchBookAvailability(String(data.libro_id));
+              }
+              let msg = i18n.copyResolved.replace('%s', data.titolo || '');
+              if (data.available === false) {
+                setStatus(msg + ' — ' + i18n.copyNotAvailable, 'text-amber-600');
+              } else {
+                setStatus(msg, 'text-green-600');
+              }
+            })
+            .catch(function() { /* silent: server re-validates the copy on submit */ });
+        }
+
+        copyEl.addEventListener('input', function() {
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(resolve, 350);
+        });
+        copyEl.addEventListener('change', function() {
+          clearTimeout(debounceTimer);
+          resolve();
+        });
+      }
+      setupCopyCodeResolver();
     });
   </script>
 

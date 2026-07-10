@@ -35,7 +35,8 @@ class LoanRepository
 
     public function getById(int $id): ?array
     {
-        $sql = "SELECT p.*, l.titolo AS libro, l.isbn13, l.isbn10,
+        $sql = "SELECT p.*, l.titolo AS libro, l.sottotitolo AS libro_sottotitolo, l.isbn13, l.isbn10,
+                       c.numero_inventario AS copia_inventario,
                        CONCAT(u.nome,' ',u.cognome) AS utente,
                        u.email AS utente_email,
                        u.codice_tessera AS utente_tessera,
@@ -47,6 +48,7 @@ class LoanRepository
                         WHERE la.libro_id = p.libro_id) AS autori
                 FROM prestiti p
                 LEFT JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
+                LEFT JOIN copie c ON p.copia_id = c.id
                 LEFT JOIN utenti u ON p.utente_id = u.id
                 WHERE p.id=? LIMIT 1";
         $stmt = $this->db->prepare($sql);
