@@ -531,6 +531,16 @@ class SettingsController
         $data = (array) $request->getParsedBody();
         // CSRF validated by CsrfMiddleware
 
+        $statementRaw = trim((string) ($data['cookie_statement_link'] ?? ''));
+        $technologiesRaw = trim((string) ($data['cookie_technologies_link'] ?? ''));
+        $statementUrl = HtmlHelper::sanitizePublicHttpUrl($statementRaw);
+        $technologiesUrl = HtmlHelper::sanitizePublicHttpUrl($technologiesRaw);
+        if (($statementRaw !== '' && $statementUrl === '')
+            || ($technologiesRaw !== '' && $technologiesUrl === '')) {
+            $_SESSION['error_message'] = __('I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.');
+            return $this->redirect($response, '/admin/settings?tab=privacy');
+        }
+
         $repository = new SettingsRepository($db);
         $repository->ensureTables();
 
@@ -539,8 +549,8 @@ class SettingsController
             'page_content' => HtmlHelper::sanitizeHtml((string) ($data['page_content'] ?? '')),
             'cookie_policy_content' => HtmlHelper::sanitizeHtml((string) ($data['cookie_policy_content'] ?? '')),
             'cookie_banner_enabled' => isset($data['cookie_banner_enabled']) && $data['cookie_banner_enabled'] === '1',
-            'cookie_statement_link' => trim((string) ($data['cookie_statement_link'] ?? '')),
-            'cookie_technologies_link' => trim((string) ($data['cookie_technologies_link'] ?? '')),
+            'cookie_statement_link' => $statementUrl,
+            'cookie_technologies_link' => $technologiesUrl,
         ];
 
         foreach ($settings as $key => $value) {

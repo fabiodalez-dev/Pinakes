@@ -6474,5 +6474,8 @@
   "Periodo massimo che un utente può richiedere per un prestito o una prenotazione. Le richieste che superano questo limite vengono rifiutate.": "The longest period a user can request for a loan or reservation. Requests exceeding this limit are rejected.",
   "Durata massima prestito (giorni)": "Maximum loan duration (days)",
   "Valore compreso tra 1 e 3650 giorni. Predefinito: 90 giorni": "Value between 1 and 3650 days. Default: 90 days",
-  "Tecnologie e cookie utilizzati": "Technologies and cookies used"
+  "Tecnologie e cookie utilizzati": "Technologies and cookies used",
+  "I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.": "Cookie links must be valid HTTP or HTTPS URLs without embedded credentials.",
+  "Registrazione ricevuta - verifica email": "Registration received - verify email",
+  "Inviata quando l'account si attiverà automaticamente dopo la verifica dell'email.": "Sent when the account will activate automatically after email verification."
 }

@@ -320,6 +320,23 @@ return [
 </div>
 <p>Merci d\'avoir choisi Pinakes !</p>',
     ],
+    'user_registration_verification' => [
+        'subject' => 'Inscription reçue - Vérifiez votre e-mail',
+        'body' => '<h2>Bienvenue {{nome}} {{cognome}} !</h2>
+<p>Votre inscription a bien été reçue.</p>
+<p><strong>Détails du compte :</strong></p>
+<ul>
+    <li>E-mail : {{email}}</li>
+    <li>Numéro de carte : {{codice_tessera}}</li>
+    <li>Date d\'inscription : {{data_registrazione}}</li>
+</ul>
+{{sezione_verifica}}
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <p><strong>Confirmez votre adresse e-mail</strong></p>
+    <p>Après la vérification, votre compte sera actif et vous pourrez vous connecter immédiatement.</p>
+</div>
+<p>Merci d\'avoir choisi Pinakes !</p>',
+    ],
     'wishlist_book_available' => [
         'subject' => '📖 Un livre de votre liste de souhaits est désormais disponible !',
         'body' => '<h2>Bonne nouvelle ! 📚</h2>

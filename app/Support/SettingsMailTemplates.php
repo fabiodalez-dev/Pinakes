@@ -42,6 +42,28 @@ final class SettingsMailTemplates
 <p>Grazie per aver scelto Pinakes!</p>
 HTML,
             ],
+            'user_registration_verification' => [
+                'label' => __('Registrazione ricevuta - verifica email'),
+                'description' => __("Inviata quando l'account si attiverà automaticamente dopo la verifica dell'email."),
+                'subject' => 'Registrazione ricevuta - Verifica la tua email',
+                'placeholders' => ['nome', 'cognome', 'email', 'codice_tessera', 'data_registrazione', 'sezione_verifica'],
+                'body' => <<<'HTML'
+<h2>Benvenuto {{nome}} {{cognome}}!</h2>
+<p>La tua registrazione è stata ricevuta con successo.</p>
+<p><strong>Dettagli account:</strong></p>
+<ul>
+    <li>Email: {{email}}</li>
+    <li>Codice tessera: {{codice_tessera}}</li>
+    <li>Data registrazione: {{data_registrazione}}</li>
+</ul>
+{{sezione_verifica}}
+<div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0;">
+    <p><strong>Conferma il tuo indirizzo email</strong></p>
+    <p>Dopo la verifica il tuo account sarà attivo e potrai accedere subito.</p>
+</div>
+<p>Grazie per aver scelto Pinakes!</p>
+HTML,
+            ],
             'user_account_approved' => [
                 'label' => __('Account attivato'),
                 'description' => __("Inviata all'utente quando un amministratore approva l'account."),

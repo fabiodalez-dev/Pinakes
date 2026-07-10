@@ -6474,5 +6474,8 @@
   "Periodo massimo che un utente può richiedere per un prestito o una prenotazione. Le richieste che superano questo limite vengono rifiutate.": "Période maximale qu'un utilisateur peut demander pour un prêt ou une réservation. Les demandes dépassant cette limite sont refusées.",
   "Durata massima prestito (giorni)": "Durée maximale du prêt (jours)",
   "Valore compreso tra 1 e 3650 giorni. Predefinito: 90 giorni": "Valeur comprise entre 1 et 3650 jours. Par défaut : 90 jours",
-  "Tecnologie e cookie utilizzati": "Technologies et cookies utilisés"
+  "Tecnologie e cookie utilizzati": "Technologies et cookies utilisés",
+  "I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.": "Les liens de cookies doivent être des URL HTTP ou HTTPS valides sans identifiants intégrés.",
+  "Registrazione ricevuta - verifica email": "Inscription reçue - vérification de l'e-mail",
+  "Inviata quando l'account si attiverà automaticamente dopo la verifica dell'email.": "Envoyé lorsque le compte sera activé automatiquement après la vérification de l'e-mail."
 }

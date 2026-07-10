@@ -6474,5 +6474,8 @@
   "Periodo massimo che un utente può richiedere per un prestito o una prenotazione. Le richieste che superano questo limite vengono rifiutate.": "Periodo massimo che un utente può richiedere per un prestito o una prenotazione. Le richieste che superano questo limite vengono rifiutate.",
   "Durata massima prestito (giorni)": "Durata massima prestito (giorni)",
   "Valore compreso tra 1 e 3650 giorni. Predefinito: 90 giorni": "Valore compreso tra 1 e 3650 giorni. Predefinito: 90 giorni",
-  "Tecnologie e cookie utilizzati": "Tecnologie e cookie utilizzati"
+  "Tecnologie e cookie utilizzati": "Tecnologie e cookie utilizzati",
+  "I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.": "I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.",
+  "Registrazione ricevuta - verifica email": "Registrazione ricevuta - verifica email",
+  "Inviata quando l'account si attiverà automaticamente dopo la verifica dell'email.": "Inviata quando l'account si attiverà automaticamente dopo la verifica dell'email."
 }

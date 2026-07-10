@@ -96,21 +96,25 @@ $cookieBannerTexts = [
                         // field for it), so the previously-inert setting now surfaces
                         // a real, clickable link in the preferences modal.
                         $prefDescription = (string) $cookieBannerTexts['preferences_description'];
-                        $cookieTechLink = trim((string) ConfigStore::get('privacy.cookie_technologies_link', ''));
+                        // Revalidate at the output boundary too: an existing row
+                        // may predate the save-time allow-list.
+                        $cookieStatementLink = \App\Support\HtmlHelper::sanitizePublicHttpUrl(
+                            (string) ConfigStore::get('privacy.cookie_statement_link', '')
+                        );
+                        if ($cookieStatementLink === '') {
+                            $cookieStatementLink = route_path('cookies');
+                        }
+                        $cookieTechLink = \App\Support\HtmlHelper::sanitizePublicHttpUrl(
+                            (string) ConfigStore::get('privacy.cookie_technologies_link', '')
+                        );
+                        $prefDescription .= '<p><a href="' . htmlspecialchars($cookieStatementLink, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener noreferrer">'
+                            . htmlspecialchars(__('Cookie Policy'), ENT_QUOTES, 'UTF-8') . '</a></p>';
                         if ($cookieTechLink !== '') {
                             $prefDescription .= '<p><a href="' . htmlspecialchars($cookieTechLink, ENT_QUOTES, 'UTF-8') . '" target="_blank" rel="noopener noreferrer">'
                                 . htmlspecialchars(__('Tecnologie e cookie utilizzati'), ENT_QUOTES, 'UTF-8') . '</a></p>';
                         }
                         echo json_encode($prefDescription, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
                     ?>,
-                    statementUrl: <?php
-                        // Honour the admin-entered "Cookie statement link" when set,
-                        // otherwise fall back to the built-in cookies page. Previously
-                        // this was hardcoded, so the configured URL had no effect.
-                        $cookieStatementLink = trim((string) ConfigStore::get('privacy.cookie_statement_link', ''));
-                        echo json_encode($cookieStatementLink !== '' ? $cookieStatementLink : route_path('cookies'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-                    ?>,
-                    statementAccessibleLabel: 'Maggiori informazioni sui cookie',
                 },
             },
             position: {

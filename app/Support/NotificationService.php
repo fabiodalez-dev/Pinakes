@@ -130,7 +130,10 @@ class NotificationService {
                 'sezione_verifica' => $verifySection,
                 'app_name' => ConfigStore::get('app.name', 'Biblioteca')
             ];
-            return $this->emailService->sendTemplate($user['email'], 'user_registration_pending', $variables, $locale);
+            $template = (bool) ConfigStore::get('registration.require_admin_approval', true)
+                ? 'user_registration_pending'
+                : 'user_registration_verification';
+            return $this->emailService->sendTemplate($user['email'], $template, $variables, $locale);
 
         } catch (\Throwable $e) {
             SecureLogger::error("Failed to send user registration pending email: " . $e->getMessage());

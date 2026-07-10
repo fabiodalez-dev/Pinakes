@@ -6474,5 +6474,8 @@
   "Periodo massimo che un utente può richiedere per un prestito o una prenotazione. Le richieste che superano questo limite vengono rifiutate.": "Der längste Zeitraum, den ein Benutzer für eine Ausleihe oder Reservierung anfragen kann. Anfragen, die dieses Limit überschreiten, werden abgelehnt.",
   "Durata massima prestito (giorni)": "Maximale Ausleihdauer (Tage)",
   "Valore compreso tra 1 e 3650 giorni. Predefinito: 90 giorni": "Wert zwischen 1 und 3650 Tagen. Standard: 90 Tage",
-  "Tecnologie e cookie utilizzati": "Verwendete Technologien und Cookies"
+  "Tecnologie e cookie utilizzati": "Verwendete Technologien und Cookies",
+  "I link cookie devono essere URL HTTP o HTTPS validi, senza credenziali incorporate.": "Cookie-Links müssen gültige HTTP- oder HTTPS-URLs ohne eingebettete Zugangsdaten sein.",
+  "Registrazione ricevuta - verifica email": "Registrierung eingegangen - E-Mail bestätigen",
+  "Inviata quando l'account si attiverà automaticamente dopo la verifica dell'email.": "Wird gesendet, wenn das Konto nach der E-Mail-Bestätigung automatisch aktiviert wird."
 }

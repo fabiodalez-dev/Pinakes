@@ -80,6 +80,33 @@ class HtmlHelper
         return self::htmlSanitizer()->sanitize($html);
     }
 
+    /**
+     * Return a public absolute HTTP(S) URL, or an empty string when unsafe.
+     *
+     * This is intentionally stricter than FILTER_VALIDATE_URL alone: values
+     * rendered into public links must not carry executable schemes, embedded
+     * credentials, control characters, or an unbounded payload.
+     */
+    public static function sanitizePublicHttpUrl(?string $url): string
+    {
+        $url = trim((string) $url);
+        if ($url === '' || strlen($url) > 2048 || preg_match('/[\x00-\x1F\x7F]/', $url) === 1) {
+            return '';
+        }
+        if (filter_var($url, FILTER_VALIDATE_URL) === false) {
+            return '';
+        }
+        $parts = parse_url($url);
+        if (!is_array($parts)
+            || !isset($parts['scheme'], $parts['host'])
+            || !in_array(strtolower((string) $parts['scheme']), ['http', 'https'], true)
+            || isset($parts['user'])
+            || isset($parts['pass'])) {
+            return '';
+        }
+        return $url;
+    }
+
     private static ?\Symfony\Component\HtmlSanitizer\HtmlSanitizerInterface $htmlSanitizer = null;
 
     private static function htmlSanitizer(): \Symfony\Component\HtmlSanitizer\HtmlSanitizerInterface
