@@ -870,6 +870,37 @@ class Repo
         return $ok ? (int) $this->db->insert_id : null;
     }
 
+    /**
+     * Update an existing meeting's editable fields. Scoped by club_id so a
+     * crafted meetingId from another club can never be edited through a club's
+     * own form. Status/minutes have their own setters and are not touched here.
+     *
+     * @param array<string, mixed> $data
+     */
+    public function updateMeeting(int $meetingId, int $clubId, array $data): bool
+    {
+        return $this->exec(
+            'UPDATE bookclub_meetings
+                SET club_book_id = ?, title = ?, agenda = ?, starts_at = ?, ends_at = ?,
+                    kind = ?, location = ?, video_url = ?, seats = ?
+              WHERE id = ? AND club_id = ?',
+            'isssssssiii',
+            [
+                $data['club_book_id'] !== null ? (int) $data['club_book_id'] : null,
+                (string) $data['title'],
+                (string) ($data['agenda'] ?? ''),
+                (string) $data['starts_at'],
+                $data['ends_at'] !== null ? (string) $data['ends_at'] : null,
+                (string) ($data['kind'] ?? 'in_person'),
+                (string) ($data['location'] ?? ''),
+                (string) ($data['video_url'] ?? ''),
+                $data['seats'] !== null ? (int) $data['seats'] : null,
+                $meetingId,
+                $clubId,
+            ]
+        );
+    }
+
     public function setMeetingStatus(int $meetingId, string $status): bool
     {
         return $this->exec('UPDATE bookclub_meetings SET status = ? WHERE id = ?', 'si', [$status, $meetingId]);

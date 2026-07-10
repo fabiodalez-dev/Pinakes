@@ -74,6 +74,55 @@ class MeetingController extends BaseController
         return $this->redirect($response, '/book-club/' . $slug);
     }
 
+    public function update(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $meetingId): ResponseInterface
+    {
+        $club = $this->repo->clubBySlug($slug);
+        if ($club === null || !$this->can($club, 'meetings.create')) {
+            return $this->notFound($response);
+        }
+        $meeting = $this->repo->meeting($meetingId);
+        if ($meeting === null || (int) $meeting['club_id'] !== (int) $club['id']) {
+            return $this->notFound($response);
+        }
+        $body = $request->getParsedBody();
+        $title = self::str($body, 'title', 190);
+        $startsAt = self::dateTimeOrNull(self::str($body, 'starts_at', 30));
+        if ($title === '' || $startsAt === null) {
+            $this->flash('error', __('Titolo e data di inizio sono obbligatori.'));
+            return $this->redirect($response, '/book-club/' . $slug);
+        }
+        $kind = self::str($body, 'kind', 20);
+        if (!in_array($kind, ['in_person', 'online', 'hybrid'], true)) {
+            $kind = 'in_person';
+        }
+        $videoUrl = self::str($body, 'video_url', 500);
+        if ($videoUrl !== '' && !preg_match('#^https?://#i', $videoUrl)) {
+            $videoUrl = '';
+        }
+        $clubBookId = self::intOrNull($body, 'club_book_id');
+        if ($clubBookId !== null) {
+            $book = $this->repo->clubBook($clubBookId);
+            if ($book === null || (int) $book['club_id'] !== (int) $club['id']) {
+                $clubBookId = null;
+            }
+        }
+
+        $ok = $this->repo->updateMeeting($meetingId, (int) $club['id'], [
+            'club_book_id' => $clubBookId,
+            'title' => $title,
+            'agenda' => self::str($body, 'agenda', 5000),
+            'starts_at' => $startsAt,
+            'ends_at' => self::dateTimeOrNull(self::str($body, 'ends_at', 30)),
+            'kind' => $kind,
+            'location' => self::str($body, 'location', 255),
+            'video_url' => $videoUrl,
+            'seats' => self::intOrNull($body, 'seats'),
+        ]);
+
+        $this->flash($ok ? 'success' : 'error', $ok ? __('Incontro aggiornato.') : __('Incontro non aggiornato, riprova.'));
+        return $this->redirect($response, '/book-club/' . $slug);
+    }
+
     public function rsvp(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $meetingId): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);

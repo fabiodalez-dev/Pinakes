@@ -395,7 +395,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
         <?php endif; ?>
         <?php foreach ($meetings as $meeting): ?>
           <?php $isPast = strtotime((string) $meeting['starts_at']) < time(); ?>
-          <div class="bc-row <?= $meeting['status'] === 'cancelled' ? 'bc-cancelled' : '' ?>">
+          <div id="bc-meeting-<?= (int) $meeting['id'] ?>" class="bc-row <?= $meeting['status'] === 'cancelled' ? 'bc-cancelled' : '' ?>">
             <div class="d-flex align-items-start justify-content-between gap-3">
               <div>
                 <div class="fw-semibold">
@@ -442,6 +442,48 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
                 <button name="status" value="cancelled" class="bc-btn bc-btn-danger bc-btn-sm"
                         onclick="return confirm('<?= $e(__('Annullare questo incontro?')) ?>');"><?= $e(__('Annulla incontro')) ?></button>
               </form>
+              <details class="mt-2 bc-meeting-edit">
+                <summary class="bc-summary"><?= $e(__('Modifica incontro')) ?></summary>
+                <form method="post" action="<?= $e(url('/book-club/' . $slug . '/meetings/' . (int) $meeting['id'] . '/edit')) ?>" class="mt-3">
+                  <input type="hidden" name="csrf_token" value="<?= $e($csrf) ?>">
+                  <input type="text" name="title" required maxlength="190" value="<?= $e((string) $meeting['title']) ?>" class="form-control mb-3">
+                  <div class="row g-2 mb-3">
+                    <div class="col-6 col-md-3">
+                      <input type="datetime-local" name="starts_at" required value="<?= $e(date('Y-m-d\TH:i', (int) strtotime((string) $meeting['starts_at']))) ?>" class="form-control form-control-sm" title="<?= $e(__('Inizio')) ?>">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <input type="datetime-local" name="ends_at" value="<?= !empty($meeting['ends_at']) ? $e(date('Y-m-d\TH:i', (int) strtotime((string) $meeting['ends_at']))) : '' ?>" class="form-control form-control-sm" title="<?= $e(__('Fine (facoltativa)')) ?>">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <select name="kind" class="form-select form-select-sm">
+                        <?php foreach ($kindLabels as $value => $label): ?>
+                          <option value="<?= $e($value) ?>" <?= $meeting['kind'] === $value ? 'selected' : '' ?>><?= $e($label) ?></option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <input type="number" name="seats" min="1" value="<?= $meeting['seats'] !== null ? (int) $meeting['seats'] : '' ?>" placeholder="<?= $e(__('Posti (illimitati)')) ?>" class="form-control form-control-sm">
+                    </div>
+                  </div>
+                  <div class="row g-2 mb-3">
+                    <div class="col-12 col-md-6">
+                      <input type="text" name="location" maxlength="255" value="<?= $e((string) ($meeting['location'] ?? '')) ?>" placeholder="<?= $e(__('Luogo')) ?>" class="form-control">
+                    </div>
+                    <div class="col-12 col-md-6">
+                      <input type="url" name="video_url" maxlength="500" value="<?= $e((string) ($meeting['video_url'] ?? '')) ?>" placeholder="<?= $e(__('Link videoconferenza')) ?>" class="form-control">
+                    </div>
+                  </div>
+                  <select name="club_book_id" class="form-select mb-3">
+                    <option value=""><?= $e(__('Nessun libro collegato')) ?></option>
+                    <?php foreach ($books as $book): ?>
+                      <?php if ($book['state'] === \App\Plugins\BookClub\BookClubPlugin::STATE_PENDING) { continue; } ?>
+                      <option value="<?= (int) $book['id'] ?>" <?= (int) ($meeting['club_book_id'] ?? 0) === (int) $book['id'] ? 'selected' : '' ?>><?= $e($book['titolo']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                  <textarea name="agenda" rows="2" maxlength="5000" placeholder="<?= $e(__('Ordine del giorno (facoltativo)')) ?>" class="form-control mb-3"><?= $e((string) ($meeting['agenda'] ?? '')) ?></textarea>
+                  <button type="submit" class="bc-btn bc-btn-sm"><?= $e(__('Salva modifiche')) ?></button>
+                </form>
+              </details>
             <?php endif; ?>
           </div>
         <?php endforeach; ?>
@@ -511,6 +553,9 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           <div class="bc-muted mt-1"><i class="far fa-clock me-1"></i><?= $e(date('d/m/Y H:i', (int) strtotime((string) $nextMeeting['starts_at']))) ?></div>
           <?php if (!empty($nextMeeting['location'])): ?>
             <div class="bc-muted"><i class="fas fa-map-marker-alt me-1"></i><?= $e($nextMeeting['location']) ?></div>
+          <?php endif; ?>
+          <?php if ($canManage): ?>
+            <a class="bc-btn bc-btn-outline bc-btn-sm mt-2" href="<?= $e(url('/book-club/' . $slug)) ?>#bc-meeting-<?= (int) $nextMeeting['id'] ?>"><i class="fas fa-pen me-1"></i><?= $e(__('Modifica incontro')) ?></a>
           <?php endif; ?>
         </section>
       <?php endif; ?>

@@ -629,6 +629,7 @@ class BookClubPlugin
 
         // Meetings
         $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/new', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->create($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
+        $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/edit', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->update($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
         $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/rsvp', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->rsvp($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
         $app->post('/book-club/{slug:[a-z0-9\-]+}/meetings/{meetingId:[0-9]+}/status', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $meetings->changeStatus($rq, $rs, (string) $a['slug'], (int) $a['meetingId']))->add($csrfMw)->add($authMw);
 

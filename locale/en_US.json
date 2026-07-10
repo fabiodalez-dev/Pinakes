@@ -6465,5 +6465,7 @@
   "Impossibile accedere alla fotocamera. Controlla i permessi del browser.": "Cannot access the camera. Check your browser permissions.",
   "Nessuna fotocamera trovata su questo dispositivo.": "No camera found on this device.",
   "Questo browser non supporta l'accesso alla fotocamera.": "This browser does not support camera access.",
-  "Impossibile avviare lo scanner.": "Unable to start the scanner."
+  "Impossibile avviare lo scanner.": "Unable to start the scanner.",
+  "Modifica incontro": "Edit meeting",
+  "Incontro non aggiornato, riprova.": "Meeting not updated, please try again."
 }
