@@ -10,7 +10,7 @@ $additional_css = "
 
     .contact-page {
         padding: 4rem 0;
-        background: white;
+        background: var(--white);
     }
 
     .contact-header {
@@ -21,7 +21,7 @@ $additional_css = "
     .contact-title {
         font-size: clamp(2rem, 4vw, 2.75rem);
         font-weight: 800;
-        color: #111827;
+        color: var(--text-color);
         margin-bottom: 1rem;
         letter-spacing: -0.02em;
     }
@@ -59,16 +59,16 @@ $additional_css = "
     }
 
     .contact-info-section {
-        background: #f9fafb;
+        background: var(--light-bg);
         border-radius: 16px;
         padding: 2.5rem;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
     }
 
     .contact-info-title {
         font-size: 1.5rem;
         font-weight: 700;
-        color: #111827;
+        color: var(--text-color);
         margin-bottom: 1.5rem;
     }
 
@@ -95,7 +95,7 @@ $additional_css = "
     .contact-info-content h4 {
         font-size: 0.875rem;
         font-weight: 600;
-        color: #6b7280;
+        color: var(--text-light);
         text-transform: uppercase;
         letter-spacing: 0.05em;
         margin: 0 0 0.5rem 0;
@@ -104,12 +104,12 @@ $additional_css = "
     .contact-info-content p {
         font-size: 1.125rem;
         font-weight: 500;
-        color: #111827;
+        color: var(--text-color);
         margin: 0;
     }
 
     .contact-info-content a {
-        color: #111827;
+        color: var(--text-color);
         text-decoration: none;
         transition: color 0.2s;
     }
@@ -121,7 +121,7 @@ $additional_css = "
     .contact-map {
         border-radius: 16px;
         overflow: hidden;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
         height: 400px;
         position: relative;
     }
@@ -159,13 +159,13 @@ $additional_css = "
     .map-blocked-title {
         font-size: 1.25rem;
         font-weight: 700;
-        color: #111827;
+        color: var(--text-color);
         margin-bottom: 0.75rem;
     }
 
     .map-blocked-description {
         font-size: 0.9375rem;
-        color: #6b7280;
+        color: var(--text-light);
         margin-bottom: 1.5rem;
         max-width: 400px;
     }
@@ -204,10 +204,10 @@ $additional_css = "
     }
 
     .contact-form-section {
-        background: white;
+        background: var(--white);
         border-radius: 16px;
         padding: 2.5rem;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
     }
 
     .form-row {
@@ -236,7 +236,7 @@ $additional_css = "
     }
 
     .form-label .required {
-        color: #ef4444;
+        color: var(--danger-color);
         margin-left: 0.25rem;
     }
 
@@ -244,10 +244,10 @@ $additional_css = "
     .form-textarea {
         width: 100%;
         padding: 0.875rem 1rem;
-        border: 1px solid #d1d5db;
+        border: 1px solid var(--border-color);
         border-radius: 10px;
         font-size: 1rem;
-        color: #111827;
+        color: var(--text-color);
         transition: all 0.2s;
         font-family: inherit;
     }

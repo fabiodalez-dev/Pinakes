@@ -106,8 +106,8 @@ $additional_css = "
 
     .page-hero {
         padding: 5rem 0 4rem;
-        background: #f8fafc;
-        border-bottom: 1px solid #e5e7eb;
+        background: var(--light-bg);
+        border-bottom: 1px solid var(--border-color);
         margin-bottom: 1.5rem;
     }
 
@@ -121,33 +121,33 @@ $additional_css = "
         gap: 0.4rem;
         padding: 0.35rem 0.85rem;
         border-radius: 999px;
-        background: #fff;
-        border: 1px solid #e5e7eb;
+        background: var(--white);
+        border: 1px solid var(--border-color);
         font-size: 0.85rem;
         font-weight: 600;
         letter-spacing: 0.04em;
         text-transform: uppercase;
         margin-bottom: 1rem;
-        color: #6b7280;
+        color: var(--text-light);
     }
 
     .page-hero__title {
         font-size: clamp(2rem, 4vw, 3rem);
         font-weight: 800;
-        color: #111827;
+        color: var(--text-color);
         margin-bottom: 0.75rem;
         letter-spacing: -0.02em;
     }
 
     .page-hero__subtitle {
-        color: #4b5563;
+        color: var(--text-light);
         font-size: 1.125rem;
         max-width: 640px;
     }
 
     .events-wrapper {
         padding: 3rem 0 4rem;
-        background: #fff;
+        background: var(--white);
     }
 
     .events-grid {
@@ -169,8 +169,8 @@ $additional_css = "
     }
 
     .event-card {
-        background: #fff;
-        border: 1px solid #e5e7eb;
+        background: var(--white);
+        border: 1px solid var(--border-color);
         border-radius: 16px;
         overflow: hidden;
         display: flex;
@@ -187,7 +187,7 @@ $additional_css = "
     .event-card__thumb {
         display: block;
         height: 230px;
-        background: #f3f4f6;
+        background: var(--accent-color);
     }
 
     .event-card__thumb img {
@@ -201,7 +201,7 @@ $additional_css = "
         display: flex;
         align-items: center;
         justify-content: center;
-        color: #9ca3af;
+        color: var(--text-muted);
         font-size: 2rem;
         height: 100%;
     }
@@ -217,7 +217,7 @@ $additional_css = "
     .event-card__title {
         font-size: 1.15rem;
         font-weight: 700;
-        color: #111827;
+        color: var(--text-color);
         margin: 0;
     }
 
@@ -233,7 +233,7 @@ $additional_css = "
     .event-card__meta {
         font-size: 0.95rem;
         font-weight: 600;
-        color: #4b5563;
+        color: var(--text-light);
         display: inline-flex;
         align-items: center;
         gap: 0.35rem;
@@ -251,15 +251,15 @@ $additional_css = "
         gap: 0.4rem;
         padding: 0.65rem 1rem;
         border-radius: 999px;
-        border: 1px solid #111827;
-        color: #111827;
+        border: 1px solid var(--text-color);
+        color: var(--text-color);
         font-weight: 600;
         text-decoration: none;
         transition: all 0.2s ease;
     }
 
     .event-card__button:hover {
-        background: #111827;
+        background: var(--text-color);
         color: #fff;
     }
 
@@ -268,17 +268,17 @@ $additional_css = "
         margin: 2rem auto 0;
         padding: 2.5rem 2rem;
         border-radius: 20px;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
         text-align: center;
-        background: #f9fafb;
+        background: var(--light-bg);
     }
 
     .events-empty__icon {
         width: 64px;
         height: 64px;
         border-radius: 16px;
-        background: #fff;
-        border: 1px solid #e5e7eb;
+        background: var(--white);
+        border: 1px solid var(--border-color);
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -300,11 +300,11 @@ $additional_css = "
         min-width: 44px;
         padding: 0.6rem 0.9rem;
         border-radius: 999px;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
         text-align: center;
         font-weight: 600;
         text-decoration: none;
-        color: #111827;
+        color: var(--text-color);
     }
 
     .events-pagination a:hover {
@@ -313,8 +313,8 @@ $additional_css = "
     }
 
     .events-pagination .is-active {
-        background: #111827;
-        border-color: #111827;
+        background: var(--text-color);
+        border-color: var(--text-color);
         color: #fff;
     }
 </style>

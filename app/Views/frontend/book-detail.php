@@ -505,7 +505,7 @@ $additional_css = "
 
     /* Layout senza tab - sezioni info */
     .book-description-section {
-        background: white;
+        background: var(--white);
         padding: 3rem;
         border-radius: 24px;
         margin-bottom: 2rem;
@@ -516,7 +516,7 @@ $additional_css = "
     }
 
     .book-details-section {
-        background: white;
+        background: var(--white);
         padding: 3rem;
         border-radius: 24px;
         margin-bottom: 2rem;
@@ -540,7 +540,7 @@ $additional_css = "
     }
 
     .book-reviews-section {
-        background: white;
+        background: var(--white);
         padding: 3rem;
         border-radius: 24px;
         margin-bottom: 2rem;
@@ -712,7 +712,7 @@ $additional_css = "
     }
 
     .book-meta {
-        background: white;
+        background: var(--white);
         padding: 3rem;
         border-radius: 24px;
         margin-top: -4rem;
@@ -820,7 +820,7 @@ $additional_css = "
 
     .description-content {
         line-height: 1.8;
-        color: #000000;
+        color: var(--text-color);
         font-size: 1.1rem;
         font-weight: 400;
     }
@@ -992,8 +992,8 @@ $additional_css = "
         width: min(720px, 95vw) !important;
         padding: 2.5rem 2.75rem 2.25rem !important;
         border-radius: 18px !important;
-        background: #ffffff !important;
-        color: #111827 !important;
+        background: var(--white) !important;
+        color: var(--text-color) !important;
         border: 1px solid rgba(17, 24, 39, 0.15) !important;
         box-shadow: 0 35px 120px rgba(17, 24, 39, 0.28) !important;
     }
@@ -1002,7 +1002,7 @@ $additional_css = "
     .swal2-popup .swal2-html-container,
     .swal2-popup label,
     .swal2-popup .text-muted {
-        color: #111827 !important;
+        color: var(--text-color) !important;
     }
 
     .swal2-popup .swal2-actions .swal2-styled {
@@ -1038,7 +1038,7 @@ $additional_css = "
     .swal2-popup .swal2-styled.swal2-cancel:focus {
         background: rgba(17, 24, 39, 0.08) !important;
         border-color: rgba(17, 24, 39, 0.4) !important;
-        color: #000000 !important;
+        color: var(--text-color) !important;
     }
 
     .action-buttons .btn-danger {
@@ -1462,11 +1462,11 @@ $additional_css = "
 
     /* Related Books Section */
     .related-book-card {
-        background: white;
+        background: var(--white);
         border-radius: 16px;
         overflow: hidden;
         transition: all 0.3s ease;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
         height: 100%;
         display: flex;
         flex-direction: column;
@@ -1482,7 +1482,7 @@ $additional_css = "
         width: 100%;
         padding-top: 140%;
         overflow: hidden;
-        background: #f3f4f6;
+        background: var(--light-bg);
     }
 
     .related-book-image {
@@ -1514,7 +1514,8 @@ $additional_css = "
         font-size: 1rem;
         line-height: 1;
         white-space: nowrap;
-        background: rgba(16, 185, 129, 0.95);
+        background: var(--success-color); /* fallback for browsers without color-mix() */
+        background: color-mix(in srgb, var(--success-color) 95%, transparent);
         color: white;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
@@ -1541,7 +1542,7 @@ $additional_css = "
     }
 
     .related-book-title a {
-        color: #1a1a1a;
+        color: var(--text-color);
         text-decoration: none;
         display: -webkit-box;
         -webkit-line-clamp: 2;
@@ -1555,7 +1556,7 @@ $additional_css = "
 
     .related-book-author {
         font-size: 0.9rem;
-        color: #6b7280;
+        color: var(--text-light);
         margin-bottom: 1rem;
         display: -webkit-box;
         -webkit-line-clamp: 1;
@@ -1598,9 +1599,9 @@ $additional_css = "
 
     /* Favorites button custom styling */
     .btn-fav-custom {
-        background-color: #ffffff !important;
-        border: 1px solid #dee2e6 !important;
-        color: #6c757d !important;
+        background-color: var(--white) !important;
+        border: 1px solid var(--border-color) !important;
+        color: var(--text-light) !important;
         transition: all 0.3s ease;
     }
 
@@ -1617,7 +1618,7 @@ $additional_css = "
         box-shadow: 0 0 0 0.25rem rgba(33, 37, 41, 0.5);
     }
     .card {
-    background-color: white;
+    background-color: var(--white);
     }
     div#book-cover-container {
     max-width: 400px;
@@ -2279,22 +2280,22 @@ ob_start();
 
 <!-- Series Section (other volumes in the same collana) -->
 <?php if (!empty($seriesBooks)): ?>
-<section class="py-4" style="margin-top: 2rem;">
+<section class="py-3" style="margin-top: 1.5rem;">
     <div class="container">
-        <h3 class="text-center mb-4" style="font-weight: 700; font-size: 1.5rem; color: #1a1a1a;">
-            <i class="fas fa-layer-group" style="color: #6366f1;"></i>
+        <h3 class="text-center mb-3" style="font-weight: 600; font-size: 1.05rem;">
+            <i class="fas fa-layer-group" style="color: var(--primary-color);"></i>
             <?= __("Nella stessa collana") ?>: <em><?= htmlspecialchars($collana, ENT_QUOTES, 'UTF-8') ?></em>
         </h3>
-        <div class="d-flex flex-wrap justify-content-center gap-3">
+        <div class="d-flex flex-wrap justify-content-center gap-2">
             <?php foreach ($seriesBooks as $sb):
                 $sbPath = book_path(['id' => $sb['id'], 'titolo' => $sb['titolo'], 'autore_principale' => $sb['autore_principale'] ?? '']);
             ?>
             <a href="<?= htmlspecialchars(url($sbPath), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none">
-                <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill" style="background: #eef2ff; border: 1px solid #c7d2fe; transition: all .2s;">
+                <div class="d-flex align-items-center gap-2 px-2 py-1 rounded-pill" style="background: color-mix(in srgb, var(--primary-color) 8%, transparent); border: 1px solid color-mix(in srgb, var(--primary-color) 25%, transparent); transition: all .2s;">
                     <?php if (!empty($sb['numero_serie'])): ?>
-                    <span class="badge" style="background: #6366f1; color: white; font-size: 0.75rem;"><?= htmlspecialchars($sb['numero_serie'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span class="badge" style="background: var(--primary-color); color: #fff; font-size: 0.7rem;"><?= htmlspecialchars($sb['numero_serie'], ENT_QUOTES, 'UTF-8') ?></span>
                     <?php endif; ?>
-                    <span style="color: #4338ca; font-weight: 500;"><?= htmlspecialchars($sb['titolo'], ENT_QUOTES, 'UTF-8') ?></span>
+                    <span style="color: var(--primary-color); font-weight: 500; font-size: 0.85rem;"><?= htmlspecialchars($sb['titolo'], ENT_QUOTES, 'UTF-8') ?></span>
                 </div>
             </a>
             <?php endforeach; ?>
@@ -2305,9 +2306,12 @@ ob_start();
 
 <!-- Related Books Section -->
 <?php if (!empty($related_books) && count($related_books) > 0): ?>
-<section class="py-5" style="background: #f9fafb; margin-top: 3rem;">
+<section class="py-5" style="background: var(--light-bg); margin-top: 3rem;">
     <div class="container">
-        <h3 class="text-center mb-5" style="font-weight: 700; font-size: 2rem; color: #1a1a1a;"><?= __("Potrebbero interessarti") ?></h3>
+        <h2 class="section-title">
+            <i class="fas fa-lightbulb"></i>
+            <?= __("Potrebbero interessarti") ?>
+        </h2>
         <div class="row g-4">
             <?php foreach($related_books as $related): ?>
             <div class="col-lg-4 col-md-6">

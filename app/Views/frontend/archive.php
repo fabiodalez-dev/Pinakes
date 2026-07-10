@@ -79,13 +79,13 @@ $additional_css = "
     }
 
     .author-info {
-        background: white;
+        background: var(--white);
         border-radius: 16px;
         padding: 2rem;
         margin: 2rem auto 3rem;
         max-width: 900px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
     }
 
     .author-info-grid {
@@ -102,7 +102,7 @@ $additional_css = "
     }
 
     .info-item i {
-        color: #6b7280;
+        color: var(--text-light);
         font-size: 1.125rem;
         margin-top: 0.125rem;
     }
@@ -118,7 +118,7 @@ $additional_css = "
 
     .info-label {
         font-size: 0.8125rem;
-        color: #9ca3af;
+        color: var(--text-muted);
         font-weight: 500;
         text-transform: uppercase;
         letter-spacing: 0.025em;
@@ -127,7 +127,7 @@ $additional_css = "
 
     .info-value {
         font-size: 1rem;
-        color: #111827;
+        color: var(--text-color);
         font-weight: 500;
     }
 
@@ -138,7 +138,7 @@ $additional_css = "
     }
 
     .info-value a:hover {
-        color: #3b82f6;
+        color: var(--primary-color);
     }
 
     .author-bio {
@@ -147,7 +147,7 @@ $additional_css = "
         color: #4b5563;
         padding-top: 1.5rem;
         padding-bottom: 1.5rem;
-        border-top: 1px solid #e5e7eb;
+        border-top: 1px solid var(--border-color);
     }
 
     .books-section-header {
@@ -160,7 +160,7 @@ $additional_css = "
     .section-title {
         font-size: 1.75rem;
         font-weight: 700;
-        color: #111827;
+        color: var(--text-color);
         margin: 0;
     }
 
@@ -195,10 +195,10 @@ $additional_css = "
     }
 
     .book-card {
-        background: white;
+        background: var(--white);
         border-radius: 16px;
         overflow: hidden;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
         transition: all 0.3s ease;
         display: flex;
         flex-direction: column;
@@ -214,7 +214,7 @@ $additional_css = "
     .book-image-container {
         position: relative;
         padding-top: 140%;
-        background: #f3f4f6;
+        background: var(--light-bg);
         overflow: hidden;
     }
 
@@ -242,17 +242,20 @@ $additional_css = "
     }
 
     .status-available {
-        background: rgba(16, 185, 129, 0.9);
+        background: var(--success-color); /* fallback for browsers without color-mix() */
+        background: color-mix(in srgb, var(--success-color) 90%, transparent);
         color: white;
     }
 
     .status-borrowed {
-        background: rgba(239, 68, 68, 0.9);
+        background: var(--danger-color); /* fallback for browsers without color-mix() */
+        background: color-mix(in srgb, var(--danger-color) 90%, transparent);
         color: white;
     }
 
     .status-reserved {
-        background: rgba(245, 158, 11, 0.9);
+        background: var(--warning-color); /* fallback for browsers without color-mix() */
+        background: color-mix(in srgb, var(--warning-color) 90%, transparent);
         color: white;
     }
 
@@ -266,7 +269,7 @@ $additional_css = "
     .book-title {
         font-size: 1.0625rem;
         font-weight: 600;
-        color: #111827;
+        color: var(--text-color);
         margin-bottom: 0.5rem;
         line-height: 1.4;
         display: -webkit-box;
@@ -282,19 +285,19 @@ $additional_css = "
     }
 
     .book-title a:hover {
-        color: #3b82f6;
+        color: var(--primary-color);
     }
 
     .book-author {
         font-size: 0.9375rem;
-        color: #6b7280;
+        color: var(--text-light);
         margin-bottom: 0.75rem;
     }
 
     .book-meta {
         flex: 1;
         font-size: 0.875rem;
-        color: #9ca3af;
+        color: var(--text-muted);
         margin-bottom: 1rem;
     }
 
@@ -356,8 +359,8 @@ $additional_css = "
         display: flex;
         align-items: center;
         padding: 0.625rem 1rem;
-        background: white;
-        border: 1px solid #e5e7eb;
+        background: var(--white);
+        border: 1px solid var(--border-color);
         border-radius: 8px;
         color: #374151;
         text-decoration: none;
@@ -366,9 +369,9 @@ $additional_css = "
     }
 
     .page-link:hover {
-        background: #f9fafb;
+        background: var(--light-bg);
         border-color: #1f2937;
-        color: #111827;
+        color: var(--text-color);
     }
 
     .page-item.active .page-link {
@@ -380,9 +383,9 @@ $additional_css = "
     .empty-state {
         text-align: center;
         padding: 4rem 2rem;
-        background: white;
+        background: var(--white);
         border-radius: 16px;
-        border: 1px solid #e5e7eb;
+        border: 1px solid var(--border-color);
     }
 
     .empty-state i {
@@ -394,12 +397,12 @@ $additional_css = "
     .empty-state h5 {
         font-size: 1.5rem;
         font-weight: 600;
-        color: #111827;
+        color: var(--text-color);
         margin-bottom: 0.5rem;
     }
 
     .empty-state p {
-        color: #6b7280;
+        color: var(--text-light);
         margin-bottom: 2rem;
     }
 

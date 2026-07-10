@@ -89,14 +89,14 @@ $getBookStatusBadge = static function ($book) {
 <style>
 /* Exact same styling as catalog.php */
 :root {
-    --dark-color: #111827;
+    --dark-color: var(--text-color);
     --dark-hover: #374151;
-    --text-primary: #1f2937;
-    --text-secondary: #6b7280;
-    --text-muted: #9ca3af;
-    --bg-primary: #ffffff;
-    --bg-secondary: #f9fafb;
-    --bg-tertiary: #f3f4f6;
+    --text-primary: var(--text-color);
+    --text-secondary: var(--text-light);
+    --text-muted: #64748b;
+    --bg-primary: var(--white);
+    --bg-secondary: var(--light-bg);
+    --bg-tertiary: var(--accent-color);
     --border-color: #e5e7eb;
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
     --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -157,17 +157,20 @@ $getBookStatusBadge = static function ($book) {
 }
 
 .status-available {
-    background: rgba(16, 185, 129, 0.9);
+    background: var(--success-color); /* fallback for browsers without color-mix() */
+    background: color-mix(in srgb, var(--success-color) 90%, transparent);
     color: white;
 }
 
 .status-borrowed {
-    background: rgba(239, 68, 68, 0.9);
+    background: var(--danger-color); /* fallback for browsers without color-mix() */
+    background: color-mix(in srgb, var(--danger-color) 90%, transparent);
     color: white;
 }
 
 .status-reserved {
-    background: rgba(245, 158, 11, 0.9);
+    background: var(--warning-color); /* fallback for browsers without color-mix() */
+    background: color-mix(in srgb, var(--warning-color) 90%, transparent);
     color: white;
 }
 
@@ -203,7 +206,7 @@ $getBookStatusBadge = static function ($book) {
     line-height: 1.35;
     margin-top: -0.25rem;
     margin-bottom: 0.5rem;
-    color: var(--text-secondary, #6b7280);
+    color: var(--text-secondary, var(--text-light));
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;

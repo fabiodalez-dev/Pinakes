@@ -123,7 +123,7 @@ $encodedTitle = rawurlencode($shareTitle);
   function showCopyFeedback(btn) {
     var origTitle = btn.getAttribute('title');
     btn.setAttribute('title', <?= json_encode(__('Link copiato!'), JSON_HEX_TAG) ?>);
-    btn.style.backgroundColor = '#22c55e';
+    btn.style.backgroundColor = 'var(--success-color)';
     var icon = btn.querySelector('i');
     if (icon) {
       var origClass = icon.className;

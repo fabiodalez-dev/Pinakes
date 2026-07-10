@@ -267,9 +267,15 @@ $htmlLang = substr($currentLocale, 0, 2);
             --accent-color: #f1f5f9;
             --text-color: #0f172a;
             --text-light: #6b7280;
-            --text-muted: #94a3b8;
+            /* WCAG AA on white for normal-size metadata text. */
+            --text-muted: #64748b;
             --light-bg: #f8f9fa;
             --white: #ffffff;
+            /* Aliases so views that reference these names resolve globally
+               (the mobile-menu header and the catalog use them; without a
+               global definition they fell back to transparent/inherited). */
+            --bg-primary: var(--white);
+            --dark-color: var(--text-color);
             --card-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
             --card-shadow-hover: 0 8px 30px rgba(15, 23, 42, 0.12);
             --border-color: #e2e8f0;
@@ -436,6 +442,8 @@ $htmlLang = substr($currentLocale, 0, 2);
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 44px;
+            height: 44px;
             transition: color 0.3s ease;
         }
 
@@ -536,7 +544,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             position: absolute;
             top: calc(100% + 8px);
             right: 0;
-            background: white;
+            background: var(--white);
             border-radius: 12px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.15);
             min-width: 200px;
@@ -771,6 +779,8 @@ $htmlLang = substr($currentLocale, 0, 2);
             display: flex;
             align-items: center;
             justify-content: center;
+            width: 44px;
+            height: 44px;
             transition: color 0.3s ease;
         }
 
@@ -883,13 +893,15 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .status-available {
-            background: rgba(16, 185, 129, 0.9);
+            background: var(--success-color); /* fallback for browsers without color-mix() */
+            background: color-mix(in srgb, var(--success-color) 90%, transparent);
             color: white;
             box-shadow: none;
         }
 
         .status-borrowed {
-            background: rgba(239, 68, 68, 0.9);
+            background: var(--danger-color); /* fallback for browsers without color-mix() */
+            background: color-mix(in srgb, var(--danger-color) 90%, transparent);
             color: white;
             box-shadow: none;
         }
@@ -928,17 +940,17 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         /* Elegant Footer */
         .footer {
-            background: #f8fafc;
-            color: #0f172a;
+            background: var(--light-bg);
+            color: var(--text-color);
             padding: 4rem 0 1.5rem;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid var(--border-color);
         }
 
         .footer h5 {
             font-weight: 700;
             margin-bottom: 1.25rem;
             letter-spacing: -0.01em;
-            color: #0f172a;
+            color: var(--text-color);
         }
 
         .footer-logo {
@@ -970,14 +982,14 @@ $htmlLang = substr($currentLocale, 0, 2);
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: #e2e8f0;
-            color: #0f172a;
+            background: var(--border-color);
+            color: var(--text-color);
             transition: background 0.2s ease, color 0.2s ease;
         }
 
         .footer .social-links a:hover {
             background: #cbd5f5;
-            color: #0f172a;
+            color: var(--text-color);
         }
 
         /* Responsive Design */
@@ -1102,7 +1114,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
         /* Utility Classes */
         .text-muted {
-            color: #6c757d !important;
+            color: var(--text-light) !important;
         }
 
         .text-center {
@@ -1163,7 +1175,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             width: 80%;
             max-width: 320px;
             height: 100vh;
-            background: white;
+            background: var(--white);
             box-shadow: -4px 0 20px rgba(0, 0, 0, 0.1);
             transform: translateX(100%);
             transition: transform 0.3s ease;
@@ -1180,7 +1192,7 @@ $htmlLang = substr($currentLocale, 0, 2);
             align-items: center;
             justify-content: space-between;
             padding: 1.5rem;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid var(--border-color);
             background: var(--bg-primary);
         }
 
@@ -1200,6 +1212,8 @@ $htmlLang = substr($currentLocale, 0, 2);
             display: flex;
             align-items: center;
             justify-content: center;
+            min-width: 44px;
+            min-height: 44px;
             transition: color 0.3s ease;
         }
 
@@ -1228,7 +1242,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         }
 
         .mobile-nav-link.active {
-            background: rgba(59, 130, 246, 0.1);
+            background: color-mix(in srgb, var(--primary-color) 10%, transparent);
             color: var(--primary-color);
             border-left: 3px solid var(--primary-color);
         }
@@ -1241,7 +1255,7 @@ $htmlLang = substr($currentLocale, 0, 2);
         .mobile-menu-divider {
             margin: 0.5rem 1.5rem;
             border: none;
-            border-top: 1px solid #e5e7eb;
+            border-top: 1px solid var(--border-color);
         }
 
         <?= $additional_css ?? '' ?>
@@ -1756,8 +1770,8 @@ $htmlLang = substr($currentLocale, 0, 2);
                     'top: calc(100% + 15px);' +
                     'left: -20px;' +
                     'right: -20px;' +
-                    'background: white;' +
-                    'border: 1px solid #e5e7eb;' +
+                    'background: var(--white);' +
+                    'border: 1px solid var(--border-color);' +
                     'border-radius: 0.75rem;' +
                     'box-shadow: 0 10px 40px rgba(0,0,0,0.15);' +
                     (isMobile ? 'max-height: 70vh;' : 'max-height: 600px;') +
@@ -1849,7 +1863,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
             function displaySearchResults(results, container) {
                 if (!Array.isArray(results) || results.length === 0) {
-                    container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: #9ca3af;">' + __('Nessun risultato trovato') + '</div>';
+                    container.innerHTML = '<div class="search-no-results" style="padding: 1rem; text-align: center; color: var(--text-muted);">' + __('Nessun risultato trovato') + '</div>';
                     container.style.display = 'block';
                     return;
                 }
@@ -1864,7 +1878,7 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                 // Books section
                 if (books.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Libri') + '</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Libri') + '</h6>';
                     books.forEach(book => {
                         const bookUrl = sanitizeUrl(book.url ?? '#');
                         const coverUrl = sanitizeUrl(book.cover ?? '');
@@ -1873,13 +1887,13 @@ $htmlLang = substr($currentLocale, 0, 2);
                         const bookAuthor = escapeHtml(book.author ?? '');
                         const bookYear = escapeHtml(book.year ?? '');
 
-                        html += '<a href="' + bookUrl + '" class="search-result-item book-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                        html += '<a href="' + bookUrl + '" class="search-result-item book-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
                             '<img src="' + coverUrl + '" alt="' + bookTitle + '" class="search-book-cover" style="width: 40px; height: 60px; object-fit: contain; border-radius: 0.25rem; margin-right: 0.75rem;">' +
                             '<div class="search-book-info">' +
-                            '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: #000000;">' + bookTitle + '</div>' +
-                            (book.subtitle ? '<div class="search-book-subtitle" style="font-size: 0.75rem; font-style: italic; color: #6b7280; margin-bottom: 0.125rem; text-align: left;">' + bookSubtitle + '</div>' : '') +
-                            (book.author ? '<div class="search-book-author" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.125rem; text-align: left;">' + bookAuthor + '</div>' : '') +
-                            (book.year ? '<div class="search-book-year" style="font-size: 0.75rem; color: #9ca3af; text-align: left;">' + bookYear + '</div>' : '') +
+                            '<div class="search-book-title" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; line-height: 1.2; color: var(--text-color);">' + bookTitle + '</div>' +
+                            (book.subtitle ? '<div class="search-book-subtitle" style="font-size: 0.75rem; font-style: italic; color: var(--text-light); margin-bottom: 0.125rem; text-align: left;">' + bookSubtitle + '</div>' : '') +
+                            (book.author ? '<div class="search-book-author" style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.125rem; text-align: left;">' + bookAuthor + '</div>' : '') +
+                            (book.year ? '<div class="search-book-year" style="font-size: 0.75rem; color: var(--text-muted); text-align: left;">' + bookYear + '</div>' : '') +
                             '</div>' +
                             '</a>';
                     });
@@ -1888,19 +1902,19 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                 // Authors section
                 if (authors.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Autori') + '</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Autori') + '</h6>';
                     authors.forEach(author => {
                         const authorUrl = sanitizeUrl(author.url ?? '#');
                         const authorName = escapeHtml(author.name ?? '');
                         const authorBooks = escapeHtml(author.book_count ?? '0') + __(' libri');
                         const authorBio = escapeHtml(author.biography ?? '');
 
-                        html += '<a href="' + authorUrl + '" class="search-result-item author-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
-                            '<div class="search-author-icon" style="width: 40px; height: 40px; background: #f3f4f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: #6b7280;"><i class="fas fa-user"></i></div>' +
+                        html += '<a href="' + authorUrl + '" class="search-result-item author-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                            '<div class="search-author-icon" style="width: 40px; height: 40px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light);"><i class="fas fa-user"></i></div>' +
                             '<div class="search-author-info">' +
-                            '<div class="search-author-name" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: #000000;">' + authorName + '</div>' +
-                            '<div class="search-author-books" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.125rem;">' + authorBooks + '</div>' +
-                            (author.biography ? '<div class="search-author-bio" style="font-size: 0.75rem; color: #9ca3af; line-height: 1.2;">' + authorBio + '</div>' : '') +
+                            '<div class="search-author-name" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-color);">' + authorName + '</div>' +
+                            '<div class="search-author-books" style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.125rem;">' + authorBooks + '</div>' +
+                            (author.biography ? '<div class="search-author-bio" style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.2;">' + authorBio + '</div>' : '') +
                             '</div>' +
                             '</a>';
                     });
@@ -1909,19 +1923,19 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                 // Publishers section
                 if (publishers.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Editori') + '</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Editori') + '</h6>';
                     publishers.forEach(publisher => {
                         const publisherUrl = sanitizeUrl(publisher.url ?? '#');
                         const publisherName = escapeHtml(publisher.name ?? '');
                         const publisherBooks = escapeHtml(publisher.book_count ?? '0') + __(' libri');
                         const publisherDesc = escapeHtml(publisher.description ?? '');
 
-                        html += '<a href="' + publisherUrl + '" class="search-result-item publisher-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
-                            '<div class="search-publisher-icon" style="width: 40px; height: 40px; background: #f3f4f6; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: #6b7280;"><i class="fas fa-building"></i></div>' +
+                        html += '<a href="' + publisherUrl + '" class="search-result-item publisher-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                            '<div class="search-publisher-icon" style="width: 40px; height: 40px; background: var(--accent-color); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--text-light);"><i class="fas fa-building"></i></div>' +
                             '<div class="search-publisher-info">' +
-                            '<div class="search-publisher-name" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: #000000;">' + publisherName + '</div>' +
-                            '<div class="search-publisher-books" style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.125rem;">' + publisherBooks + '</div>' +
-                            (publisher.description ? '<div class="search-publisher-desc" style="font-size: 0.75rem; color: #9ca3af; line-height: 1.2;">' + publisherDesc + '</div>' : '') +
+                            '<div class="search-publisher-name" style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.25rem; color: var(--text-color);">' + publisherName + '</div>' +
+                            '<div class="search-publisher-books" style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.125rem;">' + publisherBooks + '</div>' +
+                            (publisher.description ? '<div class="search-publisher-desc" style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.2;">' + publisherDesc + '</div>' : '') +
                             '</div>' +
                             '</a>';
                     });
@@ -1930,16 +1944,16 @@ $htmlLang = substr($currentLocale, 0, 2);
 
                 // Archives section
                 if (archives.length > 0) {
-                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid #f3f4f6;"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Archivio') + '</h6>';
+                    html += '<div class="search-section" style="padding: 0.75rem 0; border-bottom: 1px solid var(--accent-color);"><h6 class="search-section-title" style="margin: 0 1rem 0.5rem; font-size: 0.875rem; font-weight: 600; color: #374151;">' + __('Archivio') + '</h6>';
                     archives.forEach(arc => {
                         const arcUrl = sanitizeUrl(arc.url ?? '#');
                         const arcLabel = escapeHtml(arc.label ?? '');
                         const arcRef = escapeHtml(arc.identifier ?? '');
-                        html += '<a href="' + arcUrl + '" class="search-result-item archive-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: #000000; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#f9fafb\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
-                            '<div style="width: 40px; height: 40px; background: #dcfce7; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: #16a34a; flex-shrink: 0;"><i class="fas fa-archive" aria-hidden="true"></i></div>' +
+                        html += '<a href="' + arcUrl + '" class="search-result-item archive-result" style="display: flex; align-items: center; padding: 0.75rem 1rem; text-decoration: none; color: var(--text-color); transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--light-bg)\'" onmouseout="this.style.backgroundColor=\'transparent\'">' +
+                            '<div style="width: 40px; height: 40px; background: color-mix(in srgb, var(--success-color) 15%, transparent); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-right: 0.75rem; color: var(--success-color); flex-shrink: 0;"><i class="fas fa-archive" aria-hidden="true"></i></div>' +
                             '<div>' +
-                            '<div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.125rem; color: #000000;">' + arcLabel + '</div>' +
-                            (arcRef ? '<div style="font-size: 0.75rem; color: #6b7280; font-family: monospace;">' + arcRef + '</div>' : '') +
+                            '<div style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.125rem; color: var(--text-color);">' + arcLabel + '</div>' +
+                            (arcRef ? '<div style="font-size: 0.75rem; color: var(--text-light); font-family: monospace;">' + arcRef + '</div>' : '') +
                             '</div>' +
                             '</a>';
                     });
@@ -1949,7 +1963,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                 // Add "View all results" link
                 html += '<div class="search-section" style="padding: 0.75rem 1rem;">' +
                     '<a href="' + <?= json_encode(absoluteUrl($catalogRoute), JSON_HEX_TAG | JSON_HEX_AMP) ?> + '?search=' + encodeURIComponent(currentSearchInput.value) + '"' +
-                    ' class="search-view-all" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem; background: #f3f4f6; border-radius: 0.375rem; text-decoration: none; color: #000000; font-weight: 500; font-size: 0.875rem; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'#e5e7eb\'" onmouseout="this.style.backgroundColor=\'#f3f4f6\'">' +
+                    ' class="search-view-all" style="display: flex; align-items: center; justify-content: center; padding: 0.5rem; background: var(--accent-color); border-radius: 0.375rem; text-decoration: none; color: var(--text-color); font-weight: 500; font-size: 0.875rem; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor=\'var(--border-color)\'" onmouseout="this.style.backgroundColor=\'var(--accent-color)\'">' +
                     searchViewAllLabel + ' <i class="fas fa-arrow-right" style="margin-left: 0.5rem; font-size: 0.75rem;"></i>' +
                     '</a>' +
                     '</div>';

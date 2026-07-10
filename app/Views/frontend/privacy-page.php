@@ -22,7 +22,7 @@ $additional_css = "
 .privacy-header h1 {
     font-size: clamp(2rem, 4vw, 2.75rem);
     font-weight: 800;
-    color: #111827;
+    color: var(--text-color);
     letter-spacing: -0.02em;
     margin-bottom: 1rem;
 }
@@ -30,7 +30,7 @@ $additional_css = "
 .privacy-divider {
     width: 80px;
     height: 4px;
-    background: #1f2937;
+    background: var(--text-color);
     margin: 0 auto 1.5rem;
     border-radius: 999px;
 }
@@ -39,14 +39,14 @@ $additional_css = "
     max-width: 900px;
     margin: 0 auto;
     line-height: 1.8;
-    color: #374151;
+    color: var(--text-color);
     font-size: 1rem;
 }
 
 .privacy-content h2,
 .privacy-content h3,
 .privacy-content h4 {
-    color: #111827;
+    color: var(--text-color);
     margin-top: 2rem;
     font-weight: 700;
 }
