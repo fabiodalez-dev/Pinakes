@@ -799,6 +799,21 @@ class Repo
             $this->attachPrimaryPublisher($libroId, $publisherId);
             SearchIndexBuilder::rebuild($this->db, $libroId);
 
+            // Give the acquired book one physical copy, matching how the normal
+            // catalogue-creation flow (LibriController) seeds copies. `libri`
+            // defaults copie_totali/copie_disponibili to 1, so WITHOUT a matching
+            // `copie` row the book would claim one available copy but have none
+            // to lend — and the per-copy features (labels, loan/return by code)
+            // would find nothing. Inventory number LIB-{id}, same as a single
+            // manually-created copy; the whole thing is inside this transaction.
+            if (!$this->exec(
+                "INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (?, ?, 'disponibile')",
+                'is',
+                [$libroId, 'LIB-' . $libroId]
+            )) {
+                throw new \RuntimeException('catalog copy creation failed');
+            }
+
             $bookRows = $this->execAffected(
                 'UPDATE bookclub_books SET libro_id = ?, external_book_id = NULL WHERE id = ? AND external_book_id = ?',
                 'iii',

@@ -122,7 +122,8 @@ test.describe.serial('Book Club — Uwe feedback', () => {
       dbQuery(`DELETE FROM bookclub_external_books WHERE club_id=${Number(clubId)}`);
       dbQuery(`DELETE FROM bookclub_clubs WHERE id=${Number(clubId)}`);
     }
-    // The acquisition test creates a real libri row — remove it too.
+    // The acquisition test creates a real libri row + its physical copy — remove both.
+    dbQuery(`DELETE FROM copie WHERE libro_id IN (SELECT id FROM libri WHERE titolo IN (${sqlStr(EXT_TITLE)}, ${sqlStr(EXT_TITLE_2)}))`);
     dbQuery(`DELETE FROM libri WHERE titolo IN (${sqlStr(EXT_TITLE)}, ${sqlStr(EXT_TITLE_2)})`);
     dbQuery(`DELETE FROM autori WHERE nome IN (${sqlStr(EXT_AUTHOR_1)}, ${sqlStr(EXT_AUTHOR_2)})`);
     dbQuery(`DELETE FROM editori WHERE nome=${sqlStr(EXT_PUBLISHER)}`);
@@ -278,6 +279,12 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     expect(after).toContain(String(libroId)); // repointed to the new catalogue row
     expect(after).toContain('NULL');           // external_book_id cleared
     expect(dbQuery(`SELECT acquired_libro_id FROM bookclub_external_books WHERE id=${first.extBookId}`)).toBe(String(libroId));
+    // The acquired book must have a real physical copy: libri.copie_totali
+    // defaults to 1, so without a matching `copie` row it would claim an
+    // available copy it cannot lend.
+    expect(dbQuery(`SELECT COUNT(*) FROM copie WHERE libro_id=${libroId}`),
+      'acquired book must have exactly one physical copy').toBe('1');
+    expect(dbQuery(`SELECT stato FROM copie WHERE libro_id=${libroId}`)).toBe('disponibile');
     const acquiredAuthors = dbQuery(
       `SELECT GROUP_CONCAT(a.nome ORDER BY la.ordine_credito SEPARATOR '|') ` +
       `FROM libri_autori la JOIN autori a ON a.id=la.autore_id WHERE la.libro_id=${libroId}`
