@@ -6467,5 +6467,18 @@
   "Questo browser non supporta l'accesso alla fotocamera.": "Dieser Browser unterstützt keinen Kamerazugriff.",
   "Impossibile avviare lo scanner.": "Scanner konnte nicht gestartet werden.",
   "Modifica incontro": "Treffen bearbeiten",
-  "Incontro non aggiornato, riprova.": "Treffen nicht aktualisiert, bitte erneut versuchen."
+  "Incontro non aggiornato, riprova.": "Treffen nicht aktualisiert, bitte erneut versuchen.",
+  "Proposta esterna": "Externer Vorschlag",
+  "Questo libro non è ancora nel catalogo della biblioteca.": "Dieses Buch ist noch nicht im Bibliothekskatalog.",
+  "Acquisisci in catalogo": "In den Katalog übernehmen",
+  "Crea la voce di catalogo da questa proposta esterna.": "Erstelle den Katalogeintrag aus diesem externen Vorschlag.",
+  "Il libro non è in catalogo?": "Buch nicht im Katalog?",
+  "Proponi un libro non ancora presente in biblioteca. Non verrà aggiunto al catalogo finché il club non lo sceglie e un responsabile lo acquisisce.": "Schlage ein Buch vor, das noch nicht in der Bibliothek ist. Es wird erst zum Katalog hinzugefügt, wenn der Club es auswählt und ein Verantwortlicher es übernimmt.",
+  "Autore/i": "Autor(en)",
+  "Editore (facoltativo)": "Verlag (optional)",
+  "Proponi libro esterno": "Externes Buch vorschlagen",
+  "Inserisci almeno il titolo del libro.": "Gib mindestens den Buchtitel ein.",
+  "Libro acquisito e aggiunto al catalogo.": "Buch übernommen und zum Katalog hinzugefügt.",
+  "Acquisizione non riuscita, riprova.": "Übernahme fehlgeschlagen, bitte erneut versuchen.",
+  "Questo libro è già in catalogo.": "Dieses Buch ist bereits im Katalog."
 }

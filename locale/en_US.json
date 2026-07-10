@@ -6467,5 +6467,18 @@
   "Questo browser non supporta l'accesso alla fotocamera.": "This browser does not support camera access.",
   "Impossibile avviare lo scanner.": "Unable to start the scanner.",
   "Modifica incontro": "Edit meeting",
-  "Incontro non aggiornato, riprova.": "Meeting not updated, please try again."
+  "Incontro non aggiornato, riprova.": "Meeting not updated, please try again.",
+  "Proposta esterna": "External proposal",
+  "Questo libro non è ancora nel catalogo della biblioteca.": "This book is not yet in the library catalogue.",
+  "Acquisisci in catalogo": "Add to catalogue",
+  "Crea la voce di catalogo da questa proposta esterna.": "Create the catalogue entry from this external proposal.",
+  "Il libro non è in catalogo?": "Book not in the catalogue?",
+  "Proponi un libro non ancora presente in biblioteca. Non verrà aggiunto al catalogo finché il club non lo sceglie e un responsabile lo acquisisce.": "Propose a book not yet in the library. It won't be added to the catalogue until the club chooses it and a manager acquires it.",
+  "Autore/i": "Author(s)",
+  "Editore (facoltativo)": "Publisher (optional)",
+  "Proponi libro esterno": "Propose external book",
+  "Inserisci almeno il titolo del libro.": "Enter at least the book title.",
+  "Libro acquisito e aggiunto al catalogo.": "Book acquired and added to the catalogue.",
+  "Acquisizione non riuscita, riprova.": "Acquisition failed, please try again.",
+  "Questo libro è già in catalogo.": "This book is already in the catalogue."
 }

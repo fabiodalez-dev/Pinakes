@@ -6467,5 +6467,18 @@
   "Questo browser non supporta l'accesso alla fotocamera.": "Ce navigateur ne prend pas en charge l'accès à la caméra.",
   "Impossibile avviare lo scanner.": "Impossible de démarrer le scanner.",
   "Modifica incontro": "Modifier la rencontre",
-  "Incontro non aggiornato, riprova.": "Rencontre non mise à jour, veuillez réessayer."
+  "Incontro non aggiornato, riprova.": "Rencontre non mise à jour, veuillez réessayer.",
+  "Proposta esterna": "Proposition externe",
+  "Questo libro non è ancora nel catalogo della biblioteca.": "Ce livre n'est pas encore dans le catalogue de la bibliothèque.",
+  "Acquisisci in catalogo": "Ajouter au catalogue",
+  "Crea la voce di catalogo da questa proposta esterna.": "Créer l'entrée de catalogue à partir de cette proposition externe.",
+  "Il libro non è in catalogo?": "Le livre n'est pas au catalogue ?",
+  "Proponi un libro non ancora presente in biblioteca. Non verrà aggiunto al catalogo finché il club non lo sceglie e un responsabile lo acquisisce.": "Proposez un livre qui n'est pas encore dans la bibliothèque. Il ne sera ajouté au catalogue que lorsque le club le choisira et qu'un responsable l'acquerra.",
+  "Autore/i": "Auteur(s)",
+  "Editore (facoltativo)": "Éditeur (facultatif)",
+  "Proponi libro esterno": "Proposer un livre externe",
+  "Inserisci almeno il titolo del libro.": "Saisissez au moins le titre du livre.",
+  "Libro acquisito e aggiunto al catalogo.": "Livre acquis et ajouté au catalogue.",
+  "Acquisizione non riuscita, riprova.": "Acquisition échouée, veuillez réessayer.",
+  "Questo libro è già in catalogo.": "Ce livre est déjà au catalogue."
 }

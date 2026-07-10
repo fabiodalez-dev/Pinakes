@@ -24,6 +24,7 @@ const DB_NAME   = process.env.E2E_DB_NAME   || '';
 
 const RUN = Date.now().toString(36);
 const CLUB_NAME = `Uwe Club ${RUN}`;
+const EXT_TITLE = `External Book ${RUN}`;
 
 test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME, 'E2E credentials not configured');
 
@@ -96,8 +97,11 @@ test.describe.serial('Book Club — Uwe feedback', () => {
       dbQuery(`DELETE FROM bookclub_meetings WHERE club_id=${Number(clubId)}`);
       dbQuery(`DELETE FROM bookclub_members WHERE club_id=${Number(clubId)}`);
       dbQuery(`DELETE FROM bookclub_books WHERE club_id=${Number(clubId)}`);
+      dbQuery(`DELETE FROM bookclub_external_books WHERE club_id=${Number(clubId)}`);
       dbQuery(`DELETE FROM bookclub_clubs WHERE id=${Number(clubId)}`);
     }
+    // The acquisition test creates a real libri row — remove it too.
+    dbQuery(`DELETE FROM libri WHERE titolo=${sqlStr(EXT_TITLE)}`);
     await context.close();
   });
 
@@ -179,5 +183,49 @@ test.describe.serial('Book Club — Uwe feedback', () => {
       page.locator('tr', { hasText: memberEmail }).locator('select[name="status"]').selectOption('suspended'),
     ]);
     await expect.poll(() => dbQuery(`SELECT status FROM bookclub_members WHERE id=${memberId}`), { timeout: 8000 }).toBe('suspended');
+  });
+
+  test('① propose a book NOT in the catalogue (external), then acquire it', async () => {
+    const clubId = Number(dbQuery(`SELECT id FROM bookclub_clubs WHERE name=${sqlStr(CLUB_NAME)} ORDER BY id DESC LIMIT 1`) || '0');
+    expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo=${sqlStr(EXT_TITLE)}`)).toBe('0');
+
+    await page.goto(`${BASE}/book-club/${slug}`);
+    await page.waitForLoadState('domcontentloaded');
+
+    // Propose an external book via the "Il libro non è in catalogo?" form.
+    const ext = page.locator('details.bc-external-propose');
+    await ext.locator('summary').click();
+    await ext.locator('input[name="ext_titolo"]').fill(EXT_TITLE);
+    await ext.locator('input[name="ext_autori"]').fill('Jane External');
+    await ext.locator('button:has-text("Proponi libro esterno")').click();
+    await page.waitForLoadState('networkidle');
+
+    // It landed in the plugin tables, NOT in libri (the whole point of ①).
+    const extBookId = Number(dbQuery(
+      `SELECT id FROM bookclub_external_books WHERE club_id=${clubId} AND titolo=${sqlStr(EXT_TITLE)} ORDER BY id DESC LIMIT 1`
+    ) || '0');
+    expect(extBookId, 'external book row must exist').toBeGreaterThan(0);
+    const clubBook = dbQuery(
+      `SELECT id, IFNULL(libro_id,'NULL'), external_book_id FROM bookclub_books WHERE club_id=${clubId} AND external_book_id=${extBookId}`
+    );
+    const clubBookId = Number(clubBook.split('\t')[0]);
+    expect(clubBookId).toBeGreaterThan(0);
+    expect(clubBook).toContain('NULL'); // libro_id is NULL — it is NOT a catalogue book
+    expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo=${sqlStr(EXT_TITLE)}`),
+      'an external proposal must NOT create a libri row').toBe('0');
+
+    // It renders with the "Proposta esterna" badge.
+    await expect(page.locator('.bc-badge', { hasText: 'esterna' }).first()).toBeVisible();
+
+    // Acquire it into the catalogue (manager action) — the one moment it enters libri.
+    await page.locator(`form[action*="/books/${clubBookId}/acquire"] button`).click();
+    await page.waitForLoadState('networkidle');
+
+    const libroId = Number(dbQuery(`SELECT id FROM libri WHERE titolo=${sqlStr(EXT_TITLE)} ORDER BY id DESC LIMIT 1`) || '0');
+    expect(libroId, 'acquisition must create the catalogue row').toBeGreaterThan(0);
+    const after = dbQuery(`SELECT IFNULL(libro_id,'NULL'), IFNULL(external_book_id,'NULL') FROM bookclub_books WHERE id=${clubBookId}`);
+    expect(after).toContain(String(libroId)); // repointed to the new catalogue row
+    expect(after).toContain('NULL');           // external_book_id cleared
+    expect(dbQuery(`SELECT acquired_libro_id FROM bookclub_external_books WHERE id=${extBookId}`)).toBe(String(libroId));
   });
 });

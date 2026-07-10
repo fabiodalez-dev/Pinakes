@@ -331,6 +331,13 @@ class PublicController extends BaseController
             return $this->notFound($response);
         }
         $body = $request->getParsedBody();
+
+        // External proposal: a book NOT in the catalogue. Kept entirely in the
+        // plugin's own table so it never requires (or creates) a `libri` row.
+        if (self::str($body, 'source', 20) === 'external') {
+            return $this->proposeExternal($response, $club, $slug, $body);
+        }
+
         $libroId = self::intOrNull($body, 'libro_id');
         $motivation = self::str($body, 'motivation', 3000);
         if ($libroId === null) {
@@ -374,6 +381,87 @@ class PublicController extends BaseController
                 ? __('Proposta inviata: sarà visibile dopo l\'approvazione di un moderatore.')
                 : __('Proposta aggiunta al club.'));
         }
+        return $this->redirect($response, '/book-club/' . $slug);
+    }
+
+    /**
+     * Propose a book that is NOT in the catalogue (external proposal). Same
+     * quota/moderation rules as a catalogue proposal, but the metadata is
+     * stored in the plugin's own table — the library catalog is untouched.
+     *
+     * @param array<string, mixed> $club
+     * @param mixed $body
+     */
+    private function proposeExternal(ResponseInterface $response, array $club, string $slug, $body): ResponseInterface
+    {
+        $titolo = self::str($body, 'ext_titolo', 500);
+        $motivation = self::str($body, 'motivation', 3000);
+        if ($titolo === '') {
+            $this->flash('error', __('Inserisci almeno il titolo del libro.'));
+            return $this->redirect($response, '/book-club/' . $slug);
+        }
+
+        $states = $this->repo->workflowStates($club);
+        $entryState = Repo::entryStateKey($states);
+        $settings = $club['settings'];
+        $userId = (int) $this->userId();
+
+        $maxProposals = $settings['max_proposals_per_member'] ?? null;
+        if (!$this->canManage($club) && $maxProposals !== null && $maxProposals > 0) {
+            $open = $this->repo->countOpenProposalsBy((int) $club['id'], $userId, $entryState);
+            if ($open >= (int) $maxProposals) {
+                $this->flash('error', sprintf(__('Hai già %d proposte aperte: attendi che vengano votate.'), $open));
+                return $this->redirect($response, '/book-club/' . $slug);
+            }
+        }
+
+        $moderated = !empty($settings['moderate_proposals']) && !$this->canManage($club);
+        $state = $moderated ? BookClubPlugin::STATE_PENDING : $entryState;
+
+        $clubBookId = $this->repo->proposeExternalBook((int) $club['id'], [
+            'titolo'  => $titolo,
+            'autori'  => self::str($body, 'ext_autori', 500),
+            'isbn'    => self::str($body, 'ext_isbn', 20),
+            'anno'    => self::str($body, 'ext_anno', 10),
+            'editore' => self::str($body, 'ext_editore', 255),
+        ], $state, $userId, $motivation);
+
+        if ($clubBookId === null) {
+            $this->flash('error', __('Proposta non salvata, riprova.'));
+        } else {
+            if (function_exists('do_action')) {
+                do_action('bookclub.book.proposed', $clubBookId);
+            }
+            $this->flash('success', $moderated
+                ? __('Proposta inviata: sarà visibile dopo l\'approvazione di un moderatore.')
+                : __('Proposta aggiunta al club.'));
+        }
+        return $this->redirect($response, '/book-club/' . $slug);
+    }
+
+    /**
+     * Acquire an external proposal into the catalogue (managers only): creates
+     * the real `libri` row and repoints the club-book to it. This is the only
+     * path by which an external proposal enters the library.
+     */
+    public function acquireBook(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $bookId): ResponseInterface
+    {
+        $club = $this->repo->clubBySlug($slug);
+        if ($club === null || !$this->canManage($club)) {
+            return $this->notFound($response);
+        }
+        $book = $this->repo->clubBook($bookId);
+        if ($book === null || (int) $book['club_id'] !== (int) $club['id']) {
+            return $this->notFound($response);
+        }
+        if (empty($book['is_external'])) {
+            $this->flash('error', __('Questo libro è già in catalogo.'));
+            return $this->redirect($response, '/book-club/' . $slug);
+        }
+        $libroId = $this->repo->acquireExternalBook($bookId);
+        $this->flash($libroId !== null ? 'success' : 'error', $libroId !== null
+            ? __('Libro acquisito e aggiunto al catalogo.')
+            : __('Acquisizione non riuscita, riprova.'));
         return $this->redirect($response, '/book-club/' . $slug);
     }
 

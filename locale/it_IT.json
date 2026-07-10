@@ -6467,5 +6467,18 @@
   "Questo browser non supporta l'accesso alla fotocamera.": "Questo browser non supporta l'accesso alla fotocamera.",
   "Impossibile avviare lo scanner.": "Impossibile avviare lo scanner.",
   "Modifica incontro": "Modifica incontro",
-  "Incontro non aggiornato, riprova.": "Incontro non aggiornato, riprova."
+  "Incontro non aggiornato, riprova.": "Incontro non aggiornato, riprova.",
+  "Proposta esterna": "Proposta esterna",
+  "Questo libro non è ancora nel catalogo della biblioteca.": "Questo libro non è ancora nel catalogo della biblioteca.",
+  "Acquisisci in catalogo": "Acquisisci in catalogo",
+  "Crea la voce di catalogo da questa proposta esterna.": "Crea la voce di catalogo da questa proposta esterna.",
+  "Il libro non è in catalogo?": "Il libro non è in catalogo?",
+  "Proponi un libro non ancora presente in biblioteca. Non verrà aggiunto al catalogo finché il club non lo sceglie e un responsabile lo acquisisce.": "Proponi un libro non ancora presente in biblioteca. Non verrà aggiunto al catalogo finché il club non lo sceglie e un responsabile lo acquisisce.",
+  "Autore/i": "Autore/i",
+  "Editore (facoltativo)": "Editore (facoltativo)",
+  "Proponi libro esterno": "Proponi libro esterno",
+  "Inserisci almeno il titolo del libro.": "Inserisci almeno il titolo del libro.",
+  "Libro acquisito e aggiunto al catalogo.": "Libro acquisito e aggiunto al catalogo.",
+  "Acquisizione non riuscita, riprova.": "Acquisizione non riuscita, riprova.",
+  "Questo libro è già in catalogo.": "Questo libro è già in catalogo."
 }

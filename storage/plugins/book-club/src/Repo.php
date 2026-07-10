@@ -488,20 +488,38 @@ class Repo
     // Club books
     // ------------------------------------------------------------------
 
-    private const BOOK_SELECT = "SELECT cb.*, l.titolo, l.copertina_url, l.anno_pubblicazione,
-                       (SELECT GROUP_CONCAT(a.nome ORDER BY la.ordine_credito SEPARATOR ', ')
-                          FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                         WHERE la.libro_id = l.id) AS autori,
+    // A club book is EITHER a catalogue book (cb.libro_id → libri) OR an
+    // external proposal (cb.external_book_id → bookclub_external_books, a book
+    // not in the library). Both are LEFT JOINed and the display fields are
+    // COALESCEd so one SELECT serves both; is_external tells them apart.
+    private const BOOK_SELECT = "SELECT cb.*,
+                       COALESCE(l.titolo, ext.titolo) AS titolo,
+                       COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
+                       COALESCE(l.anno_pubblicazione, ext.anno) AS anno_pubblicazione,
+                       COALESCE(
+                           (SELECT GROUP_CONCAT(a.nome ORDER BY la.ordine_credito SEPARATOR ', ')
+                              FROM libri_autori la JOIN autori a ON a.id = la.autore_id
+                             WHERE la.libro_id = l.id),
+                           ext.autori
+                       ) AS autori,
+                       (cb.external_book_id IS NOT NULL) AS is_external,
+                       ext.isbn AS external_isbn,
                        up.nome AS proposer_nome, up.cognome AS proposer_cognome
                   FROM bookclub_books cb
-                  JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+                  LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+                  LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
                   LEFT JOIN utenti up ON up.id = cb.proposed_by";
+
+    // Guard shared by the list methods: keep the old behaviour of hiding a
+    // catalogue book whose libri row is missing/soft-deleted, while still
+    // showing external proposals (which have no libri row by design).
+    private const BOOK_PRESENT = ' (l.id IS NOT NULL OR cb.external_book_id IS NOT NULL) ';
 
     /** @return list<array<string, mixed>> */
     public function clubBooks(int $clubId): array
     {
         return $this->rows(
-            self::BOOK_SELECT . ' WHERE cb.club_id = ? ORDER BY cb.position ASC, cb.created_at DESC',
+            self::BOOK_SELECT . ' WHERE cb.club_id = ? AND' . self::BOOK_PRESENT . 'ORDER BY cb.position ASC, cb.created_at DESC',
             'i',
             [$clubId]
         );
@@ -510,7 +528,7 @@ class Repo
     /** @return array<string, mixed>|null */
     public function clubBook(int $clubBookId): ?array
     {
-        return $this->row(self::BOOK_SELECT . ' WHERE cb.id = ?', 'i', [$clubBookId]);
+        return $this->row(self::BOOK_SELECT . ' WHERE cb.id = ? AND' . self::BOOK_PRESENT, 'i', [$clubBookId]);
     }
 
     public function bookAlreadyInClub(int $clubId, int $libroId): bool
@@ -538,6 +556,92 @@ class Repo
             [$clubId, $libroId, $state, $proposedBy, $motivation]
         );
         return $ok ? (int) $this->db->insert_id : null;
+    }
+
+    /**
+     * Propose a book that is NOT in the catalogue. The metadata lives in
+     * bookclub_external_books (never in `libri`); the bookclub_books row points
+     * at it via external_book_id. Returns the new club-book id, or null.
+     *
+     * @param array{titolo:string, autori?:?string, isbn?:?string, anno?:?string, editore?:?string} $data
+     */
+    public function proposeExternalBook(int $clubId, array $data, string $state, ?int $proposedBy, string $motivation): ?int
+    {
+        $titolo = trim((string) ($data['titolo'] ?? ''));
+        if ($titolo === '') {
+            return null;
+        }
+        $autori  = isset($data['autori']) && trim((string) $data['autori']) !== '' ? trim((string) $data['autori']) : null;
+        $isbn    = isset($data['isbn']) && trim((string) $data['isbn']) !== '' ? trim((string) $data['isbn']) : null;
+        $anno    = isset($data['anno']) && trim((string) $data['anno']) !== '' ? trim((string) $data['anno']) : null;
+        $editore = isset($data['editore']) && trim((string) $data['editore']) !== '' ? trim((string) $data['editore']) : null;
+
+        $ok = $this->exec(
+            'INSERT INTO bookclub_external_books (club_id, titolo, autori, isbn, anno, editore, proposed_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'isssssi',
+            [$clubId, $titolo, $autori, $isbn, $anno, $editore, $proposedBy]
+        );
+        if (!$ok) {
+            return null;
+        }
+        $externalId = (int) $this->db->insert_id;
+
+        $ok2 = $this->exec(
+            'INSERT INTO bookclub_books (club_id, external_book_id, state, proposed_by, motivation) VALUES (?, ?, ?, ?, ?)',
+            'iisis',
+            [$clubId, $externalId, $state, $proposedBy, $motivation]
+        );
+        if (!$ok2) {
+            // Roll back the orphaned external row (best-effort; CASCADE-safe).
+            $this->exec('DELETE FROM bookclub_external_books WHERE id = ?', 'i', [$externalId]);
+            return null;
+        }
+        return (int) $this->db->insert_id;
+    }
+
+    /**
+     * Acquire an external proposal into the catalogue: create the real `libri`
+     * row from its metadata (this is the ONLY moment the book enters the
+     * library), repoint the club-book to it, and stamp the external row.
+     * Returns the new libro_id, or null if the club-book is not external / fails.
+     */
+    public function acquireExternalBook(int $clubBookId): ?int
+    {
+        $row = $this->row(
+            'SELECT cb.external_book_id, ext.titolo, ext.isbn, ext.anno, ext.copertina_url
+               FROM bookclub_books cb
+               JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
+              WHERE cb.id = ? AND cb.external_book_id IS NOT NULL',
+            'i',
+            [$clubBookId]
+        );
+        if ($row === null || trim((string) $row['titolo']) === '') {
+            return null;
+        }
+        $extId  = (int) $row['external_book_id'];
+        $titolo = (string) $row['titolo'];
+        $anno   = ($row['anno'] !== null && $row['anno'] !== '') ? (int) $row['anno'] : null;
+        $digits = $row['isbn'] !== null ? preg_replace('/[^0-9Xx]/', '', (string) $row['isbn']) : '';
+        $isbn13 = strlen((string) $digits) === 13 ? (string) $digits : null;
+        $isbn10 = strlen((string) $digits) === 10 ? (string) $digits : null;
+        $cover  = ($row['copertina_url'] !== null && $row['copertina_url'] !== '') ? substr((string) $row['copertina_url'], 0, 255) : null;
+
+        // Only `titolo` is mandatory in `libri`; everything else is optional.
+        // search_index stays NULL and is (re)built by SearchIndexBuilder on the
+        // book's next save — the row is a normal, editable catalogue entry.
+        $ok = $this->exec(
+            'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url) VALUES (?, ?, ?, ?, ?)',
+            'sisss',
+            [$titolo, $anno, $isbn13, $isbn10, $cover]
+        );
+        if (!$ok) {
+            return null;
+        }
+        $libroId = (int) $this->db->insert_id;
+
+        $this->exec('UPDATE bookclub_books SET libro_id = ?, external_book_id = NULL WHERE id = ?', 'ii', [$libroId, $clubBookId]);
+        $this->exec('UPDATE bookclub_external_books SET acquired_libro_id = ? WHERE id = ?', 'ii', [$libroId, $extId]);
+        return $libroId;
     }
 
     public function changeBookState(int $clubBookId, string $fromState, string $toState, ?int $changedBy): bool

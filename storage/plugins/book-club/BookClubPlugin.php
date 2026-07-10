@@ -209,6 +209,7 @@ class BookClubPlugin
             'bookclub_clubs'         => self::ddlClubs(),
             'bookclub_members'       => self::ddlMembers(),
             'bookclub_invitations'   => self::ddlInvitations(),
+            'bookclub_external_books' => self::ddlExternalBooks(),
             'bookclub_books'         => self::ddlBooks(),
             'bookclub_book_state_log' => self::ddlBookStateLog(),
             'bookclub_polls'         => self::ddlPolls(),
@@ -231,6 +232,13 @@ class BookClubPlugin
                 $failed[] = $table;
                 SecureLogger::error('[BookClub] Exception during CREATE TABLE ' . $table . ': ' . $e->getMessage());
             }
+        }
+
+        // Bring an already-existing bookclub_books up to the external-book schema
+        // (CREATE IF NOT EXISTS never alters an existing table). No-op on fresh
+        // installs, where ddlBooks() already ships the new columns.
+        if (!in_array('bookclub_books', $failed, true) && !in_array('bookclub_external_books', $failed, true)) {
+            $this->ensureBookclubBooksExternalSupport();
         }
 
         if (empty($failed)) {
@@ -353,10 +361,17 @@ class BookClubPlugin
 
     private static function ddlBooks(): string
     {
+        // libro_id is nullable so a proposal can point at an EXTERNAL book
+        // (one not in the library catalogue) via external_book_id instead —
+        // exactly one of the two is set. External proposals never touch the
+        // core `libri` table until an admin acquires them. The unique keys
+        // treat NULLs as distinct (MySQL), so many external-only or many
+        // catalogue-only rows coexist without collision.
         return "CREATE TABLE IF NOT EXISTS bookclub_books (
             id INT NOT NULL AUTO_INCREMENT,
             club_id INT NOT NULL,
-            libro_id INT NOT NULL,
+            libro_id INT NULL,
+            external_book_id INT NULL,
             state VARCHAR(50) NOT NULL DEFAULT 'proposed',
             proposed_by INT NULL,
             motivation TEXT NULL,
@@ -367,12 +382,80 @@ class BookClubPlugin
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             UNIQUE KEY uq_bcbooks (club_id, libro_id),
+            UNIQUE KEY uq_bcbooks_external (club_id, external_book_id),
             KEY idx_bcbooks_state (club_id, state),
             KEY idx_bcbooks_libro (libro_id),
+            KEY idx_bcbooks_external (external_book_id),
             CONSTRAINT fk_bcbooks_club FOREIGN KEY (club_id)
                 REFERENCES bookclub_clubs (id) ON DELETE CASCADE,
             CONSTRAINT fk_bcbooks_libro FOREIGN KEY (libro_id)
-                REFERENCES libri (id) ON DELETE CASCADE
+                REFERENCES libri (id) ON DELETE CASCADE,
+            CONSTRAINT fk_bcbooks_external FOREIGN KEY (external_book_id)
+                REFERENCES bookclub_external_books (id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
+    }
+
+    /**
+     * Upgrade an existing bookclub_books to support external proposals. Every
+     * step is guarded via information_schema so it is idempotent and safe to
+     * re-run; a failure is logged but never aborts activation.
+     */
+    private function ensureBookclubBooksExternalSupport(): void
+    {
+        $db = $this->db;
+        $probe = function (string $sql) use ($db): bool {
+            $r = $db->query($sql);
+            return ($r instanceof \mysqli_result) && $r->num_rows > 0;
+        };
+        try {
+            // 1. libro_id → nullable (only when still NOT NULL, to avoid a needless rebuild).
+            if ($probe("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookclub_books' AND COLUMN_NAME = 'libro_id' AND IS_NULLABLE = 'NO'")) {
+                $db->query("ALTER TABLE bookclub_books MODIFY libro_id INT NULL");
+            }
+            // 2. external_book_id column.
+            if (!$probe("SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookclub_books' AND COLUMN_NAME = 'external_book_id'")) {
+                $db->query("ALTER TABLE bookclub_books ADD COLUMN external_book_id INT NULL AFTER libro_id");
+            }
+            // 3. supporting index, unique key and FK (each guarded).
+            if (!$probe("SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookclub_books' AND INDEX_NAME = 'idx_bcbooks_external'")) {
+                $db->query("ALTER TABLE bookclub_books ADD KEY idx_bcbooks_external (external_book_id)");
+            }
+            if (!$probe("SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookclub_books' AND INDEX_NAME = 'uq_bcbooks_external'")) {
+                $db->query("ALTER TABLE bookclub_books ADD UNIQUE KEY uq_bcbooks_external (club_id, external_book_id)");
+            }
+            if (!$probe("SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookclub_books' AND CONSTRAINT_NAME = 'fk_bcbooks_external' AND CONSTRAINT_TYPE = 'FOREIGN KEY'")) {
+                $db->query("ALTER TABLE bookclub_books ADD CONSTRAINT fk_bcbooks_external FOREIGN KEY (external_book_id) REFERENCES bookclub_external_books (id) ON DELETE CASCADE");
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] external-book schema upgrade failed: ' . $e->getMessage());
+        }
+    }
+
+    private static function ddlExternalBooks(): string
+    {
+        // Plugin-owned metadata for books PROPOSED but not (yet) in the
+        // catalogue. Kept entirely out of `libri` so the library catalog is
+        // never polluted with books the club merely considered. When a club
+        // acquires one, a real `libri` row is created and acquired_libro_id is
+        // stamped here (and the bookclub_books row is repointed to libro_id).
+        return "CREATE TABLE IF NOT EXISTS bookclub_external_books (
+            id INT NOT NULL AUTO_INCREMENT,
+            club_id INT NOT NULL,
+            titolo VARCHAR(500) NOT NULL,
+            autori VARCHAR(500) NULL,
+            isbn VARCHAR(20) NULL,
+            anno VARCHAR(10) NULL,
+            editore VARCHAR(255) NULL,
+            copertina_url VARCHAR(1000) NULL,
+            note TEXT NULL,
+            proposed_by INT NULL,
+            acquired_libro_id INT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_bcext_club (club_id),
+            CONSTRAINT fk_bcext_club FOREIGN KEY (club_id)
+                REFERENCES bookclub_clubs (id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci";
     }
 
@@ -620,6 +703,7 @@ class BookClubPlugin
         $app->get('/book-club/{slug:[a-z0-9\-]+}/book-search', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->bookSearch($rq, $rs, (string) $a['slug']))->add($authMw);
         $app->post('/book-club/{slug:[a-z0-9\-]+}/proposals', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->propose($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
         $app->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/state', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->changeBookState($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
+        $app->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/acquire', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->acquireBook($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
 
         // Polls
         $app->get('/book-club/{slug:[a-z0-9\-]+}/polls/{pollId:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->show($rq, $rs, (string) $a['slug'], (int) $a['pollId']));
