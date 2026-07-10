@@ -70,11 +70,12 @@ const LIBRI_AUTORI = 'zz_mig_libri_autori';
 const AUTORI = 'zz_mig_autori';
 const EDITORI = 'zz_mig_editori';
 const LIBRI_EDITORI = 'zz_mig_libri_editori';
+const OAI = 'zz_mig_oai_deleted_records';
 
 function migCleanup(mysqli $db): void
 {
     // Children first (no FKs here, but keep a stable order).
-    foreach ([LIBRI_EDITORI, LIBRI_AUTORI, LIBRI, AUTORI, EDITORI] as $t) {
+    foreach ([LIBRI_EDITORI, LIBRI_AUTORI, LIBRI, AUTORI, EDITORI, OAI] as $t) {
         $db->query('DROP TABLE IF EXISTS `' . $t . '`');
     }
 }
@@ -144,8 +145,10 @@ $applyMigration = function () use ($db, $root): void {
     // Backtick delimiters make each replacement exact (no `libri` inside
     // `libri_autori`, no `editori` inside `libri_editori`).
     $sql = str_replace(
-        ['`libri_autori`', '`libri_editori`', '`libri`', '`autori`', '`editori`', "'libri'"],
-        ['`' . LIBRI_AUTORI . '`', '`' . LIBRI_EDITORI . '`', '`' . LIBRI . '`', '`' . AUTORI . '`', '`' . EDITORI . '`', "'" . LIBRI . "'"],
+        ['`libri_autori`', '`libri_editori`', '`libri`', '`autori`', '`editori`', "'libri'",
+         '`oai_deleted_records`', "'oai_deleted_records'"],
+        ['`' . LIBRI_AUTORI . '`', '`' . LIBRI_EDITORI . '`', '`' . LIBRI . '`', '`' . AUTORI . '`', '`' . EDITORI . '`', "'" . LIBRI . "'",
+         '`' . OAI . '`', "'" . OAI . "'"],
         $sql
     );
     // Split on ';' but respect single-quoted string literals — the backfill's
@@ -263,11 +266,41 @@ $db->query("INSERT INTO `" . LIBRI_AUTORI . "` (libro_id, autore_id, ruolo) VALU
 // must land in search_index too.
 $db->query("INSERT INTO `" . LIBRI_EDITORI . "` (libro_id, editore_id, ordine) VALUES (1, 2, 1)");
 
+// OLD `oai_deleted_records` schema: NO created_at column — the drifted shape an
+// install created before created_at was added to schema.sql carries. Seed a row
+// so the guarded ADD COLUMN backfill is exercised over existing data.
+$db->query(
+    'CREATE TABLE `' . OAI . '` (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        entity_type ENUM(\'book\',\'archival_unit\') NOT NULL,
+        entity_id BIGINT UNSIGNED NOT NULL,
+        oai_id VARCHAR(255) NOT NULL,
+        datestamp DATETIME NOT NULL,
+        UNIQUE KEY uniq_entity (entity_type, entity_id)
+     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci'
+);
+$db->query("INSERT INTO `" . OAI . "` (entity_type, entity_id, oai_id, datestamp)
+    VALUES ('book', 42, 'oai:pinakes:book:42', '2025-01-01 12:00:00')");
+
+/** Return the DATA_TYPE of a column on any sandbox table ('' if absent). */
+$colType = function (string $table, string $column) use ($db): string {
+    $stmt = $db->prepare(
+        "SELECT DATA_TYPE FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?"
+    );
+    $stmt->bind_param('ss', $table, $column);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_row();
+    $stmt->close();
+    return $row ? (string) $row[0] : '';
+};
+
 /* ========================= pre-migration checks ========================= */
 
 check($dataType('search_index') === '', '01 pre-migration: libri has NO search_index column');
 check(!$indexExists('ft_libri_search_index'), '02 pre-migration: ft_libri_search_index index absent');
 check((int) $scalar("SELECT COUNT(*) FROM `" . LIBRI . "`") === 5, '03 pre-migration: 5 seed rows present');
+check($colType(OAI, 'created_at') === '', '03b pre-migration: oai_deleted_records has NO created_at column');
 
 /* ============================ run migration ============================= */
 $applyMigration();
@@ -341,6 +374,13 @@ $hitDesc = (int) $scalar(
 );
 check($hitDesc === 1, '18 post-migration: a book is findable by a plain-text description word');
 
+/* ============ oai_deleted_records.created_at backfill ============ */
+check($colType(OAI, 'created_at') === 'timestamp',
+    '19 post-migration: oai_deleted_records gained created_at (timestamp)');
+// The pre-existing row got the DEFAULT CURRENT_TIMESTAMP, so it is non-null.
+check($scalar("SELECT created_at FROM `" . OAI . "` WHERE entity_id=42") !== null,
+    '20 post-migration: existing OAI row backfilled with a non-null created_at');
+
 /* ============================ idempotency ============================== */
 $before = (string) $scalar("SELECT search_index FROM `" . LIBRI . "` WHERE id=1");
 $applyMigration(); // second run must be a guarded no-op
@@ -348,6 +388,9 @@ check($dataType('search_index') === 'mediumtext' && $indexExists('ft_libri_searc
     '11 idempotent: second run leaves column + index unchanged (no error)');
 $after = (string) $scalar("SELECT search_index FROM `" . LIBRI . "` WHERE id=1");
 check($before === $after, '12 idempotent: backfill recomputes the identical value');
+// The oai ADD COLUMN is guarded: the second run must NOT error (no duplicate column).
+check($colType(OAI, 'created_at') === 'timestamp',
+    '21 idempotent: oai created_at survives a second guarded run without error');
 
 /* -------- done -------- */
 migCleanup($db);

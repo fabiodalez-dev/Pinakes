@@ -119,3 +119,22 @@ PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 SET @chk_exists = (SELECT COUNT(*) FROM information_schema.CHECK_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = DATABASE() AND CONSTRAINT_NAME = 'chk_lt_rating');
 SET @sql = IF(@chk_exists = 0, "ALTER TABLE `libri` ADD CONSTRAINT `chk_lt_rating` CHECK (`rating` IS NULL OR `rating` BETWEEN 1 AND 5)", "SELECT 1");
 PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
+
+-- ─── oai_deleted_records.created_at backfill ───────────────────────────────
+-- schema.sql defines `oai_deleted_records`.`created_at` (timestamp NOT NULL
+-- DEFAULT CURRENT_TIMESTAMP), but the column was added to schema.sql after the
+-- table already shipped, and no earlier migration added it to existing tables.
+-- So an install created before the column existed (e.g. bibliodoc, first seen
+-- 2026) has the table WITHOUT created_at — and any code/tooling that assumes
+-- the schema.sql shape drifts. Re-add it here, guarded, so every 0.7.31+ install
+-- with the OAI table converges to schema.sql. Doubly guarded: the table only
+-- exists where the OAI-PMH feature has been used, so skip cleanly when absent
+-- (a fresh install without OAI has no such table). Idempotent via the probes.
+SET @tbl_exists = (SELECT COUNT(*) FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'oai_deleted_records');
+SET @col_exists = (SELECT COUNT(*) FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'oai_deleted_records' AND COLUMN_NAME = 'created_at');
+SET @sql = IF(@tbl_exists = 1 AND @col_exists = 0,
+    "ALTER TABLE `oai_deleted_records` ADD COLUMN `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP",
+    "SELECT 1");
+PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
