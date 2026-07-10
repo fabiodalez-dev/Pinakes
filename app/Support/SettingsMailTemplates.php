@@ -8,11 +8,17 @@ final class SettingsMailTemplates
     /**
      * Templates managed via the backend settings UI.
      *
+     * Italian is the in-code base. For a non-Italian installation the subject
+     * and body of each template are replaced with the translation shipped in
+     * app/Support/mail_templates/<locale>.php. Passing $locale = null resolves
+     * the installation locale, so every caller (seeding, admin UI, send-time
+     * fallback) becomes locale-aware automatically.
+     *
      * @return array<string, array<string, mixed>>
      */
-    public static function all(): array
+    public static function all(?string $locale = null): array
     {
-        return [
+        $templates = [
             'user_registration_pending' => [
                 'label' => __('Registrazione ricevuta'),
                 'description' => __("Inviata all'utente al termine della registrazione per confermare la ricezione e l'attesa di approvazione."),
@@ -436,12 +442,85 @@ HTML,
 <p>Benvenuto nel team!</p>
 HTML,
             ],
+            'admin_new_registration' => [
+                'label' => __('Nuova registrazione (admin)'),
+                'description' => __("Notifica agli amministratori quando un nuovo utente si registra e attende approvazione."),
+                'subject' => '👤 Nuova richiesta di registrazione',
+                'placeholders' => ['nome', 'cognome', 'email', 'codice_tessera', 'data_registrazione', 'admin_users_url'],
+                'body' => <<<'HTML'
+<h2>Nuova richiesta di registrazione</h2>
+<p>Un nuovo utente ha richiesto l'accesso a Pinakes:</p>
+<p><strong>Dettagli utente:</strong></p>
+<ul>
+    <li>Nome: {{nome}} {{cognome}}</li>
+    <li>Email: {{email}}</li>
+    <li>Codice tessera: {{codice_tessera}}</li>
+    <li>Data richiesta: {{data_registrazione}}</li>
+</ul>
+<p><a href="{{admin_users_url}}" style="background-color: #3b82f6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Gestisci Utenti</a></p>
+HTML,
+            ],
         ];
+
+        return self::applyLocaleOverrides($templates, $locale);
     }
 
-    public static function get(string $template): ?array
+    /**
+     * Replace subject/body with the shipped translation for $locale. Italian
+     * (or an unknown/missing locale) returns the base templates unchanged.
+     *
+     * @param array<string, array<string, mixed>> $templates
+     * @return array<string, array<string, mixed>>
+     */
+    private static function applyLocaleOverrides(array $templates, ?string $locale): array
     {
-        $all = self::all();
+        $overrides = self::localeOverrides($locale);
+        foreach ($overrides as $name => $trans) {
+            if (!isset($templates[$name])) {
+                continue;
+            }
+            if (isset($trans['subject']) && $trans['subject'] !== '') {
+                $templates[$name]['subject'] = (string) $trans['subject'];
+            }
+            if (isset($trans['body']) && $trans['body'] !== '') {
+                $templates[$name]['body'] = (string) $trans['body'];
+            }
+        }
+        return $templates;
+    }
+
+    /**
+     * Load the per-locale subject/body overrides. Italian is the in-code base
+     * and has no override file.
+     *
+     * @return array<string, array{subject?: string, body?: string}>
+     */
+    private static function localeOverrides(?string $locale): array
+    {
+        if ($locale === null || $locale === '') {
+            $locale = \App\Support\I18n::getInstallationLocale();
+        }
+        $locale = str_replace('-', '_', (string) $locale);
+        if ($locale === '' || str_starts_with($locale, 'it')) {
+            return [];
+        }
+        // Map short and full codes to the locale files we ship.
+        $map = ['en' => 'en_US', 'de' => 'de_DE', 'fr' => 'fr_FR', 'en_US' => 'en_US', 'de_DE' => 'de_DE', 'fr_FR' => 'fr_FR'];
+        $key = $map[$locale] ?? ($map[substr($locale, 0, 2)] ?? null);
+        if ($key === null) {
+            return [];
+        }
+        $file = __DIR__ . '/mail_templates/' . $key . '.php';
+        if (!is_file($file)) {
+            return [];
+        }
+        $data = require $file;
+        return is_array($data) ? $data : [];
+    }
+
+    public static function get(string $template, ?string $locale = null): ?array
+    {
+        $all = self::all($locale);
         return $all[$template] ?? null;
     }
 

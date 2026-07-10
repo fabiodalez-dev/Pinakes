@@ -112,9 +112,33 @@ class SettingsRepository
     public function ensureEmailTemplates(array $templates, ?string $locale = null): void
     {
         $locale = $this->resolveTemplateLocale($locale);
+
+        // On a non-Italian install seeded before per-locale defaults existed, the
+        // rows carry the untranslated Italian text. Compare against the Italian
+        // base so we can heal those rows to the localized default WITHOUT ever
+        // clobbering a template an admin has customized (exact match only).
+        $italianBase = ($locale !== 'it_IT') ? \App\Support\SettingsMailTemplates::all('it_IT') : [];
+
         foreach ($templates as $name => $template) {
             $existing = $this->getEmailTemplate($name, $locale);
             if ($existing !== null) {
+                if (isset($italianBase[$name])) {
+                    $base = $italianBase[$name];
+                    $stillItalian = trim((string) $existing['subject']) === trim((string) $base['subject'])
+                        && trim((string) $existing['body']) === trim((string) $base['body']);
+                    $haveTranslation = trim((string) $template['subject']) !== trim((string) $existing['subject'])
+                        || trim((string) $template['body']) !== trim((string) $existing['body']);
+                    if ($stillItalian && $haveTranslation) {
+                        $this->saveEmailTemplate(
+                            $name,
+                            $template['subject'],
+                            $template['body'],
+                            $template['description'] ?? null,
+                            true,
+                            $locale
+                        );
+                    }
+                }
                 continue;
             }
             $this->saveEmailTemplate(
