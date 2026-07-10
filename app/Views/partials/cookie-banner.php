@@ -91,7 +91,13 @@ $cookieBannerTexts = [
                 preferences: {
                     title: <?= json_encode($cookieBannerTexts['preferences_title'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
                     description: <?= json_encode($cookieBannerTexts['preferences_description'], JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
-                    statementUrl: <?= json_encode(route_path('cookies'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>,
+                    statementUrl: <?php
+                        // Honour the admin-entered "Cookie statement link" when set,
+                        // otherwise fall back to the built-in cookies page. Previously
+                        // this was hardcoded, so the configured URL had no effect.
+                        $cookieStatementLink = trim((string) ConfigStore::get('privacy.cookie_statement_link', ''));
+                        echo json_encode($cookieStatementLink !== '' ? $cookieStatementLink : route_path('cookies'), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+                    ?>,
                     statementAccessibleLabel: 'Maggiori informazioni sui cookie',
                 },
             },

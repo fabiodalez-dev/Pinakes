@@ -212,6 +212,17 @@ class MaintenanceService
             SecureLogger::error(__('MaintenanceService errore generazione ICS'), ['error' => $e->getMessage()]);
         }
 
+        // Purge expired / long-revoked "Remember me" sessions so user_sessions
+        // does not grow unbounded. This previously lived only in the orphaned
+        // scripts/maintenance.php, which no documented cron calls — so on a
+        // standard install expired remember-me tokens were never cleaned up.
+        try {
+            $results['expired_sessions_purged'] = (new RememberMeService($this->db))->cleanupExpiredSessions();
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'cleanupExpiredSessions: ' . $e->getMessage();
+            SecureLogger::error(__('MaintenanceService errore pulizia sessioni scadute'), ['error' => $e->getMessage()]);
+        }
+
         // Generic post-maintenance hook, fired as the TRUE last step so
         // listeners (e.g. Book Club poll auto-close + reminders) only run
         // once the whole maintenance pass — ICS generation included — is
