@@ -757,15 +757,15 @@ class SettingsController
 
             // Validate reasonable dimensions (between 10mm and 100mm)
             if ($width >= 10 && $width <= 100 && $height >= 10 && $height <= 100) {
-                $formatName = "{$width}×{$height}mm";
-
+                // NOTE: label.format_name is intentionally NOT persisted. It is a
+                // purely derived display string ("{w}×{h}mm") that nothing reads —
+                // the label PDF (LibriController) and the labels tab both work off
+                // width/height. Persisting it was a dead write; drop it.
                 $repository->set('label', 'width', (string) $width);
                 $repository->set('label', 'height', (string) $height);
-                $repository->set('label', 'format_name', $formatName);
 
                 ConfigStore::set('label.width', $width);
                 ConfigStore::set('label.height', $height);
-                ConfigStore::set('label.format_name', $formatName);
 
                 $_SESSION['success_message'] = __('Formato etichette aggiornato correttamente.');
             } else {
