@@ -6507,5 +6507,12 @@
   "Stampa PDF": "Stampa PDF",
   "Libro rimosso dal club.": "Libro rimosso dal club.",
   "Impossibile rimuovere il libro, riprova.": "Impossibile rimuovere il libro, riprova.",
-  "Nessun libro nel club.": "Nessun libro nel club."
+  "Nessun libro nel club.": "Nessun libro nel club.",
+  "Un utente": "Un utente",
+  "Richiesta di adesione al club \"%s\"": "Richiesta di adesione al club \"%s\"",
+  "%s ha chiesto di unirsi al club \"%s\". Approva o rifiuta la richiesta dalla pagina del club.": "%s ha chiesto di unirsi al club \"%s\". Approva o rifiuta la richiesta dalla pagina del club.",
+  "Nuova proposta nel club \"%s\"": "Nuova proposta nel club \"%s\"",
+  "%s ha proposto \"%s\" nel club \"%s\".": "%s ha proposto \"%s\" nel club \"%s\".",
+  "Nuovo incontro nel club \"%s\"": "Nuovo incontro nel club \"%s\"",
+  "\"%s\" — %s": "\"%s\" — %s"
 }

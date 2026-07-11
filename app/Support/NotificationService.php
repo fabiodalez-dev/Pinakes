@@ -1365,6 +1365,51 @@ class NotificationService {
     }
 
     /**
+     * Generic admin notification for an app/plugin event that has no dedicated
+     * email template: creates the in-app admin-bell notification AND emails
+     * every active admin/staff — the same two channels every other admin
+     * notification uses (createNotification + the admin-email query in
+     * sendToAdmins), so callers don't hand-roll recipient selection or mail.
+     * The email body is wrapped in EmailService's branded base template like
+     * the rest of Pinakes. Best-effort: failures are logged, never thrown.
+     *
+     * @param string $type one of createNotification()'s allowed types
+     */
+    public function notifyAdmins(string $type, string $title, string $message, ?string $link = null, ?int $relatedId = null): void
+    {
+        // 1. In-app admin bell.
+        $this->createNotification($type, $title, $message, $link, $relatedId);
+
+        // 2. Email every active admin/staff (same recipient query as sendToAdmins).
+        try {
+            $result = $this->db->query(
+                "SELECT email, nome, cognome, locale FROM utenti
+                  WHERE tipo_utente IN ('admin', 'staff') AND stato = 'attivo'
+                    AND email IS NOT NULL AND email <> ''"
+            );
+            if (!$result) {
+                return;
+            }
+            $bodyHtml = '<p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>';
+            if ($link !== null && $link !== '') {
+                $bodyHtml .= '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
+                    . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '</a></p>';
+            }
+            while ($row = $result->fetch_assoc()) {
+                $this->emailService->sendEmail(
+                    (string) $row['email'],
+                    $title,
+                    $bodyHtml,
+                    trim((string) ($row['nome'] ?? '') . ' ' . (string) ($row['cognome'] ?? '')),
+                    $row['locale'] ?? null
+                );
+            }
+        } catch (\Throwable $e) {
+            SecureLogger::error('notifyAdmins email failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Get unread notifications count
      */
     public function getUnreadCount(): int

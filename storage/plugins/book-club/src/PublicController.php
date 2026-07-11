@@ -133,6 +133,15 @@ class PublicController extends BaseController
         if (function_exists('do_action')) {
             do_action('bookclub.member.joined', (int) $club['id'], $userId, $status);
         }
+        if ($status === 'pending') {
+            $this->notifyAdminsForClub(
+                $club,
+                'new_user',
+                sprintf(__('Richiesta di adesione al club "%s"'), (string) $club['name']),
+                sprintf(__('%s ha chiesto di unirsi al club "%s". Approva o rifiuta la richiesta dalla pagina del club.'), $this->currentUserLabel(), (string) $club['name']),
+                (string) $club['slug']
+            );
+        }
         $this->flash('success', $status === 'active'
             ? __('Benvenuto nel club!')
             : __('Richiesta inviata: un moderatore deve approvarla.'));
@@ -368,7 +377,8 @@ class PublicController extends BaseController
             return $this->redirect($response, '/book-club/' . $slug);
         }
         // The catalog row must exist and not be soft-deleted.
-        if ($this->repo->searchCatalogById($libroId) === null) {
+        $catBook = $this->repo->searchCatalogById($libroId);
+        if ($catBook === null) {
             $this->flash('error', __('Libro non trovato in catalogo.'));
             return $this->redirect($response, '/book-club/' . $slug);
         }
@@ -397,11 +407,24 @@ class PublicController extends BaseController
             if (function_exists('do_action')) {
                 do_action('bookclub.book.proposed', $clubBookId);
             }
+            $this->notifyProposal($club, (string) ($catBook['titolo'] ?? ''), $slug);
             $this->flash('success', $moderated
                 ? __('Proposta inviata: sarà visibile dopo l\'approvazione di un moderatore.')
                 : __('Proposta aggiunta al club.'));
         }
         return $this->redirect($response, '/book-club/' . $slug);
+    }
+
+    /** Notify the club managers that a new book was proposed. */
+    private function notifyProposal(array $club, string $title, string $slug): void
+    {
+        $this->notifyAdminsForClub(
+            $club,
+            'general',
+            sprintf(__('Nuova proposta nel club "%s"'), (string) $club['name']),
+            sprintf(__('%s ha proposto "%s" nel club "%s".'), $this->currentUserLabel(), $title, (string) $club['name']),
+            $slug
+        );
     }
 
     /**
@@ -453,6 +476,7 @@ class PublicController extends BaseController
             if (function_exists('do_action')) {
                 do_action('bookclub.book.proposed', $clubBookId);
             }
+            $this->notifyProposal($club, $titolo, $slug);
             $this->flash('success', $moderated
                 ? __('Proposta inviata: sarà visibile dopo l\'approvazione di un moderatore.')
                 : __('Proposta aggiunta al club.'));

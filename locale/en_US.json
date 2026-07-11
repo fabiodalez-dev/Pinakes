@@ -6507,5 +6507,12 @@
   "Stampa PDF": "Print PDF",
   "Libro rimosso dal club.": "Book removed from the club.",
   "Impossibile rimuovere il libro, riprova.": "Could not remove the book, please try again.",
-  "Nessun libro nel club.": "No books in the club."
+  "Nessun libro nel club.": "No books in the club.",
+  "Un utente": "A user",
+  "Richiesta di adesione al club \"%s\"": "Join request for the club \"%s\"",
+  "%s ha chiesto di unirsi al club \"%s\". Approva o rifiuta la richiesta dalla pagina del club.": "%s asked to join the club \"%s\". Approve or reject the request from the club page.",
+  "Nuova proposta nel club \"%s\"": "New proposal in the club \"%s\"",
+  "%s ha proposto \"%s\" nel club \"%s\".": "%s proposed \"%s\" in the club \"%s\".",
+  "Nuovo incontro nel club \"%s\"": "New meeting in the club \"%s\"",
+  "\"%s\" — %s": "\"%s\" — %s"
 }

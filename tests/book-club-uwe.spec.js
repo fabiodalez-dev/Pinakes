@@ -131,6 +131,7 @@ test.describe.serial('Book Club — Uwe feedback', () => {
       dbQuery(`DELETE FROM bookclub_members WHERE club_id=${Number(clubId)}`);
       dbQuery(`DELETE FROM bookclub_books WHERE club_id=${Number(clubId)}`);
       dbQuery(`DELETE FROM bookclub_external_books WHERE club_id=${Number(clubId)}`);
+      dbQuery(`DELETE FROM admin_notifications WHERE related_id=${Number(clubId)} AND (title LIKE 'Nuova proposta%' OR title LIKE 'Richiesta di adesione%' OR title LIKE 'Nuovo incontro%')`);
       dbQuery(`DELETE FROM bookclub_clubs WHERE id=${Number(clubId)}`);
     }
     // The acquisition test creates a real libri row + its physical copy — remove both.
@@ -346,6 +347,11 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     expect(cbId, 'external proposal must exist').toBeGreaterThan(0);
     expect(dbQuery(`SELECT proposed_by FROM bookclub_books WHERE id=${cbId}`),
       'proposed_by must be the chosen member, not the manager').toBe(String(memberUserId));
+
+    // A new proposal must reach the admins via the Pinakes notification bell.
+    expect(Number(dbQuery(
+      `SELECT COUNT(*) FROM admin_notifications WHERE related_id=${clubId} AND type='general' AND title LIKE 'Nuova proposta%'`
+    ) || '0'), 'a bell notification must be created for the new proposal').toBeGreaterThan(0);
 
     // item 5 — PDF export of the club's reading list.
     const pdf = await page.request.get(`${BASE}/book-club/${slug}/books.pdf`);

@@ -69,6 +69,13 @@ class MeetingController extends BaseController
             if (function_exists('do_action')) {
                 do_action('bookclub.meeting.created', $meetingId);
             }
+            $this->notifyAdminsForClub(
+                $club,
+                'general',
+                sprintf(__('Nuovo incontro nel club "%s"'), (string) $club['name']),
+                sprintf(__('"%s" — %s'), $title, date('d/m/Y H:i', (int) strtotime($startsAt))),
+                $slug
+            );
             $this->flash('success', __('Incontro pianificato.'));
         }
         return $this->redirect($response, '/book-club/' . $slug);
