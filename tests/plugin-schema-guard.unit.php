@@ -113,14 +113,33 @@ foreach ($dirs as $dir) {
         continue;
     }
 
+    // ENFORCEMENT: a plugin that creates tables MUST declare expectedTables(),
+    // otherwise PluginManager's boot self-heal can never notice its tables are
+    // missing after an already-active upgrade (the Uwe #138 class of bug). This
+    // is what makes the self-heal "dynamic for every plugin": you cannot add a
+    // table-owning plugin (or a new table) without also declaring it, because
+    // this test fails. The check is on the main plugin file's own CREATE TABLE
+    // (its unconditional core schema) — the tables the self-heal must guarantee.
+    $ownsSchema = false;
+    if ($mainGlob) {
+        $src = (string) @file_get_contents($mainGlob[0]);
+        $ownsSchema = stripos($src, 'CREATE TABLE') !== false;
+    }
+    $declares = method_exists($className, 'expectedTables');
+    if ($ownsSchema) {
+        check($declares, "$slug: creates tables (CREATE TABLE in its source) → MUST declare expectedTables() so PluginManager's boot self-heal covers it");
+    }
+    if (!$declares) {
+        continue; // legit: plugin owns no schema and needs no self-heal
+    }
+
     try {
         $instance = new $className($db, $hm);
     } catch (\Throwable $e) {
-        // Not all bundled plugins take ($db, $hm); skip those cleanly.
+        // Owns schema + declares expectedTables but can't be constructed with
+        // ($db, $hm) — that is itself a problem for a schema-owning plugin.
+        check(!$ownsSchema, "$slug: schema-owning plugin must be constructible as ($db, HookManager) for the self-heal to run — " . $e->getMessage());
         continue;
-    }
-    if (!is_callable([$instance, 'expectedTables']) || !method_exists($instance, 'expectedTables')) {
-        continue; // plugin owns no declared schema
     }
     if (method_exists($instance, 'setPluginId')) {
         $pidRow = $db->query("SELECT id FROM plugins WHERE name='" . $db->real_escape_string($slug) . "'");
