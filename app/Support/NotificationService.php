@@ -1406,6 +1406,18 @@ class NotificationService {
             if ($recipients === []) {
                 return;
             }
+            // Circuit-breaker: this method is called synchronously from user-facing
+            // request handlers (join-club, propose-book, create-meeting) and loops a
+            // blocking sendEmail() per recipient. If the SMTP server is unreachable,
+            // every send would time out the same way, hanging the acting user's request
+            // for N sequential connection timeouts. Mailer::isSmtpReachable() probes once
+            // per request (cached, and always true for the non-SMTP `mail` driver so it
+            // never blocks phpmail sends) and logs a single warning — same guard
+            // sendWithRetry() uses. The in-app admin bell above still fired regardless.
+            if (!\App\Support\Mailer::isSmtpReachable()) {
+                SecureLogger::warning('notifyAdmins: SMTP unreachable — skipping email to ' . count($recipients) . ' recipient(s), in-app notification still created');
+                return;
+            }
             $bodyHtml = '<p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>';
             if ($link !== null && $link !== '') {
                 $bodyHtml .= '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'

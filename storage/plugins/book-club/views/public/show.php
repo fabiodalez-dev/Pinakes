@@ -621,7 +621,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           <?php if (!empty($nextMeeting['location'])): ?>
             <div class="bc-muted"><i class="fas fa-map-marker-alt me-1"></i><?= $e($nextMeeting['location']) ?></div>
           <?php endif; ?>
-          <?php $bcVideoUrl = \App\Support\HtmlHelper::sanitizePublicHttpUrl((string) ($nextMeeting['video_url'] ?? '')); ?>
+          <?php $bcVideoUrl = ($isMember || $canManage) ? \App\Support\HtmlHelper::sanitizePublicHttpUrl((string) ($nextMeeting['video_url'] ?? '')) : ''; ?>
           <?php if ($bcVideoUrl !== ''): ?>
             <div class="bc-muted"><i class="fas fa-video me-1"></i><a href="<?= $e($bcVideoUrl) ?>" target="_blank" rel="noopener noreferrer"><?= $e(__('Partecipa online')) ?></a></div>
           <?php endif; ?>

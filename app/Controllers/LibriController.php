@@ -3032,9 +3032,14 @@ class LibriController
             $titolo .= '...';
 
         // Autore ed editore
+        // NOTE: do not pre-truncate $autoriStr with a fixed cap here — since it now
+        // includes the publisher (concatenated in buildAuthorString via
+        // label_include_publisher), a fixed cap would clip the publisher away
+        // regardless of label size. Let the width-based truncation below be the
+        // sole truncation point (mirrors how $maxTitleChars is derived from width).
         $autorEditore = [];
         if (!empty($autoriStr)) {
-            $autorEditore[] = mb_substr($autoriStr, 0, 30);
+            $autorEditore[] = $autoriStr;
         }
         $infoText = '';
         if (!empty($autorEditore)) {
