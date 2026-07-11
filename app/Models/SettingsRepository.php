@@ -191,18 +191,13 @@ class SettingsRepository
         }
 
         $templates = [];
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
-                $templates[$row['name']] = $row;
-            }
-            if ($result instanceof \mysqli_result) {
-                $result->free();
-            }
+        // $stmt->get_result() returns a mysqli_result (mysqli runs in exception
+        // mode, so it throws rather than returning false) — free it directly.
+        while ($row = $result->fetch_assoc()) {
+            $templates[$row['name']] = $row;
         }
-
-        if ($stmt instanceof mysqli_stmt) {
-            $stmt->close();
-        }
+        $result->free();
+        $stmt->close();
 
         return $templates;
     }

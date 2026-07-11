@@ -6498,5 +6498,14 @@
   "Proposta esterna": "External proposal",
   "Inviata quando l'account si attiverà automaticamente dopo la verifica dell'email.": "Sent when the account will activate automatically after email verification.",
   "Registrazione ricevuta - verifica email": "Registration received - verify email",
-  "Questo libro non è ancora nel catalogo della biblioteca.": "This book is not yet in the library catalogue."
+  "Questo libro non è ancora nel catalogo della biblioteca.": "This book is not yet in the library catalogue.",
+  "Partecipa online": "Join online",
+  "Proponi un libro non ancora in catalogo": "Propose a book not yet in the catalogue",
+  "Me stesso": "Myself",
+  "Rimuovere questo libro dalla lista del club? L'operazione non si può annullare.": "Remove this book from the club's list? This cannot be undone.",
+  "Rimuovi dal club": "Remove from club",
+  "Stampa PDF": "Print PDF",
+  "Libro rimosso dal club.": "Book removed from the club.",
+  "Impossibile rimuovere il libro, riprova.": "Could not remove the book, please try again.",
+  "Nessun libro nel club.": "No books in the club."
 }

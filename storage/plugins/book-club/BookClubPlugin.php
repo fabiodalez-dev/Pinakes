@@ -725,6 +725,8 @@ class BookClubPlugin
         $app->post('/book-club/{slug:[a-z0-9\-]+}/proposals', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->propose($rq, $rs, (string) $a['slug']))->add($csrfMw)->add($authMw);
         $app->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/state', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->changeBookState($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
         $app->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/acquire', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->acquireBook($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
+        $app->post('/book-club/{slug:[a-z0-9\-]+}/books/{bookId:[0-9]+}/remove', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->removeBook($rq, $rs, (string) $a['slug'], (int) $a['bookId']))->add($csrfMw)->add($authMw);
+        $app->get('/book-club/{slug:[a-z0-9\-]+}/books.pdf', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $public->booksPdf($rq, $rs, (string) $a['slug']))->add($authMw);
 
         // Polls
         $app->get('/book-club/{slug:[a-z0-9\-]+}/polls/{pollId:[0-9]+}', fn(ServerRequestInterface $rq, ResponseInterface $rs, array $a): ResponseInterface => $polls->show($rq, $rs, (string) $a['slug'], (int) $a['pollId']));

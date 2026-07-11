@@ -324,6 +324,25 @@ class PublicController extends BaseController
      * proposal limit and the moderation bypass below intentionally keep
      * using canManage(): only real club managers skip them.
      */
+    /**
+     * The user to attribute a proposal to. Defaults to the current user; a
+     * manager may attribute it to another ACTIVE member via `proposed_by`
+     * (Uwe #138 — a manager entering proposals on behalf of members).
+     *
+     * @param array<string, mixed> $club
+     * @param mixed $body
+     */
+    private function resolveProposer(array $club, $body, int $userId): int
+    {
+        if ($this->canManage($club)) {
+            $chosen = self::intOrNull($body, 'proposed_by');
+            if ($chosen !== null && $chosen > 0 && $this->repo->isActiveMember((int) $club['id'], $chosen)) {
+                return $chosen;
+            }
+        }
+        return $userId;
+    }
+
     public function propose(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
     {
         $club = $this->repo->clubBySlug($slug);
@@ -370,7 +389,8 @@ class PublicController extends BaseController
 
         $moderated = !empty($settings['moderate_proposals']) && !$this->canManage($club);
         $state = $moderated ? BookClubPlugin::STATE_PENDING : $entryState;
-        $clubBookId = $this->repo->createClubBook((int) $club['id'], $libroId, $state, $userId, $motivation);
+        $proposer = $this->resolveProposer($club, $body, $userId);
+        $clubBookId = $this->repo->createClubBook((int) $club['id'], $libroId, $state, $proposer, $motivation);
         if ($clubBookId === null) {
             $this->flash('error', __('Proposta non salvata, riprova.'));
         } else {
@@ -418,13 +438,14 @@ class PublicController extends BaseController
         $moderated = !empty($settings['moderate_proposals']) && !$this->canManage($club);
         $state = $moderated ? BookClubPlugin::STATE_PENDING : $entryState;
 
+        $proposer = $this->resolveProposer($club, $body, $userId);
         $clubBookId = $this->repo->proposeExternalBook((int) $club['id'], [
             'titolo'  => $titolo,
             'autori'  => self::str($body, 'ext_autori', 500),
             'isbn'    => self::str($body, 'ext_isbn', 20),
             'anno'    => self::str($body, 'ext_anno', 10),
             'editore' => self::str($body, 'ext_editore', 255),
-        ], $state, $userId, $motivation);
+        ], $state, $proposer, $motivation);
 
         if ($clubBookId === null) {
             $this->flash('error', __('Proposta non salvata, riprova.'));
@@ -524,6 +545,117 @@ class PublicController extends BaseController
 
         $this->flash('success', __('Stato del libro aggiornato.'));
         return $this->redirect($response, '/book-club/' . $slug);
+    }
+
+    /**
+     * Remove a book from the club's list entirely (managers only). Uwe #138:
+     * a dedicated "remove", distinct from moving a book to an archive-like
+     * state. The club-book row is deleted (state history / poll options cascade
+     * away, meetings keep their record with a NULL book) and, for a
+     * never-acquired external proposal, its metadata is cleaned up too.
+     */
+    public function removeBook(ServerRequestInterface $request, ResponseInterface $response, string $slug, int $bookId): ResponseInterface
+    {
+        $club = $this->repo->clubBySlug($slug);
+        if ($club === null || !$this->canManage($club)) {
+            return $this->notFound($response);
+        }
+        $book = $this->repo->clubBook($bookId);
+        if ($book === null || (int) $book['club_id'] !== (int) $club['id']) {
+            return $this->notFound($response);
+        }
+        if ($this->repo->deleteClubBook($bookId)) {
+            $this->flash('success', __('Libro rimosso dal club.'));
+        } else {
+            $this->flash('error', __('Impossibile rimuovere il libro, riprova.'));
+        }
+        return $this->redirect($response, '/book-club/' . $slug);
+    }
+
+    /**
+     * PDF of the club's reading list, grouped by workflow state (Uwe #138).
+     * Available to any active member or manager; pending proposals are only
+     * included for managers.
+     */
+    public function booksPdf(ServerRequestInterface $request, ResponseInterface $response, string $slug): ResponseInterface
+    {
+        $club = $this->repo->clubBySlug($slug);
+        if ($club === null || !$this->canView($club)) {
+            return $this->notFound($response);
+        }
+        $membership = $this->membership($club);
+        $isMember = $membership !== null && $membership['status'] === 'active';
+        $canManage = $this->canManage($club);
+        if (!$isMember && !$canManage) {
+            return $this->notFound($response);
+        }
+
+        $states = $this->repo->workflowStates($club);
+        $books = $this->repo->clubBooks((int) $club['id']);
+        if (!$canManage) {
+            $books = array_values(array_filter(
+                $books,
+                static fn(array $b): bool => $b['state'] !== BookClubPlugin::STATE_PENDING
+            ));
+        }
+        $booksByState = [];
+        foreach ($books as $b) {
+            $booksByState[(string) $b['state']][] = $b;
+        }
+
+        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $appName = \App\Support\ConfigStore::get('app.name', 'Biblioteca');
+        $pdf->SetCreator($appName);
+        $pdf->SetAuthor($appName);
+        $pdf->SetTitle((string) $club['name'] . ' — ' . __('I libri del club'));
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(15, 15, 15);
+        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->AddPage();
+
+        $pdf->SetFont('dejavusans', 'B', 16);
+        $pdf->Cell(0, 10, (string) $club['name'], 0, 1, 'L');
+        $pdf->SetFont('dejavusans', '', 11);
+        $pdf->Cell(0, 7, __('I libri del club'), 0, 1, 'L');
+        $pdf->SetFont('dejavusans', 'I', 8);
+        $pdf->SetTextColor(128, 128, 128);
+        $pdf->Cell(0, 6, __('Documento generato il %s alle %s', date('d/m/Y'), date('H:i')), 0, 1, 'L');
+        $pdf->SetTextColor(0, 0, 0);
+        $pdf->Ln(3);
+
+        foreach ($states as $state) {
+            $stateBooks = $booksByState[(string) $state['key']] ?? [];
+            if ($stateBooks === []) {
+                continue;
+            }
+            $pdf->SetFont('dejavusans', 'B', 12);
+            $pdf->SetFillColor(240, 240, 240);
+            $pdf->Cell(0, 8, (string) $state['label'] . '  (' . count($stateBooks) . ')', 0, 1, 'L', true);
+            $pdf->Ln(1);
+            $pdf->SetFont('dejavusans', '', 10);
+            foreach ($stateBooks as $b) {
+                $line = '• ' . \App\Support\HtmlHelper::decode((string) ($b['titolo'] ?? ''));
+                if (!empty($b['autori'])) {
+                    $line .= ' — ' . \App\Support\HtmlHelper::decode((string) $b['autori']);
+                }
+                if (!empty($b['is_external'])) {
+                    $line .= ' [' . __('Proposta esterna') . ']';
+                }
+                $pdf->MultiCell(0, 6, $line, 0, 'L');
+            }
+            $pdf->Ln(2);
+        }
+        if ($books === []) {
+            $pdf->SetFont('dejavusans', 'I', 10);
+            $pdf->MultiCell(0, 6, __('Nessun libro nel club.'), 0, 'L');
+        }
+
+        $filename = 'book-club-' . $slug . '-' . date('Ymd') . '.pdf';
+        $response->getBody()->write($pdf->Output('', 'S'));
+        return $response
+            ->withHeader('Content-Type', 'application/pdf')
+            ->withHeader('Content-Disposition', 'inline; filename="' . $filename . '"');
     }
 
     // ------------------------------------------------------------------

@@ -419,6 +419,17 @@ class Repo
         );
     }
 
+    /** True if $userId is an ACTIVE member of the club (used to validate a
+     *  manager-chosen "proposed_by"). */
+    public function isActiveMember(int $clubId, int $userId): bool
+    {
+        return $this->row(
+            "SELECT 1 FROM bookclub_members WHERE club_id = ? AND user_id = ? AND status = 'active'",
+            'ii',
+            [$clubId, $userId]
+        ) !== null;
+    }
+
     /** @return list<array<string, mixed>> */
     public function listMembers(int $clubId, ?string $status = null): array
     {
@@ -715,7 +726,7 @@ class Repo
      */
     public function proposeExternalBook(int $clubId, array $data, string $state, ?int $proposedBy, string $motivation): ?int
     {
-        $titolo = trim((string) ($data['titolo'] ?? ''));
+        $titolo = trim((string) $data['titolo']);
         if ($titolo === '') {
             return null;
         }
@@ -934,7 +945,22 @@ class Repo
 
     public function deleteClubBook(int $clubBookId): bool
     {
-        return $this->exec('DELETE FROM bookclub_books WHERE id = ?', 'i', [$clubBookId]);
+        // Capture the external link BEFORE deleting the club-book row: deleting
+        // the child bookclub_books row does not cascade up to its parent
+        // bookclub_external_books, so a never-acquired external proposal would
+        // otherwise leave an orphaned metadata row behind.
+        $row = $this->row('SELECT external_book_id FROM bookclub_books WHERE id = ?', 'i', [$clubBookId]);
+        $ok = $this->exec('DELETE FROM bookclub_books WHERE id = ?', 'i', [$clubBookId]);
+        $extId = $row !== null ? (int) ($row['external_book_id'] ?? 0) : 0;
+        if ($ok && $extId > 0) {
+            // Only when it was never acquired into the catalogue.
+            $this->exec(
+                'DELETE FROM bookclub_external_books WHERE id = ? AND acquired_libro_id IS NULL',
+                'i',
+                [$extId]
+            );
+        }
+        return $ok;
     }
 
     // ------------------------------------------------------------------

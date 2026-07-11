@@ -6498,5 +6498,14 @@
   "Proposta esterna": "Externer Vorschlag",
   "Inviata quando l'account si attiverà automaticamente dopo la verifica dell'email.": "Wird gesendet, wenn das Konto nach der E-Mail-Bestätigung automatisch aktiviert wird.",
   "Registrazione ricevuta - verifica email": "Registrierung eingegangen - E-Mail bestätigen",
-  "Questo libro non è ancora nel catalogo della biblioteca.": "Dieses Buch ist noch nicht im Bibliothekskatalog."
+  "Questo libro non è ancora nel catalogo della biblioteca.": "Dieses Buch ist noch nicht im Bibliothekskatalog.",
+  "Partecipa online": "Online teilnehmen",
+  "Proponi un libro non ancora in catalogo": "Ein noch nicht im Katalog vorhandenes Buch vorschlagen",
+  "Me stesso": "Ich selbst",
+  "Rimuovere questo libro dalla lista del club? L'operazione non si può annullare.": "Dieses Buch aus der Liste des Clubs entfernen? Das kann nicht rückgängig gemacht werden.",
+  "Rimuovi dal club": "Aus dem Club entfernen",
+  "Stampa PDF": "PDF drucken",
+  "Libro rimosso dal club.": "Buch aus dem Club entfernt.",
+  "Impossibile rimuovere il libro, riprova.": "Buch konnte nicht entfernt werden, bitte erneut versuchen.",
+  "Nessun libro nel club.": "Keine Bücher im Club."
 }
