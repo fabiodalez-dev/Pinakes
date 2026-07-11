@@ -134,7 +134,7 @@ class PublicController extends BaseController
             do_action('bookclub.member.joined', (int) $club['id'], $userId, $status);
         }
         if ($status === 'pending') {
-            $this->notifyAdminsForClub(
+            $this->notifyClubEvent(
                 $club,
                 'new_user',
                 sprintf(__('Richiesta di adesione al club "%s"'), (string) $club['name']),
@@ -418,7 +418,7 @@ class PublicController extends BaseController
     /** Notify the club managers that a new book was proposed. */
     private function notifyProposal(array $club, string $title, string $slug): void
     {
-        $this->notifyAdminsForClub(
+        $this->notifyClubEvent(
             $club,
             'general',
             sprintf(__('Nuova proposta nel club "%s"'), (string) $club['name']),

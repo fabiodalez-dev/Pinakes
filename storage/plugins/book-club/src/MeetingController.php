@@ -69,7 +69,7 @@ class MeetingController extends BaseController
             if (function_exists('do_action')) {
                 do_action('bookclub.meeting.created', $meetingId);
             }
-            $this->notifyAdminsForClub(
+            $this->notifyClubEvent(
                 $club,
                 'general',
                 sprintf(__('Nuovo incontro nel club "%s"'), (string) $club['name']),

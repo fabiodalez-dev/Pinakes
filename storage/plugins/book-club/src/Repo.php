@@ -1289,6 +1289,28 @@ class Repo
         );
     }
 
+    /**
+     * Active owner/moderator members with a usable email — the people who
+     * moderate THIS club. Notified alongside the Pinakes admins so a club
+     * owner who isn't a Pinakes admin still hears about join requests/proposals.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function clubManagerEmails(int $clubId): array
+    {
+        return $this->rows(
+            "SELECT u.nome, u.cognome, u.email, u.locale
+               FROM bookclub_members m
+               JOIN bookclub_roles r ON r.id = m.role_id
+               JOIN utenti u ON u.id = m.user_id
+              WHERE m.club_id = ? AND m.status = 'active'
+                AND r.slug IN ('owner','moderator')
+                AND u.email IS NOT NULL AND u.email <> ''",
+            'i',
+            [$clubId]
+        );
+    }
+
     // ------------------------------------------------------------------
     // Dashboard
     // ------------------------------------------------------------------

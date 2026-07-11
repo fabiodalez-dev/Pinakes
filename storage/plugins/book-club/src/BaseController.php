@@ -80,16 +80,18 @@ abstract class BaseController
     }
 
     /**
-     * Notify the Pinakes admins about a club event that needs attention (a join
-     * request, a new proposal, a new meeting). Delegates to the shared
-     * NotificationService::notifyAdmins() so the in-app admin bell AND the admin
-     * email go through exactly the same pipeline as every other Pinakes admin
-     * notification — no hand-rolled recipient/mail plumbing here. Best-effort.
+     * Notify about a club event that needs attention (a join request, a new
+     * proposal, a new meeting). Delegates to the shared
+     * NotificationService::notifyAdmins() so the in-app admin bell and the email
+     * go through exactly the same pipeline as every other Pinakes notification —
+     * the Pinakes admins/staff PLUS this club's owner/moderators (passed as
+     * extra recipients, de-duplicated by email), so a club owner who isn't a
+     * Pinakes admin still hears about it. Best-effort.
      *
      * @param array<string, mixed> $club
      * @param string $type one of NotificationService's allowed types
      */
-    protected function notifyAdminsForClub(array $club, string $type, string $title, string $message, string $slug): void
+    protected function notifyClubEvent(array $club, string $type, string $title, string $message, string $slug): void
     {
         try {
             (new NotificationService($this->db))->notifyAdmins(
@@ -97,10 +99,11 @@ abstract class BaseController
                 $title,
                 $message,
                 absoluteUrl('/book-club/' . $slug),
-                (int) $club['id']
+                (int) $club['id'],
+                $this->repo->clubManagerEmails((int) $club['id'])
             );
         } catch (\Throwable $e) {
-            SecureLogger::error('[BookClub] admin notification failed: ' . $e->getMessage());
+            SecureLogger::error('[BookClub] club-event notification failed: ' . $e->getMessage());
         }
     }
 

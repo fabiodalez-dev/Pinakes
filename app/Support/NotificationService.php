@@ -1374,20 +1374,36 @@ class NotificationService {
      * the rest of Pinakes. Best-effort: failures are logged, never thrown.
      *
      * @param string $type one of createNotification()'s allowed types
+     * @param list<array<string, mixed>> $extraRecipients extra people to email
+     *        besides the admins — each ['email','nome','cognome','locale'].
+     *        Merged and de-duplicated by email so nobody is emailed twice.
      */
-    public function notifyAdmins(string $type, string $title, string $message, ?string $link = null, ?int $relatedId = null): void
+    public function notifyAdmins(string $type, string $title, string $message, ?string $link = null, ?int $relatedId = null, array $extraRecipients = []): void
     {
         // 1. In-app admin bell.
         $this->createNotification($type, $title, $message, $link, $relatedId);
 
-        // 2. Email every active admin/staff (same recipient query as sendToAdmins).
+        // 2. Email the active admins/staff (same recipient query as sendToAdmins)
+        //    plus any extra recipients, de-duplicated by lower-cased email.
         try {
+            $recipients = [];
             $result = $this->db->query(
                 "SELECT email, nome, cognome, locale FROM utenti
                   WHERE tipo_utente IN ('admin', 'staff') AND stato = 'attivo'
                     AND email IS NOT NULL AND email <> ''"
             );
-            if (!$result) {
+            if ($result) {
+                while ($row = $result->fetch_assoc()) {
+                    $recipients[strtolower(trim((string) $row['email']))] = $row;
+                }
+            }
+            foreach ($extraRecipients as $extra) {
+                $key = strtolower(trim((string) ($extra['email'] ?? '')));
+                if ($key !== '' && !isset($recipients[$key])) {
+                    $recipients[$key] = $extra;
+                }
+            }
+            if ($recipients === []) {
                 return;
             }
             $bodyHtml = '<p>' . htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</p>';
@@ -1395,7 +1411,7 @@ class NotificationService {
                 $bodyHtml .= '<p><a href="' . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '">'
                     . htmlspecialchars($link, ENT_QUOTES, 'UTF-8') . '</a></p>';
             }
-            while ($row = $result->fetch_assoc()) {
+            foreach ($recipients as $row) {
                 $this->emailService->sendEmail(
                     (string) $row['email'],
                     $title,
