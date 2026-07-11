@@ -52,6 +52,19 @@ class ViafAuthorityPlugin
     /**
      * @return array{created:list<string>, failed:list<string>}
      */
+    /**
+     * Tables this plugin's ensureSchema() always creates. Declared so
+     * PluginManager's boot-time self-heal re-runs ensureSchema when any is
+     * missing on an already-active plugin (a partial/aborted upgrade). One
+     * cheap read-only probe; DDL only runs when a table is actually absent.
+     *
+     * @return list<string>
+     */
+    public function expectedTables(): array
+    {
+        return ['author_authority_alternates'];
+    }
+
     public function ensureSchema(): array
     {
         $created = [];

@@ -30,6 +30,11 @@ if (!class_exists('OaiPmhServerPlugin', false)) {
             \App\Support\SecureLogger::debug('[OaiPmhServer] Plugin activated');
         }
 
+        public function expectedTables(): array
+        {
+            return $this->instance->expectedTables();
+        }
+
         public function onDeactivate(): void
         {
             $this->instance->onDeactivate();

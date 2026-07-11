@@ -113,6 +113,20 @@ test.describe('Nikola #238 — loan workflow', () => {
     await expect(page.locator('#libro_search')).toHaveValue(new RegExp(BOOK_TITLE));
   });
 
+  test('loan list with ?pdf= does not leak the auto-download script as page text (#238)', async ({ page }) => {
+    await loginAdmin(page);
+    // The "Auto-trigger PDF download" inline <script> had a comment containing a
+    // literal script-closing tag, which closed the block early and dumped the
+    // rest of the JS as visible page text. Guard against the regression.
+    await page.goto(`${BASE}/admin/loans?pdf=1`);
+    const body = await page.locator('body').innerText();
+    expect(body).not.toContain('var pdfId');
+    expect(body).not.toContain('window.history.replaceState');
+    expect(body).not.toContain('document.createElement');
+    // The page still renders its real content.
+    await expect(page.locator('body')).toContainText(/Prestiti|Loans|Ausleihen|Prêts/);
+  });
+
   test('#4/#5 loan details + PDF show the copy inventory and subtitle', async ({ page }) => {
     await loginAdmin(page);
     await page.goto(`${BASE}/admin/loans/create`);

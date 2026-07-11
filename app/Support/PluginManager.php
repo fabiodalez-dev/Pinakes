@@ -56,6 +56,46 @@ class PluginManager
      *
      * @return int Number of plugins auto-registered
      */
+    /**
+     * Cheap boot-time schema-presence probe used by the self-heal in
+     * autoRegisterBundledPlugins(). A schema-owning plugin may declare
+     * `expectedTables(): list<string>`; if any of those tables is missing the
+     * plugin's schema is behind and ensureSchema must be re-run. Plugins that
+     * do not declare the method never trigger a rebuild. One read-only
+     * information_schema query, no locks — safe to call on every boot.
+     */
+    private function bundledSchemaIncomplete(object $instance): bool
+    {
+        if (!method_exists($instance, 'expectedTables')) {
+            return false;
+        }
+        try {
+            $tables = $instance->expectedTables();
+        } catch (\Throwable $e) {
+            return false;
+        }
+        if (!is_array($tables) || $tables === []) {
+            return false;
+        }
+        $escaped = [];
+        foreach ($tables as $t) {
+            if (is_string($t) && $t !== '') {
+                $escaped[] = "'" . $this->db->real_escape_string($t) . "'";
+            }
+        }
+        if ($escaped === []) {
+            return false;
+        }
+        $sql = "SELECT COUNT(DISTINCT TABLE_NAME) FROM information_schema.TABLES
+                WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN (" . implode(',', $escaped) . ")";
+        $res = $this->db->query($sql);
+        if ($res === false) {
+            return false;
+        }
+        $present = (int) $res->fetch_row()[0];
+        return $present < count($escaped);
+    }
+
     public function autoRegisterBundledPlugins(): int
     {
         $registered = 0;
@@ -153,24 +193,35 @@ class PluginManager
                                     'db_error' => $this->db->error,
                                 ]);
                             }
-                            SecureLogger::warning("[PluginManager] Note: onActivate failed during upgrade for $pluginName; version rolled back to $dbVersion: " . $e->getMessage());
-                            throw new \RuntimeException(
-                                "Bundled plugin upgrade lifecycle failed for $pluginName",
-                                0,
-                                $e
-                            );
+                            // Do NOT rethrow: one bundled plugin's activation
+                            // failure must never abort the sync of the others —
+                            // that left every plugin after it un-synced, so an
+                            // already-active plugin (Uwe #138, book-club) never
+                            // got its new tables. The version is rolled back to
+                            // $dbVersion, so the next boot retries this path; and
+                            // the same-version branch below self-heals a schema
+                            // that is behind. Each plugin now syncs independently.
+                            SecureLogger::error("[PluginManager] onActivate failed during upgrade for $pluginName; version rolled back to $dbVersion, other plugins keep syncing, retry next boot. Error: " . $e->getMessage());
                         }
                     }
                 } elseif ($diskVersion === $dbVersion && (int) ($row['is_active'] ?? 0) === 1) {
-                    // Same version re-deploy: hooks added to the code but not yet in DB
-                    // (e.g. merging branches that extend the same plugin version).
-                    // Only re-run onActivate when the plugin has NO hooks registered
-                    // yet. Re-running it (ensureSchema DDL + hook re-insert) on EVERY
-                    // admin-plugin-page visit is wasteful and, when concurrent requests
-                    // (e.g. the admin layout's background polls) hit it at once,
-                    // deadlocks on plugin_hooks / metadata locks — surfacing as an
-                    // intermittent 500 on unrelated writes. When hooks already exist
-                    // we skip the work entirely; a wipe (count 0) re-triggers the sync.
+                    // Same disk/DB version, active plugin. Re-run onActivate when
+                    // EITHER:
+                    //  (a) hooks are missing — code added hooks not yet in DB
+                    //      (e.g. merging branches that extend the same version), or
+                    //      a wipe left plugin_hooks empty; OR
+                    //  (b) the plugin's declared schema is INCOMPLETE — a partial
+                    //      or aborted upgrade can leave version == disk with a
+                    //      table missing, and without this the "same version"
+                    //      branch would skip ensureSchema FOREVER (Uwe #138:
+                    //      book-club upgraded while active never got
+                    //      bookclub_external_books → permanent 1146 on every page).
+                    // Both are gated by a cheap read: hooks are one COUNT, the
+                    // schema probe is one read-only information_schema query with
+                    // NO locks. The heavy ensureSchema DDL runs ONLY when hooks or
+                    // a table are actually absent, so a healthy install pays
+                    // nothing and the historical deadlock (running DDL on every
+                    // admin-page poll) cannot recur.
                     $pluginIdInt = (int) ($row['id'] ?? 0);
                     $hookCount = 0;
                     $hookStmt = $this->db->prepare('SELECT COUNT(*) FROM plugin_hooks WHERE plugin_id = ?');
@@ -182,22 +233,21 @@ class PluginManager
                         }
                         $hookStmt->close();
                     }
-                    if ((int) $hookCount === 0) {
-                        try {
-                            $syncInstance = $this->instantiatePlugin([
-                                'id'        => $pluginIdInt,
-                                'name'      => $pluginName,
-                                'path'      => $pluginName,
-                                'main_file' => $pluginMeta['main_file'] ?? 'wrapper.php',
-                            ]);
-                            if (method_exists($syncInstance, 'onActivate')) {
-                                $syncInstance->onActivate();
-                            }
-                        } catch (\Throwable $e) {
-                            // Non-fatal: log and continue. Hooks may be stale but the
-                            // plugin keeps running with whatever is currently in the DB.
-                            SecureLogger::warning("[PluginManager] Hook re-sync skipped for $pluginName (same version): " . $e->getMessage());
+                    try {
+                        $syncInstance = $this->instantiatePlugin([
+                            'id'        => $pluginIdInt,
+                            'name'      => $pluginName,
+                            'path'      => $pluginName,
+                            'main_file' => $pluginMeta['main_file'] ?? 'wrapper.php',
+                        ]);
+                        $needsSync = ((int) $hookCount === 0)
+                            || $this->bundledSchemaIncomplete($syncInstance);
+                        if ($needsSync && method_exists($syncInstance, 'onActivate')) {
+                            $syncInstance->onActivate();
                         }
+                    } catch (\Throwable $e) {
+                        // Non-fatal: log and continue. The next boot retries.
+                        SecureLogger::warning("[PluginManager] Schema/hook self-heal skipped for $pluginName (same version): " . $e->getMessage());
                     }
                 }
                 continue;

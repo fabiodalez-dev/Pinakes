@@ -43,6 +43,17 @@ if (!class_exists('BookClubPlugin', false)) {
         }
 
         /**
+         * Declared so PluginManager's schema self-heal can detect it with
+         * method_exists() (through the wrapper, not just __call).
+         *
+         * @return list<string>
+         */
+        public function expectedTables(): array
+        {
+            return $this->instance->expectedTables();
+        }
+
+        /**
          * Forward any other call (setPluginId, registerRoutes,
          * renderAdminMenuEntry, onMaintenanceTick, ensureSchema, …) to the
          * namespaced instance so PluginManager and HookManager can invoke

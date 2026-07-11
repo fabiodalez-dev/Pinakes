@@ -122,11 +122,12 @@ function getStatusBadge($status) {
     <script>
     // Auto-trigger PDF download after loan creation
     (function() {
-      // $pdfIdForDownload is filter_input-validated as int above —
-      // JSON_HEX_TAG is paranoid defense for the same reason
-      // htmlspecialchars guards string contexts: protects against
-      // `</script>` if a future refactor ever lets a non-numeric
-      // value through.
+      // pdfId is filter_input-validated as an int above; encoding it with
+      // JSON_HEX_TAG additionally escapes < > and & so a value could never
+      // break out of this inline block, as defense-in-depth if a future
+      // refactor ever let a non-numeric value through. (This comment must
+      // not itself contain a literal script-closing tag — doing so closes
+      // the block here and dumps the rest of the JS as page text.)
       var pdfId = <?= json_encode($pdfIdForDownload, JSON_HEX_TAG) ?>;
       if (pdfId > 0) {
         var iframe = document.createElement('iframe');

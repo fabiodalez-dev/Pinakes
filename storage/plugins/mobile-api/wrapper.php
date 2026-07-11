@@ -33,6 +33,11 @@ if (!class_exists('MobileApiPlugin', false)) {
             \App\Support\SecureLogger::debug('[MobileApi] Plugin activated');
         }
 
+        public function expectedTables(): array
+        {
+            return $this->instance->expectedTables();
+        }
+
         public function onDeactivate(): void
         {
             $this->instance->onDeactivate();

@@ -109,6 +109,19 @@ class Z39ServerPlugin
      *
      * @return array{created: string[], failed: string[]}
      */
+    /**
+     * Tables this plugin's ensureSchema() always creates. Declared so
+     * PluginManager's boot-time self-heal re-runs ensureSchema when any is
+     * missing on an already-active plugin (a partial/aborted upgrade). One
+     * cheap read-only probe; DDL only runs when a table is actually absent.
+     *
+     * @return list<string>
+     */
+    public function expectedTables(): array
+    {
+        return ['autore_varianti', 'libri_soggetti', 'soggetti', 'z39_access_logs', 'z39_rate_limits'];
+    }
+
     public function ensureSchema(): array
     {
         $result = ['created' => [], 'failed' => []];

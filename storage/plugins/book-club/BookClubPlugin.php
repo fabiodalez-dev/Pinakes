@@ -201,9 +201,25 @@ class BookClubPlugin
      *
      * @return array{created: list<string>, failed: list<string>}
      */
-    public function ensureSchema(): array
+    /**
+     * The core tables ensureSchema() always creates. Declared so PluginManager
+     * can cheaply self-heal: if any of these is missing on an ACTIVE plugin
+     * (e.g. a partial/aborted upgrade left version == disk but a table absent),
+     * the boot-time sync re-runs onActivate regardless of the version match.
+     * Keep in lock-step with the $steps map in ensureSchema() — a unit test
+     * asserts the two stay identical.
+     *
+     * @return list<string>
+     */
+    public function expectedTables(): array
     {
-        $steps = [
+        return array_keys(self::schemaSteps());
+    }
+
+    /** @return array<string,string> table => CREATE DDL, in dependency order. */
+    private static function schemaSteps(): array
+    {
+        return [
             'bookclub_workflows'     => self::ddlWorkflows(),
             'bookclub_roles'         => self::ddlRoles(),
             'bookclub_clubs'         => self::ddlClubs(),
@@ -218,6 +234,11 @@ class BookClubPlugin
             'bookclub_meetings'      => self::ddlMeetings(),
             'bookclub_meeting_rsvps' => self::ddlMeetingRsvps(),
         ];
+    }
+
+    public function ensureSchema(): array
+    {
+        $steps = self::schemaSteps();
         $created = [];
         $failed = [];
         foreach ($steps as $table => $ddl) {

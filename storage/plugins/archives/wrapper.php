@@ -34,6 +34,11 @@ if (!class_exists('ArchivesPlugin', false)) {
             \App\Support\SecureLogger::debug('[Archives] Plugin activated');
         }
 
+        public function expectedTables(): array
+        {
+            return $this->instance->expectedTables();
+        }
+
         public function onDeactivate(): void
         {
             $this->instance->onDeactivate();

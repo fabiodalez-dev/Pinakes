@@ -166,6 +166,19 @@ class FrbrLrmPlugin
      *
      * @return array{created: array<int,string>, failed: array<int,string>}
      */
+    /**
+     * Tables this plugin's ensureSchema() always creates. Declared so
+     * PluginManager's boot-time self-heal re-runs ensureSchema when any is
+     * missing on an already-active plugin (a partial/aborted upgrade). One
+     * cheap read-only probe; DDL only runs when a table is actually absent.
+     *
+     * @return list<string>
+     */
+    public function expectedTables(): array
+    {
+        return ['opere', 'espressioni', 'libri_autori_ruoli'];
+    }
+
     public function ensureSchema(): array
     {
         $steps = [

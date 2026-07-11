@@ -24,6 +24,11 @@ if (!class_exists('ViafAuthorityPlugin', false)) {
             \App\Support\SecureLogger::debug('[ViafAuthority] Plugin activated');
         }
 
+        public function expectedTables(): array
+        {
+            return $this->instance->expectedTables();
+        }
+
         public function onDeactivate(): void
         {
             $this->instance->onDeactivate();

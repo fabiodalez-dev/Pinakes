@@ -302,6 +302,19 @@ class ArchivesPlugin
      * @return array{created: list<string>, failed: list<string>}
      * @throws \RuntimeException If a schema migration step fails.
      */
+    /**
+     * Tables this plugin's ensureSchema() always creates. Declared so
+     * PluginManager's boot-time self-heal re-runs ensureSchema when any is
+     * missing on an already-active plugin (a partial/aborted upgrade). One
+     * cheap read-only probe; DDL only runs when a table is actually absent.
+     *
+     * @return list<string>
+     */
+    public function expectedTables(): array
+    {
+        return ['archival_units', 'archival_unit_files', 'archival_unit_authority', 'archive_activities', 'archive_unit_activities', 'archive_agent_identifiers', 'archive_agent_relations', 'archive_places', 'archive_relations', 'authority_records', 'autori_authority_link'];
+    }
+
     public function ensureSchema(): array
     {
         $steps = [

@@ -29,6 +29,11 @@ if (!class_exists('FrbrLrmPlugin', false)) {
             \App\Support\SecureLogger::debug('[FrbrLrm] Plugin activated');
         }
 
+        public function expectedTables(): array
+        {
+            return $this->instance->expectedTables();
+        }
+
         public function onDeactivate(): void
         {
             $this->instance->onDeactivate();
