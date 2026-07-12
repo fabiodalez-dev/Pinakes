@@ -252,7 +252,12 @@ $statusLabels = [
 
     <!-- Meetings -->
     <section class="bg-white rounded-xl border border-gray-200 shadow p-6">
-      <h2 class="text-lg font-semibold text-gray-900 mb-4"><?= $e(__('Incontri')) ?></h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-semibold text-gray-900"><?= $e(__('Incontri')) ?></h2>
+        <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>#bc-meetings" class="text-sm text-blue-600 hover:underline">
+          <i class="fas fa-calendar-check mr-1"></i><?= $e(__('Gestisci incontri')) ?>
+        </a>
+      </div>
       <?php if (empty($meetings)): ?>
         <p class="text-gray-400 text-sm"><?= $e(__('Nessun incontro.')) ?></p>
       <?php endif; ?>
@@ -265,6 +270,7 @@ $statusLabels = [
           <span class="text-xs text-gray-500">
             <?= (int) $meeting['yes_count'] ?> <?= $e(__('sì')) ?><?= $meeting['seats'] !== null ? ' / ' . (int) $meeting['seats'] : '' ?>
             · <?= $e(['scheduled' => __('In programma'), 'done' => __('Svolto'), 'cancelled' => __('Annullato')][$meeting['status']] ?? $meeting['status']) ?>
+            · <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>#bc-meeting-<?= (int) $meeting['id'] ?>" class="text-blue-600 hover:underline"><?= $e(__('Modifica')) ?></a>
           </span>
         </div>
       <?php endforeach; ?>
