@@ -37,6 +37,44 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.34
+
+More user-reported fixes on labels and physical copies, plus a hardening pass
+over the loan/reservation lifecycle.
+
+### Physical-copy numbering ([#238](https://github.com/fabiodalez-dev/Pinakes/discussions/238))
+
+- **Consistent, collision-free inventory codes.** Changing a book's copy count
+  used to produce inconsistent suffixes (`LIB-3` + `LIB-3-C2`), trim the wrong
+  end when reducing, and eventually crash with `Duplicate entry '…-C2'`. Codes
+  are now a uniform `-C{N}` on every copy, reductions trim from the end (never a
+  loaned/reserved copy), and additions gap-fill the lowest free index with a
+  uniqueness check — so a duplicate can no longer occur. Existing codes are left
+  untouched (printed labels stay valid).
+
+### Label content scaling ([#238](https://github.com/fabiodalez-dev/Pinakes/discussions/238))
+
+- **Content now scales to fill the label.** Text and barcode grow with the label
+  size instead of staying a fixed size amid growing margins; each line auto-fits
+  its width, the barcode fills the width, and the whole layout is centered — for
+  both portrait and landscape.
+- **Configurable inner padding (mm)** in Settings → Labels, applied on every
+  side, to fine-tune the inset for any label stock.
+
+### Loans & reservations — reliability
+
+- Overbooking auditor now detects periods that involve overdue loans; the
+  expired-reservations cron follows the canonical lock order (no deadlock window
+  vs maintenance); capacity counts legacy reservations correctly; the
+  "Returned" action shows only for `in_corso`/`in_ritardo` across every admin
+  surface; and the maintenance recalc no longer double-runs.
+
+### Book Club follow-up ([#138](https://github.com/fabiodalez-dev/Pinakes/discussions/138))
+
+- The admin club page links straight to meeting management: a **Manage
+  meetings** link and a per-meeting **Edit** link (for scheduled meetings) that
+  deep-links to the meeting's card.
+
 ## What's New in v0.7.33
 
 Built from real user feedback on labels, language management and the Book Club
