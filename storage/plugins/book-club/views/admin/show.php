@@ -270,7 +270,10 @@ $statusLabels = [
           <span class="text-xs text-gray-500">
             <?= (int) $meeting['yes_count'] ?> <?= $e(__('sì')) ?><?= $meeting['seats'] !== null ? ' / ' . (int) $meeting['seats'] : '' ?>
             · <?= $e(['scheduled' => __('In programma'), 'done' => __('Svolto'), 'cancelled' => __('Annullato')][$meeting['status']] ?? $meeting['status']) ?>
-            · <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>#bc-meeting-<?= (int) $meeting['id'] ?>" class="text-blue-600 hover:underline"><?= $e(__('Modifica')) ?></a>
+            <?php if ($meeting['status'] === 'scheduled'): ?>
+              <?php // The public page only renders the inline edit form for scheduled meetings ?>
+              · <a href="<?= $e(url('/book-club/' . $club['slug'])) ?>#bc-meeting-<?= (int) $meeting['id'] ?>" class="text-blue-600 hover:underline"><?= $e(__('Modifica')) ?></a>
+            <?php endif; ?>
           </span>
         </div>
       <?php endforeach; ?>
