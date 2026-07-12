@@ -446,7 +446,7 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
       </section>
 
       <!-- Meetings -->
-      <section class="bc-card">
+      <section class="bc-card" id="bc-meetings">
         <div class="bc-section-header">
           <i class="fas fa-calendar-check"></i>
           <h2><?= $e(__('Incontri')) ?></h2>
