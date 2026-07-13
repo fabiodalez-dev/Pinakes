@@ -323,6 +323,7 @@ function getStatusBadge($status) {
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Libro') ?></th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Utente') ?></th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Date') ?></th>
+                        <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Scadenza') ?></th>
                         <th scope="col" class="px-6 py-3 text-center font-medium"><?= __('Stato') ?></th>
                         <th scope="col" class="px-6 py-3 text-center font-medium"><?= __('PDF') ?></th>
                         <th scope="col" class="px-6 py-3 text-right font-medium"><?= __('Azioni') ?></th>
@@ -331,7 +332,7 @@ function getStatusBadge($status) {
                 <tbody class="divide-y divide-slate-200">
                     <?php if (empty($prestiti)): ?>
                         <tr>
-                            <td colspan="6" class="text-center py-10 text-gray-500">
+                            <td colspan="7" class="text-center py-10 text-gray-500">
                                 <i class="fas fa-folder-open fa-2x mb-2"></i>
                                 <p><?= __("Nessun prestito trovato.") ?></p>
                             </td>
@@ -348,12 +349,17 @@ function getStatusBadge($status) {
                                     <div class="text-gray-500"><?php echo htmlspecialchars($prestito['utente_email'] ?? 'N/D'); ?></div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-gray-700">
-                                    <div>
-                                        <span class="font-semibold"><?= __("Prestito:") ?></span> <?= format_date($prestito['data_prestito'], false, '/') ?>
-                                    </div>
-                                    <div>
-                                        <span class="font-semibold"><?= __("Scadenza:") ?></span> <?= format_date($prestito['data_scadenza'], false, '/') ?>
-                                    </div>
+                                    <?= format_date($prestito['data_prestito'], false, '/') ?>
+                                </td>
+                                <?php
+                                    $isLoanOverdue = !empty($prestito['data_scadenza'])
+                                        && strtotime((string)$prestito['data_scadenza']) <= strtotime(date('Y-m-d'))
+                                        && in_array($prestito['stato'] ?? '', ['in_corso', 'in_ritardo'], true);
+                                ?>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="<?= $isLoanOverdue ? 'text-red-600 font-semibold' : 'text-gray-700' ?>">
+                                        <?= format_date($prestito['data_scadenza'], false, '/') ?>
+                                    </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
                                     <?php echo getStatusBadge($prestito['stato']); ?>
@@ -456,6 +462,25 @@ document.addEventListener('DOMContentLoaded', function() {
                 render: function(data, type, row) {
                     const dataPrestito = data ? formatDateLocale(data) : window.__('N/D');
                     return `<div class="text-gray-700">${dataPrestito}</div>`;
+                }
+            },
+            {
+                data: 'data_scadenza',
+                render: function(data, type, row) {
+                    if (!data) {
+                        return `<span class="text-gray-400">${window.__('N/D')}</span>`;
+                    }
+                    // Same red-highlight rule as the Physical Copies list: an active
+                    // loan (in_corso/in_ritardo) whose due date is today or past.
+                    // Compare on local date to match the server's stored dates.
+                    const now = new Date();
+                    const today = now.getFullYear() + '-' +
+                        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(now.getDate()).padStart(2, '0');
+                    const isOverdue = data <= today &&
+                        (row.stato === 'in_corso' || row.stato === 'in_ritardo');
+                    const cls = isOverdue ? 'text-red-600 font-semibold' : 'text-gray-700';
+                    return `<span class="${cls}">${formatDateLocale(data)}</span>`;
                 }
             },
             {

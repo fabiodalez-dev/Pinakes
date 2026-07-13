@@ -135,7 +135,7 @@ class PrestitiApiController
         $param_types .= 'ii';
 
         $sql_prepared = "SELECT p.id, l.titolo AS libro, CONCAT(u.nome,' ',u.cognome) AS utente,
-                       p.data_prestito, p.data_restituzione, p.attivo, p.stato,
+                       p.data_prestito, p.data_scadenza, p.data_restituzione, p.attivo, p.stato,
                        CONCAT(staff.nome,' ',staff.cognome) AS processed_by
                 $base $where_prepared
                 ORDER BY $orderColumn $orderDir LIMIT ?, ?";
@@ -163,6 +163,7 @@ class PrestitiApiController
                 'libro' => $r['libro'] ?? '',
                 'utente' => $r['utente'] ?? '',
                 'data_prestito' => $r['data_prestito'] ?? '',
+                'data_scadenza' => $r['data_scadenza'] ?? '',
                 'data_restituzione' => $r['data_restituzione'] ?? '',
                 'processed_by' => $r['processed_by'] ?? '',
                 'attivo' => (int)$r['attivo'],
