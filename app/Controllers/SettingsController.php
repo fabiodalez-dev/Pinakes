@@ -139,6 +139,49 @@ class SettingsController
         return $this->redirect($response, '/admin/settings?tab=general');
     }
 
+    /**
+     * Send a test email with the current mail settings and return a JSON result
+     * with the real outcome — the specific SMTP error on failure — so the admin
+     * can diagnose an email configuration without guessing (Nikola #238).
+     */
+    public function sendTestEmail(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+
+        // Recipient: an explicit address from the form, else the logged-in admin's.
+        $to = trim((string) ($data['test_email'] ?? ''));
+        if ($to === '') {
+            $adminId = (int) ($_SESSION['user']['id'] ?? 0);
+            if ($adminId > 0) {
+                $stmt = $db->prepare('SELECT email FROM utenti WHERE id = ? LIMIT 1');
+                $stmt->bind_param('i', $adminId);
+                $stmt->execute();
+                $row = $stmt->get_result()->fetch_assoc();
+                $stmt->close();
+                $to = (string) ($row['email'] ?? '');
+            }
+        }
+
+        if ($to === '') {
+            $response->getBody()->write((string) json_encode([
+                'success' => false,
+                'message' => __('Nessun destinatario: inserisci un indirizzo email o assicurati che il tuo account admin ne abbia uno.'),
+            ]));
+            return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+        }
+
+        $result = \App\Support\Mailer::sendTest($to);
+        $response->getBody()->write((string) json_encode([
+            'success' => $result['ok'],
+            'message' => $result['ok']
+                ? sprintf(__('Email di prova inviata a %s. Controlla la casella (anche lo spam).'), $to)
+                : sprintf(__('Invio fallito: %s'), $result['error']),
+        ]));
+        return $response
+            ->withHeader('Content-Type', 'application/json')
+            ->withStatus($result['ok'] ? 200 : 502);
+    }
+
     public function updateEmailSettings(Request $request, Response $response, mysqli $db): Response
     {
         $data = (array) $request->getParsedBody();

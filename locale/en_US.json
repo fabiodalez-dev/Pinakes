@@ -6525,5 +6525,18 @@
   "Spaziatura": "Spacing",
   "Margine interno (mm)": "Inner padding (mm)",
   "Il contenuto si adatta automaticamente alle dimensioni dell'etichetta. Aggiungi un margine interno extra per rifinire il layout.": "Content scales automatically to the label size. Add extra inner padding to fine-tune the layout.",
-  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "It looks like you're running the Docker image: the application files belong to the image and can't be modified from this button. Update by moving the container to the new image with “docker compose pull && docker compose up -d” (your data in the database and the storage/uploads volumes stays safe). The update button is meant for classic/shared-hosting installs where the web-server user owns the files."
+  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "It looks like you're running the Docker image: the application files belong to the image and can't be modified from this button. Update by moving the container to the new image with “docker compose pull && docker compose up -d” (your data in the database and the storage/uploads volumes stays safe). The update button is meant for classic/shared-hosting installs where the web-server user owns the files.",
+  "Nessun destinatario: inserisci un indirizzo email o assicurati che il tuo account admin ne abbia uno.": "No recipient: enter an email address or make sure your admin account has one.",
+  "Email di prova inviata a %s. Controlla la casella (anche lo spam).": "Test email sent to %s. Check the inbox (and spam).",
+  "Invio fallito: %s": "Send failed: %s",
+  "Indirizzo email del destinatario non valido.": "Invalid recipient email address.",
+  "Email di prova da Pinakes": "Test email from Pinakes",
+  "Questa è un'email di prova inviata dalle impostazioni di Pinakes. Se la ricevi, la configurazione email funziona.": "This is a test email sent from the Pinakes settings. If you received it, your email configuration works.",
+  "La funzione mail() di PHP ha restituito un errore. Verifica la configurazione del server di posta.": "PHP's mail() function returned an error. Check your mail-server configuration.",
+  "Prova invio": "Test send",
+  "Invia un'email di prova con le impostazioni attuali e vedi subito se funziona o qual è l'errore. Salva prima le impostazioni.": "Send a test email with the current settings and see right away whether it works or what the error is. Save the settings first.",
+  "Destinatario (vuoto = la tua email admin)": "Recipient (empty = your admin email)",
+  "Invia email di prova": "Send test email",
+  "Invio in corso…": "Sending…",
+  "Richiesta non riuscita. Riprova.": "Request failed. Try again."
 }
