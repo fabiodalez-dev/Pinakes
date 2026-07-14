@@ -355,7 +355,7 @@ $activeTab = $activeTab ?? 'general';
               out.textContent = '';
               var body = 'test_email=' + encodeURIComponent(to);
               if (csrf) { body += '&csrf_token=' + encodeURIComponent(csrf.value); }
-              fetch('<?= htmlspecialchars(url('/admin/settings/email/test'), ENT_QUOTES, 'UTF-8') ?>', {
+              fetch(<?= json_encode(url('/admin/settings/email/test'), JSON_HEX_TAG) ?>, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
                 body: body
