@@ -17,9 +17,20 @@ $libraryThingInstalled = $libraryThingInstalled ?? false;
 $initialAuthors = array_map(static function ($author) {
     return [
         'id' => (int)($author['id'] ?? 0),
-        'label' => $author['nome'] ?? ''
+        // Pseudonym-aware label (issue #237): "Pseudonimo (Nome)" when set.
+        'label' => \App\Support\AuthorName::display($author)
     ];
 }, $book['autori'] ?? []);
+
+// Contributor roles (issue #237): illustrator/translator/curator/colorist are
+// entity pickers just like authors. Initial selections mirror the authors shape.
+$contributorRoleKeys = ['illustratori', 'traduttori', 'curatori', 'coloristi'];
+$initialContributors = [];
+foreach ($contributorRoleKeys as $roleKey) {
+    $initialContributors[$roleKey] = array_map(static function ($c) {
+        return ['id' => (int)($c['id'] ?? 0), 'label' => \App\Support\AuthorName::display($c)];
+    }, $book[$roleKey] ?? []);
+}
 
 // Multi-publisher (issue #143): mirror the authors initial-selection shape.
 // Falls back to the single primary publisher for books saved before #143.
@@ -68,16 +79,20 @@ $initialData = [
     'file_url' => $book['file_url'] ?? '',
     'audio_url' => $book['audio_url'] ?? '',
     'parole_chiave' => $book['parole_chiave'] ?? '',
-    'traduttore' => $book['traduttore'] ?? '',
-    'illustratore' => $book['illustratore'] ?? '',
-    'curatore' => $book['curatore'] ?? '',
 ];
 
 $initialData['autori'] = $initialAuthors;
 $initialData['editori'] = $initialPublishers;
+foreach ($contributorRoleKeys as $roleKey) {
+    $initialData[$roleKey] = $initialContributors[$roleKey];
+}
 $initialData['current_cover'] = $currentCover;
 
 $initialAuthorsJson = htmlspecialchars(json_encode($initialAuthors, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8');
+$initialContributorsJson = [];
+foreach ($contributorRoleKeys as $roleKey) {
+    $initialContributorsJson[$roleKey] = htmlspecialchars(json_encode($initialContributors[$roleKey], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8');
+}
 $initialPublishersJson = htmlspecialchars(json_encode($initialPublishers, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP), ENT_QUOTES, 'UTF-8');
 $initialDataJsonRaw = json_encode($initialData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
 $modeAttr = htmlspecialchars($mode, ENT_QUOTES, 'UTF-8');
@@ -243,22 +258,29 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               <p class="text-xs text-gray-500 mt-1"><?= __("Lingua originale del libro") ?></p>
             </div>
           </div>
+          <?php
+          // Contributor roles as entity pickers (issue #237). Same Choices.js +
+          // /api/search/autori autocomplete as authors, so an illustrator/
+          // translator/curator/colorist is a real author entity (findable by
+          // pseudonym, appears on the author page), not free text.
+          $contributorFields = [
+              'illustratori' => ['label' => __('Illustratore'), 'help' => __("Illustratori dell'opera (autori veri, con autocomplete)")],
+              'traduttori'   => ['label' => __('Traduttore'),   'help' => __('Traduttori (autori veri, con autocomplete)')],
+              'curatori'     => ['label' => __('Curatore'),     'help' => __("Curatori dell'opera (autori veri, con autocomplete)")],
+              'coloristi'    => ['label' => __('Colorista'),    'help' => __('Coloristi (utile per i fumetti)')],
+          ];
+          ?>
           <div class="form-grid-2">
+            <?php foreach ($contributorFields as $roleKey => $meta): ?>
             <div>
-              <label for="traduttore" class="form-label"><?= __("Traduttore") ?></label>
-              <input id="traduttore" name="traduttore" type="text" class="form-input" placeholder="<?= __('es. Mario Rossi') ?>" value="<?php echo HtmlHelper::e($book['traduttore'] ?? ''); ?>" />
-              <p class="text-xs text-gray-500 mt-1"><?= __("Nome del traduttore (se applicabile)") ?></p>
+              <label for="<?= $roleKey ?>_select" class="form-label"><?= HtmlHelper::e($meta['label']) ?></label>
+              <select id="<?= $roleKey ?>_select" name="<?= $roleKey ?>_select[]" multiple
+                      placeholder="<?= __('Cerca o aggiungi...') ?>"
+                      data-initial-contributors="<?php echo $initialContributorsJson[$roleKey]; ?>"></select>
+              <div id="<?= $roleKey ?>_hidden"></div>
+              <p class="text-xs text-gray-500 mt-1"><?= HtmlHelper::e($meta['help']) ?></p>
             </div>
-            <div>
-              <label for="illustratore" class="form-label"><?= __("Illustratore") ?></label>
-              <input id="illustratore" name="illustratore" type="text" class="form-input" placeholder="<?= __('es. Gianni De Conno') ?>" value="<?php echo HtmlHelper::e($book['illustratore'] ?? ''); ?>" />
-              <p class="text-xs text-gray-500 mt-1"><?= __("Nome dell'illustratore (se applicabile)") ?></p>
-            </div>
-          </div>
-          <div>
-            <label for="curatore" class="form-label"><?= __("Curatore") ?></label>
-            <input id="curatore" name="curatore" type="text" class="form-input" placeholder="<?= __('es. Umberto Eco') ?>" value="<?php echo HtmlHelper::e($book['curatore'] ?? ''); ?>" />
-            <p class="text-xs text-gray-500 mt-1"><?= __("Nome del curatore dell'opera (se applicabile)") ?></p>
+            <?php endforeach; ?>
           </div>
 
           <div class="mt-2 text-xs text-gray-500" id="genre_path_preview" style="min-height:1.25rem;">
@@ -1142,6 +1164,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeUppy();
     initializeChoicesJS();
     initializePublishersChoices();
+    ['illustratori', 'traduttori', 'curatori', 'coloristi'].forEach(initContributorPicker);
     initializeSeriesAutocompletes();
     initializeSweetAlert();
     initializeGeneriDropdowns();
@@ -2247,6 +2270,91 @@ function initializeSeriesAutocompletes() {
             }
         } catch (err) { console.error('initializeSeriesAutocompletes:', err); }
     });
+}
+
+// Generic contributor picker (issue #237) — one Choices.js entity picker per
+// role (illustratori/traduttori/curatori/coloristi). Mirrors the authors picker
+// (same /api/search/autori autocomplete, create-on-Enter) but self-contained and
+// role-parameterized, so it never touches the bespoke authors code. Selected
+// existing authors post as `<role>_ids[]`; brand-new names post as `<role>_new[]`.
+function initContributorPicker(roleKey) {
+    try {
+        const el = document.getElementById(roleKey + '_select');
+        if (!el || typeof Choices === 'undefined') return;
+        const hidden = document.getElementById(roleKey + '_hidden');
+
+        const choice = new Choices(el, {
+            searchEnabled: true,
+            removeItemButton: true,
+            addItems: true,
+            duplicateItemsAllowed: false,
+            placeholder: true,
+            placeholderValue: <?= json_encode(__('Cerca o aggiungi...'), JSON_HEX_TAG) ?>,
+            noChoicesText: <?= json_encode(__('Nessun risultato, premi Invio per aggiungerne uno nuovo'), JSON_HEX_TAG) ?>,
+            itemSelectText: <?= json_encode(__('Clicca per selezionare'), JSON_HEX_TAG) ?>,
+            shouldSort: false,
+            searchResultLimit: -1,
+            searchFloor: 1,
+            fuseOptions: { threshold: 0.3, distance: 100 }
+        });
+
+        function syncHidden(value, label, add) {
+            if (!hidden) return;
+            const v = String(value == null ? '' : value);
+            Array.from(hidden.querySelectorAll('[data-choice-value]')).forEach((i) => {
+                if (i.dataset.choiceValue === v) i.remove();
+            });
+            if (!add || v === '') return;
+            const isExisting = /^\d+$/.test(v);
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.dataset.choiceValue = v;
+            if (isExisting) {
+                input.name = roleKey + '_ids[]';
+                input.value = v;
+            } else {
+                input.name = roleKey + '_new[]';
+                input.value = (label == null ? v : String(label)).trim() || v;
+            }
+            hidden.appendChild(input);
+        }
+
+        el.addEventListener('addItem', (e) => syncHidden(e.detail.value, e.detail.label, true));
+        el.addEventListener('removeItem', (e) => syncHidden(e.detail.value, e.detail.label, false));
+
+        // Pre-fill existing selections (edit mode).
+        let initial = [];
+        try { initial = JSON.parse(el.getAttribute('data-initial-contributors') || '[]'); } catch (_) { initial = []; }
+        (initial || []).forEach((c) => {
+            const id = String(c.id);
+            choice.setChoices([{ value: id, label: c.label, selected: true }], 'value', 'label', false);
+            syncHidden(id, c.label, true);
+        });
+
+        // Server-side search on keystroke (same endpoint as authors).
+        let searchTimeout = null;
+        choice.passedElement.element.addEventListener('search', function (event) {
+            const query = (event.detail && event.detail.value) ? event.detail.value.trim() : '';
+            clearTimeout(searchTimeout);
+            if (query.length < 2) return;
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const resp = await fetch(`${window.BASE_PATH}/api/search/autori?q=${encodeURIComponent(query)}`);
+                    if (!resp.ok) return;
+                    const results = await resp.json();
+                    const selected = new Set((choice.getValue(true) || []).map((v) => String(v)));
+                    const newChoices = (results || [])
+                        .filter((a) => !selected.has(String(a.id)))
+                        .map((a) => ({ value: String(a.id), label: a.label, selected: false }));
+                    if (newChoices.length > 0) choice.setChoices(newChoices, 'value', 'label', false);
+                } catch (e) {
+                    console.error('Contributor search failed (' + roleKey + '):', e);
+                }
+            }, 300);
+        });
+    } catch (error) {
+        console.error('initContributorPicker failed for ' + roleKey + ':', error);
+    }
 }
 
 function initializePublishersChoices() {

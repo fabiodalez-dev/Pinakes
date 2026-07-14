@@ -6525,5 +6525,13 @@
   "Spaziatura": "Espacement",
   "Margine interno (mm)": "Marge intérieure (mm)",
   "Il contenuto si adatta automaticamente alle dimensioni dell'etichetta. Aggiungi un margine interno extra per rifinire il layout.": "Le contenu s'adapte automatiquement à la taille de l'étiquette. Ajoutez une marge intérieure supplémentaire pour affiner la mise en page.",
-  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "Il semble que vous utilisiez l'image Docker : les fichiers de l'application appartiennent à l'image et ne peuvent pas être modifiés depuis ce bouton. Mettez à jour en déplaçant le conteneur vers la nouvelle image avec « docker compose pull && docker compose up -d » (vos données dans la base et dans les volumes storage/uploads restent en sécurité). Le bouton de mise à jour est prévu pour les installations classiques/hébergement mutualisé où l'utilisateur du serveur web est propriétaire des fichiers."
+  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "Il semble que vous utilisiez l'image Docker : les fichiers de l'application appartiennent à l'image et ne peuvent pas être modifiés depuis ce bouton. Mettez à jour en déplaçant le conteneur vers la nouvelle image avec « docker compose pull && docker compose up -d » (vos données dans la base et dans les volumes storage/uploads restent en sécurité). Le bouton de mise à jour est prévu pour les installations classiques/hébergement mutualisé où l'utilisateur du serveur web est propriétaire des fichiers.",
+  "Colorista": "Coloriste",
+  "Co-autore": "Co-auteur",
+  "Cerca o aggiungi...": "Rechercher ou ajouter...",
+  "Nessun risultato, premi Invio per aggiungerne uno nuovo": "Aucun résultat, appuyez sur Entrée pour en ajouter un nouveau",
+  "Illustratori dell'opera (autori veri, con autocomplete)": "Illustrateurs (vrais auteurs, avec autocomplétion)",
+  "Traduttori (autori veri, con autocomplete)": "Traducteurs (vrais auteurs, avec autocomplétion)",
+  "Curatori dell'opera (autori veri, con autocomplete)": "Éditeurs (vrais auteurs, avec autocomplétion)",
+  "Coloristi (utile per i fumetti)": "Coloristes (utile pour les bandes dessinées)"
 }

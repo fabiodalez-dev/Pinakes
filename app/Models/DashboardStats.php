@@ -47,7 +47,7 @@ class DashboardStats
     {
         $rows = [];
         $sql = "SELECT l.*,
-                       GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ') AS autore
+                       GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ') AS autore
                 FROM libri l
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
                 LEFT JOIN autori a ON la.autore_id = a.id

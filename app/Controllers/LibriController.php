@@ -583,6 +583,36 @@ class LibriController
     }
 
     /**
+     * Resolve a contributor role's picker submission into a flat list of author
+     * ids (issue #237). Existing selections arrive as `<role>_ids[]`; brand-new
+     * names as `<role>_new[]`, which are find-or-created just like authors.
+     * Shared by store() and update() for illustratori/traduttori/curatori/coloristi.
+     *
+     * @param array<string,mixed> $data
+     * @return list<int>
+     */
+    private function resolveContributorIds(mysqli $db, array $data, string $roleKey): array
+    {
+        $ids = array_map('intval', (array)($data[$roleKey . '_ids'] ?? []));
+        $newNames = (array)($data[$roleKey . '_new'] ?? []);
+        if ($newNames !== []) {
+            $authRepo = new \App\Models\AuthorRepository($db);
+            foreach ($newNames as $name) {
+                $name = trim((string)$name);
+                if ($name === '') {
+                    continue;
+                }
+                $existing = $authRepo->findByName($name);
+                $ids[] = $existing ?? $authRepo->create([
+                    'nome' => $name, 'pseudonimo' => '', 'data_nascita' => null,
+                    'data_morte' => null, 'nazionalita' => '', 'biografia' => '', 'sito_web' => '',
+                ]);
+            }
+        }
+        return array_values(array_unique(array_filter($ids, static fn($i) => $i > 0)));
+    }
+
+    /**
      * Create a book from the admin form: validates input, resolves authors and
      * publishers (multi-publisher, issue #143), handles cover + scraping data,
      * then persists via BookRepository.
@@ -915,6 +945,11 @@ class LibriController
 
             $repo = new \App\Models\BookRepository($db);
             $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
+            // Contributor roles as entities (issue #237): illustrator/translator/
+            // curator/colorist pickers, resolved to author ids (new names created).
+            foreach (['illustratori', 'traduttori', 'curatori', 'coloristi'] as $contributorRole) {
+                $fields[$contributorRole . '_ids'] = $this->resolveContributorIds($db, $data, $contributorRole);
+            }
 
             // Get scraped author bio if available
             $scrapedAuthorBio = trim((string) ($data['scraped_author_bio'] ?? ''));
@@ -1560,6 +1595,11 @@ class LibriController
                 }
             }
             $fields['autori_ids'] = array_map('intval', $data['autori_ids'] ?? []);
+            // Contributor roles as entities (issue #237): illustrator/translator/
+            // curator/colorist pickers, resolved to author ids (new names created).
+            foreach (['illustratori', 'traduttori', 'curatori', 'coloristi'] as $contributorRole) {
+                $fields[$contributorRole . '_ids'] = $this->resolveContributorIds($db, $data, $contributorRole);
+            }
 
             $collRepo = new \App\Models\CollocationRepository($db);
             if ($fields['scaffale_id'] && $fields['mensola_id']) {

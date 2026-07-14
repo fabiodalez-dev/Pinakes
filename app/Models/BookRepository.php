@@ -26,7 +26,7 @@ class BookRepository
         // Ottimizzato: JOIN + GROUP BY invece di subquery nel SELECT
         // Filtro soft delete: esclude libri cancellati
         $sql = "SELECT l.id, l.titolo, e.nome AS editore,
-                       GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ') AS autori
+                       GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY a.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
@@ -127,19 +127,38 @@ class BookRepository
         // Walk up the tree from genere_id to find the full ancestor chain, then map to cascade levels
         $this->resolveGenreHierarchy($row);
 
-        // authors list (order by ordine_credito if column exists)
-        // Whitelist ORDER BY per prevenire SQL injection
+        // Contributors grouped by role (issue #237). 'principale' → autori;
+        // illustratore/traduttore/curatore/colorista each get their own list, so
+        // the edit form can pre-fill the per-role pickers. pseudonimo is carried so
+        // the display can show "Pseudonimo (Nome)".
+        // Whitelist ORDER BY per prevenire SQL injection.
         $hasOrdineCredito = $this->hasColumnInTable('libri_autori', 'ordine_credito');
         $orderClause = $hasOrdineCredito
             ? 'ORDER BY la.ordine_credito, a.nome'
             : 'ORDER BY a.nome';
-        $stmt2 = $this->db->prepare("SELECT a.id, a.nome FROM libri_autori la JOIN autori a ON la.autore_id=a.id WHERE la.libro_id=? $orderClause");
+        $stmt2 = $this->db->prepare(
+            "SELECT a.id, a.nome, a.pseudonimo, la.ruolo
+             FROM libri_autori la JOIN autori a ON la.autore_id=a.id
+             WHERE la.libro_id=? $orderClause"
+        );
         $stmt2->bind_param('i', $id);
         $stmt2->execute();
         $authorsRes = $stmt2->get_result();
-        $row['autori'] = [];
+        $roleToKey = [
+            'principale'   => 'autori',
+            'illustratore' => 'illustratori',
+            'traduttore'   => 'traduttori',
+            'curatore'     => 'curatori',
+            'colorista'    => 'coloristi',
+        ];
+        foreach ($roleToKey as $key) {
+            $row[$key] = [];
+        }
         while ($a = $authorsRes->fetch_assoc()) {
-            $row['autori'][] = $a;
+            $ruolo = (string)($a['ruolo'] ?? 'principale');
+            $key = $roleToKey[$ruolo] ?? 'autori';
+            unset($a['ruolo']);
+            $row[$key][] = $a;
         }
 
         // publishers list (issue #143). editore_id / editore_nome are kept as
@@ -239,7 +258,7 @@ class BookRepository
             : "";
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
-                       GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ') AS autori
+                       GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY a.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
                 LEFT JOIN libri_autori la ON l.id = la.libro_id
@@ -466,17 +485,17 @@ class BookRepository
         if ($this->hasColumn('edizione')) {
             $addField('edizione', 's', $data['edizione'] ?? null);
         }
-        if ($this->hasColumn('traduttore')) {
+        if ($this->hasColumn('traduttore') && array_key_exists('traduttore', $data)) {
             $val = $data['traduttore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
             $addField('traduttore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
-        if ($this->hasColumn('illustratore')) {
+        if ($this->hasColumn('illustratore') && array_key_exists('illustratore', $data)) {
             $val = $data['illustratore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
             $addField('illustratore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
-        if ($this->hasColumn('curatore')) {
+        if ($this->hasColumn('curatore') && array_key_exists('curatore', $data)) {
             $val = $data['curatore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
             $addField('curatore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
@@ -618,7 +637,7 @@ class BookRepository
         }
 
         $bookId = (int) $this->db->insert_id;
-        $this->syncAuthors($bookId, $data['autori_ids'] ?? []);
+        $this->syncContributors($bookId, $data);
         $this->syncPublishers($bookId, $data['editori_ids'] ?? []);
         return $bookId;
     }
@@ -815,17 +834,17 @@ class BookRepository
         if ($this->hasColumn('edizione')) {
             $addSet('edizione', 's', $data['edizione'] ?? null);
         }
-        if ($this->hasColumn('traduttore')) {
+        if ($this->hasColumn('traduttore') && array_key_exists('traduttore', $data)) {
             $val = $data['traduttore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
             $addSet('traduttore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
-        if ($this->hasColumn('illustratore')) {
+        if ($this->hasColumn('illustratore') && array_key_exists('illustratore', $data)) {
             $val = $data['illustratore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
             $addSet('illustratore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
         }
-        if ($this->hasColumn('curatore')) {
+        if ($this->hasColumn('curatore') && array_key_exists('curatore', $data)) {
             $val = $data['curatore'] ?? null;
             $val = is_string($val) ? trim($val) : null;
             $addSet('curatore', 's', $val !== null && $val !== '' ? \App\Support\AuthorNormalizer::normalize($val) : null);
@@ -963,7 +982,7 @@ class BookRepository
             throw $e;
         }
 
-        $this->syncAuthors($id, $data['autori_ids'] ?? []);
+        $this->syncContributors($id, $data);
         $this->syncPublishers($id, $data['editori_ids'] ?? []);
         return $ok;
     }
@@ -1038,35 +1057,62 @@ class BookRepository
         return trim((string) $value);
     }
 
-    private function syncAuthors(int $bookId, array $authorIds): void
+    /**
+     * Replace the full contributor set of a book (issue #237). Reads the per-role
+     * id arrays from $data — autori_ids → 'principale', illustratori_ids →
+     * 'illustratore', traduttori_ids → 'traduttore', curatori_ids → 'curatore',
+     * coloristi_ids → 'colorista' — deletes every libri_autori row for the book,
+     * then re-inserts each role. INSERT IGNORE guards the (libro_id, autore_id,
+     * ruolo) primary key, so the same author appearing twice in one role is
+     * deduped while the same person as both author and illustrator is kept (two
+     * distinct roles). New authors are resolved to numeric ids by the controller
+     * before this runs (see processAuthorId()).
+     *
+     * @param array<string,mixed> $data
+     */
+    private function syncContributors(int $bookId, array $data): void
     {
-        $stmt = $this->db->prepare('DELETE FROM libri_autori WHERE libro_id = ?');
-        if ($stmt) {
-            $stmt->bind_param('i', $bookId);
-            $stmt->execute();
-            $stmt->close();
+        $del = $this->db->prepare('DELETE FROM libri_autori WHERE libro_id = ?');
+        if ($del) {
+            $del->bind_param('i', $bookId);
+            $del->execute();
+            $del->close();
         } else {
-            // If prepared statement fails, log the error and throw exception
             error_log("Critical error: Unable to prepare statement for deleting book authors for book_id: $bookId");
             throw new \Exception("Database error: unable to delete book authors");
         }
-        if (!$authorIds)
-            return;
 
-        $stmt = $this->db->prepare("INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES (?, ?, 'principale')");
-        foreach ($authorIds as $authorData) {
-            $authorId = $this->processAuthorId($authorData);
-            if ($authorId > 0) {
-                $stmt->bind_param('ii', $bookId, $authorId);
-                $stmt->execute();
+        $rolesMap = [
+            'principale'   => $data['autori_ids'] ?? [],
+            'illustratore' => $data['illustratori_ids'] ?? [],
+            'traduttore'   => $data['traduttori_ids'] ?? [],
+            'curatore'     => $data['curatori_ids'] ?? [],
+            'colorista'    => $data['coloristi_ids'] ?? [],
+        ];
+
+        $ins = $this->db->prepare("INSERT IGNORE INTO libri_autori (libro_id, autore_id, ruolo) VALUES (?, ?, ?)");
+        if ($ins === false) {
+            return;
+        }
+        foreach ($rolesMap as $ruolo => $ids) {
+            if (!is_array($ids)) {
+                continue;
+            }
+            foreach ($ids as $authorData) {
+                $authorId = $this->processAuthorId($authorData);
+                if ($authorId > 0) {
+                    $ins->bind_param('iis', $bookId, $authorId, $ruolo);
+                    $ins->execute();
+                }
             }
         }
+        $ins->close();
     }
 
     /**
      * Replace the publisher set for a book (issue #143).
      *
-     * Mirrors {@see syncAuthors()}: deletes the libri_editori rows then inserts
+     * Mirrors {@see syncContributors()}: deletes the libri_editori rows then inserts
      * the given publisher ids in order. New publishers must already be resolved
      * to numeric ids by the controller. The caller keeps libri.editore_id in
      * sync with the first (primary) publisher.
@@ -1126,7 +1172,7 @@ class BookRepository
 
         // Handle new author format from Choices.js (new_timestamp)
         // Note: new authors should be resolved to numeric IDs in LibriController::store()
-        // before reaching syncAuthors(). If we get here, it indicates a frontend bug.
+        // before reaching syncContributors(). If we get here, it indicates a frontend bug.
         if (is_string($authorData) && strpos($authorData, 'new_') === 0) {
             error_log("[BookRepository] Unresolved new_* author ID received: {$authorData} — this indicates a frontend sync issue");
             return 0;

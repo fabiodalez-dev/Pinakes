@@ -120,6 +120,15 @@ class MaintenanceService
             'errors' => []
         ];
 
+        // One-time backfill of legacy free-text contributor columns into author
+        // entities (issue #237). Self-guarded by a system_settings marker, so it
+        // does real work only on the first post-upgrade pass and is a no-op after.
+        try {
+            \App\Support\ContributorBackfill::run($this->db);
+        } catch (\Throwable $e) {
+            $results['errors'][] = 'contributorBackfill: ' . $e->getMessage();
+        }
+
         // Expire FIRST (BUG8/D13 ordering): cull dead-period reservations and
         // unclaimed pickups before activating scheduled loans, so a reservation
         // whose window has already passed is never promoted to 'da_ritirare'.

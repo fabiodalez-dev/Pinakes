@@ -42,7 +42,7 @@ class LoanRepository
                        u.codice_tessera AS utente_tessera,
                        u.telefono AS utente_telefono,
                        u.indirizzo AS utente_indirizzo,
-                       (SELECT GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR ', ')
+                       (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY a.nome SEPARATOR ', ')
                         FROM libri_autori la
                         JOIN autori a ON la.autore_id = a.id
                         WHERE la.libro_id = p.libro_id) AS autori

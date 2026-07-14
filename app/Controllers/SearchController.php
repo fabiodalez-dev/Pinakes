@@ -14,6 +14,10 @@ class SearchController
     {
         $q = trim((string)($request->getQueryParams()['q'] ?? ''));
         $rows = [];
+        // Display name = "Pseudonimo (Nome)" when a pseudonym is set (issue #237),
+        // and each query word may match either the real name or the pseudonym so an
+        // author is findable by pen name.
+        $label = \App\Support\AuthorName::displaySql('autori') . ' AS label';
         if ($q !== '') {
             // Split query into words — each word must match (AND logic)
             $words = preg_split('/\s+/', $q, -1, PREG_SPLIT_NO_EMPTY);
@@ -21,11 +25,13 @@ class SearchController
             $params = [];
             $types = '';
             foreach ($words as $word) {
-                $conditions[] = 'nome LIKE ?';
-                $params[] = '%' . $word . '%';
-                $types .= 's';
+                $conditions[] = '(nome LIKE ? OR pseudonimo LIKE ?)';
+                $like = '%' . $word . '%';
+                $params[] = $like;
+                $params[] = $like;
+                $types .= 'ss';
             }
-            $sql = "SELECT id, nome AS label FROM autori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome";
+            $sql = "SELECT id, {$label} FROM autori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome";
             $stmt = $db->prepare($sql);
             $stmt->bind_param($types, ...$params);
             $stmt->execute();
@@ -36,7 +42,7 @@ class SearchController
             }
         } else {
             // Return all authors (for Choices.js initial load)
-            $res = $db->query("SELECT id, nome AS label FROM autori ORDER BY nome");
+            $res = $db->query("SELECT id, {$label} FROM autori ORDER BY nome");
             while ($r = $res->fetch_assoc()) {
                 $r['label'] = HtmlHelper::decode($r['label']);
                 $rows[] = $r;

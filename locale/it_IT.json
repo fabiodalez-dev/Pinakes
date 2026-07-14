@@ -6525,5 +6525,13 @@
   "Spaziatura": "Spaziatura",
   "Margine interno (mm)": "Margine interno (mm)",
   "Il contenuto si adatta automaticamente alle dimensioni dell'etichetta. Aggiungi un margine interno extra per rifinire il layout.": "Il contenuto si adatta automaticamente alle dimensioni dell'etichetta. Aggiungi un margine interno extra per rifinire il layout.",
-  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file."
+  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.",
+  "Colorista": "Colorista",
+  "Co-autore": "Co-autore",
+  "Cerca o aggiungi...": "Cerca o aggiungi...",
+  "Nessun risultato, premi Invio per aggiungerne uno nuovo": "Nessun risultato, premi Invio per aggiungerne uno nuovo",
+  "Illustratori dell'opera (autori veri, con autocomplete)": "Illustratori dell'opera (autori veri, con autocomplete)",
+  "Traduttori (autori veri, con autocomplete)": "Traduttori (autori veri, con autocomplete)",
+  "Curatori dell'opera (autori veri, con autocomplete)": "Curatori dell'opera (autori veri, con autocomplete)",
+  "Coloristi (utile per i fumetti)": "Coloristi (utile per i fumetti)"
 }

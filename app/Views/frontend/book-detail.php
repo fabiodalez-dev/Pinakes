@@ -1669,11 +1669,19 @@ ob_start();
 
                     <div class="authors-list" id="book-authors-list">
                         <?php foreach($authors as $author): ?>
+                            <?php
+                                // Pseudonym-aware display "Pseudonimo (Nome)"; the link still
+                                // targets the real name (author page keys on nome). Issue #237.
+                                $authorDisplay = \App\Support\AuthorName::display([
+                                    'nome' => html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8'),
+                                    'pseudonimo' => html_entity_decode($author['pseudonimo'] ?? '', ENT_QUOTES, 'UTF-8'),
+                                ]);
+                            ?>
                             <a href="<?= htmlspecialchars(route_path('author') . '/' . urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none">
                                 <span class="author-item role-<?= htmlspecialchars($author['ruolo'], ENT_QUOTES, 'UTF-8') ?>">
-                                    <?= htmlspecialchars(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')) ?>
+                                    <?= htmlspecialchars($authorDisplay) ?>
                                     <?php if ($author['ruolo'] !== 'principale'): ?>
-                                        (<?= htmlspecialchars(ucfirst($author['ruolo']), ENT_QUOTES, 'UTF-8') ?>)
+                                        (<?= htmlspecialchars(\App\Support\ContributorRoles::label($author['ruolo']), ENT_QUOTES, 'UTF-8') ?>)
                                     <?php endif; ?>
                                 </span>
                             </a>

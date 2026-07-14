@@ -37,6 +37,20 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.36
+
+- **Illustrators, translators, curators and colorists are now real authors (#237).**
+  For comics and illustrated books, contributors other than the main author used
+  to be plain free-text fields — no autocomplete, and they never showed up as
+  authors. Now each role (illustrator, translator, curator, and the new
+  **colorist**) is a proper author entity with the same search-as-you-type picker
+  as the author field, so it can be reused, found by pseudonym, and appears on the
+  contributor's author page and books. Existing free-text values are converted to
+  entities automatically on the first run after upgrading — nothing to redo.
+- **Find and show authors by pseudonym (#237).** The author picker now matches on
+  the pen name as well as the real name (so typing "Leo" finds them), and books
+  display the pseudonym as *"Pseudonym (Real name)"* instead of only the real name.
+
 ## What's New in v0.7.35
 
 - **Docker-aware in-app updater.** On the official Docker image the app files are

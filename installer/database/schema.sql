@@ -496,7 +496,7 @@ CREATE TABLE `digital_assets` (
 CREATE TABLE `libri_autori` (
   `libro_id` int NOT NULL,
   `autore_id` int NOT NULL,
-  `ruolo` enum('principale','co-autore','traduttore','illustratore','curatore') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `ruolo` enum('principale','co-autore','traduttore','illustratore','curatore','colorista') COLLATE utf8mb4_unicode_ci NOT NULL,
   `ordine_credito` int DEFAULT NULL,
   PRIMARY KEY (`libro_id`,`autore_id`,`ruolo`),
   KEY `libro_id` (`libro_id`),
