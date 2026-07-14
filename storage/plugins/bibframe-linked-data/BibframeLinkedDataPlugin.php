@@ -875,7 +875,9 @@ class BibframeLinkedDataPlugin
             'SELECT l.*, a.viaf_id AS viaf_id, a.nome AS autore_principale
                FROM libri l
                LEFT JOIN autori a ON a.id = (
-                   SELECT la2.autore_id FROM libri_autori la2 WHERE la2.libro_id = l.id
+                   SELECT la2.autore_id FROM libri_autori la2
+                    WHERE la2.libro_id = l.id
+                      AND la2.ruolo IN (\'principale\', \'co-autore\')
                    ORDER BY COALESCE(la2.ordine_credito, 0), la2.autore_id LIMIT 1
                )
               WHERE l.id = ? AND l.deleted_at IS NULL'
@@ -996,6 +998,7 @@ class BibframeLinkedDataPlugin
             'traduttore'   => 'http://id.loc.gov/vocabulary/relators/trl',
             'curatore'     => 'http://id.loc.gov/vocabulary/relators/edt',
             'illustratore' => 'http://id.loc.gov/vocabulary/relators/ill',
+            'colorista'    => 'http://id.loc.gov/vocabulary/relators/clr',
             default        => 'http://id.loc.gov/vocabulary/relators/aut',
         };
     }

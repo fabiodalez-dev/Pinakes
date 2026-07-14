@@ -45,7 +45,7 @@ class LoanRepository
                        (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY a.nome SEPARATOR ', ')
                         FROM libri_autori la
                         JOIN autori a ON la.autore_id = a.id
-                        WHERE la.libro_id = p.libro_id) AS autori
+                        WHERE la.libro_id = p.libro_id AND la.ruolo IN ('principale','co-autore')) AS autori
                 FROM prestiti p
                 LEFT JOIN libri l ON p.libro_id = l.id AND l.deleted_at IS NULL
                 LEFT JOIN copie c ON p.copia_id = c.id

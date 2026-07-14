@@ -208,7 +208,7 @@ class LibriApiController
         $orderAuthors = $this->hasTableColumn($db, 'libri_autori', 'ordine_credito') ? 'la.ordine_credito, a.nome' : 'a.nome';
         $authorLabelExpr = $this->hasTableColumn($db, 'autori', 'cognome')
             ? "CONCAT(a.nome, ' ', a.cognome)"
-            : 'a.nome';
+            : \App\Support\AuthorName::displaySql('a');
         $sql = "SELECT l.*, e.nome AS editore_nome,
                 g.nome AS genere_nome,
                 COALESCE(s.nome, 'N/D') AS collocazione_nome,
@@ -229,14 +229,14 @@ class LibriApiController
                   SELECT GROUP_CONCAT($authorLabelExpr SEPARATOR ', ')
                   FROM libri_autori la
                   JOIN autori a ON la.autore_id = a.id
-                  WHERE la.libro_id = l.id
+                  WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')
                   ORDER BY $orderAuthors
                 ) AS autori,
                 (
                   SELECT GROUP_CONCAT(la.autore_id ORDER BY $orderAuthors SEPARATOR ',')
                   FROM libri_autori la
                   JOIN autori a ON la.autore_id = a.id
-                  WHERE la.libro_id = l.id
+                  WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')
                 ) AS autori_order_key
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id=e.id
@@ -334,10 +334,10 @@ class LibriApiController
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
                        (
-                         SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
+                         SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ')
                          FROM libri_autori la
                          JOIN autori a ON la.autore_id = a.id
-                         WHERE la.libro_id = l.id
+                         WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')
                        ) AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
@@ -369,10 +369,10 @@ class LibriApiController
             : "";
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        (
-                         SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
+                         SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ')
                          FROM libri_autori la
                          JOIN autori a ON la.autore_id = a.id
-                         WHERE la.libro_id = l.id
+                         WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')
                        ) AS autori
                 FROM libri l
                 INNER JOIN libri_autori la ON l.id = la.libro_id
@@ -438,7 +438,7 @@ class LibriApiController
         // Query per ottenere libri del genere
         $authorLabelExpr = $this->hasTableColumn($db, 'autori', 'cognome')
             ? "TRIM(CONCAT(a.nome, ' ', COALESCE(a.cognome, '')))"
-            : 'a.nome';
+            : \App\Support\AuthorName::displaySql('a');
         $sql = "
             SELECT
                 l.id,
@@ -449,7 +449,7 @@ class LibriApiController
                 l.stato,
                 GROUP_CONCAT(DISTINCT {$authorLabelExpr} SEPARATOR ', ') AS autori
             FROM libri l
-            LEFT JOIN libri_autori la ON l.id = la.libro_id
+            LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale','co-autore')
             LEFT JOIN autori a ON la.autore_id = a.id
             WHERE l.genere_id = ? AND l.deleted_at IS NULL
             GROUP BY l.id

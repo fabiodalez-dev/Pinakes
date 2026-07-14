@@ -109,9 +109,13 @@ class LendingRepo
     // ------------------------------------------------------------------
 
     private const LOAN_SELECT = "SELECT ml.*, cb.libro_id, l.titolo, l.copertina_url,
-                       (SELECT GROUP_CONCAT(a.nome ORDER BY la.ordine_credito SEPARATOR ', ')
+                       (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
+                                                 THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
+                                                 ELSE TRIM(a.nome) END
+                                            ORDER BY la.ordine_credito SEPARATOR ', ')
                           FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                         WHERE la.libro_id = l.id) AS autori,
+                         WHERE la.libro_id = l.id
+                           AND la.ruolo IN ('principale', 'co-autore')) AS autori,
                        ul.nome AS lender_nome, ul.cognome AS lender_cognome,
                        ub.nome AS borrower_nome, ub.cognome AS borrower_cognome
                   FROM bookclub_member_loans ml

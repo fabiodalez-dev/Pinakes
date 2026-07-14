@@ -506,9 +506,9 @@ class ReservationManager
             // Get book details
             $stmt = $this->db->prepare("
                 SELECT l.titolo, COALESCE(l.isbn13, l.isbn10, '') as isbn,
-                       GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ') AS autore
+                       GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY la.ruolo='principale' DESC, la.ordine_credito SEPARATOR ', ') AS autore
                 FROM libri l
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.id = ? AND l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn13, l.isbn10

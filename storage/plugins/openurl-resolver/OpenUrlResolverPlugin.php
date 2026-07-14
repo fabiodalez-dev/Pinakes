@@ -392,6 +392,7 @@ class OpenUrlResolverPlugin
                        FROM libri_autori la
                        JOIN autori a ON a.id = la.autore_id
                       WHERE la.libro_id = l.id
+                        AND la.ruolo IN ('principale', 'co-autore')
                       ORDER BY COALESCE(la.ordine_credito, 0), la.autore_id
                       LIMIT 1) AS autore_principale
                FROM libri l
@@ -437,6 +438,7 @@ class OpenUrlResolverPlugin
                FROM libri_autori la
                JOIN autori a ON a.id = la.autore_id
               WHERE la.libro_id = ?
+                AND la.ruolo IN (\'principale\', \'co-autore\')
               ORDER BY COALESCE(la.ordine_credito, 0), la.autore_id'
         );
         if ($stmt === false) { return []; }

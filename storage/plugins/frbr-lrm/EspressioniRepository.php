@@ -20,7 +20,9 @@ class EspressioniRepository
     /** @return array<int, array<string, mixed>> */
     public function listForOpera(int $operaId): array
     {
-        $sql = "SELECT e.*, t.nome AS traduttore_nome, c.nome AS curatore_nome
+        $translatorDisplay = \App\Support\AuthorName::displaySql('t');
+        $curatorDisplay = \App\Support\AuthorName::displaySql('c');
+        $sql = "SELECT e.*, {$translatorDisplay} AS traduttore_nome, {$curatorDisplay} AS curatore_nome
                 FROM espressioni e
                 LEFT JOIN autori t ON e.traduttore_autore_id = t.id
                 LEFT JOIN autori c ON e.curatore_autore_id = c.id

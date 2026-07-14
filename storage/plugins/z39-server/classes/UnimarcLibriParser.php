@@ -215,6 +215,7 @@ class UnimarcLibriParser
             'traduttore'   => '730', // Translator
             'curatore'     => '340', // Editor
             'illustratore' => '440', // Illustrator
+            'colorista'    => '410', // Graphic technician (includes colourists)
             default        => '070', // Author (principale / co-autore / unknown)
         };
     }
@@ -228,6 +229,7 @@ class UnimarcLibriParser
             '730' => 'traduttore',
             '340' => 'curatore',
             '440' => 'illustratore',
+            '410' => 'colorista',
             default => 'co-autore',
         };
     }

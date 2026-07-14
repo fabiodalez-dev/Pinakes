@@ -579,10 +579,10 @@ class ReservationReassignmentService
 
         // Recupera autore principale
         $authorStmt = $this->db->prepare("
-            SELECT a.nome
+            SELECT " . \App\Support\AuthorName::displaySql('a') . " AS nome
             FROM autori a
             JOIN libri_autori la ON a.id = la.autore_id
-            WHERE la.libro_id = ?
+            WHERE la.libro_id = ? AND la.ruolo IN ('principale', 'co-autore')
             ORDER BY la.ruolo = 'principale' DESC
             LIMIT 1
         ");

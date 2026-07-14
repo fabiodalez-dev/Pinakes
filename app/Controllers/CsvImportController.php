@@ -366,6 +366,19 @@ class CsvImportController
                     }
                 }
 
+                // Contributor roles are entities too (#237). CSV writes the
+                // retained legacy columns for round-trip compatibility, then
+                // resolves the same values into libri_autori in this transaction
+                // so post-migration imports never drift back to free text only.
+                $importData['authors_created'] += \App\Support\ContributorSync::linkLegacyValues(
+                    $db,
+                    $bookId,
+                    [
+                        'traduttore' => $parsedData['traduttore'] ?? null,
+                        'illustratore' => $parsedData['illustratore'] ?? null,
+                    ]
+                );
+
                 $db->commit();
 
                 if ($action === 'created') {
@@ -1129,8 +1142,8 @@ class CsvImportController
     {
         $authRepo = new \App\Models\AuthorRepository($db);
 
-        // findByName normalizes and handles different formats
-        $existingId = $authRepo->findByName($name);
+        // External catalogue values are canonical names, never pseudonyms.
+        $existingId = $authRepo->findByCanonicalName($name);
         if ($existingId) {
             return ['id' => $existingId, 'created' => false];
         }

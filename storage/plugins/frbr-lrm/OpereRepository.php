@@ -26,7 +26,8 @@ class OpereRepository
      */
     public function list(int $limit = 100): array
     {
-        $sql = "SELECT o.*, a.nome AS autore_nome,
+        $authorDisplay = \App\Support\AuthorName::displaySql('a');
+        $sql = "SELECT o.*, {$authorDisplay} AS autore_nome,
                        (SELECT COUNT(*) FROM libri l WHERE l.opera_id = o.id AND l.deleted_at IS NULL) AS num_edizioni
                 FROM opere o
                 LEFT JOIN autori a ON o.autore_principale_id = a.id
@@ -48,7 +49,8 @@ class OpereRepository
     /** @return array<string, mixed>|null */
     public function getById(int $id): ?array
     {
-        $sql = "SELECT o.*, a.nome AS autore_nome
+        $authorDisplay = \App\Support\AuthorName::displaySql('a');
+        $sql = "SELECT o.*, {$authorDisplay} AS autore_nome
                 FROM opere o
                 LEFT JOIN autori a ON o.autore_principale_id = a.id
                 WHERE o.id = ? AND o.deleted_at IS NULL
@@ -64,7 +66,8 @@ class OpereRepository
     /** @return array<string, mixed>|null */
     public function getBySlug(string $slug): ?array
     {
-        $sql = "SELECT o.*, a.nome AS autore_nome
+        $authorDisplay = \App\Support\AuthorName::displaySql('a');
+        $sql = "SELECT o.*, {$authorDisplay} AS autore_nome
                 FROM opere o
                 LEFT JOIN autori a ON o.autore_principale_id = a.id
                 WHERE o.slug = ? AND o.deleted_at IS NULL

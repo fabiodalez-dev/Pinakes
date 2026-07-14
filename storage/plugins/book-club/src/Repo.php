@@ -130,35 +130,10 @@ class Repo
 
     private function findOrCreateAuthor(string $name): int
     {
-        $stmt = $this->db->prepare('SELECT id FROM autori WHERE nome = ? ORDER BY id ASC LIMIT 1');
-        if ($stmt === false) {
-            throw new \RuntimeException('author lookup prepare failed');
-        }
-        $stmt->bind_param('s', $name);
-        if (!$stmt->execute()) {
-            $err = $stmt->error;
-            $stmt->close();
-            throw new \RuntimeException('author lookup failed: ' . $err);
-        }
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if ($row !== null) {
-            return (int) $row['id'];
-        }
-
-        $stmt = $this->db->prepare('INSERT INTO autori (nome) VALUES (?)');
-        if ($stmt === false) {
-            throw new \RuntimeException('author insert prepare failed');
-        }
-        $stmt->bind_param('s', $name);
-        if (!$stmt->execute()) {
-            $err = $stmt->error;
-            $stmt->close();
-            throw new \RuntimeException('author insert failed: ' . $err);
-        }
-        $id = (int) $stmt->insert_id;
-        $stmt->close();
-        return $id;
+        // External catalog feeds provide canonical names. Deliberately do not
+        // match against pseudonyms: that could merge two different people.
+        $authors = new \App\Models\AuthorRepository($this->db);
+        return $authors->findByCanonicalName($name) ?? $authors->create(['nome' => $name]);
     }
 
     private function attachExternalAuthors(int $libroId, ?string $authors): void
@@ -667,9 +642,13 @@ class Repo
                        COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
                        COALESCE(l.anno_pubblicazione, ext.anno) AS anno_pubblicazione,
                        COALESCE(
-                           (SELECT GROUP_CONCAT(a.nome ORDER BY la.ordine_credito SEPARATOR ', ')
+                           (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
+                                                     THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
+                                                     ELSE TRIM(a.nome) END
+                                                ORDER BY la.ordine_credito SEPARATOR ', ')
                               FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                             WHERE la.libro_id = l.id),
+                             WHERE la.libro_id = l.id
+                               AND la.ruolo IN ('principale', 'co-autore')),
                            ext.autori
                        ) AS autori,
                        (cb.external_book_id IS NOT NULL) AS is_external,
@@ -894,9 +873,12 @@ class Repo
         $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
         return $this->rows(
             "SELECT l.id, l.titolo, l.anno_pubblicazione, l.copertina_url,
-                    (SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
+                    (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
+                                              THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
+                                              ELSE TRIM(a.nome) END SEPARATOR ', ')
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                      WHERE la.libro_id = l.id) AS autori
+                      WHERE la.libro_id = l.id
+                        AND la.ruolo IN ('principale', 'co-autore')) AS autori
                FROM libri l
               WHERE l.deleted_at IS NULL
                 AND (l.titolo LIKE ? OR l.isbn13 LIKE ? OR l.isbn10 LIKE ?)
@@ -1027,9 +1009,12 @@ class Repo
                     COALESCE(l.titolo, ext.titolo) AS titolo,
                     COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
                     COALESCE(
-                        (SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
+                        (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
+                                                  THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
+                                                  ELSE TRIM(a.nome) END SEPARATOR ', ')
                            FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                          WHERE la.libro_id = l.id),
+                          WHERE la.libro_id = l.id
+                            AND la.ruolo IN ('principale', 'co-autore')),
                         ext.autori
                     ) AS autori,
                     (cb.external_book_id IS NOT NULL) AS is_external,

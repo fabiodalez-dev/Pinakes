@@ -108,14 +108,16 @@ final class CatalogController
             // Fetch limit+1 to know whether a further page exists without a
             // second COUNT round-trip.
             $fetch = $limit + 1;
+            $authorDisplaySql = \App\Support\AuthorName::displaySql('a');
 
             $sql = "
                 SELECT
                     l.id, l.titolo, l.sottotitolo, l.anno_pubblicazione, l.lingua,
                     l.copertina_url, l.copie_totali, l.copie_disponibili,
                     l.isbn13, l.isbn10, l.ean, l.tipo_media,
-                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
+                    (SELECT {$authorDisplaySql} FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                     WHERE la.libro_id = l.id AND la.ruolo IN ('principale', 'co-autore')
+                     ORDER BY (la.ruolo = 'principale') DESC, la.ordine_credito, la.autore_id LIMIT 1) AS autore,
                     e.nome AS editore,
                     g.nome AS genere
                 FROM libri l
@@ -397,10 +399,12 @@ final class CatalogController
                 OR l.isbn10 LIKE ?
                 OR l.ean LIKE ?
                 OR EXISTS (SELECT 1 FROM libri_autori la_q JOIN autori a_q ON la_q.autore_id = a_q.id
-                           WHERE la_q.libro_id = l.id AND a_q.nome LIKE ?)
+                           WHERE la_q.libro_id = l.id
+                             AND la_q.ruolo IN ('principale', 'co-autore')
+                             AND (a_q.nome LIKE ? OR a_q.pseudonimo LIKE ?))
                 OR e.nome LIKE ?
             )";
-            for ($i = 0; $i < 8; $i++) {
+            for ($i = 0; $i < 9; $i++) {
                 $bind[]  = $like;
                 $types  .= 's';
             }
@@ -409,14 +413,19 @@ final class CatalogController
         $author = isset($params['author']) ? trim((string) $params['author']) : '';
         if ($author !== '') {
             if (is_numeric($author)) {
-                $conditions[] = 'EXISTS (SELECT 1 FROM libri_autori la_a WHERE la_a.libro_id = l.id AND la_a.autore_id = ?)';
+                $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_a
+                                         WHERE la_a.libro_id = l.id AND la_a.autore_id = ?
+                                           AND la_a.ruolo IN ('principale', 'co-autore'))";
                 $bind[]  = (int) $author;
                 $types  .= 'i';
             } else {
-                $conditions[] = 'EXISTS (SELECT 1 FROM libri_autori la_a JOIN autori a_a ON la_a.autore_id = a_a.id
-                                         WHERE la_a.libro_id = l.id AND a_a.nome LIKE ?)';
+                $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_a JOIN autori a_a ON la_a.autore_id = a_a.id
+                                         WHERE la_a.libro_id = l.id
+                                           AND la_a.ruolo IN ('principale', 'co-autore')
+                                           AND (a_a.nome LIKE ? OR a_a.pseudonimo LIKE ?))";
                 $bind[]  = '%' . $author . '%';
-                $types  .= 's';
+                $bind[]  = '%' . $author . '%';
+                $types  .= 'ss';
             }
         }
 
@@ -596,14 +605,14 @@ final class CatalogController
     private function fetchAuthors(int $bookId): array
     {
         $sql = "
-            SELECT a.id, a.nome, la.ruolo
+            SELECT a.id, a.nome, a.pseudonimo, la.ruolo
             FROM autori a
             JOIN libri_autori la ON a.id = la.autore_id
             WHERE la.libro_id = ?
             ORDER BY CASE la.ruolo
                 WHEN 'principale' THEN 1 WHEN 'co-autore' THEN 2
                 WHEN 'traduttore' THEN 3 WHEN 'illustratore' THEN 4
-                WHEN 'curatore' THEN 5 ELSE 6 END, a.nome
+                WHEN 'curatore' THEN 5 WHEN 'colorista' THEN 6 ELSE 7 END, a.nome
         ";
         $out  = [];
         $stmt = $this->db->prepare($sql);
@@ -615,9 +624,11 @@ final class CatalogController
         $res = $stmt->get_result();
         while ($res !== false && ($row = $res->fetch_assoc()) !== null) {
             $out[] = [
-                'id'   => (int) $row['id'],
-                'name' => (string) $row['nome'],
-                'role' => (string) ($row['ruolo'] ?? ''),
+                'id'             => (int) $row['id'],
+                'name'           => \App\Support\AuthorName::display($row),
+                'canonical_name' => (string) $row['nome'],
+                'pseudonym'      => $this->nullableString($row['pseudonimo'] ?? null),
+                'role'           => (string) ($row['ruolo'] ?? ''),
             ];
         }
         $stmt->close();
@@ -693,22 +704,29 @@ final class CatalogController
      */
     private function fetchRelated(int $bookId, array $authors): array
     {
+        $creatorAuthors = array_values(array_filter(
+            $authors,
+            static fn (array $a): bool => in_array((string) ($a['role'] ?? ''), ['principale', 'co-autore'], true)
+        ));
         $authorIds = array_values(array_filter(array_map(
             static fn (array $a): int => (int) ($a['id'] ?? 0),
-            $authors
+            $creatorAuthors
         )));
         if ($authorIds === []) {
             return [];
         }
 
         $ph  = implode(',', array_fill(0, count($authorIds), '?'));
+        $authorDisplaySql = \App\Support\AuthorName::displaySql('a');
         $sql = "
             SELECT DISTINCT l.id, l.titolo, l.copertina_url, l.anno_pubblicazione,
-                   (SELECT a.nome FROM libri_autori la2 JOIN autori a ON la2.autore_id = a.id
-                    WHERE la2.libro_id = l.id AND la2.ruolo = 'principale' LIMIT 1) AS autore
+                   (SELECT {$authorDisplaySql} FROM libri_autori la2 JOIN autori a ON la2.autore_id = a.id
+                    WHERE la2.libro_id = l.id AND la2.ruolo IN ('principale', 'co-autore')
+                    ORDER BY (la2.ruolo = 'principale') DESC, la2.ordine_credito, la2.autore_id LIMIT 1) AS autore
             FROM libri l
             JOIN libri_autori la ON l.id = la.libro_id
             WHERE la.autore_id IN ($ph)
+              AND la.ruolo IN ('principale', 'co-autore')
               AND l.id != ?
               AND l.deleted_at IS NULL
             GROUP BY l.id

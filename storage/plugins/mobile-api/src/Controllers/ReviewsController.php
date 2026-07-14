@@ -281,11 +281,12 @@ class ReviewsController
 
             // All of the user's reviews (any stato) on non-deleted books, with
             // the principal author resolved for display.
+            $authorDisplaySql = \App\Support\AuthorName::displaySql('a');
             $sql = "SELECT r.id, r.libro_id, r.stelle, r.descrizione, r.stato, r.created_at, r.updated_at,
                            l.titolo AS book_title, l.copertina_url,
-                           (SELECT a.nome
+                           (SELECT {$authorDisplaySql}
                             FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                            WHERE la.libro_id = l.id
+                            WHERE la.libro_id = l.id AND la.ruolo IN ('principale', 'co-autore')
                             ORDER BY (la.ruolo = 'principale') DESC, la.ordine_credito ASC, la.autore_id ASC
                             LIMIT 1) AS book_author
                     FROM recensioni r

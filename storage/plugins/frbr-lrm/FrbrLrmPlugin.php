@@ -542,7 +542,8 @@ class FrbrLrmPlugin
     private function autoriForSelect(): array
     {
         $out = [];
-        $res = $this->db->query("SELECT id, nome FROM autori ORDER BY nome ASC LIMIT 1000");
+        $display = \App\Support\AuthorName::displaySql('a');
+        $res = $this->db->query("SELECT a.id, {$display} AS nome FROM autori a ORDER BY nome ASC LIMIT 1000");
         if ($res instanceof \mysqli_result) {
             while ($row = $res->fetch_assoc()) {
                 $out[] = ['id' => (int) $row['id'], 'nome' => (string) $row['nome']];

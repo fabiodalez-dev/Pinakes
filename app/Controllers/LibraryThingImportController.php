@@ -439,6 +439,16 @@ class LibraryThingImportController
                         }
                     }
 
+                    // Secondary authors classified as translators must become
+                    // role links, not remain only in libri.traduttore. Keep this
+                    // in the import transaction so author entities and the book
+                    // row commit atomically.
+                    $importData['authors_created'] += \App\Support\ContributorSync::linkLegacyValues(
+                        $db,
+                        $bookId,
+                        ['traduttore' => $parsedData['traduttore'] ?? null]
+                    );
+
                     $db->commit();
 
                     if ($action === 'created') {
@@ -1176,7 +1186,8 @@ class LibraryThingImportController
     private function getOrCreateAuthor(\mysqli $db, string $name): array
     {
         $authRepo = new \App\Models\AuthorRepository($db);
-        $existingId = $authRepo->findByName($name);
+        // LibraryThing supplies a canonical author name, never a pseudonym key.
+        $existingId = $authRepo->findByCanonicalName($name);
         if ($existingId) {
             return ['id' => $existingId, 'created' => false];
         }
@@ -2060,7 +2071,8 @@ class LibraryThingImportController
         $query = "
             SELECT
                 l.*,
-                GROUP_CONCAT(DISTINCT a.nome ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo IN ('principale', 'co-autore') THEN a.nome END
+                             ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
                 e.nome as editore_nome,
                 g.nome as genere_nome
             FROM libri l

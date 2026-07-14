@@ -218,7 +218,7 @@ final class SearchIndexBuilder
                 // OUTERMOST (last) so `&amp;lt;` does not double-decode.
                 $sql = "UPDATE libri l
                     LEFT JOIN (
-                            SELECT la.libro_id, GROUP_CONCAT(a.nome SEPARATOR ' ') AS autori
+                            SELECT la.libro_id, GROUP_CONCAT(CONCAT_WS(' ', a.nome, a.pseudonimo) SEPARATOR ' ') AS autori
                             FROM libri_autori la
                             JOIN autori a ON a.id = la.autore_id
                             WHERE la.libro_id IN ({$ph})
@@ -375,7 +375,7 @@ final class SearchIndexBuilder
                 . " OR {$prefix}isbn10 LIKE ? ESCAPE '\\\\'"
                 . " OR {$prefix}isbn13 LIKE ? ESCAPE '\\\\'"
                 . " OR {$prefix}ean LIKE ? ESCAPE '\\\\'"
-                . " OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = {$bookIdExpr} AND a.nome LIKE ? ESCAPE '\\\\')"
+                . " OR EXISTS (SELECT 1 FROM libri_autori la JOIN autori a ON la.autore_id = a.id WHERE la.libro_id = {$bookIdExpr} AND CONCAT_WS(' ', a.nome, a.pseudonimo) LIKE ? ESCAPE '\\\\')"
                 . " OR EXISTS (SELECT 1 FROM editori e WHERE e.id = {$publisherIdExpr} AND e.nome LIKE ? ESCAPE '\\\\'))";
             for ($i = 0; $i < 9; $i++) {
                 $params[] = $like;

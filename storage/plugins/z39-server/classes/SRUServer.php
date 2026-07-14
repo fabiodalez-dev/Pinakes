@@ -414,6 +414,7 @@ class SRUServer
         $baseQuery = "
             FROM libri l
             LEFT JOIN libri_autori la ON l.id = la.libro_id
+                                      AND la.ruolo IN ('principale', 'co-autore')
             LEFT JOIN autori a ON la.autore_id = a.id
             LEFT JOIN editori e ON l.editore_id = e.id
             LEFT JOIN generi g ON l.genere_id = g.id

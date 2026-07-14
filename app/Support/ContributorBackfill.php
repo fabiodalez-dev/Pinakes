@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace App\Support;
 
-use App\Models\AuthorRepository;
 use App\Models\SettingsRepository;
 use mysqli;
 
@@ -43,14 +42,20 @@ final class ContributorBackfill
                 return; // already done
             }
 
-            $authors = new AuthorRepository($db);
+            $booksToReindex = self::booksWithPseudonyms($db);
             foreach (self::ROLE_COLUMNS as $column => $ruolo) {
                 if (!self::hasColumn($db, 'libri', $column)) {
                     continue; // install predates this free-text column — nothing to migrate
                 }
-                self::backfillColumn($db, $authors, $column, $ruolo);
+                foreach (self::backfillColumn($db, $column, $ruolo) as $bookId) {
+                    $booksToReindex[$bookId] = $bookId;
+                }
             }
 
+            // The denormalized FULLTEXT cache predates pseudonym search. Rebuild
+            // only affected books so existing pseudonyms become searchable on
+            // the first post-upgrade pass as well.
+            SearchIndexBuilder::rebuildMany($db, array_values($booksToReindex));
             $settings->set(self::MARKER_CATEGORY, self::MARKER_KEY, '1');
         } catch (\Throwable $e) {
             // Best-effort: leave the marker unset so a later pass retries.
@@ -58,36 +63,42 @@ final class ContributorBackfill
         }
     }
 
-    private static function backfillColumn(mysqli $db, AuthorRepository $authors, string $column, string $ruolo): void
+    /** @return array<int, int> */
+    private static function backfillColumn(mysqli $db, string $column, string $ruolo): array
     {
+        $bookIds = [];
         $sql = "SELECT id, `{$column}` AS raw FROM libri
                 WHERE `{$column}` IS NOT NULL AND TRIM(`{$column}`) <> '' AND deleted_at IS NULL";
         $res = $db->query($sql);
         if (!($res instanceof \mysqli_result)) {
-            return;
-        }
-
-        $insert = $db->prepare(
-            "INSERT IGNORE INTO libri_autori (libro_id, autore_id, ruolo) VALUES (?, ?, ?)"
-        );
-        if ($insert === false) {
-            return;
+            return $bookIds;
         }
 
         while ($row = $res->fetch_assoc()) {
             $bookId = (int) $row['id'];
-            foreach (self::splitNames((string) $row['raw']) as $name) {
-                $authorId = $authors->findByName($name);
-                if ($authorId === null) {
-                    $authorId = $authors->create(['nome' => $name]);
-                }
-                if ($authorId > 0) {
-                    $insert->bind_param('iis', $bookId, $authorId, $ruolo);
-                    $insert->execute();
-                }
+            ContributorSync::linkLegacyValues($db, $bookId, [$ruolo => (string) $row['raw']]);
+            $bookIds[$bookId] = $bookId;
+        }
+        return $bookIds;
+    }
+
+    /** @return array<int, int> */
+    private static function booksWithPseudonyms(mysqli $db): array
+    {
+        $bookIds = [];
+        $res = $db->query(
+            "SELECT DISTINCT la.libro_id
+               FROM libri_autori la
+               JOIN autori a ON a.id = la.autore_id
+               JOIN libri l ON l.id = la.libro_id
+              WHERE TRIM(COALESCE(a.pseudonimo, '')) <> '' AND l.deleted_at IS NULL"
+        );
+        if ($res instanceof \mysqli_result) {
+            while ($row = $res->fetch_row()) {
+                $bookIds[(int) $row[0]] = (int) $row[0];
             }
         }
-        $insert->close();
+        return $bookIds;
     }
 
     /**
@@ -99,15 +110,7 @@ final class ContributorBackfill
      */
     public static function splitNames(string $raw): array
     {
-        $parts = preg_split('/\s*(?:,|;|&|\se\s|\sand\s)\s*/ui', $raw) ?: [];
-        $names = [];
-        foreach ($parts as $part) {
-            $name = trim(HtmlHelper::decode($part));
-            if ($name !== '') {
-                $names[] = $name;
-            }
-        }
-        return $names;
+        return ContributorSync::splitNames($raw);
     }
 
     private static function hasColumn(mysqli $db, string $table, string $column): bool

@@ -99,9 +99,13 @@ class QuoteRepo
     // ------------------------------------------------------------------
 
     private const QUOTE_SELECT = "SELECT q.*, l.titolo,
-                       (SELECT GROUP_CONCAT(a.nome ORDER BY la.ordine_credito SEPARATOR ', ')
+                       (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
+                                                 THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
+                                                 ELSE TRIM(a.nome) END
+                                            ORDER BY la.ordine_credito SEPARATOR ', ')
                           FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                         WHERE la.libro_id = l.id) AS autori,
+                         WHERE la.libro_id = l.id
+                           AND la.ruolo IN ('principale', 'co-autore')) AS autori,
                        u.nome AS member_nome, u.cognome AS member_cognome
                   FROM bookclub_quotes q
                   JOIN libri l ON l.id = q.libro_id AND l.deleted_at IS NULL

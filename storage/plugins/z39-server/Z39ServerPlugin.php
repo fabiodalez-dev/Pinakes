@@ -1576,7 +1576,8 @@ class Z39ServerPlugin
                     e.nome AS editore,
                     (SELECT GROUP_CONCAT(a.nome SEPARATOR '; ')
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                      WHERE la.libro_id = l.id) AS autori
+                      WHERE la.libro_id = l.id
+                        AND la.ruolo IN ('principale', 'co-autore')) AS autori
              FROM libri l
              LEFT JOIN editori e ON e.id = l.editore_id
              WHERE l.id = ? AND l.deleted_at IS NULL

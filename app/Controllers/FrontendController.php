@@ -70,7 +70,7 @@ class FrontendController
         // Query per gli ultimi 10 libri inseriti
         $query_slider = "
             SELECT l.*,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
                    g.nome AS genere
             FROM libri l
@@ -137,7 +137,7 @@ class FrontendController
                 $inClause = '(' . implode(',', array_fill(0, count($uniqueGenreIds), '?')) . ')';
                 $query_genre_books = "
                     SELECT l.*,
-                           (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                           (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                             WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
                     FROM libri l
                     WHERE l.genere_id IN " . $inClause . " AND l.deleted_at IS NULL
@@ -437,7 +437,7 @@ class FrontendController
         // NULLs-last predicate, once for the sort value).
         $books_query = "
             SELECT DISTINCT l.*,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
                    (SELECT SUBSTRING_INDEX(TRIM(a.nome), ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_cognome,
@@ -530,7 +530,7 @@ class FrontendController
         // NULLs-last predicate, once for the sort value).
         $books_query = "
             SELECT DISTINCT l.*,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
                    (SELECT SUBSTRING_INDEX(TRIM(a.nome), ' ', -1) FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_cognome,
@@ -660,7 +660,8 @@ class FrontendController
                     WHEN 'traduttore' THEN 3
                     WHEN 'illustratore' THEN 4
                     WHEN 'curatore' THEN 5
-                    ELSE 6
+                    WHEN 'colorista' THEN 6
+                    ELSE 7
                 END
         ";
 
@@ -704,7 +705,7 @@ class FrontendController
         if ($collana !== '') {
             $stmtSeries = $db->prepare("
                 SELECT l.id, l.titolo, l.numero_serie, l.copertina_url,
-                       (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                       (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                         WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale
                 FROM libri l
                 WHERE l.collana = ? AND l.id != ? AND l.deleted_at IS NULL
@@ -907,7 +908,7 @@ class FrontendController
         }
 
         if (!empty($filters['autore_id'])) {
-            $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_f WHERE la_f.libro_id = l.id AND la_f.autore_id = ?)";
+            $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_f WHERE la_f.libro_id = l.id AND la_f.autore_id = ? AND la_f.ruolo IN ('principale', 'co-autore'))";
             $params[] = (int) $filters['autore_id'];
             $types .= 'i';
         }
@@ -1138,16 +1139,17 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     $filtersForAutori['autore_id'] = 0;
     $whereAu = $this->buildWhereConditions($filtersForAutori, $db);
     $queryAutori = "
-        SELECT a.id, a.nome, COUNT(DISTINCT l.id) AS cnt
+        SELECT a.id, " . \App\Support\AuthorName::displaySql('a') . " AS nome, COUNT(DISTINCT l.id) AS cnt
         FROM autori a
         JOIN libri_autori la ON la.autore_id = a.id
         JOIN libri l ON l.id = la.libro_id AND l.deleted_at IS NULL
         {$facetJoins}
+        WHERE la.ruolo IN ('principale', 'co-autore')
     ";
     if (!empty($whereAu['conditions'])) {
-        $queryAutori .= " WHERE " . implode(' AND ', $whereAu['conditions']);
+        $queryAutori .= " AND " . implode(' AND ', $whereAu['conditions']);
     }
-    $queryAutori .= " GROUP BY a.id, a.nome HAVING cnt > 0 ORDER BY a.nome LIMIT 100";
+    $queryAutori .= " GROUP BY a.id, a.nome, a.pseudonimo HAVING cnt > 0 ORDER BY a.nome LIMIT 100";
     $stmt = $db->prepare($queryAutori);
     if ($stmt !== false) {
         if (!empty($whereAu['params'])) {
@@ -1272,7 +1274,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
                 // Ultimi libri aggiunti
                 $query = "
                     SELECT l.*,
-                           (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                           (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                             WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
                            g.nome AS genere
                     FROM libri l
@@ -1295,7 +1297,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
                 $query = "
                     SELECT l.*,
-                           (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                           (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                             WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
                     FROM libri l
                     WHERE l.genere_id = ? AND l.deleted_at IS NULL
@@ -1370,7 +1372,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         $authorName = urldecode($authorName);
 
         // Query per trovare l'autore
-        $authorQuery = "SELECT id, nome, biografia FROM autori WHERE nome = ? LIMIT 1";
+        $authorQuery = "SELECT id, nome, pseudonimo, biografia FROM autori WHERE nome = ? LIMIT 1";
         $stmt = $db->prepare($authorQuery);
         $stmt->bind_param('s', $authorName);
         $stmt->execute();
@@ -1400,7 +1402,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // Query per i libri dell'autore
         $booksQuery = "
             SELECT DISTINCT l.*,
-                   (SELECT a2.nome FROM libri_autori la2 JOIN autori a2 ON la2.autore_id = a2.id
+                   (SELECT " . \App\Support\AuthorName::displaySql('a2') . " FROM libri_autori la2 JOIN autori a2 ON la2.autore_id = a2.id
                     WHERE la2.libro_id = l.id AND la2.ruolo = 'principale' LIMIT 1) AS autore,
                    e.nome AS editore,
                    g.nome AS genere
@@ -1498,7 +1500,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // Query per i libri dell'editore
         $booksQuery = "
             SELECT l.*,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
                    e.nome AS editore,
                    g.nome AS genere
@@ -1624,7 +1626,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // Query per i libri del genere e dei suoi discendenti
         $booksQuery = "
             SELECT l.*,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore,
                    e.nome AS editore,
                    g.nome AS genere
@@ -1854,7 +1856,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
         // Query per trovare l'autore by ID
         // #163: also load photo + relevant source/website links for the public page.
-        $authorQuery = "SELECT id, nome, biografia, sito_web, foto, collegamenti FROM autori WHERE id = ? LIMIT 1";
+        $authorQuery = "SELECT id, nome, pseudonimo, biografia, sito_web, foto, collegamenti FROM autori WHERE id = ? LIMIT 1";
         $stmt = $db->prepare($authorQuery);
         $stmt->bind_param('i', $authorId);
         $stmt->execute();
@@ -1887,7 +1889,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // copia e copie non prestabili, mostrando disponibilità incoerenti.
         $booksQuery = "
             SELECT DISTINCT l.*,
-                   (SELECT a2.nome FROM libri_autori la2 JOIN autori a2 ON la2.autore_id = a2.id
+                   (SELECT " . \App\Support\AuthorName::displaySql('a2') . " FROM libri_autori la2 JOIN autori a2 ON la2.autore_id = a2.id
                     WHERE la2.libro_id = l.id AND la2.ruolo = 'principale' LIMIT 1) AS autore,
                    e.nome AS editore,
                    g.nome AS genere
@@ -1948,16 +1950,23 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // Priority 1: Same author(s)
         if (count($related_books) < $limit && !empty($authors)) {
             $remaining = $limit - count($related_books);
-            $author_ids = array_column($authors, 'id');
+            $creatorAuthors = array_values(array_filter(
+                $authors,
+                static fn (array $author): bool => in_array((string) ($author['ruolo'] ?? ''), ['principale', 'co-autore'], true)
+            ));
+            $author_ids = array_column($creatorAuthors, 'id');
+            if ($author_ids === []) {
+                $author_ids = [0];
+            }
             $exclude_ids = array_merge([$book_id], array_column($related_books, 'id'));
             $authorPlaceholders = implode(',', array_fill(0, count($author_ids), '?'));
             $excludePlaceholders = implode(',', array_fill(0, count($exclude_ids), '?'));
 
             $query = "
                 SELECT DISTINCT l.*,
-                       GROUP_CONCAT(DISTINCT a.nome SEPARATOR ', ') as autori
+                       GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori
                 FROM libri l
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE la.autore_id IN ($authorPlaceholders)
                 AND l.id NOT IN ($excludePlaceholders)
@@ -1989,9 +1998,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
             $query = "
                 SELECT DISTINCT l.*,
-                       GROUP_CONCAT(DISTINCT a.nome SEPARATOR ', ') as autori
+                       GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori
                 FROM libri l
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.genere_id = ?
                 AND l.id NOT IN ($placeholders)
@@ -2024,9 +2033,9 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
             $query = "
                 SELECT DISTINCT l.*,
-                       GROUP_CONCAT(DISTINCT a.nome SEPARATOR ', ') as autori
+                       GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori
                 FROM libri l
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.id NOT IN ($placeholders)
                 AND l.deleted_at IS NULL

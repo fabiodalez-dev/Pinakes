@@ -523,7 +523,7 @@ class SeriesRepository
                            l.numero_serie
                        ) AS numero_serie,
                        l.isbn13, l.isbn10, l.copertina_url,
-                       (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                       (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                         WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
                   FROM (
                         SELECT lc.libro_id, lc.numero_serie, lc.is_principale
@@ -548,7 +548,7 @@ class SeriesRepository
         } else {
             $stmt = $this->db->prepare("
                 SELECT l.id, l.titolo, l.numero_serie, l.isbn13, l.isbn10, l.copertina_url,
-                       (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                       (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                         WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
                   FROM libri l
                  WHERE l.collana = ? AND l.deleted_at IS NULL

@@ -492,7 +492,7 @@ class LibriController
         // Volumes of this work (this book is the parent)
         $volStmt = $db->prepare("
             SELECT v.numero_volume, v.titolo_volume, l.id, l.titolo, l.isbn13, l.isbn10,
-                   (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                     WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
             FROM volumi v
             JOIN libri l ON v.volume_id = l.id AND l.deleted_at IS NULL
@@ -602,11 +602,35 @@ class LibriController
                 if ($name === '') {
                     continue;
                 }
-                $existing = $authRepo->findByName($name);
+                $existing = $authRepo->findByCanonicalName($name);
                 $ids[] = $existing ?? $authRepo->create([
                     'nome' => $name, 'pseudonimo' => '', 'data_nascita' => null,
                     'data_morte' => null, 'nazionalita' => '', 'biografia' => '', 'sito_web' => '',
                 ]);
+            }
+        }
+
+        // Backward-compatible ingestion path: callers predating the entity
+        // pickers still submit singular free-text fields (and the ISBN scraper
+        // submits scraped_translator/scraped_illustrator). Convert those names
+        // to entities as well. The marker makes the current admin form
+        // authoritative: if a librarian removes a scraped chip, its stale
+        // hidden scraped_* value must not silently add it back on submit.
+        $pickerIsAuthoritative = (string)($data['contributors_entity_picker'] ?? '') === '1';
+        if (!$pickerIsAuthoritative) {
+            $legacySources = [
+                'illustratori' => ['illustratore', 'scraped_illustrator'],
+                'traduttori'   => ['traduttore', 'scraped_translator'],
+                'curatori'     => ['curatore'],
+                'coloristi'    => ['colorista'],
+            ];
+            foreach ($legacySources[$roleKey] ?? [] as $sourceKey) {
+                $raw = $data[$sourceKey] ?? '';
+                if (!is_scalar($raw) || trim((string)$raw) === '') {
+                    continue;
+                }
+                $resolved = \App\Support\ContributorSync::resolveNameIds($db, (string)$raw);
+                $ids = array_merge($ids, $resolved['ids']);
             }
         }
         return array_values(array_unique(array_filter($ids, static fn($i) => $i > 0)));
@@ -668,9 +692,6 @@ class LibriController
             'anno_pubblicazione' => null,
             'edizione' => '',
             'data_pubblicazione' => '',
-            'traduttore' => '',
-            'illustratore' => '',
-            'curatore' => '',
             'numero_pagine' => null,
         ];
 
@@ -961,7 +982,7 @@ class LibriController
                     $nomeCompleto = trim((string) $nomeCompleto);
                     if ($nomeCompleto !== '') {
                         // Check if author already exists (handles "Levi, Primo" vs "Primo Levi")
-                        $existingId = $authRepo->findByName($nomeCompleto);
+                        $existingId = $authRepo->findByCanonicalName($nomeCompleto);
                         if ($existingId) {
                             $fields['autori_ids'][] = $existingId;
                             // Update bio if existing author has no bio and we have scraped one
@@ -989,7 +1010,7 @@ class LibriController
                 $authRepo = new \App\Models\AuthorRepository($db);
                 $scrapedAuthor = trim((string) $data['scraped_author']);
                 if ($scrapedAuthor !== '') {
-                    $found = $authRepo->findByName($scrapedAuthor);
+                    $found = $authRepo->findByCanonicalName($scrapedAuthor);
                     if ($found) {
                         $fields['autori_ids'][] = $found;
                         // Update bio if existing author has no bio and we have scraped one
@@ -1271,9 +1292,6 @@ class LibriController
             'anno_pubblicazione' => null,
             'edizione' => '',
             'data_pubblicazione' => '',
-            'traduttore' => '',
-            'illustratore' => '',
-            'curatore' => '',
             'numero_pagine' => null,
         ];
 
@@ -1624,7 +1642,7 @@ class LibriController
                     $nomeCompleto = trim((string) $nomeCompleto);
                     if ($nomeCompleto !== '') {
                         // Check if author already exists (handles "Levi, Primo" vs "Primo Levi")
-                        $existingId = $authRepo->findByName($nomeCompleto);
+                        $existingId = $authRepo->findByCanonicalName($nomeCompleto);
                         if ($existingId) {
                             $fields['autori_ids'][] = $existingId;
                             // Update bio if existing author has no bio and we have scraped one
@@ -1652,7 +1670,7 @@ class LibriController
                 $authRepo = new \App\Models\AuthorRepository($db);
                 $scrapedAuthor = trim((string) $data['scraped_author']);
                 if ($scrapedAuthor !== '') {
-                    $found = $authRepo->findByName($scrapedAuthor);
+                    $found = $authRepo->findByCanonicalName($scrapedAuthor);
                     if ($found) {
                         $fields['autori_ids'][] = $found;
                         // Update bio if existing author has no bio and we have scraped one
@@ -3210,7 +3228,8 @@ class LibriController
         $query = "
             SELECT
                 l.*,
-                GROUP_CONCAT(DISTINCT a.nome ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
+                GROUP_CONCAT(DISTINCT CASE WHEN la.ruolo IN ('principale', 'co-autore') THEN a.nome END
+                             ORDER BY la.ordine_credito SEPARATOR ';') as autori_nomi,
                 e.nome as editore_nome,
                 " . ($hasJunction
                     ? "(SELECT GROUP_CONCAT(e2.nome ORDER BY le.ordine, e2.nome SEPARATOR ';')

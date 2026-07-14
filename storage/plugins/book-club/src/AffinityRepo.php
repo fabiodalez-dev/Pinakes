@@ -554,9 +554,13 @@ class AffinityRepo
         return $this->rows(
             "SELECT l.id, l.titolo, l.copertina_url, l.anno_pubblicazione, {$ratingCol},
                     g.nome AS genere,
-                    (SELECT GROUP_CONCAT(a.nome ORDER BY la.ordine_credito SEPARATOR ', ')
+                    (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
+                                              THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
+                                              ELSE TRIM(a.nome) END
+                                         ORDER BY la.ordine_credito SEPARATOR ', ')
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
-                      WHERE la.libro_id = l.id) AS autori
+                      WHERE la.libro_id = l.id
+                        AND la.ruolo IN ('principale', 'co-autore')) AS autori
                FROM libri l
                JOIN generi g ON g.id = l.genere_id
               WHERE l.deleted_at IS NULL
@@ -585,7 +589,11 @@ class AffinityRepo
         }
         [$ph, $types] = self::strInClause($finishedKeys);
         $rows = $this->rows(
-            "SELECT a.id, a.nome, COUNT(DISTINCT l2.id) AS unread_count
+            "SELECT a.id,
+                    CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
+                         THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
+                         ELSE TRIM(a.nome) END AS nome,
+                    COUNT(DISTINCT l2.id) AS unread_count
                FROM bookclub_books cb
                JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                JOIN libri_autori la ON la.libro_id = cb.libro_id
@@ -593,9 +601,11 @@ class AffinityRepo
                JOIN libri_autori la2 ON la2.autore_id = a.id
                JOIN libri l2 ON l2.id = la2.libro_id AND l2.deleted_at IS NULL
               WHERE cb.club_id = ? AND cb.state IN ($ph)
+                AND la.ruolo IN ('principale', 'co-autore')
+                AND la2.ruolo IN ('principale', 'co-autore')
                 AND NOT EXISTS (SELECT 1 FROM bookclub_books cb2
                                  WHERE cb2.club_id = ? AND cb2.libro_id = l2.id)
-              GROUP BY a.id, a.nome
+              GROUP BY a.id, a.nome, a.pseudonimo
               ORDER BY unread_count DESC, a.nome ASC
               LIMIT ?",
             'i' . $types . 'ii',

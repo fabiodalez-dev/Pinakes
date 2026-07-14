@@ -128,10 +128,10 @@ class SearchController
             // publisher, ISBN/EAN and keywords, so one MATCH replaces the OR-of-LIKE.
             $stmt = $db->prepare("
                 SELECT l.id, l.titolo, l.sottotitolo, l.isbn10, l.isbn13, l.ean, l.stato,
-                       (SELECT GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ')
+                       (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY a.nome SEPARATOR ', ')
                         FROM libri_autori la
                         JOIN autori a ON la.autore_id = a.id
-                        WHERE la.libro_id = l.id) AS autori,
+                        WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')) AS autori,
                        l.copie_disponibili,
                        l.copie_totali
                 FROM libri l
@@ -254,10 +254,10 @@ class SearchController
         // authors, publisher and keywords, so one MATCH replaces the OR-of-LIKE.
         $stmt = $db->prepare("
             SELECT l.id, l.titolo AS label, l.sottotitolo, l.isbn10, l.isbn13, l.ean,
-                   (SELECT GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ')
+                   (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY a.nome SEPARATOR ', ')
                     FROM libri_autori la
                     JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id) AS autori
+                    WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')) AS autori
             FROM libri l
             WHERE l.deleted_at IS NULL AND {$cond['sql']}
             ORDER BY l.titolo LIMIT 10
@@ -307,11 +307,13 @@ class SearchController
         $params = [];
         $types = '';
         foreach ($words as $word) {
-            $conditions[] = 'nome LIKE ?';
-            $params[] = '%' . $word . '%';
-            $types .= 's';
+            $conditions[] = '(nome LIKE ? OR pseudonimo LIKE ?)';
+            $like = '%' . $word . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $types .= 'ss';
         }
-        $sql = "SELECT id, nome AS label FROM autori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome LIMIT 5";
+        $sql = "SELECT id, " . \App\Support\AuthorName::displaySql('autori') . " AS label FROM autori WHERE " . implode(' AND ', $conditions) . " ORDER BY nome LIMIT 5";
         $stmt = $db->prepare($sql);
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
@@ -371,8 +373,10 @@ class SearchController
         // so the libri_autori/autori LEFT JOIN (and its DISTINCT dedupe) are gone.
         $stmt = $db->prepare("
             SELECT l.id, l.titolo, l.sottotitolo, l.copertina_url, l.anno_pubblicazione,
+                   (SELECT " . \App\Support\AuthorName::displaySql('a') . " FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale,
                    (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale
+                    WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore_principale_nome
             FROM libri l
             WHERE l.deleted_at IS NULL AND {$cond['sql']}
             ORDER BY l.titolo LIMIT 8
@@ -399,7 +403,7 @@ class SearchController
                 'url' => book_url([
                     'id' => $row['id'],
                     'titolo' => $row['titolo'],
-                    'autore_principale' => $row['autore_principale'] ?? ''
+                    'autore_principale' => $row['autore_principale_nome'] ?? ''
                 ])
             ];
         }
@@ -415,13 +419,15 @@ class SearchController
         $params = [];
         $types = '';
         foreach ($words as $word) {
-            $conditions[] = 'a.nome LIKE ?';
-            $params[] = '%' . $word . '%';
-            $types .= 's';
+            $conditions[] = '(a.nome LIKE ? OR a.pseudonimo LIKE ?)';
+            $like = '%' . $word . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $types .= 'ss';
         }
 
         $sql = "
-            SELECT a.id, a.nome, a.biografia,
+            SELECT a.id, a.nome, a.pseudonimo, a.biografia,
                    (SELECT COUNT(*) FROM libri_autori la2 JOIN libri l2 ON la2.libro_id = l2.id WHERE la2.autore_id = a.id AND l2.deleted_at IS NULL) as libro_count
             FROM autori a
             WHERE " . implode(' AND ', $conditions) . "
@@ -438,7 +444,7 @@ class SearchController
 
             $results[] = [
                 'id' => $row['id'],
-                'name' => HtmlHelper::decode($row['nome']),
+                'name' => HtmlHelper::decode(\App\Support\AuthorName::display($row)),
                 'biography' => $biografia,
                 'book_count' => (int)$row['libro_count'],
                 'type' => 'author',

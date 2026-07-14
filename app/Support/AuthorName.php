@@ -42,12 +42,16 @@ final class AuthorName
         if (preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $alias) !== 1) {
             $alias = 'a';
         }
-        $nome = "`{$alias}`.`nome`";
-        $pseudonimo = "`{$alias}`.`pseudonimo`";
+        // Match display(): trim both fields and tolerate old rows containing
+        // NULL/whitespace-only values. Keeping PHP and SQL output identical is
+        // important because the same author is rendered by both query-backed
+        // lists and PHP-backed detail views.
+        $nome = "TRIM(COALESCE(`{$alias}`.`nome`, ''))";
+        $pseudonimo = "TRIM(COALESCE(`{$alias}`.`pseudonimo`, ''))";
 
-        return "CASE WHEN {$pseudonimo} IS NOT NULL AND {$pseudonimo} <> ''"
-            . " AND {$pseudonimo} <> {$nome}"
+        return "CASE WHEN {$pseudonimo} <> '' AND {$nome} <> '' AND {$pseudonimo} <> {$nome}"
             . " THEN CONCAT({$pseudonimo}, ' (', {$nome}, ')')"
-            . " ELSE {$nome} END";
+            . " WHEN {$nome} <> '' THEN {$nome}"
+            . " ELSE {$pseudonimo} END";
     }
 }

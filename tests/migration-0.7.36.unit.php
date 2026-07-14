@@ -100,7 +100,7 @@ $db->query("DROP TABLE IF EXISTS zz_mig_libri_autori");
 echo "B. splitNames()\n";
 $check(ContributorBackfill::splitNames('Mario Rossi') === ['Mario Rossi'], "single name");
 $check(ContributorBackfill::splitNames('Mario Rossi, Gianni Verdi') === ['Mario Rossi', 'Gianni Verdi'], "comma split");
-$check(ContributorBackfill::splitNames('A; B & C') === ['A', 'B', 'C'], "semicolon + ampersand");
+$check(ContributorBackfill::splitNames('A; B & C | D') === ['A', 'B', 'C', 'D'], "semicolon + ampersand + pipe");
 $check(ContributorBackfill::splitNames('Tizio e Caio') === ['Tizio', 'Caio'], "italian ' e '");
 $check(ContributorBackfill::splitNames('Foo and Bar') === ['Foo', 'Bar'], "english ' and '");
 $check(ContributorBackfill::splitNames('  ,  ') === [], "empty fragments dropped");
@@ -115,18 +115,27 @@ try {
     // Reset the marker within the txn so run() does real work.
     $settings->set('migrations', 'contributors_backfilled', '0');
 
+    $token = bin2hex(random_bytes(4));
+    $oneName = "ZZ Mig {$token} Illustrator One";
+    $twoName = "ZZ Mig {$token} Illustrator Two";
+    $pseudonym = "ZZMigPseudo{$token}";
+
     // Pre-create one illustrator (so we can prove find-or-create REUSE), leave
     // the second name to be created by the backfill.
-    $existingId = $authors->create(['nome' => 'ZZ Mig Illustrator One']);
+    $existingId = $authors->create(['nome' => $oneName, 'pseudonimo' => $pseudonym]);
 
-    // Point an existing book's free-text illustratore at a two-name list.
-    $bookRow = $db->query("SELECT id FROM libri WHERE deleted_at IS NULL LIMIT 1")->fetch_row();
-    $bookId = (int) ($bookRow[0] ?? 0);
-    $check($bookId > 0, "found a book to seed");
+    // Create our own book fixture: CI databases are intentionally empty, so a
+    // migration test must never depend on another suite's seed data.
+    $stmt = $db->prepare('INSERT INTO libri (titolo) VALUES (?)');
+    $title = "ZZ migration fixture {$token}";
+    $stmt->bind_param('s', $title);
+    $stmt->execute();
+    $bookId = (int) $db->insert_id;
+    $stmt->close();
+    $check($bookId > 0, "created a hermetic book fixture");
 
-    $db->query("DELETE FROM libri_autori WHERE libro_id={$bookId} AND ruolo='illustratore'");
     $stmt = $db->prepare("UPDATE libri SET illustratore=? WHERE id=?");
-    $val = 'ZZ Mig Illustrator One, ZZ Mig Illustrator Two';
+    $val = $oneName . ', ' . $twoName;
     $stmt->bind_param('si', $val, $bookId);
     $stmt->execute();
     $stmt->close();
@@ -145,8 +154,11 @@ try {
     $check($reused === 1, "pre-existing illustrator reused (not duplicated)");
 
     // The second name became a new author entity.
-    $twoId = $authors->findByName('ZZ Mig Illustrator Two');
+    $twoId = $authors->findByName($twoName);
     $check($twoId !== null, "second illustrator created as an entity");
+
+    $index = (string) $db->query("SELECT search_index FROM libri WHERE id={$bookId}")->fetch_column();
+    $check(str_contains($index, $pseudonym), "first post-upgrade pass rebuilds pseudonym search index");
 
     // Idempotent: a second run does nothing (marker gate).
     ContributorBackfill::run($db);
@@ -164,8 +176,8 @@ $migSql = (string) file_get_contents($root . '/installer/database/migrations/mig
 $check(strpos($migSql, 'colorista') !== false && stripos($migSql, 'libri_autori') !== false, "migration file adds colorista to libri_autori");
 $maint = (string) file_get_contents($root . '/app/Support/MaintenanceService.php');
 $check(strpos($maint, 'ContributorBackfill::run') !== false, "MaintenanceService wires the backfill");
-$src = (string) file_get_contents($root . '/app/Support/ContributorBackfill.php');
-$check(strpos($src, 'INSERT IGNORE INTO libri_autori') !== false, "backfill uses INSERT IGNORE on libri_autori");
+$src = (string) file_get_contents($root . '/app/Support/ContributorSync.php');
+$check(strpos($src, 'INSERT IGNORE INTO libri_autori') !== false, "shared contributor sync uses INSERT IGNORE on libri_autori");
 
 echo "\n" . ($failed === 0 ? "ALL {$passed} PASS\n" : "{$passed} passed, {$failed} FAILED\n");
 $db->close();

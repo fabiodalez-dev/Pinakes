@@ -330,9 +330,11 @@ final class ActionsController
         }
 
         try {
+            $authorDisplaySql = \App\Support\AuthorName::displaySql('a');
             $sql = "SELECT l.id, l.titolo, l.copertina_url, l.copie_disponibili, l.anno_pubblicazione,
-                           (SELECT a.nome FROM libri_autori la JOIN autori a ON la.autore_id = a.id
-                            WHERE la.libro_id = l.id AND la.ruolo = 'principale' LIMIT 1) AS autore
+                           (SELECT {$authorDisplaySql} FROM libri_autori la JOIN autori a ON la.autore_id = a.id
+                            WHERE la.libro_id = l.id AND la.ruolo IN ('principale', 'co-autore')
+                            ORDER BY (la.ruolo = 'principale') DESC, la.ordine_credito, la.autore_id LIMIT 1) AS autore
                     FROM wishlist w
                     JOIN libri l ON l.id = w.libro_id AND l.deleted_at IS NULL
                     WHERE w.utente_id = ?

@@ -280,9 +280,12 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
     });
 
     test('8. ListRecords marcxml → valid MARC21 XML', async () => {
-        const res  = await page.request.get(`${BASE}/oai?verb=ListRecords&metadataPrefix=marcxml&set=books`);
-        expect(res.status()).toBe(200);
-        const text = await res.text();
+        const expectedIdentifier = `oai:${oaiHost}:book:${testBookId}`;
+        const text = await fetchOaiPagesUntil(
+            page.request,
+            `${BASE}/oai?verb=ListRecords&metadataPrefix=marcxml&set=books&from=${beforeAllFrom}`,
+            expectedIdentifier
+        );
         expect(text).not.toContain('<error code=');
         // MARC21 leader
         expect(text).toContain('<leader>');
@@ -293,9 +296,12 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
     });
 
     test('9. ListRecords mods → valid MODS 3.7 XML', async () => {
-        const res  = await page.request.get(`${BASE}/oai?verb=ListRecords&metadataPrefix=mods&set=books`);
-        expect(res.status()).toBe(200);
-        const text = await res.text();
+        const expectedIdentifier = `oai:${oaiHost}:book:${testBookId}`;
+        const text = await fetchOaiPagesUntil(
+            page.request,
+            `${BASE}/oai?verb=ListRecords&metadataPrefix=mods&set=books&from=${beforeAllFrom}`,
+            expectedIdentifier
+        );
         expect(text).not.toContain('<error code=');
         expect(text).toContain('<titleInfo>');
         expect(text).toContain('<typeOfResource>text</typeOfResource>');
@@ -303,9 +309,12 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
     });
 
     test('10. ListRecords mag → valid MAG 2.0.1 XML', async () => {
-        const res  = await page.request.get(`${BASE}/oai?verb=ListRecords&metadataPrefix=mag&set=books`);
-        expect(res.status()).toBe(200);
-        const text = await res.text();
+        const expectedIdentifier = `oai:${oaiHost}:book:${testBookId}`;
+        const text = await fetchOaiPagesUntil(
+            page.request,
+            `${BASE}/oai?verb=ListRecords&metadataPrefix=mag&set=books&from=${beforeAllFrom}`,
+            expectedIdentifier
+        );
         expect(text).not.toContain('<error code=');
         expect(text).toContain('<gen>');
         expect(text).toContain('<bib>');
@@ -314,9 +323,12 @@ test.describe.serial('OAI-PMH Server plugin — v0.7.0 (18 tests)', () => {
     });
 
     test('11. ListRecords unimarc → valid UNIMARC/XML record (v0.7.0)', async () => {
-        const res  = await page.request.get(`${BASE}/oai?verb=ListRecords&metadataPrefix=unimarc&set=books`);
-        expect(res.status()).toBe(200);
-        const text = await res.text();
+        const expectedIdentifier = `oai:${oaiHost}:book:${testBookId}`;
+        const text = await fetchOaiPagesUntil(
+            page.request,
+            `${BASE}/oai?verb=ListRecords&metadataPrefix=unimarc&set=books&from=${beforeAllFrom}`,
+            expectedIdentifier
+        );
         expect(text).not.toContain('<error code=');
         // UNIMARC leader
         expect(text).toContain('<leader>00000nam a2200000 u 4500</leader>');

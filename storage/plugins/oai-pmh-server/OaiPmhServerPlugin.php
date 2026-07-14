@@ -1341,9 +1341,11 @@ class OaiPmhServerPlugin
         }
         $xw->writeElementNs('dc', 'title', null, $title);
 
-        // dc:creator
+        // Creators and other contributors have distinct Dublin Core semantics.
         foreach ($authors as $a) {
-            $xw->writeElementNs('dc', 'creator', null, (string) $a['nome']);
+            $role = (string) ($a['ruolo'] ?? '');
+            $element = in_array($role, ['principale', 'co-autore'], true) ? 'creator' : 'contributor';
+            $xw->writeElementNs('dc', $element, null, (string) $a['nome']);
         }
 
         // dc:subject (genre + keywords)
@@ -1370,9 +1372,11 @@ class OaiPmhServerPlugin
             }
         }
 
-        // dc:contributor (translators, illustrators, curators)
-        foreach (['traduttore' => 'translator', 'illustratore' => 'illustrator', 'curatore' => 'editor'] as $col => $role) {
-            if (!empty($row[$col])) {
+        // Legacy safety-net columns are exported only when that role has not
+        // already been represented by an entity above.
+        $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
+        foreach (['traduttore', 'illustratore', 'curatore', 'colorista'] as $col) {
+            if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
                 $xw->writeElementNs('dc', 'contributor', null, (string) $row[$col]);
             }
         }
@@ -1480,19 +1484,29 @@ class OaiPmhServerPlugin
             ]);
         }
 
-        // 100/700 — Authors
-        $mainAuthIdx = 0;
-        foreach ($authors as $i => $a) {
+        // 100/700 — creators and role-aware contributors.
+        $mainCreatorWritten = false;
+        foreach ($authors as $a) {
             $name = (string) $a['nome'];
-            if ($i === $mainAuthIdx) {
+            $role = (string) ($a['ruolo'] ?? '');
+            $isCreator = in_array($role, ['principale', 'co-autore'], true);
+            $relator = match ($role) {
+                'traduttore' => 'translator',
+                'illustratore' => 'illustrator',
+                'curatore' => 'editor',
+                'colorista' => 'colorist',
+                default => 'author',
+            };
+            if ($isCreator && !$mainCreatorWritten) {
                 $this->marcDataField($xw, '100', '1', ' ', [
                     ['a', $name],
-                    ['e', 'author'],
+                    ['e', $relator],
                 ]);
+                $mainCreatorWritten = true;
             } else {
                 $this->marcDataField($xw, '700', '1', ' ', [
                     ['a', $name],
-                    ['e', 'author'],
+                    ['e', $relator],
                 ]);
             }
         }
@@ -1505,7 +1519,7 @@ class OaiPmhServerPlugin
         if (!empty($row['traduttore'])) {
             $titleSubs[] = ['c', 'traduzione di ' . (string) $row['traduttore']];
         }
-        $ind1 = empty($authors) ? '0' : '1';
+        $ind1 = $mainCreatorWritten ? '1' : '0';
         $this->marcDataField($xw, '245', $ind1, '0', $titleSubs);
 
         // 250 — Edition
@@ -1568,9 +1582,10 @@ class OaiPmhServerPlugin
             }
         }
 
-        // 700 — Additional authors (translators etc. as added entries)
-        foreach (['traduttore' => 'translator', 'illustratore' => 'illustrator', 'curatore' => 'editor'] as $col => $role) {
-            if (!empty($row[$col])) {
+        // 700 — legacy contributors not already represented by entities.
+        $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
+        foreach (['traduttore' => 'translator', 'illustratore' => 'illustrator', 'curatore' => 'editor', 'colorista' => 'colorist'] as $col => $role) {
+            if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
                 $this->marcDataField($xw, '700', '1', ' ', [
                     ['a', (string) $row[$col]],
                     ['e', $role],
@@ -1734,18 +1749,23 @@ class OaiPmhServerPlugin
             }
         }
 
-        // 700 — Personal name (primary intellectual responsibility)
-        // 701 — Personal name (alternative intellectual responsibility)
-        foreach ($authors as $i => $a) {
-            $tag  = ($i === 0) ? '700' : '701';
-            $role = $a['ruolo'] ?? 'autore';
-            // UNIMARC relation codes: 070=author, 060=translator, 340=editor
+        // 700/701 — primary and alternative intellectual responsibility.
+        // 702 — secondary responsibility (translator, illustrator, etc.).
+        $mainCreatorWritten = false;
+        foreach ($authors as $a) {
+            $role = (string) ($a['ruolo'] ?? '');
+            $isCreator = in_array($role, ['principale', 'co-autore'], true);
+            $tag = $isCreator ? ($mainCreatorWritten ? '701' : '700') : '702';
             $relCode = match ($role) {
-                'traduttore'   => '060',
+                'traduttore'   => '730',
                 'curatore'     => '340',
-                'illustratore' => '110',
+                'illustratore' => '440',
+                'colorista'    => '410',
                 default        => '070',
             };
+            if ($isCreator) {
+                $mainCreatorWritten = true;
+            }
             $this->marcDataField($xw, $tag, '0', ' ', [
                 ['a', (string) $a['nome']],
                 ['4', $relCode],
@@ -1799,8 +1819,16 @@ class OaiPmhServerPlugin
         }
         $xw->endElement();
 
-        // name (authors)
+        // Names retain the entity role instead of promoting every contributor
+        // to an author.
         foreach ($authors as $a) {
+            $role = match ((string) ($a['ruolo'] ?? '')) {
+                'traduttore' => 'translator',
+                'illustratore' => 'illustrator',
+                'curatore' => 'editor',
+                'colorista' => 'colorist',
+                default => 'author',
+            };
             $xw->startElement('name');
             $xw->writeAttribute('type', 'personal');
             $xw->startElement('namePart');
@@ -1811,7 +1839,7 @@ class OaiPmhServerPlugin
             $xw->startElement('roleTerm');
             $xw->writeAttribute('type', 'text');
             $xw->writeAttribute('authority', 'marcrelator');
-            $xw->text('author');
+            $xw->text($role);
             $xw->endElement();
             $xw->endElement(); // role
             $xw->endElement(); // name
@@ -1822,9 +1850,11 @@ class OaiPmhServerPlugin
             ['traduttore', 'translator'],
             ['illustratore', 'illustrator'],
             ['curatore', 'editor'],
+            ['colorista', 'colorist'],
         ];
+        $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
         foreach ($contribs as [$col, $role]) {
-            if (!empty($row[$col])) {
+            if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
                 $xw->startElement('name');
                 $xw->writeAttribute('type', 'personal');
                 $xw->writeElement('displayForm', (string) $row[$col]);
@@ -2022,9 +2052,11 @@ class OaiPmhServerPlugin
         }
         $xw->writeElementNs('dc', 'title', null, $title);
 
-        // dc:creator — one entry per author
+        // Preserve creator/contributor semantics in the embedded Dublin Core.
         foreach ($authors as $a) {
-            $xw->writeElementNs('dc', 'creator', null, (string) $a['nome']);
+            $role = (string) ($a['ruolo'] ?? '');
+            $element = in_array($role, ['principale', 'co-autore'], true) ? 'creator' : 'contributor';
+            $xw->writeElementNs('dc', $element, null, (string) $a['nome']);
         }
 
         foreach ($publishers as $pub) {
@@ -3251,10 +3283,16 @@ class OaiPmhServerPlugin
             }
         }
 
-        $relMap = ['traduttore' => '060', 'curatore' => '340', 'illustratore' => '110'];
-        foreach ($authors as $i => $a) {
-            $tag = ($i === 0) ? '700' : '701';
-            $rel = $relMap[$a['ruolo'] ?? ''] ?? '070';
+        $relMap = ['traduttore' => '730', 'curatore' => '340', 'illustratore' => '440', 'colorista' => '410'];
+        $mainCreatorWritten = false;
+        foreach ($authors as $a) {
+            $role = (string) ($a['ruolo'] ?? '');
+            $isCreator = in_array($role, ['principale', 'co-autore'], true);
+            $tag = $isCreator ? ($mainCreatorWritten ? '701' : '700') : '702';
+            $rel = $relMap[$role] ?? '070';
+            if ($isCreator) {
+                $mainCreatorWritten = true;
+            }
             $fields[] = [$tag, '0', ' ', $SF . 'a' . (string) $a['nome'] . $SF . '4' . $rel];
         }
 

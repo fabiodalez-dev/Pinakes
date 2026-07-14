@@ -1036,9 +1036,11 @@ final class OpenApiController
                     'name' => ['type' => 'string'],
                 ]]],
                 'authors'          => ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [
-                    'id'   => ['type' => 'integer'],
-                    'name' => ['type' => 'string'],
-                    'role' => ['type' => 'string', 'nullable' => true],
+                    'id'             => ['type' => 'integer'],
+                    'name'           => ['type' => 'string', 'description' => 'Preferred display label: pseudonym plus canonical name when present.'],
+                    'canonical_name' => ['type' => 'string', 'description' => 'Canonical/real name used by authority providers and imports.'],
+                    'pseudonym'      => ['type' => 'string', 'nullable' => true],
+                    'role'           => ['type' => 'string', 'nullable' => true, 'enum' => ['principale', 'co-autore', 'traduttore', 'illustratore', 'curatore', 'colorista']],
                 ]]],
                 'availability'     => ['type' => 'object', 'properties' => [
                     'copies_total'     => ['type' => 'integer'],

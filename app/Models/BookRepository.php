@@ -29,7 +29,7 @@ class BookRepository
                        GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY a.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale','co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, e.nome
@@ -225,11 +225,11 @@ class BookRepository
         // Filtro soft delete: esclude libri cancellati
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato,
                        e.nome AS editore_nome,
-                       GROUP_CONCAT(DISTINCT a2.nome ORDER BY a2.nome SEPARATOR ', ') AS autori
+                       GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a2') . " ORDER BY a2.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
                 INNER JOIN libri_autori la ON l.id = la.libro_id AND la.autore_id = ?
-                LEFT JOIN libri_autori la2 ON l.id = la2.libro_id
+                LEFT JOIN libri_autori la2 ON l.id = la2.libro_id AND la2.ruolo IN ('principale','co-autore')
                 LEFT JOIN autori a2 ON la2.autore_id = a2.id
                 WHERE l.deleted_at IS NULL
                 GROUP BY l.id, l.titolo, l.isbn10, l.isbn13, l.data_acquisizione, l.stato, e.nome
@@ -261,7 +261,7 @@ class BookRepository
                        GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY a.nome SEPARATOR ', ') AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale','co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE (l.editore_id = ?{$exists})
                       AND l.deleted_at IS NULL
@@ -1061,27 +1061,15 @@ class BookRepository
      * Replace the full contributor set of a book (issue #237). Reads the per-role
      * id arrays from $data — autori_ids → 'principale', illustratori_ids →
      * 'illustratore', traduttori_ids → 'traduttore', curatori_ids → 'curatore',
-     * coloristi_ids → 'colorista' — deletes every libri_autori row for the book,
-     * then re-inserts each role. INSERT IGNORE guards the (libro_id, autore_id,
-     * ruolo) primary key, so the same author appearing twice in one role is
-     * deduped while the same person as both author and illustrator is kept (two
-     * distinct roles). New authors are resolved to numeric ids by the controller
-     * before this runs (see processAuthorId()).
+     * coloristi_ids → 'colorista'. Desired rows are inserted before stale rows
+     * are removed, so an unsupported enum or invalid FK can never wipe the
+     * existing credits first. Calls without any contributor keys are a no-op;
+     * this preserves links for partial repository updates.
      *
      * @param array<string,mixed> $data
      */
     private function syncContributors(int $bookId, array $data): void
     {
-        $del = $this->db->prepare('DELETE FROM libri_autori WHERE libro_id = ?');
-        if ($del) {
-            $del->bind_param('i', $bookId);
-            $del->execute();
-            $del->close();
-        } else {
-            error_log("Critical error: Unable to prepare statement for deleting book authors for book_id: $bookId");
-            throw new \Exception("Database error: unable to delete book authors");
-        }
-
         $rolesMap = [
             'principale'   => $data['autori_ids'] ?? [],
             'illustratore' => $data['illustratori_ids'] ?? [],
@@ -1090,10 +1078,13 @@ class BookRepository
             'colorista'    => $data['coloristi_ids'] ?? [],
         ];
 
-        $ins = $this->db->prepare("INSERT IGNORE INTO libri_autori (libro_id, autore_id, ruolo) VALUES (?, ?, ?)");
-        if ($ins === false) {
+        $inputKeys = ['autori_ids', 'illustratori_ids', 'traduttori_ids', 'curatori_ids', 'coloristi_ids'];
+        if (!array_filter($inputKeys, static fn(string $key): bool => array_key_exists($key, $data))) {
             return;
         }
+
+        /** @var array<string,array{0:int,1:string}> $desired */
+        $desired = [];
         foreach ($rolesMap as $ruolo => $ids) {
             if (!is_array($ids)) {
                 continue;
@@ -1101,12 +1092,60 @@ class BookRepository
             foreach ($ids as $authorData) {
                 $authorId = $this->processAuthorId($authorData);
                 if ($authorId > 0) {
-                    $ins->bind_param('iis', $bookId, $authorId, $ruolo);
-                    $ins->execute();
+                    $desired[$authorId . ':' . $ruolo] = [$authorId, $ruolo];
                 }
             }
         }
-        $ins->close();
+
+        // Insert-first is deliberately non-destructive: if an id is invalid or
+        // this install has not applied the colorista enum migration yet, execute
+        // throws while every old link is still intact.
+        if ($desired !== []) {
+            $insert = $this->db->prepare(
+                'INSERT IGNORE INTO libri_autori (libro_id, autore_id, ruolo) VALUES (?, ?, ?)'
+            );
+            if ($insert === false) {
+                throw new \RuntimeException('Database error: unable to prepare contributor insert');
+            }
+            foreach ($desired as [$authorId, $ruolo]) {
+                $insert->bind_param('iis', $bookId, $authorId, $ruolo);
+                $insert->execute();
+            }
+            $insert->close();
+        }
+
+        $select = $this->db->prepare('SELECT autore_id, ruolo FROM libri_autori WHERE libro_id = ?');
+        if ($select === false) {
+            throw new \RuntimeException('Database error: unable to read current contributors');
+        }
+        $select->bind_param('i', $bookId);
+        $select->execute();
+        $current = $select->get_result()->fetch_all(MYSQLI_ASSOC);
+        $select->close();
+
+        $stale = [];
+        foreach ($current as $row) {
+            $authorId = (int)($row['autore_id'] ?? 0);
+            $ruolo = (string)($row['ruolo'] ?? '');
+            if ($authorId > 0 && !isset($desired[$authorId . ':' . $ruolo])) {
+                $stale[] = [$authorId, $ruolo];
+            }
+        }
+        if ($stale === []) {
+            return;
+        }
+
+        $delete = $this->db->prepare(
+            'DELETE FROM libri_autori WHERE libro_id = ? AND autore_id = ? AND ruolo = ?'
+        );
+        if ($delete === false) {
+            throw new \RuntimeException('Database error: unable to prepare stale contributor delete');
+        }
+        foreach ($stale as [$authorId, $ruolo]) {
+            $delete->bind_param('iis', $bookId, $authorId, $ruolo);
+            $delete->execute();
+        }
+        $delete->close();
     }
 
     /**

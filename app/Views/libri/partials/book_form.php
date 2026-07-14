@@ -270,6 +270,7 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
               'coloristi'    => ['label' => __('Colorista'),    'help' => __('Coloristi (utile per i fumetti)')],
           ];
           ?>
+          <input type="hidden" name="contributors_entity_picker" value="1" />
           <div class="form-grid-2">
             <?php foreach ($contributorFields as $roleKey => $meta): ?>
             <div>
@@ -1335,6 +1336,18 @@ async function removeCoverImage() {
 }
 
 // Initialize Choices.js for Authors
+function authorChoiceLabelMatchesInput(label, input) {
+    const normalizedLabel = String(label || '').trim().toLowerCase();
+    const normalizedInput = String(input || '').trim().toLowerCase();
+    if (normalizedLabel === normalizedInput) return true;
+
+    // Search results use "Pseudonym (Real name)". Treat either complete name as
+    // an exact match so pressing Enter selects the existing entity instead of
+    // creating a duplicate author named after the pseudonym.
+    const match = normalizedLabel.match(/^(.+?)\s+\((.+)\)$/);
+    return Boolean(match && (match[1].trim() === normalizedInput || match[2].trim() === normalizedInput));
+}
+
 function initializeChoicesJS() {
 
     try {
@@ -1606,7 +1619,7 @@ function initializeChoicesJS() {
                 const highlightedText = (nameEl ? nameEl.textContent : highlighted.textContent).trim().toLowerCase();
                 const currentText = inputValue.toLowerCase();
 
-                if (highlightedText === currentText) {
+                if (authorChoiceLabelMatchesInput(highlightedText, currentText)) {
                     // Exact match — pick the existing author.
                     return originalOnEnterKey(event, hasActiveDropdown);
                 }
@@ -2309,6 +2322,7 @@ function initContributorPicker(roleKey) {
             const input = document.createElement('input');
             input.type = 'hidden';
             input.dataset.choiceValue = v;
+            input.dataset.label = (label == null ? '' : String(label)).trim();
             if (isExisting) {
                 input.name = roleKey + '_ids[]';
                 input.value = v;
@@ -2321,6 +2335,57 @@ function initContributorPicker(roleKey) {
 
         el.addEventListener('addItem', (e) => syncHidden(e.detail.value, e.detail.label, true));
         el.addEventListener('removeItem', (e) => syncHidden(e.detail.value, e.detail.label, false));
+
+        const wrapper = el.closest('.choices');
+        const internalInput = wrapper ? wrapper.querySelector('.choices__input--cloned') : null;
+
+        // Choices.js does not create free-text options for a <select multiple>
+        // just because addItems=true. Explicitly add a temporary choice and let
+        // the controller resolve its label through <role>_new[]. This mirrors
+        // the load-bearing Enter handling of the main author picker (#74).
+        const createContributorFromInput = (rawValue) => {
+            const label = String(rawValue || '').trim();
+            if (!label) return;
+            const duplicate = Array.from(hidden ? hidden.querySelectorAll('input') : [])
+                .some((i) => String(i.dataset.label || i.value || '').trim().toLowerCase() === label.toLowerCase());
+            if (duplicate) {
+                if (internalInput) internalInput.value = '';
+                choice.hideDropdown();
+                return;
+            }
+            const tempId = 'new_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+            choice.setChoices([{ value: tempId, label, selected: false }], 'value', 'label', false);
+            choice.setChoiceByValue(tempId);
+            syncHidden(tempId, label, true);
+            if (internalInput) internalInput.value = '';
+            if (typeof choice.clearInput === 'function') choice.clearInput();
+            choice.hideDropdown();
+        };
+
+        if (typeof choice._onEnterKey === 'function') {
+            const originalOnEnterKey = choice._onEnterKey.bind(choice);
+            choice._onEnterKey = function (event, hasActiveDropdown) {
+                const typed = internalInput ? internalInput.value.trim() : '';
+                if (!typed) return originalOnEnterKey(event, hasActiveDropdown);
+                const dropdown = wrapper ? wrapper.querySelector('.choices__list--dropdown') : null;
+                const highlighted = dropdown ? dropdown.querySelector('.choices__item--selectable.is-highlighted') : null;
+                if (highlighted) {
+                    const nameEl = highlighted.querySelector('.choices__item-text') || highlighted.childNodes[0];
+                    const highlightedText = (nameEl ? nameEl.textContent : highlighted.textContent).trim().toLowerCase();
+                    if (authorChoiceLabelMatchesInput(highlightedText, typed)) {
+                        return originalOnEnterKey(event, hasActiveDropdown);
+                    }
+                }
+                event.preventDefault();
+                createContributorFromInput(typed);
+            };
+        }
+
+        // ISBN scraping runs after picker initialization. Expose a narrow setter
+        // so scraped contributors become visible, removable chips instead of
+        // invisible legacy hidden values.
+        window.__contributorPickers = window.__contributorPickers || {};
+        window.__contributorPickers[roleKey] = { addName: createContributorFromInput };
 
         // Pre-fill existing selections (edit mode).
         let initial = [];
@@ -4270,6 +4335,9 @@ function initializeIsbnImport() {
                     if (scrapedTranslator) {
                         scrapedTranslator.value = normalized;
                     }
+                    if (window.__contributorPickers && window.__contributorPickers.traduttori) {
+                        window.__contributorPickers.traduttori.addName(normalized);
+                    }
                 }
             } catch (err) {
             }
@@ -4285,6 +4353,9 @@ function initializeIsbnImport() {
                     const scrapedIllustrator = document.getElementById('scraped_illustrator');
                     if (scrapedIllustrator) {
                         scrapedIllustrator.value = normalized;
+                    }
+                    if (window.__contributorPickers && window.__contributorPickers.illustratori) {
+                        window.__contributorPickers.illustratori.addName(normalized);
                     }
                 }
             } catch (err) {

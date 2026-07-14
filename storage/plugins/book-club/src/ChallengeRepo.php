@@ -306,6 +306,7 @@ class ChallengeRepo
                        JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                        JOIN libri_autori la ON la.libro_id = cb.libro_id
                       WHERE cb.club_id = ? AND p.user_id = ?
+                        AND la.ruolo IN (\'principale\', \'co-autore\')
                         AND p.finished_at >= ? AND p.finished_at < ?',
                     'iiss',
                     [$clubId, $userId, $year . '-01-01', ($year + 1) . '-01-01']

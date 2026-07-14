@@ -56,11 +56,11 @@ class UserDashboardController
             // Get recently added books (last 5)
             $stmt = $db->prepare("
                 SELECT l.id, l.titolo, l.copertina_url,
-                       (SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
+                       (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY la.ordine_credito SEPARATOR ', ')
                         FROM libri_autori la
                         JOIN autori a ON la.autore_id = a.id
                         WHERE la.libro_id = l.id
-                        ORDER BY la.ruolo = 'principale' DESC, a.nome
+                          AND la.ruolo IN ('principale', 'co-autore')
                         LIMIT 3) AS autore,
                        l.copie_disponibili
                 FROM libri l

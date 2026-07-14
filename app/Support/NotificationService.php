@@ -609,11 +609,11 @@ class NotificationService {
                 SELECT w.utente_id, w.id as wishlist_id,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email,
                        l.titolo, COALESCE(l.isbn13, l.isbn10, '') as isbn,
-                       GROUP_CONCAT(a.nome ORDER BY la.ruolo='principale' DESC, a.nome SEPARATOR ', ') AS autore
+                       GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " ORDER BY la.ruolo='principale' DESC, la.ordine_credito SEPARATOR ', ') AS autore
                 FROM wishlist w
                 JOIN utenti u ON w.utente_id = u.id
                 JOIN libri l ON w.libro_id = l.id AND l.deleted_at IS NULL
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE w.libro_id = ?
                   AND u.stato = 'attivo'

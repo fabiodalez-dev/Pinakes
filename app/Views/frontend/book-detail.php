@@ -1,6 +1,7 @@
 <?php
 use App\Support\HtmlHelper;
 use App\Support\ConfigStore;
+use App\Support\AuthorName;
 
 /**
  * Book Detail View
@@ -30,7 +31,7 @@ $isMusic = $resolvedTipoMedia === 'disco';
 
 // SEO ottimizzato
 $bookTitle = html_entity_decode($book['titolo'] ?? '', ENT_QUOTES, 'UTF-8');
-$bookAuthor = !empty($authors) ? html_entity_decode($authors[0]['nome'] ?? '', ENT_QUOTES, 'UTF-8') : '';
+$bookAuthor = !empty($authors) ? html_entity_decode(AuthorName::display($authors[0]), ENT_QUOTES, 'UTF-8') : '';
 $bookDescription = !empty($book['descrizione']) ? html_entity_decode($book['descrizione'], ENT_QUOTES, 'UTF-8') : '';
 $bookPublisher = !empty($book['editore']) ? html_entity_decode($book['editore'], ENT_QUOTES, 'UTF-8') : '';
 $bookYear = $book['anno_pubblicazione'] ?? '';
@@ -64,7 +65,7 @@ $bookCover = url($bookCover);
 $isAvailable = ($book['copie_disponibili'] ?? 0) > 0;
 $authorNames = [];
 foreach ($authors as $authorData) {
-    $name = trim(html_entity_decode($authorData['nome'] ?? '', ENT_QUOTES, 'UTF-8'));
+    $name = trim(html_entity_decode(AuthorName::display($authorData), ENT_QUOTES, 'UTF-8'));
     if ($name !== '') {
         $authorNames[] = $name;
     }
@@ -196,6 +197,7 @@ $schemaAuthors = [];
 $schemaTranslators = [];
 $schemaIllustrators = [];
 $schemaEditors = [];
+$schemaContributors = [];
 $validExternalSameAs = static function (mixed $uri): ?string {
     if (!is_string($uri)) {
         return null;
@@ -246,6 +248,9 @@ foreach ($authors as $authorData) {
             break;
         case 'curatore':
             $schemaEditors[] = $person;
+            break;
+        case 'colorista':
+            $schemaContributors[] = $person;
             break;
         default: // principale, co-autore
             $schemaAuthors[] = $person;
@@ -386,6 +391,13 @@ if ($schemaType === 'MusicAlbum') {
     if ($bookEdition !== '') {
         $bookSchema["bookEdition"] = $bookEdition;
     }
+}
+
+// Colorists do not have a dedicated Schema.org Book property; expose them as
+// generic contributors for every supported media type instead of mislabelling
+// them as primary authors.
+if (!empty($schemaContributors)) {
+    $bookSchema["contributor"] = count($schemaContributors) === 1 ? $schemaContributors[0] : $schemaContributors;
 }
 
 // Availability — only include Offer when the item has a price

@@ -62,10 +62,10 @@ class FeedController
         $sql = "
             SELECT l.id, l.titolo, l.descrizione_plain, l.created_at,
                    (
-                       SELECT a.nome
+                       SELECT " . \App\Support\AuthorName::displaySql('a') . "
                        FROM libri_autori la
                        JOIN autori a ON la.autore_id = a.id
-                       WHERE la.libro_id = l.id
+                       WHERE la.libro_id = l.id AND la.ruolo IN ('principale', 'co-autore')
                        ORDER BY CASE la.ruolo WHEN 'principale' THEN 0 ELSE 1 END, la.ordine_credito
                        LIMIT 1
                    ) AS autore_principale,

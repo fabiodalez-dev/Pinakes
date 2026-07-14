@@ -2841,8 +2841,9 @@ class ArchivesPlugin
     {
         $rows = [];
         $q = trim($q);
+        $display = \App\Support\AuthorName::displaySql('a');
         if ($q === '') {
-            $result = $this->db->query('SELECT id, nome FROM autori ORDER BY nome LIMIT ' . (int) $limit);
+            $result = $this->db->query("SELECT a.id, {$display} AS nome FROM autori a ORDER BY nome LIMIT " . (int) $limit);
             if ($result instanceof \mysqli_result) {
                 while ($r = $result->fetch_assoc()) { $rows[] = $r; }
                 $result->free();
@@ -2855,11 +2856,13 @@ class ArchivesPlugin
         // single-char name. Mirrors the addcslashes pattern applied at
         // CQL parser (3510) and searchArchivalUnits (4679).
         $like = '%' . addcslashes($q, '%_\\') . '%';
-        $stmt = $this->db->prepare('SELECT id, nome FROM autori WHERE nome LIKE ? ORDER BY nome LIMIT ?');
+        $stmt = $this->db->prepare("SELECT a.id, {$display} AS nome FROM autori a
+                                    WHERE a.nome LIKE ? OR a.pseudonimo LIKE ?
+                                    ORDER BY nome LIMIT ?");
         if ($stmt === false) {
             return $rows;
         }
-        $stmt->bind_param('si', $like, $limit);
+        $stmt->bind_param('ssi', $like, $like, $limit);
         $stmt->execute();
         $result = $stmt->get_result();
         if ($result instanceof \mysqli_result) {

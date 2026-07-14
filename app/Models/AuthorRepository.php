@@ -75,6 +75,7 @@ class AuthorRepository
                 INNER JOIN libri l ON la.libro_id = l.id
                 WHERE (l.editore_id = ?{$exists})
                       AND l.deleted_at IS NULL
+                      AND la.ruolo IN ('principale', 'co-autore')
                 ORDER BY a.nome ASC";
         $stmt = $this->db->prepare($sql);
         if ($hasJunction) {
@@ -96,10 +97,10 @@ class AuthorRepository
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.data_acquisizione, l.stato, l.copertina_url,
                        e.nome AS editore_nome,
                        (
-                         SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
+                         SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ')
                          FROM libri_autori la
                          JOIN autori a ON la.autore_id = a.id
-                         WHERE la.libro_id = l.id
+                         WHERE la.libro_id = l.id AND la.ruolo IN ('principale','co-autore')
                        ) AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
@@ -244,7 +245,20 @@ class AuthorRepository
     }
 
     /**
-     * Find an author by name, with normalization to prevent duplicates
+     * Backward-compatible alias for canonical-name lookup.
+     *
+     * IMPORTANT: this method intentionally never searches `pseudonimo`.
+     * Importers and authority providers (SBN, VIAF, Open Library, CSV,
+     * LibraryThing, ISBN scrapers) supply canonical/real names. Matching those
+     * values against a pseudonym could attach metadata to the wrong person.
+     */
+    public function findByName(string $name): ?int
+    {
+        return $this->findByCanonicalName($name);
+    }
+
+    /**
+     * Find an author by canonical/real name, with normalization to prevent duplicates.
      *
      * Searches for author using both exact match and normalized variants
      * to handle different name formats (e.g., "Levi, Primo" vs "Primo Levi")
@@ -252,7 +266,7 @@ class AuthorRepository
      * @param string $name Author name in any format
      * @return int|null Author ID if found, null otherwise
      */
-    public function findByName(string $name): ?int
+    public function findByCanonicalName(string $name): ?int
     {
         $name = trim($name);
         if ($name === '') {

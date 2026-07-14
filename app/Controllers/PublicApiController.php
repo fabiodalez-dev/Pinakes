@@ -85,10 +85,12 @@ class PublicApiController
                 SELECT 1 FROM libri_autori la
                 JOIN autori a ON la.autore_id = a.id
                 WHERE la.libro_id = l.id
-                AND a.nome LIKE ?
+                AND la.ruolo IN (\'principale\', \'co-autore\')
+                AND (a.nome LIKE ? OR a.pseudonimo LIKE ?)
             )';
             $params[] = '%' . $author . '%';
-            $types .= 's';
+            $params[] = '%' . $author . '%';
+            $types .= 'ss';
         }
 
         if (empty($conditions)) {
@@ -241,11 +243,16 @@ class PublicApiController
     private function getBookAuthors(mysqli $db, int $bookId): array
     {
         $sql = "
-            SELECT a.id, a.nome, a.biografia, a.data_nascita, a.data_morte, a.`nazionalità` AS nazionalita
+            SELECT a.id, a.nome, a.pseudonimo, a.biografia, a.data_nascita, a.data_morte,
+                   a.`nazionalità` AS nazionalita, la.ruolo
             FROM libri_autori la
             JOIN autori a ON la.autore_id = a.id
             WHERE la.libro_id = ?
-            ORDER BY la.ordine_credito, a.nome
+            ORDER BY CASE la.ruolo
+                WHEN 'principale' THEN 1 WHEN 'co-autore' THEN 2
+                WHEN 'traduttore' THEN 3 WHEN 'illustratore' THEN 4
+                WHEN 'curatore' THEN 5 WHEN 'colorista' THEN 6 ELSE 7 END,
+                la.ordine_credito, a.nome
         ";
 
         $stmt = $db->prepare($sql);
@@ -262,6 +269,9 @@ class PublicApiController
             $authors[] = [
                 'id' => (int)$row['id'],
                 'nome' => $row['nome'],
+                'display_name' => \App\Support\AuthorName::display($row),
+                'pseudonimo' => $row['pseudonimo'],
+                'ruolo' => $row['ruolo'],
                 'biografia' => $row['biografia'],
                 'data_nascita' => $row['data_nascita'],
                 'data_morte' => $row['data_morte'],

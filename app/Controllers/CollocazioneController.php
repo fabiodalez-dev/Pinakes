@@ -264,12 +264,12 @@ class CollocazioneController
 
         $sql = "SELECT l.id, l.titolo, l.scaffale_id, l.mensola_id, l.posizione_progressiva,
                        s.codice as scaffale_codice, m.numero_livello,
-                       GROUP_CONCAT(DISTINCT a.nome SEPARATOR ', ') as autori,
+                       GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori,
                        e.nome as editore
                 FROM libri l
                 LEFT JOIN scaffali s ON l.scaffale_id = s.id
                 LEFT JOIN mensole m ON l.mensola_id = m.id
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 LEFT JOIN editori e ON l.editore_id = e.id
                 WHERE l.scaffale_id IS NOT NULL AND l.mensola_id IS NOT NULL AND l.deleted_at IS NULL";
@@ -335,12 +335,12 @@ class CollocazioneController
 
         $sql = "SELECT l.id, l.titolo, COALESCE(l.isbn13, l.isbn10) as isbn, l.anno_pubblicazione,
                        s.codice as scaffale_codice, m.numero_livello, l.posizione_progressiva,
-                       GROUP_CONCAT(DISTINCT a.nome SEPARATOR ', ') as autori,
+                       GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori,
                        e.nome as editore
                 FROM libri l
                 LEFT JOIN scaffali s ON l.scaffale_id = s.id
                 LEFT JOIN mensole m ON l.mensola_id = m.id
-                LEFT JOIN libri_autori la ON l.id = la.libro_id
+                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
                 LEFT JOIN autori a ON la.autore_id = a.id
                 LEFT JOIN editori e ON l.editore_id = e.id
                 WHERE l.scaffale_id IS NOT NULL AND l.mensola_id IS NOT NULL AND l.deleted_at IS NULL";

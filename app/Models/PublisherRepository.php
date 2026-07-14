@@ -44,13 +44,15 @@ class PublisherRepository
         $exists = $hasJunction
             ? " OR EXISTS (SELECT 1 FROM libri_editori le WHERE le.libro_id = l.id AND le.editore_id = ?)"
             : "";
+        $authorDisplay = \App\Support\AuthorName::displaySql('a');
         $sql = "SELECT l.id, l.titolo, l.isbn10, l.isbn13, l.ean, l.data_acquisizione, l.stato, l.copertina_url,
                        e.nome AS editore_nome,
                        (
-                         SELECT GROUP_CONCAT(a.nome SEPARATOR ', ')
+                         SELECT GROUP_CONCAT({$authorDisplay} ORDER BY la.ordine_credito SEPARATOR ', ')
                          FROM libri_autori la
                          JOIN autori a ON la.autore_id = a.id
                          WHERE la.libro_id = l.id
+                           AND la.ruolo IN ('principale', 'co-autore')
                        ) AS autori
                 FROM libri l
                 LEFT JOIN editori e ON l.editore_id = e.id
@@ -84,6 +86,7 @@ class PublisherRepository
                 INNER JOIN libri l ON la.libro_id = l.id
                 WHERE (l.editore_id = ?{$exists})
                       AND l.deleted_at IS NULL
+                      AND la.ruolo IN ('principale', 'co-autore')
                 ORDER BY a.nome ASC";
         $stmt = $this->db->prepare($sql);
         if ($hasJunction) {
