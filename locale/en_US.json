@@ -6539,5 +6539,6 @@
   "Destinatario (vuoto = la tua email admin)": "Recipient (empty = your admin email)",
   "Invia email di prova": "Send test email",
   "Invio in corso…": "Sending…",
-  "Richiesta non riuscita. Riprova.": "Request failed. Try again."
+  "Richiesta non riuscita. Riprova.": "Request failed. Try again.",
+  "oggi": "today"
 }

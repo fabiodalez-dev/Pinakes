@@ -425,18 +425,21 @@ class NotificationService {
                     continue;
                 }
 
+                // "Giorni rimasti: 0" reads wrong in the email — show "oggi" for a
+                // due-today loan, the number of days otherwise (matches the in-app
+                // notification wording below).
+                $daysRemaining = (int)$loan['giorni_rimasti'];
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
                     'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
-                    'giorni_rimasti' => $loan['giorni_rimasti']
+                    'giorni_rimasti' => $daysRemaining === 0 ? __('oggi') : (string)$daysRemaining
                 ];
 
                 $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_expiring_warning', $variables);
 
                 if ($emailSent) {
                     // Create in-app notification for expiring loan
-                    $daysRemaining = (int)$loan['giorni_rimasti'];
                     $notificationMessage = $daysRemaining === 0
                         ? sprintf(__('"%s" prestato a %s scade oggi'), $loan['libro_titolo'], $loan['utente_nome'])
                         : sprintf(__('"%s" prestato a %s scade fra %d giorni'), $loan['libro_titolo'], $loan['utente_nome'], $daysRemaining);

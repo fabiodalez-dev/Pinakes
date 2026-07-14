@@ -355,10 +355,16 @@ $activeTab = $activeTab ?? 'general';
               out.textContent = '';
               var body = 'test_email=' + encodeURIComponent(to);
               if (csrf) { body += '&csrf_token=' + encodeURIComponent(csrf.value); }
+              // Client-side timeout: if the SMTP handshake stalls the request never
+              // settles, so without this the button would stay disabled with the
+              // spinner forever. AbortController rejects the fetch -> catch -> finally.
+              var controller = new AbortController();
+              var timeoutId = window.setTimeout(function () { controller.abort(); }, 30000);
               fetch(<?= json_encode(url('/admin/settings/email/test'), JSON_HEX_TAG) ?>, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
-                body: body
+                body: body,
+                signal: controller.signal
               }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
                 .then(function (res) {
                   out.className = 'mt-3 text-sm ' + (res.j.success ? 'text-green-700' : 'text-red-700');
@@ -368,7 +374,7 @@ $activeTab = $activeTab ?? 'general';
                   out.className = 'mt-3 text-sm text-red-700';
                   out.textContent = <?= json_encode(__("Richiesta non riuscita. Riprova."), JSON_HEX_TAG) ?>;
                 })
-                .finally(function () { btn.disabled = false; btn.innerHTML = original; });
+                .finally(function () { window.clearTimeout(timeoutId); btn.disabled = false; btn.innerHTML = original; });
             });
           })();
         </script>

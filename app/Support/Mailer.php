@@ -117,6 +117,23 @@ final class Mailer
             // Fallback to mail()
             return self::sendMail($to, $subject, $htmlBody, $fromEmail, $fromName);
         }
+        $result = self::dispatchPHPMailer($to, $subject, $htmlBody, $textBody, $fromEmail, $fromName);
+        if (!$result['ok']) {
+            SecureLogger::warning('Email send failed: ' . $result['error']);
+        }
+        return $result['ok'];
+    }
+
+    /**
+     * Build and send one PHPMailer message. Single source of truth for the real
+     * send path, so the diagnostic sendTest() exercises exactly what production
+     * uses — if CC/BCC/AltBody/etc. change here they can't silently drift apart.
+     * Returns the real outcome (the specific error on failure), never throws.
+     *
+     * @return array{ok: bool, error: string}
+     */
+    private static function dispatchPHPMailer(string $to, string $subject, string $htmlBody, ?string $textBody, string $fromEmail, string $fromName): array
+    {
         try {
             $mailer = new \PHPMailer\PHPMailer\PHPMailer(true);
             self::configureMailer($mailer, $fromEmail, $fromName);
@@ -124,10 +141,10 @@ final class Mailer
             $mailer->Subject = $subject;
             $mailer->Body = $htmlBody;
             $mailer->AltBody = $textBody ?: strip_tags($htmlBody);
-            return $mailer->send();
+            $mailer->send();
+            return ['ok' => true, 'error' => ''];
         } catch (\Throwable $e) {
-            SecureLogger::warning('Email send failed: ' . $e->getMessage());
-            return false;
+            return ['ok' => false, 'error' => $e->getMessage()];
         }
     }
 
@@ -152,20 +169,10 @@ final class Mailer
         $subject = __('Email di prova da Pinakes');
         $html = '<p>' . __('Questa è un\'email di prova inviata dalle impostazioni di Pinakes. Se la ricevi, la configurazione email funziona.') . '</p>';
 
-        // SMTP / PHPMailer path: capture the real handshake/auth/recipient error.
+        // SMTP / PHPMailer path: reuse the exact real send path so the test is a
+        // faithful diagnostic, and capture its real handshake/auth/recipient error.
         if (($driver === 'smtp' || $driver === 'phpmailer') && class_exists('PHPMailer\\PHPMailer\\PHPMailer')) {
-            try {
-                $mailer = new \PHPMailer\PHPMailer\PHPMailer(true);
-                self::configureMailer($mailer, $fromEmail, $fromName);
-                $mailer->addAddress($to);
-                $mailer->Subject = $subject;
-                $mailer->Body = $html;
-                $mailer->AltBody = strip_tags($html);
-                $mailer->send();
-                return ['ok' => true, 'error' => ''];
-            } catch (\Throwable $e) {
-                return ['ok' => false, 'error' => $e->getMessage()];
-            }
+            return self::dispatchPHPMailer($to, $subject, $html, null, $fromEmail, $fromName);
         }
 
         // Plain mail() path: no detailed error is available, only success/failure.
