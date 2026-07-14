@@ -708,11 +708,10 @@ final class ActionsController
             // Domain "today" from DateHelper::today() (app timezone), so the
             // due/overdue day boundary matches the web/cron pipeline.
             $today = DateHelper::today();
-            // Due-soon window from settings (fallback 3 days), same idea as the web reminders.
-            $dueSoonDays = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'reminder_days_before', '3') ?? 3);
-            if ($dueSoonDays < 1) {
-                $dueSoonDays = 3;
-            }
+            // Use the exact same setting as NotificationService / Settings → Advanced.
+            // The former loans.reminder_days_before key never existed, so the mobile
+            // feed silently stayed at its fallback even when an admin changed the UI.
+            $dueSoonDays = max(0, (int) ((new \App\Models\SettingsRepository($this->db))->get('advanced', 'days_before_expiry_warning', '3') ?? 3));
             $dueSoonLimit = date('Y-m-d', strtotime($today . " +{$dueSoonDays} days"));
 
             // Loans due soon (active, in-progress, not yet overdue).
@@ -912,14 +911,23 @@ final class ActionsController
      */
     private function mapLoan(array $r): array
     {
+        $status = (string) ($r['stato'] ?? '');
+        $dueAt = $this->nullableString($r['data_scadenza'] ?? null);
+
         return [
             'id'           => (int) $r['id'],
             'book_id'      => (int) $r['libro_id'],
             'title'        => (string) ($r['titolo'] ?? ''),
             'cover_url'    => absoluteUrl($this->coverPath($r['copertina_url'] ?? null)),
-            'status'       => (string) ($r['stato'] ?? ''),
+            'status'       => $status,
             'loaned_at'    => $this->nullableString($r['data_prestito'] ?? null),
-            'due_at'       => $this->nullableString($r['data_scadenza'] ?? null),
+            'due_at'       => $dueAt,
+            // Server-authoritative visibility cue: the Android device may be in a
+            // different timezone from the library, so it must not derive "today"
+            // from LocalDate.now(). The badge still uses the raw status above.
+            'due_attention' => $dueAt !== null
+                && in_array($status, ['in_corso', 'in_ritardo'], true)
+                && $dueAt <= DateHelper::today(),
             'returned_at'  => $this->nullableString($r['data_restituzione'] ?? null),
             'renewals'     => isset($r['renewals']) ? (int) $r['renewals'] : null,
         ];

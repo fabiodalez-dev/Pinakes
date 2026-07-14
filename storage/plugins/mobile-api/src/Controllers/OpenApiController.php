@@ -1112,6 +1112,10 @@ final class OpenApiController
                 'status'      => ['type' => 'string', 'description' => 'Raw prestiti.stato value.'],
                 'loaned_at'   => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'due_at'      => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                'due_attention' => [
+                    'type' => 'boolean',
+                    'description' => 'True when an active in-progress/overdue loan is due today or earlier in the application timezone.',
+                ],
                 'returned_at' => ['type' => 'string', 'format' => 'date', 'nullable' => true],
                 'renewals'    => ['type' => 'integer', 'nullable' => true],
             ],

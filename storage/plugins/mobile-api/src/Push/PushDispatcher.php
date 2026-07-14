@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\MobileApi\Push;
 
+use App\Support\DateHelper;
 use App\Support\SecureLogger;
 use mysqli;
 
@@ -66,11 +67,13 @@ final class PushDispatcher
         ];
 
         try {
-            // UTC so quiet-hours and "today" comparisons are deterministic.
-            $this->db->query("SET SESSION time_zone = '+00:00'");
+            // Bind the application-domain date explicitly. CURDATE() would follow
+            // the DB session timezone (this class used to force UTC), disagreeing
+            // with the web/email pipeline around the library's midnight.
+            $today = DateHelper::today();
 
-            $counters['loan_due']          = $this->sweepLoanDue($counters);
-            $counters['loan_overdue']      = $this->sweepLoanOverdue($counters);
+            $counters['loan_due']          = $this->sweepLoanDue($counters, $today);
+            $counters['loan_overdue']      = $this->sweepLoanOverdue($counters, $today);
             $counters['reservation_ready'] = $this->sweepReservationReady($counters);
             $counters['book_available']    = $this->sweepBookAvailable($counters);
         } catch (\Throwable $e) {
@@ -89,7 +92,7 @@ final class PushDispatcher
      *
      * @param array{loan_due:int,loan_overdue:int,reservation_ready:int,book_available:int,sent:int,skipped:int} $counters
      */
-    private function sweepLoanDue(array &$counters): int
+    private function sweepLoanDue(array &$counters, string $today): int
     {
         $days = $this->dueSoonDays();
         $events = 0;
@@ -98,13 +101,13 @@ final class PushDispatcher
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
                 WHERE pr.attivo = 1 AND pr.stato = 'in_corso'
-                  AND pr.data_scadenza >= CURDATE()
-                  AND pr.data_scadenza <= DATE_ADD(CURDATE(), INTERVAL ? DAY)";
+                  AND pr.data_scadenza >= ?
+                  AND pr.data_scadenza <= DATE_ADD(?, INTERVAL ? DAY)";
         $stmt = $this->db->prepare($sql);
         if ($stmt === false) {
             return 0;
         }
-        $stmt->bind_param('i', $days);
+        $stmt->bind_param('ssi', $today, $today, $days);
         $stmt->execute();
         $res = $stmt->get_result();
         $rows = ($res instanceof \mysqli_result) ? $res->fetch_all(MYSQLI_ASSOC) : [];
@@ -142,7 +145,7 @@ final class PushDispatcher
     /**
      * @param array{loan_due:int,loan_overdue:int,reservation_ready:int,book_available:int,sent:int,skipped:int} $counters
      */
-    private function sweepLoanOverdue(array &$counters): int
+    private function sweepLoanOverdue(array &$counters, string $today): int
     {
         $events = 0;
 
@@ -150,9 +153,16 @@ final class PushDispatcher
                 FROM prestiti pr
                 JOIN libri l ON l.id = pr.libro_id AND l.deleted_at IS NULL
                 WHERE pr.attivo = 1
-                  AND (pr.stato = 'in_ritardo' OR (pr.stato = 'in_corso' AND pr.data_scadenza < CURDATE()))";
-        $res  = $this->db->query($sql);
+                  AND (pr.stato = 'in_ritardo' OR (pr.stato = 'in_corso' AND pr.data_scadenza < ?))";
+        $stmt = $this->db->prepare($sql);
+        if ($stmt === false) {
+            return 0;
+        }
+        $stmt->bind_param('s', $today);
+        $stmt->execute();
+        $res  = $stmt->get_result();
         $rows = ($res instanceof \mysqli_result) ? $res->fetch_all(MYSQLI_ASSOC) : [];
+        $stmt->close();
 
         foreach ($rows as $r) {
             $userId = (int) $r['utente_id'];
@@ -565,11 +575,13 @@ final class PushDispatcher
     private function dueSoonDays(): int
     {
         try {
-            $days = (int) ((new \App\Models\SettingsRepository($this->db))->get('loans', 'reminder_days_before', '3') ?? 3);
+            $days = (int) ((new \App\Models\SettingsRepository($this->db))->get('advanced', 'days_before_expiry_warning', '3') ?? 3);
         } catch (\Throwable $e) {
             $days = 3;
         }
 
-        return $days >= 1 ? $days : 3;
+        // Match NotificationService exactly: zero is valid and means "today only";
+        // negative/corrupt values are clamped rather than silently reset to three.
+        return max(0, $days);
     }
 }

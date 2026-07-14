@@ -20,6 +20,7 @@ declare(strict_types=1);
 use Dotenv\Dotenv;
 use App\Support\NotificationService;
 use App\Controllers\ReservationManager;
+use App\Support\HookManager;
 
 // ============================================================
 // PROCESS LOCK - Prevent concurrent cron executions
@@ -158,6 +159,18 @@ try {
 
     $totalSent = $results['expiration_warnings'] + $results['overdue_notifications'] + $results['wishlist_notifications'] + $retriedNotifications;
     logMessage("Total emails sent: {$totalSent}");
+
+    // Dispatch native mobile push on the same hourly pass as email reminders.
+    // The daily full-maintenance job also fires this hook, but relying on 06:00
+    // alone misses loans created later in the day and may always land inside a
+    // user's quiet-hours window. PushDispatcher deduplicates event keys, so the
+    // daily + hourly invocations are safe together.
+    try {
+        (new HookManager($db))->doAction('mobile_api.dispatch_push');
+        logMessage("Mobile push dispatch completed");
+    } catch (Throwable $e) {
+        logMessage("WARNING: mobile push dispatch failed: " . $e->getMessage());
+    }
 
     // NOTE: Daily maintenance tasks (loan state transitions, expiry handling) are now
     // handled exclusively by full-maintenance.php via MaintenanceService::runAll()
