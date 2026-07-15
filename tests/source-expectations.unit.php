@@ -33,7 +33,7 @@ $check(in_array('libri_autori_import_sources', $tables, true), 'new core tables 
 $thrown = false;
 try {
     Installer::parseCreateTableNames("CREATE TABLE `ok` (id INT);\nCREATE TABLE ??? (id INT);");
-} catch (Exception $e) {
+} catch (\Throwable $e) {
     $thrown = true;
 }
 $check($thrown, 'partial parses fail closed instead of weakening verification');
