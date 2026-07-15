@@ -36,8 +36,15 @@ if (!isset($_SESSION['installation_finalized'])) {
 // Get admin info from session
 $adminUser = $_SESSION['admin_user'] ?? null;
 $appName = $_SESSION['app_settings']['name'] ?? 'Pinakes';
-$schemaSql = file_get_contents(dirname(__DIR__) . '/database/schema.sql');
-$schemaTableCount = count(Installer::parseCreateTableNames($schemaSql === false ? '' : $schemaSql));
+try {
+    $schemaSql = file_get_contents(dirname(__DIR__) . '/database/schema.sql');
+    $schemaTableCount = count(Installer::parseCreateTableNames($schemaSql === false ? '' : $schemaSql));
+} catch (\Throwable $e) {
+    // The install already succeeded by this final step; an unreadable or
+    // unparseable schema.sql here is cosmetic-only (the count on the summary
+    // line) and must never fatal the success screen.
+    $schemaTableCount = 0;
+}
 
 renderHeader(7, __('Installazione Completata'));
 ?>

@@ -5,7 +5,7 @@ declare(strict_types=1);
  * Behavioral suite for the 0.7.36 contributor-roles migration (issue #237).
  *
  * Two pieces ship together:
- *   1. installer/database/migrations/migrate_0.7.36.sql — adds 'colorista' to
+ *   1. installer/database/migrations/migrate_0.7.36-rc.1.sql — adds 'colorista' to
  *      libri_autori.ruolo (guarded, idempotent).
  *   2. App\Support\ContributorBackfill — guarded conversion of the legacy
  *      free-text columns into role rows, completed by the migration runner;
@@ -24,7 +24,7 @@ declare(strict_types=1);
  *
  * Runs against the LIVE local MySQL. Test C is fully transactional (ROLLBACK), so
  * no real data is changed; Test A touches only `zz_mig_libri_autori`.
- * Run:  php tests/migration-0.7.36.unit.php   (exit 0 iff all pass)
+ * Run:  php tests/migration-0.7.36-rc.1.unit.php   (exit 0 iff all pass)
  */
 
 $root = dirname(__DIR__);
@@ -74,11 +74,11 @@ try {
 }
 
 // ── A. Enum ALTER via the REAL migration file (sandbox table) ───────────────
-// Run the actual installer/database/migrations/migrate_0.7.36.sql — retargeted at
+// Run the actual installer/database/migrations/migrate_0.7.36-rc.1.sql — retargeted at
 // a sandbox table — so the file's guarded dynamic-SQL (information_schema LOCATE +
 // PREPARE/EXECUTE/DEALLOCATE) is the code actually exercised, not a hand-rolled
 // ALTER (CLAUDE.md rule 6: the migration test must run the real file).
-echo "A. Enum ALTER (real migrate_0.7.36.sql, sandbox)\n";
+echo "A. Enum ALTER (real migrate_0.7.36-rc.1.sql, sandbox)\n";
 $db->query("DROP TABLE IF EXISTS zz_mig_libri_autori_import_sources");
 $db->query("DROP TABLE IF EXISTS zz_mig_libri_autori");
 $db->query("CREATE TABLE zz_mig_libri_autori (
@@ -94,7 +94,7 @@ $colType = function () use ($db): string {
 };
 $check(strpos($colType(), 'colorista') === false, "old enum has no 'colorista'");
 
-$migrationSql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.36.sql');
+$migrationSql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.36-rc.1.sql');
 $check($migrationSql !== '' && str_contains($migrationSql, 'libri_autori'), "migration file loaded");
 // Retarget every `libri_autori` reference (the ALTER + the information_schema guard)
 // at the sandbox table, then run the multi-statement file for real.
@@ -194,7 +194,7 @@ try {
 echo "D. Drift guards\n";
 $schema = (string) file_get_contents($root . '/installer/database/schema.sql');
 $check(strpos($schema, "'principale','co-autore','traduttore','illustratore','curatore','colorista'") !== false, "schema.sql enum includes colorista");
-$migSql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.36.sql');
+$migSql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.36-rc.1.sql');
 $check(strpos($migSql, 'colorista') !== false && stripos($migSql, 'libri_autori') !== false, "migration file adds colorista to libri_autori");
 $maint = (string) file_get_contents($root . '/app/Support/MaintenanceService.php');
 $check(strpos($maint, 'ContributorBackfill::run') !== false, "MaintenanceService wires the backfill");

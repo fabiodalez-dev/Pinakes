@@ -2064,6 +2064,16 @@ class OaiPmhServerPlugin
             $xw->writeElementNs('dc', $element, null, (string) $a['nome']);
         }
 
+        // Fallback for contributors still held on the legacy free-text columns
+        // (not yet promoted to entities by the backfill) — mirrors oai_dc/marcxml
+        // so the MAG Dublin Core sub-record doesn't drop them mid-migration.
+        $entityRoles = array_map(static fn (array $a): string => (string) ($a['ruolo'] ?? ''), $authors);
+        foreach (['traduttore', 'illustratore', 'curatore', 'colorista'] as $col) {
+            if (!empty($row[$col]) && !in_array($col, $entityRoles, true)) {
+                $xw->writeElementNs('dc', 'contributor', null, (string) $row[$col]);
+            }
+        }
+
         foreach ($publishers as $pub) {
             if (!empty($pub['nome'])) {
                 $xw->writeElementNs('dc', 'publisher', null, (string) $pub['nome']);

@@ -144,7 +144,8 @@ biblioteche museali, fondi di riferimento.
 ```
 
 ### Sistema a Plugin
-```
+
+```text
 Pinakes si estende senza toccare il codice. I plugin bundled sono distribuiti
 con l'applicazione, ma "bundled" non significa "attivo": il set attivato su
 una nuova installazione resta una scelta esplicita dell'installer e i plugin

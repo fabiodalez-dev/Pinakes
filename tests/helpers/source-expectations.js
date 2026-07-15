@@ -57,8 +57,18 @@ function parseBundledPluginNames(source) {
     const block = source.match(/const\s+LIST\s*=\s*\[([\s\S]*?)\]\s*;/);
     if (!block) throw new Error('BundledPlugins::LIST not found');
 
-    const plugins = [...block[1].matchAll(/^\s*'([^']+)'\s*,?\s*(?:\/\/.*)?$/gm)]
-        .map(match => match[1]);
+    // Validate EVERY meaningful line inside the block: a plugin entry that
+    // doesn't match the quoted-string shape must fail loudly, never be silently
+    // skipped — a dropped entry would make the derived list wrong while the
+    // tests that consume it still pass.
+    const plugins = [];
+    for (const raw of block[1].split('\n')) {
+        const line = raw.trim();
+        if (line === '' || line.startsWith('//')) continue; // blank / comment-only
+        const match = line.match(/^'([^']+)'\s*,?\s*(?:\/\/.*)?$/);
+        if (!match) throw new Error(`BundledPlugins::LIST contains an unparseable entry: ${line}`);
+        plugins.push(match[1]);
+    }
     if (plugins.length === 0) throw new Error('BundledPlugins::LIST is empty');
     if (new Set(plugins).size !== plugins.length) {
         throw new Error('BundledPlugins::LIST contains duplicate entries');

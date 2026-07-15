@@ -31,10 +31,26 @@ PHP="${PHP_BIN:-php}"
 TESTS=(
   tests/source-expectations.unit.php
   tests/plugin-schema-expectations-static.unit.php
-  tests/migration-0.7.31.unit.php
   tests/plugin-schema-guard.unit.php
   tests/plugin-schema-selfheal.unit.php
 )
+
+# The current release's behavioural migration test, derived from version.json
+# instead of a hardcoded name (which silently went stale, pinned to an old
+# release, and stopped testing the migration that actually shipped). A release
+# may legitimately carry no migration — include the test only when it exists.
+RELEASE_VERSION="$(jq -r '.version' version.json 2>/dev/null)"
+if [[ -n "$RELEASE_VERSION" && "$RELEASE_VERSION" != "null" \
+      && -f "tests/migration-${RELEASE_VERSION}.unit.php" ]]; then
+  TESTS+=("tests/migration-${RELEASE_VERSION}.unit.php")
+fi
+# Guard: if this release ships a migration SQL but no behavioural test for it,
+# fail loudly — an untested migration is exactly what updater.md forbids.
+if [[ -f "installer/database/migrations/migrate_${RELEASE_VERSION}.sql" \
+      && ! -f "tests/migration-${RELEASE_VERSION}.unit.php" ]]; then
+  echo "✗ migrate_${RELEASE_VERSION}.sql ships without tests/migration-${RELEASE_VERSION}.unit.php"
+  exit 1
+fi
 
 echo "════════════════════════════════════════════════════════════"
 echo " Schema / migration verification gate"
