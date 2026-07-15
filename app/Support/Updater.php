@@ -3282,7 +3282,7 @@ class Updater
             // Docker drives this method directly, so doing it here prevents a
             // post-upgrade window where legacy contributors disappear until a
             // later admin login or nightly maintenance run.
-            if (version_compare($toVersion, '0.7.36', '>=')
+            if (version_compare($toVersion, '0.7.36-rc.1', '>=')
                 && !ContributorBackfill::run($this->db)
             ) {
                 throw new \RuntimeException('Contributor backfill did not complete');

@@ -25,8 +25,8 @@ class SearchController
             $params = [];
             $types = '';
             foreach ($words as $word) {
-                $conditions[] = '(nome LIKE ? OR pseudonimo LIKE ?)';
-                $like = '%' . $word . '%';
+                $conditions[] = '(nome LIKE ? ESCAPE \'\\\\\' OR pseudonimo LIKE ? ESCAPE \'\\\\\')';
+                $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $word) . '%';
                 $params[] = $like;
                 $params[] = $like;
                 $types .= 'ss';

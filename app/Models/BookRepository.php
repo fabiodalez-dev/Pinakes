@@ -1261,6 +1261,45 @@ class BookRepository
                 $delete->close();
             }
 
+            // Keep the denormalized free-text columns in sync with the entity
+            // links so readers that still consume them — CSV export and the
+            // public REST API — show contributors set via the #237 role pickers
+            // (issue #237 review, finding F009). Only the roles this call
+            // actually synced are refreshed; colorista is intentionally absent
+            // (it was added as an enum value only, with no free-text column).
+            $freeTextRoles = ['traduttore', 'illustratore', 'curatore'];
+            foreach ($freeTextRoles as $column) {
+                if (!isset($providedRoles[$column]) || !$this->hasColumn($column)) {
+                    continue;
+                }
+                $names = $this->db->prepare(
+                    'SELECT GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR \'; \') '
+                    . 'FROM libri_autori la JOIN autori a ON a.id = la.autore_id '
+                    . 'WHERE la.libro_id = ? AND la.ruolo = ?'
+                );
+                if ($names === false) {
+                    throw new \RuntimeException('Database error: unable to prepare contributor cache read');
+                }
+                $names->bind_param('is', $bookId, $column);
+                if (!$names->execute()) {
+                    throw new \RuntimeException('Database error reading contributor names: ' . $names->error);
+                }
+                $joined = $names->get_result()->fetch_row()[0] ?? null;
+                $names->close();
+
+                // $column is drawn only from the hardcoded whitelist above — safe
+                // to interpolate into the column position (bind_param can't).
+                $update = $this->db->prepare("UPDATE libri SET {$column} = ? WHERE id = ?");
+                if ($update === false) {
+                    throw new \RuntimeException('Database error: unable to prepare contributor cache write');
+                }
+                $update->bind_param('si', $joined, $bookId);
+                if (!$update->execute()) {
+                    throw new \RuntimeException('Database error writing contributor cache: ' . $update->error);
+                }
+                $update->close();
+            }
+
             if ($insideTransaction) {
                 if (!$this->db->query("RELEASE SAVEPOINT {$savepoint}")) {
                     throw new \RuntimeException('Database error: unable to release contributor savepoint');

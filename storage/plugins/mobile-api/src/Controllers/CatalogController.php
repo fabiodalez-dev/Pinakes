@@ -422,9 +422,10 @@ final class CatalogController
                 $conditions[] = "EXISTS (SELECT 1 FROM libri_autori la_a JOIN autori a_a ON la_a.autore_id = a_a.id
                                          WHERE la_a.libro_id = l.id
                                            AND la_a.ruolo IN ('principale', 'co-autore')
-                                           AND (a_a.nome LIKE ? OR a_a.pseudonimo LIKE ?))";
-                $bind[]  = '%' . $author . '%';
-                $bind[]  = '%' . $author . '%';
+                                           AND (a_a.nome LIKE ? ESCAPE '\\\\' OR a_a.pseudonimo LIKE ? ESCAPE '\\\\'))";
+                $authorLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $author) . '%';
+                $bind[]  = $authorLike;
+                $bind[]  = $authorLike;
                 $types  .= 'ss';
             }
         }

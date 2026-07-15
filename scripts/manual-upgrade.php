@@ -760,7 +760,7 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
         // Keep the standalone upgrader equivalent to the in-app and Docker
         // migration paths: the 0.7.36 contributor backfill must finish before
         // the upgrade is reported as complete.
-        if (version_compare($targetVersion, '0.7.36', '>=')) {
+        if (version_compare($targetVersion, '0.7.36-rc.1', '>=')) {
             $autoload = $rootPath . '/vendor/autoload.php';
             if (!is_file($autoload)) {
                 throw new RuntimeException('Autoloader non trovato per il backfill contributor');
