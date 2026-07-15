@@ -642,9 +642,7 @@ class Repo
                        COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
                        COALESCE(l.anno_pubblicazione, ext.anno) AS anno_pubblicazione,
                        COALESCE(
-                           (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
-                                                     THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
-                                                     ELSE TRIM(a.nome) END
+                           (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> '' AND TRIM(COALESCE(a.nome, '')) <> '' AND TRIM(COALESCE(a.pseudonimo, '')) <> TRIM(COALESCE(a.nome, '')) THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')') WHEN TRIM(COALESCE(a.nome, '')) <> '' THEN TRIM(a.nome) ELSE TRIM(COALESCE(a.pseudonimo, '')) END
                                                 ORDER BY la.ordine_credito SEPARATOR ', ')
                               FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                              WHERE la.libro_id = l.id
@@ -873,9 +871,7 @@ class Repo
         $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
         return $this->rows(
             "SELECT l.id, l.titolo, l.anno_pubblicazione, l.copertina_url,
-                    (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
-                                              THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
-                                              ELSE TRIM(a.nome) END SEPARATOR ', ')
+                    (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> '' AND TRIM(COALESCE(a.nome, '')) <> '' AND TRIM(COALESCE(a.pseudonimo, '')) <> TRIM(COALESCE(a.nome, '')) THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')') WHEN TRIM(COALESCE(a.nome, '')) <> '' THEN TRIM(a.nome) ELSE TRIM(COALESCE(a.pseudonimo, '')) END SEPARATOR ', ')
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                       WHERE la.libro_id = l.id
                         AND la.ruolo IN ('principale', 'co-autore')) AS autori
@@ -1009,9 +1005,7 @@ class Repo
                     COALESCE(l.titolo, ext.titolo) AS titolo,
                     COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
                     COALESCE(
-                        (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
-                                                  THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
-                                                  ELSE TRIM(a.nome) END SEPARATOR ', ')
+                        (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> '' AND TRIM(COALESCE(a.nome, '')) <> '' AND TRIM(COALESCE(a.pseudonimo, '')) <> TRIM(COALESCE(a.nome, '')) THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')') WHEN TRIM(COALESCE(a.nome, '')) <> '' THEN TRIM(a.nome) ELSE TRIM(COALESCE(a.pseudonimo, '')) END SEPARATOR ', ')
                            FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                           WHERE la.libro_id = l.id
                             AND la.ruolo IN ('principale', 'co-autore')),

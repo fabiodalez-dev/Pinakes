@@ -66,7 +66,7 @@ foreach ([
     'QuoteRepo.php', 'AffinityRepo.php', 'ReadingRepo.php',
 ] as $file) {
     $src = $read('storage/plugins/book-club/src/' . $file);
-    $check(str_contains($src, 'a.pseudonimo') && str_contains($src, "la.ruolo IN ('principale', 'co-autore')"), 'Book Club ' . $file . ' displays preferred creator names only');
+    $check((str_contains($src, 'a.pseudonimo') || str_contains($src, 'AuthorName::displaySql')) && str_contains($src, "la.ruolo IN ('principale', 'co-autore')"), 'Book Club ' . $file . ' displays preferred creator names only');
 }
 $challenge = $read('storage/plugins/book-club/src/ChallengeRepo.php');
 $check(str_contains($challenge, "la.ruolo IN (\\'principale\\', \\'co-autore\\')"), 'Book Club author challenges count creators only');

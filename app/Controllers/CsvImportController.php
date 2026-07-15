@@ -335,9 +335,15 @@ class CsvImportController
                 $bookId = $upsertResult['id'];
                 $action = $upsertResult['action'];
 
-                // Remove old author links if updating
+                // Remove old PRINCIPAL author links if updating — scoped to
+                // ruolo='principale' so a re-import re-writes the authors the CSV
+                // owns without wiping illustrator/translator/curator/colorist
+                // ENTITY links (#237): those roles are added below via
+                // ContributorSync (INSERT IGNORE, additive), and colorist/curator
+                // aren't CSV columns at all, so a blanket delete-all silently lost
+                // every contributor entity on each re-import.
                 if ($action === 'updated') {
-                    $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ?");
+                    $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ? AND ruolo = 'principale'");
                     $stmt->bind_param('i', $bookId);
                     $stmt->execute();
                     $stmt->close();

@@ -6533,5 +6533,9 @@
   "Illustratori dell'opera (autori veri, con autocomplete)": "Illustratoren (echte Autoren, mit Autovervollständigung)",
   "Traduttori (autori veri, con autocomplete)": "Übersetzer (echte Autoren, mit Autovervollständigung)",
   "Curatori dell'opera (autori veri, con autocomplete)": "Herausgeber (echte Autoren, mit Autovervollständigung)",
-  "Coloristi (utile per i fumetti)": "Koloristen (nützlich für Comics)"
+  "Coloristi (utile per i fumetti)": "Koloristen (nützlich für Comics)",
+  "Cerca un autore esistente o scrivine uno nuovo": "Vorhandenen Autor suchen oder neuen eingeben",
+  "Cerca un autore esistente o scrivine uno nuovo (utile per i fumetti)": "Vorhandenen Autor suchen oder neuen eingeben (nützlich für Comics)",
+  "Contributore \"%s\" è già selezionato": "Mitwirkender \"%s\" ist bereits ausgewählt",
+  "Contributore \"%s\" pronto per essere creato": "Mitwirkender \"%s\" bereit zur Erstellung"
 }

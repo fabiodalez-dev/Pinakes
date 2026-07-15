@@ -409,9 +409,14 @@ class LibraryThingImportController
                     $bookId = $upsertResult['id'];
                     $action = $upsertResult['action'];
 
-                    // Remove old author links if updating
+                    // Remove old PRINCIPAL author links only — scoped to
+                    // ruolo='principale' so a re-import re-writes the authors
+                    // LibraryThing owns without wiping illustrator/translator/
+                    // curator/colorist ENTITY links (#237). A blanket delete-all
+                    // silently lost every contributor entity on each re-import
+                    // (this importer only re-adds 'traduttore' below).
                     if ($action === 'updated') {
-                        $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ?");
+                        $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ? AND ruolo = 'principale'");
                         $stmt->bind_param('i', $bookId);
                         $stmt->execute();
                         $stmt->close();

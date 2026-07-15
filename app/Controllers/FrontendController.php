@@ -1428,7 +1428,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
 
         $container = $this->container;
         ob_start();
-        $title = "Libri di " . htmlspecialchars($author['nome'], ENT_QUOTES, 'UTF-8');
+        $title = "Libri di " . htmlspecialchars(\App\Support\AuthorName::display($author), ENT_QUOTES, 'UTF-8');
         $archive_type = 'autore';
         $archive_info = $author;
         include __DIR__ . '/../Views/frontend/archive.php';
@@ -1921,7 +1921,7 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
         // Render template
         $container = $this->container;
         ob_start();
-        $title = "Libri di " . htmlspecialchars($author['nome'], ENT_QUOTES, 'UTF-8');
+        $title = "Libri di " . htmlspecialchars(\App\Support\AuthorName::display($author), ENT_QUOTES, 'UTF-8');
         $archive_type = 'autore';
         $archive_info = $author;
         include __DIR__ . '/../Views/frontend/archive.php';

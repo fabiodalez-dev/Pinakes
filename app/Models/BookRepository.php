@@ -1078,8 +1078,24 @@ class BookRepository
             'colorista'    => $data['coloristi_ids'] ?? [],
         ];
 
-        $inputKeys = ['autori_ids', 'illustratori_ids', 'traduttori_ids', 'curatori_ids', 'coloristi_ids'];
-        if (!array_filter($inputKeys, static fn(string $key): bool => array_key_exists($key, $data))) {
+        $keyToRole = [
+            'autori_ids'       => 'principale',
+            'illustratori_ids' => 'illustratore',
+            'traduttori_ids'   => 'traduttore',
+            'curatori_ids'     => 'curatore',
+            'coloristi_ids'    => 'colorista',
+        ];
+        // Only the roles actually supplied by this caller are authoritative. A
+        // partial caller (e.g. one that sets only autori_ids) must NOT have the
+        // roles it didn't mention treated as "cleared" — the stale-delete below
+        // is scoped to $providedRoles so unmentioned roles are preserved.
+        $providedRoles = [];
+        foreach ($keyToRole as $key => $ruolo) {
+            if (array_key_exists($key, $data)) {
+                $providedRoles[$ruolo] = true;
+            }
+        }
+        if ($providedRoles === []) {
             return;
         }
 
@@ -1127,7 +1143,8 @@ class BookRepository
         foreach ($current as $row) {
             $authorId = (int)($row['autore_id'] ?? 0);
             $ruolo = (string)($row['ruolo'] ?? '');
-            if ($authorId > 0 && !isset($desired[$authorId . ':' . $ruolo])) {
+            // Prune only within the roles this caller actually supplied.
+            if ($authorId > 0 && isset($providedRoles[$ruolo]) && !isset($desired[$authorId . ':' . $ruolo])) {
                 $stale[] = [$authorId, $ruolo];
             }
         }
@@ -1151,10 +1168,11 @@ class BookRepository
     /**
      * Replace the publisher set for a book (issue #143).
      *
-     * Mirrors {@see syncContributors()}: deletes the libri_editori rows then inserts
-     * the given publisher ids in order. New publishers must already be resolved
-     * to numeric ids by the controller. The caller keeps libri.editore_id in
-     * sync with the first (primary) publisher.
+     * Deletes the libri_editori rows then inserts the given publisher ids in order
+     * (unlike {@see syncContributors()}, which is insert-first/delete-stale to stay
+     * non-destructive on invalid ids). New publishers must already be resolved to
+     * numeric ids by the controller. The caller keeps libri.editore_id in sync with
+     * the first (primary) publisher.
      *
      * @param array<int, int|string> $publisherIds Ordered, deduplicated by caller
      */

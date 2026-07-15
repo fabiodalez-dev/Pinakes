@@ -470,9 +470,7 @@ class StatsRepo
         }
         return $this->rows(
             "SELECT cb.id, cb.season_id, cb.state, l.titolo,
-                    (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
-                                              THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
-                                              ELSE TRIM(a.nome) END
+                    (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
                                          ORDER BY la.ordine_credito SEPARATOR ', ')
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                       WHERE la.libro_id = l.id
@@ -540,9 +538,7 @@ class StatsRepo
         return $this->rows(
             "SELECT cb.id, cb.state, cb.reading_starts, cb.reading_ends, cb.updated_at,
                     l.titolo,
-                    (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
-                                              THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
-                                              ELSE TRIM(a.nome) END
+                    (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
                                          ORDER BY la.ordine_credito SEPARATOR ', ')
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                       WHERE la.libro_id = l.id
@@ -573,9 +569,7 @@ class StatsRepo
         }
         return $this->rows(
             "SELECT l.titolo,
-                    (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
-                                              THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
-                                              ELSE TRIM(a.nome) END
+                    (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
                                          ORDER BY la.ordine_credito SEPARATOR ', ')
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                       WHERE la.libro_id = l.id

@@ -6533,5 +6533,9 @@
   "Illustratori dell'opera (autori veri, con autocomplete)": "Illustrators (real authors, with autocomplete)",
   "Traduttori (autori veri, con autocomplete)": "Translators (real authors, with autocomplete)",
   "Curatori dell'opera (autori veri, con autocomplete)": "Editors (real authors, with autocomplete)",
-  "Coloristi (utile per i fumetti)": "Colorists (useful for comics)"
+  "Coloristi (utile per i fumetti)": "Colorists (useful for comics)",
+  "Cerca un autore esistente o scrivine uno nuovo": "Search for an existing author or type a new one",
+  "Cerca un autore esistente o scrivine uno nuovo (utile per i fumetti)": "Search for an existing author or type a new one (useful for comics)",
+  "Contributore \"%s\" è già selezionato": "Contributor \"%s\" is already selected",
+  "Contributore \"%s\" pronto per essere creato": "Contributor \"%s\" ready to be created"
 }

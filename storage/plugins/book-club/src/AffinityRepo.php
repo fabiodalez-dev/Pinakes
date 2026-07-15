@@ -554,9 +554,7 @@ class AffinityRepo
         return $this->rows(
             "SELECT l.id, l.titolo, l.copertina_url, l.anno_pubblicazione, {$ratingCol},
                     g.nome AS genere,
-                    (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
-                                              THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
-                                              ELSE TRIM(a.nome) END
+                    (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::displaySql('a') . "
                                          ORDER BY la.ordine_credito SEPARATOR ', ')
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                       WHERE la.libro_id = l.id
@@ -590,9 +588,7 @@ class AffinityRepo
         [$ph, $types] = self::strInClause($finishedKeys);
         $rows = $this->rows(
             "SELECT a.id,
-                    CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> ''
-                         THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')')
-                         ELSE TRIM(a.nome) END AS nome,
+                    " . \App\Support\AuthorName::displaySql('a') . " AS nome,
                     COUNT(DISTINCT l2.id) AS unread_count
                FROM bookclub_books cb
                JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL

@@ -263,11 +263,12 @@ $selectedSeriesType = \App\Support\SeriesLabels::canonical($book['tipo_collana']
           // /api/search/autori autocomplete as authors, so an illustrator/
           // translator/curator/colorist is a real author entity (findable by
           // pseudonym, appears on the author page), not free text.
+          $contributorHelp = __('Cerca un autore esistente o scrivine uno nuovo');
           $contributorFields = [
-              'illustratori' => ['label' => __('Illustratore'), 'help' => __("Illustratori dell'opera (autori veri, con autocomplete)")],
-              'traduttori'   => ['label' => __('Traduttore'),   'help' => __('Traduttori (autori veri, con autocomplete)')],
-              'curatori'     => ['label' => __('Curatore'),     'help' => __("Curatori dell'opera (autori veri, con autocomplete)")],
-              'coloristi'    => ['label' => __('Colorista'),    'help' => __('Coloristi (utile per i fumetti)')],
+              'illustratori' => ['label' => __('Illustratore'), 'help' => $contributorHelp],
+              'traduttori'   => ['label' => __('Traduttore'),   'help' => $contributorHelp],
+              'curatori'     => ['label' => __('Curatore'),     'help' => $contributorHelp],
+              'coloristi'    => ['label' => __('Colorista'),    'help' => __('Cerca un autore esistente o scrivine uno nuovo (utile per i fumetti)')],
           ];
           ?>
           <input type="hidden" name="contributors_entity_picker" value="1" />
@@ -1141,6 +1142,8 @@ const bookFormMessages = {
     uploadReady: <?= json_encode(__('File "%s" pronto per l\'upload'), JSON_HEX_TAG) ?>,
     authorAlreadySelected: <?= json_encode(__('Autore "%s" è già selezionato'), JSON_HEX_TAG) ?>,
     authorReady: <?= json_encode(__('Autore "%s" pronto per essere creato'), JSON_HEX_TAG) ?>,
+    contributorAlreadySelected: <?= json_encode(__('Contributore "%s" è già selezionato'), JSON_HEX_TAG) ?>,
+    contributorReady: <?= json_encode(__('Contributore "%s" pronto per essere creato'), JSON_HEX_TAG) ?>,
     publisherSelected: <?= json_encode(__('Editore "%s" selezionato'), JSON_HEX_TAG) ?>,
     publisherReady: <?= json_encode(__('Editore "%s" pronto per essere creato'), JSON_HEX_TAG) ?>,
     publisherPlaceholder: <?= json_encode(__('Cerca editore esistente o inserisci nuovo...'), JSON_HEX_TAG) ?>,
@@ -2349,6 +2352,11 @@ function initContributorPicker(roleKey) {
             const duplicate = Array.from(hidden ? hidden.querySelectorAll('input') : [])
                 .some((i) => String(i.dataset.label || i.value || '').trim().toLowerCase() === label.toLowerCase());
             if (duplicate) {
+                // Feedback parity with the authors picker: a silently-dropped
+                // duplicate looks like the keystroke was ignored.
+                if (window.Toast) {
+                    window.Toast.fire({ icon: 'info', title: bookFormMessages.contributorAlreadySelected.replace('%s', label) });
+                }
                 if (internalInput) internalInput.value = '';
                 choice.hideDropdown();
                 return;
@@ -2360,6 +2368,11 @@ function initContributorPicker(roleKey) {
             if (internalInput) internalInput.value = '';
             if (typeof choice.clearInput === 'function') choice.clearInput();
             choice.hideDropdown();
+            // Confirm the new contributor is staged for creation, matching the
+            // authors picker's "ready to be created" Toast.
+            if (window.Toast) {
+                window.Toast.fire({ icon: 'success', title: bookFormMessages.contributorReady.replace('%s', label) });
+            }
         };
 
         if (typeof choice._onEnterKey === 'function') {

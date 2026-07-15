@@ -432,12 +432,20 @@ ob_start();
 ?>
 
 <!-- Archive Hero -->
+<?php
+// Author pages show the pseudonym-aware display name "Pseudonimo (Nome)" (#237),
+// consistent with how the author appears on book pages; publisher/genre archives
+// have no pseudonym so this collapses to the plain name.
+$archiveDisplayName = ($archive_type === 'autore')
+    ? \App\Support\AuthorName::display($archive_info)
+    : (string)($archive_info['nome'] ?? '');
+?>
 <section class="archive-hero">
     <div class="container">
         <div class="archive-hero-content">
             <div class="archive-icon">
                 <?php if ($archive_type === 'autore' && $authorPhoto !== ''): ?>
-                    <img src="<?= htmlspecialchars($authorPhoto, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars((string)($archive_info['nome'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
+                    <img src="<?= htmlspecialchars($authorPhoto, ENT_QUOTES, 'UTF-8') ?>" alt="<?= htmlspecialchars($archiveDisplayName, ENT_QUOTES, 'UTF-8') ?>" loading="lazy" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">
                 <?php elseif ($archive_type === 'autore'): ?>
                     <i class="fas fa-user"></i>
                 <?php elseif ($archive_type === 'editore'): ?>
@@ -446,7 +454,7 @@ ob_start();
                     <i class="fas fa-tags"></i>
                 <?php endif; ?>
             </div>
-            <h1 class="archive-title"><?= htmlspecialchars($archive_info['nome']) ?></h1>
+            <h1 class="archive-title"><?= htmlspecialchars($archiveDisplayName) ?></h1>
             <p class="archive-subtitle">
                 <?php if ($archive_type === 'autore'): ?>
                     <?= __("Autore") ?>

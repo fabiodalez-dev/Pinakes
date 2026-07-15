@@ -1691,10 +1691,7 @@ ob_start();
                             ?>
                             <a href="<?= htmlspecialchars(route_path('author') . '/' . urlencode(html_entity_decode($author['nome'] ?? '', ENT_QUOTES, 'UTF-8')), ENT_QUOTES, 'UTF-8') ?>" class="text-decoration-none">
                                 <span class="author-item role-<?= htmlspecialchars($author['ruolo'], ENT_QUOTES, 'UTF-8') ?>">
-                                    <?= htmlspecialchars($authorDisplay) ?>
-                                    <?php if ($author['ruolo'] !== 'principale'): ?>
-                                        (<?= htmlspecialchars(\App\Support\ContributorRoles::label($author['ruolo']), ENT_QUOTES, 'UTF-8') ?>)
-                                    <?php endif; ?>
+                                    <?= htmlspecialchars($authorDisplay) ?><?php if ($author['ruolo'] !== 'principale'): ?> <span class="contributor-role-sep">·</span> <?= htmlspecialchars(\App\Support\ContributorRoles::label($author['ruolo']), ENT_QUOTES, 'UTF-8') ?><?php endif; ?>
                                 </span>
                             </a>
                         <?php endforeach; ?>

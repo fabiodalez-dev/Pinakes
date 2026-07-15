@@ -73,8 +73,12 @@ try {
     exit(1);
 }
 
-// ── A. Enum ALTER on a sandbox table ────────────────────────────────────────
-echo "A. Enum ALTER (sandbox)\n";
+// ── A. Enum ALTER via the REAL migration file (sandbox table) ───────────────
+// Run the actual installer/database/migrations/migrate_0.7.36.sql — retargeted at
+// a sandbox table — so the file's guarded dynamic-SQL (information_schema LOCATE +
+// PREPARE/EXECUTE/DEALLOCATE) is the code actually exercised, not a hand-rolled
+// ALTER (CLAUDE.md rule 6: the migration test must run the real file).
+echo "A. Enum ALTER (real migrate_0.7.36.sql, sandbox)\n";
 $db->query("DROP TABLE IF EXISTS zz_mig_libri_autori");
 $db->query("CREATE TABLE zz_mig_libri_autori (
     libro_id INT NOT NULL, autore_id INT NOT NULL,
@@ -89,11 +93,22 @@ $colType = function () use ($db): string {
 };
 $check(strpos($colType(), 'colorista') === false, "old enum has no 'colorista'");
 
-$alter = "ALTER TABLE zz_mig_libri_autori MODIFY ruolo enum('principale','co-autore','traduttore','illustratore','curatore','colorista') NOT NULL";
-$db->query($alter);
-$check(strpos($colType(), 'colorista') !== false, "'colorista' present after ALTER");
-$db->query($alter); // idempotent re-run
-$check(strpos($colType(), 'colorista') !== false, "ALTER idempotent on re-run");
+$migrationSql = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.36.sql');
+$check($migrationSql !== '' && str_contains($migrationSql, 'libri_autori'), "migration file loaded");
+// Retarget every `libri_autori` reference (the ALTER + the information_schema guard)
+// at the sandbox table, then run the multi-statement file for real.
+$sandboxSql = str_replace('libri_autori', 'zz_mig_libri_autori', $migrationSql);
+$runMigration = function () use ($db, $sandboxSql): void {
+    if ($db->multi_query($sandboxSql)) {
+        do {
+            if ($res = $db->store_result()) { $res->free(); }
+        } while ($db->more_results() && $db->next_result());
+    }
+};
+$runMigration();
+$check(strpos($colType(), 'colorista') !== false, "'colorista' present after running the REAL migration file");
+$runMigration(); // idempotent — the file's LOCATE guard should no-op (ELSE SELECT note)
+$check(strpos($colType(), 'colorista') !== false, "real migration idempotent on re-run");
 $db->query("DROP TABLE IF EXISTS zz_mig_libri_autori");
 
 // ── B. splitNames() ─────────────────────────────────────────────────────────

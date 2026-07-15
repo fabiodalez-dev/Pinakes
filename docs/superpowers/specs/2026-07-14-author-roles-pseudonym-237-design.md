@@ -88,9 +88,12 @@ reusable initializer invoked once per role to avoid five copy-pasted blocks.
 
 ### Component 5 — Save (`BookRepository`)
 
-Generalize `syncAuthors()` → `syncContributors(int $bookId, array $rolesToIds)`:
-one `DELETE FROM libri_autori WHERE libro_id=?` then insert each role's ids with its
-`ruolo` (reusing `processAuthorId` find-or-create). The controller maps
+Generalize `syncAuthors()` → `syncContributors(int $bookId, array $rolesToIds)`.
+Implemented insert-first/delete-stale (not delete-then-insert): INSERT IGNORE the
+desired `(autore_id, ruolo)` rows, then delete only the current rows that are stale
+**within the roles the caller actually supplied** — so an invalid id or a not-yet-
+migrated enum throws before any old link is dropped, and a partial caller never wipes
+roles it didn't mention (reusing `processAuthorId` find-or-create). The controller maps
 `autori_select` → `principale`, `illustratori_select` → `illustratore`, etc.
 Legacy ingestion (scraping/import) that still provides free-text `illustratore` etc.
 is converted to entities in the same save path (find-or-create), so all inputs converge.

@@ -502,26 +502,26 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             </div>
             <?php endif; ?>
             <?php
-            // Contributor roles as author entities (issue #237), with a free-text
-            // fallback for books not yet converted by the one-time backfill.
+            // Contributor roles as author entities (issue #237). Entities are the
+            // single source of truth — no free-text fallback: the legacy columns
+            // are never cleared, so falling back to them would resurrect a
+            // contributor a librarian just removed (and the public book page has
+            // no such fallback, so admin and public would disagree). The legacy
+            // columns are retained only for CSV/LibraryThing export round-trip.
             $contributorGroups = [
-                'traduttori'   => ['label' => __('Traduttore'),   'fallback' => (string)($libro['traduttore'] ?? '')],
-                'illustratori' => ['label' => __('Illustratore'), 'fallback' => (string)($libro['illustratore'] ?? '')],
-                'curatori'     => ['label' => __('Curatore'),     'fallback' => (string)($libro['curatore'] ?? '')],
-                'coloristi'    => ['label' => __('Colorista'),    'fallback' => ''],
+                'traduttori'   => __('Traduttore'),
+                'illustratori' => __('Illustratore'),
+                'curatori'     => __('Curatore'),
+                'coloristi'    => __('Colorista'),
             ];
-            foreach ($contributorGroups as $roleKey => $meta):
+            foreach ($contributorGroups as $roleKey => $label):
                 $people = $libro[$roleKey] ?? [];
-                if (empty($people) && trim($meta['fallback']) === '') { continue; }
+                if (empty($people)) { continue; }
             ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?php echo App\Support\HtmlHelper::e($meta['label']); ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?php echo App\Support\HtmlHelper::e($label); ?></dt>
               <dd class="text-gray-900 font-medium">
-                <?php if (!empty($people)): ?>
-                  <?php foreach ($people as $idx => $p): ?><?php echo $idx ? ', ' : ''; ?><a href="<?= htmlspecialchars(url('/admin/authors/' . (int)($p['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-blue-600 transition"><?php echo App\Support\HtmlHelper::e(\App\Support\AuthorName::display($p)); ?></a><?php endforeach; ?>
-                <?php else: ?>
-                  <?php echo App\Support\HtmlHelper::e($meta['fallback']); ?>
-                <?php endif; ?>
+                <?php foreach ($people as $idx => $p): ?><?php echo $idx ? ', ' : ''; ?><a href="<?= htmlspecialchars(url('/admin/authors/' . (int)($p['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-blue-600 transition"><?php echo App\Support\HtmlHelper::e(\App\Support\AuthorName::display($p)); ?></a><?php endforeach; ?>
               </dd>
             </div>
             <?php endforeach; ?>
