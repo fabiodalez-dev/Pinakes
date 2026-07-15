@@ -7,7 +7,7 @@
  * correctly, whether via fresh install (schema.sql) or upgrade (migrate_*.sql).
  *
  * IMPORTANT — two-tier table model:
- *   CORE_TABLES (57): always created by the base installer via schema.sql.
+ *   CORE_TABLES (58): always created by the base installer via schema.sql.
  *   Archives tables (5): created only when the Archives plugin is activated
  *     (archival_units, authority_records, archival_unit_authority,
  *      autori_authority_link, archival_unit_files). Tests 10–12 skip
@@ -96,7 +96,7 @@ function parseCoreTablesFromSchema() {
 // ── Expected state ────────────────────────────────────────────────────────────
 
 /**
- * 57 tables always created by the base installer via schema.sql.
+ * 58 tables always created by the base installer via schema.sql.
  * Present after fresh install AND after upgrade, regardless of which
  * optional plugins the user has activated.
  *
@@ -107,7 +107,7 @@ const CORE_TABLES = [
     'cms_pages', 'collane', 'consent_log', 'contact_messages', 'copie',
     'digital_assets', 'donazioni', 'editori', 'email_templates', 'events',
     'feedback', 'gdpr_requests', 'generi', 'home_content', 'import_logs',
-    'languages', 'libri', 'libri_autori', 'libri_collane', 'libri_donati',
+    'languages', 'libri', 'libri_autori', 'libri_autori_import_sources', 'libri_collane', 'libri_donati',
     'libri_editori', 'libri_tag', 'log_modifiche', 'mag_project_config', 'mensole', 'migrations',
     'ncip_partners', 'ncip_transactions', 'oai_deleted_records',
     'oai_resumption_tokens', 'plugin_data', 'plugin_hooks', 'plugin_logs',
