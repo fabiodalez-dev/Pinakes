@@ -388,21 +388,23 @@ final class CatalogController
         $q = isset($params['q']) ? trim((string) $params['q']) : '';
         if ($q !== '') {
             // Cross-field LIKE match (title, subtitle, description, identifiers,
-            // author, publisher). Kept simple + index-tolerant; prepared params
-            // make it injection-safe regardless of content.
-            $like = '%' . $q . '%';
+            // author, publisher). Prepared params make it injection-safe; the
+            // ESCAPE + wildcard escaping stop a user-supplied % or _ from
+            // silently broadening the match (same hardening as the author
+            // filter below and PublicApiController).
+            $like = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $q) . '%';
             $conditions[] = "(
-                l.titolo LIKE ?
-                OR l.sottotitolo LIKE ?
-                OR l.descrizione LIKE ?
-                OR l.isbn13 LIKE ?
-                OR l.isbn10 LIKE ?
-                OR l.ean LIKE ?
+                l.titolo LIKE ? ESCAPE '\\\\'
+                OR l.sottotitolo LIKE ? ESCAPE '\\\\'
+                OR l.descrizione LIKE ? ESCAPE '\\\\'
+                OR l.isbn13 LIKE ? ESCAPE '\\\\'
+                OR l.isbn10 LIKE ? ESCAPE '\\\\'
+                OR l.ean LIKE ? ESCAPE '\\\\'
                 OR EXISTS (SELECT 1 FROM libri_autori la_q JOIN autori a_q ON la_q.autore_id = a_q.id
                            WHERE la_q.libro_id = l.id
                              AND la_q.ruolo IN ('principale', 'co-autore')
-                             AND (a_q.nome LIKE ? OR a_q.pseudonimo LIKE ?))
-                OR e.nome LIKE ?
+                             AND (a_q.nome LIKE ? ESCAPE '\\\\' OR a_q.pseudonimo LIKE ? ESCAPE '\\\\'))
+                OR e.nome LIKE ? ESCAPE '\\\\'
             )";
             for ($i = 0; $i < 9; $i++) {
                 $bind[]  = $like;

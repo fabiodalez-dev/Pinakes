@@ -1040,10 +1040,23 @@ class BookRepository
     private function rollbackWriteScope(bool $insideTransaction, string $savepoint): void
     {
         if ($insideTransaction) {
-            $this->db->query("ROLLBACK TO SAVEPOINT {$savepoint}");
-            $this->db->query("RELEASE SAVEPOINT {$savepoint}");
-        } else {
+            // A deadlock / lock-wait-timeout aborts the whole transaction and
+            // discards every savepoint, so under MYSQLI_REPORT_STRICT these
+            // statements can throw 1305 "SAVEPOINT does not exist". Swallow
+            // that: the caller is about to rethrow the ORIGINAL error, which
+            // must not be masked by rollback housekeeping.
+            try {
+                $this->db->query("ROLLBACK TO SAVEPOINT {$savepoint}");
+                $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+            } catch (\Throwable) {
+                // best-effort — the server already rolled back
+            }
+            return;
+        }
+        try {
             $this->db->rollback();
+        } catch (\Throwable) {
+            // best-effort — a dropped connection must not mask the original error
         }
     }
 
@@ -1338,9 +1351,8 @@ class BookRepository
                     continue;
                 }
                 $names = $this->db->prepare(
-                    'SELECT GROUP_CONCAT(a.nome ORDER BY a.nome SEPARATOR \'; \') '
-                    . 'FROM libri_autori la JOIN autori a ON a.id = la.autore_id '
-                    . 'WHERE la.libro_id = ? AND la.ruolo = ?'
+                    'SELECT a.nome FROM libri_autori la JOIN autori a ON a.id = la.autore_id '
+                    . 'WHERE la.libro_id = ? AND la.ruolo = ? ORDER BY a.nome'
                 );
                 if ($names === false) {
                     throw new \RuntimeException('Database error: unable to prepare contributor cache read');
@@ -1349,8 +1361,28 @@ class BookRepository
                 if (!$names->execute()) {
                     throw new \RuntimeException('Database error reading contributor names: ' . $names->error);
                 }
-                $joined = $names->get_result()->fetch_row()[0] ?? null;
+                $nameRows = [];
+                $namesResult = $names->get_result();
+                while ($nameRow = $namesResult->fetch_row()) {
+                    $nameRows[] = (string) $nameRow[0];
+                }
                 $names->close();
+
+                // Join in PHP (GROUP_CONCAT silently truncates at
+                // group_concat_max_len, cutting a name in half) and cap at the
+                // varchar(255) column on a NAME boundary — a strict-mode 1406
+                // on this cache write must never abort the whole book save.
+                $joined = null;
+                foreach ($nameRows as $name) {
+                    $candidate = $joined === null ? $name : $joined . '; ' . $name;
+                    if (mb_strlen($candidate) > 255) {
+                        if ($joined === null) {
+                            $joined = mb_substr($name, 0, 255);
+                        }
+                        break;
+                    }
+                    $joined = $candidate;
+                }
 
                 // No entity existed for this role before the save and none was
                 // selected now: this is untouched legacy text waiting for the
@@ -1362,7 +1394,7 @@ class BookRepository
 
                 // $column is drawn only from the hardcoded whitelist above — safe
                 // to interpolate into the column position (bind_param can't).
-                $update = $this->db->prepare("UPDATE libri SET {$column} = ? WHERE id = ?");
+                $update = $this->db->prepare("UPDATE libri SET {$column} = ? WHERE id = ? AND deleted_at IS NULL");
                 if ($update === false) {
                     throw new \RuntimeException('Database error: unable to prepare contributor cache write');
                 }
@@ -1595,12 +1627,21 @@ class BookRepository
         // test mirrors the field loop above (array_key_exists + !== '' + !== null),
         // so a manually-entered literal "0" counts as present and is NOT overwritten
         // by the scraped value (empty("0") === true would treat it as absent).
+        // When the submit carries the #237 entity role list, the picker is
+        // authoritative: syncContributors already wrote the compatibility cache
+        // from the entity links, and a stale scraped_* value (e.g. a chip the
+        // librarian removed before saving) must not clobber it. The scraped
+        // fallback stays for flows that don't send *_ids (legacy imports).
         $traduttoreProvided = array_key_exists('traduttore', $data) && $data['traduttore'] !== '' && $data['traduttore'] !== null;
-        if ($this->hasColumn('traduttore') && !$traduttoreProvided && !empty($data['scraped_translator'])) {
+        if ($this->hasColumn('traduttore') && !$traduttoreProvided
+            && !array_key_exists('traduttori_ids', $data)
+            && !empty($data['scraped_translator'])) {
             $cols['traduttore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_translator']);
         }
         $illustratoreProvided = array_key_exists('illustratore', $data) && $data['illustratore'] !== '' && $data['illustratore'] !== null;
-        if ($this->hasColumn('illustratore') && !$illustratoreProvided && !empty($data['scraped_illustrator'])) {
+        if ($this->hasColumn('illustratore') && !$illustratoreProvided
+            && !array_key_exists('illustratori_ids', $data)
+            && !empty($data['scraped_illustrator'])) {
             $cols['illustratore'] = \App\Support\AuthorNormalizer::normalize((string) $data['scraped_illustrator']);
         }
         if ($this->hasColumn('tipo_media') && !array_key_exists('tipo_media', $cols)) {
