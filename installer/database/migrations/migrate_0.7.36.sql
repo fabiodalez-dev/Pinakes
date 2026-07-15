@@ -6,11 +6,13 @@
 -- `libri`). This adds the missing 'colorista' value to the role enum.
 --
 -- The free-text-to-entity BACKFILL of existing libri.illustratore/traduttore/
--- curatore values is NOT done here: it needs row logic (comma-split +
--- find-or-create) that pure SQL can't do safely, and the updater only runs .sql
--- migrations. It runs once as a guarded self-heal — App\Support\ContributorBackfill,
--- invoked from MaintenanceService::runAll() (cron + admin login) — idempotent via a
--- system_settings marker. This file only performs the schema change.
+-- curatore values needs row logic (split + canonical find-or-create), so the
+-- migration runners invoke App\Support\ContributorBackfill after this SQL.
+-- MaintenanceService remains an idempotent safety net for interrupted upgrades.
+--
+-- CSV and LibraryThing reimports also need to replace only links they created,
+-- while preserving manual role links. The provenance table below records that
+-- ownership separately from libri_autori's public role contract.
 --
 -- Idempotent (project rule 6): the MODIFY is applied only when 'colorista' is not
 -- already present in the column type, guarded via information_schema so re-running
@@ -33,3 +35,17 @@ SET @sql = IF(
 PREPARE stmt FROM @sql;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
+
+CREATE TABLE IF NOT EXISTS `libri_autori_import_sources` (
+    `libro_id` int NOT NULL,
+    `autore_id` int NOT NULL,
+    `ruolo` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
+    `source` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
+    `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`libro_id`, `autore_id`, `ruolo`, `source`),
+    KEY `idx_lais_autore` (`autore_id`),
+    CONSTRAINT `libri_autori_import_sources_book_fk`
+        FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+    CONSTRAINT `libri_autori_import_sources_author_fk`
+        FOREIGN KEY (`autore_id`) REFERENCES `autori` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -10,6 +10,7 @@ declare(strict_types=1);
  */
 
 $root = dirname(__DIR__);
+require $root . '/vendor/autoload.php';
 $passed = 0;
 $failed = 0;
 $check = static function (bool $condition, string $label) use (&$passed, &$failed): void {
@@ -24,8 +25,13 @@ $check = static function (bool $condition, string $label) use (&$passed, &$faile
 $read = static fn (string $path): string => (string) file_get_contents($root . '/' . $path);
 
 echo "A. Bundled plugin surface\n";
-$manifests = glob($root . '/storage/plugins/*/plugin.json') ?: [];
-$check(count($manifests) === 20, 'all 20 bundled plugin manifests are covered by the compatibility audit');
+$manifests = array_map(
+    static fn (string $plugin): string => $root . '/storage/plugins/' . $plugin . '/plugin.json',
+    \App\Support\BundledPlugins::LIST
+);
+$check(count($manifests) === count(\App\Support\BundledPlugins::LIST)
+    && count(array_filter($manifests, 'is_file')) === count($manifests),
+    'all centrally registered bundled plugin manifests are covered by the compatibility audit');
 $check(count(array_filter($manifests, static fn (string $file): bool => is_array(json_decode((string) file_get_contents($file), true)))) === count($manifests), 'all bundled plugin manifests remain valid JSON');
 
 echo "B. Identity boundary\n";
@@ -46,6 +52,7 @@ $check(!str_contains($sbnAuthority, 'pseudonimo'), 'SBN authority records are ne
 echo "C. Role-aware interoperability\n";
 $openUrl = $read('storage/plugins/openurl-resolver/OpenUrlResolverPlugin.php');
 $check(substr_count($openUrl, "ruolo IN (\\'principale\\', \\'co-autore\\')") >= 1 && substr_count($openUrl, "ruolo IN ('principale', 'co-autore')") >= 1, 'OpenURL exposes canonical creators only');
+$check(substr_count($openUrl, "ruolo = 'principale'") >= 1 && substr_count($openUrl, "ruolo = \\'principale\\'") >= 1, 'OpenURL always gives the principal creator ordering priority');
 $bibframe = $read('storage/plugins/bibframe-linked-data/BibframeLinkedDataPlugin.php');
 $check(str_contains($bibframe, "relators/clr") && str_contains($bibframe, "la2.ruolo IN"), 'BIBFRAME keeps creator selection separate and maps colorist');
 $ncip = $read('storage/plugins/ncip-server/NcipServerPlugin.php');
@@ -66,7 +73,11 @@ foreach ([
     'QuoteRepo.php', 'AffinityRepo.php', 'ReadingRepo.php',
 ] as $file) {
     $src = $read('storage/plugins/book-club/src/' . $file);
-    $check((str_contains($src, 'a.pseudonimo') || str_contains($src, 'AuthorName::displaySql')) && str_contains($src, "la.ruolo IN ('principale', 'co-autore')"), 'Book Club ' . $file . ' displays preferred creator names only');
+    $check((str_contains($src, 'AuthorName::displaySql')
+        || str_contains($src, 'AuthorName::DISPLAY_SQL_A'))
+        && !str_contains($src, 'CASE WHEN TRIM(COALESCE(a.pseudonimo')
+        && str_contains($src, "la.ruolo IN ('principale', 'co-autore')"),
+        'Book Club ' . $file . ' reuses the canonical preferred-name SQL for creators only');
 }
 $challenge = $read('storage/plugins/book-club/src/ChallengeRepo.php');
 $check(str_contains($challenge, "la.ruolo IN (\\'principale\\', \\'co-autore\\')"), 'Book Club author challenges count creators only');
@@ -81,6 +92,11 @@ $frbr = $read('storage/plugins/frbr-lrm/OpereRepository.php') . $read('storage/p
 $check(str_contains($frbr, 'AuthorName::displaySql'), 'FRBR/LRM views use preferred display names');
 $archives = $read('storage/plugins/archives/ArchivesPlugin.php');
 $check(str_contains($archives, 'a.pseudonimo LIKE ?') && str_contains($archives, 'MATCH(a.nome)'), 'Archives UI searches pseudonyms while authority reconciliation remains canonical');
+
+$frontend = $read('app/Controllers/FrontendController.php');
+$check(str_contains($frontend, 'la_match.autore_id IN') && str_contains($frontend, 'a_all.autore_id'), 'related-book matching keeps the complete creator list');
+$publicApi = $read('app/Controllers/PublicApiController.php');
+$check(str_contains($publicApi, "str_replace(['\\\\', '%', '_']") && str_contains($publicApi, 'ESCAPE'), 'public API treats author wildcard characters literally');
 
 echo "\n" . ($failed === 0 ? "ALL {$passed} PASS\n" : "{$passed} passed, {$failed} FAILED\n");
 exit($failed === 0 ? 0 : 1);

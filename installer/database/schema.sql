@@ -504,6 +504,20 @@ CREATE TABLE `libri_autori` (
   CONSTRAINT `libri_autori_ibfk_1` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
   CONSTRAINT `libri_autori_ibfk_2` FOREIGN KEY (`autore_id`) REFERENCES `autori` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- Tracks only role links created by authoritative importers. Keeping this
+-- provenance outside libri_autori lets a re-import replace its own stale
+-- contributors without deleting an identical association added manually.
+CREATE TABLE `libri_autori_import_sources` (
+  `libro_id` int NOT NULL,
+  `autore_id` int NOT NULL,
+  `ruolo` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `source` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`libro_id`,`autore_id`,`ruolo`,`source`),
+  KEY `idx_lais_autore` (`autore_id`),
+  CONSTRAINT `libri_autori_import_sources_book_fk` FOREIGN KEY (`libro_id`) REFERENCES `libri` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `libri_autori_import_sources_author_fk` FOREIGN KEY (`autore_id`) REFERENCES `autori` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;

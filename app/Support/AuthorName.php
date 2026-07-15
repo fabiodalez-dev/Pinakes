@@ -16,6 +16,20 @@ namespace App\Support;
 final class AuthorName
 {
     /**
+     * SQL display expression for the conventional `a` table alias.
+     *
+     * This is a class constant so SQL held in another class constant (for
+     * example the Book Club base selects) can still reuse the canonical name
+     * contract. {@see displaySql()} rewrites only the validated alias prefix.
+     */
+    public const DISPLAY_SQL_A = "CASE WHEN TRIM(COALESCE(`a`.`pseudonimo`, '')) <> ''"
+        . " AND TRIM(COALESCE(`a`.`nome`, '')) <> ''"
+        . " AND TRIM(COALESCE(`a`.`pseudonimo`, '')) <> TRIM(COALESCE(`a`.`nome`, ''))"
+        . " THEN CONCAT(TRIM(COALESCE(`a`.`pseudonimo`, '')), ' (', TRIM(COALESCE(`a`.`nome`, '')), ')')"
+        . " WHEN TRIM(COALESCE(`a`.`nome`, '')) <> '' THEN TRIM(COALESCE(`a`.`nome`, ''))"
+        . " ELSE TRIM(COALESCE(`a`.`pseudonimo`, '')) END";
+
+    /**
      * PHP-side display name from an author row (keys: nome, pseudonimo).
      *
      * @param array<string,mixed> $author
@@ -46,12 +60,8 @@ final class AuthorName
         // NULL/whitespace-only values. Keeping PHP and SQL output identical is
         // important because the same author is rendered by both query-backed
         // lists and PHP-backed detail views.
-        $nome = "TRIM(COALESCE(`{$alias}`.`nome`, ''))";
-        $pseudonimo = "TRIM(COALESCE(`{$alias}`.`pseudonimo`, ''))";
-
-        return "CASE WHEN {$pseudonimo} <> '' AND {$nome} <> '' AND {$pseudonimo} <> {$nome}"
-            . " THEN CONCAT({$pseudonimo}, ' (', {$nome}, ')')"
-            . " WHEN {$nome} <> '' THEN {$nome}"
-            . " ELSE {$pseudonimo} END";
+        return $alias === 'a'
+            ? self::DISPLAY_SQL_A
+            : str_replace('`a`.', "`{$alias}`.", self::DISPLAY_SQL_A);
     }
 }

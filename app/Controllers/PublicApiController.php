@@ -81,15 +81,16 @@ class PublicApiController
         }
 
         if ($author !== null && $author !== '') {
+            $authorLike = '%' . str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $author) . '%';
             $conditions[] = 'EXISTS (
                 SELECT 1 FROM libri_autori la
                 JOIN autori a ON la.autore_id = a.id
                 WHERE la.libro_id = l.id
                 AND la.ruolo IN (\'principale\', \'co-autore\')
-                AND (a.nome LIKE ? OR a.pseudonimo LIKE ?)
+                AND (a.nome LIKE ? ESCAPE \'\\\\\' OR a.pseudonimo LIKE ? ESCAPE \'\\\\\')
             )';
-            $params[] = '%' . $author . '%';
-            $params[] = '%' . $author . '%';
+            $params[] = $authorLike;
+            $params[] = $authorLike;
             $types .= 'ss';
         }
 

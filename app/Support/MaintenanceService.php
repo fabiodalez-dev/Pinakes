@@ -124,7 +124,9 @@ class MaintenanceService
         // entities (issue #237). Self-guarded by a system_settings marker, so it
         // does real work only on the first post-upgrade pass and is a no-op after.
         try {
-            \App\Support\ContributorBackfill::run($this->db);
+            if (!\App\Support\ContributorBackfill::run($this->db)) {
+                $results['errors'][] = 'contributorBackfill: incomplete';
+            }
         } catch (\Throwable $e) {
             $results['errors'][] = 'contributorBackfill: ' . $e->getMessage();
         }

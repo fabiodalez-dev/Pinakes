@@ -414,7 +414,8 @@ class LibraryThingImportController
                     // LibraryThing owns without wiping illustrator/translator/
                     // curator/colorist ENTITY links (#237). A blanket delete-all
                     // silently lost every contributor entity on each re-import
-                    // (this importer only re-adds 'traduttore' below).
+                    // (this importer only manages provenance-scoped translators
+                    // below).
                     if ($action === 'updated') {
                         $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ? AND ruolo = 'principale'");
                         $stmt->bind_param('i', $bookId);
@@ -448,10 +449,11 @@ class LibraryThingImportController
                     // role links, not remain only in libri.traduttore. Keep this
                     // in the import transaction so author entities and the book
                     // row commit atomically.
-                    $importData['authors_created'] += \App\Support\ContributorSync::linkLegacyValues(
+                    $importData['authors_created'] += \App\Support\ContributorSync::syncImportedLegacyValues(
                         $db,
                         $bookId,
-                        ['traduttore' => $parsedData['traduttore'] ?? null]
+                        ['traduttore' => $parsedData['traduttore'] ?? null],
+                        'librarything'
                     );
 
                     $db->commit();

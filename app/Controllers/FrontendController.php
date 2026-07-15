@@ -1936,6 +1936,15 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     {
         $related_books = [];
         $limit = 3;
+        $allCreatorsSelect = "
+            (SELECT GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a_all') . "
+                     ORDER BY (la_all.ruolo = 'principale') DESC,
+                              COALESCE(la_all.ordine_credito, 0), la_all.autore_id
+                     SEPARATOR ', ')
+               FROM libri_autori la_all
+               JOIN autori a_all ON a_all.id = la_all.autore_id
+              WHERE la_all.libro_id = l.id
+                AND la_all.ruolo IN ('principale', 'co-autore'))";
 
         // Priority 0: Same series (collana) — reuse pre-fetched seriesBooks to avoid duplicate query
         if (!empty($seriesBooks)) {
@@ -1963,15 +1972,17 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             $excludePlaceholders = implode(',', array_fill(0, count($exclude_ids), '?'));
 
             $query = "
-                SELECT DISTINCT l.*,
-                       GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori
+                SELECT l.*, {$allCreatorsSelect} AS autori
                 FROM libri l
-                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
-                LEFT JOIN autori a ON la.autore_id = a.id
-                WHERE la.autore_id IN ($authorPlaceholders)
+                WHERE EXISTS (
+                    SELECT 1
+                      FROM libri_autori la_match
+                     WHERE la_match.libro_id = l.id
+                       AND la_match.autore_id IN ($authorPlaceholders)
+                       AND la_match.ruolo IN ('principale', 'co-autore')
+                )
                 AND l.id NOT IN ($excludePlaceholders)
                 AND l.deleted_at IS NULL
-                GROUP BY l.id
                 ORDER BY l.created_at DESC
                 LIMIT ?
             ";
@@ -1997,15 +2008,11 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
 
             $query = "
-                SELECT DISTINCT l.*,
-                       GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori
+                SELECT l.*, {$allCreatorsSelect} AS autori
                 FROM libri l
-                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
-                LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.genere_id = ?
                 AND l.id NOT IN ($placeholders)
                 AND l.deleted_at IS NULL
-                GROUP BY l.id
                 ORDER BY l.created_at DESC
                 LIMIT ?
             ";
@@ -2032,14 +2039,10 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
             $placeholders = implode(',', array_fill(0, count($exclude_ids), '?'));
 
             $query = "
-                SELECT DISTINCT l.*,
-                       GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a') . " SEPARATOR ', ') as autori
+                SELECT l.*, {$allCreatorsSelect} AS autori
                 FROM libri l
-                LEFT JOIN libri_autori la ON l.id = la.libro_id AND la.ruolo IN ('principale', 'co-autore')
-                LEFT JOIN autori a ON la.autore_id = a.id
                 WHERE l.id NOT IN ($placeholders)
                 AND l.deleted_at IS NULL
-                GROUP BY l.id
                 ORDER BY l.created_at DESC
                 LIMIT ?
             ";

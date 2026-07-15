@@ -3277,6 +3277,17 @@ class Updater
             // code. Idempotent and non-fatal.
             $this->reapplyTriggers();
 
+            // 0.7.36's legacy contributor conversion needs PHP row logic and
+            // must complete in the same upgrade path as its schema migration.
+            // Docker drives this method directly, so doing it here prevents a
+            // post-upgrade window where legacy contributors disappear until a
+            // later admin login or nightly maintenance run.
+            if (version_compare($toVersion, '0.7.36', '>=')
+                && !ContributorBackfill::run($this->db)
+            ) {
+                throw new \RuntimeException('Contributor backfill did not complete');
+            }
+
             return [
                 'success' => true,
                 'executed' => $executed,

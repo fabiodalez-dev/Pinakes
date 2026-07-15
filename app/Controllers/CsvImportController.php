@@ -338,10 +338,10 @@ class CsvImportController
                 // Remove old PRINCIPAL author links if updating — scoped to
                 // ruolo='principale' so a re-import re-writes the authors the CSV
                 // owns without wiping illustrator/translator/curator/colorist
-                // ENTITY links (#237): those roles are added below via
-                // ContributorSync (INSERT IGNORE, additive), and colorist/curator
-                // aren't CSV columns at all, so a blanket delete-all silently lost
-                // every contributor entity on each re-import.
+                // ENTITY links (#237): translator/illustrator are synchronized
+                // below with importer provenance, while colorist/curator aren't
+                // CSV columns at all. A blanket delete-all silently lost every
+                // contributor entity on each re-import.
                 if ($action === 'updated') {
                     $stmt = $db->prepare("DELETE FROM libri_autori WHERE libro_id = ? AND ruolo = 'principale'");
                     $stmt->bind_param('i', $bookId);
@@ -372,17 +372,18 @@ class CsvImportController
                     }
                 }
 
-                // Contributor roles are entities too (#237). CSV writes the
-                // retained legacy columns for round-trip compatibility, then
-                // resolves the same values into libri_autori in this transaction
-                // so post-migration imports never drift back to free text only.
-                $importData['authors_created'] += \App\Support\ContributorSync::linkLegacyValues(
+                // Contributor roles are entities too (#237). This call replaces
+                // only links previously owned by the CSV importer; manually
+                // curated contributor links and roles absent from the CSV stay
+                // untouched. Provenance lives in libri_autori_import_sources.
+                $importData['authors_created'] += \App\Support\ContributorSync::syncImportedLegacyValues(
                     $db,
                     $bookId,
                     [
                         'traduttore' => $parsedData['traduttore'] ?? null,
                         'illustratore' => $parsedData['illustratore'] ?? null,
-                    ]
+                    ],
+                    'csv'
                 );
 
                 $db->commit();

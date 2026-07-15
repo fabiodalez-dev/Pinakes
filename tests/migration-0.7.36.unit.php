@@ -7,9 +7,9 @@ declare(strict_types=1);
  * Two pieces ship together:
  *   1. installer/database/migrations/migrate_0.7.36.sql — adds 'colorista' to
  *      libri_autori.ruolo (guarded, idempotent).
- *   2. App\Support\ContributorBackfill — one-time self-heal that converts the
- *      legacy free-text libri.illustratore/traduttore/curatore columns into
- *      libri_autori role rows, invoked from MaintenanceService::runAll().
+ *   2. App\Support\ContributorBackfill — guarded conversion of the legacy
+ *      free-text columns into role rows, completed by the migration runner;
+ *      MaintenanceService remains the retry safety net.
  *
  * Strategy (mirrors tests/migration-0.7.25.unit.php):
  *   A. Enum ALTER on a sandbox table `zz_mig_libri_autori` seeded with the OLD
@@ -19,8 +19,8 @@ declare(strict_types=1);
  *      existing book's free-text illustratore at a two-name list (one author
  *      pre-created, one new), run the REAL ContributorBackfill::run(), and assert
  *      the split, find-or-create-reuse, the marker, and idempotency.
- *   D. Drift guards: schema.sql + the migration file carry 'colorista', and
- *      MaintenanceService wires the backfill in.
+ *   D. Drift guards: schema.sql + migration carry 'colorista' and provenance,
+ *      and both migration/maintenance paths wire the backfill.
  *
  * Runs against the LIVE local MySQL. Test C is fully transactional (ROLLBACK), so
  * no real data is changed; Test A touches only `zz_mig_libri_autori`.
@@ -79,6 +79,7 @@ try {
 // PREPARE/EXECUTE/DEALLOCATE) is the code actually exercised, not a hand-rolled
 // ALTER (CLAUDE.md rule 6: the migration test must run the real file).
 echo "A. Enum ALTER (real migrate_0.7.36.sql, sandbox)\n";
+$db->query("DROP TABLE IF EXISTS zz_mig_libri_autori_import_sources");
 $db->query("DROP TABLE IF EXISTS zz_mig_libri_autori");
 $db->query("CREATE TABLE zz_mig_libri_autori (
     libro_id INT NOT NULL, autore_id INT NOT NULL,
@@ -107,8 +108,12 @@ $runMigration = function () use ($db, $sandboxSql): void {
 };
 $runMigration();
 $check(strpos($colType(), 'colorista') !== false, "'colorista' present after running the REAL migration file");
+$trackingExists = (int)$db->query("SELECT COUNT(*) FROM information_schema.TABLES
+    WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='zz_mig_libri_autori_import_sources'")->fetch_column();
+$check($trackingExists === 1, 'real migration creates importer provenance table');
 $runMigration(); // idempotent — the file's LOCATE guard should no-op (ELSE SELECT note)
 $check(strpos($colType(), 'colorista') !== false, "real migration idempotent on re-run");
+$db->query("DROP TABLE IF EXISTS zz_mig_libri_autori_import_sources");
 $db->query("DROP TABLE IF EXISTS zz_mig_libri_autori");
 
 // ── B. splitNames() ─────────────────────────────────────────────────────────
@@ -163,6 +168,8 @@ try {
     // The book now has two illustratore links.
     $cnt = (int) ($db->query("SELECT COUNT(*) FROM libri_autori WHERE libro_id={$bookId} AND ruolo='illustratore'")->fetch_row()[0] ?? 0);
     $check($cnt === 2, "two illustratore rows created (comma split), got {$cnt}");
+    $provenanceCount = (int)$db->query("SELECT COUNT(*) FROM libri_autori_import_sources WHERE libro_id={$bookId} AND ruolo='illustratore' AND source='legacy-backfill'")->fetch_column();
+    $check($provenanceCount === 2, 'legacy backfill records provenance for both created links');
 
     // The pre-existing author was REUSED (no duplicate row for that name).
     $reused = (int) ($db->query("SELECT COUNT(*) FROM libri_autori WHERE libro_id={$bookId} AND autore_id={$existingId} AND ruolo='illustratore'")->fetch_row()[0] ?? 0);
@@ -191,8 +198,10 @@ $migSql = (string) file_get_contents($root . '/installer/database/migrations/mig
 $check(strpos($migSql, 'colorista') !== false && stripos($migSql, 'libri_autori') !== false, "migration file adds colorista to libri_autori");
 $maint = (string) file_get_contents($root . '/app/Support/MaintenanceService.php');
 $check(strpos($maint, 'ContributorBackfill::run') !== false, "MaintenanceService wires the backfill");
+$updater = (string) file_get_contents($root . '/app/Support/Updater.php');
+$check(strpos($updater, 'ContributorBackfill::run') !== false, "migration runner completes the backfill before returning success");
 $src = (string) file_get_contents($root . '/app/Support/ContributorSync.php');
-$check(strpos($src, 'INSERT IGNORE INTO libri_autori') !== false, "shared contributor sync uses INSERT IGNORE on libri_autori");
+$check(strpos($src, 'syncImportedLegacyValues') !== false && strpos($src, 'libri_autori_import_sources') !== false, "shared contributor sync tracks importer provenance");
 
 echo "\n" . ($failed === 0 ? "ALL {$passed} PASS\n" : "{$passed} passed, {$failed} FAILED\n");
 $db->close();

@@ -99,7 +99,7 @@ class QuoteRepo
     // ------------------------------------------------------------------
 
     private const QUOTE_SELECT = "SELECT q.*, l.titolo,
-                       (SELECT GROUP_CONCAT(CASE WHEN TRIM(COALESCE(a.pseudonimo, '')) <> '' AND TRIM(COALESCE(a.nome, '')) <> '' AND TRIM(COALESCE(a.pseudonimo, '')) <> TRIM(COALESCE(a.nome, '')) THEN CONCAT(TRIM(a.pseudonimo), ' (', TRIM(a.nome), ')') WHEN TRIM(COALESCE(a.nome, '')) <> '' THEN TRIM(a.nome) ELSE TRIM(COALESCE(a.pseudonimo, '')) END
+                       (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::DISPLAY_SQL_A . "
                                             ORDER BY la.ordine_credito SEPARATOR ', ')
                           FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                          WHERE la.libro_id = l.id

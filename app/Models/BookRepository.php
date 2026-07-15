@@ -1058,111 +1058,229 @@ class BookRepository
     }
 
     /**
-     * Replace the full contributor set of a book (issue #237). Reads the per-role
-     * id arrays from $data — autori_ids → 'principale', illustratori_ids →
-     * 'illustratore', traduttori_ids → 'traduttore', curatori_ids → 'curatore',
-     * coloristi_ids → 'colorista'. Desired rows are inserted before stale rows
-     * are removed, so an unsupported enum or invalid FK can never wipe the
-     * existing credits first. Calls without any contributor keys are a no-op;
-     * this preserves links for partial repository updates.
+     * Replace the contributor roles explicitly supplied by the caller.
+     *
+     * `autori_ids` is the creator picker, therefore it is authoritative for both
+     * `principale` and `co-autore`. Existing co-author roles are preserved for
+     * selected people; only newly selected creators default to `principale`.
+     * This avoids turning every co-author into a second principal on form
+     * resubmission. Secondary contributor keys remain independently partial.
+     *
+     * The complete insert/verify/prune sequence runs in its own transaction or
+     * savepoint. Inserts intentionally do not use INSERT IGNORE: invalid foreign
+     * keys and unmigrated enum values must abort and restore every old link.
      *
      * @param array<string,mixed> $data
      */
     private function syncContributors(int $bookId, array $data): void
     {
-        $rolesMap = [
-            'principale'   => $data['autori_ids'] ?? [],
-            'illustratore' => $data['illustratori_ids'] ?? [],
-            'traduttore'   => $data['traduttori_ids'] ?? [],
-            'curatore'     => $data['curatori_ids'] ?? [],
-            'colorista'    => $data['coloristi_ids'] ?? [],
-        ];
-
         $keyToRole = [
-            'autori_ids'       => 'principale',
             'illustratori_ids' => 'illustratore',
             'traduttori_ids'   => 'traduttore',
             'curatori_ids'     => 'curatore',
             'coloristi_ids'    => 'colorista',
         ];
-        // Only the roles actually supplied by this caller are authoritative. A
-        // partial caller (e.g. one that sets only autori_ids) must NOT have the
-        // roles it didn't mention treated as "cleared" — the stale-delete below
-        // is scoped to $providedRoles so unmentioned roles are preserved.
         $providedRoles = [];
-        foreach ($keyToRole as $key => $ruolo) {
+        if (array_key_exists('autori_ids', $data)) {
+            $providedRoles['principale'] = true;
+            $providedRoles['co-autore'] = true;
+        }
+        foreach ($keyToRole as $key => $role) {
             if (array_key_exists($key, $data)) {
-                $providedRoles[$ruolo] = true;
+                $providedRoles[$role] = true;
             }
         }
         if ($providedRoles === []) {
             return;
         }
+        $tracksImportSources = $this->hasColumnInTable('libri_autori_import_sources', 'source');
 
-        /** @var array<string,array{0:int,1:string}> $desired */
-        $desired = [];
-        foreach ($rolesMap as $ruolo => $ids) {
-            if (!is_array($ids)) {
-                continue;
+        // MySQL/MariaDB versions differ on @@in_transaction, while querying
+        // information_schema.innodb_trx requires PROCESS. A disposable
+        // savepoint is portable: in autocommit mode SAVEPOINT is accepted but
+        // immediately disappears, so ROLLBACK TO succeeds only inside a real
+        // caller-owned transaction.
+        $insideTransaction = false;
+        $probe = 'pinakes_sync_probe';
+        try {
+            if ($this->db->query("SAVEPOINT {$probe}")
+                && $this->db->query("ROLLBACK TO SAVEPOINT {$probe}")
+            ) {
+                $insideTransaction = true;
+                $this->db->query("RELEASE SAVEPOINT {$probe}");
             }
-            foreach ($ids as $authorData) {
-                $authorId = $this->processAuthorId($authorData);
-                if ($authorId > 0) {
-                    $desired[$authorId . ':' . $ruolo] = [$authorId, $ruolo];
+        } catch (\mysqli_sql_exception) {
+            $insideTransaction = false;
+        }
+        $savepoint = 'pinakes_sync_contributors';
+        if ($insideTransaction) {
+            if (!$this->db->query("SAVEPOINT {$savepoint}")) {
+                throw new \RuntimeException('Database error: unable to create contributor savepoint');
+            }
+        } elseif (!$this->db->begin_transaction()) {
+            throw new \RuntimeException('Database error: unable to begin contributor transaction');
+        }
+
+        try {
+            $select = $this->db->prepare('SELECT autore_id, ruolo FROM libri_autori WHERE libro_id = ? FOR UPDATE');
+            if ($select === false) {
+                throw new \RuntimeException('Database error: unable to prepare current contributor read');
+            }
+            $select->bind_param('i', $bookId);
+            if (!$select->execute()) {
+                $error = $select->error;
+                $select->close();
+                throw new \RuntimeException('Database error reading current contributors: ' . $error);
+            }
+            $result = $select->get_result();
+            if (!($result instanceof \mysqli_result)) {
+                $select->close();
+                throw new \RuntimeException('Database error: current contributor result unavailable');
+            }
+            /** @var list<array{autore_id:int|string,ruolo:string}> $current */
+            $current = $result->fetch_all(MYSQLI_ASSOC);
+            $select->close();
+
+            /** @var array<int,string> $currentCreatorRoles */
+            $currentCreatorRoles = [];
+            foreach ($current as $row) {
+                $authorId = (int)$row['autore_id'];
+                $role = (string)$row['ruolo'];
+                if ($authorId <= 0 || !in_array($role, ['principale', 'co-autore'], true)) {
+                    continue;
+                }
+                if ($role === 'principale' || !isset($currentCreatorRoles[$authorId])) {
+                    $currentCreatorRoles[$authorId] = $role;
                 }
             }
-        }
 
-        // Insert-first is deliberately non-destructive: if an id is invalid or
-        // this install has not applied the colorista enum migration yet, execute
-        // throws while every old link is still intact.
-        if ($desired !== []) {
-            $insert = $this->db->prepare(
-                'INSERT IGNORE INTO libri_autori (libro_id, autore_id, ruolo) VALUES (?, ?, ?)'
-            );
-            if ($insert === false) {
-                throw new \RuntimeException('Database error: unable to prepare contributor insert');
+            /** @var array<string,array{0:int,1:string}> $desired */
+            $desired = [];
+            if (array_key_exists('autori_ids', $data)) {
+                $creatorIds = $data['autori_ids'];
+                if (!is_array($creatorIds)) {
+                    throw new \InvalidArgumentException('autori_ids must be an array');
+                }
+                foreach ($creatorIds as $authorData) {
+                    $authorId = $this->processAuthorId($authorData);
+                    if ($authorId <= 0) {
+                        continue;
+                    }
+                    $role = $currentCreatorRoles[$authorId] ?? 'principale';
+                    $desired[$authorId . ':' . $role] = [$authorId, $role];
+                }
             }
-            foreach ($desired as [$authorId, $ruolo]) {
-                $insert->bind_param('iis', $bookId, $authorId, $ruolo);
-                $insert->execute();
+            foreach ($keyToRole as $key => $role) {
+                if (!array_key_exists($key, $data)) {
+                    continue;
+                }
+                $ids = $data[$key];
+                if (!is_array($ids)) {
+                    throw new \InvalidArgumentException("{$key} must be an array");
+                }
+                foreach ($ids as $authorData) {
+                    $authorId = $this->processAuthorId($authorData);
+                    if ($authorId > 0) {
+                        $desired[$authorId . ':' . $role] = [$authorId, $role];
+                    }
+                }
             }
-            $insert->close();
-        }
 
-        $select = $this->db->prepare('SELECT autore_id, ruolo FROM libri_autori WHERE libro_id = ?');
-        if ($select === false) {
-            throw new \RuntimeException('Database error: unable to read current contributors');
-        }
-        $select->bind_param('i', $bookId);
-        $select->execute();
-        $current = $select->get_result()->fetch_all(MYSQLI_ASSOC);
-        $select->close();
-
-        $stale = [];
-        foreach ($current as $row) {
-            $authorId = (int)($row['autore_id'] ?? 0);
-            $ruolo = (string)($row['ruolo'] ?? '');
-            // Prune only within the roles this caller actually supplied.
-            if ($authorId > 0 && isset($providedRoles[$ruolo]) && !isset($desired[$authorId . ':' . $ruolo])) {
-                $stale[] = [$authorId, $ruolo];
+            // An explicit admin-form submission takes manual ownership of the
+            // supplied roles. Otherwise a contributor that an administrator
+            // deliberately kept could still be deleted by the next re-import
+            // because an older importer provenance row remained attached.
+            if ($tracksImportSources) {
+                $manualize = $this->db->prepare(
+                    'DELETE FROM libri_autori_import_sources WHERE libro_id = ? AND ruolo = ?'
+                );
+                if ($manualize === false) {
+                    throw new \RuntimeException('Database error: unable to prepare contributor ownership release');
+                }
+                foreach (array_keys($providedRoles) as $role) {
+                    $manualize->bind_param('is', $bookId, $role);
+                    if (!$manualize->execute()) {
+                        throw new \RuntimeException('Database error releasing contributor ownership: ' . $manualize->error);
+                    }
+                }
+                $manualize->close();
             }
-        }
-        if ($stale === []) {
-            return;
-        }
 
-        $delete = $this->db->prepare(
-            'DELETE FROM libri_autori WHERE libro_id = ? AND autore_id = ? AND ruolo = ?'
-        );
-        if ($delete === false) {
-            throw new \RuntimeException('Database error: unable to prepare stale contributor delete');
+            if ($desired !== []) {
+                $insert = $this->db->prepare(
+                    'INSERT INTO libri_autori (libro_id, autore_id, ruolo) VALUES (?, ?, ?) '
+                    . 'ON DUPLICATE KEY UPDATE ruolo = VALUES(ruolo)'
+                );
+                $verify = $this->db->prepare(
+                    'SELECT 1 FROM libri_autori WHERE libro_id = ? AND autore_id = ? AND ruolo = ? LIMIT 1'
+                );
+                if ($insert === false || $verify === false) {
+                    if ($insert instanceof \mysqli_stmt) {
+                        $insert->close();
+                    }
+                    if ($verify instanceof \mysqli_stmt) {
+                        $verify->close();
+                    }
+                    throw new \RuntimeException('Database error: unable to prepare contributor upsert verification');
+                }
+                foreach ($desired as [$authorId, $role]) {
+                    $insert->bind_param('iis', $bookId, $authorId, $role);
+                    if (!$insert->execute()) {
+                        throw new \RuntimeException('Database error inserting contributor: ' . $insert->error);
+                    }
+                    $verify->bind_param('iis', $bookId, $authorId, $role);
+                    if (!$verify->execute() || $verify->get_result()->fetch_row() === null) {
+                        throw new \RuntimeException('Database error: requested contributor was not persisted');
+                    }
+                }
+                $insert->close();
+                $verify->close();
+            }
+
+            $stale = [];
+            foreach ($current as $row) {
+                $authorId = (int)$row['autore_id'];
+                $role = (string)$row['ruolo'];
+                if ($authorId > 0 && isset($providedRoles[$role]) && !isset($desired[$authorId . ':' . $role])) {
+                    $stale[] = [$authorId, $role];
+                }
+            }
+            if ($stale !== []) {
+                $delete = $this->db->prepare(
+                    'DELETE FROM libri_autori WHERE libro_id = ? AND autore_id = ? AND ruolo = ?'
+                );
+                if ($delete === false) {
+                    throw new \RuntimeException('Database error: unable to prepare stale contributor delete');
+                }
+                foreach ($stale as [$authorId, $role]) {
+                    $delete->bind_param('iis', $bookId, $authorId, $role);
+                    if (!$delete->execute()) {
+                        throw new \RuntimeException('Database error deleting stale contributor: ' . $delete->error);
+                    }
+                }
+                $delete->close();
+            }
+
+            if ($insideTransaction) {
+                if (!$this->db->query("RELEASE SAVEPOINT {$savepoint}")) {
+                    throw new \RuntimeException('Database error: unable to release contributor savepoint');
+                }
+            } elseif (!$this->db->commit()) {
+                throw new \RuntimeException('Database error: unable to commit contributor transaction');
+            }
+        } catch (\Throwable $e) {
+            if ($insideTransaction) {
+                $this->db->query("ROLLBACK TO SAVEPOINT {$savepoint}");
+                $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+            } else {
+                $this->db->rollback();
+            }
+            \App\Support\SecureLogger::error('[BookRepository] contributor sync failed', [
+                'book_id' => $bookId,
+                'error' => $e->getMessage(),
+            ]);
+            throw $e;
         }
-        foreach ($stale as [$authorId, $ruolo]) {
-            $delete->bind_param('iis', $bookId, $authorId, $ruolo);
-            $delete->execute();
-        }
-        $delete->close();
     }
 
     /**
@@ -1220,26 +1338,28 @@ class BookRepository
         $insert->close();
     }
 
-    private function processAuthorId($authorData): int
+    private function processAuthorId(mixed $authorData): int
     {
         // Handle both old format (just ID) and new format (could be temp ID with label)
         if (is_numeric($authorData)) {
-            return (int) $authorData;
+            $authorId = (int) $authorData;
+            if ($authorId <= 0) {
+                throw new \InvalidArgumentException('Contributor ID must be a positive integer');
+            }
+            return $authorId;
         }
 
         // Handle new author format from Choices.js (new_timestamp)
         // Note: new authors should be resolved to numeric IDs in LibriController::store()
         // before reaching syncContributors(). If we get here, it indicates a frontend bug.
         if (is_string($authorData) && strpos($authorData, 'new_') === 0) {
-            error_log("[BookRepository] Unresolved new_* author ID received: {$authorData} — this indicates a frontend sync issue");
-            return 0;
+            throw new \InvalidArgumentException("Unresolved contributor ID received: {$authorData}");
         }
 
-        // Fallback: unexpected formats (arrays, objects, non-numeric strings) are ignored
-        if ($authorData !== null) {
-            error_log("[BookRepository] Unexpected author ID format: " . gettype($authorData));
+        if ($authorData === null || $authorData === '') {
+            return 0;
         }
-        return 0;
+        throw new \InvalidArgumentException('Unexpected contributor ID format: ' . gettype($authorData));
     }
 
     private function getScaffaleLetter(int $scaffaleId): ?string
@@ -1583,6 +1703,7 @@ class BookRepository
             'libri',
             'autori',
             'libri_autori',
+            'libri_autori_import_sources',
             'editori',
             'libri_editori',
             'generi',

@@ -11,10 +11,9 @@ use mysqli;
  * (libri.illustratore / traduttore / curatore) into first-class author entities
  * via libri_autori.ruolo (issue #237).
  *
- * The updater only runs .sql migrations, and this conversion needs row logic
- * (split multi-name values, find-or-create the author, insert the role row), so
- * it runs here as a guarded self-heal invoked from MaintenanceService::runAll()
- * — the same cron + admin-login trigger the mail-template self-heal uses.
+ * Migration runners invoke this conversion immediately after the schema SQL;
+ * MaintenanceService also invokes it as a recovery path for an interrupted or
+ * legacy upgrade.
  *
  * Idempotent on two levels: a system_settings marker makes the whole pass a no-op
  * after the first success, and every insert is INSERT IGNORE against the
@@ -34,12 +33,12 @@ final class ContributorBackfill
         'curatore'     => 'curatore',
     ];
 
-    public static function run(mysqli $db): void
+    public static function run(mysqli $db): bool
     {
         try {
             $settings = new SettingsRepository($db);
             if ($settings->get(self::MARKER_CATEGORY, self::MARKER_KEY, '0') === '1') {
-                return; // already done
+                return true; // already done
             }
 
             $booksToReindex = self::booksWithPseudonyms($db);
@@ -57,9 +56,11 @@ final class ContributorBackfill
             // the first post-upgrade pass as well.
             SearchIndexBuilder::rebuildMany($db, array_values($booksToReindex));
             $settings->set(self::MARKER_CATEGORY, self::MARKER_KEY, '1');
+            return true;
         } catch (\Throwable $e) {
             // Best-effort: leave the marker unset so a later pass retries.
             SecureLogger::warning('ContributorBackfill failed: ' . $e->getMessage());
+            return false;
         }
     }
 
@@ -76,7 +77,12 @@ final class ContributorBackfill
 
         while ($row = $res->fetch_assoc()) {
             $bookId = (int) $row['id'];
-            ContributorSync::linkLegacyValues($db, $bookId, [$ruolo => (string) $row['raw']]);
+            ContributorSync::syncImportedLegacyValues(
+                $db,
+                $bookId,
+                [$ruolo => (string) $row['raw']],
+                'legacy-backfill'
+            );
             $bookIds[$bookId] = $bookId;
         }
         return $bookIds;

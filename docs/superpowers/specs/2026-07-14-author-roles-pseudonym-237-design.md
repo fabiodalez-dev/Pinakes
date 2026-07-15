@@ -53,29 +53,32 @@ Applied at the book-display surfaces (not every `a.nome` in the codebase — onl
 
 ### Component 3 — Schema migration (SQL) + guarded data backfill (PHP)
 
-**Constraint discovered:** `Updater::runMigrations()` globs `migrate_*.sql` **only** —
-there is no PHP-migration hook. The free-text→entity conversion is row logic (split,
-find-or-create, insert) that pure SQL can't do safely (comma-separated multi-name
-values, find-or-create). So we split responsibilities the way this codebase already
-does for one-time data work:
+The free-text→entity conversion is row logic (split, find-or-create, insert) that
+pure SQL cannot perform safely. Schema and data work therefore remain separate,
+but every migration runner completes both before reporting a successful upgrade:
 
-1. **Schema (`migrate_<release>.sql`).** Just the enum extension, idempotent
+1. **Schema (`migrate_<release>.sql`).** The enum extension plus the idempotent
+   `libri_autori_import_sources` provenance table used by authoritative importers.
+   The role ALTER remains idempotent
    (safe to re-apply): `ALTER TABLE libri_autori MODIFY ruolo enum('principale','co-autore','traduttore','illustratore','curatore','colorista') …`. Runs during the upgrade via the normal SQL migration runner. File version **≤** release version (CLAUDE.md rule).
 
-2. **Data backfill (guarded self-heal).** New `App\Support\ContributorBackfill::run(mysqli $db): void`,
-   invoked from `MaintenanceService::runAll()` (which fires on cron **and** on admin
-   login via `runIfNeeded()` — the same trigger the mail-template self-heal uses).
+2. **Data backfill.** `App\Support\ContributorBackfill::run(mysqli $db): bool` is
+   invoked synchronously by `Updater::runMigrations()` (including the Docker
+   runner) and by `scripts/manual-upgrade.php`. `MaintenanceService::runAll()`
+   remains a recovery path for interrupted/legacy upgrades.
    Gated by a `system_settings('migrations','contributors_backfilled')` marker so it
    runs **exactly once** and is idempotent. For each `role ∈ {illustratore, traduttore,
-   curatore}` and each book with a non-empty `libri.<role>`: split on `,`/`;`/`&`/` e `,
-   normalize each name, `AuthorRepository` find-or-create by `nome`,
-   `INSERT IGNORE INTO libri_autori (libro_id, autore_id, ruolo)` (PK-idempotent).
-   The marker + `INSERT IGNORE` make a re-run a no-op. Free-text columns are retained.
+   curatore}` and each book with a non-empty `libri.<role>`: split on unambiguous
+   list separators (`;`, `|`, `&`, ` e `, ` and `); split commas only when every
+   fragment already looks like a complete multi-word name, preserving SBN forms
+   such as `Cognome, Nome`; normalize each name, `AuthorRepository` find-or-create by `nome`,
+   persist the role association and importer provenance. The marker + primary
+   keys make a re-run a no-op. Free-text columns are retained.
 
-This keeps the fragile updater/migration-runner untouched, runs the schema change
-atomically with the upgrade, and lands the backfill on the first post-upgrade cron or
-admin login (both exercised by the regression tests). New ingestion never re-accumulates
-free-text (Component 5 converts it), so the one-time backfill covers all history.
+The upgrade is not stamped complete if the backfill fails, eliminating the period
+where migrated installations had the new UI but no entity links. New ingestion
+also records ownership, so a later reimport can replace its stale links without
+deleting manual contributors.
 
 ### Component 4 — Form (`app/Views/libri/partials/book_form.php`)
 
@@ -89,14 +92,18 @@ reusable initializer invoked once per role to avoid five copy-pasted blocks.
 ### Component 5 — Save (`BookRepository`)
 
 Generalize `syncAuthors()` → `syncContributors(int $bookId, array $rolesToIds)`.
-Implemented insert-first/delete-stale (not delete-then-insert): INSERT IGNORE the
-desired `(autore_id, ruolo)` rows, then delete only the current rows that are stale
-**within the roles the caller actually supplied** — so an invalid id or a not-yet-
-migrated enum throws before any old link is dropped, and a partial caller never wipes
-roles it didn't mention (reusing `processAuthorId` find-or-create). The controller maps
+The insert/verify/delete-stale sequence is transactional (or savepoint-backed when
+the caller already owns a transaction). It deliberately avoids `INSERT IGNORE`:
+an invalid FK or unsupported enum rolls the whole sync back before any old link is
+dropped. Only roles actually supplied are pruned. The creator picker is authoritative
+for both `principale` and `co-autore`, preserving an existing co-author role instead
+of duplicating it as principal. The controller maps
 `autori_select` → `principale`, `illustratori_select` → `illustratore`, etc.
-Legacy ingestion (scraping/import) that still provides free-text `illustratore` etc.
-is converted to entities in the same save path (find-or-create), so all inputs converge.
+CSV and LibraryThing use `syncImportedLegacyValues()`: their links are tracked by
+source and replaced on reimport, while untracked manual links remain untouched.
+An explicit admin-form save releases importer provenance for the supplied roles,
+so contributors deliberately retained by a librarian become manual and cannot be
+removed by a later import.
 Stop writing `libri.illustratore/traduttore/curatore` from the form save.
 
 ### Component 6 — Display (book detail, admin + frontend)
@@ -121,8 +128,8 @@ same commit (i18n-blocking rule), parity verified.
   split into N authors; the marker is set; **idempotent** on second run (no duplicates,
   no re-split, backfill no-ops).
 - **Real upgrade regression** (`scripts/reinstall-test.sh` Test B): install 0.7.35,
-  upgrade via admin UI, log in as admin (fires `runIfNeeded` → backfill), verify
-  post-upgrade schema (enum) + migrated `libri_autori` rows.
+  upgrade via admin UI and verify that enum, provenance table and migrated
+  `libri_autori` rows all exist before the migration runner returns success.
 - **E2E** (Playwright): create a book, add an illustrator via the new picker (existing
   + brand-new), save, verify the `libri_autori` row + the illustrator appearing on the
   book detail and on that author's page; pseudonym: create an author with a pseudonym,

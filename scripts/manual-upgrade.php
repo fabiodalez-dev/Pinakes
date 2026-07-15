@@ -757,6 +757,21 @@ if ($authenticated && $requestMethod === 'POST' && isset($_FILES['zipfile'])) {
             $log[] = '[OK] ' . count($migrationsRun) . ' migrazioni eseguite: ' . implode(', ', $migrationsRun);
         }
 
+        // Keep the standalone upgrader equivalent to the in-app and Docker
+        // migration paths: the 0.7.36 contributor backfill must finish before
+        // the upgrade is reported as complete.
+        if (version_compare($targetVersion, '0.7.36', '>=')) {
+            $autoload = $rootPath . '/vendor/autoload.php';
+            if (!is_file($autoload)) {
+                throw new RuntimeException('Autoloader non trovato per il backfill contributor');
+            }
+            require_once $autoload;
+            if (!\App\Support\ContributorBackfill::run($db)) {
+                throw new RuntimeException('Backfill contributor non completato');
+            }
+            $log[] = '[OK] Backfill contributor completato';
+        }
+
         // 11. Clear cache
         $cacheDir = $rootPath . '/storage/cache';
         if (is_dir($cacheDir)) {

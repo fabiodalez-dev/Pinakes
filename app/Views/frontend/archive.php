@@ -454,7 +454,7 @@ $archiveDisplayName = ($archive_type === 'autore')
                     <i class="fas fa-tags"></i>
                 <?php endif; ?>
             </div>
-            <h1 class="archive-title"><?= htmlspecialchars($archiveDisplayName) ?></h1>
+            <h1 class="archive-title"><?= htmlspecialchars($archiveDisplayName, ENT_QUOTES, 'UTF-8') ?></h1>
             <p class="archive-subtitle">
                 <?php if ($archive_type === 'autore'): ?>
                     <?= __("Autore") ?>
@@ -507,10 +507,10 @@ $archiveDisplayName = ($archive_type === 'autore')
         <?php elseif ($archive_type === 'editore'): ?>
             <div class="publisher-details">
                 <?php if (!empty($archive_info['indirizzo'])): ?>
-                    <p><i class="fas fa-map-marker-alt"></i><?= htmlspecialchars($archive_info['indirizzo']) ?></p>
+                    <p><i class="fas fa-map-marker-alt"></i><?= htmlspecialchars($archive_info['indirizzo'], ENT_QUOTES, 'UTF-8') ?></p>
                 <?php endif; ?>
                 <?php if (!empty($archive_info['sito_web'])): ?>
-                    <p><i class="fas fa-globe"></i><a href="<?= htmlspecialchars($archive_info['sito_web'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"><?= htmlspecialchars($archive_info['sito_web']) ?></a></p>
+                    <p><i class="fas fa-globe"></i><a href="<?= htmlspecialchars($archive_info['sito_web'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"><?= htmlspecialchars($archive_info['sito_web'], ENT_QUOTES, 'UTF-8') ?></a></p>
                 <?php endif; ?>
             </div>
         <?php endif; ?>

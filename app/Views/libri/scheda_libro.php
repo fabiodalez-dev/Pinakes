@@ -519,9 +519,9 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                 if (empty($people)) { continue; }
             ?>
             <div>
-              <dt class="text-xs uppercase text-gray-500"><?php echo App\Support\HtmlHelper::e($label); ?></dt>
+              <dt class="text-xs uppercase text-gray-500"><?php echo htmlspecialchars((string)$label, ENT_QUOTES, 'UTF-8'); ?></dt>
               <dd class="text-gray-900 font-medium">
-                <?php foreach ($people as $idx => $p): ?><?php echo $idx ? ', ' : ''; ?><a href="<?= htmlspecialchars(url('/admin/authors/' . (int)($p['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-blue-600 transition"><?php echo App\Support\HtmlHelper::e(\App\Support\AuthorName::display($p)); ?></a><?php endforeach; ?>
+                <?php foreach ($people as $idx => $p): ?><?php echo $idx ? ', ' : ''; ?><a href="<?= htmlspecialchars(url('/admin/authors/' . (int)($p['id'] ?? 0)), ENT_QUOTES, 'UTF-8') ?>" class="hover:text-blue-600 transition"><?php echo htmlspecialchars(\App\Support\AuthorName::display($p), ENT_QUOTES, 'UTF-8'); ?></a><?php endforeach; ?>
               </dd>
             </div>
             <?php endforeach; ?>
