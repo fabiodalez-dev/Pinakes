@@ -110,11 +110,9 @@ final class ContributorBackfill
     /**
      * Split a free-text contributor value into individual names. Delegates to
      * {@see ContributorSync::splitNames()}, which splits on the unambiguous list
-     * separators (semicolon, pipe, ampersand, " e " / " and "). A comma splits
-     * only when every comma-separated part is itself a multi-word name (e.g.
-     * "Mario Rossi, Gianni Verdi" → two names); if any part is a single word the
-     * value is kept intact, so an inverted "Surname, Forename" SBN/UNIMARC form
-     * survives as one canonical name.
+     * separators (semicolon, pipe, ampersand, " e " / " and "). Commas are
+     * deliberately preserved because a list cannot be distinguished reliably
+     * from an inverted "Surname, Forename" SBN/UNIMARC personal name.
      *
      * @return list<string>
      */

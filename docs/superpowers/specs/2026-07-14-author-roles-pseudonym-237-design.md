@@ -69,9 +69,9 @@ but every migration runner completes both before reporting a successful upgrade:
    Gated by a `system_settings('migrations','contributors_backfilled')` marker so it
    runs **exactly once** and is idempotent. For each `role ∈ {illustratore, traduttore,
    curatore}` and each book with a non-empty `libri.<role>`: split on unambiguous
-   list separators (`;`, `|`, `&`, ` e `, ` and `); split commas only when every
-   fragment already looks like a complete multi-word name, preserving SBN forms
-   such as `Cognome, Nome`; normalize each name, `AuthorRepository` find-or-create by `nome`,
+   list separators (`;`, `|`, `&`, ` e `, ` and `); preserve commas because a
+   comma-separated list cannot be distinguished safely from multi-word SBN forms
+   such as `García Márquez, Gabriel José`; normalize each name, `AuthorRepository` find-or-create by `nome`,
    persist the role association and importer provenance. The marker + primary
    keys make a re-run a no-op. Free-text columns are retained.
 

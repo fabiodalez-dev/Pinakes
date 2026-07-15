@@ -1419,6 +1419,28 @@ class OaiPmhServerPlugin
     // ── MARCXML for books ─────────────────────────────────────────────────────
 
     /**
+     * Return the responsibility entry that must own the main-entry field.
+     * A principal creator always wins even if a caller supplied contributors
+     * or co-authors first; co-author is only the legacy fallback.
+     *
+     * @param list<array<string, mixed>> $authors
+     */
+    private function primaryCreatorIndex(array $authors): ?int
+    {
+        $coauthorIndex = null;
+        foreach ($authors as $index => $author) {
+            $role = (string) ($author['ruolo'] ?? '');
+            if ($role === 'principale') {
+                return $index;
+            }
+            if ($role === 'co-autore' && $coauthorIndex === null) {
+                $coauthorIndex = $index;
+            }
+        }
+        return $coauthorIndex;
+    }
+
+    /**
      * @param array<string, mixed>             $row
      * @param list<array<string, mixed>>        $authors
      * @param list<array<string, mixed>>        $publishers
@@ -1490,11 +1512,10 @@ class OaiPmhServerPlugin
         }
 
         // 100/700 — creators and role-aware contributors.
-        $mainCreatorWritten = false;
-        foreach ($authors as $a) {
+        $primaryCreatorIndex = $this->primaryCreatorIndex($authors);
+        foreach ($authors as $index => $a) {
             $name = (string) $a['nome'];
             $role = (string) ($a['ruolo'] ?? '');
-            $isCreator = in_array($role, ['principale', 'co-autore'], true);
             $relator = match ($role) {
                 'traduttore' => 'translator',
                 'illustratore' => 'illustrator',
@@ -1502,12 +1523,11 @@ class OaiPmhServerPlugin
                 'colorista' => 'colorist',
                 default => 'author',
             };
-            if ($isCreator && !$mainCreatorWritten) {
+            if ($index === $primaryCreatorIndex) {
                 $this->marcDataField($xw, '100', '1', ' ', [
                     ['a', $name],
                     ['e', $relator],
                 ]);
-                $mainCreatorWritten = true;
             } else {
                 $this->marcDataField($xw, '700', '1', ' ', [
                     ['a', $name],
@@ -1524,7 +1544,7 @@ class OaiPmhServerPlugin
         if (!empty($row['traduttore'])) {
             $titleSubs[] = ['c', 'traduzione di ' . (string) $row['traduttore']];
         }
-        $ind1 = $mainCreatorWritten ? '1' : '0';
+        $ind1 = $primaryCreatorIndex !== null ? '1' : '0';
         $this->marcDataField($xw, '245', $ind1, '0', $titleSubs);
 
         // 250 — Edition
@@ -1703,8 +1723,9 @@ class OaiPmhServerPlugin
         if (!empty($row['sottotitolo'])) {
             $subs200[] = ['e', (string) $row['sottotitolo']];
         }
-        if (!empty($authors)) {
-            $subs200[] = ['f', (string) $authors[0]['nome']];
+        $primaryCreatorIndex = $this->primaryCreatorIndex($authors);
+        if ($primaryCreatorIndex !== null) {
+            $subs200[] = ['f', (string) $authors[$primaryCreatorIndex]['nome']];
         }
         $this->marcDataField($xw, '200', '1', ' ', $subs200);
 
@@ -1756,11 +1777,10 @@ class OaiPmhServerPlugin
 
         // 700/701 — primary and alternative intellectual responsibility.
         // 702 — secondary responsibility (translator, illustrator, etc.).
-        $mainCreatorWritten = false;
-        foreach ($authors as $a) {
+        foreach ($authors as $index => $a) {
             $role = (string) ($a['ruolo'] ?? '');
             $isCreator = in_array($role, ['principale', 'co-autore'], true);
-            $tag = $isCreator ? ($mainCreatorWritten ? '701' : '700') : '702';
+            $tag = $isCreator ? ($index === $primaryCreatorIndex ? '700' : '701') : '702';
             $relCode = match ($role) {
                 'traduttore'   => '730',
                 'curatore'     => '340',
@@ -1768,9 +1788,6 @@ class OaiPmhServerPlugin
                 'colorista'    => '410',
                 default        => '070',
             };
-            if ($isCreator) {
-                $mainCreatorWritten = true;
-            }
             $this->marcDataField($xw, $tag, '0', ' ', [
                 ['a', (string) $a['nome']],
                 ['4', $relCode],
@@ -2652,7 +2669,9 @@ class OaiPmhServerPlugin
                    FROM libri_autori la
                    JOIN autori a ON a.id = la.autore_id
                   WHERE la.libro_id IN ($ph)
-                  ORDER BY la.libro_id, la.ordine_credito, a.nome"
+                  ORDER BY la.libro_id,
+                           CASE la.ruolo WHEN 'principale' THEN 0 WHEN 'co-autore' THEN 1 ELSE 2 END,
+                           la.ordine_credito IS NULL, la.ordine_credito, a.nome"
             );
             if ($stmtA !== false) {
                 $stmtA->bind_param($types, ...$bookIds);
@@ -2890,7 +2909,8 @@ class OaiPmhServerPlugin
                FROM libri_autori la
                JOIN autori a ON a.id = la.autore_id
               WHERE la.libro_id = ?
-              ORDER BY la.ordine_credito, a.nome'
+              ORDER BY CASE la.ruolo WHEN \'principale\' THEN 0 WHEN \'co-autore\' THEN 1 ELSE 2 END,
+                       la.ordine_credito IS NULL, la.ordine_credito, a.nome'
         );
         if ($stmt === false) { return []; }
         $stmt->bind_param('i', $bookId);
@@ -3261,7 +3281,10 @@ class OaiPmhServerPlugin
 
         $d200 = $SF . 'a' . (string) ($row['titolo'] ?? '');
         if (!empty($row['sottotitolo'])) { $d200 .= $SF . 'e' . (string) $row['sottotitolo']; }
-        if (!empty($authors)) { $d200 .= $SF . 'f' . (string) $authors[0]['nome']; }
+        $primaryCreatorIndex = $this->primaryCreatorIndex($authors);
+        if ($primaryCreatorIndex !== null) {
+            $d200 .= $SF . 'f' . (string) $authors[$primaryCreatorIndex]['nome'];
+        }
         $fields[] = ['200', '1', ' ', $d200];
 
         if (!empty($row['edizione'])) {
@@ -3299,15 +3322,11 @@ class OaiPmhServerPlugin
         }
 
         $relMap = ['traduttore' => '730', 'curatore' => '340', 'illustratore' => '440', 'colorista' => '410'];
-        $mainCreatorWritten = false;
-        foreach ($authors as $a) {
+        foreach ($authors as $index => $a) {
             $role = (string) ($a['ruolo'] ?? '');
             $isCreator = in_array($role, ['principale', 'co-autore'], true);
-            $tag = $isCreator ? ($mainCreatorWritten ? '701' : '700') : '702';
+            $tag = $isCreator ? ($index === $primaryCreatorIndex ? '700' : '701') : '702';
             $rel = $relMap[$role] ?? '070';
-            if ($isCreator) {
-                $mainCreatorWritten = true;
-            }
             $fields[] = [$tag, '0', ' ', $SF . 'a' . (string) $a['nome'] . $SF . '4' . $rel];
         }
 

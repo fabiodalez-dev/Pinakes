@@ -10,7 +10,14 @@ on:
     paths:
       - 'installer/database/**'
       - 'installer/classes/Installer.php'
+      - 'app/Models/AuthorRepository.php'
+      - 'app/Support/ContributorBackfill.php'
+      - 'app/Support/ContributorSync.php'
+      - 'app/Support/SearchIndexBuilder.php'
+      - 'app/Support/Updater.php'
       - 'scripts/list-source-expectations.php'
+      - 'composer.json'
+      - 'composer.lock'
       - 'version.json'
       - '.github/workflows/ci-upgrade-smoke.yml'
   pull_request:
@@ -18,7 +25,14 @@ on:
     paths:
       - 'installer/database/**'
       - 'installer/classes/Installer.php'
+      - 'app/Models/AuthorRepository.php'
+      - 'app/Support/ContributorBackfill.php'
+      - 'app/Support/ContributorSync.php'
+      - 'app/Support/SearchIndexBuilder.php'
+      - 'app/Support/Updater.php'
       - 'scripts/list-source-expectations.php'
+      - 'composer.json'
+      - 'composer.lock'
       - 'version.json'
       - '.github/workflows/ci-upgrade-smoke.yml'
   workflow_dispatch:
@@ -56,8 +70,12 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
+          extensions: mysqli, curl, zip, mbstring
           coverage: none
           github-token: ''
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
 
       - name: Wait for MySQL
         run: until mysqladmin ping -h"127.0.0.1" --silent; do sleep 1; done
@@ -85,9 +103,11 @@ jobs:
             echo "No ZIP asset found in latest release — skipping upgrade path"
             exit 0
           fi
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
-          echo "skip=false" >> "$GITHUB_OUTPUT"
+          {
+            echo "tag=$TAG"
+            echo "asset=$ASSET"
+            echo "skip=false"
+          } >> "$GITHUB_OUTPUT"
           echo "Latest release: $TAG  ($ASSET)"
 
       # ── Step 2: Install released schema ───────────────────────────────────
@@ -125,8 +145,9 @@ jobs:
             exit 0
           fi
           FAILED=0
-          for sql in $(ls "$MIGRATIONS"/migrate_*.sql 2>/dev/null | sort -V); do
-            echo "→ $(basename $sql)"
+          mapfile -t RELEASE_MIGRATIONS < <(find "$MIGRATIONS" -maxdepth 1 -type f -name 'migrate_*.sql' | sort -V)
+          for sql in "${RELEASE_MIGRATIONS[@]}"; do
+            echo "→ $(basename "$sql")"
             OUTPUT=$(mysql --force -h 127.0.0.1 -u root -proot pinakes_upgrade < "$sql" 2>&1) || true
             while IFS= read -r line; do
               if echo "$line" | grep -qiE '^ERROR'; then
@@ -154,8 +175,9 @@ jobs:
       - name: Apply current branch migrations
         run: |
           FAILED=0
-          for sql in $(ls installer/database/migrations/migrate_*.sql | sort -V); do
-            echo "→ $(basename $sql)"
+          mapfile -t CURRENT_MIGRATIONS < <(find installer/database/migrations -maxdepth 1 -type f -name 'migrate_*.sql' | sort -V)
+          for sql in "${CURRENT_MIGRATIONS[@]}"; do
+            echo "→ $(basename "$sql")"
             OUTPUT=$(mysql --force -h 127.0.0.1 -u root -proot pinakes_upgrade < "$sql" 2>&1) || true
             while IFS= read -r line; do
               if echo "$line" | grep -qiE '^ERROR'; then
@@ -171,7 +193,66 @@ jobs:
           [ "$FAILED" -eq 0 ] || exit 1
           echo "✓ Current branch migrations applied"
 
-      # ── Step 6: Verify schema after upgrade ───────────────────────────────
+      # ── Step 6: Exercise runtime-only migration work ─────────────────
+      - name: Run contributor backfill through the application updater
+        run: |
+          mysql -h 127.0.0.1 -u root -proot pinakes_upgrade <<'SQL'
+          DELETE FROM system_settings
+           WHERE category = 'migrations' AND setting_key = 'contributors_backfilled';
+          DELETE FROM libri WHERE titolo = 'ZZ upgrade smoke contributor backfill';
+          INSERT INTO libri (titolo, illustratore, curatore)
+          VALUES (
+            'ZZ upgrade smoke contributor backfill',
+            'ZZ Upgrade Illustrator One; ZZ Upgrade Illustrator Two',
+            'García Márquez, Gabriel José'
+          );
+          SQL
+
+          TARGET_VERSION=$(python3 -c "import json; print(json.load(open('version.json')).get('version', ''))")
+          [ -n "$TARGET_VERSION" ] || { echo "Target version missing from version.json"; exit 1; }
+          TARGET_VERSION="$TARGET_VERSION" php <<'PHP'
+          <?php
+          declare(strict_types=1);
+
+          require __DIR__ . '/vendor/autoload.php';
+          mysqli_report(MYSQLI_REPORT_OFF);
+          $db = new mysqli('127.0.0.1', 'root', 'root', 'pinakes_upgrade', 3306);
+          if ($db->connect_errno !== 0) {
+              fwrite(STDERR, "Database connection failed: {$db->connect_error}\n");
+              exit(1);
+          }
+          $db->set_charset('utf8mb4');
+          $target = (string) getenv('TARGET_VERSION');
+          $result = (new App\Support\Updater($db))->runMigrations($target, $target);
+          if (!$result['success']) {
+              fwrite(STDERR, 'Updater failed: ' . ($result['error'] ?? 'unknown error') . "\n");
+              exit(1);
+          }
+          PHP
+
+          BOOK_ID=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+            "SELECT id FROM libri WHERE titolo='ZZ upgrade smoke contributor backfill' LIMIT 1")
+          [ -n "$BOOK_ID" ] || { echo "Backfill fixture book missing"; exit 1; }
+
+          MARKER=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+            "SELECT setting_value FROM system_settings WHERE category='migrations' AND setting_key='contributors_backfilled'")
+          ILLUSTRATORS=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+            "SELECT COUNT(*) FROM libri_autori WHERE libro_id=$BOOK_ID AND ruolo='illustratore'")
+          CURATORS=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+            "SELECT COUNT(*) FROM libri_autori WHERE libro_id=$BOOK_ID AND ruolo='curatore'")
+          CANONICAL_CURATOR=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+            "SELECT COUNT(*) FROM libri_autori la JOIN autori a ON a.id=la.autore_id WHERE la.libro_id=$BOOK_ID AND la.ruolo='curatore' AND a.nome='Gabriel José García Márquez'")
+          PROVENANCE=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
+            "SELECT COUNT(*) FROM libri_autori_import_sources WHERE libro_id=$BOOK_ID AND source='legacy-backfill'")
+
+          [ "$MARKER" = "1" ] || { echo "Contributor backfill marker not set"; exit 1; }
+          [ "$ILLUSTRATORS" -eq 2 ] || { echo "Expected 2 illustrator links, got $ILLUSTRATORS"; exit 1; }
+          [ "$CURATORS" -eq 1 ] || { echo "Expected 1 curator link, got $CURATORS"; exit 1; }
+          [ "$CANONICAL_CURATOR" -eq 1 ] || { echo "SBN comma name was not preserved and normalized correctly"; exit 1; }
+          [ "$PROVENANCE" -eq 3 ] || { echo "Expected 3 provenance rows, got $PROVENANCE"; exit 1; }
+          echo "✓ Runtime contributor backfill completed through Updater"
+
+      # ── Step 7: Verify schema after upgrade ──────────────────────────────
       - name: Verify core tables present
         run: |
           TABLE_OUTPUT=$(php scripts/list-source-expectations.php tables)
@@ -205,8 +286,16 @@ jobs:
                AND COLUMN_NAME='entity_type'" 2>/dev/null || echo "")
           if [ -n "$V" ]; then
             echo "oai_deleted_records.entity_type: $V"
-            echo "$V" | grep -q "archival_unit" && echo "  ✓ 'archival_unit' present" || { echo "  ✗ 'archival_unit' missing"; FAILED=1; }
-            echo "$V" | grep -q "'archive_unit'" && { echo "  ✗ old typo 'archive_unit' still present"; FAILED=1; } || true
+            if echo "$V" | grep -q "archival_unit"; then
+              echo "  ✓ 'archival_unit' present"
+            else
+              echo "  ✗ 'archival_unit' missing"
+              FAILED=1
+            fi
+            if echo "$V" | grep -q "'archive_unit'"; then
+              echo "  ✗ old typo 'archive_unit' still present"
+              FAILED=1
+            fi
           fi
 
           V=$(mysql -h 127.0.0.1 -u root -proot pinakes_upgrade -sN -e \
@@ -216,7 +305,12 @@ jobs:
                AND COLUMN_NAME='origine'" 2>/dev/null || echo "")
           if [ -n "$V" ]; then
             echo "prestiti.origine: $V"
-            echo "$V" | grep -q "'ncip'" && echo "  ✓ 'ncip' present" || { echo "  ✗ 'ncip' missing from prestiti.origine"; FAILED=1; }
+            if echo "$V" | grep -q "'ncip'"; then
+              echo "  ✓ 'ncip' present"
+            else
+              echo "  ✗ 'ncip' missing from prestiti.origine"
+              FAILED=1
+            fi
           fi
 
           [ "$FAILED" -eq 0 ] || exit 1

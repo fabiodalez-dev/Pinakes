@@ -624,10 +624,19 @@ class BookRepository
         ]);
 
         $stmt->bind_param($bindTypes, ...$bindParams);
+        $savepoint = 'pinakes_create_basic';
+        $insideTransaction = $this->beginWriteScope($savepoint);
         try {
             $stmt->execute();
             $this->logDebug('createBasic.execute.ok', ['insert_id' => (int) $this->db->insert_id]);
+
+            $bookId = (int) $this->db->insert_id;
+            $this->syncContributors($bookId, $data);
+            $this->syncPublishers($bookId, $data['editori_ids'] ?? []);
+            $this->commitWriteScope($insideTransaction, $savepoint);
+            return $bookId;
         } catch (\Throwable $e) {
+            $this->rollbackWriteScope($insideTransaction, $savepoint);
             $this->logDebug('createBasic.execute.error', [
                 'error' => $e->getMessage(),
                 'code' => (int) $e->getCode(),
@@ -635,11 +644,6 @@ class BookRepository
             ]);
             throw $e;
         }
-
-        $bookId = (int) $this->db->insert_id;
-        $this->syncContributors($bookId, $data);
-        $this->syncPublishers($bookId, $data['editori_ids'] ?? []);
-        return $bookId;
     }
 
     /**
@@ -970,10 +974,18 @@ class BookRepository
         ]);
 
         $stmt->bind_param($bindTypes, ...$bindParams);
+        $savepoint = 'pinakes_update_basic';
+        $insideTransaction = $this->beginWriteScope($savepoint);
         try {
             $ok = $stmt->execute();
             $this->logDebug('updateBasic.execute.ok', ['id' => $id, 'ok' => $ok]);
+
+            $this->syncContributors($id, $data);
+            $this->syncPublishers($id, $data['editori_ids'] ?? []);
+            $this->commitWriteScope($insideTransaction, $savepoint);
+            return $ok;
         } catch (\Throwable $e) {
+            $this->rollbackWriteScope($insideTransaction, $savepoint);
             $this->logDebug('updateBasic.execute.error', [
                 'error' => $e->getMessage(),
                 'code' => (int) $e->getCode(),
@@ -981,10 +993,58 @@ class BookRepository
             ]);
             throw $e;
         }
+    }
 
-        $this->syncContributors($id, $data);
-        $this->syncPublishers($id, $data['editori_ids'] ?? []);
-        return $ok;
+    /**
+     * Start a transaction owned by this repository call, or a savepoint when
+     * the caller already owns one. This keeps the libri row, contributor links,
+     * legacy compatibility cache and publisher links in one atomic write.
+     */
+    private function beginWriteScope(string $savepoint): bool
+    {
+        $insideTransaction = false;
+        $probe = 'pinakes_write_probe';
+        try {
+            if ($this->db->query("SAVEPOINT {$probe}")
+                && $this->db->query("ROLLBACK TO SAVEPOINT {$probe}")
+            ) {
+                $insideTransaction = true;
+                $this->db->query("RELEASE SAVEPOINT {$probe}");
+            }
+        } catch (\mysqli_sql_exception) {
+            $insideTransaction = false;
+        }
+
+        if ($insideTransaction) {
+            if (!$this->db->query("SAVEPOINT {$savepoint}")) {
+                throw new \RuntimeException('Database error: unable to create book write savepoint');
+            }
+        } elseif (!$this->db->begin_transaction()) {
+            throw new \RuntimeException('Database error: unable to begin book write transaction');
+        }
+
+        return $insideTransaction;
+    }
+
+    private function commitWriteScope(bool $insideTransaction, string $savepoint): void
+    {
+        if ($insideTransaction) {
+            if (!$this->db->query("RELEASE SAVEPOINT {$savepoint}")) {
+                throw new \RuntimeException('Database error: unable to release book write savepoint');
+            }
+        } elseif (!$this->db->commit()) {
+            throw new \RuntimeException('Database error: unable to commit book write transaction');
+        }
+    }
+
+    private function rollbackWriteScope(bool $insideTransaction, string $savepoint): void
+    {
+        if ($insideTransaction) {
+            $this->db->query("ROLLBACK TO SAVEPOINT {$savepoint}");
+            $this->db->query("RELEASE SAVEPOINT {$savepoint}");
+        } else {
+            $this->db->rollback();
+        }
     }
 
     private function normalizeEnumValue(mixed $value, string $column, string $default): string
@@ -1143,9 +1203,14 @@ class BookRepository
 
             /** @var array<int,string> $currentCreatorRoles */
             $currentCreatorRoles = [];
+            /** @var array<string,true> $currentRoles */
+            $currentRoles = [];
             foreach ($current as $row) {
                 $authorId = (int)$row['autore_id'];
                 $role = (string)$row['ruolo'];
+                if ($authorId > 0 && $role !== '') {
+                    $currentRoles[$role] = true;
+                }
                 if ($authorId <= 0 || !in_array($role, ['principale', 'co-autore'], true)) {
                     continue;
                 }
@@ -1162,15 +1227,7 @@ class BookRepository
                     throw new \InvalidArgumentException('autori_ids must be an array');
                 }
                 foreach ($creatorIds as $authorData) {
-                    try {
-                        $authorId = $this->processAuthorId($authorData);
-                    } catch (\InvalidArgumentException $e) {
-                        // A single malformed contributor id (a frontend contract
-                        // slip) skips that one entry rather than rolling back the
-                        // whole book save (issue #237 review, finding F011).
-                        \App\Support\SecureLogger::warning('[BookRepository] skipping malformed contributor id', ['book_id' => $bookId, 'error' => $e->getMessage()]);
-                        continue;
-                    }
+                    $authorId = $this->processAuthorId($authorData);
                     if ($authorId <= 0) {
                         continue;
                     }
@@ -1187,15 +1244,7 @@ class BookRepository
                     throw new \InvalidArgumentException("{$key} must be an array");
                 }
                 foreach ($ids as $authorData) {
-                    try {
-                        $authorId = $this->processAuthorId($authorData);
-                    } catch (\InvalidArgumentException $e) {
-                        // A single malformed contributor id (a frontend contract
-                        // slip) skips that one entry rather than rolling back the
-                        // whole book save (issue #237 review, finding F011).
-                        \App\Support\SecureLogger::warning('[BookRepository] skipping malformed contributor id', ['book_id' => $bookId, 'error' => $e->getMessage()]);
-                        continue;
-                    }
+                    $authorId = $this->processAuthorId($authorData);
                     if ($authorId > 0) {
                         $desired[$authorId . ':' . $role] = [$authorId, $role];
                     }
@@ -1303,6 +1352,14 @@ class BookRepository
                 $joined = $names->get_result()->fetch_row()[0] ?? null;
                 $names->close();
 
+                // No entity existed for this role before the save and none was
+                // selected now: this is untouched legacy text waiting for the
+                // migration backfill, not an explicit removal. Preserve it as
+                // the rollback/recovery safety net promised by issue #237.
+                if ($joined === null && !isset($currentRoles[$column])) {
+                    continue;
+                }
+
                 // $column is drawn only from the hardcoded whitelist above — safe
                 // to interpolate into the column position (bind_param can't).
                 $update = $this->db->prepare("UPDATE libri SET {$column} = ? WHERE id = ?");
@@ -1361,7 +1418,7 @@ class BookRepository
         // leave the book with its publishers wiped (non-destructive on error).
         $insert = null;
         if ($publisherIds) {
-            $insert = $this->db->prepare('INSERT IGNORE INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, ?)');
+            $insert = $this->db->prepare('INSERT INTO libri_editori (libro_id, editore_id, ordine) VALUES (?, ?, ?)');
             if ($insert === false) {
                 \App\Support\SecureLogger::error('[BookRepository] prepare failed inserting book publishers', ['book_id' => $bookId]);
                 throw new \RuntimeException("Database error: unable to insert book publishers");
@@ -1386,7 +1443,9 @@ class BookRepository
             $publisherId = is_numeric($publisherData) ? (int) $publisherData : 0;
             if ($publisherId > 0) {
                 $insert->bind_param('iii', $bookId, $publisherId, $ordine);
-                $insert->execute();
+                if (!$insert->execute()) {
+                    throw new \RuntimeException('Database error inserting book publisher: ' . $insert->error);
+                }
                 $ordine++;
             }
         }

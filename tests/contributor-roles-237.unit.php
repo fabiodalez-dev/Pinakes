@@ -76,7 +76,8 @@ try {
     $check($authors->findByCanonicalName($pseudonym) === null, 'canonical lookup never treats a pseudonym as an imported author name');
     $check($authors->findByName($pseudonym) === null, 'legacy importer lookup keeps the canonical-name contract');
     $check(ContributorSync::splitNames('Levi, Primo') === ['Levi, Primo'], 'SBN inverted canonical name is not split into two people');
-    $check(ContributorSync::splitNames('Mario Rossi, Luigi Bianchi') === ['Mario Rossi', 'Luigi Bianchi'], 'comma-separated complete names remain supported');
+    $check(ContributorSync::splitNames('Mario Rossi, Luigi Bianchi') === ['Mario Rossi, Luigi Bianchi'], 'ambiguous comma-separated names remain one value');
+    $check(ContributorSync::splitNames('García Márquez, Gabriel José') === ['García Márquez, Gabriel José'], 'multi-word inverted SBN name is not split into two people');
     $check(ContributorSync::splitNames('Levi, Primo; Eco, Umberto') === ['Levi, Primo', 'Eco, Umberto'], 'explicit lists preserve each inverted SBN name');
 
     $sqlDisplay = AuthorName::displaySql('a');
@@ -135,6 +136,24 @@ try {
     $legacyAfterSave = $db->query('SELECT illustratore FROM libri WHERE id=' . (int)$bookId)->fetch_column();
     $check($legacyAfterSave === $legacyIllustrator, 'entity-form save preserves untouched legacy contributor text');
 
+    // Once a role has an entity link, an explicit empty picker is a real
+    // removal and must clear both the link and its compatibility cache.
+    $removableIllustratorName = "ZZ Removable Illustrator {$token}";
+    $removableIllustratorId = $authors->create(['nome' => $removableIllustratorName]);
+    $repo->updateBasic($bookId, [
+        'titolo' => "ZZ contributor with removable illustrator {$token}",
+        'illustratori_ids' => [$removableIllustratorId],
+    ]);
+    $cacheWithEntity = $db->query('SELECT illustratore FROM libri WHERE id=' . (int)$bookId)->fetch_column();
+    $check($cacheWithEntity === $removableIllustratorName, 'entity contributor refreshes the legacy compatibility cache');
+    $repo->updateBasic($bookId, [
+        'titolo' => "ZZ contributor after illustrator removal {$token}",
+        'illustratori_ids' => [],
+    ]);
+    $cacheAfterRemoval = $db->query('SELECT illustratore FROM libri WHERE id=' . (int)$bookId)->fetch_column();
+    $removedLinkCount = (int)$db->query("SELECT COUNT(*) FROM libri_autori WHERE libro_id={$bookId} AND autore_id={$removableIllustratorId} AND ruolo='illustratore'")->fetch_column();
+    $check($cacheAfterRemoval === null && $removedLinkCount === 0, 'explicit entity removal clears its link and compatibility cache');
+
     // A partial repository update has no contributor keys and must not mutate
     // any existing links.
     $repo->updateBasic($bookId, ['titolo' => "ZZ partial update {$token}"]);
@@ -143,6 +162,7 @@ try {
 
     // Invalid desired rows must roll back the entire contributor sync before
     // the existing principal link is pruned.
+    $titleBeforeInvalid = (string)$db->query('SELECT titolo FROM libri WHERE id=' . (int)$bookId)->fetch_column();
     $invalidRejected = false;
     try {
         $repo->updateBasic($bookId, [
@@ -153,9 +173,30 @@ try {
         $invalidRejected = true;
     }
     $principalAfterInvalid = (int)$db->query("SELECT COUNT(*) FROM libri_autori WHERE libro_id={$bookId} AND autore_id={$authorId} AND ruolo='principale'")->fetch_column();
+    $titleAfterInvalid = (string)$db->query('SELECT titolo FROM libri WHERE id=' . (int)$bookId)->fetch_column();
     $check($invalidRejected, 'invalid contributor id aborts the synchronization');
     $check($principalAfterInvalid === 1, 'invalid contributor id cannot prune the existing principal');
+    $check($titleAfterInvalid === $titleBeforeInvalid, 'invalid contributor id rolls back the scalar book update');
 
+    $partialCreateTitle = "ZZ invalid atomic create {$token}";
+    $invalidCreateRejected = false;
+    try {
+        $repo->createBasic([
+            'titolo' => $partialCreateTitle,
+            'autori_ids' => [PHP_INT_MAX],
+        ]);
+    } catch (Throwable) {
+        $invalidCreateRejected = true;
+    }
+    $partialCreateCount = 0;
+    $stmt = $db->prepare('SELECT COUNT(*) FROM libri WHERE titolo = ?');
+    $stmt->bind_param('s', $partialCreateTitle);
+    $stmt->execute();
+    $partialCreateCount = (int)$stmt->get_result()->fetch_column();
+    $stmt->close();
+    $check($invalidCreateRejected && $partialCreateCount === 0, 'invalid contributor id rolls back the entire book creation');
+
+    $titleBeforeZero = (string)$db->query('SELECT titolo FROM libri WHERE id=' . (int)$bookId)->fetch_column();
     $zeroRejected = false;
     try {
         $repo->updateBasic($bookId, [
@@ -166,8 +207,10 @@ try {
         $zeroRejected = true;
     }
     $principalAfterZero = (int)$db->query("SELECT COUNT(*) FROM libri_autori WHERE libro_id={$bookId} AND autore_id={$authorId} AND ruolo='principale'")->fetch_column();
+    $titleAfterZero = (string)$db->query('SELECT titolo FROM libri WHERE id=' . (int)$bookId)->fetch_column();
     $check($zeroRejected, 'zero contributor id aborts the synchronization');
     $check($principalAfterZero === 1, 'zero contributor id cannot clear the existing principal');
+    $check($titleAfterZero === $titleBeforeZero, 'zero contributor id rolls back the scalar book update');
 
     // The creator picker contains both principals and co-authors. Resubmitting
     // it must preserve an existing co-author role rather than adding a duplicate

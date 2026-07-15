@@ -14,7 +14,7 @@ declare(strict_types=1);
  * Strategy (mirrors tests/migration-0.7.25.unit.php):
  *   A. Enum ALTER on a sandbox table `zz_mig_libri_autori` seeded with the OLD
  *      enum → run the MODIFY → assert 'colorista' present → re-run → idempotent.
- *   B. ContributorBackfill::splitNames() cases (comma / semicolon / & / e / and).
+ *   B. ContributorBackfill::splitNames() cases (SBN comma / semicolon / & / e / and).
  *   C. Functional: inside a ROLLED-BACK transaction on the real tables, point an
  *      existing book's free-text illustratore at a two-name list (one author
  *      pre-created, one new), run the REAL ContributorBackfill::run(), and assert
@@ -119,7 +119,8 @@ $db->query("DROP TABLE IF EXISTS zz_mig_libri_autori");
 // ── B. splitNames() ─────────────────────────────────────────────────────────
 echo "B. splitNames()\n";
 $check(ContributorBackfill::splitNames('Mario Rossi') === ['Mario Rossi'], "single name");
-$check(ContributorBackfill::splitNames('Mario Rossi, Gianni Verdi') === ['Mario Rossi', 'Gianni Verdi'], "comma split");
+$check(ContributorBackfill::splitNames('García Márquez, Gabriel José') === ['García Márquez, Gabriel José'], "multi-word SBN comma preserved");
+$check(ContributorBackfill::splitNames('Mario Rossi, Gianni Verdi') === ['Mario Rossi, Gianni Verdi'], "ambiguous comma list preserved as one value");
 $check(ContributorBackfill::splitNames('A; B & C | D') === ['A', 'B', 'C', 'D'], "semicolon + ampersand + pipe");
 $check(ContributorBackfill::splitNames('Tizio e Caio') === ['Tizio', 'Caio'], "italian ' e '");
 $check(ContributorBackfill::splitNames('Foo and Bar') === ['Foo', 'Bar'], "english ' and '");
@@ -155,7 +156,7 @@ try {
     $check($bookId > 0, "created a hermetic book fixture");
 
     $stmt = $db->prepare("UPDATE libri SET illustratore=? WHERE id=?");
-    $val = $oneName . ', ' . $twoName;
+    $val = $oneName . '; ' . $twoName;
     $stmt->bind_param('si', $val, $bookId);
     $stmt->execute();
     $stmt->close();
@@ -167,7 +168,7 @@ try {
 
     // The book now has two illustratore links.
     $cnt = (int) ($db->query("SELECT COUNT(*) FROM libri_autori WHERE libro_id={$bookId} AND ruolo='illustratore'")->fetch_row()[0] ?? 0);
-    $check($cnt === 2, "two illustratore rows created (comma split), got {$cnt}");
+    $check($cnt === 2, "two illustratore rows created from an explicit separator, got {$cnt}");
     $provenanceCount = (int)$db->query("SELECT COUNT(*) FROM libri_autori_import_sources WHERE libro_id={$bookId} AND ruolo='illustratore' AND source='legacy-backfill'")->fetch_column();
     $check($provenanceCount === 2, 'legacy backfill records provenance for both created links');
 
@@ -200,6 +201,11 @@ $maint = (string) file_get_contents($root . '/app/Support/MaintenanceService.php
 $check(strpos($maint, 'ContributorBackfill::run') !== false, "MaintenanceService wires the backfill");
 $updater = (string) file_get_contents($root . '/app/Support/Updater.php');
 $check(strpos($updater, 'ContributorBackfill::run') !== false, "migration runner completes the backfill before returning success");
+$upgradeSmoke = (string) file_get_contents($root . '/.github/workflows/ci-upgrade-smoke.yml');
+$check(strpos($upgradeSmoke, 'runMigrations($target, $target)') !== false
+    && strpos($upgradeSmoke, "setting_key='contributors_backfilled'") !== false
+    && strpos($upgradeSmoke, "source='legacy-backfill'") !== false,
+    'upgrade smoke executes and verifies the runtime backfill through Updater');
 $src = (string) file_get_contents($root . '/app/Support/ContributorSync.php');
 $check(strpos($src, 'syncImportedLegacyValues') !== false && strpos($src, 'libri_autori_import_sources') !== false, "shared contributor sync tracks importer provenance");
 

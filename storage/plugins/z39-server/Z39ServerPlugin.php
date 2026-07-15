@@ -1579,7 +1579,10 @@ class Z39ServerPlugin
                     l.numero_pagine, l.isbn13, l.isbn10, l.collana, l.numero_serie,
                     l.descrizione_plain, l.parole_chiave, l.classificazione_dewey,
                     e.nome AS editore,
-                    (SELECT GROUP_CONCAT(a.nome SEPARATOR '; ')
+                    (SELECT GROUP_CONCAT(a.nome ORDER BY (la.ruolo = 'principale') DESC,
+                                                            la.ordine_credito IS NULL,
+                                                            la.ordine_credito,
+                                                            la.autore_id SEPARATOR '; ')
                        FROM libri_autori la JOIN autori a ON a.id = la.autore_id
                       WHERE la.libro_id = l.id
                         AND la.ruolo IN ('principale', 'co-autore')) AS autori

@@ -55,8 +55,12 @@ $check(substr_count($openUrl, "ruolo IN (\\'principale\\', \\'co-autore\\')") >=
 $check(substr_count($openUrl, "ruolo = 'principale'") >= 1 && substr_count($openUrl, "ruolo = \\'principale\\'") >= 1, 'OpenURL always gives the principal creator ordering priority');
 $bibframe = $read('storage/plugins/bibframe-linked-data/BibframeLinkedDataPlugin.php');
 $check(str_contains($bibframe, "relators/clr") && str_contains($bibframe, "la2.ruolo IN"), 'BIBFRAME keeps creator selection separate and maps colorist');
+$check(str_contains($bibframe, "(la2.ruolo = \\'principale\\') DESC"), 'BIBFRAME always selects the principal creator before a co-author');
 $ncip = $read('storage/plugins/ncip-server/NcipServerPlugin.php');
 $check(str_contains($ncip, 'la2.ruolo IN'), 'NCIP primary author cannot fall through to a contributor');
+$check(str_contains($ncip, "(la2.ruolo = \\'principale\\') DESC"), 'NCIP always selects the principal creator before a co-author');
+$z3950 = $read('storage/plugins/z39-server/Z39ServerPlugin.php');
+$check(str_contains($z3950, "GROUP_CONCAT(a.nome ORDER BY (la.ruolo = 'principale') DESC"), 'Z39.50 creator lists put the principal creator first');
 
 require_once $root . '/storage/plugins/z39-server/classes/UnimarcLibriParser.php';
 $check(\Z39Server\UnimarcLibriParser::relatorForRole('traduttore') === '730', 'UNIMARC translator relator is 730');
@@ -64,8 +68,31 @@ $check(\Z39Server\UnimarcLibriParser::relatorForRole('illustratore') === '440', 
 $check(\Z39Server\UnimarcLibriParser::relatorForRole('colorista') === '410', 'UNIMARC colorist relator is 410');
 
 $oai = $read('storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php');
-$check(str_contains($oai, "? 'creator' : 'contributor'") && str_contains($oai, "? (\$mainCreatorWritten ? '701' : '700') : '702'"), 'OAI Dublin Core and UNIMARC preserve creator/contributor semantics');
+$check(str_contains($oai, "? 'creator' : 'contributor'") && str_contains($oai, "? (\$index === \$primaryCreatorIndex ? '700' : '701') : '702'"), 'OAI Dublin Core and UNIMARC preserve creator/contributor semantics');
+$check(str_contains($oai, 'private function primaryCreatorIndex')
+    && str_contains($oai, "if (\$role === 'principale')")
+    && !str_contains($oai, "\$authors[0]['nome']"),
+    'OAI MARC/UNIMARC main responsibility is role-driven, never array-position-driven');
+$check(substr_count($oai, "CASE la.ruolo WHEN 'principale' THEN 0 WHEN 'co-autore' THEN 1 ELSE 2 END") >= 1
+    && substr_count($oai, "CASE la.ruolo WHEN \\'principale\\' THEN 0 WHEN \\'co-autore\\' THEN 1 ELSE 2 END") >= 1,
+    'OAI batch and single-record fetches sort principal creators first');
 $check(str_contains($oai, "'traduttore'   => '730'") && str_contains($oai, "'illustratore' => '440'") && str_contains($oai, "'colorista'    => '410'"), 'OAI UNIMARC mappings use the standard relator codes');
+require_once $root . '/storage/plugins/oai-pmh-server/OaiPmhServerPlugin.php';
+$oaiReflection = new ReflectionClass(\App\Plugins\OaiPmhServer\OaiPmhServerPlugin::class);
+$oaiInstance = $oaiReflection->newInstanceWithoutConstructor();
+$primaryCreatorIndex = $oaiReflection->getMethod('primaryCreatorIndex');
+$check($primaryCreatorIndex->invoke($oaiInstance, [
+    ['nome' => 'Translator', 'ruolo' => 'traduttore'],
+    ['nome' => 'Coauthor', 'ruolo' => 'co-autore'],
+    ['nome' => 'Principal', 'ruolo' => 'principale'],
+]) === 2, 'OAI role selection finds a principal even when it is last');
+$check($primaryCreatorIndex->invoke($oaiInstance, [
+    ['nome' => 'Illustrator', 'ruolo' => 'illustratore'],
+    ['nome' => 'Coauthor', 'ruolo' => 'co-autore'],
+]) === 1, 'OAI role selection falls back to a co-author when no principal exists');
+$check($primaryCreatorIndex->invoke($oaiInstance, [
+    ['nome' => 'Translator', 'ruolo' => 'traduttore'],
+]) === null, 'OAI contributors never become the main creator');
 
 echo "D. Plugin and API presentation\n";
 foreach ([

@@ -1163,7 +1163,8 @@ class NcipServerPlugin
                    SELECT la2.autore_id FROM libri_autori la2
                     WHERE la2.libro_id = l.id
                       AND la2.ruolo IN (\'principale\', \'co-autore\')
-                   ORDER BY COALESCE(la2.ordine_credito, 0), la2.autore_id LIMIT 1
+                   ORDER BY (la2.ruolo = \'principale\') DESC,
+                            la2.ordine_credito IS NULL, la2.ordine_credito, la2.autore_id LIMIT 1
                )
               WHERE l.id = ? AND l.deleted_at IS NULL'
         );
