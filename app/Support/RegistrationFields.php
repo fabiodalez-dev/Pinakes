@@ -245,6 +245,67 @@ final class RegistrationFields
         return $out;
     }
 
+    /**
+     * Active definitions exposed to public clients (registration discovery).
+     *
+     * @return list<array{id:int,label:string,type:string,required:bool}>
+     */
+    public static function apiDefinitions(mysqli $db): array
+    {
+        $out = [];
+        foreach (self::definitions($db) as $def) {
+            $out[] = [
+                'id'       => $def['id'],
+                'label'    => $def['etichetta'],
+                'type'     => $def['tipo'],
+                'required' => $def['obbligatorio'],
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Active editable fields plus this user's current values (mobile/profile API).
+     *
+     * @return list<array{id:int,label:string,type:string,required:bool,value:string}>
+     */
+    public static function editableFieldsForUser(mysqli $db, int $userId): array
+    {
+        $values = self::valuesForUser($db, $userId);
+        $out = [];
+        foreach (self::definitions($db) as $def) {
+            $out[] = [
+                'id'       => $def['id'],
+                'label'    => $def['etichetta'],
+                'type'     => $def['tipo'],
+                'required' => $def['obbligatorio'],
+                'value'    => $values[$def['id']] ?? '',
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Whether changing/deleting a definition would affect stored user data.
+     */
+    public static function hasStoredValues(mysqli $db, int $fieldId): bool
+    {
+        if ($fieldId <= 0 || !self::tableExists($db, 'utenti_campi_valori')) {
+            return false;
+        }
+        $stmt = $db->prepare(
+            'SELECT 1 FROM utenti_campi_valori WHERE campo_id = ? LIMIT 1'
+        );
+        if ($stmt === false) {
+            throw new \RuntimeException('Unable to inspect stored custom field values');
+        }
+        $stmt->bind_param('i', $fieldId);
+        $stmt->execute();
+        $exists = $stmt->get_result()->fetch_row() !== null;
+        $stmt->close();
+        return $exists;
+    }
+
     private static function tableExists(mysqli $db, string $table): bool
     {
         try {

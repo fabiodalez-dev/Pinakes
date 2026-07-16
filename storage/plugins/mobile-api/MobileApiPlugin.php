@@ -672,7 +672,7 @@ class MobileApiPlugin
             SecureLogger::warning('[MobileApi] VAPID key access in health failed: ' . $e->getMessage());
         }
 
-        return (new HealthController())->index(
+        return (new HealthController($this->db))->index(
             $request,
             $response,
             $this->isAppAccessEnabled(),

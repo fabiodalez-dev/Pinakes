@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * Issue #255 — configurable registration fields. 25-check E2E suite.
+ * Issue #255 — configurable registration fields. 29-check E2E suite.
  *
  * Coverage (all through the real browser):
  *   1-4    defaults + SERVER-side enforcement of each built-in requirement
@@ -18,6 +18,7 @@
  *   23-24  sanitization: a tag-carrying label is neutralised on save; a
  *          script-carrying VALUE is escaped when rendered back (admin detail).
  *   25     an inactive (attivo=0) field disappears from the public form.
+ *   26-29 profile/admin-detail regressions and destructive type-change guard.
  */
 
 const { test, expect } = require('@playwright/test');
@@ -101,7 +102,7 @@ function userCount(email) {
   return Number(dbQuery(`SELECT COUNT(*) FROM utenti WHERE email='${email}'`));
 }
 
-test.describe.serial('Issue #255 — configurable registration fields (25 checks)', () => {
+test.describe.serial('Issue #255 — configurable registration fields (29 checks)', () => {
   /** @type {import('@playwright/test').Page} */
   let admin;
 
@@ -356,7 +357,7 @@ test.describe.serial('Issue #255 — configurable registration fields (25 checks
     expect(userCount(email)).toBe(1);
 
     const uid = dbQuery(`SELECT id FROM utenti WHERE email='${email}'`);
-    await admin.goto(`${BASE}/admin/users/edit/${uid}`);
+    await admin.goto(`${BASE}/admin/users/details/${uid}`);
     // The literal payload must be visible as TEXT (escaped), never executed.
     await expect(admin.locator('dd', { hasText: 'window.__pwned' })).toBeVisible();
     const pwned = await admin.evaluate(() => /** @type {any} */ (window).__pwned);
@@ -415,5 +416,32 @@ test.describe.serial('Issue #255 — configurable registration fields (25 checks
     // name line itself has no trailing space before a newline or end.
     expect(text).not.toMatch(/SoloNome27 (?:\n|$)/);
     expect(text).toContain('SoloNome27');
+  });
+
+  test('28. a newly-required custom field does not block existing users in the profile form', async () => {
+    const id = fieldId(LBL('text'));
+    dbQuery(`UPDATE registrazione_campi SET obbligatorio=1 WHERE id=${id}`);
+    try {
+      await admin.goto(`${BASE}/profilo`);
+      const control = admin.locator(`[name="custom_field[${id}]"]`);
+      await expect(control).toBeVisible();
+      await expect(control).not.toHaveAttribute('required', /.*/);
+      await expect(admin.locator('input[name="custom_fields_present"]')).toHaveValue('1');
+    } finally {
+      dbQuery(`UPDATE registrazione_campi SET obbligatorio=0 WHERE id=${id}`);
+    }
+  });
+
+  test('29. a field type with stored values cannot be changed destructively', async () => {
+    const id = fieldId(LBL('text'));
+    expect(Number(dbQuery(`SELECT COUNT(*) FROM utenti_campi_valori WHERE campo_id=${id}`))).toBeGreaterThan(0);
+    await admin.goto(`${BASE}/admin/settings?tab=registration`);
+    await admin.selectOption(`select[name="custom_fields[${id}][tipo]"]`, 'checkbox');
+    await Promise.all([
+      admin.waitForLoadState('domcontentloaded'),
+      admin.click('form[action*="/admin/settings/registration"] button[type="submit"]'),
+    ]);
+    expect(dbQuery(`SELECT tipo FROM registrazione_campi WHERE id=${id}`)).toBe('text');
+    await expect(admin.locator('body')).toContainText(/non puoi cambiare il tipo|cannot change the type|ne pouvez pas modifier le type|Typ eines Feldes/i);
   });
 });

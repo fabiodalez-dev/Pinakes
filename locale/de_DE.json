@@ -6538,6 +6538,7 @@
   "Impostazioni di registrazione aggiornate correttamente.": "Registrierungseinstellungen erfolgreich aktualisiert.",
   "Salvataggio dei campi personalizzati non riuscito. Riprova.": "Speichern der benutzerdefinierten Felder fehlgeschlagen. Bitte erneut versuchen.",
   "Le modifiche ai campi vengono salvate insieme alle impostazioni di registrazione.": "Feldänderungen werden zusammen mit den Registrierungseinstellungen gespeichert.",
+  "Non puoi cambiare il tipo di un campo che contiene già valori. Crea un nuovo campo o elimina prima i dati esistenti.": "Der Typ eines Feldes mit bereits gespeicherten Werten kann nicht geändert werden. Erstelle ein neues Feld oder lösche zuerst die vorhandenen Daten.",
   "Controlla i campi personalizzati: un valore inserito non è valido.": "Überprüfe die benutzerdefinierten Felder: einer der eingegebenen Werte ist ungültig.",
   "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.": "Ausgewählte benutzerdefinierte Felder löschen? Die von Benutzern gespeicherten Werte für diese Felder werden dauerhaft entfernt."
 }

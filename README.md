@@ -48,7 +48,9 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
   fields (text, textarea, email, URL, number, checkbox — required or optional):
   they appear on the registration form and in the user profile, and are shown
   on the admin user detail. Ideal for community handles such as a Telegram
-  username. New migration `migrate_0.7.37.sql` adds the two supporting tables
+  username. The bundled Mobile API exposes the requirements and definitions in
+  `/api/v1/health`, accepts the values during app registration/profile editing,
+  and includes them in `/api/v1/me`. New migration `migrate_0.7.37.sql` adds the two supporting tables
   (`registrazione_campi`, `utenti_campi_valori`); it is idempotent and runs
   automatically on upgrade.
 

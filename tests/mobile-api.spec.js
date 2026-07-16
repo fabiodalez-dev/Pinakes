@@ -258,6 +258,8 @@ const TEST_USER_A_EMAIL = 'mobile_api_test_a@pinakes.test';
 const TEST_USER_A_PASS  = 'TestA1secure!';
 const TEST_USER_B_EMAIL = 'mobile_api_test_b@pinakes.test';
 const TEST_USER_B_PASS  = 'TestB1secure!';
+const REGISTRATION_EMAIL = 'mobile_api_registration_fields@pinakes.test';
+const CUSTOM_FIELD_LABEL = 'Mobile API Telegram handle';
 
 /**
  * Insert a verified + active test user directly in the DB.
@@ -303,6 +305,10 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
     let reservationId = 0;
     /** @type {number} */
     let wishlistBookId = 0;
+    /** @type {number} */
+    let customFieldId = 0;
+    /** @type {Record<string, string>} */
+    const originalRegistrationSettings = {};
     /** Track rows created during tests for cleanup. */
     /** @type {number[]} */
     const mobileTokenIds = [];
@@ -318,6 +324,36 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         if (userIdA === 0 || userIdB === 0) {
             throw new Error('mobile-api: could not ensure test users');
         }
+
+        for (const key of ['require_cognome', 'require_telefono', 'require_indirizzo']) {
+            originalRegistrationSettings[key] = dbQuery(
+                `SELECT COALESCE((SELECT setting_value FROM system_settings WHERE category='registration' AND setting_key='${key}' LIMIT 1), '__MISSING__')`
+            );
+            dbExec(
+                `INSERT INTO system_settings (category, setting_key, setting_value)
+                 VALUES ('registration', '${key}', '0')
+                 ON DUPLICATE KEY UPDATE setting_value='0'`
+            );
+        }
+        dbExec(
+            `INSERT INTO registrazione_campi (etichetta, tipo, obbligatorio, attivo, ordine)
+             SELECT '${CUSTOM_FIELD_LABEL}', 'text', 1, 1, ordering.next_order
+             FROM (SELECT COALESCE(MAX(ordine), 0) + 1 AS next_order FROM registrazione_campi) ordering
+             WHERE NOT EXISTS (
+                 SELECT 1 FROM registrazione_campi WHERE etichetta='${CUSTOM_FIELD_LABEL}'
+             )`
+        );
+        customFieldId = parseInt(dbQuery(
+            `SELECT id FROM registrazione_campi WHERE etichetta='${CUSTOM_FIELD_LABEL}' LIMIT 1`
+        ), 10) || 0;
+        if (customFieldId === 0) {
+            throw new Error('mobile-api: could not create registration custom field');
+        }
+        dbExec(
+            `INSERT INTO utenti_campi_valori (utente_id, campo_id, valore)
+             VALUES (${userIdA}, ${customFieldId}, '@before-patch')
+             ON DUPLICATE KEY UPDATE valore='@before-patch'`
+        );
 
         // Find a book with available copies for reservation tests.
         const bookRow = dbQuery(
@@ -342,10 +378,21 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
             dbExec(`DELETE FROM mobile_availability_watchers WHERE user_id IN (${userIdA},${userIdB})`);
             dbExec(`DELETE FROM mobile_push_log WHERE user_id IN (${userIdA},${userIdB})`);
             dbExec(`DELETE FROM mobile_app_tokens WHERE user_id IN (${userIdA},${userIdB})`);
+            dbExec(`DELETE FROM utenti_campi_valori WHERE campo_id = ${customFieldId} OR utente_id IN (${userIdA},${userIdB})`);
             dbExec(`DELETE FROM wishlist WHERE utente_id IN (${userIdA},${userIdB})`);
             dbExec(`DELETE FROM prenotazioni WHERE utente_id IN (${userIdA},${userIdB})`);
             dbExec(`DELETE FROM prestiti WHERE utente_id IN (${userIdA},${userIdB})`);
-            dbExec(`DELETE FROM utenti WHERE email IN ('${TEST_USER_A_EMAIL}', '${TEST_USER_B_EMAIL}')`);
+            dbExec(`DELETE FROM registrazione_campi WHERE id = ${customFieldId}`);
+            dbExec(`DELETE FROM utenti WHERE email IN ('${TEST_USER_A_EMAIL}', '${TEST_USER_B_EMAIL}', '${REGISTRATION_EMAIL}')`);
+            for (const [key, value] of Object.entries(originalRegistrationSettings)) {
+                dbExec(`DELETE FROM system_settings WHERE category='registration' AND setting_key='${key}'`);
+                if (value !== '__MISSING__') {
+                    dbExec(
+                        `INSERT INTO system_settings (category, setting_key, setting_value)
+                         VALUES ('registration', '${key}', '${value.replace(/'/g, "''")}')`
+                    );
+                }
+            }
         } catch (_) { /* best-effort */ }
     });
 
@@ -393,6 +440,16 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         expect(d.api_version).toBe('v1');
         // After enablement in beforeAll the gate must be true.
         expect(d.app_access_enabled).toBe(true);
+        expect(d.registration).toMatchObject({
+            require_cognome: false,
+            require_telefono: false,
+            require_indirizzo: false,
+        });
+        expect(d.registration.custom_fields).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ id: customFieldId, required: true, type: 'text' }),
+            ])
+        );
     });
 
     test('8. /health features object contains expected keys', async ({ request }) => {
@@ -424,6 +481,31 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         expect(d.vapid_public_key.length).toBe(87);
         expect(d.vapid_public_key).toMatch(/^[A-Za-z0-9_-]+$/); // base64url, no padding
         expect(d.features.push).toBe(true);                     // push available once keyed
+    });
+
+    test('9c. POST /auth/register follows optional built-ins and stores custom fields', async ({ request }) => {
+        dbExec(`DELETE FROM utenti WHERE email='${REGISTRATION_EMAIL}'`);
+        const res = await apiPost(request, '/auth/register', {
+            nome: 'MobileRegistration',
+            email: REGISTRATION_EMAIL,
+            password: 'MobilePass1!',
+            password_confirm: 'MobilePass1!',
+            privacy_acceptance: true,
+            custom_fields: { [customFieldId]: '@registered-from-app' },
+        });
+        const body = await envelope(res, 201);
+        expect(body.error).toBeNull();
+        const stored = dbQuery(
+            `SELECT CONCAT(cognome, '|', COALESCE(telefono, 'NULL'), '|', COALESCE(indirizzo, 'NULL'))
+             FROM utenti WHERE email='${REGISTRATION_EMAIL}' LIMIT 1`
+        );
+        expect(stored).toBe('|NULL|NULL');
+        const storedCustom = dbQuery(
+            `SELECT v.valore FROM utenti_campi_valori v
+             JOIN utenti u ON u.id=v.utente_id
+             WHERE u.email='${REGISTRATION_EMAIL}' AND v.campo_id=${customFieldId} LIMIT 1`
+        );
+        expect(storedCustom).toBe('@registered-from-app');
     });
 
     // ══ 3. Auth — login ════════════════════════════════════════════════════════
@@ -849,17 +931,41 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         expect(d).toHaveProperty('cognome');
         expect(d).toHaveProperty('email');
         expect(d).toHaveProperty('tipo_utente');
+        expect(d.custom_fields).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({ id: customFieldId, value: '@before-patch' }),
+            ])
+        );
     });
 
     test('48. PATCH /me → update nome', async ({ request }) => {
         test.skip(!tokenA, 'tokenA not set');
         const res  = await apiPatch(request, '/me', { nome: 'TestAggiornato' }, tokenA);
-        // 200 on success, 422/500 on validation error — just check it doesn't explode.
-        expect([200, 422, 500]).toContain(res.status());
-        if (res.status() === 200) {
-            const body = await res.json();
-            expect(body.data.nome).toBe('TestAggiornato');
-        }
+        const body = await envelope(res, 200);
+        expect(body.data.nome).toBe('TestAggiornato');
+        expect(dbQuery(
+            `SELECT valore FROM utenti_campi_valori WHERE utente_id=${userIdA} AND campo_id=${customFieldId}`
+        )).toBe('@before-patch');
+    });
+
+    test('48b. PATCH /me updates custom fields only when explicitly supplied', async ({ request }) => {
+        test.skip(!tokenA, 'tokenA not set');
+        const res = await apiPatch(request, '/me', {
+            custom_fields: { [customFieldId]: '@after-patch' },
+        }, tokenA);
+        const body = await envelope(res, 200);
+        const field = body.data.custom_fields.find((item) => item.id === customFieldId);
+        expect(field.value).toBe('@after-patch');
+        expect(dbQuery(
+            `SELECT valore FROM utenti_campi_valori WHERE utente_id=${userIdA} AND campo_id=${customFieldId}`
+        )).toBe('@after-patch');
+    });
+
+    test('48c. PATCH /me accepts an empty surname when the instance makes it optional', async ({ request }) => {
+        test.skip(!tokenA, 'tokenA not set');
+        const res = await apiPatch(request, '/me', { cognome: '' }, tokenA);
+        const body = await envelope(res, 200);
+        expect(body.data.cognome).toBe('');
     });
 
     test('49. PATCH /me with empty nome → 422', async ({ request }) => {
@@ -1200,6 +1306,19 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         if (res.status() === 200) {
             const ct = res.headers()['content-type'] || '';
             expect(ct).toContain('json');
+            const document = await res.json();
+            const schemas = document.components.schemas;
+            expect(schemas.RegisterRequest.required).toEqual([
+                'nome', 'email', 'password', 'password_confirm', 'privacy_acceptance',
+            ]);
+            expect(schemas.RegistrationConfig.properties.custom_fields.items.$ref)
+                .toBe('#/components/schemas/CustomFieldDefinition');
+            expect(schemas.UserProfile.properties.custom_fields.items.$ref)
+                .toBe('#/components/schemas/CustomProfileField');
+            expect(schemas.UserProfile.properties.tipo_utente.enum)
+                .toEqual(['standard', 'premium', 'staff', 'admin']);
+            expect(schemas.HealthPayload.properties.registration.$ref)
+                .toBe('#/components/schemas/RegistrationConfig');
         }
     });
 

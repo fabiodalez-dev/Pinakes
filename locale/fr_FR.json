@@ -6537,7 +6537,8 @@
   "Salva impostazioni registrazione": "Enregistrer les paramètres d'inscription",
   "Impostazioni di registrazione aggiornate correttamente.": "Paramètres d'inscription mis à jour avec succès.",
   "Salvataggio dei campi personalizzati non riuscito. Riprova.": "L'enregistrement des champs personnalisés a échoué. Veuillez réessayer.",
-  "Le modifiche ai campi vengono salvate insieme alle impostazioni di registrazione.": "Les modifications des champs sont enregistrées avec les paramètres d'inscription.",
+  "Le modifiche ai campi vengono salvate insieme alle impostazioni di registrazione.": "Les modifications des champs sont enregistrées avec les paramètres d’inscription.",
+  "Non puoi cambiare il tipo di un campo che contiene già valori. Crea un nuovo campo o elimina prima i dati esistenti.": "Vous ne pouvez pas modifier le type d’un champ qui contient déjà des valeurs. Créez un nouveau champ ou supprimez d’abord les données existantes.",
   "Controlla i campi personalizzati: un valore inserito non è valido.": "Vérifiez les champs personnalisés : une des valeurs saisies n'est pas valide.",
   "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.": "Supprimer les champs personnalisés sélectionnés ? Les valeurs enregistrées par les utilisateurs pour ces champs seront définitivement supprimées."
 }

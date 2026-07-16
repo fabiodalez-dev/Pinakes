@@ -125,6 +125,9 @@ final class OpenApiController
                     'LoginRequest'      => $this->loginRequestSchema(),
                     'LoginResponse'     => $this->loginResponseSchema(),
                     'RegisterRequest'   => $this->registerRequestSchema(),
+                    'RegistrationConfig'=> $this->registrationConfigSchema(),
+                    'CustomFieldDefinition' => $this->customFieldDefinitionSchema(),
+                    'CustomProfileField'=> $this->customProfileFieldSchema(),
                     'ForgotRequest'     => $this->forgotRequestSchema(),
                     'DeviceItem'        => $this->deviceItemSchema(),
 
@@ -939,16 +942,63 @@ final class OpenApiController
     {
         return [
             'type'       => 'object',
-            'required'   => ['nome', 'cognome', 'email', 'telefono', 'indirizzo', 'password', 'password_confirm', 'privacy_acceptance'],
+            'required'   => ['nome', 'email', 'password', 'password_confirm', 'privacy_acceptance'],
             'properties' => [
                 'nome'               => ['type' => 'string', 'maxLength' => 100],
-                'cognome'            => ['type' => 'string', 'maxLength' => 100],
+                'cognome'            => ['type' => 'string', 'maxLength' => 100, 'description' => 'Required only when health.registration.require_cognome is true.'],
                 'email'              => ['type' => 'string', 'format' => 'email', 'maxLength' => 255],
-                'telefono'           => ['type' => 'string'],
-                'indirizzo'          => ['type' => 'string'],
+                'telefono'           => ['type' => 'string', 'description' => 'Required only when health.registration.require_telefono is true.'],
+                'indirizzo'          => ['type' => 'string', 'description' => 'Required only when health.registration.require_indirizzo is true.'],
                 'password'           => ['type' => 'string', 'minLength' => 8, 'maxLength' => 72],
                 'password_confirm'   => ['type' => 'string', 'minLength' => 8, 'maxLength' => 72],
                 'privacy_acceptance' => ['type' => 'boolean'],
+                'custom_fields'      => [
+                    'type'                 => 'object',
+                    'description'          => 'Values keyed by the numeric field id advertised by health.registration.custom_fields.',
+                    'additionalProperties' => ['type' => 'string', 'maxLength' => 1000],
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function customFieldDefinitionSchema(): array
+    {
+        return [
+            'type'       => 'object',
+            'required'   => ['id', 'label', 'type', 'required'],
+            'properties' => [
+                'id'       => ['type' => 'integer'],
+                'label'    => ['type' => 'string'],
+                'type'     => ['type' => 'string', 'enum' => ['text', 'textarea', 'email', 'url', 'number', 'checkbox']],
+                'required' => ['type' => 'boolean'],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function customProfileFieldSchema(): array
+    {
+        $schema = $this->customFieldDefinitionSchema();
+        $schema['required'][] = 'value';
+        $schema['properties']['value'] = ['type' => 'string', 'maxLength' => 1000];
+        return $schema;
+    }
+
+    /** @return array<string, mixed> */
+    private function registrationConfigSchema(): array
+    {
+        return [
+            'type'       => 'object',
+            'required'   => ['require_cognome', 'require_telefono', 'require_indirizzo', 'custom_fields'],
+            'properties' => [
+                'require_cognome'   => ['type' => 'boolean'],
+                'require_telefono'  => ['type' => 'boolean'],
+                'require_indirizzo' => ['type' => 'boolean'],
+                'custom_fields'     => [
+                    'type'  => 'array',
+                    'items' => ['$ref' => '#/components/schemas/CustomFieldDefinition'],
+                ],
             ],
         ];
     }
@@ -1190,10 +1240,20 @@ final class OpenApiController
                 'nome'              => ['type' => 'string'],
                 'cognome'           => ['type' => 'string'],
                 'email'             => ['type' => 'string', 'format' => 'email'],
-                'tipo_utente'       => ['type' => 'string', 'enum' => ['utente', 'staff', 'admin']],
+                'tipo_utente'       => ['type' => 'string', 'enum' => ['standard', 'premium', 'staff', 'admin']],
                 'email_verificata'  => ['type' => 'boolean'],
                 'stato'             => ['type' => 'string'],
                 'avatar_url'        => ['type' => 'string', 'format' => 'uri', 'nullable' => true],
+                'telefono'          => ['type' => 'string', 'nullable' => true],
+                'indirizzo'         => ['type' => 'string', 'nullable' => true],
+                'data_nascita'      => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                'cod_fiscale'       => ['type' => 'string', 'nullable' => true],
+                'sesso'             => ['type' => 'string', 'nullable' => true],
+                'locale'            => ['type' => 'string', 'nullable' => true],
+                'custom_fields'     => [
+                    'type'  => 'array',
+                    'items' => ['$ref' => '#/components/schemas/CustomProfileField'],
+                ],
             ],
         ];
     }
@@ -1204,8 +1264,19 @@ final class OpenApiController
         return [
             'type'       => 'object',
             'properties' => [
-                'nome'    => ['type' => 'string', 'maxLength' => 100],
-                'cognome' => ['type' => 'string', 'maxLength' => 100],
+                'nome'          => ['type' => 'string', 'maxLength' => 100],
+                'cognome'       => ['type' => 'string', 'maxLength' => 100],
+                'telefono'      => ['type' => 'string'],
+                'indirizzo'     => ['type' => 'string'],
+                'data_nascita'  => ['type' => 'string', 'format' => 'date', 'nullable' => true],
+                'cod_fiscale'   => ['type' => 'string', 'nullable' => true],
+                'sesso'         => ['type' => 'string', 'nullable' => true],
+                'locale'        => ['type' => 'string', 'nullable' => true],
+                'custom_fields' => [
+                    'type'                 => 'object',
+                    'description'          => 'When omitted, all custom values are preserved. Within the map, omitted ids are preserved and an explicitly empty value clears that field.',
+                    'additionalProperties' => ['type' => 'string', 'maxLength' => 1000],
+                ],
             ],
         ];
     }
@@ -1327,6 +1398,7 @@ final class OpenApiController
                 ],
                 'app_access_enabled'   => ['type' => 'boolean'],
                 'registration_enabled' => ['type' => 'boolean'],
+                'registration'         => ['$ref' => '#/components/schemas/RegistrationConfig'],
                 'private_mode'         => ['type' => 'boolean'],
                 'vapid_public_key'     => [
                     'type'        => 'string',

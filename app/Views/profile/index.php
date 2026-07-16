@@ -451,6 +451,9 @@
                value="<?php echo App\Support\HtmlHelper::e($user['indirizzo'] ?? ''); ?>">
       </div>
 
+      <?php if (!empty($customFields)): ?>
+        <input type="hidden" name="custom_fields_present" value="1">
+      <?php endif; ?>
       <?php foreach (($customFields ?? []) as $cf): ?>
         <?php
           $cfId = (int) $cf['id'];
@@ -460,16 +463,16 @@
         <div class="form-group">
           <?php if ($cf['tipo'] === 'checkbox'): ?>
             <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
-              <input type="checkbox" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" value="1" <?= $cfValue === '1' ? 'checked' : '' ?> <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>>
-              <?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?><?= $cf['obbligatorio'] ? ' *' : '' ?>
+              <input type="checkbox" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" value="1" <?= $cfValue === '1' ? 'checked' : '' ?>>
+              <?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?>
             </label>
           <?php else: ?>
-            <label for="custom_field_<?= $cfId ?>" class="form-label"><?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?><?= $cf['obbligatorio'] ? ' *' : '' ?></label>
+            <label for="custom_field_<?= $cfId ?>" class="form-label"><?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?></label>
             <?php if ($cf['tipo'] === 'textarea'): ?>
-              <textarea id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" class="form-input" rows="3" <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>><?= htmlspecialchars($cfValue, ENT_QUOTES, 'UTF-8') ?></textarea>
+              <textarea id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" class="form-input" rows="3"><?= htmlspecialchars($cfValue, ENT_QUOTES, 'UTF-8') ?></textarea>
             <?php else: ?>
               <?php $cfType = in_array($cf['tipo'], ['email', 'url', 'number'], true) ? $cf['tipo'] : 'text'; ?>
-              <input type="<?= $cfType ?>" id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" class="form-input" <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>
+              <input type="<?= $cfType ?>" id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" class="form-input"
                      value="<?= htmlspecialchars($cfValue, ENT_QUOTES, 'UTF-8') ?>">
             <?php endif; ?>
           <?php endif; ?>

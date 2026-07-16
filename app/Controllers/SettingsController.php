@@ -226,7 +226,9 @@ class SettingsController
         // failure, bail BEFORE writing the toggles — so a field-batch failure
         // never leaves the toggles applied under a "save failed" flash.
         if (!$this->saveRegistrationCustomFields($db, $data)) {
-            $_SESSION['error_message'] = __('Salvataggio dei campi personalizzati non riuscito. Riprova.');
+            if (empty($_SESSION['error_message'])) {
+                $_SESSION['error_message'] = __('Salvataggio dei campi personalizzati non riuscito. Riprova.');
+            }
             return $this->redirect($response, '/admin/settings?tab=registration');
         }
 
@@ -280,6 +282,10 @@ class SettingsController
             try {
                 $rows = $data['custom_fields'] ?? [];
                 if (is_array($rows)) {
+                    $currentTypes = [];
+                    foreach (\App\Support\RegistrationFields::definitions($db, false) as $definition) {
+                        $currentTypes[$definition['id']] = $definition['tipo'];
+                    }
                     $update = $db->prepare(
                         'UPDATE registrazione_campi SET etichetta = ?, tipo = ?, obbligatorio = ?, attivo = ? WHERE id = ?'
                     );
@@ -313,6 +319,14 @@ class SettingsController
                             || !in_array($tipo, \App\Support\RegistrationFields::TYPES, true)
                         ) {
                             continue;
+                        }
+                        $currentType = $currentTypes[$id] ?? null;
+                        if ($currentType !== null && $currentType !== $tipo
+                            && \App\Support\RegistrationFields::hasStoredValues($db, $id)
+                        ) {
+                            throw new \DomainException(
+                                __('Non puoi cambiare il tipo di un campo che contiene già valori. Crea un nuovo campo o elimina prima i dati esistenti.')
+                            );
                         }
                         $required = !empty($row['obbligatorio']) ? 1 : 0;
                         $active = !empty($row['attivo']) ? 1 : 0;
@@ -362,6 +376,9 @@ class SettingsController
             }
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('[Settings] custom registration fields save failed', ['error' => $e->getMessage()]);
+            if ($e instanceof \DomainException) {
+                $_SESSION['error_message'] = $e->getMessage();
+            }
             return false;
         }
         return true;

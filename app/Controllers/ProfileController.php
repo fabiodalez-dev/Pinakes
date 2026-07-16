@@ -179,14 +179,20 @@ class ProfileController
         // enforceRequired=false — a field marked obbligatorio AFTER this user
         // signed up must not wall them out of unrelated profile edits (they
         // never saw it). Format checks still apply to anything they typed.
-        $customDefinitions = \App\Support\RegistrationFields::definitions($db);
-        $customValidation = \App\Support\RegistrationFields::validate($customDefinitions, $data, false);
-        if ($customValidation['error'] !== null) {
-            // Name the actual problem instead of the generic "required fields"
-            // banner (which is wrong when the user did fill the field).
-            $customError = $customValidation['error_reason'] === 'format' ? 'custom_field_invalid' : 'required_fields';
-            $profileUrl = RouteTranslator::route('profile');
-            return $response->withHeader('Location', $profileUrl . '?error=' . $customError)->withStatus(302);
+        $customValues = null;
+        $customFieldsSubmitted = array_key_exists('custom_fields_present', $data)
+            || array_key_exists('custom_field', $data);
+        if ($customFieldsSubmitted) {
+            $customDefinitions = \App\Support\RegistrationFields::definitions($db);
+            $customValidation = \App\Support\RegistrationFields::validate($customDefinitions, $data, false);
+            if ($customValidation['error'] !== null) {
+                // Name the actual problem instead of the generic "required fields"
+                // banner (which is wrong when the user did fill the field).
+                $customError = $customValidation['error_reason'] === 'format' ? 'custom_field_invalid' : 'required_fields';
+                $profileUrl = RouteTranslator::route('profile');
+                return $response->withHeader('Location', $profileUrl . '?error=' . $customError)->withStatus(302);
+            }
+            $customValues = $customValidation['values'];
         }
 
         // Update user — only include locale in SQL when the field was posted
@@ -217,7 +223,9 @@ class ProfileController
             $db->begin_transaction();
             $updated = $stmt->execute();
             if ($updated) {
-                \App\Support\RegistrationFields::saveValues($db, $uid, $customValidation['values']);
+                if ($customValues !== null) {
+                    \App\Support\RegistrationFields::saveValues($db, $uid, $customValues);
+                }
                 $db->commit();
             } else {
                 $db->rollback();

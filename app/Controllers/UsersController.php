@@ -654,6 +654,8 @@ class UsersController
         $utente = $result->fetch_assoc();
         $stmt->close();
 
+        $customFieldValues = \App\Support\RegistrationFields::labelledValuesForUser($db, $id);
+
         // Fetch user's loan history
         $loanStmt = $db->prepare("
             SELECT p.id, p.data_prestito, p.data_scadenza, p.data_restituzione, p.stato, l.titolo as libro_titolo
