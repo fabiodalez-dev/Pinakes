@@ -413,8 +413,9 @@
 
       <div class="form-grid">
         <div class="form-group">
-          <label for="telefono" class="form-label"><?= __("Telefono") ?></label>
-          <input type="tel" id="telefono" name="telefono" class="form-input"
+          <?php $telefonoRequired = \App\Support\RegistrationFields::isRequired('telefono'); ?>
+          <label for="telefono" class="form-label"><?= __("Telefono") ?><?= $telefonoRequired ? ' *' : '' ?></label>
+          <input type="tel" id="telefono" name="telefono" class="form-input" <?= $telefonoRequired ? 'required aria-required="true"' : '' ?>
                  value="<?php echo App\Support\HtmlHelper::e($user['telefono'] ?? ''); ?>">
         </div>
         <div class="form-group">
@@ -442,8 +443,9 @@
       </div>
 
       <div class="form-group">
-        <label for="indirizzo" class="form-label"><?= __("Indirizzo") ?></label>
-        <input type="text" id="indirizzo" name="indirizzo" class="form-input"
+        <?php $indirizzoRequired = \App\Support\RegistrationFields::isRequired('indirizzo'); ?>
+        <label for="indirizzo" class="form-label"><?= __("Indirizzo") ?><?= $indirizzoRequired ? ' *' : '' ?></label>
+        <input type="text" id="indirizzo" name="indirizzo" class="form-input" <?= $indirizzoRequired ? 'required aria-required="true"' : '' ?>
                value="<?php echo App\Support\HtmlHelper::e($user['indirizzo'] ?? ''); ?>">
       </div>
 
@@ -462,11 +464,11 @@
           <?php else: ?>
             <label for="custom_field_<?= $cfId ?>" class="form-label"><?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?><?= $cf['obbligatorio'] ? ' *' : '' ?></label>
             <?php if ($cf['tipo'] === 'textarea'): ?>
-              <textarea id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" class="form-input" rows="3" <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>><?php echo App\Support\HtmlHelper::e($cfValue); ?></textarea>
+              <textarea id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" class="form-input" rows="3" <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>><?= htmlspecialchars($cfValue, ENT_QUOTES, 'UTF-8') ?></textarea>
             <?php else: ?>
               <?php $cfType = in_array($cf['tipo'], ['email', 'url', 'number'], true) ? $cf['tipo'] : 'text'; ?>
               <input type="<?= $cfType ?>" id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" class="form-input" <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>
-                     value="<?php echo App\Support\HtmlHelper::e($cfValue); ?>">
+                     value="<?= htmlspecialchars($cfValue, ENT_QUOTES, 'UTF-8') ?>">
             <?php endif; ?>
           <?php endif; ?>
         </div>

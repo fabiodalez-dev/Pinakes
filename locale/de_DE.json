@@ -6534,5 +6534,8 @@
   "Campi aggiuntivi definiti da te (es. username Telegram): compaiono nel modulo di registrazione e nel profilo utente.": "Von dir definierte Zusatzfelder (z. B. Telegram-Benutzername): sie erscheinen im Registrierungsformular und im Benutzerprofil.",
   "Etichetta nuovo campo": "Bezeichnung des neuen Felds",
   "Le modifiche ai campi vengono salvate insieme alle impostazioni email.": "Feldänderungen werden zusammen mit den E-Mail-Einstellungen gespeichert.",
-  "L'utente li gestisce dal proprio profilo.": "Der Benutzer verwaltet sie über sein Profil."
+  "L'utente li gestisce dal proprio profilo.": "Der Benutzer verwaltet sie über sein Profil.",
+  "Salva impostazioni registrazione": "Registrierungseinstellungen speichern",
+  "Impostazioni di registrazione aggiornate correttamente.": "Registrierungseinstellungen erfolgreich aktualisiert.",
+  "Salvataggio dei campi personalizzati non riuscito. Riprova.": "Speichern der benutzerdefinierten Felder fehlgeschlagen. Bitte erneut versuchen."
 }

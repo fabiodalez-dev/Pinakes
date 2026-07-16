@@ -85,9 +85,10 @@ try {
         : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'] ?? '', $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''), $env['DB_NAME'] ?? '', (int) ($env['DB_PORT'] ?? 3306));
     $db->set_charset('utf8mb4');
 } catch (\Throwable $e) {
-    echo "SKIP: no database reachable — DB sections skipped: {$e->getMessage()}\n";
-    echo $fail === 0 ? "\nALL {$pass} PASS (DB sections skipped)\n" : "\n{$pass} PASS, {$fail} FAIL\n";
-    exit($fail === 0 ? 0 : 1);
+    // A migration test that silently skips its DB sections is a false green in
+    // CI (both ci-quality and ci-e2e provision MySQL). Fail loudly instead.
+    fwrite(STDERR, "FAIL: database unreachable — the migration sections are mandatory: {$e->getMessage()}\n");
+    exit(1);
 }
 
 $migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.37.sql');

@@ -572,6 +572,12 @@ return function (App $app): void {
         return $controller->updateEmailSettings($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/settings/registration', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new SettingsController();
+        return $controller->updateRegistrationSettings($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+
     $app->post('/admin/settings/contacts', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();

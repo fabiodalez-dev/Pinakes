@@ -29,6 +29,10 @@ $activeTab = $activeTab ?? 'general';
         <i class="fas fa-envelope text-sm mr-2"></i>
         <?= __("Email") ?>
       </button>
+      <button type="button" data-settings-tab="registration" class="settings-tab <?php echo $activeTab === 'registration' ? 'settings-tab-active' : ''; ?>">
+        <i class="fas fa-user-plus text-sm mr-2"></i>
+        <?= __("Registrazione") ?>
+      </button>
       <button type="button" data-settings-tab="templates" class="settings-tab <?php echo $activeTab === 'templates' ? 'settings-tab-active' : ''; ?>">
         <i class="fas fa-file-alt text-sm mr-2"></i>
         <?= __("Template") ?>
@@ -309,6 +313,19 @@ $activeTab = $activeTab ?? 'general';
             </div>
           </div>
 
+
+          <div class="flex justify-end">
+            <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
+              <i class="fas fa-save"></i>
+              <?= __("Salva impostazioni email") ?>
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section data-settings-panel="registration" class="settings-panel <?php echo $activeTab === 'registration' ? 'block' : 'hidden'; ?>">
+        <form action="<?= htmlspecialchars(url('/admin/settings/registration'), ENT_QUOTES, 'UTF-8') ?>" method="post" class="space-y-8">
+          <input type="hidden" name="csrf_token" value="<?php echo HtmlHelper::e(Csrf::ensureToken()); ?>">
           <div class="border border-gray-200 rounded-2xl p-5 bg-white max-sm:!bg-transparent max-sm:!border-0 max-sm:!rounded-none max-sm:!shadow-none max-sm:!p-0">
             <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide"><?= __("Registrazione utenti") ?></h3>
             <label class="mt-4 flex items-start gap-3 cursor-pointer">
@@ -389,7 +406,7 @@ $activeTab = $activeTab ?? 'general';
           <div class="flex justify-end">
             <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-save"></i>
-              <?= __("Salva impostazioni email") ?>
+              <?= __("Salva impostazioni registrazione") ?>
             </button>
           </div>
         </form>

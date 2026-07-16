@@ -97,7 +97,14 @@ final class RegistrationFields
 
         $values = [];
         foreach ($definitions as $def) {
-            $raw = trim((string) ($submitted[$def['id']] ?? ''));
+            // Reject non-scalar payloads (custom_field[id][]=x) BEFORE casting:
+            // (string) on an array would coerce to "Array", passing required
+            // checks and persisting garbage / ticking checkboxes.
+            $submittedValue = $submitted[$def['id']] ?? null;
+            if ($submittedValue !== null && !is_scalar($submittedValue)) {
+                return ['values' => [], 'error' => $def['etichetta']];
+            }
+            $raw = trim((string) ($submittedValue ?? ''));
 
             if ($def['tipo'] === 'checkbox') {
                 $values[$def['id']] = $raw !== '' ? '1' : '';

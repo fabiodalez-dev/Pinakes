@@ -6534,5 +6534,8 @@
   "Campi aggiuntivi definiti da te (es. username Telegram): compaiono nel modulo di registrazione e nel profilo utente.": "Campi aggiuntivi definiti da te (es. username Telegram): compaiono nel modulo di registrazione e nel profilo utente.",
   "Etichetta nuovo campo": "Etichetta nuovo campo",
   "Le modifiche ai campi vengono salvate insieme alle impostazioni email.": "Le modifiche ai campi vengono salvate insieme alle impostazioni email.",
-  "L'utente li gestisce dal proprio profilo.": "L'utente li gestisce dal proprio profilo."
+  "L'utente li gestisce dal proprio profilo.": "L'utente li gestisce dal proprio profilo.",
+  "Salva impostazioni registrazione": "Salva impostazioni registrazione",
+  "Impostazioni di registrazione aggiornate correttamente.": "Impostazioni di registrazione aggiornate correttamente.",
+  "Salvataggio dei campi personalizzati non riuscito. Riprova.": "Salvataggio dei campi personalizzati non riuscito. Riprova."
 }

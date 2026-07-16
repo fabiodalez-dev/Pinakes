@@ -130,6 +130,9 @@ class UsersController
 
         $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
         $indirizzo = $indirizzo !== '' ? $indirizzo : null;
+        if (!$isAdmin && $indirizzo === null && \App\Support\RegistrationFields::isRequired('indirizzo')) {
+            return $response->withHeader('Location', url('/admin/users/create?error=missing_fields'))->withStatus(302);
+        }
 
         $cod_fiscale = strtoupper(trim((string) ($data['cod_fiscale'] ?? '')));
         $cod_fiscale = $cod_fiscale !== '' ? $cod_fiscale : null;
@@ -358,6 +361,9 @@ class UsersController
 
         $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
         $indirizzo = $indirizzo !== '' ? $indirizzo : null;
+        if (!$isAdmin && $indirizzo === null && \App\Support\RegistrationFields::isRequired('indirizzo')) {
+            return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=missing_fields'))->withStatus(302);
+        }
 
         $cod_fiscale = strtoupper(trim((string) ($data['cod_fiscale'] ?? '')));
         $cod_fiscale = $cod_fiscale !== '' ? $cod_fiscale : null;

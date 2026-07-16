@@ -6534,5 +6534,8 @@
   "Campi aggiuntivi definiti da te (es. username Telegram): compaiono nel modulo di registrazione e nel profilo utente.": "Champs supplémentaires définis par vous (p. ex. nom d'utilisateur Telegram) : ils apparaissent dans le formulaire d'inscription et dans le profil utilisateur.",
   "Etichetta nuovo campo": "Libellé du nouveau champ",
   "Le modifiche ai campi vengono salvate insieme alle impostazioni email.": "Les modifications des champs sont enregistrées avec les paramètres e-mail.",
-  "L'utente li gestisce dal proprio profilo.": "L'utilisateur les gère depuis son profil."
+  "L'utente li gestisce dal proprio profilo.": "L'utilisateur les gère depuis son profil.",
+  "Salva impostazioni registrazione": "Enregistrer les paramètres d'inscription",
+  "Impostazioni di registrazione aggiornate correttamente.": "Paramètres d'inscription mis à jour avec succès.",
+  "Salvataggio dei campi personalizzati non riuscito. Riprova.": "L'enregistrement des champs personnalisés a échoué. Veuillez réessayer."
 }

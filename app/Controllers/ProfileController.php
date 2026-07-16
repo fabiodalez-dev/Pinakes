@@ -162,10 +162,15 @@ class ProfileController
             $locale = ($locale !== '' && isset($availableLocales[$locale])) ? $locale : null;
         }
 
-        // Validate required fields. The surname follows the admin toggle
-        // (issue #255); when optional it is stored as '' — the column is NOT
+        // Validate required fields. Surname/phone/address follow the admin
+        // toggles (issue #255) so a member can't blank a field the library
+        // requires. An optional surname is stored as '' — the column is NOT
         // NULL by design so display paths that CONCAT nome+cognome stay whole.
-        if (empty($nome) || ($cognome === '' && \App\Support\RegistrationFields::isRequired('cognome'))) {
+        if (empty($nome)
+            || ($cognome === '' && \App\Support\RegistrationFields::isRequired('cognome'))
+            || ($telefono === null && \App\Support\RegistrationFields::isRequired('telefono'))
+            || ($indirizzo === null && \App\Support\RegistrationFields::isRequired('indirizzo'))
+        ) {
             $profileUrl = RouteTranslator::route('profile');
             return $response->withHeader('Location', $profileUrl . '?error=required_fields')->withStatus(302);
         }
@@ -198,14 +203,30 @@ class ProfileController
             $stmt->bind_param('sssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $uid);
         }
 
-        if ($stmt->execute()) {
-            // Persist custom field values (issue #255) — best-effort: a failure
-            // here must not undo the successful profile update.
-            try {
+        // Profile row + custom field values land atomically: a failed custom
+        // value write rolls back the profile update too, so the user never
+        // sees "saved" with half the form persisted.
+        $updated = false;
+        try {
+            $db->begin_transaction();
+            $updated = $stmt->execute();
+            if ($updated) {
                 \App\Support\RegistrationFields::saveValues($db, $uid, $customValidation['values']);
-            } catch (\Throwable $e) {
-                SecureLogger::error('ProfileController: custom field save failed', ['user_id' => $uid, 'error' => $e->getMessage()]);
+                $db->commit();
+            } else {
+                $db->rollback();
             }
+        } catch (\Throwable $e) {
+            try {
+                $db->rollback();
+            } catch (\Throwable) {
+                // best-effort — never mask the original error
+            }
+            SecureLogger::error('ProfileController: profile/custom-field save failed', ['user_id' => $uid, 'error' => $e->getMessage()]);
+            $updated = false;
+        }
+
+        if ($updated) {
             // Update session data
             $_SESSION['user']['name'] = trim($nome . ' ' . $cognome);
             // Apply locale change immediately (only when locale was in the form)

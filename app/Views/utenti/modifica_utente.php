@@ -113,8 +113,8 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
             <dl class="mt-2 grid gap-2 md:grid-cols-2">
               <?php foreach ($customFieldValues as $cfv): ?>
                 <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
-                  <dt class="text-xs font-medium text-gray-500"><?= HtmlHelper::e($cfv['etichetta']) ?></dt>
-                  <dd class="text-sm text-gray-900 break-words"><?= $cfv['tipo'] === 'checkbox' ? __('Sì') : HtmlHelper::e($cfv['valore']) ?></dd>
+                  <dt class="text-xs font-medium text-gray-500"><?= htmlspecialchars($cfv['etichetta'], ENT_QUOTES, 'UTF-8') ?></dt>
+                  <dd class="text-sm text-gray-900 break-words"><?= $cfv['tipo'] === 'checkbox' ? __('Sì') : htmlspecialchars($cfv['valore'], ENT_QUOTES, 'UTF-8') ?></dd>
                 </div>
               <?php endforeach; ?>
             </dl>

@@ -192,20 +192,8 @@ class SettingsController
         }
         $repository->set('email', 'smtp_security', $encryption);
 
-        // Handle registration setting (require_admin_approval is in the same form)
-        $requireApproval = isset($data['require_admin_approval']) ? '1' : '0';
-        $repository->set('registration', 'require_admin_approval', $requireApproval);
-        ConfigStore::set('registration.require_admin_approval', (bool) $requireApproval);
-
-        // Built-in registration field requirements (issue #255)
-        foreach (\App\Support\RegistrationFields::BUILTIN_TOGGLES as $toggleKey) {
-            $flag = isset($data[$toggleKey]) ? '1' : '0';
-            $repository->set('registration', $toggleKey, $flag);
-            ConfigStore::set('registration.' . $toggleKey, (bool) $flag);
-        }
-
-        // Custom registration field definitions (issue #255)
-        $this->saveRegistrationCustomFields($db, $data);
+        // Registration settings moved to their own tab/form (issue #255):
+        // see updateRegistrationSettings().
 
         ConfigStore::set('mail.driver', $driver);
         ConfigStore::set('mail.from_email', $fromEmail);
@@ -220,6 +208,37 @@ class SettingsController
 
         $_SESSION['success_message'] = __('Impostazioni email aggiornate correttamente.');
         return $this->redirect($response, '/admin/settings?tab=email');
+    }
+
+    /**
+     * Save the Registration tab (issue #255): admin-approval flag, the
+     * built-in field requirement toggles and the custom field definitions.
+     */
+    public function updateRegistrationSettings(Request $request, Response $response, mysqli $db): Response
+    {
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware
+
+        $repository = new SettingsRepository($db);
+        $repository->ensureTables();
+
+        $requireApproval = isset($data['require_admin_approval']) ? '1' : '0';
+        $repository->set('registration', 'require_admin_approval', $requireApproval);
+        ConfigStore::set('registration.require_admin_approval', (bool) $requireApproval);
+
+        foreach (\App\Support\RegistrationFields::BUILTIN_TOGGLES as $toggleKey) {
+            $flag = isset($data[$toggleKey]) ? '1' : '0';
+            $repository->set('registration', $toggleKey, $flag);
+            ConfigStore::set('registration.' . $toggleKey, (bool) $flag);
+        }
+
+        $this->saveRegistrationCustomFields($db, $data);
+
+        // saveRegistrationCustomFields surfaces its own error flash on failure.
+        if (empty($_SESSION['error_message'])) {
+            $_SESSION['success_message'] = __('Impostazioni di registrazione aggiornate correttamente.');
+        }
+        return $this->redirect($response, '/admin/settings?tab=registration');
     }
 
     /**
@@ -250,59 +269,82 @@ class SettingsController
                 return;
             }
 
-            $rows = $data['custom_fields'] ?? [];
-            if (is_array($rows)) {
-                $update = $db->prepare(
-                    'UPDATE registrazione_campi SET etichetta = ?, tipo = ?, obbligatorio = ?, attivo = ? WHERE id = ?'
-                );
-                $delete = $db->prepare('DELETE FROM registrazione_campi WHERE id = ?');
-                if ($update === false || $delete === false) {
-                    return;
+            // All row mutations land atomically: a mid-batch failure must not
+            // leave half the definitions updated while the page reports success.
+            $db->begin_transaction();
+            try {
+                $rows = $data['custom_fields'] ?? [];
+                if (is_array($rows)) {
+                    $update = $db->prepare(
+                        'UPDATE registrazione_campi SET etichetta = ?, tipo = ?, obbligatorio = ?, attivo = ? WHERE id = ?'
+                    );
+                    $delete = $db->prepare('DELETE FROM registrazione_campi WHERE id = ?');
+                    if ($update === false || $delete === false) {
+                        throw new \RuntimeException('Unable to prepare custom field statements');
+                    }
+                    foreach ($rows as $id => $row) {
+                        $id = (int) $id;
+                        if ($id <= 0 || !is_array($row)) {
+                            continue;
+                        }
+                        if (!empty($row['delete'])) {
+                            $delete->bind_param('i', $id);
+                            if (!$delete->execute()) {
+                                throw new \RuntimeException('Custom field delete failed: ' . $delete->error);
+                            }
+                            continue;
+                        }
+                        $label = trim(strip_tags((string) ($row['etichetta'] ?? '')));
+                        $tipo = (string) ($row['tipo'] ?? 'text');
+                        if ($label === '' || mb_strlen($label) > 100
+                            || !in_array($tipo, \App\Support\RegistrationFields::TYPES, true)
+                        ) {
+                            continue;
+                        }
+                        $required = !empty($row['obbligatorio']) ? 1 : 0;
+                        $active = !empty($row['attivo']) ? 1 : 0;
+                        $update->bind_param('ssiii', $label, $tipo, $required, $active, $id);
+                        if (!$update->execute()) {
+                            throw new \RuntimeException('Custom field update failed: ' . $update->error);
+                        }
+                    }
+                    $update->close();
+                    $delete->close();
                 }
-                foreach ($rows as $id => $row) {
-                    $id = (int) $id;
-                    if ($id <= 0 || !is_array($row)) {
-                        continue;
-                    }
-                    if (!empty($row['delete'])) {
-                        $delete->bind_param('i', $id);
-                        $delete->execute();
-                        continue;
-                    }
-                    $label = trim(strip_tags((string) ($row['etichetta'] ?? '')));
-                    $tipo = (string) ($row['tipo'] ?? 'text');
-                    if ($label === '' || mb_strlen($label) > 100
-                        || !in_array($tipo, \App\Support\RegistrationFields::TYPES, true)
-                    ) {
-                        continue;
-                    }
-                    $required = !empty($row['obbligatorio']) ? 1 : 0;
-                    $active = !empty($row['attivo']) ? 1 : 0;
-                    $update->bind_param('ssiii', $label, $tipo, $required, $active, $id);
-                    $update->execute();
-                }
-                $update->close();
-                $delete->close();
-            }
 
-            $newLabel = trim(strip_tags((string) ($data['new_custom_field_label'] ?? '')));
-            $newType = (string) ($data['new_custom_field_type'] ?? 'text');
-            if ($newLabel !== '' && mb_strlen($newLabel) <= 100
-                && in_array($newType, \App\Support\RegistrationFields::TYPES, true)
-            ) {
-                $newRequired = !empty($data['new_custom_field_required']) ? 1 : 0;
-                $insert = $db->prepare(
-                    'INSERT INTO registrazione_campi (etichetta, tipo, obbligatorio, attivo, ordine)
-                     SELECT ?, ?, ?, 1, COALESCE(MAX(ordine), 0) + 1 FROM registrazione_campi'
-                );
-                if ($insert !== false) {
+                $newLabel = trim(strip_tags((string) ($data['new_custom_field_label'] ?? '')));
+                $newType = (string) ($data['new_custom_field_type'] ?? 'text');
+                if ($newLabel !== '' && mb_strlen($newLabel) <= 100
+                    && in_array($newType, \App\Support\RegistrationFields::TYPES, true)
+                ) {
+                    $newRequired = !empty($data['new_custom_field_required']) ? 1 : 0;
+                    $insert = $db->prepare(
+                        'INSERT INTO registrazione_campi (etichetta, tipo, obbligatorio, attivo, ordine)
+                         SELECT ?, ?, ?, 1, COALESCE(MAX(ordine), 0) + 1 FROM registrazione_campi'
+                    );
+                    if ($insert === false) {
+                        throw new \RuntimeException('Unable to prepare custom field insert');
+                    }
                     $insert->bind_param('ssi', $newLabel, $newType, $newRequired);
-                    $insert->execute();
+                    if (!$insert->execute()) {
+                        throw new \RuntimeException('Custom field insert failed: ' . $insert->error);
+                    }
                     $insert->close();
                 }
+                $db->commit();
+            } catch (\Throwable $inner) {
+                try {
+                    $db->rollback();
+                } catch (\Throwable) {
+                    // best-effort — surface the original error below
+                }
+                throw $inner;
             }
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('[Settings] custom registration fields save failed', ['error' => $e->getMessage()]);
+            // Surface the failure: the settings page must not claim success
+            // when the field definitions were rolled back.
+            $_SESSION['error_message'] = __('Salvataggio dei campi personalizzati non riuscito. Riprova.');
         }
     }
 
