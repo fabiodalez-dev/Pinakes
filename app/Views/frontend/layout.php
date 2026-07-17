@@ -1262,16 +1262,8 @@ $htmlLang = substr($currentLocale, 0, 2);
         <?= $additional_css ?? '' ?>
     </style>
 
-    <?php
-    // Load custom CSS from settings
-    $customCss = ConfigStore::get('advanced.custom_header_css', '');
-    $customCss = is_string($customCss) ? ContentSanitizer::normalizeExternalAssets($customCss) : $customCss;
-    if (!empty($customCss)):
-        ?>
-        <style>
-            <?= $customCss ?>
-        </style>
-    <?php endif; ?>
+    <!-- Load custom CSS from settings -->
+    <?php require __DIR__ . '/../auth/partials/custom-css.php'; ?>
 
     <?php
     // Load custom JavaScript from settings (granular by cookie category)

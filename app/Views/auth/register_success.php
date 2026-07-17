@@ -22,6 +22,7 @@ $appLogo = $appLogoPath !== '' ? url($appLogoPath) : '';
     <style>
         body { font-family: system-ui, -apple-system, sans-serif; }
     </style>
+    <?php require __DIR__ . '/partials/custom-css.php'; ?>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900">
 
