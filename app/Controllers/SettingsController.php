@@ -132,6 +132,7 @@ class SettingsController
             'social_instagram' => trim((string) ($data['social_instagram'] ?? '')),
             'social_linkedin' => trim((string) ($data['social_linkedin'] ?? '')),
             'social_bluesky' => trim((string) ($data['social_bluesky'] ?? '')),
+            'social_telegram' => trim((string) ($data['social_telegram'] ?? '')),
         ];
 
         foreach ($socialLinks as $key => $value) {
@@ -473,6 +474,7 @@ class SettingsController
             'social_instagram' => $repository->get('app', 'social_instagram', $config['social_instagram'] ?? ''),
             'social_linkedin' => $repository->get('app', 'social_linkedin', $config['social_linkedin'] ?? ''),
             'social_bluesky' => $repository->get('app', 'social_bluesky', $config['social_bluesky'] ?? ''),
+            'social_telegram' => $repository->get('app', 'social_telegram', $config['social_telegram'] ?? ''),
         ];
     }
 

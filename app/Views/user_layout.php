@@ -40,6 +40,7 @@ $socialTwitter = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('ap
 $socialInstagram = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_instagram', ''));
 $socialLinkedin = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_linkedin', ''));
 $socialBluesky = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_bluesky', ''));
+$socialTelegram = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_telegram', ''));
 $catalogRoute = route_path('catalog');
 $reservationsRoute = route_path('reservations');
 $wishlistRoute = route_path('wishlist');
@@ -1062,6 +1063,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <?php if ($socialBluesky !== ''): ?>
                             <a href="<?= htmlspecialchars($socialBluesky, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
                                     class="fa-brands fa-bluesky"></i></a>
+                        <?php endif; ?>
+                        <?php if ($socialTelegram !== ''): ?>
+                            <a href="<?= htmlspecialchars($socialTelegram, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
+                                    class="fa-brands fa-telegram"></i></a>
                         <?php endif; ?>
                     </div>
                 </div>

@@ -51,6 +51,7 @@ const SOCIALS = [
   { key: 'instagram', icon: 'fa-instagram' },
   { key: 'linkedin', icon: 'fa-linkedin' },
   { key: 'bluesky', icon: 'fa-bluesky' },
+  { key: 'telegram', icon: 'fa-telegram' },
 ];
 
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf-8');
@@ -144,7 +145,7 @@ test.describe.serial('Social links — E2E + hardening contract (26 checks)', ()
   }
 
   // ── 6: all five at once ─────────────────────────────────────────────────────
-  test('6. all five socials set at once each render their link', async ({ page }) => {
+  test('6. all six socials set at once each render their link', async ({ page }) => {
     const values = Object.fromEntries(SOCIALS.map((s) => [s.key, `https://example.com/all-${s.key}`]));
     await saveSocials(values);
     await page.goto(`${BASE}/`);
@@ -208,7 +209,7 @@ test.describe.serial('Social links — E2E + hardening contract (26 checks)', ()
   });
 
   // ── 15-26: static invariants over the touched files ─────────────────────────
-  test('15. frontend/layout.php sanitizes all five socials at load', async () => {
+  test('15. frontend/layout.php sanitizes all six socials at load', async () => {
     const src = read('app/Views/frontend/layout.php');
     for (const s of SOCIALS) {
       expect(src).toContain(`$social${cap(s.key)} = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_${s.key}'`);
@@ -223,10 +224,10 @@ test.describe.serial('Social links — E2E + hardening contract (26 checks)', ()
   test('17. frontend/layout.php escapes social hrefs with htmlspecialchars', async () => {
     const src = read('app/Views/frontend/layout.php');
     const count = (src.match(/href="<\?= htmlspecialchars\(\$social\w+, ENT_QUOTES, 'UTF-8'\) \?>"/g) || []).length;
-    expect(count).toBe(5);
+    expect(count).toBe(6);
   });
 
-  test('18. user_layout.php sanitizes all five socials at load', async () => {
+  test('18. user_layout.php sanitizes all six socials at load', async () => {
     const src = read('app/Views/user_layout.php');
     for (const s of SOCIALS) {
       expect(src).toContain(`sanitizePublicHttpUrl((string) ConfigStore::get('app.social_${s.key}'`);
@@ -236,10 +237,10 @@ test.describe.serial('Social links — E2E + hardening contract (26 checks)', ()
   test('19. user_layout.php escapes social hrefs and drops HtmlHelper::e', async () => {
     const src = read('app/Views/user_layout.php');
     expect(src).not.toMatch(/HtmlHelper::e\(\$social/);
-    expect((src.match(/htmlspecialchars\(\$social\w+, ENT_QUOTES, 'UTF-8'\)/g) || []).length).toBe(5);
+    expect((src.match(/htmlspecialchars\(\$social\w+, ENT_QUOTES, 'UTF-8'\)/g) || []).length).toBe(6);
   });
 
-  test('20. SettingsController saves all five socials', async () => {
+  test('20. SettingsController saves all six socials', async () => {
     const src = read('app/Controllers/SettingsController.php');
     for (const s of SOCIALS) expect(src).toContain(`'social_${s.key}' => trim(`);
   });
@@ -249,14 +250,14 @@ test.describe.serial('Social links — E2E + hardening contract (26 checks)', ()
     for (const s of SOCIALS) expect(src).toContain(`'social_${s.key}' => ''`);
   });
 
-  test('22. ConfigStore whitelists all five socials in the DB→runtime mapping', async () => {
+  test('22. ConfigStore whitelists all six socials in the DB→runtime mapping', async () => {
     const src = read('app/Support/ConfigStore.php');
     const m = src.match(/\$socialKeys\s*=\s*\[([^\]]+)\]/);
     expect(m).not.toBeNull();
     for (const s of SOCIALS) expect(m[1]).toContain(`'social_${s.key}'`);
   });
 
-  test('23. FrontendController sanitizes and adds all five socials to Schema.org sameAs', async () => {
+  test('23. FrontendController sanitizes and adds all six socials to Schema.org sameAs', async () => {
     const src = read('app/Controllers/FrontendController.php');
     for (const s of SOCIALS) {
       const variable = `$social${cap(s.key)}`;
