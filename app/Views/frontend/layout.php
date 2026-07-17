@@ -16,11 +16,11 @@ $appLogo = $brandingLogo !== '' ? url($brandingLogo) : '';
 $appInitial = mb_strtoupper(mb_substr($appName, 0, 1));
 $footerDescription = (string) ConfigStore::get('app.footer_description', __('Il tuo sistema Pinakes per catalogare, gestire e condividere la tua collezione libraria.'));
 
-$socialFacebook = (string) ConfigStore::get('app.social_facebook', '');
-$socialTwitter = (string) ConfigStore::get('app.social_twitter', '');
-$socialInstagram = (string) ConfigStore::get('app.social_instagram', '');
-$socialLinkedin = (string) ConfigStore::get('app.social_linkedin', '');
-$socialBluesky = (string) ConfigStore::get('app.social_bluesky', '');
+$socialFacebook = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_facebook', ''));
+$socialTwitter = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_twitter', ''));
+$socialInstagram = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_instagram', ''));
+$socialLinkedin = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_linkedin', ''));
+$socialBluesky = HtmlHelper::sanitizePublicHttpUrl((string) ConfigStore::get('app.social_bluesky', ''));
 $catalogRoute = route_path('catalog');
 $reservationsRoute = route_path('reservations');
 $wishlistRoute = route_path('wishlist');
@@ -1655,23 +1655,23 @@ $htmlLang = substr($currentLocale, 0, 2);
                     <h5><?= __("Seguici") ?></h5>
                     <div class="d-flex gap-3 social-links">
                         <?php if ($socialFacebook !== ''): ?>
-                            <a href="<?= HtmlHelper::e($socialFacebook) ?>" target="_blank" rel="noopener noreferrer"><i
+                            <a href="<?= htmlspecialchars($socialFacebook, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
                                     class="fab fa-facebook"></i></a>
                         <?php endif; ?>
                         <?php if ($socialTwitter !== ''): ?>
-                            <a href="<?= HtmlHelper::e($socialTwitter) ?>" target="_blank" rel="noopener noreferrer"><i
+                            <a href="<?= htmlspecialchars($socialTwitter, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
                                     class="fab fa-twitter"></i></a>
                         <?php endif; ?>
                         <?php if ($socialInstagram !== ''): ?>
-                            <a href="<?= HtmlHelper::e($socialInstagram) ?>" target="_blank" rel="noopener noreferrer"><i
+                            <a href="<?= htmlspecialchars($socialInstagram, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
                                     class="fab fa-instagram"></i></a>
                         <?php endif; ?>
                         <?php if ($socialLinkedin !== ''): ?>
-                            <a href="<?= HtmlHelper::e($socialLinkedin) ?>" target="_blank" rel="noopener noreferrer"><i
+                            <a href="<?= htmlspecialchars($socialLinkedin, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
                                     class="fab fa-linkedin"></i></a>
                         <?php endif; ?>
                         <?php if ($socialBluesky !== ''): ?>
-                            <a href="<?= HtmlHelper::e($socialBluesky) ?>" target="_blank" rel="noopener noreferrer"><i
+                            <a href="<?= htmlspecialchars($socialBluesky, ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener noreferrer"><i
                                     class="fa-brands fa-bluesky"></i></a>
                         <?php endif; ?>
                     </div>

@@ -1529,9 +1529,13 @@ If Pinakes helps your library, please ⭐ the repository!
 
 ---
 
+## Docker
+
+- **Official image — [`fabiodalez/pinakes`](https://hub.docker.com/r/fabiodalez/pinakes)** on Docker Hub (also on GHCR as `ghcr.io/fabiodalez-dev/pinakes-docker`). Single container (Apache + PHP 8.2), auto-built from each release ZIP so it's byte-for-byte the artifact end users deploy. Source, `docker-compose.yml` and docs: **[fabiodalez-dev/pinakes-docker](https://github.com/fabiodalez-dev/pinakes-docker)**. The code is baked into the image (read-only), so you update by pulling the new image: `docker compose pull && docker compose up -d` — your database and the `storage`/`uploads` volumes are preserved.
+
 ## Community Projects
 
-- **[jbenamy/pinakes-docker](https://github.com/jbenamy/pinakes-docker)** — Community-maintained Docker image. This is an independent project not managed by the Pinakes team — please refer to its own documentation for setup and support.
+- **[jbenamy/pinakes-docker](https://github.com/jbenamy/pinakes-docker)** — Community-maintained Docker image that keeps the code in a writable volume (so the in-app "Updates" button works there too). This is an independent project not managed by me — please refer to its own documentation for setup and support.
 
 ---
 

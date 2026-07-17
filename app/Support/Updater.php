@@ -2249,13 +2249,14 @@ class Updater
             $unwritable = $this->verifyWritableTargets($sourcePath, $this->rootPath);
             if ($unwritable !== []) {
                 $this->debugLog('ERROR', 'Preflight: percorsi non scrivibili', ['paths' => $unwritable]);
-                // On the Docker image the app files belong to the image and are not
-                // writable by the web-server user — the in-app updater is the wrong
-                // tool there (its changes would live only in the ephemeral container
-                // layer anyway). Point the operator at the image-pull path instead of
-                // the generic permission error.
+                // This branch is reached only AFTER verifyWritableTargets already
+                // found unwritable app files; isRunningInContainer() just refines
+                // the MESSAGE. A community image that mounts the code from a
+                // writable volume passes the writability check and never lands
+                // here — so the wording must state the real condition (files not
+                // writable) rather than presume "you're on the Docker image".
                 if ($this->isRunningInContainer()) {
-                    throw new Exception(__('Sembra che tu stia eseguendo l\'immagine Docker: i file dell\'applicazione appartengono all\'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l\'utente del web server è proprietario dei file.'));
+                    throw new Exception(__('I file dell\'applicazione non sono scrivibili dall\'utente del web server e Pinakes gira dentro un container. Sull\'immagine ufficiale (fabiodalez/pinakes) il codice è incluso nell\'immagine e in sola lettura per scelta: aggiorna scaricando la nuova immagine con «docker compose pull && docker compose up -d» (il database e i volumi storage/uploads restano al sicuro). Se usi un\'immagine community che monta il codice da un volume scrivibile questo pulsante funziona normalmente — se vedi questo messaggio quel volume è al momento in sola lettura, controlla il suo mount.'));
                 }
                 throw new Exception(sprintf(
                     __('Aggiornamento annullato prima di ogni modifica: il processo PHP non può scrivere in questi percorsi: %s. Correggi i permessi (proprietario/scrittura per l\'utente del web server) e riprova, oppure esegui l\'aggiornamento da riga di comando come proprietario dei file: php scripts/manual-upgrade.php <zip-release>'),
