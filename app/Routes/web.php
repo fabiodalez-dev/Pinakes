@@ -571,6 +571,14 @@ return function (App $app): void {
         return $controller->updateEmailSettings($request, $response, $db);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
+    $app->post('/admin/settings/email/test', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new SettingsController();
+        return $controller->sendTestEmail($request, $response, $db);
+    })->add(new \App\Middleware\RateLimitMiddleware(5, 60, 'email_test')) // triggers an external SMTP handshake — throttle like the other costly admin routes
+      ->add(new CsrfMiddleware())
+      ->add(new AdminAuthMiddleware());
+
     $app->post('/admin/settings/contacts', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');
         $controller = new SettingsController();

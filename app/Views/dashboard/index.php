@@ -3,6 +3,7 @@
 /** @var array $calendarEvents */
 use App\Support\ConfigStore;
 $isCatalogueMode = ConfigStore::isCatalogueMode();
+$applicationToday = \App\Support\DateHelper::today();
 ?>
 <!-- Minimal White Dashboard Interface -->
 <div class="min-h-screen bg-gray-50 py-6">
@@ -212,7 +213,7 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           <?php foreach ($pickupLoans as $loan): ?>
             <?php
-            $isExpired = !empty($loan['pickup_deadline']) && $loan['pickup_deadline'] < date('Y-m-d');
+            $isExpired = !empty($loan['pickup_deadline']) && $loan['pickup_deadline'] < $applicationToday;
             $cardBg = $isExpired ? 'bg-red-50 border-red-200' : 'bg-white border-gray-200';
             ?>
             <div class="flex flex-col <?= $cardBg ?> border rounded-xl overflow-hidden hover:shadow-md transition-shadow" data-pickup-card>
@@ -650,14 +651,35 @@ $isCatalogueMode = ConfigStore::isCatalogueMode();
                   <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <?php echo $p['data_prestito'] ? format_date($p['data_prestito']) : ''; ?>
                   </td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <?php
+                    // Red-highlight the due date when it is today or past — the "act
+                    // now" cue Nikola asked for, matching the Physical Copies list.
+                    // The date turning red is a visibility signal; it does NOT mean the
+                    // loan is formally late (a loan due today is still on time).
+                    $dueSoonOrOverdue = !empty($p['data_scadenza'])
+                        && (string)$p['data_scadenza'] <= $applicationToday
+                        && (int)($p['attivo'] ?? 0) === 1
+                        && in_array($p['stato'] ?? '', ['in_corso', 'in_ritardo'], true);
+                    // The status badge reflects the REAL loan state (in_ritardo is set
+                    // by the maintenance overdue-updater), so a due-today loan still
+                    // reads "In corso" while a genuinely late one reads "In Ritardo".
+                    $isLate = ($p['stato'] ?? '') === 'in_ritardo';
+                  ?>
+                  <td class="px-6 py-4 whitespace-nowrap text-sm <?= $dueSoonOrOverdue ? 'text-red-600 font-semibold' : 'text-gray-500' ?>">
                     <?php echo $p['data_scadenza'] ? format_date($p['data_scadenza']) : ''; ?>
                   </td>
                   <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      <i class="fas fa-clock mr-1"></i>
-                      <?= __("In corso") ?>
-                    </span>
+                    <?php if ($isLate): ?>
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        <?= __("In Ritardo") ?>
+                      </span>
+                    <?php else: ?>
+                      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <i class="fas fa-clock mr-1"></i>
+                        <?= __("In corso") ?>
+                      </span>
+                    <?php endif; ?>
                   </td>
                 </tr>
               <?php endforeach; ?>

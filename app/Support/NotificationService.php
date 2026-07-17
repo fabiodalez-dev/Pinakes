@@ -366,7 +366,7 @@ class NotificationService {
     }
 
     /**
-     * Invia avvisi di scadenza prestiti (3 giorni prima)
+     * Invia avvisi per prestiti in scadenza entro la finestra configurata.
      * Uses atomic mark-then-send pattern to prevent duplicate notifications
      */
     public function sendLoanExpirationWarnings(): int {
@@ -374,14 +374,17 @@ class NotificationService {
 
         try {
             // Get configured days before expiry warning (default: 3)
-            $daysBeforeWarning = (int)ConfigStore::get('advanced.days_before_expiry_warning', 3);
+            $daysBeforeWarning = max(0, (int)ConfigStore::get('advanced.days_before_expiry_warning', 3));
 
             // "Oggi" nel timezone applicativo come parametro bound (M9): CURDATE()
             // dipende dalla session timezone del client DB, che differiva tra cron
             // (UTC forzato) e web (nessuna impostazione).
             $today = DateHelper::today();
 
-            // Get loans expiring in X days
+            // Include every still-unnotified loan from today through the configured
+            // warning horizon. An exact "today + X" match misses short loans created
+            // inside that horizon (especially loans created with due date today).
+            // Overdue loans remain handled separately below by the overdue workflow.
             $stmt = $this->db->prepare("
                 SELECT p.id, p.data_scadenza, l.titolo as libro_titolo,
                        CONCAT(u.nome, ' ', u.cognome) as utente_nome, u.email as utente_email,
@@ -391,10 +394,10 @@ class NotificationService {
                 JOIN utenti u ON p.utente_id = u.id
                 WHERE p.stato = 'in_corso'
                   AND p.attivo = 1
-                  AND p.data_scadenza = DATE_ADD(?, INTERVAL ? DAY)
+                  AND p.data_scadenza BETWEEN ? AND DATE_ADD(?, INTERVAL ? DAY)
                   AND (p.warning_sent IS NULL OR p.warning_sent = 0)
             ");
-            $stmt->bind_param('ssi', $today, $today, $daysBeforeWarning);
+            $stmt->bind_param('sssi', $today, $today, $today, $daysBeforeWarning);
             $stmt->execute();
             $result = $stmt->get_result();
 
@@ -404,6 +407,16 @@ class NotificationService {
                 $loans[] = $loan;
             }
             $stmt->close();
+
+            // The email template renders in the installation locale (see
+            // sendWithRetry), so resolve the "oggi" label in that locale too — not
+            // the caller's session locale (this runs from the admin-login
+            // maintenance path as well as cron). Computed once for the whole batch.
+            $installLocale = \App\Support\I18n::getInstallationLocale();
+            $sessionLocale = \App\Support\I18n::getLocale();
+            \App\Support\I18n::setLocale($installLocale);
+            $todayLabel = __('oggi');
+            \App\Support\I18n::setLocale($sessionLocale);
 
             foreach ($loans as $loan) {
                 // ATOMIC: Mark warning as sent BEFORE sending email
@@ -422,21 +435,28 @@ class NotificationService {
                     continue;
                 }
 
+                // "Giorni rimasti: 0" reads wrong in the email — show "oggi" for a
+                // due-today loan, the number of days otherwise (matches the in-app
+                // notification wording below).
+                $daysRemaining = (int)$loan['giorni_rimasti'];
                 $variables = [
                     'utente_nome' => $loan['utente_nome'],
                     'libro_titolo' => $loan['libro_titolo'],
                     'data_scadenza' => $this->formatEmailDate($loan['data_scadenza']),
-                    'giorni_rimasti' => $loan['giorni_rimasti']
+                    'giorni_rimasti' => $daysRemaining === 0 ? $todayLabel : (string)$daysRemaining
                 ];
 
                 $emailSent = $this->sendWithRetry($loan['utente_email'], 'loan_expiring_warning', $variables);
 
                 if ($emailSent) {
                     // Create in-app notification for expiring loan
+                    $notificationMessage = $daysRemaining === 0
+                        ? sprintf(__('"%s" prestato a %s scade oggi'), $loan['libro_titolo'], $loan['utente_nome'])
+                        : sprintf(__('"%s" prestato a %s scade fra %d giorni'), $loan['libro_titolo'], $loan['utente_nome'], $daysRemaining);
                     $this->createNotification(
                         'general',
                         __('Prestito in scadenza'),
-                        sprintf(__('"%s" prestato a %s scade fra %d giorni'), $loan['libro_titolo'], $loan['utente_nome'], (int)$loan['giorni_rimasti']),
+                        $notificationMessage,
                         '/admin/loans',
                         (int)$loan['id']
                     );

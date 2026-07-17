@@ -72,6 +72,17 @@ class SettingsRepository
     }
 
     /**
+     * Days-before-expiry warning horizon (Settings → Advanced). Zero is a valid
+     * value meaning "today only"; negative/corrupt values clamp to 0. Shared by the
+     * web reminders (NotificationService) and the mobile-api due-soon feed/push so
+     * the two can never diverge on the setting key, fallback or clamp.
+     */
+    public function daysBeforeExpiryWarning(): int
+    {
+        return max(0, (int)($this->get('advanced', 'days_before_expiry_warning', '3') ?? 3));
+    }
+
+    /**
      * @return array<string,string>
      */
     public function getCategory(string $category): array

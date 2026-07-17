@@ -623,6 +623,34 @@ test.describe.serial('Email Notifications E2E', () => {
     dbQuery(`DELETE FROM prestiti WHERE id = ${loanId}`);
   });
 
+  test('B.9b — Loan due today receives the expiration warning', async () => {
+    await clearMailpit();
+
+    const userId = dbQuery(`SELECT id FROM utenti WHERE email = '${TEST_USER_EMAIL}' LIMIT 1`);
+    const bookId = dbQuery("SELECT id FROM libri WHERE deleted_at IS NULL LIMIT 1");
+    const today = todayISO();
+    const startDate = dateOffset(-1);
+    const loanId = dbQuery(`INSERT INTO prestiti (libro_id, utente_id, stato, data_prestito, data_scadenza, attivo, warning_sent, overdue_notification_sent, created_at)
+             VALUES (${bookId}, ${userId}, 'in_corso', '${startDate}', '${today}', 1, 0, 0, NOW()); SELECT LAST_INSERT_ID()`);
+
+    await withAdminPage(browserRef, async (page) => {
+      await page.goto(`${BASE}/admin/integrity`, { waitUntil: 'domcontentloaded' });
+      const csrfToken = await getCsrfToken(page);
+      const maintenanceRes = await page.request.post(`${BASE}/admin/maintenance/perform`, {
+        form: { csrf_token: csrfToken || '' },
+      });
+      expect(maintenanceRes.status()).toBeLessThan(500);
+    });
+
+    const warningMail = await waitForMail(`to:${TEST_USER_EMAIL}`);
+    expect(warningMail).toBeTruthy();
+    const msg = await getMessage(warningMail.ID);
+    expect(msg.Subject.toLowerCase()).toMatch(/scad|expir|promemoria|warning/);
+    expect(dbQuery(`SELECT warning_sent FROM prestiti WHERE id = ${loanId}`)).toBe('1');
+
+    dbQuery(`DELETE FROM prestiti WHERE id = ${loanId}`);
+  });
+
   // ── B.10 + B.11: Loan overdue (user + admin) ──────────────────
   test('B.10+B.11 — Overdue loan notifications (user + admin)', async () => {
     await clearMailpit();

@@ -5430,6 +5430,7 @@
   "Prenotazione annullata": "Réservation annulée",
   "Inviata all'utente quando una prenotazione viene annullata dall'amministrazione.": "Envoyée à l'utilisateur lorsqu'une réservation est annulée par l'administration.",
   "\"%s\" prestato a %s scade fra %d giorni": "\"%s\" emprunté par %s arrive à échéance dans %d jours",
+  "\"%s\" prestato a %s scade oggi": "\"%s\" emprunté par %s arrive à échéance aujourd'hui",
   "MaintenanceService claim cooldown fallito": "MaintenanceService échec du claim du cooldown",
   "MaintenanceService errore recupero notifiche prenotazione": "MaintenanceService erreur lors de la récupération des notifications de réservation",
   "La data di inizio non può essere nel passato": "La date de début ne peut pas être dans le passé",
@@ -6525,5 +6526,19 @@
   "Spaziatura": "Espacement",
   "Margine interno (mm)": "Marge intérieure (mm)",
   "Il contenuto si adatta automaticamente alle dimensioni dell'etichetta. Aggiungi un margine interno extra per rifinire il layout.": "Le contenu s'adapte automatiquement à la taille de l'étiquette. Ajoutez une marge intérieure supplémentaire pour affiner la mise en page.",
-  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "Il semble que vous utilisiez l'image Docker : les fichiers de l'application appartiennent à l'image et ne peuvent pas être modifiés depuis ce bouton. Mettez à jour en déplaçant le conteneur vers la nouvelle image avec « docker compose pull && docker compose up -d » (vos données dans la base et dans les volumes storage/uploads restent en sécurité). Le bouton de mise à jour est prévu pour les installations classiques/hébergement mutualisé où l'utilisateur du serveur web est propriétaire des fichiers."
+  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "Il semble que vous utilisiez l'image Docker : les fichiers de l'application appartiennent à l'image et ne peuvent pas être modifiés depuis ce bouton. Mettez à jour en déplaçant le conteneur vers la nouvelle image avec « docker compose pull && docker compose up -d » (vos données dans la base et dans les volumes storage/uploads restent en sécurité). Le bouton de mise à jour est prévu pour les installations classiques/hébergement mutualisé où l'utilisateur du serveur web est propriétaire des fichiers.",
+  "Nessun destinatario: inserisci un indirizzo email o assicurati che il tuo account admin ne abbia uno.": "Aucun destinataire : saisissez une adresse e-mail ou assurez-vous que votre compte admin en possède une.",
+  "Email di prova inviata a %s. Controlla la casella (anche lo spam).": "E-mail de test envoyé à %s. Vérifiez la boîte de réception (et les spams).",
+  "Invio fallito: %s": "Échec de l'envoi : %s",
+  "Indirizzo email del destinatario non valido.": "Adresse e-mail du destinataire non valide.",
+  "Email di prova da Pinakes": "E-mail de test de Pinakes",
+  "Questa è un'email di prova inviata dalle impostazioni di Pinakes. Se la ricevi, la configurazione email funziona.": "Ceci est un e-mail de test envoyé depuis les paramètres de Pinakes. Si vous le recevez, votre configuration e-mail fonctionne.",
+  "La funzione mail() di PHP ha restituito un errore. Verifica la configurazione del server di posta.": "La fonction mail() de PHP a renvoyé une erreur. Vérifiez la configuration du serveur de messagerie.",
+  "Prova invio": "Test d'envoi",
+  "Invia un'email di prova con le impostazioni attuali e vedi subito se funziona o qual è l'errore. Salva prima le impostazioni.": "Envoyez un e-mail de test avec les paramètres actuels et voyez immédiatement si cela fonctionne ou quelle est l'erreur. Enregistrez d'abord les paramètres.",
+  "Destinatario (vuoto = la tua email admin)": "Destinataire (vide = votre e-mail admin)",
+  "Invia email di prova": "Envoyer un e-mail de test",
+  "Invio in corso…": "Envoi en cours…",
+  "Richiesta non riuscita. Riprova.": "La requête a échoué. Réessayez.",
+  "oggi": "aujourd'hui"
 }

@@ -499,8 +499,51 @@ test.describe('Loans envelope', () => {
             expect(mine, 'seeded loan present in active[]').toBeTruthy();
             expect(mine.status).toBe('in_corso');
             expect(mine.due_at, 'due_at present on active loan').toBeTruthy();
+            expect(mine.due_attention, 'future due date needs no urgent styling').toBe(false);
         } finally {
             dbExec(`DELETE FROM prestiti WHERE id = ${loanId}`);
+        }
+    });
+
+    test('20b) a loan due today keeps status=in_corso but exposes due_attention=true', async ({ request }) => {
+        const book = pickAvailableBook();
+        dbExec(`
+            INSERT INTO prestiti (libro_id, utente_id, copia_id, data_prestito, data_scadenza, stato, attivo, origine, renewals)
+            VALUES (${book}, ${ctx.adminId}, NULL, ${sqlStr(todayYmd())}, ${sqlStr(todayYmd())}, 'in_corso', 1, 'diretto', 0)`);
+        const loanId = dbInt(`SELECT id FROM prestiti WHERE libro_id = ${book} AND utente_id = ${ctx.adminId} ORDER BY id DESC LIMIT 1`);
+        try {
+            const active = (await jsonOf(await call(request, 'GET', '/me/loans', { token: ctx.adminToken }))).data.active;
+            const mine = active.find((l) => l.id === loanId);
+            expect(mine, 'due-today loan present in active[]').toBeTruthy();
+            expect(mine.status).toBe('in_corso');
+            expect(mine.due_attention).toBe(true);
+        } finally {
+            dbExec(`DELETE FROM prestiti WHERE id = ${loanId}`);
+        }
+    });
+
+    test('20c) notification feed honors advanced.days_before_expiry_warning', async ({ request }) => {
+        const oldValue = dbScalar("SELECT setting_value FROM system_settings WHERE category='advanced' AND setting_key='days_before_expiry_warning' LIMIT 1");
+        const hadValue = dbInt("SELECT COUNT(*) FROM system_settings WHERE category='advanced' AND setting_key='days_before_expiry_warning'") > 0;
+        const book = pickAvailableBook();
+        dbExec(`
+            INSERT INTO system_settings (category, setting_key, setting_value)
+            VALUES ('advanced', 'days_before_expiry_warning', '0')
+            ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`);
+        dbExec(`
+            INSERT INTO prestiti (libro_id, utente_id, copia_id, data_prestito, data_scadenza, stato, attivo, origine, renewals)
+            VALUES (${book}, ${ctx.adminId}, NULL, ${sqlStr(todayYmd())}, ${sqlStr(plusDays(1))}, 'in_corso', 1, 'diretto', 0)`);
+        const loanId = dbInt(`SELECT id FROM prestiti WHERE libro_id = ${book} AND utente_id = ${ctx.adminId} ORDER BY id DESC LIMIT 1`);
+        try {
+            const feed = (await jsonOf(await call(request, 'GET', '/me/notifications', { token: ctx.adminToken }))).data;
+            expect(feed.some((n) => n.id === `loan:${loanId}`), 'zero-day horizon includes today only').toBe(false);
+        } finally {
+            dbExec(`DELETE FROM prestiti WHERE id = ${loanId}`);
+            if (hadValue) {
+                dbExec(`UPDATE system_settings SET setting_value = ${sqlStr(oldValue)} WHERE category='advanced' AND setting_key='days_before_expiry_warning'`);
+            } else {
+                dbExec("DELETE FROM system_settings WHERE category='advanced' AND setting_key='days_before_expiry_warning'");
+            }
         }
     });
 

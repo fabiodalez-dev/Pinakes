@@ -28,6 +28,7 @@ function getStatusBadge($status) {
             return "<span class='$baseClasses bg-gray-100 text-gray-800'><i class='fas fa-question-circle mr-2'></i>" . __("Sconosciuto") . "</span>";
     }
 }
+$applicationToday = \App\Support\DateHelper::today();
 ?>
 
 <!-- Modern Loans Management Interface -->
@@ -323,6 +324,7 @@ function getStatusBadge($status) {
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Libro') ?></th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Utente') ?></th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Date') ?></th>
+                        <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Scadenza') ?></th>
                         <th scope="col" class="px-6 py-3 text-center font-medium"><?= __('Stato') ?></th>
                         <th scope="col" class="px-6 py-3 text-center font-medium"><?= __('PDF') ?></th>
                         <th scope="col" class="px-6 py-3 text-right font-medium"><?= __('Azioni') ?></th>
@@ -331,7 +333,7 @@ function getStatusBadge($status) {
                 <tbody class="divide-y divide-slate-200">
                     <?php if (empty($prestiti)): ?>
                         <tr>
-                            <td colspan="6" class="text-center py-10 text-gray-500">
+                            <td colspan="7" class="text-center py-10 text-gray-500">
                                 <i class="fas fa-folder-open fa-2x mb-2"></i>
                                 <p><?= __("Nessun prestito trovato.") ?></p>
                             </td>
@@ -348,12 +350,18 @@ function getStatusBadge($status) {
                                     <div class="text-gray-500"><?php echo htmlspecialchars($prestito['utente_email'] ?? 'N/D'); ?></div>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-gray-700">
-                                    <div>
-                                        <span class="font-semibold"><?= __("Prestito:") ?></span> <?= format_date($prestito['data_prestito'], false, '/') ?>
-                                    </div>
-                                    <div>
-                                        <span class="font-semibold"><?= __("Scadenza:") ?></span> <?= format_date($prestito['data_scadenza'], false, '/') ?>
-                                    </div>
+                                    <?= format_date($prestito['data_prestito'], false, '/') ?>
+                                </td>
+                                <?php
+                                    $isDueNowOrOverdue = !empty($prestito['data_scadenza'])
+                                        && (string)$prestito['data_scadenza'] <= $applicationToday
+                                        && (int)($prestito['attivo'] ?? 0) === 1
+                                        && in_array($prestito['stato'] ?? '', ['in_corso', 'in_ritardo'], true);
+                                ?>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="<?= $isDueNowOrOverdue ? 'text-red-600 font-semibold' : 'text-gray-700' ?>">
+                                        <?= format_date($prestito['data_scadenza'], false, '/') ?>
+                                    </span>
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-center">
                                     <?php echo getStatusBadge($prestito['stato']); ?>
@@ -421,6 +429,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     let currentStatusFilter = '';
+    const applicationToday = <?= json_encode($applicationToday, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
 
     // Initialize DataTable
     const table = new DataTable('#prestiti-table', {
@@ -456,6 +465,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 render: function(data, type, row) {
                     const dataPrestito = data ? formatDateLocale(data) : window.__('N/D');
                     return `<div class="text-gray-700">${dataPrestito}</div>`;
+                }
+            },
+            {
+                data: 'data_scadenza',
+                render: function(data, type, row) {
+                    if (!data) {
+                        return `<span class="text-gray-400">${window.__('N/D')}</span>`;
+                    }
+                    // Same red-highlight rule as the Physical Copies list: an active
+                    // loan (in_corso/in_ritardo) whose due date is today or past.
+                    // Compare against the application's configured timezone, not
+                    // the browser or PHP process timezone.
+                    const isDueNowOrOverdue = data <= applicationToday && Number(row.attivo) === 1 &&
+                        (row.stato === 'in_corso' || row.stato === 'in_ritardo');
+                    const cls = isDueNowOrOverdue ? 'text-red-600 font-semibold' : 'text-gray-700';
+                    return `<span class="${cls}">${formatDateLocale(data)}</span>`;
                 }
             },
             {
@@ -506,13 +531,8 @@ document.addEventListener('DOMContentLoaded', function() {
                             <i class="fas fa-eye w-4 h-4"></i>
                         </a>`;
                     // Show "Conferma Ritiro" button for da_ritirare OR prenotato with today's date
-                    // Use local date (not UTC) to correctly compare with server dates
-                    const now = new Date();
-                    const today = now.getFullYear() + '-' +
-                        String(now.getMonth() + 1).padStart(2, '0') + '-' +
-                        String(now.getDate()).padStart(2, '0');
                     const isReadyForPickup = row.stato === 'da_ritirare' ||
-                        (row.stato === 'prenotato' && row.data_prestito && row.data_prestito <= today);
+                        (row.stato === 'prenotato' && row.data_prestito && row.data_prestito <= applicationToday);
                     if (isReadyForPickup) {
                         actions += `<button type="button" onclick="confirmPickup(${safeId})" class="p-2 text-amber-600 hover:bg-amber-100 rounded-full transition-colors" title="${window.__('Conferma Ritiro')}">
                             <i class="fas fa-box-open w-4 h-4"></i>

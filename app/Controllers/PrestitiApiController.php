@@ -109,13 +109,14 @@ class PrestitiApiController
         $orderDir = 'DESC';
 
         // Map column index to database column
-        // 0: libro, 1: utente, 2: data_prestito, 3: stato, 4: actions
+        // 0: libro, 1: utente, 2: data_prestito, 3: data_scadenza,
+        // 4: stato; columns 5 (PDF) and 6 (actions) are not orderable.
         $columnMap = [
             0 => 'l.titolo',       // Libro
             1 => 'utente',         // Utente (computed column)
             2 => 'p.data_prestito',// Data Prestito
-            3 => 'p.stato',        // Stato
-            4 => 'p.id'            // Actions (fallback to id)
+            3 => 'p.data_scadenza',// Scadenza
+            4 => 'p.stato'         // Stato
         ];
 
         // Parse order parameter from DataTables
@@ -135,7 +136,7 @@ class PrestitiApiController
         $param_types .= 'ii';
 
         $sql_prepared = "SELECT p.id, l.titolo AS libro, CONCAT(u.nome,' ',u.cognome) AS utente,
-                       p.data_prestito, p.data_restituzione, p.attivo, p.stato,
+                       p.data_prestito, p.data_scadenza, p.data_restituzione, p.attivo, p.stato,
                        CONCAT(staff.nome,' ',staff.cognome) AS processed_by
                 $base $where_prepared
                 ORDER BY $orderColumn $orderDir LIMIT ?, ?";
@@ -163,6 +164,7 @@ class PrestitiApiController
                 'libro' => $r['libro'] ?? '',
                 'utente' => $r['utente'] ?? '',
                 'data_prestito' => $r['data_prestito'] ?? '',
+                'data_scadenza' => $r['data_scadenza'] ?? '',
                 'data_restituzione' => $r['data_restituzione'] ?? '',
                 'processed_by' => $r['processed_by'] ?? '',
                 'attivo' => (int)$r['attivo'],

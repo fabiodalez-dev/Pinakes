@@ -320,6 +320,19 @@ $activeTab = $activeTab ?? 'general';
             </label>
           </div>
 
+          <div class="border-t border-gray-200 pt-5">
+            <h3 class="text-sm font-semibold text-gray-900 uppercase tracking-wide"><?= __("Prova invio") ?></h3>
+            <p class="text-sm text-gray-500 mt-1 mb-3"><?= __("Invia un'email di prova con le impostazioni attuali e vedi subito se funziona o qual è l'errore. Salva prima le impostazioni.") ?></p>
+            <div class="flex flex-col sm:flex-row sm:items-center gap-3">
+              <input type="email" id="test_email" placeholder="<?= __('Destinatario (vuoto = la tua email admin)') ?>" class="flex-1 rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4">
+              <button type="button" id="btn-test-email" class="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-gray-100 text-gray-900 text-sm font-semibold hover:bg-gray-200 transition-colors whitespace-nowrap">
+                <i class="fas fa-paper-plane"></i>
+                <?= __("Invia email di prova") ?>
+              </button>
+            </div>
+            <p id="test-email-result" class="mt-3 text-sm hidden"></p>
+          </div>
+
           <div class="flex justify-end">
             <button type="submit" class="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-semibold hover:bg-gray-700 transition-colors">
               <i class="fas fa-save"></i>
@@ -327,6 +340,44 @@ $activeTab = $activeTab ?? 'general';
             </button>
           </div>
         </form>
+        <script>
+          (function () {
+            var btn = document.getElementById('btn-test-email');
+            if (!btn) { return; }
+            var out = document.getElementById('test-email-result');
+            var csrf = document.querySelector('section[data-settings-panel="email"] input[name="csrf_token"]');
+            btn.addEventListener('click', function () {
+              var to = (document.getElementById('test_email') || {}).value || '';
+              btn.disabled = true;
+              var original = btn.innerHTML;
+              btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> ' + <?= json_encode(__("Invio in corso…"), JSON_HEX_TAG) ?>;
+              out.className = 'mt-3 text-sm text-gray-500';
+              out.textContent = '';
+              var body = 'test_email=' + encodeURIComponent(to);
+              if (csrf) { body += '&csrf_token=' + encodeURIComponent(csrf.value); }
+              // Client-side timeout: if the SMTP handshake stalls the request never
+              // settles, so without this the button would stay disabled with the
+              // spinner forever. AbortController rejects the fetch -> catch -> finally.
+              var controller = new AbortController();
+              var timeoutId = window.setTimeout(function () { controller.abort(); }, 30000);
+              fetch(<?= json_encode(url('/admin/settings/email/test'), JSON_HEX_TAG) ?>, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+                body: body,
+                signal: controller.signal
+              }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (res) {
+                  out.className = 'mt-3 text-sm ' + (res.j.success ? 'text-green-700' : 'text-red-700');
+                  out.textContent = res.j.message || (res.j.success ? <?= json_encode(__('Operazione completata'), JSON_HEX_TAG) ?> : <?= json_encode(__('Errore'), JSON_HEX_TAG) ?>);
+                })
+                .catch(function () {
+                  out.className = 'mt-3 text-sm text-red-700';
+                  out.textContent = <?= json_encode(__("Richiesta non riuscita. Riprova."), JSON_HEX_TAG) ?>;
+                })
+                .finally(function () { window.clearTimeout(timeoutId); btn.disabled = false; btn.innerHTML = original; });
+            });
+          })();
+        </script>
       </section>
 
       <!-- Email Templates -->

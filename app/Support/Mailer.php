@@ -44,10 +44,12 @@ final class Mailer
         $fromName  = (string)ConfigStore::get('mail.from_name', 'Biblioteca');
         $driver    = (string)ConfigStore::get('mail.driver', 'mail');
 
-        if ($driver === 'smtp') {
-            return self::sendSmtp($to, $subject, $htmlBody, $textBody, $fromEmail, $fromName);
-        }
-        if ($driver === 'phpmailer') {
+        // Both 'smtp' and 'phpmailer' go through PHPMailer. It verifies the SMTP
+        // handshake, AUTH and recipient and fails loudly — unlike the old hand-
+        // rolled SMTP path, which never checked server replies and could report
+        // success on a silently-rejected message (the "SMTP looks fine but no mail
+        // arrives" class of bug).
+        if ($driver === 'smtp' || $driver === 'phpmailer') {
             return self::sendPHPMailer($to, $subject, $htmlBody, $textBody, $fromEmail, $fromName);
         }
         return self::sendMail($to, $subject, $htmlBody, $fromEmail, $fromName);
@@ -72,77 +74,6 @@ final class Mailer
         return @mail($to, self::encodeHeader($subject), $body, implode("\r\n", $headers));
     }
 
-    private static function sendSmtp(string $to, string $subject, string $htmlBody, ?string $textBody, string $fromEmail, string $fromName): bool
-    {
-        $host = (string)ConfigStore::get('mail.smtp.host', 'localhost');
-        $port = (int)ConfigStore::get('mail.smtp.port', 587);
-        $enc  = (string)ConfigStore::get('mail.smtp.encryption', 'tls');
-        $user = (string)ConfigStore::get('mail.smtp.username', '');
-        $pass = (string)ConfigStore::get('mail.smtp.password', '');
-
-        $transport = ($enc === 'ssl') ? 'ssl://' . $host : $host;
-        $remote = ($enc === 'tls') ? 'tcp://' . $host . ':' . $port : $transport . ':' . $port;
-
-        $errno = 0; $errstr = '';
-        $fp = @stream_socket_client($remote, $errno, $errstr, 10, STREAM_CLIENT_CONNECT);
-        if (!$fp) return false;
-        stream_set_timeout($fp, 10);
-
-        $send = function(string $cmd) use ($fp) {
-            fwrite($fp, $cmd . "\r\n");
-            return fgets($fp, 512);
-        };
-
-        $read = function() use ($fp) {
-            return fgets($fp, 512);
-        };
-
-        $read();
-        $send('EHLO localhost');
-        if ($enc === 'tls') {
-            $send('STARTTLS');
-            if (!stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
-                fclose($fp); return false;
-            }
-            $send('EHLO localhost');
-        }
-        if ($user !== '') {
-            $send('AUTH LOGIN');
-            $send(base64_encode($user));
-            $send(base64_encode($pass));
-        }
-        // Validate email addresses to prevent CRLF injection
-        if (!filter_var($fromEmail, FILTER_VALIDATE_EMAIL) || strpos($fromEmail, "\r") !== false || strpos($fromEmail, "\n") !== false) {
-            throw new \Exception('Invalid from email address');
-        }
-        $send('MAIL FROM: <' . $fromEmail . '>');
-        if (!filter_var($to, FILTER_VALIDATE_EMAIL) || strpos($to, "\r") !== false || strpos($to, "\n") !== false) {
-            throw new \Exception('Invalid recipient email address');
-        }
-        $send('RCPT TO: <' . $to . '>');
-        $send('DATA');
-
-        // Use more secure boundary generation
-        $boundary = uniqid('mail_boundary_', true);
-        $headers = [];
-        $headers[] = 'From: ' . self::encodeHeader($fromName) . " <{$fromEmail}>";
-        $headers[] = 'To: <' . $to . '>';
-        $headers[] = 'Subject: ' . self::encodeHeader($subject);
-        $headers[] = 'MIME-Version: 1.0';
-        $headers[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
-
-        $text = $textBody ?: strip_tags($htmlBody);
-        $msg  = implode("\r\n", $headers) . "\r\n\r\n";
-        $msg .= "--{$boundary}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n{$text}\r\n";
-        $msg .= "--{$boundary}\r\nContent-Type: text/html; charset=utf-8\r\n\r\n{$htmlBody}\r\n";
-        $msg .= "--{$boundary}--\r\n.";
-
-        $send($msg);
-        $send('QUIT');
-        fclose($fp);
-        return true;
-    }
-
     private static function encodeHeader(string $s): string
     {
         if (!preg_match('/^[\x20-\x7E]*$/', $s)) {
@@ -151,43 +82,104 @@ final class Mailer
         return $s;
     }
 
+    /**
+     * Configure a PHPMailer instance from the stored mail settings (SMTP when a
+     * host is set, otherwise PHP mail()). Shared by sendPHPMailer() and sendTest().
+     */
+    private static function configureMailer(\PHPMailer\PHPMailer\PHPMailer $mailer, string $fromEmail, string $fromName): void
+    {
+        $mailer->CharSet = 'UTF-8';
+        $mailer->setFrom($fromEmail, $fromName);
+        $mailer->isHTML(true);
+
+        $host = (string) ConfigStore::get('mail.smtp.host', '');
+        if ($host !== '') {
+            $mailer->isSMTP();
+            // PHPMailer's default Timeout is 300s: if the SMTP host accepts the TCP
+            // connection but then stalls, a single send would block the (cron) request
+            // for 5 minutes. Cap it.
+            $mailer->Timeout = (int) ConfigStore::get('mail.smtp.timeout', 10);
+            $mailer->Host = $host;
+            $mailer->Port = (int) ConfigStore::get('mail.smtp.port', 587);
+            $enc = (string) ConfigStore::get('mail.smtp.encryption', 'tls');
+            if ($enc === 'ssl') { $mailer->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS; }
+            elseif ($enc === 'tls') { $mailer->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS; }
+            else { $mailer->SMTPSecure = ''; $mailer->SMTPAutoTLS = false; }
+            $user = (string) ConfigStore::get('mail.smtp.username', '');
+            $pass = (string) ConfigStore::get('mail.smtp.password', '');
+            if ($user !== '') { $mailer->SMTPAuth = true; $mailer->Username = $user; $mailer->Password = $pass; }
+        }
+    }
+
     private static function sendPHPMailer(string $to, string $subject, string $htmlBody, ?string $textBody, string $fromEmail, string $fromName): bool
     {
         if (!class_exists('PHPMailer\\PHPMailer\\PHPMailer')) {
             // Fallback to mail()
             return self::sendMail($to, $subject, $htmlBody, $fromEmail, $fromName);
         }
+        $result = self::dispatchPHPMailer($to, $subject, $htmlBody, $textBody, $fromEmail, $fromName);
+        if (!$result['ok']) {
+            SecureLogger::warning('Email send failed: ' . $result['error']);
+        }
+        return $result['ok'];
+    }
+
+    /**
+     * Build and send one PHPMailer message. Single source of truth for the real
+     * send path, so the diagnostic sendTest() exercises exactly what production
+     * uses — if CC/BCC/AltBody/etc. change here they can't silently drift apart.
+     * Returns the real outcome (the specific error on failure), never throws.
+     *
+     * @return array{ok: bool, error: string}
+     */
+    private static function dispatchPHPMailer(string $to, string $subject, string $htmlBody, ?string $textBody, string $fromEmail, string $fromName): array
+    {
         try {
             $mailer = new \PHPMailer\PHPMailer\PHPMailer(true);
-            $mailer->CharSet = 'UTF-8';
-            $mailer->setFrom($fromEmail, $fromName);
+            self::configureMailer($mailer, $fromEmail, $fromName);
             $mailer->addAddress($to);
             $mailer->Subject = $subject;
-            $mailer->isHTML(true);
             $mailer->Body = $htmlBody;
             $mailer->AltBody = $textBody ?: strip_tags($htmlBody);
-
-            // Use SMTP if configured
-            $host = (string)ConfigStore::get('mail.smtp.host', '');
-            if ($host !== '') {
-                $mailer->isSMTP();
-                // PHPMailer's default Timeout is 300s: if the SMTP host accepts the TCP
-                // connection but then stalls, a single send would block the (cron) request
-                // for 5 minutes. Cap it — the raw-socket path already uses 10s.
-                $mailer->Timeout = (int)ConfigStore::get('mail.smtp.timeout', 10);
-                $mailer->Host = $host;
-                $mailer->Port = (int)ConfigStore::get('mail.smtp.port', 587);
-                $enc  = (string)ConfigStore::get('mail.smtp.encryption', 'tls');
-                if ($enc === 'ssl') { $mailer->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS; }
-                elseif ($enc === 'tls') { $mailer->SMTPSecure = \PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS; }
-                else { $mailer->SMTPSecure = ''; $mailer->SMTPAutoTLS = false; }
-                $user = (string)ConfigStore::get('mail.smtp.username', '');
-                $pass = (string)ConfigStore::get('mail.smtp.password', '');
-                if ($user !== '') { $mailer->SMTPAuth = true; $mailer->Username = $user; $mailer->Password = $pass; }
-            }
-            return $mailer->send();
+            $mailer->send();
+            return ['ok' => true, 'error' => ''];
         } catch (\Throwable $e) {
-            return false;
+            return ['ok' => false, 'error' => $e->getMessage()];
         }
     }
+
+    /**
+     * Send a diagnostic test email with the CURRENT mail settings and return the
+     * real outcome — the specific error on failure, not just a boolean — so the
+     * admin can tell a bad SMTP config from a working one. Verifies the SMTP
+     * handshake/auth/recipient via PHPMailer.
+     *
+     * @return array{ok: bool, error: string}
+     */
+    public static function sendTest(string $to): array
+    {
+        $fromEmail = (string) ConfigStore::get('mail.from_email', 'no-reply@localhost');
+        $fromName  = (string) ConfigStore::get('mail.from_name', 'Biblioteca');
+        $driver    = (string) ConfigStore::get('mail.driver', 'mail');
+
+        if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            return ['ok' => false, 'error' => __('Indirizzo email del destinatario non valido.')];
+        }
+
+        $subject = __('Email di prova da Pinakes');
+        $html = '<p>' . __('Questa è un\'email di prova inviata dalle impostazioni di Pinakes. Se la ricevi, la configurazione email funziona.') . '</p>';
+
+        // SMTP / PHPMailer path: reuse the exact real send path so the test is a
+        // faithful diagnostic, and capture its real handshake/auth/recipient error.
+        if (($driver === 'smtp' || $driver === 'phpmailer') && class_exists('PHPMailer\\PHPMailer\\PHPMailer')) {
+            return self::dispatchPHPMailer($to, $subject, $html, null, $fromEmail, $fromName);
+        }
+
+        // Plain mail() path: no detailed error is available, only success/failure.
+        $ok = self::send($to, $subject, $html);
+        return $ok
+            ? ['ok' => true, 'error' => '']
+            : ['ok' => false, 'error' => __('La funzione mail() di PHP ha restituito un errore. Verifica la configurazione del server di posta.')];
+    }
+
 }

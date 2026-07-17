@@ -5430,6 +5430,7 @@
   "Prenotazione annullata": "Prenotazione annullata",
   "Inviata all'utente quando una prenotazione viene annullata dall'amministrazione.": "Inviata all'utente quando una prenotazione viene annullata dall'amministrazione.",
   "\"%s\" prestato a %s scade fra %d giorni": "\"%s\" prestato a %s scade fra %d giorni",
+  "\"%s\" prestato a %s scade oggi": "\"%s\" prestato a %s scade oggi",
   "MaintenanceService claim cooldown fallito": "MaintenanceService claim cooldown fallito",
   "MaintenanceService errore recupero notifiche prenotazione": "MaintenanceService errore recupero notifiche prenotazione",
   "La data di inizio non può essere nel passato": "La data di inizio non può essere nel passato",
@@ -6525,5 +6526,19 @@
   "Spaziatura": "Spaziatura",
   "Margine interno (mm)": "Margine interno (mm)",
   "Il contenuto si adatta automaticamente alle dimensioni dell'etichetta. Aggiungi un margine interno extra per rifinire il layout.": "Il contenuto si adatta automaticamente alle dimensioni dell'etichetta. Aggiungi un margine interno extra per rifinire il layout.",
-  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file."
+  "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.": "Sembra che tu stia eseguendo l'immagine Docker: i file dell'applicazione appartengono all'immagine e non sono modificabili da questo pulsante. Aggiorna spostando il container alla nuova immagine con «docker compose pull && docker compose up -d» (i tuoi dati nel database e nei volumi storage/uploads restano al sicuro). Il pulsante di aggiornamento è pensato per installazioni classiche/hosting condiviso dove l'utente del web server è proprietario dei file.",
+  "Nessun destinatario: inserisci un indirizzo email o assicurati che il tuo account admin ne abbia uno.": "Nessun destinatario: inserisci un indirizzo email o assicurati che il tuo account admin ne abbia uno.",
+  "Email di prova inviata a %s. Controlla la casella (anche lo spam).": "Email di prova inviata a %s. Controlla la casella (anche lo spam).",
+  "Invio fallito: %s": "Invio fallito: %s",
+  "Indirizzo email del destinatario non valido.": "Indirizzo email del destinatario non valido.",
+  "Email di prova da Pinakes": "Email di prova da Pinakes",
+  "Questa è un'email di prova inviata dalle impostazioni di Pinakes. Se la ricevi, la configurazione email funziona.": "Questa è un'email di prova inviata dalle impostazioni di Pinakes. Se la ricevi, la configurazione email funziona.",
+  "La funzione mail() di PHP ha restituito un errore. Verifica la configurazione del server di posta.": "La funzione mail() di PHP ha restituito un errore. Verifica la configurazione del server di posta.",
+  "Prova invio": "Prova invio",
+  "Invia un'email di prova con le impostazioni attuali e vedi subito se funziona o qual è l'errore. Salva prima le impostazioni.": "Invia un'email di prova con le impostazioni attuali e vedi subito se funziona o qual è l'errore. Salva prima le impostazioni.",
+  "Destinatario (vuoto = la tua email admin)": "Destinatario (vuoto = la tua email admin)",
+  "Invia email di prova": "Invia email di prova",
+  "Invio in corso…": "Invio in corso…",
+  "Richiesta non riuscita. Riprova.": "Richiesta non riuscita. Riprova.",
+  "oggi": "oggi"
 }
