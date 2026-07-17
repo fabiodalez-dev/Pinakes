@@ -107,7 +107,7 @@ $registerRoute = route_path('register');
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label for="nome" class="block text-sm font-medium text-gray-700 mb-2">
-              <?= __('Nome') ?>
+              <?= __('Nome') ?> *
             </label>
             <input
               type="text"
