@@ -166,7 +166,7 @@ $activeTab = $activeTab ?? 'general';
                     <input type="url"
                            id="social_facebook"
                            name="social_facebook"
-                           value="<?php echo HtmlHelper::e((string)($appSettings['social_facebook'] ?? '')); ?>"
+                           value="<?php echo htmlspecialchars((string)($appSettings['social_facebook'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
                            placeholder="<?= __('https://facebook.com/tuapagina') ?>">
                   </div>
@@ -177,7 +177,7 @@ $activeTab = $activeTab ?? 'general';
                     <input type="url"
                            id="social_twitter"
                            name="social_twitter"
-                           value="<?php echo HtmlHelper::e((string)($appSettings['social_twitter'] ?? '')); ?>"
+                           value="<?php echo htmlspecialchars((string)($appSettings['social_twitter'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
                            placeholder="<?= __('https://twitter.com/tuoprofilo') ?>">
                   </div>
@@ -188,7 +188,7 @@ $activeTab = $activeTab ?? 'general';
                     <input type="url"
                            id="social_instagram"
                            name="social_instagram"
-                           value="<?php echo HtmlHelper::e((string)($appSettings['social_instagram'] ?? '')); ?>"
+                           value="<?php echo htmlspecialchars((string)($appSettings['social_instagram'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
                            placeholder="<?= __('https://instagram.com/tuoprofilo') ?>">
                   </div>
@@ -199,7 +199,7 @@ $activeTab = $activeTab ?? 'general';
                     <input type="url"
                            id="social_linkedin"
                            name="social_linkedin"
-                           value="<?php echo HtmlHelper::e((string)($appSettings['social_linkedin'] ?? '')); ?>"
+                           value="<?php echo htmlspecialchars((string)($appSettings['social_linkedin'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
                            placeholder="<?= __('https://linkedin.com/company/tuaazienda') ?>">
                   </div>
@@ -210,7 +210,7 @@ $activeTab = $activeTab ?? 'general';
                     <input type="url"
                            id="social_bluesky"
                            name="social_bluesky"
-                           value="<?php echo HtmlHelper::e((string)($appSettings['social_bluesky'] ?? '')); ?>"
+                           value="<?php echo htmlspecialchars((string)($appSettings['social_bluesky'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
                            placeholder="<?= __('https://bsky.app/profile/tuoprofilo') ?>">
                   </div>
@@ -221,7 +221,7 @@ $activeTab = $activeTab ?? 'general';
                     <input type="url"
                            id="social_telegram"
                            name="social_telegram"
-                           value="<?php echo HtmlHelper::e((string)($appSettings['social_telegram'] ?? '')); ?>"
+                           value="<?php echo htmlspecialchars((string)($appSettings['social_telegram'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>"
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
                            placeholder="<?= __('https://t.me/tuocanale') ?>">
                   </div>
