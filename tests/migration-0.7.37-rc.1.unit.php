@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Behavioural test for migrate_0.7.37.sql (issue #255 — configurable
+ * Behavioural test for migrate_0.7.37-rc.1.sql (issue #255 — configurable
  * registration fields) plus the RegistrationFields validation contract.
  *
  *   A. Run the REAL migration file against sandbox-renamed tables and assert
@@ -111,7 +111,7 @@ try {
     exit(1);
 }
 
-$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.37.sql');
+$migration = (string) file_get_contents($root . '/installer/database/migrations/migrate_0.7.37-rc.1.sql');
 
 // Retarget the REAL migration at sandbox table names (project pattern: same
 // DDL, only the names rewritten) so the test never collides with live tables.

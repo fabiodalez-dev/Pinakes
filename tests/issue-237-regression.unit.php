@@ -94,6 +94,12 @@ $check(
     'release migration has a matching behavioural unit test'
 );
 
+// The statement-count and enum-drift checks below are specific to THIS PR's
+// contributor migration; pin them to it explicitly. In a bundled release
+// version.json can advance past 0.7.36-rc.1 (e.g. another PR's migration ships
+// in the same RC), so "the release migration" is no longer necessarily #237's.
+$contributorMigration = $root . '/installer/database/migrations/migrate_0.7.36-rc.1.sql';
+
 // Exercise the real standalone-upgrader splitter against the real migration.
 // An apostrophe inside a SQL comment previously held the parser in quote mode
 // and merged the remaining statements.
@@ -102,7 +108,7 @@ $splitterStatus = 1;
 exec(
     escapeshellarg(PHP_BINARY) . ' '
         . escapeshellarg($root . '/scripts/manual-upgrade.php') . ' --count-sql-statements '
-        . escapeshellarg($releaseMigration) . ' 2>&1',
+        . escapeshellarg($contributorMigration) . ' 2>&1',
     $splitterOutput,
     $splitterStatus
 );
@@ -130,8 +136,8 @@ $check(
 
 // 7. Upgrade path parity: the migration must install the exact enum schema.sql
 //    declares, or fresh and upgraded installs drift apart.
-$migrationFile = file_exists($releaseMigration)
-    ? (string) file_get_contents($releaseMigration)
+$migrationFile = file_exists($contributorMigration)
+    ? (string) file_get_contents($contributorMigration)
     : '';
 $check(
     $migrationFile === '' || str_contains($migrationFile, $roleEnum),
