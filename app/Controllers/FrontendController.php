@@ -322,10 +322,14 @@ class FrontendController
         }
 
         // Social media links
-        $socialFacebook = \App\Support\ConfigStore::get('app.social_facebook', '');
-        $socialTwitter = \App\Support\ConfigStore::get('app.social_twitter', '');
-        $socialInstagram = \App\Support\ConfigStore::get('app.social_instagram', '');
-        $socialLinkedin = \App\Support\ConfigStore::get('app.social_linkedin', '');
+        // Sanitize social URLs before they can enter the Organization schema's
+        // sameAs array — an unsanitized javascript:/data: value would otherwise
+        // leak into the emitted JSON-LD. sanitizePublicHttpUrl() returns '' for
+        // anything that isn't a clean http(s) URL, so the guards below skip it.
+        $socialFacebook = \App\Support\HtmlHelper::sanitizePublicHttpUrl((string) \App\Support\ConfigStore::get('app.social_facebook', ''));
+        $socialTwitter = \App\Support\HtmlHelper::sanitizePublicHttpUrl((string) \App\Support\ConfigStore::get('app.social_twitter', ''));
+        $socialInstagram = \App\Support\HtmlHelper::sanitizePublicHttpUrl((string) \App\Support\ConfigStore::get('app.social_instagram', ''));
+        $socialLinkedin = \App\Support\HtmlHelper::sanitizePublicHttpUrl((string) \App\Support\ConfigStore::get('app.social_linkedin', ''));
 
         // Build Schema.org structured data
         $schemaOrg = [
