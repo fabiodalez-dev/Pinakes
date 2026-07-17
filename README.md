@@ -39,6 +39,33 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New in v0.7.37
 
+This release bundles three feature tracks — contributor roles (#237), loan due-date & email (#238), and configurable registration (#255) — plus security and packaging hardening.
+
+- **Illustrators, translators, curators and colorists are now real authors ([#237](https://github.com/fabiodalez-dev/Pinakes/issues/237)).**
+  For comics and illustrated books, contributors other than the main author used
+  to be plain free-text fields — no autocomplete, and they never showed up as
+  authors. Now each role (illustrator, translator, curator, and the new
+  **colorist**) is a proper author entity with the same search-as-you-type picker
+  as the author field, so it can be reused, found by pseudonym, and appears on the
+  contributor's author page and books. Existing free-text values are converted to
+  entities automatically on the first run after upgrading — nothing to redo.
+- **Find and show authors by pseudonym (#237).** The author picker now matches on
+  the pen name as well as the real name (so typing "Leo" finds them), and books
+  display the pseudonym as *"Pseudonym (Real name)"* instead of only the real name.
+- **Loan due-date visibility ([#238](https://github.com/fabiodalez-dev/Pinakes/discussions/238)).**
+  The Loans list gains a **Due date** column and highlights due-today/overdue
+  loans in red — the same rule the Physical Copies table already used — and the
+  dashboard's Active Loans list matches it. "Today" is computed in the
+  application timezone, not the browser's.
+- **Due-today / overdue notifications (#238).** A loan due *today* — previously
+  skipped by an off-by-one in the warning query — now triggers the in-app notice
+  (*"scade oggi"*), the warning email, and a mobile push.
+- **Send test email + robust SMTP (#238).** Settings → Email gains a **Send test
+  email** button that reports the *specific* SMTP error. Both the `smtp` and
+  `phpmailer` drivers now go through PHPMailer, which verifies the
+  handshake/auth/recipient — fixing a latent bug where the hand-rolled SMTP
+  client reported success even when the message was rejected ("settings look fine
+  but no mail arrives").
 - **Configurable registration fields ([#255](https://github.com/fabiodalez-dev/Pinakes/issues/255)).**
   Small communities can no longer be forced to collect personal data they don't
   need: surname, phone and address each get an admin toggle (Settings →
@@ -53,20 +80,13 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
   and includes them in `/api/v1/me`. New migration `migrate_0.7.37-rc.1.sql` adds the two supporting tables
   (`registrazione_campi`, `utenti_campi_valori`); it is idempotent and runs
   automatically on upgrade.
-
-## What's New in v0.7.36
-
-- **Illustrators, translators, curators and colorists are now real authors (#237).**
-  For comics and illustrated books, contributors other than the main author used
-  to be plain free-text fields — no autocomplete, and they never showed up as
-  authors. Now each role (illustrator, translator, curator, and the new
-  **colorist**) is a proper author entity with the same search-as-you-type picker
-  as the author field, so it can be reused, found by pseudonym, and appears on the
-  contributor's author page and books. Existing free-text values are converted to
-  entities automatically on the first run after upgrading — nothing to redo.
-- **Find and show authors by pseudonym (#237).** The author picker now matches on
-  the pen name as well as the real name (so typing "Leo" finds them), and books
-  display the pseudonym as *"Pseudonym (Real name)"* instead of only the real name.
+- **Hardened social links.** Social profile URLs (footer + Schema.org structured
+  data) now pass through a strict `http(s)` sanitizer, so a malformed or
+  `javascript:` value stored for any social renders no link at all.
+- **Clearer Docker "not writable" message.** The in-app updater no longer
+  presumes "the Docker image" when app files aren't writable — it states the real
+  condition and covers both the official read-only image (`fabiodalez/pinakes`)
+  and a community image whose code volume happens to be read-only.
 ## What's New in v0.7.35
 
 - **Docker-aware in-app updater.** On the official Docker image the app files are
