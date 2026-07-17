@@ -62,15 +62,18 @@
 + storage/plugins/*/
 + storage/plugins/*/**
 
-# Keep public uploads structure
+# Keep public uploads STRUCTURE + security sentinels only — never the actual
+# uploaded/generated files (dev covers, E2E fixtures under archives/, etc.).
+# The dir + placeholder/.htaccess includes come first (first-match wins), then a
+# catch-all drops every other file anywhere under uploads. build-release.sh's
+# verifier enforces this too (it errors on any unexpected upload).
 + public/uploads/
 + public/uploads/.gitkeep
 + public/uploads/copertine/
 + public/uploads/copertine/placeholder.jpg
-- public/uploads/copertine/**
 + public/uploads/digital/
 + public/uploads/digital/.htaccess
-- public/uploads/digital/**
+- public/uploads/**
 
 # Keep backups structure
 + backups/
