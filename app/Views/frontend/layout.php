@@ -21,6 +21,7 @@ $socialTwitter = (string) ConfigStore::get('app.social_twitter', '');
 $socialInstagram = (string) ConfigStore::get('app.social_instagram', '');
 $socialLinkedin = (string) ConfigStore::get('app.social_linkedin', '');
 $socialBluesky = (string) ConfigStore::get('app.social_bluesky', '');
+$socialTelegram = (string) ConfigStore::get('app.social_telegram', '');
 $catalogRoute = route_path('catalog');
 $reservationsRoute = route_path('reservations');
 $wishlistRoute = route_path('wishlist');
@@ -1673,6 +1674,10 @@ $htmlLang = substr($currentLocale, 0, 2);
                         <?php if ($socialBluesky !== ''): ?>
                             <a href="<?= HtmlHelper::e($socialBluesky) ?>" target="_blank" rel="noopener noreferrer"><i
                                     class="fa-brands fa-bluesky"></i></a>
+                        <?php endif; ?>
+                        <?php if ($socialTelegram !== ''): ?>
+                            <a href="<?= HtmlHelper::e($socialTelegram) ?>" target="_blank" rel="noopener noreferrer"><i
+                                    class="fa-brands fa-telegram"></i></a>
                         <?php endif; ?>
                     </div>
                 </div>

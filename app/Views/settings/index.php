@@ -210,6 +210,17 @@ $activeTab = $activeTab ?? 'general';
                            class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
                            placeholder="<?= __('https://bsky.app/profile/tuoprofilo') ?>">
                   </div>
+                  <div>
+                    <label for="social_telegram" class="block text-xs text-gray-600 mb-1">
+                      <i class="fa-brands fa-telegram mr-1"></i> Telegram
+                    </label>
+                    <input type="url"
+                           id="social_telegram"
+                           name="social_telegram"
+                           value="<?php echo HtmlHelper::e((string)($appSettings['social_telegram'] ?? '')); ?>"
+                           class="block w-full rounded-lg border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-2 px-3"
+                           placeholder="<?= __('https://t.me/tuocanale') ?>">
+                  </div>
                 </div>
                 <p class="text-xs text-gray-500 mt-2">
                   <i class="fas fa-info-circle"></i> <?= __("Lascia vuoto per nascondere il social dal footer") ?>

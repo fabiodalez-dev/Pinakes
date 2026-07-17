@@ -37,7 +37,7 @@ La pagina Impostazioni (`/admin/settings`) è organizzata in **11 tab**. Il tab 
 
 | Tab (`?tab=`) | Contenuto |
 |---|---|
-| `general` | Identità: nome, logo, descrizione footer, link social (Facebook, Twitter/X, Instagram, LinkedIn, Bluesky) |
+| `general` | Identità: nome, logo, descrizione footer, link social (Facebook, Twitter/X, Instagram, LinkedIn, Bluesky, Telegram) |
 | `email` | Provider/SMTP + toggle "richiedi approvazione admin" alla registrazione |
 | `templates` | Template email (19 tipi) |
 | `cms` | Contenuti homepage / pagine + layout immagine eventi |

@@ -25,6 +25,7 @@ final class ConfigStore
                 'social_instagram' => '',
                 'social_linkedin' => '',
                 'social_bluesky' => '',
+                'social_telegram' => '',
             ],
             'mail' => [
                 'driver' => 'mail', // mail|smtp|phpmailer
@@ -411,7 +412,7 @@ final class ConfigStore
                     self::$dbSettingsCache['app']['locale'] = (string) $raw['app']['locale'];
                 }
                 // Load social links
-                $socialKeys = ['social_facebook', 'social_twitter', 'social_instagram', 'social_linkedin', 'social_bluesky'];
+                $socialKeys = ['social_facebook', 'social_twitter', 'social_instagram', 'social_linkedin', 'social_bluesky', 'social_telegram'];
                 foreach ($socialKeys as $socialKey) {
                     if (isset($raw['app'][$socialKey])) {
                         self::$dbSettingsCache['app'][$socialKey] = (string) $raw['app'][$socialKey];

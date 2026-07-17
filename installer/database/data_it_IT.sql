@@ -281,6 +281,7 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 ('app', 'social_instagram', '', 'Instagram profile URL', NOW()),
 ('app', 'social_linkedin', '', 'LinkedIn profile URL', NOW()),
 ('app', 'social_bluesky', '', 'Bluesky profile URL', NOW()),
+('app', 'social_telegram', '', 'Telegram profile URL', NOW()),
 
 -- Le impostazioni email sono configurate dall'utente nello step 6 dell'installer
 -- Nessun valore predefinito qui per evitare di sovrascrivere le scelte dell'utente
