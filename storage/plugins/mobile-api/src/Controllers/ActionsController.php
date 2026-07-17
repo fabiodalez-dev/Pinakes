@@ -467,7 +467,8 @@ final class ActionsController
         try {
             $stmt = $this->db->prepare(
                 'SELECT id, nome, cognome, email, telefono, indirizzo, codice_tessera, tipo_utente,
-                        data_nascita, sesso, cod_fiscale, data_scadenza_tessera, data_ultimo_accesso, locale
+                        data_nascita, sesso, cod_fiscale, data_scadenza_tessera, data_ultimo_accesso, locale,
+                        email_verificata, stato
                    FROM utenti WHERE id = ? LIMIT 1'
             );
             if ($stmt === false) {
@@ -498,6 +499,9 @@ final class ActionsController
                 'card_expires_at'   => $this->nullableString($row['data_scadenza_tessera'] ?? null),
                 'last_access_at'    => $this->nullableString($row['data_ultimo_accesso'] ?? null),
                 'locale'            => $this->nullableString($row['locale'] ?? null),
+                'email_verificata'  => ((int) ($row['email_verificata'] ?? 0)) === 1,
+                'stato'             => (string) ($row['stato'] ?? ''),
+                'custom_fields'     => \App\Support\RegistrationFields::editableFieldsForUser($this->db, $userId),
             ];
 
             return ResponseEnvelope::success($response, $data, [], 200);
@@ -545,8 +549,35 @@ final class ActionsController
             $forward['locale'] = (string) $body['locale'];
         }
 
-        if (trim((string) $forward['nome']) === '' || trim((string) $forward['cognome']) === '') {
-            return ResponseEnvelope::error($response, 'required_fields', __('Nome e cognome sono obbligatori.'), 422);
+        if (array_key_exists('custom_fields', $body)) {
+            if (!is_array($body['custom_fields'])) {
+                return ResponseEnvelope::error(
+                    $response,
+                    'custom_field_invalid',
+                    __('Controlla i campi personalizzati: un valore inserito non è valido.'),
+                    422
+                );
+            }
+            // PATCH semantics apply within the custom-field map too: values for
+            // omitted ids are preserved, while an explicitly-sent empty string
+            // clears that one field.
+            $customForward = \App\Support\RegistrationFields::valuesForUser($this->db, $userId);
+            foreach ($body['custom_fields'] as $fieldId => $value) {
+                $customForward[(int) $fieldId] = $value;
+            }
+            $forward['custom_field'] = $customForward;
+            $forward['custom_fields_present'] = '1';
+        }
+
+        if (trim((string) $forward['nome']) === ''
+            || (trim((string) $forward['cognome']) === ''
+                && \App\Support\RegistrationFields::isRequired('cognome'))
+            || (trim((string) $forward['telefono']) === ''
+                && \App\Support\RegistrationFields::isRequired('telefono'))
+            || (trim((string) $forward['indirizzo']) === ''
+                && \App\Support\RegistrationFields::isRequired('indirizzo'))
+        ) {
+            return ResponseEnvelope::error($response, 'required_fields', __('Compila tutti i campi obbligatori.'), 422);
         }
 
         try {
@@ -557,7 +588,15 @@ final class ActionsController
             if (isset($outcome['error'])) {
                 $code = (string) $outcome['error'];
                 if ($code === 'required_fields') {
-                    return ResponseEnvelope::error($response, 'required_fields', __('Nome e cognome sono obbligatori.'), 422);
+                    return ResponseEnvelope::error($response, 'required_fields', __('Compila tutti i campi obbligatori.'), 422);
+                }
+                if ($code === 'custom_field_invalid') {
+                    return ResponseEnvelope::error(
+                        $response,
+                        'custom_field_invalid',
+                        __('Controlla i campi personalizzati: un valore inserito non è valido.'),
+                        422
+                    );
                 }
                 return ResponseEnvelope::error($response, 'update_failed', __('Errore durante l\'aggiornamento del profilo.'), 500);
             }

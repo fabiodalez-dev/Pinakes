@@ -79,8 +79,8 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
             <input type="text" id="nome" name="nome" value="<?= $nome; ?>" required class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
           </div>
           <div>
-            <label for="cognome" class="block text-sm font-medium text-gray-700"><?= __("Cognome") ?> *</label>
-            <input type="text" id="cognome" name="cognome" value="<?= $cognome; ?>" required class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
+            <label for="cognome" class="block text-sm font-medium text-gray-700"><?= __("Cognome") ?><?= \App\Support\RegistrationFields::isRequired('cognome') ? ' *' : '' ?></label>
+            <input type="text" id="cognome" name="cognome" value="<?= $cognome; ?>" <?= \App\Support\RegistrationFields::isRequired('cognome') ? 'required aria-required="true"' : '' ?> class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900">
           </div>
         </div>
         <div class="grid gap-4 md:grid-cols-2" data-admin-hide>
@@ -107,6 +107,20 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
           <input type="text" id="cod_fiscale" name="cod_fiscale" maxlength="16" value="<?= $cod_fiscale; ?>" class="mt-1 block w-full rounded-md border-gray-300 focus:border-gray-900 focus:ring-gray-900" placeholder="<?= __("es. RSSMRA80A01H501U") ?>" style="text-transform: uppercase;">
           <p class="text-xs text-gray-500 mt-1"><?= __("Codice fiscale italiano (opzionale)") ?></p>
         </div>
+        <?php if (!empty($customFieldValues)): ?>
+          <div class="md:col-span-2">
+            <p class="block text-sm font-medium text-gray-700"><?= __("Campi personalizzati") ?></p>
+            <dl class="mt-2 grid gap-2 md:grid-cols-2">
+              <?php foreach ($customFieldValues as $cfv): ?>
+                <div class="rounded-md border border-gray-200 bg-gray-50 px-3 py-2">
+                  <dt class="text-xs font-medium text-gray-500"><?= htmlspecialchars($cfv['etichetta'], ENT_QUOTES, 'UTF-8') ?></dt>
+                  <dd class="text-sm text-gray-900 break-words"><?= $cfv['tipo'] === 'checkbox' ? __('Sì') : htmlspecialchars($cfv['valore'], ENT_QUOTES, 'UTF-8') ?></dd>
+                </div>
+              <?php endforeach; ?>
+            </dl>
+            <p class="text-xs text-gray-500 mt-1"><?= __("L'utente li gestisce dal proprio profilo.") ?></p>
+          </div>
+        <?php endif; ?>
       </section>
 
       <section class="bg-white border border-gray-200 rounded-lg p-6 space-y-4">
@@ -159,6 +173,11 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
 (function() {
   const roleField = document.getElementById('tipo_utente');
   const phoneField = document.getElementById('telefono');
+  const addressField = document.getElementById('indirizzo');
+  // Requirement toggles (issue #255): the client mirrors the server checks in
+  // UsersController, which apply only to non-admin users.
+  const REQUIRE_TELEFONO = <?= \App\Support\RegistrationFields::isRequired('telefono') ? 'true' : 'false' ?>;
+  const REQUIRE_INDIRIZZO = <?= \App\Support\RegistrationFields::isRequired('indirizzo') ? 'true' : 'false' ?>;
   const tesseraSection = document.querySelector('[data-admin-tessera]');
   const adminBlocks = document.querySelectorAll('[data-admin-hide]');
   const roleHint = document.getElementById('role-hint');
@@ -181,8 +200,11 @@ $note = HtmlHelper::e($utente['note_utente'] ?? '');
   function applyRoleState() {
     const isAdmin = roleField.value === 'admin';
     if (phoneField) {
-      phoneField.required = !isAdmin;
+      phoneField.required = !isAdmin && REQUIRE_TELEFONO;
       phoneField.placeholder = isAdmin ? __('Opzionale per amministratori') : '+39 123 456 7890';
+    }
+    if (addressField) {
+      addressField.required = !isAdmin && REQUIRE_INDIRIZZO;
     }
 
     adminBlocks.forEach((section) => {

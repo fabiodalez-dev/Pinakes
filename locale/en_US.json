@@ -6549,5 +6549,20 @@
   "Cerca un autore esistente o scrivine uno nuovo": "Search for an existing author or type a new one",
   "Cerca un autore esistente o scrivine uno nuovo (utile per i fumetti)": "Search for an existing author or type a new one (useful for comics)",
   "Contributore \"%s\" è già selezionato": "Contributor \"%s\" is already selected",
-  "Contributore \"%s\" pronto per essere creato": "Contributor \"%s\" ready to be created"
+  "Contributore \"%s\" pronto per essere creato": "Contributor \"%s\" ready to be created",
+  "Numero": "Number",
+  "Casella di spunta": "Checkbox",
+  "Campi personalizzati": "Custom fields",
+  "Campi obbligatori alla registrazione": "Required fields at registration",
+  "Disattiva i campi che la tua comunità non vuole raccogliere: diventeranno facoltativi nel modulo di registrazione.": "Untick the fields your community doesn't want to collect: they become optional on the registration form.",
+  "Campi aggiuntivi definiti da te (es. username Telegram): compaiono nel modulo di registrazione e nel profilo utente.": "Additional fields you define (e.g. a Telegram username): they appear on the registration form and in the user profile.",
+  "Etichetta nuovo campo": "New field label",
+  "L'utente li gestisce dal proprio profilo.": "The user manages them from their profile.",
+  "Salva impostazioni registrazione": "Save registration settings",
+  "Impostazioni di registrazione aggiornate correttamente.": "Registration settings updated successfully.",
+  "Salvataggio dei campi personalizzati non riuscito. Riprova.": "Saving the custom fields failed. Please try again.",
+  "Le modifiche ai campi vengono salvate insieme alle impostazioni di registrazione.": "Field changes are saved together with the registration settings.",
+  "Non puoi cambiare il tipo di un campo che contiene già valori. Crea un nuovo campo o elimina prima i dati esistenti.": "You cannot change the type of a field that already contains values. Create a new field or delete the existing data first.",
+  "Controlla i campi personalizzati: un valore inserito non è valido.": "Check the custom fields: one of the values entered is not valid.",
+  "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.": "Delete the selected custom fields? The values users saved for these fields will be permanently removed."
 }

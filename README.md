@@ -37,6 +37,23 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.37
+
+- **Configurable registration fields ([#255](https://github.com/fabiodalez-dev/Pinakes/issues/255)).**
+  Small communities can no longer be forced to collect personal data they don't
+  need: surname, phone and address each get an admin toggle (Settings →
+  Registration) deciding whether they are required at self-registration.
+  Defaults keep today's behaviour, so nothing changes until you opt out.
+- **Custom registration fields (#255).** Administrators can define their own
+  fields (text, textarea, email, URL, number, checkbox — required or optional):
+  they appear on the registration form and in the user profile, and are shown
+  on the admin user detail. Ideal for community handles such as a Telegram
+  username. The bundled Mobile API exposes the requirements and definitions in
+  `/api/v1/health`, accepts the values during app registration/profile editing,
+  and includes them in `/api/v1/me`. New migration `migrate_0.7.37-rc.1.sql` adds the two supporting tables
+  (`registrazione_campi`, `utenti_campi_valori`); it is idempotent and runs
+  automatically on upgrade.
+
 ## What's New in v0.7.36
 
 - **Illustrators, translators, curators and colorists are now real authors (#237).**
@@ -50,7 +67,6 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 - **Find and show authors by pseudonym (#237).** The author picker now matches on
   the pen name as well as the real name (so typing "Leo" finds them), and books
   display the pseudonym as *"Pseudonym (Real name)"* instead of only the real name.
-
 ## What's New in v0.7.35
 
 - **Docker-aware in-app updater.** On the official Docker image the app files are

@@ -372,12 +372,13 @@ return function (App $app): void {
     }
 
     // Public registration routes (all language variants)
-    $registerGetHandler = function ($request, $response) {
+    $registerGetHandler = function ($request, $response) use ($app) {
         if (!empty($_SESSION['user']['id'])) {
             return $response->withHeader('Location', RouteTranslator::route('user_dashboard'))->withStatus(302);
         }
+        $db = $app->getContainer()->get('db');
         $controller = new RegistrationController();
-        return $controller->form($request, $response);
+        return $controller->form($request, $response, $db);
     };
     $registerPostHandler = function ($request, $response) use ($app) {
         if (!empty($_SESSION['user']['id'])) {
@@ -578,6 +579,11 @@ return function (App $app): void {
     })->add(new \App\Middleware\RateLimitMiddleware(5, 60, 'email_test')) // triggers an external SMTP handshake — throttle like the other costly admin routes
       ->add(new CsrfMiddleware())
       ->add(new AdminAuthMiddleware());
+    $app->post('/admin/settings/registration', function ($request, $response) use ($app) {
+        $db = $app->getContainer()->get('db');
+        $controller = new SettingsController();
+        return $controller->updateRegistrationSettings($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
 
     $app->post('/admin/settings/contacts', function ($request, $response) use ($app) {
         $db = $app->getContainer()->get('db');

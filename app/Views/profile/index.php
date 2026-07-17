@@ -321,6 +321,8 @@
           $errors = [
             'csrf' => __('Errore di sicurezza. Riprova.'),
             'required' => __('Nome e cognome sono obbligatori.'),
+            'required_fields' => __('Compila tutti i campi obbligatori.'),
+            'custom_field_invalid' => __('Controlla i campi personalizzati: un valore inserito non è valido.'),
             'password_mismatch' => __('Le password non coincidono.'),
             'password_too_short' => __('La password deve essere lunga almeno 8 caratteri.'),
             'password_too_long' => __('La password non può superare i 72 caratteri.'),
@@ -403,8 +405,9 @@
           <span id="nome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
         <div class="form-group">
-          <label for="cognome" class="form-label"><?= __("Cognome") ?> *</label>
-          <input type="text" id="cognome" name="cognome" class="form-input" required aria-required="true" aria-describedby="cognome-error"
+          <?php $cognomeRequired = \App\Support\RegistrationFields::isRequired('cognome'); ?>
+          <label for="cognome" class="form-label"><?= __("Cognome") ?><?= $cognomeRequired ? ' *' : '' ?></label>
+          <input type="text" id="cognome" name="cognome" class="form-input" <?= $cognomeRequired ? 'required aria-required="true"' : '' ?> aria-describedby="cognome-error"
                  value="<?php echo App\Support\HtmlHelper::e($user['cognome'] ?? ''); ?>">
           <span id="cognome-error" class="text-sm text-red-600 mt-1 hidden" role="alert" aria-live="polite"></span>
         </div>
@@ -412,8 +415,9 @@
 
       <div class="form-grid">
         <div class="form-group">
-          <label for="telefono" class="form-label"><?= __("Telefono") ?></label>
-          <input type="tel" id="telefono" name="telefono" class="form-input"
+          <?php $telefonoRequired = \App\Support\RegistrationFields::isRequired('telefono'); ?>
+          <label for="telefono" class="form-label"><?= __("Telefono") ?><?= $telefonoRequired ? ' *' : '' ?></label>
+          <input type="tel" id="telefono" name="telefono" class="form-input" <?= $telefonoRequired ? 'required aria-required="true"' : '' ?>
                  value="<?php echo App\Support\HtmlHelper::e($user['telefono'] ?? ''); ?>">
         </div>
         <div class="form-group">
@@ -441,10 +445,39 @@
       </div>
 
       <div class="form-group">
-        <label for="indirizzo" class="form-label"><?= __("Indirizzo") ?></label>
-        <input type="text" id="indirizzo" name="indirizzo" class="form-input"
+        <?php $indirizzoRequired = \App\Support\RegistrationFields::isRequired('indirizzo'); ?>
+        <label for="indirizzo" class="form-label"><?= __("Indirizzo") ?><?= $indirizzoRequired ? ' *' : '' ?></label>
+        <input type="text" id="indirizzo" name="indirizzo" class="form-input" <?= $indirizzoRequired ? 'required aria-required="true"' : '' ?>
                value="<?php echo App\Support\HtmlHelper::e($user['indirizzo'] ?? ''); ?>">
       </div>
+
+      <?php if (!empty($customFields)): ?>
+        <input type="hidden" name="custom_fields_present" value="1">
+      <?php endif; ?>
+      <?php foreach (($customFields ?? []) as $cf): ?>
+        <?php
+          $cfId = (int) $cf['id'];
+          $cfName = 'custom_field[' . $cfId . ']';
+          $cfValue = (string) (($customFieldValues ?? [])[$cfId] ?? '');
+        ?>
+        <div class="form-group">
+          <?php if ($cf['tipo'] === 'checkbox'): ?>
+            <label class="form-label" style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;">
+              <input type="checkbox" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" value="1" <?= $cfValue === '1' ? 'checked' : '' ?>>
+              <?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?>
+            </label>
+          <?php else: ?>
+            <label for="custom_field_<?= $cfId ?>" class="form-label"><?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?></label>
+            <?php if ($cf['tipo'] === 'textarea'): ?>
+              <textarea id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" class="form-input" rows="3"><?= htmlspecialchars($cfValue, ENT_QUOTES, 'UTF-8') ?></textarea>
+            <?php else: ?>
+              <?php $cfType = in_array($cf['tipo'], ['email', 'url', 'number'], true) ? $cf['tipo'] : 'text'; ?>
+              <input type="<?= $cfType ?>" id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" class="form-input"
+                     value="<?= htmlspecialchars($cfValue, ENT_QUOTES, 'UTF-8') ?>">
+            <?php endif; ?>
+          <?php endif; ?>
+        </div>
+      <?php endforeach; ?>
 
       <?php
         $availableLocales = \App\Support\I18n::getAvailableLocales();

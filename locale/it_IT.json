@@ -6549,5 +6549,20 @@
   "Cerca un autore esistente o scrivine uno nuovo": "Cerca un autore esistente o scrivine uno nuovo",
   "Cerca un autore esistente o scrivine uno nuovo (utile per i fumetti)": "Cerca un autore esistente o scrivine uno nuovo (utile per i fumetti)",
   "Contributore \"%s\" è già selezionato": "Contributore \"%s\" è già selezionato",
-  "Contributore \"%s\" pronto per essere creato": "Contributore \"%s\" pronto per essere creato"
+  "Contributore \"%s\" pronto per essere creato": "Contributore \"%s\" pronto per essere creato",
+  "Numero": "Numero",
+  "Casella di spunta": "Casella di spunta",
+  "Campi personalizzati": "Campi personalizzati",
+  "Campi obbligatori alla registrazione": "Campi obbligatori alla registrazione",
+  "Disattiva i campi che la tua comunità non vuole raccogliere: diventeranno facoltativi nel modulo di registrazione.": "Disattiva i campi che la tua comunità non vuole raccogliere: diventeranno facoltativi nel modulo di registrazione.",
+  "Campi aggiuntivi definiti da te (es. username Telegram): compaiono nel modulo di registrazione e nel profilo utente.": "Campi aggiuntivi definiti da te (es. username Telegram): compaiono nel modulo di registrazione e nel profilo utente.",
+  "Etichetta nuovo campo": "Etichetta nuovo campo",
+  "L'utente li gestisce dal proprio profilo.": "L'utente li gestisce dal proprio profilo.",
+  "Salva impostazioni registrazione": "Salva impostazioni registrazione",
+  "Impostazioni di registrazione aggiornate correttamente.": "Impostazioni di registrazione aggiornate correttamente.",
+  "Salvataggio dei campi personalizzati non riuscito. Riprova.": "Salvataggio dei campi personalizzati non riuscito. Riprova.",
+  "Le modifiche ai campi vengono salvate insieme alle impostazioni di registrazione.": "Le modifiche ai campi vengono salvate insieme alle impostazioni di registrazione.",
+  "Non puoi cambiare il tipo di un campo che contiene già valori. Crea un nuovo campo o elimina prima i dati esistenti.": "Non puoi cambiare il tipo di un campo che contiene già valori. Crea un nuovo campo o elimina prima i dati esistenti.",
+  "Controlla i campi personalizzati: un valore inserito non è valido.": "Controlla i campi personalizzati: un valore inserito non è valido.",
+  "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.": "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente."
 }

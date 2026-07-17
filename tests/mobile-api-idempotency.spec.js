@@ -294,14 +294,17 @@ test.describe('Mobile API — two calls per endpoint (idempotency + ETag/304)', 
         // Test borrower with a known password hash for USER_PASS.
         let uid = parseInt(dbScalar(`SELECT id FROM utenti WHERE email='${USER_EMAIL}' LIMIT 1`) || '0', 10);
         if (uid === 0) {
-            dbExec(`INSERT INTO utenti (nome, cognome, email, password, tipo_utente, stato, email_verificata, codice_tessera, created_at)
-                    VALUES ('Idem','Test','${USER_EMAIL}','x','standard','attivo',1,'${USER_CARD}',NOW())`);
+            dbExec(`INSERT INTO utenti (nome, cognome, email, password, telefono, indirizzo, tipo_utente, stato, email_verificata, codice_tessera, created_at)
+                    VALUES ('Idem','Test','${USER_EMAIL}','x','000','E2E address','standard','attivo',1,'${USER_CARD}',NOW())`);
             uid = parseInt(dbScalar(`SELECT id FROM utenti WHERE email='${USER_EMAIL}' LIMIT 1`) || '0', 10);
             ctx.createdUser = true;
         }
         // Set the password to USER_PASS using PHP password_hash so /auth/login matches.
         const realHash = execFileSync('php', ['-r', `echo password_hash(${JSON.stringify(USER_PASS)}, PASSWORD_DEFAULT);`], { encoding: 'utf-8' }).trim();
-        dbExec(`UPDATE utenti SET password=${sqlStr(realHash)}, stato='attivo', email_verificata=1 WHERE id=${uid}`);
+        dbExec(`UPDATE utenti
+                   SET password=${sqlStr(realHash)}, telefono='000', indirizzo='E2E address',
+                       stato='attivo', email_verificata=1
+                 WHERE id=${uid}`);
         ctx.userId = uid;
 
         // Fixtures: a non-deleted book.

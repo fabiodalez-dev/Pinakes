@@ -6549,5 +6549,20 @@
   "Cerca un autore esistente o scrivine uno nuovo": "Vorhandenen Autor suchen oder neuen eingeben",
   "Cerca un autore esistente o scrivine uno nuovo (utile per i fumetti)": "Vorhandenen Autor suchen oder neuen eingeben (nützlich für Comics)",
   "Contributore \"%s\" è già selezionato": "Mitwirkender \"%s\" ist bereits ausgewählt",
-  "Contributore \"%s\" pronto per essere creato": "Mitwirkender \"%s\" bereit zur Erstellung"
+  "Contributore \"%s\" pronto per essere creato": "Mitwirkender \"%s\" bereit zur Erstellung",
+  "Numero": "Zahl",
+  "Casella di spunta": "Kontrollkästchen",
+  "Campi personalizzati": "Benutzerdefinierte Felder",
+  "Campi obbligatori alla registrazione": "Pflichtfelder bei der Registrierung",
+  "Disattiva i campi che la tua comunità non vuole raccogliere: diventeranno facoltativi nel modulo di registrazione.": "Deaktiviere die Felder, die deine Gemeinschaft nicht erheben möchte: sie werden im Registrierungsformular optional.",
+  "Campi aggiuntivi definiti da te (es. username Telegram): compaiono nel modulo di registrazione e nel profilo utente.": "Von dir definierte Zusatzfelder (z. B. Telegram-Benutzername): sie erscheinen im Registrierungsformular und im Benutzerprofil.",
+  "Etichetta nuovo campo": "Bezeichnung des neuen Felds",
+  "L'utente li gestisce dal proprio profilo.": "Der Benutzer verwaltet sie über sein Profil.",
+  "Salva impostazioni registrazione": "Registrierungseinstellungen speichern",
+  "Impostazioni di registrazione aggiornate correttamente.": "Registrierungseinstellungen erfolgreich aktualisiert.",
+  "Salvataggio dei campi personalizzati non riuscito. Riprova.": "Speichern der benutzerdefinierten Felder fehlgeschlagen. Bitte erneut versuchen.",
+  "Le modifiche ai campi vengono salvate insieme alle impostazioni di registrazione.": "Feldänderungen werden zusammen mit den Registrierungseinstellungen gespeichert.",
+  "Non puoi cambiare il tipo di un campo che contiene già valori. Crea un nuovo campo o elimina prima i dati esistenti.": "Der Typ eines Feldes mit bereits gespeicherten Werten kann nicht geändert werden. Erstelle ein neues Feld oder lösche zuerst die vorhandenen Daten.",
+  "Controlla i campi personalizzati: un valore inserito non è valido.": "Überprüfe die benutzerdefinierten Felder: einer der eingegebenen Werte ist ungültig.",
+  "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.": "Ausgewählte benutzerdefinierte Felder löschen? Die von Benutzern gespeicherten Werte für diese Felder werden dauerhaft entfernt."
 }

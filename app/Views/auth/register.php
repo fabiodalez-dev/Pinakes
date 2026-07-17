@@ -65,6 +65,8 @@ $registerRoute = route_path('register');
                   <?= __('Questi dati risultano già registrati') ?>
                 <?php elseif ($_GET['error'] === 'missing_fields'): ?>
                   <?= __('Compila tutti i campi richiesti') ?>
+                <?php elseif ($_GET['error'] === 'custom_field_invalid'): ?>
+                  <?= __('Controlla i campi personalizzati: un valore inserito non è valido.') ?>
                 <?php elseif ($_GET['error'] === 'privacy_required'): ?>
                   <?= __('Devi accettare la Privacy Policy per procedere') ?>
                 <?php elseif ($_GET['error'] === 'name_too_long'): ?>
@@ -122,13 +124,13 @@ $registerRoute = route_path('register');
 
           <div>
             <label for="cognome" class="block text-sm font-medium text-gray-700 mb-2">
-              <?= __('Cognome') ?>
+              <?= __('Cognome') ?><?= !empty($registrationRequired['cognome']) ? ' *' : '' ?>
             </label>
             <input
               type="text"
               id="cognome"
               name="cognome"
-              required aria-required="true"
+              <?= !empty($registrationRequired['cognome']) ? 'required aria-required="true"' : '' ?>
               aria-describedby="cognome-error"
               class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
               placeholder="<?= __('Rossi') ?>"
@@ -157,13 +159,13 @@ $registerRoute = route_path('register');
 
         <div>
           <label for="telefono" class="block text-sm font-medium text-gray-700 mb-2">
-            <?= __('Telefono *') ?>
+            <?= __('Telefono') ?><?= !empty($registrationRequired['telefono']) ? ' *' : '' ?>
           </label>
           <input
             type="tel"
             id="telefono"
             name="telefono"
-            required aria-required="true"
+            <?= !empty($registrationRequired['telefono']) ? 'required aria-required="true"' : '' ?>
             aria-describedby="telefono-error"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
             placeholder="<?= __('+39 123 456 7890') ?>"
@@ -174,12 +176,12 @@ $registerRoute = route_path('register');
 
         <div>
           <label for="indirizzo" class="block text-sm font-medium text-gray-700 mb-2">
-            <?= __('Indirizzo completo *') ?>
+            <?= __('Indirizzo completo') ?><?= !empty($registrationRequired['indirizzo']) ? ' *' : '' ?>
           </label>
           <textarea
             id="indirizzo"
             name="indirizzo"
-            required aria-required="true"
+            <?= !empty($registrationRequired['indirizzo']) ? 'required aria-required="true"' : '' ?>
             aria-describedby="indirizzo-error"
             rows="3"
             class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
@@ -235,6 +237,34 @@ $registerRoute = route_path('register');
           />
           <p class="mt-1 text-xs text-gray-500"><?= __("Opzionale") ?></p>
         </div>
+
+        <?php foreach (($customFields ?? []) as $cf): ?>
+          <?php $cfId = (int) $cf['id']; $cfName = 'custom_field[' . $cfId . ']'; ?>
+          <div>
+            <?php if ($cf['tipo'] === 'checkbox'): ?>
+              <label class="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" value="1"
+                  <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>
+                  class="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                <span class="text-sm font-medium text-gray-700"><?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?><?= $cf['obbligatorio'] ? ' *' : '' ?></span>
+              </label>
+            <?php else: ?>
+              <label for="custom_field_<?= $cfId ?>" class="block text-sm font-medium text-gray-700 mb-2">
+                <?= htmlspecialchars($cf['etichetta'], ENT_QUOTES, 'UTF-8') ?><?= $cf['obbligatorio'] ? ' *' : '' ?>
+              </label>
+              <?php if ($cf['tipo'] === 'textarea'): ?>
+                <textarea id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>" rows="3"
+                  <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>
+                  class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"></textarea>
+              <?php else: ?>
+                <?php $cfType = in_array($cf['tipo'], ['email', 'url', 'number'], true) ? $cf['tipo'] : 'text'; ?>
+                <input type="<?= $cfType ?>" id="custom_field_<?= $cfId ?>" name="<?= htmlspecialchars($cfName, ENT_QUOTES, 'UTF-8') ?>"
+                  <?= $cf['obbligatorio'] ? 'required aria-required="true"' : '' ?>
+                  class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200" />
+              <?php endif; ?>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>

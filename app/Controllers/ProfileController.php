@@ -30,6 +30,9 @@ class ProfileController
         $stmt->execute();
         $user = $stmt->get_result()->fetch_assoc() ?: [];
         $stmt->close();
+        // Custom registration fields (issue #255): definitions + this user's values.
+        $customFields = \App\Support\RegistrationFields::definitions($db);
+        $customFieldValues = \App\Support\RegistrationFields::valuesForUser($db, $uid);
         ob_start();
         require __DIR__ . '/../Views/profile/index.php';
         $content = ob_get_clean();
@@ -159,10 +162,37 @@ class ProfileController
             $locale = ($locale !== '' && isset($availableLocales[$locale])) ? $locale : null;
         }
 
-        // Validate required fields
-        if (empty($nome) || empty($cognome)) {
+        // Validate required fields. Surname/phone/address follow the admin
+        // toggles (issue #255) so a member can't blank a field the library
+        // requires. An optional surname is stored as '' — the column is NOT
+        // NULL by design so display paths that CONCAT nome+cognome stay whole.
+        if (empty($nome)
+            || ($cognome === '' && \App\Support\RegistrationFields::isRequired('cognome'))
+            || ($telefono === null && \App\Support\RegistrationFields::isRequired('telefono'))
+            || ($indirizzo === null && \App\Support\RegistrationFields::isRequired('indirizzo'))
+        ) {
             $profileUrl = RouteTranslator::route('profile');
             return $response->withHeader('Location', $profileUrl . '?error=required_fields')->withStatus(302);
+        }
+
+        // Custom registration fields (issue #255): validate before writing.
+        // enforceRequired=false — a field marked obbligatorio AFTER this user
+        // signed up must not wall them out of unrelated profile edits (they
+        // never saw it). Format checks still apply to anything they typed.
+        $customValues = null;
+        $customFieldsSubmitted = array_key_exists('custom_fields_present', $data)
+            || array_key_exists('custom_field', $data);
+        if ($customFieldsSubmitted) {
+            $customDefinitions = \App\Support\RegistrationFields::definitions($db);
+            $customValidation = \App\Support\RegistrationFields::validate($customDefinitions, $data, false);
+            if ($customValidation['error'] !== null) {
+                // Name the actual problem instead of the generic "required fields"
+                // banner (which is wrong when the user did fill the field).
+                $customError = $customValidation['error_reason'] === 'format' ? 'custom_field_invalid' : 'required_fields';
+                $profileUrl = RouteTranslator::route('profile');
+                return $response->withHeader('Location', $profileUrl . '?error=' . $customError)->withStatus(302);
+            }
+            $customValues = $customValidation['values'];
         }
 
         // Update user — only include locale in SQL when the field was posted
@@ -185,9 +215,34 @@ class ProfileController
             $stmt->bind_param('sssssssi', $nome, $cognome, $telefono, $data_nascita, $cod_fiscale, $sesso, $indirizzo, $uid);
         }
 
-        if ($stmt->execute()) {
+        // Profile row + custom field values land atomically: a failed custom
+        // value write rolls back the profile update too, so the user never
+        // sees "saved" with half the form persisted.
+        $updated = false;
+        try {
+            $db->begin_transaction();
+            $updated = $stmt->execute();
+            if ($updated) {
+                if ($customValues !== null) {
+                    \App\Support\RegistrationFields::saveValues($db, $uid, $customValues);
+                }
+                $db->commit();
+            } else {
+                $db->rollback();
+            }
+        } catch (\Throwable $e) {
+            try {
+                $db->rollback();
+            } catch (\Throwable) {
+                // best-effort — never mask the original error
+            }
+            SecureLogger::error('ProfileController: profile/custom-field save failed', ['user_id' => $uid, 'error' => $e->getMessage()]);
+            $updated = false;
+        }
+
+        if ($updated) {
             // Update session data
-            $_SESSION['user']['name'] = $nome . ' ' . $cognome;
+            $_SESSION['user']['name'] = trim($nome . ' ' . $cognome);
             // Apply locale change immediately (only when locale was in the form)
             if ($localeProvided) {
                 if ($locale !== null) {

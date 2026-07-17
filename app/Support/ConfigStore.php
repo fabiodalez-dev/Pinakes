@@ -40,6 +40,11 @@ final class ConfigStore
             ],
             'registration' => [
                 'require_admin_approval' => true,
+                // Per-field requirement toggles (issue #255): defaults preserve
+                // the historical all-required registration form.
+                'require_cognome' => true,
+                'require_telefono' => true,
+                'require_indirizzo' => true,
             ],
             'contacts' => [
                 'page_title' => 'Contattaci',
@@ -468,12 +473,18 @@ final class ConfigStore
 
             if (!empty($raw['registration'])) {
                 self::$dbSettingsCache['registration'] = [];
-                if (isset($raw['registration']['require_admin_approval'])) {
-                    $value = filter_var($raw['registration']['require_admin_approval'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
-                    if ($value === null) {
-                        $value = in_array((string) $raw['registration']['require_admin_approval'], ['1', 'true', 'yes'], true);
+                // Boolean registration flags: approval + the per-field
+                // requirement toggles (issue #255).
+                $registrationFlags = ['require_admin_approval', 'require_cognome', 'require_telefono', 'require_indirizzo'];
+                foreach ($registrationFlags as $flagKey) {
+                    if (!isset($raw['registration'][$flagKey])) {
+                        continue;
                     }
-                    self::$dbSettingsCache['registration']['require_admin_approval'] = $value;
+                    $value = filter_var($raw['registration'][$flagKey], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+                    if ($value === null) {
+                        $value = in_array((string) $raw['registration'][$flagKey], ['1', 'true', 'yes'], true);
+                    }
+                    self::$dbSettingsCache['registration'][$flagKey] = $value;
                 }
             }
 

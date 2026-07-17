@@ -254,6 +254,9 @@ jobs:
       - name: "[required] issue-237-contributors.spec.js — pseudonym + contributor save contract"
         run: |
           npx playwright test tests/issue-237-contributors.spec.js \
+      - name: "[required] issue-255-registration.spec.js — configurable registration fields"
+        run: |
+          npx playwright test tests/issue-255-registration.spec.js \
             --config=tests/playwright.config.js \
             --workers=1
 

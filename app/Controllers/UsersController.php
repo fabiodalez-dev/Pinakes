@@ -88,7 +88,9 @@ class UsersController
         $role = $requestedRole;
         $isAdmin = $role === 'admin';
 
-        if ($nome === '' || $cognome === '' || $email === '') {
+        if ($nome === '' || $email === ''
+            || ($cognome === '' && \App\Support\RegistrationFields::isRequired('cognome'))
+        ) {
             return $response->withHeader('Location', url('/admin/users/create?error=missing_fields'))->withStatus(302);
         }
 
@@ -122,12 +124,15 @@ class UsersController
             return $response->withHeader('Location', url('/admin/users/create?error=phone_too_long'))->withStatus(302);
         }
 
-        if (!$isAdmin && $telefono === '') {
+        if (!$isAdmin && $telefono === '' && \App\Support\RegistrationFields::isRequired('telefono')) {
             return $response->withHeader('Location', url('/admin/users/create?error=missing_fields'))->withStatus(302);
         }
 
         $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
         $indirizzo = $indirizzo !== '' ? $indirizzo : null;
+        if (!$isAdmin && $indirizzo === null && \App\Support\RegistrationFields::isRequired('indirizzo')) {
+            return $response->withHeader('Location', url('/admin/users/create?error=missing_fields'))->withStatus(302);
+        }
 
         $cod_fiscale = strtoupper(trim((string) ($data['cod_fiscale'] ?? '')));
         $cod_fiscale = $cod_fiscale !== '' ? $cod_fiscale : null;
@@ -270,6 +275,10 @@ class UsersController
         $utente = $result->fetch_assoc();
         $stmt->close();
 
+        // Custom registration field values (issue #255) — shown read-only so the
+        // admin can see community handles (e.g. Telegram) alongside the account.
+        $customFieldValues = \App\Support\RegistrationFields::labelledValuesForUser($db, $id);
+
         ob_start();
         require __DIR__ . '/../Views/utenti/modifica_utente.php';
         $content = ob_get_clean();
@@ -323,11 +332,13 @@ class UsersController
         $role = $requestedRole;
         $isAdmin = $role === 'admin';
 
-        if ($nome === '' || $cognome === '' || $email === '') {
+        if ($nome === '' || $email === ''
+            || ($cognome === '' && \App\Support\RegistrationFields::isRequired('cognome'))
+        ) {
             return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=missing_fields'))->withStatus(302);
         }
 
-        if (!$isAdmin && $telefono === '') {
+        if (!$isAdmin && $telefono === '' && \App\Support\RegistrationFields::isRequired('telefono')) {
             return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=missing_fields'))->withStatus(302);
         }
 
@@ -350,6 +361,9 @@ class UsersController
 
         $indirizzo = trim(strip_tags((string) ($data['indirizzo'] ?? '')));
         $indirizzo = $indirizzo !== '' ? $indirizzo : null;
+        if (!$isAdmin && $indirizzo === null && \App\Support\RegistrationFields::isRequired('indirizzo')) {
+            return $response->withHeader('Location', url('/admin/users/edit/' . $id . '?error=missing_fields'))->withStatus(302);
+        }
 
         $cod_fiscale = strtoupper(trim((string) ($data['cod_fiscale'] ?? '')));
         $cod_fiscale = $cod_fiscale !== '' ? $cod_fiscale : null;
@@ -582,7 +596,7 @@ class UsersController
             if ($userToDelete) {
                 \App\Support\SecureLogger::info('User marked as deleted (has loan history)', [
                     'user_id' => $id,
-                    'user_name' => $userToDelete['nome'] . ' ' . $userToDelete['cognome'],
+                    'user_name' => full_name($userToDelete['nome'] ?? '', $userToDelete['cognome'] ?? ''),
                     'user_email' => $userToDelete['email'],
                     'loan_count' => $loanResult['count'],
                     'deleted_by' => $_SESSION['user']['id'] ?? 'unknown'
@@ -613,7 +627,7 @@ class UsersController
         if ($userToDelete) {
             \App\Support\SecureLogger::info('User deleted', [
                 'deleted_user_id' => $id,
-                'deleted_user_name' => $userToDelete['nome'] . ' ' . $userToDelete['cognome'],
+                'deleted_user_name' => full_name($userToDelete['nome'] ?? '', $userToDelete['cognome'] ?? ''),
                 'deleted_user_email' => $userToDelete['email'],
                 'deleted_user_role' => $userToDelete['tipo_utente'],
                 'deleted_by' => $_SESSION['user']['id'] ?? 'unknown',
@@ -639,6 +653,8 @@ class UsersController
         }
         $utente = $result->fetch_assoc();
         $stmt->close();
+
+        $customFieldValues = \App\Support\RegistrationFields::labelledValuesForUser($db, $id);
 
         // Fetch user's loan history
         $loanStmt = $db->prepare("

@@ -176,6 +176,14 @@ $display = static function (?string $value, string $placeholder = '—'): string
         <dt class="text-sm text-gray-500"><?= __("Indirizzo") ?></dt>
         <dd class="text-sm text-gray-900 mt-1"><?= $display($indirizzo); ?></dd>
       </div>
+      <?php foreach (($customFieldValues ?? []) as $cfv): ?>
+        <div>
+          <dt class="text-sm text-gray-500"><?= htmlspecialchars($cfv['etichetta'], ENT_QUOTES, 'UTF-8') ?></dt>
+          <dd class="text-sm text-gray-900 mt-1 break-words">
+            <?= $cfv['tipo'] === 'checkbox' ? __('Sì') : htmlspecialchars($cfv['valore'], ENT_QUOTES, 'UTF-8') ?>
+          </dd>
+        </div>
+      <?php endforeach; ?>
     </dl>
   </section>
 

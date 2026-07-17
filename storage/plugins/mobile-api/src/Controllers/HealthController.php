@@ -7,7 +7,9 @@ namespace App\Plugins\MobileApi\Controllers;
 use App\Plugins\MobileApi\Support\ProxyTrust;
 use App\Plugins\MobileApi\Support\ResponseEnvelope;
 use App\Support\ConfigStore;
+use App\Support\RegistrationFields;
 use App\Support\SecureLogger;
+use mysqli;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -26,6 +28,10 @@ final class HealthController
 {
     /** Mobile API contract version advertised to clients for forward-compat. */
     public const API_VERSION = 'v1';
+
+    public function __construct(private mysqli $db)
+    {
+    }
 
     public function index(
         ServerRequestInterface $request,
@@ -84,6 +90,12 @@ final class HealthController
                 'catalogue_mode'       => $catalogueMode,
                 'app_access_enabled'   => $appAccessEnabled,
                 'registration_enabled' => $registrationEnabled,
+                'registration'         => [
+                    'require_cognome'   => RegistrationFields::isRequired('cognome'),
+                    'require_telefono'  => RegistrationFields::isRequired('telefono'),
+                    'require_indirizzo' => RegistrationFields::isRequired('indirizzo'),
+                    'custom_fields'     => RegistrationFields::apiDefinitions($this->db),
+                ],
                 'private_mode'         => $privateMode,
                 // VAPID public key (applicationServerKey) for Web Push / UnifiedPush
                 // subscription on the device. Empty if push isn't set up.

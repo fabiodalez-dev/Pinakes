@@ -329,6 +329,24 @@ if (!function_exists('translate_loan_status')) {
     }
 }
 
+if (!function_exists('full_name')) {
+    /**
+     * Join a member's given name and surname into a display name.
+     *
+     * Since issue #255 the surname can be an empty string (admin made it
+     * optional at registration). A naive "$nome . ' ' . $cognome" then leaves
+     * a trailing space; this collapses to just the given name in that case.
+     *
+     * @param string|null $nome
+     * @param string|null $cognome
+     * @return string
+     */
+    function full_name(?string $nome, ?string $cognome): string
+    {
+        return trim(trim((string) $nome) . ' ' . trim((string) $cognome));
+    }
+}
+
 if (!function_exists('translate_book_status')) {
     /**
      * Translate a book availability status code to its localized label.

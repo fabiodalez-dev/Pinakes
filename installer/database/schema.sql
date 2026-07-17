@@ -1024,6 +1024,31 @@ CREATE TABLE `utenti` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `registrazione_campi` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `etichetta` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `tipo` enum('text','textarea','email','url','number','checkbox') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
+  `obbligatorio` tinyint(1) NOT NULL DEFAULT '0',
+  `attivo` tinyint(1) NOT NULL DEFAULT '1',
+  `ordine` int NOT NULL DEFAULT '0',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `utenti_campi_valori` (
+  `utente_id` int NOT NULL,
+  `campo_id` int NOT NULL,
+  `valore` text COLLATE utf8mb4_unicode_ci,
+  PRIMARY KEY (`utente_id`, `campo_id`),
+  KEY `idx_ucv_campo` (`campo_id`),
+  CONSTRAINT `utenti_campi_valori_utente_fk` FOREIGN KEY (`utente_id`) REFERENCES `utenti` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `utenti_campi_valori_campo_fk` FOREIGN KEY (`campo_id`) REFERENCES `registrazione_campi` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `wishlist` (
   `id` int NOT NULL AUTO_INCREMENT,
   `utente_id` int NOT NULL,

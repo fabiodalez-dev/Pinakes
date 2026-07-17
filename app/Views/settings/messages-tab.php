@@ -52,7 +52,7 @@ use App\Support\HtmlHelper;
                 </td>
                 <td class="px-6 py-4">
                   <div class="text-sm font-medium text-gray-900">
-                    <?php echo HtmlHelper::e($message['nome'] . ' ' . $message['cognome']); ?>
+                    <?php echo htmlspecialchars(full_name($message['nome'] ?? '', $message['cognome'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
                     <?php if (!$message['is_read']): ?>
                     <span class="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                       <?= __("Nuovo") ?>

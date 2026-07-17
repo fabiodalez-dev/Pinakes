@@ -6549,5 +6549,20 @@
   "Cerca un autore esistente o scrivine uno nuovo": "Rechercher un auteur existant ou en saisir un nouveau",
   "Cerca un autore esistente o scrivine uno nuovo (utile per i fumetti)": "Rechercher un auteur existant ou en saisir un nouveau (utile pour les BD)",
   "Contributore \"%s\" è già selezionato": "Contributeur \"%s\" est déjà sélectionné",
-  "Contributore \"%s\" pronto per essere creato": "Contributeur \"%s\" prêt à être créé"
+  "Contributore \"%s\" pronto per essere creato": "Contributeur \"%s\" prêt à être créé",
+  "Numero": "Nombre",
+  "Casella di spunta": "Case à cocher",
+  "Campi personalizzati": "Champs personnalisés",
+  "Campi obbligatori alla registrazione": "Champs obligatoires à l'inscription",
+  "Disattiva i campi che la tua comunità non vuole raccogliere: diventeranno facoltativi nel modulo di registrazione.": "Décochez les champs que votre communauté ne souhaite pas collecter : ils deviendront facultatifs dans le formulaire d'inscription.",
+  "Campi aggiuntivi definiti da te (es. username Telegram): compaiono nel modulo di registrazione e nel profilo utente.": "Champs supplémentaires définis par vous (p. ex. nom d'utilisateur Telegram) : ils apparaissent dans le formulaire d'inscription et dans le profil utilisateur.",
+  "Etichetta nuovo campo": "Libellé du nouveau champ",
+  "L'utente li gestisce dal proprio profilo.": "L'utilisateur les gère depuis son profil.",
+  "Salva impostazioni registrazione": "Enregistrer les paramètres d'inscription",
+  "Impostazioni di registrazione aggiornate correttamente.": "Paramètres d'inscription mis à jour avec succès.",
+  "Salvataggio dei campi personalizzati non riuscito. Riprova.": "L'enregistrement des champs personnalisés a échoué. Veuillez réessayer.",
+  "Le modifiche ai campi vengono salvate insieme alle impostazioni di registrazione.": "Les modifications des champs sont enregistrées avec les paramètres d’inscription.",
+  "Non puoi cambiare il tipo di un campo che contiene già valori. Crea un nuovo campo o elimina prima i dati esistenti.": "Vous ne pouvez pas modifier le type d’un champ qui contient déjà des valeurs. Créez un nouveau champ ou supprimez d’abord les données existantes.",
+  "Controlla i campi personalizzati: un valore inserito non è valido.": "Vérifiez les champs personnalisés : une des valeurs saisies n'est pas valide.",
+  "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.": "Supprimer les champs personnalisés sélectionnés ? Les valeurs enregistrées par les utilisateurs pour ces champs seront définitivement supprimées."
 }

@@ -15,9 +15,17 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class RegistrationController
 {
-    public function form(Request $request, Response $response): Response
+    public function form(Request $request, Response $response, mysqli $db): Response
     {
         Csrf::ensureToken();
+        // Admin-configurable field requirements + custom fields (issue #255),
+        // consumed by the view for labels/required attributes and rendering.
+        $registrationRequired = [
+            'cognome'   => \App\Support\RegistrationFields::isRequired('cognome'),
+            'telefono'  => \App\Support\RegistrationFields::isRequired('telefono'),
+            'indirizzo' => \App\Support\RegistrationFields::isRequired('indirizzo'),
+        ];
+        $customFields = \App\Support\RegistrationFields::definitions($db);
         ob_start();
         require __DIR__ . '/../Views/auth/register.php';
         $html = ob_get_clean();
@@ -64,9 +72,27 @@ class RegistrationController
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=privacy_required')->withStatus(302);
         }
 
-        // Validate required fields
-        if ($nome === '' || $cognome === '' || $email === '' || $telefono === '' || $indirizzo === '' || $password === '' || $password !== $password2) {
+        // Validate required fields. Surname/phone/address are admin-configurable
+        // (issue #255, Settings → Registration); defaults keep them required so
+        // existing installs behave exactly as before until the admin opts out.
+        if ($nome === '' || $email === '' || $password === '' || $password !== $password2) {
             return $response->withHeader('Location', RouteTranslator::route('register') . '?error=missing_fields')->withStatus(302);
+        }
+        if (($cognome === '' && \App\Support\RegistrationFields::isRequired('cognome'))
+            || ($telefono === '' && \App\Support\RegistrationFields::isRequired('telefono'))
+            || ($indirizzo === '' && \App\Support\RegistrationFields::isRequired('indirizzo'))
+        ) {
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=missing_fields')->withStatus(302);
+        }
+
+        // Admin-defined custom fields (issue #255): validate before any write.
+        // Required IS enforced at signup (the field's contract); a format error
+        // gets a distinct code so the user isn't told to "fill" a field they did.
+        $customDefinitions = \App\Support\RegistrationFields::definitions($db);
+        $customValidation = \App\Support\RegistrationFields::validate($customDefinitions, $data);
+        if ($customValidation['error'] !== null) {
+            $customError = $customValidation['error_reason'] === 'format' ? 'custom_field_invalid' : 'missing_fields';
+            return $response->withHeader('Location', RouteTranslator::route('register') . '?error=' . $customError)->withStatus(302);
         }
 
         // Validate input lengths
@@ -131,17 +157,18 @@ class RegistrationController
         $data_accettazione_privacy = gmdate('Y-m-d H:i:s');
         $privacy_policy_version = '1.0';
 
-        // Build dynamic INSERT to handle NULL values properly for ENUM fields
-        $columns = 'nome, cognome, email, password, telefono, indirizzo, codice_tessera, stato, tipo_utente, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera, privacy_accettata, data_accettazione_privacy, privacy_policy_version';
-        $placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?';
-        $types = 'ssssssssssssss';
+        // Build dynamic INSERT to handle NULL values properly for ENUM fields.
+        // cognome stays in the base list: the column is NOT NULL by design (70+
+        // display paths CONCAT nome+cognome and a NULL would blank the whole
+        // name), so an optional surname is stored as an empty string.
+        $columns = 'nome, cognome, email, password, codice_tessera, stato, tipo_utente, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera, privacy_accettata, data_accettazione_privacy, privacy_policy_version';
+        $placeholders = '?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?';
+        $types = 'ssssssssssss';
         $values = [
             $nome,
             $cognome,
             $email,
             $hash,
-            $telefono,
-            $indirizzo,
             $codice_tessera,
             $stato,
             $ruolo,
@@ -151,6 +178,21 @@ class RegistrationController
             $data_accettazione_privacy,
             $privacy_policy_version
         ];
+
+        // Nullable contact fields: store NULL (not '') when the admin made them
+        // optional and the user left them blank.
+        if ($telefono !== '') {
+            $columns .= ', telefono';
+            $placeholders .= ', ?';
+            $types .= 's';
+            $values[] = $telefono;
+        }
+        if ($indirizzo !== '') {
+            $columns .= ', indirizzo';
+            $placeholders .= ', ?';
+            $types .= 's';
+            $values[] = $indirizzo;
+        }
 
         // Add optional fields only if they have values (to avoid ENUM truncation errors)
         if ($dataNascita !== null) {
@@ -182,13 +224,23 @@ class RegistrationController
         // throw as well, and must route to ?error=db, not bubble up as a 500.
         $stmt = null;
         try {
+            // Account row + custom field values land atomically: a failed custom
+            // value write must not leave a half-registered account behind.
+            $db->begin_transaction();
             $stmt = $db->prepare("
                 INSERT INTO utenti ({$columns}) VALUES ({$placeholders})
             ");
             $stmt->bind_param($types, ...$values);
             $stmt->execute();
             $userId = (int) $stmt->insert_id;
+            \App\Support\RegistrationFields::saveValues($db, $userId, $customValidation['values']);
+            $db->commit();
         } catch (\Throwable $e) {
+            try {
+                $db->rollback();
+            } catch (\Throwable) {
+                // best-effort — never mask the original error below
+            }
             // Public form: collapse ANY unique-key duplicate (email / cod_fiscale /
             // codice_tessera) into one GENERIC message so an anonymous visitor can't tell
             // which field is taken (member enumeration). Only a genuine non-duplicate DB
@@ -222,7 +274,7 @@ class RegistrationController
             // Notify admins of new registration (email)
             $notificationService->notifyNewUserRegistration($userId);
             // Create in-app notification for admins
-            $notificationService->notifyNewUserInApp($userId, $nome . ' ' . $cognome, $email);
+            $notificationService->notifyNewUserInApp($userId, trim($nome . ' ' . $cognome), $email);
         } catch (\Throwable $e) {
             SecureLogger::error('[Registration] post-registration side-effect failed (account ' . $userId . ' was created): ' . $e->getMessage());
         }

@@ -13,6 +13,7 @@ use App\Support\EmailService;
 use App\Support\Mailer;
 use App\Support\NotificationService;
 use App\Support\RateLimiter;
+use App\Support\RegistrationFields;
 use App\Support\RouteTranslator;
 use App\Support\SecureLogger;
 use mysqli;
@@ -160,13 +161,42 @@ final class AuthController
         $password  = (string) ($body['password'] ?? '');
         $password2 = (string) ($body['password_confirm'] ?? '');
         $privacy   = !empty($body['privacy_acceptance']);
+        $customFields = $body['custom_fields'] ?? [];
+        if (!is_array($customFields)) {
+            return ResponseEnvelope::error(
+                $response,
+                'custom_field_invalid',
+                __('Controlla i campi personalizzati: un valore inserito non è valido.'),
+                422
+            );
+        }
 
         // Same validation rules as the web RegistrationController.
         if (!$privacy) {
             return ResponseEnvelope::error($response, 'privacy_required', __('Devi accettare la privacy policy.'), 422);
         }
-        if ($nome === '' || $cognome === '' || $email === '' || $telefono === '' || $indirizzo === '' || $password === '' || $password !== $password2) {
+        if ($nome === '' || $email === '' || $password === '' || $password !== $password2) {
             return ResponseEnvelope::error($response, 'missing_fields', __('Compila tutti i campi obbligatori.'), 422);
+        }
+        if (($cognome === '' && RegistrationFields::isRequired('cognome'))
+            || ($telefono === '' && RegistrationFields::isRequired('telefono'))
+            || ($indirizzo === '' && RegistrationFields::isRequired('indirizzo'))
+        ) {
+            return ResponseEnvelope::error($response, 'missing_fields', __('Compila tutti i campi obbligatori.'), 422);
+        }
+        $customDefinitions = RegistrationFields::definitions($this->db);
+        $customValidation = RegistrationFields::validate(
+            $customDefinitions,
+            ['custom_field' => $customFields]
+        );
+        if ($customValidation['error'] !== null) {
+            $code = $customValidation['error_reason'] === 'format'
+                ? 'custom_field_invalid'
+                : 'missing_fields';
+            $message = $code === 'custom_field_invalid'
+                ? __('Controlla i campi personalizzati: un valore inserito non è valido.')
+                : __('Compila tutti i campi obbligatori.');
+            return ResponseEnvelope::error($response, $code, $message, 422);
         }
         if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 255) {
             return ResponseEnvelope::error($response, 'invalid_email', __('Indirizzo email non valido.'), 422);
@@ -207,36 +237,71 @@ final class AuthController
             $stato           = 'sospeso';   // requires admin approval (same as web)
             $ruolo           = 'standard';
 
-            $columns = 'nome, cognome, email, password, telefono, indirizzo, codice_tessera, stato, tipo_utente, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera, privacy_accettata, data_accettazione_privacy, privacy_policy_version';
-            $placeholders = '?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?';
-            $types  = 'ssssssssssssss';
+            $columns = 'nome, cognome, email, password, codice_tessera, stato, tipo_utente, email_verificata, token_verifica_email, data_token_verifica, data_scadenza_tessera, privacy_accettata, data_accettazione_privacy, privacy_policy_version';
+            $placeholders = '?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?';
+            $types  = 'ssssssssssss';
             $values = [
-                $nome, $cognome, $email, $hash, $telefono, $indirizzo, $codiceTessera,
-                $stato, $ruolo, $token, $scadenzaToken, $scadenzaTessera, $accettazione, $privacyVersion,
+                $nome, $cognome, $email, $hash, $codiceTessera, $stato, $ruolo,
+                $token, $scadenzaToken, $scadenzaTessera, $accettazione, $privacyVersion,
             ];
-
-            $stmt = $this->db->prepare("INSERT INTO utenti ({$columns}) VALUES ({$placeholders})");
-            if ($stmt === false) {
-                return ResponseEnvelope::error($response, 'internal_error', __('Errore del server.'), 500);
+            if ($telefono !== '') {
+                $columns .= ', telefono';
+                $placeholders .= ', ?';
+                $types .= 's';
+                $values[] = $telefono;
             }
-            $stmt->bind_param($types, ...$values);
-            if (!$stmt->execute()) {
-                $stmt->close();
-                return ResponseEnvelope::error($response, 'internal_error', __('Errore durante la registrazione.'), 500);
+            if ($indirizzo !== '') {
+                $columns .= ', indirizzo';
+                $placeholders .= ', ?';
+                $types .= 's';
+                $values[] = $indirizzo;
             }
-            $userId = (int) $stmt->insert_id;
-            $stmt->close();
 
-            // Reuse the web email-verification flow verbatim.
-            $notifications = new NotificationService($this->db);
-            $notifications->sendUserRegistrationPending($userId);
-            $notifications->notifyNewUserRegistration($userId);
-            $notifications->notifyNewUserInApp($userId, $nome . ' ' . $cognome, $email);
+            $stmt = null;
+            try {
+                $this->db->begin_transaction();
+                $stmt = $this->db->prepare("INSERT INTO utenti ({$columns}) VALUES ({$placeholders})");
+                if ($stmt === false) {
+                    throw new \RuntimeException('Unable to prepare registration insert');
+                }
+                $stmt->bind_param($types, ...$values);
+                $stmt->execute();
+                $userId = (int) $stmt->insert_id;
+                RegistrationFields::saveValues($this->db, $userId, $customValidation['values']);
+                $this->db->commit();
+            } catch (\Throwable $e) {
+                try {
+                    $this->db->rollback();
+                } catch (\Throwable) {
+                    // best-effort — preserve the original failure
+                }
+                if ($e instanceof \mysqli_sql_exception && $e->getCode() === 1062) {
+                    return ResponseEnvelope::error($response, 'email_exists', __('Esiste già un account con questa email.'), 409);
+                }
+                throw $e;
+            } finally {
+                if ($stmt instanceof \mysqli_stmt) {
+                    $stmt->close();
+                }
+            }
+
+            // Registration already committed: notification failures must not
+            // turn a successfully-created account into an API 500.
+            try {
+                $notifications = new NotificationService($this->db);
+                $notifications->sendUserRegistrationPending($userId);
+                $notifications->notifyNewUserRegistration($userId);
+                $notifications->notifyNewUserInApp($userId, trim($nome . ' ' . $cognome), $email);
+            } catch (\Throwable $e) {
+                SecureLogger::error('[MobileApi] registration side-effect failed for user ' . $userId . ': ' . $e->getMessage());
+            }
+
+            $requiresApproval = (bool) ConfigStore::get('registration.require_admin_approval', true);
 
             $data = [
                 'user_id'             => $userId,
                 'email_verification'  => true,
-                'requires_approval'   => true,
+                'requires_approval'   => $requiresApproval,
             ];
 
             return ResponseEnvelope::success(

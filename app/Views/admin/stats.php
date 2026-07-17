@@ -248,7 +248,7 @@
                   <td class="px-6 py-4">
                     <div>
                       <a href="<?= htmlspecialchars(url('/admin/users/' . (int)$reader['id']), ENT_QUOTES, 'UTF-8') ?>" class="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">
-                        <?php echo App\Support\HtmlHelper::e($reader['nome'] . ' ' . $reader['cognome']); ?>
+                        <?php echo htmlspecialchars(full_name($reader['nome'] ?? '', $reader['cognome'] ?? ''), ENT_QUOTES, 'UTF-8'); ?>
                       </a>
                       <div class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($reader['email']); ?></div>
                     </div>

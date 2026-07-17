@@ -89,7 +89,7 @@ class PrestitiController
                 $stmt->close();
             }
             if ($presetUser) {
-                $presetUserName = $presetUser['nome'] . ' ' . $presetUser['cognome'] . ' (' . $presetUser['codice_tessera'] . ')';
+                $presetUserName = full_name($presetUser['nome'] ?? '', $presetUser['cognome'] ?? '') . ' (' . $presetUser['codice_tessera'] . ')';
                 $presetUserLocked = true;
             } else {
                 $presetUserId = 0;

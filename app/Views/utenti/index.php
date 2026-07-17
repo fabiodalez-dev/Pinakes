@@ -80,7 +80,7 @@
                 <div class="flex items-start justify-between">
                   <div>
                     <h3 class="font-semibold text-gray-900 mb-1">
-                      <?= \App\Support\HtmlHelper::e($user['nome'] . ' ' . $user['cognome']) ?>
+                      <?= htmlspecialchars(full_name($user['nome'] ?? '', $user['cognome'] ?? ''), ENT_QUOTES, 'UTF-8') ?>
                     </h3>
                     <p class="text-xs text-gray-500 font-mono">
                       <i class="fas fa-id-card mr-1"></i><?= \App\Support\HtmlHelper::e($user['codice_tessera'] ?? 'N/A') ?>
