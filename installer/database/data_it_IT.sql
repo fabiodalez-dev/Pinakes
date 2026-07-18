@@ -11,23 +11,23 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Giorni per ritirare un prestito approvato prima che scada')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'loan_duration_days', '30', 'Durata predefinita di un prestito in giorni')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'max_active_loans_per_user', '0', 'Numero massimo di prestiti attivi per utente (0 = nessun limite)')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'max_renewals', '3', 'Numero massimo di rinnovi consentiti per prestito')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'max_loan_duration_days', '90', 'Durata massima richiedibile per un prestito in giorni')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `generi` VALUES (1,'Prosa',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
 INSERT INTO `generi` VALUES (2,'Poesia',NULL,'2025-10-20 16:20:00','2025-10-20 16:20:00',NULL);
@@ -349,7 +349,6 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 -- Social sharing settings
 ('sharing', 'enabled_providers', 'facebook,x,whatsapp,email', 'Provider di condivisione social abilitati nella pagina dettaglio libro', NOW())
 ON DUPLICATE KEY UPDATE
-    setting_value = VALUES(setting_value),
     description = VALUES(description),
     updated_at = NOW();
 
