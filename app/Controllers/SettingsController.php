@@ -813,7 +813,7 @@ class SettingsController
             'custom_js_marketing' => ContentSanitizer::normalizeExternalAssets(
                 $repository->get('advanced', 'custom_js_marketing', $config['custom_js_marketing'] ?? '')
             ),
-            'custom_header_css' => ContentSanitizer::normalizeExternalAssets(
+            'custom_header_css' => ContentSanitizer::sanitizeCustomCss(
                 $repository->get('advanced', 'custom_header_css', $config['custom_header_css'] ?? '')
             ),
             'days_before_expiry_warning' => (int) $repository->get('advanced', 'days_before_expiry_warning', (string) ($config['days_before_expiry_warning'] ?? 3)),
@@ -852,7 +852,7 @@ class SettingsController
             'custom_js_essential' => ContentSanitizer::normalizeExternalAssets(trim((string) ($data['custom_js_essential'] ?? ''))),
             'custom_js_analytics' => ContentSanitizer::normalizeExternalAssets(trim((string) ($data['custom_js_analytics'] ?? ''))),
             'custom_js_marketing' => ContentSanitizer::normalizeExternalAssets(trim((string) ($data['custom_js_marketing'] ?? ''))),
-            'custom_header_css' => ContentSanitizer::normalizeExternalAssets(trim((string) ($data['custom_header_css'] ?? ''))),
+            'custom_header_css' => ContentSanitizer::sanitizeCustomCss(trim((string) ($data['custom_header_css'] ?? ''))),
             'days_before_expiry_warning' => (string) $daysBeforeWarning,
             'session_lifetime' => (string) $sessionLifetime,
             'force_https' => isset($data['force_https']) && $data['force_https'] === '1' ? '1' : '0',

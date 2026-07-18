@@ -1265,7 +1265,7 @@ $htmlLang = substr($currentLocale, 0, 2);
     <?php
     // Load custom CSS from settings
     $customCss = ConfigStore::get('advanced.custom_header_css', '');
-    $customCss = is_string($customCss) ? ContentSanitizer::normalizeExternalAssets($customCss) : $customCss;
+    $customCss = is_string($customCss) ? ContentSanitizer::sanitizeCustomCss($customCss) : $customCss;
     if (!empty($customCss)):
         ?>
         <style>
