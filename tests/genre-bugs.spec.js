@@ -114,21 +114,21 @@ test.describe('Issue #64: Genre Edit/Update', () => {
     expect([401, 403]).toContain(resp.status());
   });
 
-  test('delete section visible only for leaf genres (no children)', async ({ page }) => {
+  test('delete section supports cascade for genre groups', async ({ page }) => {
     await loginAsAdmin(page);
 
-    // Get a root genre — should NOT show delete (has children)
+    // Get a root genre — should show cascade delete (has children)
     const rootResp = await page.request.get(`${BASE}/api/generi?only_parents=1&limit=5`);
     const roots = await rootResp.json();
     const rootWithChildren = roots.find(g => g.children_count > 0);
     if (rootWithChildren) {
       await page.goto(`${BASE}/admin/genres/${rootWithChildren.id}`);
-      // Delete button should NOT be visible for genres with children
       const deleteForm = page.locator('form[action*="/delete"]');
-      await expect(deleteForm).toBeHidden();
+      await expect(deleteForm).toBeVisible();
+      await expect(deleteForm.locator('input[name="cascade_delete"]')).toHaveValue('1');
     }
 
-    // Get a leaf genre (no children) — should show delete
+    // Get a leaf genre (no children) — should show normal delete
     const allResp = await page.request.get(`${BASE}/api/generi?limit=100`);
     const allGenres = await allResp.json();
     const leafGenre = allGenres.find(g => g.children_count === 0);
@@ -136,6 +136,7 @@ test.describe('Issue #64: Genre Edit/Update', () => {
       await page.goto(`${BASE}/admin/genres/${leafGenre.id}`);
       const deleteForm = page.locator('form[action*="/delete"]');
       await expect(deleteForm).toBeVisible();
+      await expect(deleteForm.locator('input[name="cascade_delete"]')).toHaveCount(0);
     }
   });
 });

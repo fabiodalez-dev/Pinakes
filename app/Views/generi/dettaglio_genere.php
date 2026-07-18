@@ -221,13 +221,24 @@ $genereName = $genere['nome'] ?? 'Genere';
       </div>
 
       <!-- Delete genre -->
-      <?php if (empty($children)): ?>
       <div class="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl shadow-lg border border-red-200/60 dark:border-red-700/60">
         <div class="p-6">
           <h2 class="text-lg font-semibold text-red-700 dark:text-red-400 flex items-center gap-2 mb-3">
             <i class="fas fa-trash-alt"></i>
             <?= __("Elimina genere") ?>
           </h2>
+          <?php if (!empty($children)): ?>
+          <p class="text-sm text-gray-600 dark:text-gray-400 mb-4"><?= __("Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.") ?></p>
+          <form method="post" action="<?= htmlspecialchars(url("/admin/genres/{$genereId}/delete"), ENT_QUOTES, 'UTF-8') ?>"
+                data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.'), ENT_QUOTES, 'UTF-8') ?>"
+                data-swal-confirm-button="<?= htmlspecialchars(__('Elimina tutto'), ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
+            <input type="hidden" name="cascade_delete" value="1">
+            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm">
+              <i class="fas fa-trash-alt mr-1"></i><?= __("Elimina genere e sottogeneri") ?>
+            </button>
+          </form>
+          <?php else: ?>
           <p class="text-sm text-gray-600 dark:text-gray-400 mb-4"><?= __("Questa azione elimina il genere in modo permanente. Possibile solo se non ha sottogeneri e non è usato da nessun libro.") ?></p>
           <form method="post" action="<?= htmlspecialchars(url("/admin/genres/{$genereId}/delete"), ENT_QUOTES, 'UTF-8') ?>"
                 data-swal-confirm="<?= htmlspecialchars(__('Sei sicuro di voler eliminare questo genere?'), ENT_QUOTES, 'UTF-8') ?>"
@@ -237,9 +248,9 @@ $genereName = $genere['nome'] ?? 'Genere';
               <i class="fas fa-trash-alt mr-1"></i><?= __("Elimina") ?>
             </button>
           </form>
+          <?php endif; ?>
         </div>
       </div>
-      <?php endif; ?>
     </div>
   </div>
 </div>
