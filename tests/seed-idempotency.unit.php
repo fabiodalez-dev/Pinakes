@@ -42,6 +42,27 @@ foreach ($dataFiles as $loc) {
     $check(str_contains($sql, 'ON DUPLICATE KEY UPDATE description = VALUES(description)')
         || str_contains($sql, "ON DUPLICATE KEY UPDATE\n    description = VALUES(description)"),
         "data_{$loc}.sql: system_settings ON DUPLICATE still refreshes description");
+
+    // EVERY system_settings INSERT must be re-runnable: a plain INSERT
+    // without ON DUPLICATE would abort the whole re-seed on duplicate key
+    // *before* reaching the tested clauses (CodeRabbit #266 finding 2).
+    // Split the file into statements and assert each system_settings
+    // INSERT carries a non-destructive duplicate handler.
+    $stmts = preg_split('/;\s*(?:\r?\n|$)/', $sql) ?: [];
+    $plain = [];
+    foreach ($stmts as $stmt) {
+        if (!preg_match('/INSERT\s+INTO\s+`?system_settings`?/i', $stmt)) {
+            continue;
+        }
+        if (!preg_match('/ON\s+DUPLICATE\s+KEY\s+UPDATE/i', $stmt)) {
+            // Grab the first VALUES key for a readable failure label.
+            preg_match("/\\(\\s*'[^']*'\\s*,\\s*'([^']*)'/", $stmt, $m);
+            $plain[] = $m[1] ?? substr(trim($stmt), 0, 40);
+        }
+    }
+    $check($plain === [],
+        "data_{$loc}.sql: every system_settings INSERT is re-runnable (no ON DUPLICATE on: "
+        . ($plain === [] ? '—' : implode(', ', $plain)) . ')');
 }
 
 // ── B. Behavioural: re-seed preserves an admin value, inserts a fresh one ────
