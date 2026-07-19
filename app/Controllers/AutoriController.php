@@ -392,19 +392,14 @@ class AutoriController
                 session_start();
             }
             $_SESSION['error_message'] = __('Impossibile eliminare l\'autore: sono presenti libri associati.');
-            // Only bounce back to the referring authors page when it is a
-            // same-host /admin/authors URL — a bare substring check would let
-            // https://evil.tld/admin/authors through as an open redirect.
-            $referer = $request->getHeaderLine('Referer');
-            $target = url('/admin/authors');
-            if ($referer !== '' && strpbrk($referer, "\r\n") === false && !str_starts_with($referer, '//')) {
-                $parsed = parse_url($referer);
-                $host = $parsed['host'] ?? null;
-                $sameHost = $host === null || $host === ($_SERVER['HTTP_HOST'] ?? '');
-                if ($sameHost && str_contains((string) ($parsed['path'] ?? ''), '/admin/authors')) {
-                    $target = $referer;
-                }
-            }
+            // Bounce back to the referring authors page, but derive the redirect
+            // from the referer's PATH only (scheme/host discarded) so a spoofed
+            // Host/Referer can never make this an open redirect. See RefererGuard.
+            $target = \App\Support\RefererGuard::localPath(
+                $request->getHeaderLine('Referer'),
+                '/admin/authors',
+                '/admin/authors'
+            );
             return $response->withHeader('Location', $target)->withStatus(302);
         }
 

@@ -71,11 +71,13 @@ test.describe('Per-copy field XSS hardening', () => {
     bookId = parseInt(dbQuery('SELECT id FROM libri WHERE deleted_at IS NULL ORDER BY id LIMIT 1'), 10);
     if (!bookId) return;
     // 'danneggiato' → the book-detail view shows BOTH the edit and delete buttons.
-    dbQuery(
+    // Grab the inserted row id in the SAME connection (LAST_INSERT_ID is
+    // connection-scoped) so afterAll always has an id to clean up.
+    copyId = parseInt(dbQuery(
       `INSERT INTO copie (libro_id, numero_inventario, stato, note) VALUES ` +
-      `(${bookId}, ${sqlStr(invPayload)}, 'danneggiato', ${sqlStr(notePayload)})`
-    );
-    copyId = parseInt(dbQuery(`SELECT id FROM copie WHERE numero_inventario = ${sqlStr(invPayload)}`), 10);
+      `(${bookId}, ${sqlStr(invPayload)}, 'danneggiato', ${sqlStr(notePayload)}); ` +
+      `SELECT LAST_INSERT_ID()`
+    ), 10);
   });
 
   test.afterAll(() => {
@@ -107,15 +109,19 @@ test.describe('Per-copy field XSS hardening', () => {
     // body must escape the code (no injected <img> onerror).
     await delBtn.click();
     await page.locator('.swal2-popup').waitFor({ state: 'visible', timeout: 8000 });
-    // The payload must appear as inert TEXT, not as a live <img> element.
+    // The payload must appear as inert, escaped TEXT (the serialization contract:
+    // present and readable, not stripped) and NOT as a live <img> element.
+    await expect(page.locator('.swal2-html-container')).toContainText(invPayload);
     const liveImg = await page.evaluate(() =>
       document.querySelectorAll('.swal2-html-container img[src="x"]').length);
     expect(liveImg, 'the SweetAlert body must not contain a live injected <img>').toBe(0);
     await page.locator('.swal2-cancel').click();
     await page.locator('.swal2-popup').waitFor({ state: 'hidden', timeout: 5000 });
 
-    // Behavioural — EDIT path: onclick must not break out.
+    // Behavioural — EDIT path: onclick must not break out, and the note must
+    // round-trip verbatim into the edit textarea (not stripped by the encoding).
     await editBtn.click();
+    await expect(page.locator('#edit-copy-note')).toHaveValue(notePayload);
     await page.waitForTimeout(300); // let the modal + any (non-)injected code settle
 
     // Nothing the payloads would have set may exist, and no dialog may have fired.

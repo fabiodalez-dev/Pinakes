@@ -15,35 +15,10 @@ class CopyController
      */
     private function safeReferer(string $default = '/admin/books'): string
     {
-        $default = url($default);
-        $referer = $_SERVER['HTTP_REFERER'] ?? $default;
-
-        // Block CRLF injection
-        if (strpos($referer, "\r") !== false || strpos($referer, "\n") !== false) {
-            return $default;
-        }
-
-        // Allow relative internal URLs
-        if (str_starts_with($referer, '/') && !str_starts_with($referer, '//')) {
-            return $referer;
-        }
-
-        // For absolute URLs, only allow same host
-        $parsed = parse_url($referer);
-        if (!$parsed || empty($parsed['host'])) {
-            return $default;
-        }
-
-        $currentHost = $_SERVER['HTTP_HOST'] ?? '';
-        if ($parsed['host'] === $currentHost) {
-            $path = $parsed['path'] ?? '/';
-            if (!empty($parsed['query'])) {
-                $path .= '?' . $parsed['query'];
-            }
-            return $path;
-        }
-
-        return $default;
+        // Delegate to the single audited implementation. localPath() uses only
+        // the referer's path (never its scheme/host), which is strictly safer
+        // than the previous same-host comparison and port-agnostic.
+        return \App\Support\RefererGuard::localPath((string) ($_SERVER['HTTP_REFERER'] ?? ''), $default);
     }
 
     /**

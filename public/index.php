@@ -277,9 +277,12 @@ if (!$isCli && !$httpsDetected) {
     $forceHttps = $forceHttpsFromDb || (getenv('APP_ENV') === 'production' && $forceHttpsFromEnv);
 
     if ($forceHttps) {
-        // Prefer the configured canonical host over the raw Host header so an
-        // attacker-supplied Host on a catch-all vhost cannot turn the HTTPS
-        // upgrade into an open redirect (https://evil.tld/…).
+        // When APP_CANONICAL_URL is configured, redirect to that canonical host
+        // instead of the raw Host header, so an attacker-supplied Host on a
+        // catch-all vhost cannot turn the HTTPS upgrade into an open redirect.
+        // Without a canonical URL set there is no trusted host at this bootstrap
+        // stage, so we fall back to the request Host (best effort) — operators
+        // on a shared/catch-all vhost should set APP_CANONICAL_URL.
         $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
         $canonicalUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
         if ($canonicalUrl !== '') {
