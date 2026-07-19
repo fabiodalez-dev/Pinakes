@@ -159,35 +159,43 @@ class Repo
             return null;
         }
 
-        $stmt = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id ASC LIMIT 1');
-        if ($stmt === false) {
+        // Insert-if-absent in a SINGLE statement, then resolve the id. This
+        // removes the application-level check-then-insert TOCTOU that let two
+        // near-simultaneous imports of the same publisher create duplicate rows.
+        // A UNIQUE index on editori.nome would make it fully atomic, but editori
+        // is a CORE table that legitimately allows homonyms (the app dedups by
+        // canonical name, not raw name) and may already hold duplicate names, so
+        // a plugin must not add one; the trailing SELECT always returns the
+        // lowest existing id regardless of who won an insert race.
+        $ins = $this->db->prepare(
+            'INSERT INTO editori (nome) SELECT ? FROM DUAL '
+            . 'WHERE NOT EXISTS (SELECT 1 FROM editori WHERE nome = ?)'
+        );
+        if ($ins === false) {
+            throw new \RuntimeException('publisher upsert prepare failed');
+        }
+        $ins->bind_param('ss', $name, $name);
+        if (!$ins->execute()) {
+            $err = $ins->error;
+            $ins->close();
+            throw new \RuntimeException('publisher upsert failed: ' . $err);
+        }
+        $ins->close();
+
+        $sel = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id ASC LIMIT 1');
+        if ($sel === false) {
             throw new \RuntimeException('publisher lookup prepare failed');
         }
-        $stmt->bind_param('s', $name);
-        if (!$stmt->execute()) {
-            $err = $stmt->error;
-            $stmt->close();
+        $sel->bind_param('s', $name);
+        if (!$sel->execute()) {
+            $err = $sel->error;
+            $sel->close();
             throw new \RuntimeException('publisher lookup failed: ' . $err);
         }
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if ($row !== null) {
-            return (int) $row['id'];
-        }
+        $row = $sel->get_result()->fetch_assoc();
+        $sel->close();
 
-        $stmt = $this->db->prepare('INSERT INTO editori (nome) VALUES (?)');
-        if ($stmt === false) {
-            throw new \RuntimeException('publisher insert prepare failed');
-        }
-        $stmt->bind_param('s', $name);
-        if (!$stmt->execute()) {
-            $err = $stmt->error;
-            $stmt->close();
-            throw new \RuntimeException('publisher insert failed: ' . $err);
-        }
-        $id = (int) $stmt->insert_id;
-        $stmt->close();
-        return $id;
+        return $row !== null ? (int) $row['id'] : null;
     }
 
     private function attachPrimaryPublisher(int $libroId, ?int $publisherId): void
