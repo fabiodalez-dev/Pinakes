@@ -1062,7 +1062,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     ?>
                     <?php if ($canEdit): ?>
                     <button type="button"
-                            onclick="openEditCopyModal(<?php echo (int)$copia['id']; ?>, '<?php echo htmlspecialchars($copia['stato'] ?? '', ENT_QUOTES); ?>', '<?php echo htmlspecialchars($copia['note'] ?? '', ENT_QUOTES); ?>')"
+                            onclick="openEditCopyModal(<?php echo (int)$copia['id']; ?>, <?php echo htmlspecialchars((string) json_encode($copia['stato'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>, <?php echo htmlspecialchars((string) json_encode($copia['note'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)"
                             class="text-blue-600 hover:text-blue-900 transition-colors"
                             title="<?= __("Modifica stato") ?>">
                       <i class="fas fa-edit"></i>
@@ -1070,7 +1070,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                     <?php endif; ?>
                     <?php if ($canDelete): ?>
                     <button type="button"
-                            onclick="confirmDeleteCopy(<?php echo (int)$copia['id']; ?>, '<?php echo htmlspecialchars($copia['numero_inventario'], ENT_QUOTES); ?>')"
+                            onclick="confirmDeleteCopy(<?php echo (int)$copia['id']; ?>, <?php echo htmlspecialchars((string) json_encode($copia['numero_inventario'] ?? '', JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8'); ?>)"
                             class="text-red-600 hover:text-red-900 transition-colors"
                             title="<?= __("Elimina copia") ?>">
                       <i class="fas fa-trash"></i>
@@ -1978,7 +1978,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
       if (window.Swal) {
         Swal.fire({
           title: __('Elimina copia'),
-          html: `${__('Sei sicuro di voler eliminare la copia')} <strong>${numeroInventario}</strong>?<br><span class="text-sm text-gray-600">${__('Questa azione non può essere annullata.')}</span>`,
+          html: `${__('Sei sicuro di voler eliminare la copia')} <strong>${escapeHtml(numeroInventario)}</strong>?<br><span class="text-sm text-gray-600">${__('Questa azione non può essere annullata.')}</span>`,
           icon: 'warning',
           showCancelButton: true,
           confirmButtonText: __('Sì, elimina'),

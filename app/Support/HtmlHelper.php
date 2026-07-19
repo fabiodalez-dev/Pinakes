@@ -437,6 +437,64 @@ class HtmlHelper
     }
 
     /**
+     * Resolve a redirect host that is OPERATOR-CONFIGURED, never the raw request
+     * Host header (which an attacker controls on a catch-all vhost).
+     *
+     * Priority: APP_CANONICAL_URL, then the first APP_TRUSTED_HOSTS entry. Both
+     * are set by the operator — the installer writes APP_CANONICAL_URL at setup.
+     * Returns null when neither is configured, so security-sensitive callers can
+     * fail safe instead of trusting the request Host.
+     *
+     * @return string|null host (with :port when the canonical URL carried one)
+     */
+    public static function configuredTrustedHost(): ?string
+    {
+        $canonical = $_ENV['APP_CANONICAL_URL'] ?? getenv('APP_CANONICAL_URL') ?: '';
+        if (is_string($canonical) && $canonical !== '') {
+            $parts = parse_url($canonical);
+            if (is_array($parts) && !empty($parts['host'])) {
+                return $parts['host']
+                    . (isset($parts['port']) ? ':' . (int) $parts['port'] : '');
+            }
+        }
+
+        $whitelist = $_ENV['APP_TRUSTED_HOSTS'] ?? getenv('APP_TRUSTED_HOSTS') ?: '';
+        if (is_string($whitelist) && trim($whitelist) !== '') {
+            $first = trim(explode(',', $whitelist)[0]);
+            if ($first !== '') {
+                return $first;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Build the target for the force-HTTPS bootstrap redirect from a configured
+     * trusted host + the (sanitised) request path. Returns null when no trusted
+     * host is configured — the caller must then NOT redirect (avoids an open
+     * redirect built from the attacker-controllable Host header).
+     *
+     * @return string|null absolute https:// URL, or null to skip the redirect
+     */
+    public static function forceHttpsRedirectTarget(): ?string
+    {
+        $host = self::configuredTrustedHost();
+        if ($host === null) {
+            return null;
+        }
+
+        // Strip control characters (CR/LF etc.) so the Location stays a single
+        // header line; normalise to a leading-'/' path.
+        $uri = preg_replace('/[^\x20-\x7E]/', '', (string) ($_SERVER['REQUEST_URI'] ?? '/')) ?? '/';
+        if ($uri === '' || $uri[0] !== '/') {
+            $uri = '/' . $uri;
+        }
+
+        return 'https://' . $host . $uri;
+    }
+
+    /**
      * Costruisce un URL assoluto sicuro da un path relativo
      *
      * @param string $path Path relativo

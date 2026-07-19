@@ -27,7 +27,7 @@ $legacyCatalogRoute = $legacyCatalogRoute ?? route_path('catalog_legacy');
                 <i class="fas fa-plus"></i>
                 <?= __("Carica Altri") ?>
             </button>
-            <a href="<?= $legacyCatalogRoute ?>" class="btn-cta">
+            <a href="<?= htmlspecialchars($legacyCatalogRoute, ENT_QUOTES, 'UTF-8') ?>" class="btn-cta">
                 <i class="fas fa-th-large"></i>
                 <?= __("Visualizza Tutto il Catalogo") ?>
             </a>
