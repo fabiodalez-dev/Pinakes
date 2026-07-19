@@ -80,5 +80,13 @@ foreach ($searchSetChoices as $name => $call) {
     $check(!$regressed, "{$name} search handler does NOT use the old append form (racy)");
 }
 
+echo "D. Server results are applied unconditionally (clears stale on no-results)\n";
+// With the client filter off, a `if (newChoices.length > 0)` guard before
+// setChoices would leave the previous query's options visible when a search
+// returns nothing. The setChoices must run even for an empty array so replace
+// clears the dropdown (CodeRabbit #272). No such guard may remain.
+$check(!str_contains($src, 'newChoices.length > 0'),
+    'no `if (newChoices.length > 0)` guard gates the server-search setChoices calls');
+
 echo "\n" . ($fail === 0 ? "ALL {$pass} PASS\n" : "{$pass} PASS, {$fail} FAIL\n");
 exit($fail === 0 ? 0 : 1);

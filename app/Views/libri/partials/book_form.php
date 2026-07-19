@@ -1422,12 +1422,11 @@ function initializeChoicesJS() {
                             customProperties: { isNew: false }
                         }));
 
-                    if (newChoices.length > 0) {
-                        // replace (drop the previous query's options, no stale
-                        // results) + clearSearchFlag=false (do NOT reset the
-                        // user's in-progress search input/state).
-                        authorsChoice.setChoices(newChoices, 'value', 'label', true, false);
-                    }
+                    // Replace unconditionally (even when empty): with the client
+                    // Fuse filter off, skipping the call on a no-results query
+                    // would leave the PREVIOUS query's options stale in the
+                    // dropdown. clearSearchFlag=false keeps the user's input.
+                    authorsChoice.setChoices(newChoices, 'value', 'label', true, false);
                 } catch (e) {
                     console.error('Server-side author search failed:', e);
                 }
@@ -2443,9 +2442,11 @@ function initContributorPicker(roleKey) {
                     const newChoices = (results || [])
                         .filter((a) => !selected.has(String(a.id)))
                         .map((a) => ({ value: String(a.id), label: a.label, selected: false }));
-                    // replace previous query's options (no stale) without
-                    // resetting the user's in-progress search input/state.
-                    if (newChoices.length > 0) choice.setChoices(newChoices, 'value', 'label', true, false);
+                    // Replace unconditionally (even when empty): with the client
+                    // Fuse filter off, skipping the call on a no-results query
+                    // would leave the PREVIOUS query's options stale in the
+                    // dropdown. clearSearchFlag=false keeps the user's input.
+                    choice.setChoices(newChoices, 'value', 'label', true, false);
                 } catch (e) {
                     console.error('Contributor search failed (' + roleKey + '):', e);
                 }
@@ -2501,11 +2502,11 @@ function initializePublishersChoices() {
                     const newChoices = (serverResults || [])
                         .filter(p => !selectedValues.has(String(p.id)))
                         .map(p => ({ value: String(p.id), label: p.label, selected: false, customProperties: { isNew: false } }));
-                    if (newChoices.length > 0) {
-                        // replace previous query's options (no stale) without
-                        // resetting the user's in-progress search input/state.
-                        publishersChoice.setChoices(newChoices, 'value', 'label', true, false);
-                    }
+                    // Replace unconditionally (even when empty): with the client
+                    // Fuse filter off, skipping the call on a no-results query
+                    // would leave the PREVIOUS query's options stale in the
+                    // dropdown. clearSearchFlag=false keeps the user's input.
+                    publishersChoice.setChoices(newChoices, 'value', 'label', true, false);
                 } catch (e) {
                     console.error('Server-side publisher search failed:', e);
                 }
