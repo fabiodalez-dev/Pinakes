@@ -223,6 +223,13 @@ test.describe.serial('User Profile & Dashboard', () => {
     const newPhone = `333${Date.now().toString().slice(-7)}`;
     await page.fill('#telefono', newPhone);
 
+    // #255 makes address/phone required-by-config; fill address too so the
+    // profile-update form validates regardless of the install's field config.
+    const addrField = page.locator('#indirizzo, input[name="indirizzo"], textarea[name="indirizzo"]').first();
+    if (await addrField.count() && !(await addrField.inputValue().catch(() => ''))) {
+      await addrField.fill('Via Profilo 1');
+    }
+
     // Submit profile update form
     const form = page.locator('form[action*="aggiorna"], form[action*="update"]').first();
     await form.locator('button[type="submit"]').click();
@@ -343,6 +350,10 @@ test.describe.serial('Admin User Management', () => {
     await page.fill('input[name="cognome"]', `NewUser${RUN_ID}`);
     await page.fill('input[name="email"]', newEmail);
     await page.fill('input[name="telefono"]', '3339999999');
+    // #255 makes address required-by-config on some installs; fill it so the
+    // admin create-user form validates regardless of the field config.
+    const addr9 = page.locator('input[name="indirizzo"], textarea[name="indirizzo"]').first();
+    if (await addr9.count()) await addr9.fill('Via Admin 1');
 
     // Select user type
     const tipoSelect = page.locator('select[name="tipo_utente"]');

@@ -402,6 +402,10 @@ test.describe.serial('Email Notifications E2E', () => {
         cognome: 'TestUser',
         email: tempEmail,
         telefono: '1111111111',
+        // #255 makes address required-by-config on some installs; a missing
+        // required field makes /admin/users/store redirect (302, still <400)
+        // WITHOUT creating the user, so no password-setup email is ever sent.
+        indirizzo: 'Via Setup 1',
         tipo_utente: 'standard',
         stato: 'attivo',
       },
