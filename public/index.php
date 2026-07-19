@@ -277,23 +277,16 @@ if (!$isCli && !$httpsDetected) {
     $forceHttps = $forceHttpsFromDb || (getenv('APP_ENV') === 'production' && $forceHttpsFromEnv);
 
     if ($forceHttps) {
-        // When APP_CANONICAL_URL is configured, redirect to that canonical host
-        // instead of the raw Host header, so an attacker-supplied Host on a
-        // catch-all vhost cannot turn the HTTPS upgrade into an open redirect.
-        // Without a canonical URL set there is no trusted host at this bootstrap
-        // stage, so we fall back to the request Host (best effort) — operators
-        // on a shared/catch-all vhost should set APP_CANONICAL_URL.
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $canonicalUrl = getenv('APP_CANONICAL_URL') ?: ($_ENV['APP_CANONICAL_URL'] ?? '');
-        if ($canonicalUrl !== '') {
-            $canonicalParts = parse_url($canonicalUrl);
-            if (!empty($canonicalParts['host'])) {
-                $host = $canonicalParts['host']
-                    . (isset($canonicalParts['port']) ? ':' . (int) $canonicalParts['port'] : '');
-            }
-        }
-        $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-        header('Location: https://' . $host . $requestUri, true, 301);
+        // Build the redirect target through the app's single audited host
+        // resolver (HtmlHelper::getCurrentUrl) rather than the raw Host header:
+        // it prefers APP_CANONICAL_URL, enforces the APP_TRUSTED_HOSTS whitelist,
+        // RFC-1123-validates the Host (falling back to localhost on a bad value),
+        // and strips control characters from the request URI. So an attacker-
+        // supplied Host on a catch-all vhost cannot steer the HTTPS upgrade to an
+        // off-site host. Then force the scheme to https for the upgrade itself.
+        $target = \App\Support\HtmlHelper::getCurrentUrl();
+        $target = preg_replace('#^http://#i', 'https://', $target, 1) ?? $target;
+        header('Location: ' . $target, true, 301);
         exit;
     }
 }
