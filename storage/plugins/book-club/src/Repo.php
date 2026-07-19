@@ -179,8 +179,12 @@ class Repo
                 $sel->close();
                 throw new \RuntimeException('publisher lookup failed: ' . $err);
             }
-            $row = $sel->get_result()->fetch_assoc();
+            $selResult = $sel->get_result();
             $sel->close();
+            if ($selResult === false) {
+                throw new \RuntimeException('publisher lookup get_result failed');
+            }
+            $row = $selResult->fetch_assoc();
             if ($row !== null) {
                 return (int) $row['id'];
             }
@@ -211,7 +215,11 @@ class Repo
     {
         $lockName = self::PUBLISHER_LOCK_NAME;
         $timeout = self::PUBLISHER_LOCK_TIMEOUT_SECONDS;
-        $stmt = $this->db->prepare('SELECT GET_LOCK(?, ?) AS acquired');
+        // GET_LOCK is server-wide, not per-database — scope the name to the
+        // current schema (computed server-side via CONCAT + DATABASE()) so
+        // independent Pinakes installs sharing one MySQL server don't serialize
+        // each other's imports. Mirrors ContributorBackfill's lock naming.
+        $stmt = $this->db->prepare("SELECT GET_LOCK(CONCAT(?, ':', DATABASE()), ?) AS acquired");
         if ($stmt === false) {
             throw new \RuntimeException('publisher lock prepare failed');
         }
@@ -221,8 +229,12 @@ class Repo
             $stmt->close();
             throw new \RuntimeException('publisher lock failed: ' . $err);
         }
-        $row = $stmt->get_result()->fetch_assoc();
+        $result = $stmt->get_result();
         $stmt->close();
+        if ($result === false) {
+            throw new \RuntimeException('publisher lock get_result failed');
+        }
+        $row = $result->fetch_assoc();
         if ((int) ($row['acquired'] ?? 0) !== 1) {
             throw new \RuntimeException('publisher lock timed out');
         }
@@ -231,7 +243,7 @@ class Repo
     private function releasePublisherLock(): void
     {
         $lockName = self::PUBLISHER_LOCK_NAME;
-        $stmt = $this->db->prepare('SELECT RELEASE_LOCK(?) AS released');
+        $stmt = $this->db->prepare("SELECT RELEASE_LOCK(CONCAT(?, ':', DATABASE())) AS released");
         if ($stmt === false) {
             SecureLogger::error('[BookClub] publisher lock release prepare failed: ' . $this->db->error);
             return;
@@ -242,8 +254,16 @@ class Repo
             $stmt->close();
             return;
         }
-        $row = $stmt->get_result()->fetch_assoc();
+        // Guard get_result() === false here especially: this runs inside the
+        // finally of findOrCreatePublisher(), so an uncaught Error would mask a
+        // propagating exception — the very thing this lock protocol avoids.
+        $result = $stmt->get_result();
         $stmt->close();
+        if ($result === false) {
+            SecureLogger::error('[BookClub] publisher lock release get_result failed: ' . $this->db->error);
+            return;
+        }
+        $row = $result->fetch_assoc();
         if ((int) ($row['released'] ?? 0) !== 1) {
             SecureLogger::error('[BookClub] publisher lock was not owned by this connection');
         }

@@ -178,8 +178,17 @@ try {
     $check($idConcurrent2 === $idConcurrent1, 'both overlapping imports resolve the SAME publisher id');
     $check($count($db, 'Mondadori') === 1, 'overlap creates exactly one publisher row');
 
+    // findOrCreatePublisher() operates on the CORE `editori` table via hardcoded
+    // SQL, so it can't be driven directly here without polluting real data — the
+    // protocol above is proven on a sandbox replica. Bind the sandbox proof to
+    // production by asserting the real code keeps the exact protocol invariants:
+    // acquire/release AND the per-database scoping (GET_LOCK is server-wide, so a
+    // regression that drops DATABASE() would reintroduce cross-tenant contention).
     $repoSource = (string) file_get_contents($root . '/storage/plugins/book-club/src/Repo.php');
-    $check(str_contains($repoSource, 'GET_LOCK') && str_contains($repoSource, 'RELEASE_LOCK'), 'production Repo uses the tested database lock protocol');
+    $check(str_contains($repoSource, 'GET_LOCK(CONCAT(') && str_contains($repoSource, 'DATABASE()'),
+        'production Repo scopes the advisory lock per database (GET_LOCK(CONCAT(?, DATABASE())))');
+    $check(str_contains($repoSource, 'RELEASE_LOCK(CONCAT('),
+        'production Repo releases the same per-database-scoped lock');
 } finally {
     // Advisory locks are connection-scoped; make cleanup idempotent after a failed assertion/query.
     try { $releaseLock($db); } catch (Throwable) {}
