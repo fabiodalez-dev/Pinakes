@@ -49,8 +49,10 @@ $check = static function (bool $condition, string $label) use (&$testNo): void {
     printf("[%02d] PASS: %s\n", $testNo, $label);
 };
 
-$prefix = 'zz_cascade_' . bin2hex(random_bytes(4));
+$prefix = 'zc_' . bin2hex(random_bytes(4));
 $repo = new GenereRepository($db);
+
+$check(strlen($prefix . '_shelf') <= 20, 'fixture shelf code fits scaffali.codice VARCHAR(20)');
 
 $cleanup = static function () use ($db, $prefix): void {
     $like = $prefix . '%';
