@@ -88,5 +88,23 @@ echo "D. Server results are applied unconditionally (clears stale on no-results)
 $check(!str_contains($src, 'newChoices.length > 0'),
     'no `if (newChoices.length > 0)` guard gates the server-search setChoices calls');
 
+echo "E. Authors block declares `internalInput` used by its #74 _onEnterKey patch\n";
+// Regression guard: the stackChoicesInput refactor replaced the authors-only
+// forceInputWidth block, which used to declare `const internalInput`. The
+// authors picker's _onEnterKey monkey-patch (load-bearing for issue #74) and
+// its ensureAuthorChoice helpers reference `internalInput`; without the
+// declaration in scope the whole picker throws "ReferenceError: internalInput
+// is not defined" on the first keystroke, so adding an author via Enter — and
+// the entire book form's JS — breaks. Assert the declaration sits between the
+// authors `new Choices(...)` and its `_onEnterKey` patch.
+$authPos = strpos($flat, 'authorsChoice = new Choices(element, {');
+$enterPos = strpos($flat, 'authorsChoice._onEnterKey = function');
+$authInternalOk = $authPos !== false && $enterPos !== false && $authPos < $enterPos
+    && (bool) preg_match(
+        '/authorsChoice = new Choices\(element, \{.*?const internalInput\s*=\s*wrapper\s*\?\s*wrapper\.querySelector/s',
+        $src
+    );
+$check($authInternalOk, 'authors picker declares `const internalInput` before its _onEnterKey patch');
+
 echo "\n" . ($fail === 0 ? "ALL {$pass} PASS\n" : "{$pass} PASS, {$fail} FAIL\n");
 exit($fail === 0 ? 0 : 1);

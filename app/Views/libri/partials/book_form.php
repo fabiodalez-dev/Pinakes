@@ -1434,6 +1434,12 @@ function initializeChoicesJS() {
         });
 
         const wrapper = element.closest('.choices');
+        // Load-bearing for the #74 _onEnterKey monkey-patch below (and the
+        // ensureAuthorChoice helpers): the authors block references
+        // `internalInput` in several places. It used to be declared by the
+        // now-removed forceInputWidth block — keep it here so replacing that
+        // block with stackChoicesInput() doesn't leave it undefined.
+        const internalInput = wrapper ? wrapper.querySelector('.choices__input--cloned') : null;
         // Stack the search input on its own full-width row below the chips
         // (shared with the contributor + publisher pickers).
         stackChoicesInput(wrapper);
