@@ -4,19 +4,12 @@ declare(strict_types=1);
 /**
  * Behavioural guard for the book-club Repo::findOrCreatePublisher() race fix.
  *
- * The old code did SELECT-then-INSERT in two round-trips (a check-then-act TOCTOU
- * that let two near-simultaneous imports of the same publisher create duplicate
- * `editori` rows). The fix collapses the check + insert into ONE statement:
- *
- *   INSERT INTO editori (nome) SELECT ? FROM DUAL
- *   WHERE NOT EXISTS (SELECT 1 FROM editori WHERE nome = ?)
- *
- * followed by a SELECT that resolves the lowest existing id. (A UNIQUE index on
- * editori.nome would make it fully atomic, but editori is a CORE table that
- * legitimately allows homonyms and may already hold duplicate names, so the
- * plugin must not add one.) This test pins the observable single-thread contract
- * of that statement pair — insert-if-absent + stable id resolution — against a
- * sandbox table shaped like `editori`.
+ * `editori.nome` intentionally has no UNIQUE constraint, so a NOT EXISTS insert
+ * can either duplicate or deadlock under real concurrency. The repository now
+ * serializes publisher resolution with a MySQL advisory lock shared by separate
+ * PHP/database connections. This test pins both the ordinary reuse contract and
+ * the overlapping two-connection path against a sandbox table shaped like
+ * `editori`.
  *
  * Runs against the LIVE local MySQL; touches only the zz_bc_editori table.
  *
@@ -51,8 +44,20 @@ try {
 }
 $db->set_charset('utf8mb4');
 
+try {
+    $db2 = ($socket !== '' && file_exists($socket))
+        ? new mysqli(null, $env['DB_USER'] ?? '', $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''), $env['DB_NAME'] ?? '', 0, $socket)
+        : new mysqli($env['DB_HOST'] ?? '127.0.0.1', $env['DB_USER'] ?? '', $env['DB_PASS'] ?? ($env['DB_PASSWORD'] ?? ''), $env['DB_NAME'] ?? '', (int) ($env['DB_PORT'] ?? 3306));
+    $db2->set_charset('utf8mb4');
+} catch (\Throwable $e) {
+    $db->close();
+    echo "SKIP: second database connection not reachable (" . $e->getMessage() . ")\n";
+    exit(0);
+}
+
 const T = 'zz_bc_editori';
 $cleanup = static fn () => $db->query('DROP TABLE IF EXISTS `' . T . '`');
+$lockName = 'pinakes:test:bc-publisher:' . bin2hex(random_bytes(6));
 
 $pass = 0;
 $fail = 0;
@@ -61,23 +66,52 @@ $check = static function (bool $ok, string $label) use (&$pass, &$fail): void {
     else     { $fail++; echo "  FAIL {$label}\n"; }
 };
 
-/** The exact statement pair Repo::findOrCreatePublisher() now uses. */
-$findOrCreate = static function (string $name) use ($db): ?int {
-    $ins = $db->prepare('INSERT INTO `' . T . '` (nome) SELECT ? FROM DUAL '
-        . 'WHERE NOT EXISTS (SELECT 1 FROM `' . T . '` WHERE nome = ?)');
-    $ins->bind_param('ss', $name, $name);
-    $ins->execute();
-    $ins->close();
-
-    $sel = $db->prepare('SELECT id FROM `' . T . '` WHERE nome = ? ORDER BY id ASC LIMIT 1');
+/** The exact locked lookup/insert contract Repo::findOrCreatePublisher() uses. */
+$findOrCreateWhileLocked = static function (mysqli $connection, string $name): int {
+    $sel = $connection->prepare('SELECT id FROM `' . T . '` WHERE nome = ? ORDER BY id ASC LIMIT 1');
     $sel->bind_param('s', $name);
     $sel->execute();
     $row = $sel->get_result()->fetch_assoc();
     $sel->close();
-    return $row !== null ? (int) $row['id'] : null;
+    if ($row !== null) {
+        return (int) $row['id'];
+    }
+
+    $ins = $connection->prepare('INSERT INTO `' . T . '` (nome) VALUES (?)');
+    $ins->bind_param('s', $name);
+    $ins->execute();
+    $id = $ins->insert_id;
+    $ins->close();
+    return $id;
 };
-$count = static function (string $name) use ($db): int {
-    $stmt = $db->prepare('SELECT COUNT(*) FROM `' . T . '` WHERE nome = ?');
+$acquireLock = static function (mysqli $connection, int $timeout = 5) use ($lockName): bool {
+    $stmt = $connection->prepare('SELECT GET_LOCK(?, ?) AS acquired');
+    $stmt->bind_param('si', $lockName, $timeout);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return (int) ($row['acquired'] ?? 0) === 1;
+};
+$releaseLock = static function (mysqli $connection) use ($lockName): bool {
+    $stmt = $connection->prepare('SELECT RELEASE_LOCK(?) AS released');
+    $stmt->bind_param('s', $lockName);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    return (int) ($row['released'] ?? 0) === 1;
+};
+$findOrCreate = static function (mysqli $connection, string $name) use ($acquireLock, $releaseLock, $findOrCreateWhileLocked): int {
+    if (!$acquireLock($connection)) {
+        throw new RuntimeException('test publisher lock timed out');
+    }
+    try {
+        return $findOrCreateWhileLocked($connection, $name);
+    } finally {
+        $releaseLock($connection);
+    }
+};
+$count = static function (mysqli $connection, string $name): int {
+    $stmt = $connection->prepare('SELECT COUNT(*) FROM `' . T . '` WHERE nome = ?');
     $stmt->bind_param('s', $name);
     $stmt->execute();
     $n = (int) $stmt->get_result()->fetch_row()[0];
@@ -93,29 +127,65 @@ try {
      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci');
 
     echo "A. Insert-if-absent + stable id\n";
-    $id1 = $findOrCreate('Einaudi');
-    $check(is_int($id1) && $id1 > 0, "first call creates the publisher and returns its id ({$id1})");
-    $check($count('Einaudi') === 1, 'exactly one row exists after the first call');
+    $id1 = $findOrCreate($db, 'Einaudi');
+    $check($id1 > 0, "first call creates the publisher and returns its id ({$id1})");
+    $check($count($db, 'Einaudi') === 1, 'exactly one row exists after the first call');
 
-    $id2 = $findOrCreate('Einaudi');
+    $id2 = $findOrCreate($db, 'Einaudi');
     $check($id2 === $id1, 'second call for the same name returns the SAME id (no create)');
-    $check($count('Einaudi') === 1, 'still exactly one row — no duplicate created');
+    $check($count($db, 'Einaudi') === 1, 'still exactly one row — no duplicate created');
 
     echo "B. Distinct names get distinct rows\n";
-    $id3 = $findOrCreate('Adelphi');
-    $check(is_int($id3) && $id3 !== $id1, "a different name creates a distinct row ({$id3})");
+    $id3 = $findOrCreate($db, 'Adelphi');
+    $check($id3 !== $id1, "a different name creates a distinct row ({$id3})");
     $check((int) $db->query('SELECT COUNT(*) FROM `' . T . '`')->fetch_row()[0] === 2, 'two rows total for two distinct names');
 
     echo "C. Pre-existing row is reused, never re-inserted\n";
     // Simulate a legacy duplicate already present (core tables allow homonyms):
     $db->query("INSERT INTO `" . T . "` (nome) VALUES ('Adelphi')");
-    $dupCountBefore = $count('Adelphi');
+    $dupCountBefore = $count($db, 'Adelphi');
     $check($dupCountBefore === 2, 'a legacy duplicate can pre-exist (2 rows named Adelphi)');
-    $idA = $findOrCreate('Adelphi');
-    $check($count('Adelphi') === 2, 'find-or-create does NOT add a third row when the name already exists');
+    $idA = $findOrCreate($db, 'Adelphi');
+    $check($count($db, 'Adelphi') === 2, 'find-or-create does NOT add a third row when the name already exists');
     $check($idA === $id3, 'it returns the LOWEST existing id deterministically');
+
+    echo "D. Overlapping connections serialize instead of racing\n";
+    $check($acquireLock($db), 'first connection acquires the shared publisher lock');
+    $escapedLockName = $db2->real_escape_string($lockName);
+    $db2->query("SELECT GET_LOCK('{$escapedLockName}', 5) AS acquired", MYSQLI_ASYNC);
+    usleep(100_000);
+    $read = [$db2];
+    $error = [$db2];
+    $reject = [];
+    $check(mysqli_poll($read, $error, $reject, 0, 0) === 0, 'second connection waits while the first owns the lock');
+
+    $idConcurrent1 = $findOrCreateWhileLocked($db, 'Mondadori');
+    $check($releaseLock($db), 'first connection releases the lock after inserting');
+
+    $read = [$db2];
+    $error = [$db2];
+    $reject = [];
+    $check(mysqli_poll($read, $error, $reject, 5) === 1, 'second connection resumes after release');
+    $result = $db2->reap_async_query();
+    if (!$result instanceof mysqli_result) {
+        throw new RuntimeException('failed to reap asynchronous lock query');
+    }
+    $lockRow = $result->fetch_assoc();
+    $result->free();
+    $check((int) ($lockRow['acquired'] ?? 0) === 1, 'second connection acquires the same lock');
+    $idConcurrent2 = $findOrCreateWhileLocked($db2, 'Mondadori');
+    $check($releaseLock($db2), 'second connection releases the lock');
+    $check($idConcurrent2 === $idConcurrent1, 'both overlapping imports resolve the SAME publisher id');
+    $check($count($db, 'Mondadori') === 1, 'overlap creates exactly one publisher row');
+
+    $repoSource = (string) file_get_contents($root . '/storage/plugins/book-club/src/Repo.php');
+    $check(str_contains($repoSource, 'GET_LOCK') && str_contains($repoSource, 'RELEASE_LOCK'), 'production Repo uses the tested database lock protocol');
 } finally {
+    // Advisory locks are connection-scoped; make cleanup idempotent after a failed assertion/query.
+    try { $releaseLock($db); } catch (Throwable) {}
+    try { $releaseLock($db2); } catch (Throwable) {}
     $cleanup();
+    $db2->close();
     $db->close();
 }
 

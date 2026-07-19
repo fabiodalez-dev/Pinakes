@@ -14,6 +14,14 @@ use mysqli;
  */
 class Repo
 {
+    /**
+     * `editori.nome` intentionally has no UNIQUE constraint because the core
+     * catalogue permits homonyms. Serialize Book Club publisher resolution on
+     * the database server instead, so separate PHP workers share the same lock.
+     */
+    private const PUBLISHER_LOCK_NAME = 'pinakes:bookclub:publisher';
+    private const PUBLISHER_LOCK_TIMEOUT_SECONDS = 10;
+
     private mysqli $db;
 
     public function __construct(mysqli $db)
@@ -159,43 +167,86 @@ class Repo
             return null;
         }
 
-        // Insert-if-absent in a SINGLE statement, then resolve the id. This
-        // removes the application-level check-then-insert TOCTOU that let two
-        // near-simultaneous imports of the same publisher create duplicate rows.
-        // A UNIQUE index on editori.nome would make it fully atomic, but editori
-        // is a CORE table that legitimately allows homonyms (the app dedups by
-        // canonical name, not raw name) and may already hold duplicate names, so
-        // a plugin must not add one; the trailing SELECT always returns the
-        // lowest existing id regardless of who won an insert race.
-        $ins = $this->db->prepare(
-            'INSERT INTO editori (nome) SELECT ? FROM DUAL '
-            . 'WHERE NOT EXISTS (SELECT 1 FROM editori WHERE nome = ?)'
-        );
-        if ($ins === false) {
-            throw new \RuntimeException('publisher upsert prepare failed');
-        }
-        $ins->bind_param('ss', $name, $name);
-        if (!$ins->execute()) {
-            $err = $ins->error;
-            $ins->close();
-            throw new \RuntimeException('publisher upsert failed: ' . $err);
-        }
-        $ins->close();
-
-        $sel = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id ASC LIMIT 1');
-        if ($sel === false) {
-            throw new \RuntimeException('publisher lookup prepare failed');
-        }
-        $sel->bind_param('s', $name);
-        if (!$sel->execute()) {
-            $err = $sel->error;
+        $this->acquirePublisherLock();
+        try {
+            $sel = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id ASC LIMIT 1');
+            if ($sel === false) {
+                throw new \RuntimeException('publisher lookup prepare failed');
+            }
+            $sel->bind_param('s', $name);
+            if (!$sel->execute()) {
+                $err = $sel->error;
+                $sel->close();
+                throw new \RuntimeException('publisher lookup failed: ' . $err);
+            }
+            $row = $sel->get_result()->fetch_assoc();
             $sel->close();
-            throw new \RuntimeException('publisher lookup failed: ' . $err);
-        }
-        $row = $sel->get_result()->fetch_assoc();
-        $sel->close();
+            if ($row !== null) {
+                return (int) $row['id'];
+            }
 
-        return $row !== null ? (int) $row['id'] : null;
+            $ins = $this->db->prepare('INSERT INTO editori (nome) VALUES (?)');
+            if ($ins === false) {
+                throw new \RuntimeException('publisher insert prepare failed');
+            }
+            $ins->bind_param('s', $name);
+            if (!$ins->execute()) {
+                $err = $ins->error;
+                $ins->close();
+                throw new \RuntimeException('publisher insert failed: ' . $err);
+            }
+            $publisherId = $ins->insert_id;
+            $ins->close();
+
+            if ($publisherId <= 0) {
+                throw new \RuntimeException('publisher insert returned no id');
+            }
+            return $publisherId;
+        } finally {
+            $this->releasePublisherLock();
+        }
+    }
+
+    private function acquirePublisherLock(): void
+    {
+        $lockName = self::PUBLISHER_LOCK_NAME;
+        $timeout = self::PUBLISHER_LOCK_TIMEOUT_SECONDS;
+        $stmt = $this->db->prepare('SELECT GET_LOCK(?, ?) AS acquired');
+        if ($stmt === false) {
+            throw new \RuntimeException('publisher lock prepare failed');
+        }
+        $stmt->bind_param('si', $lockName, $timeout);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new \RuntimeException('publisher lock failed: ' . $err);
+        }
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ((int) ($row['acquired'] ?? 0) !== 1) {
+            throw new \RuntimeException('publisher lock timed out');
+        }
+    }
+
+    private function releasePublisherLock(): void
+    {
+        $lockName = self::PUBLISHER_LOCK_NAME;
+        $stmt = $this->db->prepare('SELECT RELEASE_LOCK(?) AS released');
+        if ($stmt === false) {
+            SecureLogger::error('[BookClub] publisher lock release prepare failed: ' . $this->db->error);
+            return;
+        }
+        $stmt->bind_param('s', $lockName);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[BookClub] publisher lock release failed: ' . $stmt->error);
+            $stmt->close();
+            return;
+        }
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if ((int) ($row['released'] ?? 0) !== 1) {
+            SecureLogger::error('[BookClub] publisher lock was not owned by this connection');
+        }
     }
 
     private function attachPrimaryPublisher(int $libroId, ?int $publisherId): void
