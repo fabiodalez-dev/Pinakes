@@ -323,7 +323,7 @@ $pluginHasSettings = $pluginHasSettings ?? [];
                                     <button onclick="activatePlugin(<?= (int)$plugin['id'] ?>)"
                                         class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all duration-200 text-sm font-medium">
                                         <i class="fas fa-check mr-1"></i>
-                                        <?= __("Attiva") ?>
+                                        <?= __("Attiva plugin") ?>
                                     </button>
                                 <?php endif; ?>
 
