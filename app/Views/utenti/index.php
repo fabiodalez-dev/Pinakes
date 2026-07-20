@@ -129,7 +129,7 @@
                   <input type="hidden" name="csrf_token" value="<?= \App\Support\Csrf::ensureToken() ?>">
                   <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm inline-flex items-center justify-center gap-2">
                     <i class="fas fa-user-check"></i>
-                    <span><?= __("Attiva") ?></span>
+                    <span><?= __("Attiva utente") ?></span>
                   </button>
                 </form>
               </div>

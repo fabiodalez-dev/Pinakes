@@ -178,6 +178,99 @@ class GenereRepository
         return $result;
     }
 
+    public function cascadeDelete(int $id): bool
+    {
+        $ids = $this->collectSubtreeIds($id);
+        if (empty($ids)) {
+            return false;
+        }
+
+        $this->db->begin_transaction();
+
+        try {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+            $stmt = $this->db->prepare("
+                UPDATE libri
+                SET genere_id = IF(genere_id IN ({$placeholders}), NULL, genere_id),
+                    sottogenere_id = IF(sottogenere_id IN ({$placeholders}), NULL, sottogenere_id)
+                WHERE genere_id IN ({$placeholders})
+                   OR sottogenere_id IN ({$placeholders})
+            ");
+            $this->bindIntParams($stmt, array_merge($ids, $ids, $ids, $ids));
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nello scollegamento dei libri dai generi');
+            }
+
+            $stmt = $this->db->prepare("UPDATE mensole SET genere_id = NULL WHERE genere_id IN ({$placeholders})");
+            $this->bindIntParams($stmt, $ids);
+            if (!$stmt->execute()) {
+                throw new \RuntimeException('Errore nello scollegamento delle mensole dai generi');
+            }
+
+            $stmt = $this->db->prepare("DELETE FROM generi WHERE id = ?");
+            $stmt->bind_param('i', $id);
+            $result = $stmt->execute();
+
+            $this->db->commit();
+            QueryCache::clearByPrefix('genre_tree_');
+            return $result;
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            throw $e;
+        }
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function collectSubtreeIds(int $id): array
+    {
+        $ids = [];
+        $queue = [$id];
+        $stmt = $this->db->prepare("SELECT id FROM generi WHERE parent_id = ?");
+        if (!$stmt) {
+            throw new \RuntimeException('Errore nella preparazione della query dei sottogeneri');
+        }
+
+        while ($queue) {
+            $currentId = array_shift($queue);
+            if (isset($ids[$currentId])) {
+                continue;
+            }
+
+            $genre = $this->getById($currentId);
+            if (!$genre) {
+                continue;
+            }
+
+            $ids[$currentId] = $currentId;
+            $stmt->bind_param('i', $currentId);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            while ($row = $result->fetch_assoc()) {
+                $queue[] = (int)$row['id'];
+            }
+        }
+
+        $stmt->close();
+        return array_values($ids);
+    }
+
+    /**
+     * @param array<int, int> $values
+     */
+    private function bindIntParams(\mysqli_stmt $stmt, array $values): void
+    {
+        $types = str_repeat('i', count($values));
+        $refs = [$types];
+        foreach ($values as $key => $value) {
+            $values[$key] = (int)$value;
+            $refs[] = &$values[$key];
+        }
+        $stmt->bind_param(...$refs);
+    }
+
     public function getChildren(int $parent_id): array
     {
         $stmt = $this->db->prepare("

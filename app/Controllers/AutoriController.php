@@ -392,8 +392,14 @@ class AutoriController
                 session_start();
             }
             $_SESSION['error_message'] = __('Impossibile eliminare l\'autore: sono presenti libri associati.');
-            $referer = $request->getHeaderLine('Referer');
-            $target = str_contains($referer, '/admin/authors') ? $referer : '/admin/authors';
+            // Bounce back to the referring authors page, but derive the redirect
+            // from the referer's PATH only (scheme/host discarded) so a spoofed
+            // Host/Referer can never make this an open redirect. See RefererGuard.
+            $target = \App\Support\RefererGuard::localPath(
+                $request->getHeaderLine('Referer'),
+                '/admin/authors',
+                '/admin/authors'
+            );
             return $response->withHeader('Location', $target)->withStatus(302);
         }
 

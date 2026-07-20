@@ -188,31 +188,31 @@ INSERT IGNORE INTO `generi` VALUES (181,'Oratorio',NULL,'2025-10-20 16:20:00','2
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('cms', 'events_page_enabled', '1', 'Activer ou désactiver la page événements dans le frontend')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('system', 'catalogue_mode', '0', 'Mode catalogue uniquement - désactive les emprunts, réservations et liste de souhaits')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'pickup_expiry_days', '3', 'Jours pour récupérer un emprunt approuvé avant expiration')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'loan_duration_days', '30', 'Durée d\'emprunt par défaut en jours')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'max_active_loans_per_user', '0', 'Nombre maximal d\'emprunts actifs par utilisateur (0 = aucune limite)')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'max_renewals', '3', 'Nombre maximal de renouvellements autorisés par emprunt')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `description`) VALUES
 ('loans', 'max_loan_duration_days', '90', 'Durée maximale demandable pour un emprunt en jours')
-ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = VALUES(description), updated_at = NOW();
+ON DUPLICATE KEY UPDATE description = VALUES(description), updated_at = NOW();
 
 -- ============================================================================
 -- System Settings - Complete default configuration
@@ -298,7 +298,6 @@ INSERT INTO `system_settings` (`category`, `setting_key`, `setting_value`, `desc
 -- Social sharing settings
 ('sharing', 'enabled_providers', 'facebook,x,whatsapp,email', 'Fournisseurs de partage social activés sur la page de détail du livre', NOW())
 ON DUPLICATE KEY UPDATE
-    setting_value = VALUES(setting_value),
     description = VALUES(description),
     updated_at = NOW();
 

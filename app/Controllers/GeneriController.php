@@ -153,17 +153,24 @@ class GeneriController
         return $response->withHeader('Location', "/admin/genres/{$id}")->withStatus(302);
     }
 
-    public function destroy(Request $_request, Response $response, \mysqli $db, int $id): Response
+    public function destroy(Request $request, Response $response, \mysqli $db, int $id): Response
     {
         // CSRF validated by CsrfMiddleware
         $repo = new GenereRepository($db);
+        $data = $request->getParsedBody() ?? [];
+        $cascadeDelete = !empty($data['cascade_delete']);
 
         try {
-            if (!$repo->delete($id)) {
-                throw new \RuntimeException('delete() returned false');
+            $deleted = $cascadeDelete
+                ? $repo->cascadeDelete($id)
+                : $repo->delete($id);
+            if (!$deleted) {
+                throw new \RuntimeException(($cascadeDelete ? 'cascadeDelete' : 'delete') . '() returned false');
             }
 
-            $_SESSION['success_message'] = __('Genere eliminato con successo!');
+            $_SESSION['success_message'] = $cascadeDelete
+                ? __('Genere e sottogeneri eliminati con successo!')
+                : __('Genere eliminato con successo!');
             return $response->withHeader('Location', url('/admin/genres'))->withStatus(302);
         } catch (\Throwable $e) {
             \App\Support\SecureLogger::error('GeneriController::destroy error', ['id' => $id, 'message' => $e->getMessage()]);

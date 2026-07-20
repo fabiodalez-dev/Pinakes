@@ -112,6 +112,13 @@ SET @idx_exists = (SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABL
 SET @sql = IF(@idx_exists = 0, "ALTER TABLE `libri` ADD KEY `idx_lt_rating` (`rating`)", "SELECT 1");
 PREPARE _s FROM @sql; EXECUTE _s; DEALLOCATE PREPARE _s;
 
+-- Normalise any out-of-range rating BEFORE adding the CHECK, otherwise the
+-- ALTER ... ADD CONSTRAINT fails on pre-existing rows (e.g. a legacy import that
+-- wrote 0 or a 1-10 scale) and aborts the whole migration. Idempotent: on an
+-- install that already has the constraint there are no violating rows, so this
+-- touches nothing. Keep NULLs as-is (they satisfy the constraint).
+UPDATE `libri` SET `rating` = NULL WHERE `rating` IS NOT NULL AND `rating` NOT BETWEEN 1 AND 5;
+
 -- CHECK constraint names are schema-unique (not per-table) and this MySQL/
 -- MariaDB exposes them in CHECK_CONSTRAINTS (keyed by schema+name), NOT
 -- TABLE_CONSTRAINTS — probing the wrong table would re-issue the ADD on an

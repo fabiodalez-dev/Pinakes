@@ -277,10 +277,21 @@ if (!$isCli && !$httpsDetected) {
     $forceHttps = $forceHttpsFromDb || (getenv('APP_ENV') === 'production' && $forceHttpsFromEnv);
 
     if ($forceHttps) {
-        $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $requestUri = $_SERVER['REQUEST_URI'] ?? '/';
-        header('Location: https://' . $host . $requestUri, true, 301);
-        exit;
+        // Build the redirect target ONLY from an operator-configured trusted
+        // host (APP_CANONICAL_URL, else APP_TRUSTED_HOSTS) — never the raw Host
+        // header, which an attacker controls on a catch-all vhost. The installer
+        // always writes APP_CANONICAL_URL, so real installs hit the redirect path.
+        $target = \App\Support\HtmlHelper::forceHttpsRedirectTarget();
+        if ($target !== null) {
+            header('Location: ' . $target, true, 301);
+            exit;
+        }
+        // No trusted host configured: refuse to build a redirect from the
+        // attacker-controllable Host header. Fail safe — skip the HTTPS upgrade
+        // (serve over HTTP this request) and tell the operator how to enforce it.
+        error_log('[Pinakes] force_https is enabled but no trusted host is configured '
+            . '(set APP_CANONICAL_URL or APP_TRUSTED_HOSTS); skipping the HTTPS redirect '
+            . 'to avoid an open redirect via the Host header.');
     }
 }
 

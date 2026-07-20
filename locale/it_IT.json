@@ -365,10 +365,14 @@
   "Attenzione: Azione Manuale Richiesta": "Attenzione: Azione Manuale Richiesta",
   "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.": "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.",
   "Attiva": "Attiva",
+  "Attiva API key": "Attiva API key",
   "Attiva Direttamente": "Attiva Direttamente",
   "Attiva HTTP Strict Transport Security (max-age: 1 anno, include sottodomini)": "Attiva HTTP Strict Transport Security (max-age: 1 anno, include sottodomini)",
   "Attiva HTTPS solo se hai un certificato SSL valido installato. Attivare HSTS rende permanente il reindirizzamento HTTPS nel browser.": "Attiva HTTPS solo se hai un certificato SSL valido installato. Attivare HSTS rende permanente il reindirizzamento HTTPS nel browser.",
   "Attiva questa opzione solo se il tuo server supporta HTTPS. Se il tuo hosting forza già HTTPS automaticamente, non è necessario abilitarla (potrebbe causare redirect loop).": "Attiva questa opzione solo se il tuo server supporta HTTPS. Se il tuo hosting forza già HTTPS automaticamente, non è necessario abilitarla (potrebbe causare redirect loop).",
+  "Attiva lingua": "Attiva lingua",
+  "Attiva plugin": "Attiva plugin",
+  "Attiva tema": "Attiva tema",
   "Attiva utente": "Attiva utente",
   "Attivando questa modalità verranno disabilitati completamente i prestiti, le prenotazioni e la wishlist. Gli utenti potranno solo consultare il catalogo.": "Attivando questa modalità verranno disabilitati completamente i prestiti, le prenotazioni e la wishlist. Gli utenti potranno solo consultare il catalogo.",
   "Attivare questo tema?": "Attivare questo tema?",
@@ -6565,5 +6569,9 @@
   "Controlla i campi personalizzati: un valore inserito non è valido.": "Controlla i campi personalizzati: un valore inserito non è valido.",
   "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.": "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.",
   "I file dell'applicazione non sono scrivibili dall'utente del web server e Pinakes gira dentro un container. Sull'immagine ufficiale (fabiodalez/pinakes) il codice è incluso nell'immagine e in sola lettura per scelta: aggiorna scaricando la nuova immagine con «docker compose pull && docker compose up -d» (il database e i volumi storage/uploads restano al sicuro). Se usi un'immagine community che monta il codice da un volume scrivibile questo pulsante funziona normalmente — se vedi questo messaggio quel volume è al momento in sola lettura, controlla il suo mount.": "I file dell'applicazione non sono scrivibili dall'utente del web server e Pinakes gira dentro un container. Sull'immagine ufficiale (fabiodalez/pinakes) il codice è incluso nell'immagine e in sola lettura per scelta: aggiorna scaricando la nuova immagine con «docker compose pull && docker compose up -d» (il database e i volumi storage/uploads restano al sicuro). Se usi un'immagine community che monta il codice da un volume scrivibile questo pulsante funziona normalmente — se vedi questo messaggio quel volume è al momento in sola lettura, controlla il suo mount.",
-  "https://t.me/tuocanale": "https://t.me/tuocanale"
+  "https://t.me/tuocanale": "https://t.me/tuocanale",
+  "Genere e sottogeneri eliminati con successo!": "Genere e sottogeneri eliminati con successo!",
+  "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.",
+  "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.",
+  "Elimina genere e sottogeneri": "Elimina genere e sottogeneri"
 }

@@ -1366,6 +1366,11 @@ function initializeChoicesJS() {
 
         authorsChoice = new Choices(element, {
             searchEnabled: true,
+            // Server-side search: the 'search' handler below fetches matches and
+            // setChoices()es them. Disable Choices' own client-side Fuse filter so
+            // it can't race that async populate and hide fresh results as "no
+            // results" until the next keystroke.
+            searchChoices: false,
             removeItemButton: true,
             addItems: true,
             duplicateItemsAllowed: false,
@@ -1417,9 +1422,11 @@ function initializeChoicesJS() {
                             customProperties: { isNew: false }
                         }));
 
-                    if (newChoices.length > 0) {
-                        authorsChoice.setChoices(newChoices, 'value', 'label', false);
-                    }
+                    // Replace unconditionally (even when empty): with the client
+                    // Fuse filter off, skipping the call on a no-results query
+                    // would leave the PREVIOUS query's options stale in the
+                    // dropdown. clearSearchFlag=false keeps the user's input.
+                    authorsChoice.setChoices(newChoices, 'value', 'label', true, false);
                 } catch (e) {
                     console.error('Server-side author search failed:', e);
                 }
@@ -1427,33 +1434,15 @@ function initializeChoicesJS() {
         });
 
         const wrapper = element.closest('.choices');
+        // Load-bearing for the #74 _onEnterKey monkey-patch below (and the
+        // ensureAuthorChoice helpers): the authors block references
+        // `internalInput` in several places. It used to be declared by the
+        // now-removed forceInputWidth block — keep it here so replacing that
+        // block with stackChoicesInput() doesn't leave it undefined.
         const internalInput = wrapper ? wrapper.querySelector('.choices__input--cloned') : null;
-
-        // Force input to take remaining space, overriding Choices.js inline styles
-        if (internalInput) {
-            const forceInputWidth = () => {
-                internalInput.style.flex = '1 1 auto';
-                internalInput.style.minWidth = '200px';
-                internalInput.style.width = 'auto';
-            };
-
-            // Initial force
-            forceInputWidth();
-
-            // Watch for Choices.js changing the width
-            const observer = new MutationObserver((mutations) => {
-                mutations.forEach((mutation) => {
-                    if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
-                        forceInputWidth();
-                    }
-                });
-            });
-
-            observer.observe(internalInput, {
-                attributes: true,
-                attributeFilter: ['style']
-            });
-        }
+        // Stack the search input on its own full-width row below the chips
+        // (shared with the contributor + publisher pickers).
+        stackChoicesInput(wrapper);
 
         const ensureAuthorChoice = (value, label, customProperties = {}) => {
             const stringValue = String(value);
@@ -2293,6 +2282,33 @@ function initializeSeriesAutocompletes() {
     });
 }
 
+// Multi-select tag inputs: wrap the selected chips across rows and drop the
+// search field onto its own full-width line BELOW them, so you type UNDER the
+// chips instead of being squeezed to the right of the last one. Applied as
+// inline !important (the compiled Choices CSS otherwise wins) and re-applied
+// via a MutationObserver because Choices.js autosizes the input's inline width
+// on every keystroke, which would otherwise pull it back onto the chip row.
+function stackChoicesInput(wrapper) {
+    if (!wrapper) return;
+    const inner = wrapper.querySelector('.choices__inner');
+    if (inner) {
+        inner.style.setProperty('flex-wrap', 'wrap', 'important');
+        inner.style.setProperty('align-items', 'flex-start', 'important');
+    }
+    const input = wrapper.querySelector('.choices__input--cloned');
+    if (!input) return;
+    const apply = () => {
+        input.style.setProperty('flex', '1 0 100%', 'important');
+        input.style.setProperty('min-width', '100%', 'important');
+        input.style.setProperty('width', '100%', 'important');
+        input.style.setProperty('margin', '6px 8px 2px', 'important');
+    };
+    apply();
+    // Re-apply identical values when Choices rewrites the style attribute; setting
+    // the same values produces no further mutation record, so this settles at once.
+    new MutationObserver(() => apply()).observe(input, { attributes: true, attributeFilter: ['style'] });
+}
+
 // Generic contributor picker (issue #237) — one Choices.js entity picker per
 // role (illustratori/traduttori/curatori/coloristi). Mirrors the authors picker
 // (same /api/search/autori autocomplete, create-on-Enter) but self-contained and
@@ -2306,6 +2322,10 @@ function initContributorPicker(roleKey) {
 
         const choice = new Choices(el, {
             searchEnabled: true,
+            // Server-side search (see the 'search' handler below): disable the
+            // client-side Fuse filter so it can't race the async setChoices and
+            // hide fresh results as "no results".
+            searchChoices: false,
             removeItemButton: true,
             addItems: true,
             duplicateItemsAllowed: false,
@@ -2431,12 +2451,19 @@ function initContributorPicker(roleKey) {
                     const newChoices = (results || [])
                         .filter((a) => !selected.has(String(a.id)))
                         .map((a) => ({ value: String(a.id), label: a.label, selected: false }));
-                    if (newChoices.length > 0) choice.setChoices(newChoices, 'value', 'label', false);
+                    // Replace unconditionally (even when empty): with the client
+                    // Fuse filter off, skipping the call on a no-results query
+                    // would leave the PREVIOUS query's options stale in the
+                    // dropdown. clearSearchFlag=false keeps the user's input.
+                    choice.setChoices(newChoices, 'value', 'label', true, false);
                 } catch (e) {
                     console.error('Contributor search failed (' + roleKey + '):', e);
                 }
             }, 300);
         });
+
+        // Search input on its own full-width row below the selected chips.
+        stackChoicesInput(wrapper);
         return true;
     } catch (error) {
         console.error('initContributorPicker failed for ' + roleKey + ':', error);
@@ -2453,6 +2480,10 @@ function initializePublishersChoices() {
 
         publishersChoice = new Choices(element, {
             searchEnabled: true,
+            // Server-side search (see the 'search' handler below): disable the
+            // client-side Fuse filter so it can't race the async setChoices and
+            // hide fresh results as "no results".
+            searchChoices: false,
             removeItemButton: true,
             addItems: true,
             duplicateItemsAllowed: false,
@@ -2483,9 +2514,11 @@ function initializePublishersChoices() {
                     const newChoices = (serverResults || [])
                         .filter(p => !selectedValues.has(String(p.id)))
                         .map(p => ({ value: String(p.id), label: p.label, selected: false, customProperties: { isNew: false } }));
-                    if (newChoices.length > 0) {
-                        publishersChoice.setChoices(newChoices, 'value', 'label', false);
-                    }
+                    // Replace unconditionally (even when empty): with the client
+                    // Fuse filter off, skipping the call on a no-results query
+                    // would leave the PREVIOUS query's options stale in the
+                    // dropdown. clearSearchFlag=false keeps the user's input.
+                    publishersChoice.setChoices(newChoices, 'value', 'label', true, false);
                 } catch (e) {
                     console.error('Server-side publisher search failed:', e);
                 }
@@ -2494,6 +2527,9 @@ function initializePublishersChoices() {
 
         const pubWrapper = element.closest('.choices');
         const pubInternalInput = pubWrapper ? pubWrapper.querySelector('.choices__input--cloned') : null;
+
+        // Search input on its own full-width row below the selected chips.
+        stackChoicesInput(pubWrapper);
 
         /**
          * Create a NEW publisher from typed text. A <select multiple> Choices.js

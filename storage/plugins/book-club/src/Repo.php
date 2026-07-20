@@ -14,6 +14,14 @@ use mysqli;
  */
 class Repo
 {
+    /**
+     * `editori.nome` intentionally has no UNIQUE constraint because the core
+     * catalogue permits homonyms. Serialize Book Club publisher resolution on
+     * the database server instead, so separate PHP workers share the same lock.
+     */
+    private const PUBLISHER_LOCK_NAME = 'pinakes:bookclub:publisher';
+    private const PUBLISHER_LOCK_TIMEOUT_SECONDS = 10;
+
     private mysqli $db;
 
     public function __construct(mysqli $db)
@@ -159,35 +167,106 @@ class Repo
             return null;
         }
 
-        $stmt = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id ASC LIMIT 1');
-        if ($stmt === false) {
-            throw new \RuntimeException('publisher lookup prepare failed');
-        }
-        $stmt->bind_param('s', $name);
-        if (!$stmt->execute()) {
-            $err = $stmt->error;
-            $stmt->close();
-            throw new \RuntimeException('publisher lookup failed: ' . $err);
-        }
-        $row = $stmt->get_result()->fetch_assoc();
-        $stmt->close();
-        if ($row !== null) {
-            return (int) $row['id'];
-        }
+        $this->acquirePublisherLock();
+        try {
+            $sel = $this->db->prepare('SELECT id FROM editori WHERE nome = ? ORDER BY id ASC LIMIT 1');
+            if ($sel === false) {
+                throw new \RuntimeException('publisher lookup prepare failed');
+            }
+            $sel->bind_param('s', $name);
+            if (!$sel->execute()) {
+                $err = $sel->error;
+                $sel->close();
+                throw new \RuntimeException('publisher lookup failed: ' . $err);
+            }
+            $selResult = $sel->get_result();
+            $sel->close();
+            if ($selResult === false) {
+                throw new \RuntimeException('publisher lookup get_result failed');
+            }
+            $row = $selResult->fetch_assoc();
+            if ($row !== null) {
+                return (int) $row['id'];
+            }
 
-        $stmt = $this->db->prepare('INSERT INTO editori (nome) VALUES (?)');
-        if ($stmt === false) {
-            throw new \RuntimeException('publisher insert prepare failed');
+            $ins = $this->db->prepare('INSERT INTO editori (nome) VALUES (?)');
+            if ($ins === false) {
+                throw new \RuntimeException('publisher insert prepare failed');
+            }
+            $ins->bind_param('s', $name);
+            if (!$ins->execute()) {
+                $err = $ins->error;
+                $ins->close();
+                throw new \RuntimeException('publisher insert failed: ' . $err);
+            }
+            $publisherId = $ins->insert_id;
+            $ins->close();
+
+            if ($publisherId <= 0) {
+                throw new \RuntimeException('publisher insert returned no id');
+            }
+            return $publisherId;
+        } finally {
+            $this->releasePublisherLock();
         }
-        $stmt->bind_param('s', $name);
+    }
+
+    private function acquirePublisherLock(): void
+    {
+        $lockName = self::PUBLISHER_LOCK_NAME;
+        $timeout = self::PUBLISHER_LOCK_TIMEOUT_SECONDS;
+        // GET_LOCK is server-wide, not per-database — scope the name to the
+        // current schema (computed server-side via CONCAT + DATABASE()) so
+        // independent Pinakes installs sharing one MySQL server don't serialize
+        // each other's imports. Mirrors ContributorBackfill's lock naming.
+        $stmt = $this->db->prepare("SELECT GET_LOCK(CONCAT(?, ':', DATABASE()), ?) AS acquired");
+        if ($stmt === false) {
+            throw new \RuntimeException('publisher lock prepare failed');
+        }
+        $stmt->bind_param('si', $lockName, $timeout);
         if (!$stmt->execute()) {
             $err = $stmt->error;
             $stmt->close();
-            throw new \RuntimeException('publisher insert failed: ' . $err);
+            throw new \RuntimeException('publisher lock failed: ' . $err);
         }
-        $id = (int) $stmt->insert_id;
+        $result = $stmt->get_result();
         $stmt->close();
-        return $id;
+        if ($result === false) {
+            throw new \RuntimeException('publisher lock get_result failed');
+        }
+        $row = $result->fetch_assoc();
+        if ((int) ($row['acquired'] ?? 0) !== 1) {
+            throw new \RuntimeException('publisher lock timed out');
+        }
+    }
+
+    private function releasePublisherLock(): void
+    {
+        $lockName = self::PUBLISHER_LOCK_NAME;
+        $stmt = $this->db->prepare("SELECT RELEASE_LOCK(CONCAT(?, ':', DATABASE())) AS released");
+        if ($stmt === false) {
+            SecureLogger::error('[BookClub] publisher lock release prepare failed: ' . $this->db->error);
+            return;
+        }
+        $stmt->bind_param('s', $lockName);
+        if (!$stmt->execute()) {
+            SecureLogger::error('[BookClub] publisher lock release failed: ' . $stmt->error);
+            $stmt->close();
+            return;
+        }
+        // Guard get_result() === false here especially: this runs inside the
+        // finally of findOrCreatePublisher(), so an uncaught Error would mask a
+        // propagating exception — the very thing this lock protocol avoids.
+        $result = $stmt->get_result();
+        $stmt->close();
+        if ($result === false) {
+            SecureLogger::error('[BookClub] publisher lock release get_result failed: ' . $this->db->error);
+            return;
+        }
+        $row = $result->fetch_assoc();
+        if ((int) ($row['released'] ?? 0) !== 1) {
+            SecureLogger::error('[BookClub] publisher lock was not owned by this connection');
+        }
     }
 
     private function attachPrimaryPublisher(int $libroId, ?int $publisherId): void

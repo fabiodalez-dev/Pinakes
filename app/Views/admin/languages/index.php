@@ -221,7 +221,7 @@ use App\Support\HtmlHelper;
                                                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
                                                     <button type="submit"
                                                             class="<?= $lang['is_active'] ? 'text-gray-600 hover:text-gray-900' : 'text-green-600 hover:text-green-900' ?>"
-                                                            title="<?= $lang['is_active'] ? __("Disattiva") : __("Attiva") ?>">
+                                                            title="<?= $lang['is_active'] ? __("Disattiva") : __("Attiva lingua") ?>">
                                                         <i class="fas fa-<?= $lang['is_active'] ? 'toggle-on' : 'toggle-off' ?>"></i>
                                                     </button>
                                                 </form>

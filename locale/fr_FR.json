@@ -365,10 +365,14 @@
   "Attenzione: Azione Manuale Richiesta": "Attention : action manuelle requise",
   "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.": "Attention : impossible de supprimer tous les exemplaires demandés. Certains exemplaires sont actuellement empruntés.",
   "Attiva": "Actif",
+  "Attiva API key": "Activer la clé API",
   "Attiva Direttamente": "Activer directement",
   "Attiva HTTP Strict Transport Security (max-age: 1 anno, include sottodomini)": "Activer HTTP Strict Transport Security (max-age : 1 an, inclut les sous-domaines)",
   "Attiva HTTPS solo se hai un certificato SSL valido installato. Attivare HSTS rende permanente il reindirizzamento HTTPS nel browser.": "Activez HTTPS uniquement si vous avez un certificat SSL valide installé. Activer HSTS rend permanent la redirection HTTPS dans le navigateur.",
   "Attiva questa opzione solo se il tuo server supporta HTTPS. Se il tuo hosting forza già HTTPS automaticamente, non è necessario abilitarla (potrebbe causare redirect loop).": "Activez cette option uniquement si votre serveur prend en charge HTTPS. Si votre hébergeur force déjà HTTPS automatiquement, il n'est pas nécessaire de l'activer (cela pourrait provoquer une boucle de redirection).",
+  "Attiva lingua": "Activer la langue",
+  "Attiva plugin": "Activer le plugin",
+  "Attiva tema": "Activer le thème",
   "Attiva utente": "Activer l'utilisateur",
   "Attivando questa modalità verranno disabilitati completamente i prestiti, le prenotazioni e la wishlist. Gli utenti potranno solo consultare il catalogo.": "L'activation de ce mode désactivera complètement les emprunts, les réservations et la liste de souhaits. Les utilisateurs pourront uniquement consulter le catalogue.",
   "Attivare questo tema?": "Activer ce thème ?",
@@ -6565,5 +6569,9 @@
   "Controlla i campi personalizzati: un valore inserito non è valido.": "Vérifiez les champs personnalisés : une des valeurs saisies n'est pas valide.",
   "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.": "Supprimer les champs personnalisés sélectionnés ? Les valeurs enregistrées par les utilisateurs pour ces champs seront définitivement supprimées.",
   "I file dell'applicazione non sono scrivibili dall'utente del web server e Pinakes gira dentro un container. Sull'immagine ufficiale (fabiodalez/pinakes) il codice è incluso nell'immagine e in sola lettura per scelta: aggiorna scaricando la nuova immagine con «docker compose pull && docker compose up -d» (il database e i volumi storage/uploads restano al sicuro). Se usi un'immagine community che monta il codice da un volume scrivibile questo pulsante funziona normalmente — se vedi questo messaggio quel volume è al momento in sola lettura, controlla il suo mount.": "Les fichiers de l'application ne sont pas modifiables par l'utilisateur du serveur web et Pinakes s'exécute dans un conteneur. Sur l'image officielle (fabiodalez/pinakes) le code est inclus dans l'image et en lecture seule par choix : mettez à jour en récupérant la nouvelle image avec «docker compose pull && docker compose up -d» (la base de données et les volumes storage/uploads sont préservés). Si vous utilisez une image communautaire qui monte le code depuis un volume accessible en écriture, ce bouton fonctionne normalement — si ce message apparaît, ce volume est actuellement en lecture seule, vérifiez son montage.",
-  "https://t.me/tuocanale": "https://t.me/votrecanal"
+  "https://t.me/tuocanale": "https://t.me/votrecanal",
+  "Genere e sottogeneri eliminati con successo!": "Genre et sous-genres supprimés avec succès !",
+  "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "Cette action supprime définitivement le genre et tous ses sous-genres. Les livres associés seront dissociés de ces genres.",
+  "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Voulez-vous vraiment supprimer ce genre et tous ses sous-genres ? Les livres associés seront dissociés de ces genres.",
+  "Elimina genere e sottogeneri": "Supprimer le genre et les sous-genres"
 }

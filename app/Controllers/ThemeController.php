@@ -143,8 +143,9 @@ class ThemeController
                 'custom_js' => $parsedBody['advanced']['custom_js'] ?? ''
             ];
 
-            // Sanitize custom CSS/JS (basic sanitization - remove <script> tags from CSS)
-            $advanced['custom_css'] = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $advanced['custom_css']);
+            // Neutralise any </style>/<script> breakout in the CSS so it can
+            // never escape its inline <style> wrapper into script execution.
+            $advanced['custom_css'] = \App\Support\ContentSanitizer::sanitizeCustomCss((string) $advanced['custom_css']);
 
             $this->themeManager->updateAdvancedSettings($themeId, $advanced);
         }

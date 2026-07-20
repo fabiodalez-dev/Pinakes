@@ -377,10 +377,11 @@ class FrontendController
                 $orgSchema['sameAs'] = $sameAs;
             }
 
-            // Combine schemas
-            $seoSchema = json_encode([$schemaOrg, $orgSchema], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            // Combine schemas. JSON_HEX_TAG neutralises any </script> that could
+            // reach the value (defence in depth on top of the strip_tags at save).
+            $seoSchema = json_encode([$schemaOrg, $orgSchema], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_HEX_TAG);
         } else {
-            $seoSchema = json_encode($schemaOrg, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+            $seoSchema = json_encode($schemaOrg, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT | JSON_HEX_TAG);
         }
 
         // Render template

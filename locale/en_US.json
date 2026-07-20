@@ -365,10 +365,14 @@
   "Attenzione: Azione Manuale Richiesta": "Warning: Manual Action Required",
   "Attenzione: Non è stato possibile rimuovere tutte le copie richieste. Alcune copie sono attualmente in prestito.": "Warning: Could not remove all requested copies. Some copies are currently on loan.",
   "Attiva": "Active",
+  "Attiva API key": "Activate API key",
   "Attiva Direttamente": "Activate Directly",
   "Attiva HTTP Strict Transport Security (max-age: 1 anno, include sottodomini)": "Enable HTTP Strict Transport Security (max-age: 1 year, includes subdomains)",
   "Attiva HTTPS solo se hai un certificato SSL valido installato. Attivare HSTS rende permanente il reindirizzamento HTTPS nel browser.": "Enable HTTPS only if you have a valid SSL certificate installed. Enabling HSTS makes HTTPS redirection permanent in the browser.",
   "Attiva questa opzione solo se il tuo server supporta HTTPS. Se il tuo hosting forza già HTTPS automaticamente, non è necessario abilitarla (potrebbe causare redirect loop).": "Enable this option only if your server supports HTTPS. If your hosting already forces HTTPS automatically, you don't need to enable it (may cause redirect loop).",
+  "Attiva lingua": "Activate language",
+  "Attiva plugin": "Activate plugin",
+  "Attiva tema": "Activate theme",
   "Attiva utente": "Activate user",
   "Attivando questa modalità verranno disabilitati completamente i prestiti, le prenotazioni e la wishlist. Gli utenti potranno solo consultare il catalogo.": "Enabling this mode will completely disable loans, reservations and wishlist. Users will only be able to browse the catalogue.",
   "Attivare questo tema?": "Activate this theme?",
@@ -6565,5 +6569,9 @@
   "Controlla i campi personalizzati: un valore inserito non è valido.": "Check the custom fields: one of the values entered is not valid.",
   "Eliminare i campi personalizzati selezionati? I valori salvati dagli utenti per questi campi verranno rimossi definitivamente.": "Delete the selected custom fields? The values users saved for these fields will be permanently removed.",
   "I file dell'applicazione non sono scrivibili dall'utente del web server e Pinakes gira dentro un container. Sull'immagine ufficiale (fabiodalez/pinakes) il codice è incluso nell'immagine e in sola lettura per scelta: aggiorna scaricando la nuova immagine con «docker compose pull && docker compose up -d» (il database e i volumi storage/uploads restano al sicuro). Se usi un'immagine community che monta il codice da un volume scrivibile questo pulsante funziona normalmente — se vedi questo messaggio quel volume è al momento in sola lettura, controlla il suo mount.": "The application files aren't writable by the web-server user and Pinakes is running inside a container. On the official image (fabiodalez/pinakes) the code is baked into the image and read-only by design: update by pulling the new image with «docker compose pull && docker compose up -d» (your database and the storage/uploads volumes are preserved). If you use a community image that mounts the code from a writable volume this button works normally — seeing this message means that volume is currently read-only, so check its mount.",
-  "https://t.me/tuocanale": "https://t.me/yourchannel"
+  "https://t.me/tuocanale": "https://t.me/yourchannel",
+  "Genere e sottogeneri eliminati con successo!": "Genre and subgenres deleted successfully!",
+  "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "This action permanently deletes the genre and all of its subgenres. Associated books will be unlinked from these genres.",
+  "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Are you sure you want to delete this genre and all of its subgenres? Associated books will be unlinked from these genres.",
+  "Elimina genere e sottogeneri": "Delete genre and subgenres"
 }

@@ -133,7 +133,7 @@ $pageTitle = __('Gestione Temi');
                                 <button onclick="activateTheme(<?= (int)$theme['id'] ?>)"
                                         class="flex-1 px-3 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm font-medium">
                                     <i class="fas fa-check mr-1"></i>
-                                    <?= __("Attiva") ?>
+                                    <?= __("Attiva tema") ?>
                                 </button>
                             <?php endif; ?>
 
@@ -154,7 +154,7 @@ $pageTitle = __('Gestione Temi');
 function activateTheme(themeId) {
     window.SwalApp.confirm({
         title: <?= json_encode(__("Attivare questo tema?"), JSON_HEX_TAG) ?>,
-        confirmText: <?= json_encode(__("Attiva"), JSON_HEX_TAG) ?>
+        confirmText: <?= json_encode(__("Attiva tema"), JSON_HEX_TAG) ?>
     }).then((r) => {
         if (!r.isConfirmed) return;
         const basePath = window.BASE_PATH || '';

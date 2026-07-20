@@ -1318,7 +1318,7 @@ $htmlLang = substr($currentLocale, 0, 2);
                     </p>
                     <p class="text-xs text-gray-600 mt-1 group-hover:text-gray-700 transition-colors">${escapeHtml(notif.message || '')}</p>
             ${hasLink ? `
-              <?php $openLabel = json_encode(__('Apri'), JSON_UNESCAPED_UNICODE); ?>
+              <?php $openLabel = json_encode(__('Apri'), JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP); ?>
               <div class="mt-3">
                 <button type="button" class="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-white bg-gray-900 rounded-lg shadow-sm hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500/40" data-open-link="${escapedLink}">
                   <i class="fas fa-external-link-alt text-[11px]"></i>
