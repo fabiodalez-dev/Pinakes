@@ -483,6 +483,66 @@ test.describe.serial('Mobile API plugin — E2E suite', () => {
         expect(d.features.push).toBe(true);                     // push available once keyed
     });
 
+    // ── GET /auth/registration-fields — the canonical signup form contract (#255,
+    //    hardened per the #277 review: core fields + no profile-field leak) ──────
+    test('9d. /auth/registration-fields → 200 envelope with the three top-level keys', async ({ request }) => {
+        const res  = await apiGet(request, '/auth/registration-fields');
+        const body = await envelope(res, 200);
+        expect(body.error).toBeNull();
+        const d = body.data;
+        expect(d).toHaveProperty('registration_enabled');
+        expect(d).toHaveProperty('builtin_fields');
+        expect(d).toHaveProperty('custom_fields');
+    });
+
+    test('9e. builtin_fields advertises the always-required core fields (nome/email/password, configurable=false)', async ({ request }) => {
+        // #277 review fix: a client rendering purely from the contract must know
+        // nome/email/password are mandatory-and-fixed, not just the toggles.
+        const res  = await apiGet(request, '/auth/registration-fields');
+        const d    = (await res.json()).data;
+        for (const key of ['nome', 'email', 'password']) {
+            expect(d.builtin_fields[key]).toMatchObject({ required: true, configurable: false });
+        }
+    });
+
+    test('9f. builtin_fields carries the three config-driven toggles with configurable=true reflecting settings', async ({ request }) => {
+        // beforeAll set require_cognome/telefono/indirizzo = '0' → required:false here.
+        const res  = await apiGet(request, '/auth/registration-fields');
+        const d    = (await res.json()).data;
+        for (const key of ['cognome', 'telefono', 'indirizzo']) {
+            expect(d.builtin_fields[key]).toMatchObject({ required: false, configurable: true });
+        }
+    });
+
+    test('9g. builtin_fields does NOT leak profile-only fields into the signup contract', async ({ request }) => {
+        // data_nascita/cod_fiscale/sesso are profile-only (editable via /me), never
+        // part of registration — they must not appear in builtin_fields.
+        const res  = await apiGet(request, '/auth/registration-fields');
+        const d    = (await res.json()).data;
+        for (const key of ['data_nascita', 'cod_fiscale', 'sesso']) {
+            expect(d.builtin_fields).not.toHaveProperty(key);
+        }
+    });
+
+    test('9h. custom_fields are the public-safe {id,label,type,required} shape (active only, no italian/internal keys)', async ({ request }) => {
+        const res  = await apiGet(request, '/auth/registration-fields');
+        const d    = (await res.json()).data;
+        expect(Array.isArray(d.custom_fields)).toBe(true);
+        const seeded = d.custom_fields.find((f) => f.id === customFieldId);
+        expect(seeded).toBeTruthy();
+        expect(Object.keys(seeded).sort()).toEqual(['id', 'label', 'required', 'type']);
+        // Internal columns must never leak to a public client.
+        expect(seeded).not.toHaveProperty('attivo');
+        expect(seeded).not.toHaveProperty('ordine');
+        expect(seeded).not.toHaveProperty('etichetta');
+    });
+
+    test('9i. registration-fields is public (no token) and gated only on app-access', async ({ request }) => {
+        // No Authorization header — must still return 200 (public discovery).
+        const res = await apiGet(request, '/auth/registration-fields');
+        expect(res.status()).toBe(200);
+    });
+
     test('9c. POST /auth/register follows optional built-ins and stores custom fields', async ({ request }) => {
         dbExec(`DELETE FROM utenti WHERE email='${REGISTRATION_EMAIL}'`);
         const res = await apiPost(request, '/auth/register', {
