@@ -37,6 +37,35 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.39
+
+### Features
+- **Collapsible cataloguing sections on the book form** ([#274](https://github.com/fabiodalez-dev/Pinakes/issues/274)) — the plugin-injected **REICAT/SBN** (z39-server) and **MAG digital-copies** (oai-pmh-server) panels are now accordions: collapsed by default on a new book, and they auto-open when the record already carries that data (or on import). The REICAT/SBN section can also be removed entirely by deactivating the z39-server plugin.
+- **Custom CSS now reaches the auth pages** ([#262](https://github.com/fabiodalez-dev/Pinakes/issues/262)) — `Settings → Advanced → Custom CSS` applies to login, register, forgot- and reset-password (e.g. to hide registration fields), emitted through the same render-time sanitizer the public frontend already uses.
+- **Role-specific contributor help text** ([#237](https://github.com/fabiodalez-dev/Pinakes/issues/237)) — the Illustrator / Translator / Curator / Colorist pickers each show their own hint instead of a generic "author" one, translated across all four locales.
+
+### Security
+- **guzzlehttp/guzzle → 7.15.1** — fixes five advisories published against `<7.15.1` (incl. `CVE-2026-59883`): cookie disclosure/injection via IP-address domains, host-only cookie scope not preserved, URI fragments leaking in redirect `Referer` headers, unbounded response cookies (DoS), and `Proxy-Authorization` headers leaking to origin servers.
+
+### Database Changes
+None — no migration in this release.
+
+### Upgrade Notes
+- Back up your database before updating (the in-app updater does this automatically).
+
+---
+
+## What's New in v0.7.38
+
+### Features
+- **Race-proof author / contributor / publisher autocomplete** on the book form ([#272](https://github.com/fabiodalez-dev/Pinakes/pull/272)) — server-side-search pickers no longer hide results for partial queries, and the search input stacks below the selected chips.
+
+### Security & Fixes
+- Custom-CSS `</style>` breakout hardening and a cross-cutting XSS review ([#266](https://github.com/fabiodalez-dev/Pinakes/pull/266), [#267](https://github.com/fabiodalez-dev/Pinakes/pull/267)).
+- Book-club advisory lock and rating-migration cleanup ([#271](https://github.com/fabiodalez-dev/Pinakes/pull/271)); locale action strings ([#268](https://github.com/fabiodalez-dev/Pinakes/pull/268), [#270](https://github.com/fabiodalez-dev/Pinakes/pull/270)).
+
+---
+
 ## What's New in v0.7.37
 
 This release bundles three feature tracks — contributor roles (#237), loan due-date & email (#238), and configurable registration (#255) — plus security and packaging hardening.
