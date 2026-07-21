@@ -21,14 +21,27 @@ if (!function_exists('oaiFormatBytes')) {
         return $bytes . ' B';
     }
 }
+
+// Accordion (#274): collapsed by default to keep the book form uncluttered;
+// opens automatically when the book already has digital assets (editing a
+// digitised record) or when the user expands it. JS opens it on add too.
+$oaiHasData = !empty($assets);
 ?>
 
 <div class="mt-6 bg-gradient-to-br from-teal-50 to-cyan-50 border-2 border-teal-200 rounded-2xl p-6 dark:from-teal-900/20 dark:to-cyan-900/20 dark:border-teal-800"
      id="oai-digital-assets-section">
-    <h3 class="text-lg font-bold text-teal-900 dark:text-teal-100 mb-1 flex items-center gap-2">
-        <i class="fas fa-file-image text-teal-600"></i>
-        <?= __("Copie Digitalizzate (MAG/ICCU)") ?>
-    </h3>
+    <button type="button" id="oai-digital-assets-toggle"
+            class="w-full flex items-center justify-between gap-2 text-left"
+            aria-expanded="<?= $oaiHasData ? 'true' : 'false' ?>" aria-controls="oai-digital-assets-body">
+        <span class="text-lg font-bold text-teal-900 dark:text-teal-100 flex items-center gap-2">
+            <i class="fas fa-file-image text-teal-600"></i>
+            <?= __("Copie Digitalizzate (MAG/ICCU)") ?>
+        </span>
+        <i class="fas fa-chevron-down text-teal-600 transition-transform duration-200 <?= $oaiHasData ? 'rotate-180' : '' ?>"
+           id="oai-digital-assets-chevron"></i>
+    </button>
+
+    <div id="oai-digital-assets-body" class="<?= $oaiHasData ? 'mt-4' : 'hidden' ?>">
     <p class="text-sm text-teal-700 dark:text-teal-300 mb-4">
         <i class="fas fa-info-circle mr-1"></i>
         <?= __("Metadati delle copie digitali usati nell'esportazione OAI-PMH formato MAG per ICCU/Internet Culturale.") ?>
@@ -179,6 +192,7 @@ if (!function_exists('oaiFormatBytes')) {
             <p id="oai-add-error" class="text-red-600 dark:text-red-400 text-xs mt-2 hidden"></p>
         </div>
     </div>
+    </div><!-- /#oai-digital-assets-body -->
 </div>
 
 <script>
@@ -210,6 +224,30 @@ if (!function_exists('oaiFormatBytes')) {
 
     function hasSwal() {
         return typeof window !== 'undefined' && typeof window.Swal !== 'undefined' && typeof window.Swal.fire === 'function';
+    }
+
+    // Accordion (#274): toggle the section body; open on demand or when data lands.
+    var acToggle = document.getElementById('oai-digital-assets-toggle');
+    var acBody = document.getElementById('oai-digital-assets-body');
+    var acChevron = document.getElementById('oai-digital-assets-chevron');
+    function openOai() {
+        if (!acBody || !acBody.classList.contains('hidden')) { return; }
+        acBody.classList.remove('hidden');
+        acBody.classList.add('mt-4');
+        if (acToggle) { acToggle.setAttribute('aria-expanded', 'true'); }
+        if (acChevron) { acChevron.classList.add('rotate-180'); }
+    }
+    if (acToggle && acBody) {
+        acToggle.addEventListener('click', function () {
+            if (acBody.classList.contains('hidden')) {
+                openOai();
+            } else {
+                acBody.classList.add('hidden');
+                acBody.classList.remove('mt-4');
+                acToggle.setAttribute('aria-expanded', 'false');
+                if (acChevron) { acChevron.classList.remove('rotate-180'); }
+            }
+        });
     }
 
     document.getElementById('oai-toggle-add-form').addEventListener('click', function () {
@@ -337,6 +375,7 @@ if (!function_exists('oaiFormatBytes')) {
             if (!d.success) { setError(d.error || MSG_ERR); return; }
             appendRow(d.asset);
             clearForm();
+            openOai();
             document.getElementById('oai-add-form').classList.add('hidden');
         })
         .catch(function () { setError(MSG_ERR_NET); })
