@@ -144,6 +144,7 @@ const ENDPOINTS = [
     { name: 'POST /auth/register',               method: 'POST',   path: '/auth/register',                auth: false, kind: 'conflict2',
         body: () => ({ email: USER_EMAIL, password: USER_PASS, password_confirm: USER_PASS, nome: 'Idem', cognome: 'Test', telefono: '0', indirizzo: 'x', privacy_acceptance: '1' }),
         firstAny: true /* registration may be disabled → 1st is 4xx; still asserts 2nd >= 400 */ },
+    { name: 'GET /auth/registration-fields',     method: 'GET',    path: '/auth/registration-fields',     auth: false, kind: 'doc' },
     { name: 'POST /auth/logout',                 method: 'POST',   path: '/auth/logout',                  auth: 'throwaway', kind: 'revoked2' },
     { name: 'GET /me',                           method: 'GET',    path: '/me',                           auth: true,  kind: 'safeGet' },
     { name: 'PATCH /me',                         method: 'PATCH',  path: '/me',                           auth: true,  kind: 'write2xx',

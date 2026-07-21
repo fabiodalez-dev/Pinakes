@@ -316,6 +316,57 @@ final class AuthController
         }
     }
 
+    // ─── GET /auth/registration-fields ──────────────────────────────────────
+
+    /**
+     * Public registration discovery (issue #255).
+     *
+     * Advertises whether self-registration is enabled and which fields the
+     * signup form should render: the config-driven built-ins plus the
+     * admin-defined custom fields. No token — it only reveals field
+     * labels/required flags the registration form shows anyway and leaks no
+     * user data. Gated on the same app-access flag as the other public auth
+     * endpoints; the registration toggle is surfaced as `registration_enabled`
+     * in the payload (not a 403) so the client can distinguish "app disabled"
+     * from "registration closed" and still learn the field shape.
+     */
+    public function registrationFields(Request $request, ResponseInterface $response): ResponseInterface
+    {
+        if (!$this->appAccessEnabled()) {
+            return ResponseEnvelope::error($response, 'app_access_disabled', __('L\'accesso da app non è abilitato su questa istanza.'), 403);
+        }
+
+        try {
+            // ONLY the three config-driven built-ins (BUILTIN_TOGGLES) belong
+            // here. data_nascita/cod_fiscale/sesso are profile-only fields:
+            // register() never reads them and isRequired() returns a hardcoded
+            // true for them (they are absent from BUILTIN_TOGGLES), so they must
+            // NOT leak into the signup contract — they are always optional at
+            // registration and editable only through GET/PATCH /me.
+            $builtin = [];
+            foreach (array_keys(RegistrationFields::BUILTIN_TOGGLES) as $field) {
+                $builtin[$field] = [
+                    'required'     => RegistrationFields::isRequired($field),
+                    'configurable' => true,
+                ];
+            }
+
+            $data = [
+                'registration_enabled' => $this->registrationEnabled(),
+                'builtin_fields'       => $builtin,
+                // apiDefinitions() already returns the public-safe
+                // {id,label,type,required} shape (active only, ordered by
+                // ordine/id), hiding attivo/ordine. Do not re-query.
+                'custom_fields'        => RegistrationFields::apiDefinitions($this->db),
+            ];
+
+            return ResponseEnvelope::success($response, $data, [], 200);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[MobileApi] registration-fields failed: ' . $e->getMessage());
+            return ResponseEnvelope::error($response, 'internal_error', __('Errore del server.'), 500);
+        }
+    }
+
     // ─── POST /auth/forgot-password ─────────────────────────────────────────
 
     public function forgotPassword(Request $request, ResponseInterface $response): ResponseInterface

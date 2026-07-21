@@ -428,6 +428,17 @@ class MobileApiPlugin
                 return (new AuthController($db))->register($request, $response);
             })->add(new RateLimitMiddleware(5, 3600, 'mobile_register'));
 
+            // Public registration discovery — no token. Advertises whether
+            // self-registration is enabled and which fields (config-driven
+            // built-ins + admin-defined custom) the signup form should render.
+            // Light rate-limit to keep it from being scraped in a loop.
+            $group->get('/auth/registration-fields', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response
+            ) use ($db): ResponseInterface {
+                return (new AuthController($db))->registrationFields($request, $response);
+            })->add(new RateLimitMiddleware(30, 300, 'mobile_registration_fields'));
+
             $group->post('/auth/forgot-password', function (
                 ServerRequestInterface $request,
                 ResponseInterface $response

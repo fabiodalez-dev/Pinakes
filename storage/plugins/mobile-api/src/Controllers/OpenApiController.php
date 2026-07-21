@@ -126,6 +126,7 @@ final class OpenApiController
                     'LoginResponse'     => $this->loginResponseSchema(),
                     'RegisterRequest'   => $this->registerRequestSchema(),
                     'RegistrationConfig'=> $this->registrationConfigSchema(),
+                    'RegistrationFieldsPayload' => $this->registrationFieldsPayloadSchema(),
                     'CustomFieldDefinition' => $this->customFieldDefinitionSchema(),
                     'CustomProfileField'=> $this->customProfileFieldSchema(),
                     'ForgotRequest'     => $this->forgotRequestSchema(),
@@ -288,6 +289,27 @@ final class OpenApiController
                         '400' => ['$ref' => '#/components/responses/UnprocessableEntity'],
                         '403' => ['$ref' => '#/components/responses/Forbidden'],
                         '409' => ['description' => 'Email already registered.', 'content' => $json],
+                        '429' => ['$ref' => '#/components/responses/TooManyRequests'],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+            ],
+
+            '/auth/registration-fields' => [
+                'get' => [
+                    'tags'        => ['auth'],
+                    'summary'     => 'Registration field discovery',
+                    'description' => 'Public, no token. Advertises whether self-registration is enabled (registration_enabled) plus the fields the signup form should render: the config-driven built-ins (cognome / telefono / indirizzo, each with required + configurable flags) and the admin-defined custom_fields ({id, label, type, required}). The native app calls this before showing the registration form so it can render the right inputs and required markers. Gated on app access (403 app_access_disabled) like the other public auth endpoints.',
+                    'operationId' => 'getAuthRegistrationFields',
+                    'responses'   => [
+                        '200' => [
+                            'description' => 'Registration discovery payload.',
+                            'content'     => ['application/json' => ['schema' => [
+                                'allOf'      => [['$ref' => '#/components/schemas/Envelope']],
+                                'properties' => ['data' => ['$ref' => '#/components/schemas/RegistrationFieldsPayload']],
+                            ]]],
+                        ],
+                        '403' => ['$ref' => '#/components/responses/Forbidden'],
                         '429' => ['$ref' => '#/components/responses/TooManyRequests'],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
                     ],
@@ -996,6 +1018,40 @@ final class OpenApiController
                 'require_telefono'  => ['type' => 'boolean'],
                 'require_indirizzo' => ['type' => 'boolean'],
                 'custom_fields'     => [
+                    'type'  => 'array',
+                    'items' => ['$ref' => '#/components/schemas/CustomFieldDefinition'],
+                ],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function registrationFieldsPayloadSchema(): array
+    {
+        $builtinRule = [
+            'type'       => 'object',
+            'required'   => ['required', 'configurable'],
+            'properties' => [
+                'required'     => ['type' => 'boolean', 'description' => 'Whether this built-in field is required at signup (admin-configurable).'],
+                'configurable' => ['type' => 'boolean', 'description' => 'Always true — these built-ins can be toggled required/optional by the admin.'],
+            ],
+        ];
+
+        return [
+            'type'        => 'object',
+            'description' => 'Registration discovery payload. builtin_fields carries ONLY the three config-driven built-ins (cognome / telefono / indirizzo); the profile-only fields (data_nascita / cod_fiscale / sesso) are always optional at signup and are not advertised here.',
+            'required'    => ['registration_enabled', 'builtin_fields', 'custom_fields'],
+            'properties'  => [
+                'registration_enabled' => ['type' => 'boolean'],
+                'builtin_fields'       => [
+                    'type'       => 'object',
+                    'properties' => [
+                        'cognome'   => $builtinRule,
+                        'telefono'  => $builtinRule,
+                        'indirizzo' => $builtinRule,
+                    ],
+                ],
+                'custom_fields'        => [
                     'type'  => 'array',
                     'items' => ['$ref' => '#/components/schemas/CustomFieldDefinition'],
                 ],
