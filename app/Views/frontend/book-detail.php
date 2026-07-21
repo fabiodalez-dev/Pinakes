@@ -1475,12 +1475,12 @@ $additional_css = "
     /* Related Books Section */
     /* Keep the (max 3) related cards grouped and centred instead of spread
        across the theme's ultra-wide container. ~3 cards of 280px + gutters.
-       !important overrides the theme's wide .container/.row max-width for
-       this one scoped row only. */
-    .related-books-row {
-        max-width: 960px !important;
-        margin-left: auto !important;
-        margin-right: auto !important;
+       plain wrapper div (not the Bootstrap .row) so it doesn't fight .row's
+       negative gutter margins — no !important needed. */
+    .related-books-wrap {
+        max-width: 960px;
+        margin-left: auto;
+        margin-right: auto;
     }
 
     .related-book-card {
@@ -1492,10 +1492,11 @@ $additional_css = "
         height: 100%;
         display: flex;
         flex-direction: column;
-        /* Cap the card to a book-sane width and centre it in its column so the
-           cover (which is 140% of the card width) never balloons on wide
-           screens where each column is very wide. Matches the catalog card
-           size (~280px). */
+        /* Deliberate book-sane cap, centred in its column, so the cover (140%
+           of the card width) never balloons on wide screens where each column
+           is very wide. 280px is the catalog grid's minmax() floor; here it's a
+           hard cap (the catalog stretches beyond it, this doesn't) — related
+           cards read slightly narrower than catalog cards, which is fine. */
         max-width: 280px;
         margin-left: auto;
         margin-right: auto;
@@ -1619,12 +1620,10 @@ $additional_css = "
         color: white;
     }
 
-    @media (max-width: 768px) {
-        .related-book-card {
-            max-width: 400px;
-            margin: 0 auto;
-        }
-    }
+    /* No mobile-only max-width override: a wider cap on mobile (≤768px) than on
+       desktop (280px) caused an inverted jump — widening the window past 768px
+       *shrank* the card. The uniform 280px cap above keeps the transition
+       monotonic across every breakpoint. */
 
     /* Favorites button custom styling */
     .btn-fav-custom {
@@ -2346,7 +2345,8 @@ ob_start();
             <i class="fas fa-lightbulb"></i>
             <?= __("Potrebbero interessarti") ?>
         </h2>
-        <div class="row g-4 justify-content-center related-books-row">
+        <div class="related-books-wrap">
+        <div class="row g-4 justify-content-center">
             <?php foreach($related_books as $related): ?>
             <div class="col-12 col-sm-6 col-lg-4">
                 <div class="related-book-card">
@@ -2409,7 +2409,8 @@ ob_start();
                 </div>
             </div>
             <?php endforeach; ?>
-        </div>
+        </div><!-- /.row -->
+        </div><!-- /.related-books-wrap -->
     </div>
 </section>
 <?php endif; ?>
