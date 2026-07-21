@@ -17,6 +17,11 @@ $soggettiJson = json_encode(array_map(static function (array $s): array {
     return ['termine' => $s['termine'], 'bncf_id' => $s['bncf_id'], 'uri' => $s['uri']];
 }, $reicat['soggetti']), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE);
 $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
+
+// Accordion (#274): collapsed by default so the cataloguing section doesn't
+// crowd the book form. Opens automatically when the book already carries SBN
+// data (editing a catalogued record) or when an SBN import lands (see JS).
+$reicatHasData = $reicat['sbn_bid'] !== '' || !empty($reicat['soggetti']);
 ?>
 
 <div id="reicat-sbn-panel"
@@ -24,10 +29,18 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
      data-csrf="<?php echo htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8'); ?>"
      data-book-id="<?php echo (int) $id; ?>">
 
-    <h3 class="text-lg font-bold text-emerald-900 mb-1 flex items-center gap-2">
-        <i class="fas fa-landmark text-emerald-600"></i>
-        <?= __("Catalogazione REICAT / SBN") ?>
-    </h3>
+    <button type="button" id="reicat-sbn-toggle"
+            class="w-full flex items-center justify-between gap-2 text-left"
+            aria-expanded="<?= $reicatHasData ? 'true' : 'false' ?>" aria-controls="reicat-sbn-body">
+        <span class="text-lg font-bold text-emerald-900 flex items-center gap-2">
+            <i class="fas fa-landmark text-emerald-600"></i>
+            <?= __("Catalogazione REICAT / SBN") ?>
+        </span>
+        <i class="fas fa-chevron-down text-emerald-600 transition-transform duration-200 <?= $reicatHasData ? 'rotate-180' : '' ?>"
+           id="reicat-sbn-chevron"></i>
+    </button>
+
+    <div id="reicat-sbn-body" class="<?= $reicatHasData ? 'mt-4' : 'hidden' ?>">
     <p class="text-sm text-emerald-700 mb-4">
         <i class="fas fa-info-circle mr-1"></i>
         <?= __("Importa da SBN (OPAC Nazionale), gestisci l'identificativo BID e i soggetti del Nuovo Soggettario BNCF, esporta in UNIMARC.") ?>
@@ -111,6 +124,7 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
         </a>
     </div>
     <?php endif; ?>
+    </div><!-- /#reicat-sbn-body -->
 </div>
 
 <script>
@@ -122,6 +136,32 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
     const csrf = panel.dataset.csrf || '';
     const bookId = panel.dataset.bookId || '0';
     const base = (window.BASE_PATH || '');
+
+    // Accordion (#274): toggle the body; open on demand or when SBN data lands.
+    const acToggle = document.getElementById('reicat-sbn-toggle');
+    const acBody = document.getElementById('reicat-sbn-body');
+    const acChevron = document.getElementById('reicat-sbn-chevron');
+    function openReicat() {
+        if (!acBody) { return; }
+        if (!acBody.classList.contains('hidden')) { return; }
+        acBody.classList.remove('hidden');
+        acBody.classList.add('mt-4');
+        if (acToggle) { acToggle.setAttribute('aria-expanded', 'true'); }
+        if (acChevron) { acChevron.classList.add('rotate-180'); }
+    }
+    if (acToggle && acBody) {
+        acToggle.addEventListener('click', function () {
+            const isHidden = acBody.classList.contains('hidden');
+            if (isHidden) {
+                openReicat();
+            } else {
+                acBody.classList.add('hidden');
+                acBody.classList.remove('mt-4');
+                acToggle.setAttribute('aria-expanded', 'false');
+                if (acChevron) { acChevron.classList.remove('rotate-180'); }
+            }
+        });
+    }
 
     const T = {
         importing: <?= json_encode(__('Importazione in corso…'), JSON_HEX_TAG) ?>,
@@ -283,6 +323,7 @@ $soggettiJson = $soggettiJson !== false ? $soggettiJson : '[]';
             setField('collana', b.series || b.collana);
             if (d.sbn_bid) { setField('sbn_bid', d.sbn_bid); setField('sbn_bid_display', d.sbn_bid); }
             if (d.sbn_polo) { setField('sbn_polo', d.sbn_polo); }
+            openReicat();
             status(T.imported + (b.author ? ' — ' + b.author : ''), 'ok');
         })
         .catch(function () { status(T.error, 'err'); })
