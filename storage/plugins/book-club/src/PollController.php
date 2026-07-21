@@ -140,6 +140,9 @@ class PollController extends BaseController
             'club' => $club,
             'polls' => $this->repo->clubPolls((int) $club['id']),
             'eligible' => $eligible,
+            // Books that lost every poll they were in (#138) — the "proposed but
+            // never chosen" archive members asked to browse.
+            'neverChosen' => $this->repo->neverChosenProposals((int) $club['id']),
             'isMember' => $this->isActiveMember($club),
             'canManage' => $this->canManage($club),
             'canCreate' => $this->can($club, 'polls.create'),

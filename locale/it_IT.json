@@ -6577,5 +6577,11 @@
   "Genere e sottogeneri eliminati con successo!": "Genere e sottogeneri eliminati con successo!",
   "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.",
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.",
-  "Elimina genere e sottogeneri": "Elimina genere e sottogeneri"
+  "Elimina genere e sottogeneri": "Elimina genere e sottogeneri",
+  "Proposte non selezionate": "Proposte non selezionate",
+  "Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.": "Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.",
+  "votazione": "votazione",
+  "votazioni": "votazioni",
+  "ultima": "ultima",
+  "Non in catalogo": "Non in catalogo"
 }

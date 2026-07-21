@@ -855,41 +855,70 @@ class Repo
             $isbn13 = strlen((string) $digits) === 13 ? (string) $digits : null;
             $isbn10 = strlen((string) $digits) === 10 ? (string) $digits : null;
             $cover  = ($row['copertina_url'] !== null && $row['copertina_url'] !== '') ? substr((string) $row['copertina_url'], 0, 255) : null;
-            $publisherId = $this->findOrCreatePublisher(isset($row['editore']) ? (string) $row['editore'] : null);
-
-            // Only `titolo` is mandatory in `libri`; everything else is optional.
-            $inserted = $publisherId !== null
-                ? $this->exec(
-                    'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id) VALUES (?, ?, ?, ?, ?, ?)',
-                    'sisssi',
-                    [$titolo, $anno, $isbn13, $isbn10, $cover, $publisherId]
-                )
-                : $this->exec(
-                    'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url) VALUES (?, ?, ?, ?, ?)',
-                    'sisss',
-                    [$titolo, $anno, $isbn13, $isbn10, $cover]
+            // Reconcile-on-acquire (#138). If this book is ALREADY in the
+            // catalogue — the manager bought the proposed book and added it
+            // manually with the same ISBN — link the club entry to that existing
+            // row instead of inserting a duplicate. Without this, the INSERT
+            // below hits the UNIQUE isbn13/isbn10 key, the whole transaction
+            // rolls back, and the user just sees "Acquisition failed, please try
+            // again." with the proposal stuck as external forever. Matching an
+            // existing row IS the "status changes once it's in the catalogue"
+            // behaviour the user expects — one click links it.
+            $existingId = null;
+            if ($isbn13 !== null || $isbn10 !== null) {
+                $existing = $this->row(
+                    'SELECT id FROM libri
+                       WHERE deleted_at IS NULL
+                         AND ( (isbn13 IS NOT NULL AND isbn13 = ?)
+                            OR (isbn10 IS NOT NULL AND isbn10 = ?) )
+                       LIMIT 1',
+                    'ss',
+                    [$isbn13, $isbn10]
                 );
-            if (!$inserted) {
-                throw new \RuntimeException('catalog insert failed');
+                $existingId = $existing !== null ? (int) $existing['id'] : null;
             }
-            $libroId = (int) $this->db->insert_id;
-            $this->attachExternalAuthors($libroId, isset($row['autori']) ? (string) $row['autori'] : null);
-            $this->attachPrimaryPublisher($libroId, $publisherId);
-            SearchIndexBuilder::rebuild($this->db, $libroId);
 
-            // Give the acquired book one physical copy, matching how the normal
-            // catalogue-creation flow (LibriController) seeds copies. `libri`
-            // defaults copie_totali/copie_disponibili to 1, so WITHOUT a matching
-            // `copie` row the book would claim one available copy but have none
-            // to lend — and the per-copy features (labels, loan/return by code)
-            // would find nothing. Inventory number LIB-{id}, same as a single
-            // manually-created copy; the whole thing is inside this transaction.
-            if (!$this->exec(
-                "INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (?, ?, 'disponibile')",
-                'is',
-                [$libroId, 'LIB-' . $libroId]
-            )) {
-                throw new \RuntimeException('catalog copy creation failed');
+            if ($existingId !== null) {
+                // Link to the existing catalogue row: it already has its copies,
+                // authors and publisher, so create nothing new.
+                $libroId = $existingId;
+            } else {
+                $publisherId = $this->findOrCreatePublisher(isset($row['editore']) ? (string) $row['editore'] : null);
+
+                // Only `titolo` is mandatory in `libri`; everything else is optional.
+                $inserted = $publisherId !== null
+                    ? $this->exec(
+                        'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id) VALUES (?, ?, ?, ?, ?, ?)',
+                        'sisssi',
+                        [$titolo, $anno, $isbn13, $isbn10, $cover, $publisherId]
+                    )
+                    : $this->exec(
+                        'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url) VALUES (?, ?, ?, ?, ?)',
+                        'sisss',
+                        [$titolo, $anno, $isbn13, $isbn10, $cover]
+                    );
+                if (!$inserted) {
+                    throw new \RuntimeException('catalog insert failed');
+                }
+                $libroId = (int) $this->db->insert_id;
+                $this->attachExternalAuthors($libroId, isset($row['autori']) ? (string) $row['autori'] : null);
+                $this->attachPrimaryPublisher($libroId, $publisherId);
+                SearchIndexBuilder::rebuild($this->db, $libroId);
+
+                // Give the acquired book one physical copy, matching how the normal
+                // catalogue-creation flow (LibriController) seeds copies. `libri`
+                // defaults copie_totali/copie_disponibili to 1, so WITHOUT a matching
+                // `copie` row the book would claim one available copy but have none
+                // to lend — and the per-copy features (labels, loan/return by code)
+                // would find nothing. Inventory number LIB-{id}, same as a single
+                // manually-created copy; the whole thing is inside this transaction.
+                if (!$this->exec(
+                    "INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (?, ?, 'disponibile')",
+                    'is',
+                    [$libroId, 'LIB-' . $libroId]
+                )) {
+                    throw new \RuntimeException('catalog copy creation failed');
+                }
             }
 
             $bookRows = $this->execAffected(
@@ -1069,6 +1098,50 @@ class Repo
               ORDER BY FIELD(p.status,'open','closed'), p.created_at DESC",
             'i',
             [$clubId]
+        );
+    }
+
+    /**
+     * Books that were on the ballot in a CLOSED poll but were never the winner
+     * of any closed poll (#138, Uwe's "proposed but not chosen" archive — a
+     * club with years of history accumulates a long list). Grouped per book
+     * with how many closed polls it appeared in and when it last did. A book
+     * that lost early polls but eventually won is excluded (it was chosen).
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function neverChosenProposals(int $clubId): array
+    {
+        return $this->rows(
+            "SELECT cb.id AS club_book_id,
+                    cb.state,
+                    COALESCE(l.titolo, ext.titolo) AS titolo,
+                    COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
+                    (cb.external_book_id IS NOT NULL) AS is_external,
+                    cb.libro_id,
+                    COALESCE(
+                        (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::DISPLAY_SQL_A . " SEPARATOR ', ')
+                           FROM libri_autori la JOIN autori a ON a.id = la.autore_id
+                          WHERE la.libro_id = l.id
+                            AND la.ruolo IN ('principale', 'co-autore')),
+                        ext.autori
+                    ) AS autori,
+                    COUNT(DISTINCT p.id) AS times_in_poll,
+                    MAX(COALESCE(p.closed_at, p.closes_at, p.created_at)) AS last_poll_at
+               FROM bookclub_poll_options o
+               JOIN bookclub_polls p ON p.id = o.poll_id AND p.club_id = ? AND p.status = 'closed'
+               JOIN bookclub_books cb ON cb.id = o.club_book_id
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
+              WHERE cb.id NOT IN (
+                    SELECT winner_club_book_id
+                      FROM bookclub_polls
+                     WHERE club_id = ? AND status = 'closed' AND winner_club_book_id IS NOT NULL
+                    )
+              GROUP BY cb.id, cb.state, titolo, copertina_url, is_external, cb.libro_id, autori
+              ORDER BY last_poll_at DESC",
+            'ii',
+            [$clubId, $clubId]
         );
     }
 

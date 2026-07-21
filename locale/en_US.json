@@ -6577,5 +6577,11 @@
   "Genere e sottogeneri eliminati con successo!": "Genre and subgenres deleted successfully!",
   "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "This action permanently deletes the genre and all of its subgenres. Associated books will be unlinked from these genres.",
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Are you sure you want to delete this genre and all of its subgenres? Associated books will be unlinked from these genres.",
-  "Elimina genere e sottogeneri": "Delete genre and subgenres"
+  "Elimina genere e sottogeneri": "Delete genre and subgenres",
+  "Proposte non selezionate": "Proposals not selected",
+  "Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.": "Books that were on the ballot in a closed poll but were never chosen.",
+  "votazione": "poll",
+  "votazioni": "polls",
+  "ultima": "last",
+  "Non in catalogo": "Not in catalogue"
 }

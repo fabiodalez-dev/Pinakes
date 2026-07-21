@@ -6577,5 +6577,11 @@
   "Genere e sottogeneri eliminati con successo!": "Genre et sous-genres supprimés avec succès !",
   "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "Cette action supprime définitivement le genre et tous ses sous-genres. Les livres associés seront dissociés de ces genres.",
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Voulez-vous vraiment supprimer ce genre et tous ses sous-genres ? Les livres associés seront dissociés de ces genres.",
-  "Elimina genere e sottogeneri": "Supprimer le genre et les sous-genres"
+  "Elimina genere e sottogeneri": "Supprimer le genre et les sous-genres",
+  "Proposte non selezionate": "Propositions non retenues",
+  "Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.": "Livres qui ont été candidats dans un vote clos mais qui n'ont jamais été retenus.",
+  "votazione": "vote",
+  "votazioni": "votes",
+  "ultima": "dernière",
+  "Non in catalogo": "Pas au catalogue"
 }

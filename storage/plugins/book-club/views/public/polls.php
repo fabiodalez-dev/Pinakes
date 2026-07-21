@@ -107,6 +107,35 @@ $modeHelp = [
     <?php endforeach; ?>
   </div>
 
+  <?php if (!empty($neverChosen)): ?>
+    <div class="bc-card">
+      <div class="bc-section-header mb-1">
+        <i class="fas fa-clock-rotate-left"></i>
+        <h2><?= $e(__('Proposte non selezionate')) ?></h2>
+      </div>
+      <p class="bc-muted mb-4"><?= $e(__('Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.')) ?></p>
+      <?php foreach ($neverChosen as $prop): ?>
+        <div class="bc-list-item align-items-center">
+          <div>
+            <span class="fw-semibold"><?= $e((string) ($prop['titolo'] ?? '')) ?></span>
+            <?php if (!empty($prop['autori'])): ?>
+              <span class="bc-muted small">· <?= $e((string) $prop['autori']) ?></span>
+            <?php endif; ?>
+            <div class="bc-muted small mt-1">
+              <?= (int) $prop['times_in_poll'] ?> <?= $e((int) $prop['times_in_poll'] === 1 ? __('votazione') : __('votazioni')) ?>
+              <?php if (!empty($prop['last_poll_at'])): ?>
+                · <?= $e(__('ultima')) ?> <?= $e(date('d/m/Y', (int) strtotime((string) $prop['last_poll_at']))) ?>
+              <?php endif; ?>
+              <?php if (!empty($prop['is_external'])): ?>
+                · <span class="bc-badge bc-badge-closed"><?= $e(__('Non in catalogo')) ?></span>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  <?php endif; ?>
+
   <?php if ($canCreate): ?>
     <div class="bc-card">
       <div class="bc-section-header mb-1">
