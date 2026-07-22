@@ -394,7 +394,11 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     // same idempotent close before redirecting to the history.
     const pollId = Number(dbQuery(`SELECT id FROM bookclub_polls WHERE club_id=${clubId} AND title=${sqlStr(pollTitle)} LIMIT 1`) || '0');
     expect(pollId).toBeGreaterThan(0);
-    dbQuery(`UPDATE bookclub_polls SET closes_at=DATE_SUB(NOW(), INTERVAL 1 MINUTE), status='open' WHERE id=${pollId}`);
+    // closes_at seeded in UTC with a margin wider than any TZ offset: the mysql
+    // CLI seeds in the host time zone while the app connection runs at +00:00,
+    // so a NOW()-based past instant can still read as future to
+    // pollDeadlinePassed() on a non-UTC host (cf. mobile-api-bookclub-fixes).
+    dbQuery(`UPDATE bookclub_polls SET closes_at=DATE_SUB(UTC_TIMESTAMP(), INTERVAL 26 HOUR), status='open' WHERE id=${pollId}`);
     await page.goto(`${BASE}/book-club/${slug}`);
     await page.waitForLoadState('networkidle');
     expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id=${pollId}`), 'club GET must not close a poll').toBe('open');
