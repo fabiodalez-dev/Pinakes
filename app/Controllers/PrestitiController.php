@@ -1303,24 +1303,128 @@ class PrestitiController
         $db->begin_transaction();
         try {
             $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            // MySQL evaluates single-table SET assignments left to right, so the
-            // CASE branches see the NEW (already-extended) data_scadenza. Scope
-            // to physically-out states so prenotato / da_ritirare are untouched.
-            $sql = "UPDATE prestiti
-                       SET data_scadenza = DATE_ADD(data_scadenza, INTERVAL ? DAY),
-                           stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
-                           warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
-                           overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
-                     WHERE id IN ($placeholders)
-                       AND attivo = 1
-                       AND stato IN ('in_corso', 'in_ritardo')";
-            $stmt = $db->prepare($sql);
-            $types = 'isss' . str_repeat('i', count($ids));
-            $params = array_merge([$days, $today, $today, $today], $ids);
-            $stmt->bind_param($types, ...$params);
-            $stmt->execute();
-            $extended = $stmt->affected_rows;
-            $stmt->close();
+
+            // Discover the books first without taking loan locks, then lock every
+            // book in deterministic order. This preserves the application-wide
+            // canonical lock order (libri -> prestiti) and serializes capacity
+            // decisions with loan/reservation/copy mutations for the same title.
+            $bookScan = $db->prepare("SELECT id, libro_id FROM prestiti WHERE id IN ($placeholders)");
+            $bookScan->bind_param(str_repeat('i', count($ids)), ...$ids);
+            $bookScan->execute();
+            $bookResult = $bookScan->get_result();
+            $expectedBookByLoan = [];
+            $bookIds = [];
+            while ($row = $bookResult->fetch_assoc()) {
+                $loanId = (int) $row['id'];
+                $bookId = (int) $row['libro_id'];
+                $expectedBookByLoan[$loanId] = $bookId;
+                $bookIds[$bookId] = $bookId;
+            }
+            $bookScan->close();
+            sort($bookIds, SORT_NUMERIC);
+
+            $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+            foreach ($bookIds as $bookId) {
+                $lockBook->bind_param('i', $bookId);
+                $lockBook->execute();
+                $lockBook->get_result();
+            }
+            $lockBook->close();
+
+            // Re-read and lock the eligible rows after their books are locked.
+            // Rows closed or moved out of an extendable state meanwhile are
+            // intentionally ignored, matching the previous bulk semantics.
+            $lockLoans = $db->prepare(
+                "SELECT id, libro_id, copia_id, data_prestito, data_scadenza
+                   FROM prestiti
+                  WHERE id IN ($placeholders)
+                    AND attivo = 1
+                    AND stato IN ('in_corso', 'in_ritardo')
+                  ORDER BY id
+                  FOR UPDATE"
+            );
+            $lockLoans->bind_param(str_repeat('i', count($ids)), ...$ids);
+            $lockLoans->execute();
+            $loanResult = $lockLoans->get_result();
+            $loans = [];
+            while ($row = $loanResult->fetch_assoc()) {
+                $loans[] = $row;
+            }
+            $lockLoans->close();
+
+            $capacity = new \App\Services\CapacityService($db);
+            $copyOverlap = $db->prepare(
+                "SELECT 1 FROM prestiti
+                  WHERE copia_id = ? AND id <> ?
+                    AND data_prestito <= ?
+                    AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                    AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                         OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL))
+                  LIMIT 1"
+            );
+            $update = $db->prepare(
+                "UPDATE prestiti
+                    SET data_scadenza = ?,
+                        stato = CASE WHEN ? < ? THEN 'in_ritardo' ELSE 'in_corso' END,
+                        warning_sent = CASE WHEN ? < ? THEN warning_sent ELSE 0 END,
+                        overdue_notification_sent = CASE WHEN ? < ? THEN overdue_notification_sent ELSE 0 END
+                  WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
+            );
+
+            $extended = 0;
+            foreach ($loans as $loan) {
+                $loanId = (int) $loan['id'];
+                $bookId = (int) $loan['libro_id'];
+                if (($expectedBookByLoan[$loanId] ?? null) !== $bookId) {
+                    throw new \RuntimeException('Loan book changed during bulk extension');
+                }
+
+                $dueDate = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) $loan['data_scadenza']);
+                if ($dueDate === false) {
+                    throw new \RuntimeException('Invalid due date during bulk extension');
+                }
+                $newDueDate = $dueDate->modify('+' . $days . ' days')->format('Y-m-d');
+                $loanStart = (string) $loan['data_prestito'];
+
+                // Apply each accepted extension immediately inside this transaction:
+                // the next capacity check therefore sees all earlier proposed
+                // extensions too. A single conflict rolls the entire batch back.
+                if (!$capacity->hasFreeCapacity($bookId, $loanStart, $newDueDate, excludePrestitoId: $loanId)) {
+                    $copyOverlap->close();
+                    $update->close();
+                    $db->rollback();
+                    return $response->withHeader('Location', $backUrl . '?error=bulk_extend_conflict')->withStatus(302);
+                }
+
+                $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+                if ($copyId !== null) {
+                    $copyOverlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $loanStart);
+                    $copyOverlap->execute();
+                    $hasCopyOverlap = (bool) $copyOverlap->get_result()->fetch_row();
+                    if ($hasCopyOverlap) {
+                        $copyOverlap->close();
+                        $update->close();
+                        $db->rollback();
+                        return $response->withHeader('Location', $backUrl . '?error=bulk_extend_conflict')->withStatus(302);
+                    }
+                }
+
+                $update->bind_param(
+                    'sssssssi',
+                    $newDueDate,
+                    $newDueDate,
+                    $today,
+                    $newDueDate,
+                    $today,
+                    $newDueDate,
+                    $today,
+                    $loanId
+                );
+                $update->execute();
+                $extended += max(0, $update->affected_rows);
+            }
+            $copyOverlap->close();
+            $update->close();
             $db->commit();
         } catch (\Throwable $e) {
             $db->rollback();

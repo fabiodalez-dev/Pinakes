@@ -727,10 +727,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     text: t('%n prestiti estesi di %d giorni.').replace('%n', n).replace('%d', d),
                     timer: 3500, showConfirmButton: false
                 });
-            } else if (window.Swal && (err === 'bulk_extend_invalid' || err === 'bulk_extend_failed')) {
+            } else if (window.Swal && ['bulk_extend_invalid', 'bulk_extend_conflict', 'bulk_extend_failed'].includes(err)) {
+                let message = t('Estensione non riuscita, riprova.');
+                if (err === 'bulk_extend_invalid') {
+                    message = t('Selezione o numero di giorni non validi.');
+                } else if (err === 'bulk_extend_conflict') {
+                    message = t('Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.');
+                }
                 Swal.fire({
                     icon: 'error', title: t('Errore'),
-                    text: err === 'bulk_extend_invalid' ? t('Selezione o numero di giorni non validi.') : t('Estensione non riuscita, riprova.')
+                    text: message
                 });
             }
         })();

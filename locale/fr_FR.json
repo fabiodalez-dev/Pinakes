@@ -5658,6 +5658,9 @@
   "proposto da": "proposé par",
   "scade il": "expire le",
   "scaduta il": "expiré le",
+  "Votazione terminata": "Vote terminé",
+  "Questo libro è già collegato a un'altra proposta di questo club: non è stato acquisito di nuovo.": "Ce livre est déjà lié à une autre proposition de ce club : il n'a pas été acquis à nouveau.",
+  "La scadenza della votazione è passata: la votazione è stata chiusa e il tuo voto non è stato registrato.": "La date limite du vote est dépassée : le vote a été clôturé et votre vote n'a pas été enregistré.",
   "sì": "oui",
   "votanti": "votants",
   "voti": "votes",
@@ -6578,6 +6581,14 @@
   "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "Cette action supprime définitivement le genre et tous ses sous-genres. Les livres associés seront dissociés de ces genres.",
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Voulez-vous vraiment supprimer ce genre et tous ses sous-genres ? Les livres associés seront dissociés de ces genres.",
   "Elimina genere e sottogeneri": "Supprimer le genre et les sous-genres",
+  "Proposte non selezionate": "Propositions non retenues",
+  "Proposte ancora in attesa di essere scelte. La lista include i libri mai votati e quelli che non hanno mai vinto una votazione chiusa.": "Propositions encore en attente de sélection. La liste comprend les livres jamais soumis au vote et ceux qui n'ont jamais remporté un vote clos.",
+  "votazione": "vote",
+  "votazioni": "votes",
+  "ultima": "dernière",
+  "Non in catalogo": "Pas au catalogue",
+  "Votazioni chiuse": "Votes clos",
+  "mai votata": "pas encore soumise au vote",
   "Seleziona tutti i prestiti estendibili": "Sélectionner tous les prêts prolongeables",
   "Estendi di": "Prolonger de",
   "Estendi prestiti selezionati": "Prolonger les prêts sélectionnés",
@@ -6589,5 +6600,7 @@
   "%n prestiti estesi di %d giorni.": "%n prêts prolongés de %d jours.",
   "Selezione o numero di giorni non validi.": "Sélection ou nombre de jours invalide.",
   "Estensione non riuscita, riprova.": "La prolongation a échoué, veuillez réessayer.",
-  "Estendi": "Prolonger"
+  "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.": "Prolongation annulée : au moins un prêt entrerait en conflit avec un autre prêt ou une réservation.",
+  "Estendi": "Prolonger",
+  "Lingue non disponibili.": "Les langues ne sont pas disponibles."
 }

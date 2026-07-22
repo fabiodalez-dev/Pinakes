@@ -5658,6 +5658,9 @@
   "proposto da": "proposed by",
   "scade il": "closes on",
   "scaduta il": "closed on",
+  "Votazione terminata": "Voting ended",
+  "Questo libro è già collegato a un'altra proposta di questo club: non è stato acquisito di nuovo.": "This book is already linked to another proposal in this club: it was not acquired again.",
+  "La scadenza della votazione è passata: la votazione è stata chiusa e il tuo voto non è stato registrato.": "The poll's deadline has passed: the poll has been closed and your vote was not recorded.",
   "sì": "yes",
   "votanti": "voters",
   "voti": "votes",
@@ -6578,6 +6581,14 @@
   "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "This action permanently deletes the genre and all of its subgenres. Associated books will be unlinked from these genres.",
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Are you sure you want to delete this genre and all of its subgenres? Associated books will be unlinked from these genres.",
   "Elimina genere e sottogeneri": "Delete genre and subgenres",
+  "Proposte non selezionate": "Proposals not selected",
+  "Proposte ancora in attesa di essere scelte. La lista include i libri mai votati e quelli che non hanno mai vinto una votazione chiusa.": "Proposals still awaiting selection. The list includes books not yet voted on and books that have never won a closed poll.",
+  "votazione": "poll",
+  "votazioni": "polls",
+  "ultima": "last",
+  "Non in catalogo": "Not in catalog",
+  "Votazioni chiuse": "Closed polls",
+  "mai votata": "not yet voted on",
   "Seleziona tutti i prestiti estendibili": "Select all extendable loans",
   "Estendi di": "Extend by",
   "Estendi prestiti selezionati": "Extend selected loans",
@@ -6589,5 +6600,7 @@
   "%n prestiti estesi di %d giorni.": "%n loans extended by %d days.",
   "Selezione o numero di giorni non validi.": "Invalid selection or number of days.",
   "Estensione non riuscita, riprova.": "Extension failed, please try again.",
-  "Estendi": "Extend"
+  "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.": "Extension cancelled: at least one loan would conflict with another loan or reservation.",
+  "Estendi": "Extend",
+  "Lingue non disponibili.": "Languages are unavailable."
 }

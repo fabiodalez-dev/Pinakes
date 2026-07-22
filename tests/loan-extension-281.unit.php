@@ -10,9 +10,8 @@ declare(strict_types=1);
  * (single, Edit-Loan) and PrestitiController::bulkExtend() (many) now recompute
  * stato against the new due date.
  *
- * This exercises the exact SQL both paths use, against a sandbox prestiti table,
- * asserting the transitions, the reminder-flag reset, and the state scoping
- * (prenotato / da_ritirare / returned loans are never touched).
+ * This exercises the status SQL against a sandbox prestiti table and also locks
+ * the bulk controller's transactional capacity/copy-conflict contract.
  *
  * Run:  php tests/loan-extension-281.unit.php   (exit 0 iff all pass)
  */
@@ -125,19 +124,22 @@ while ($x = $res->fetch_assoc()) { $ids[$x['stato']] = (int) $x['id']; }
 // Extend ALL five ids by 30 days; only the two physically-out loans must change.
 $allIds = array_values($ids);
 $days = 30;
-$placeholders = implode(',', array_fill(0, count($allIds), '?'));
-$sql = "UPDATE {$SB}
-           SET data_scadenza = DATE_ADD(data_scadenza, INTERVAL ? DAY),
-               stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
-               warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
-               overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
-         WHERE id IN ($placeholders) AND attivo = 1 AND stato IN ('in_corso','in_ritardo')";
-$stmt = $db->prepare($sql);
-$types = 'isss' . str_repeat('i', count($allIds));
-$params = array_merge([$days, $today, $today, $today], $allIds);
-$stmt->bind_param($types, ...$params);
-$stmt->execute();
-$affected = $stmt->affected_rows;
+$stmt = $db->prepare(
+    "UPDATE {$SB}
+        SET data_scadenza = ?,
+            stato = CASE WHEN ? < ? THEN 'in_ritardo' ELSE 'in_corso' END,
+            warning_sent = CASE WHEN ? < ? THEN warning_sent ELSE 0 END,
+            overdue_notification_sent = CASE WHEN ? < ? THEN overdue_notification_sent ELSE 0 END
+      WHERE id = ? AND attivo = 1 AND stato IN ('in_corso','in_ritardo')"
+);
+$affected = 0;
+foreach ($allIds as $loanId) {
+    $current = $row($loanId);
+    $newDue = (new DateTimeImmutable((string) $current['data_scadenza']))->modify("+{$days} days")->format('Y-m-d');
+    $stmt->bind_param('sssssssi', $newDue, $newDue, $today, $newDue, $today, $newDue, $today, $loanId);
+    $stmt->execute();
+    $affected += max(0, $stmt->affected_rows);
+}
 $stmt->close();
 
 $check($affected === 2, 'bulk extend touches exactly the two out-loans (in_corso + in_ritardo)');
@@ -149,6 +151,38 @@ $check($row($ids['in_corso'])['stato'] === 'in_corso', 'in_corso loan stays in_c
 $check($row($ids['prenotato'])['stato'] === 'prenotato' && $row($ids['prenotato'])['data_scadenza'] === $past, 'prenotato loan untouched (state + date)');
 $check($row($ids['da_ritirare'])['stato'] === 'da_ritirare' && $row($ids['da_ritirare'])['data_scadenza'] === $past, 'da_ritirare loan untouched');
 $check($row($ids['restituito'])['data_scadenza'] === $past, 'returned (attivo=0) loan untouched');
+
+// ── Area 3: transactional safety and controller contract ──────────────────
+echo "C. Bulk extension conflict safety\n";
+$db->query("TRUNCATE TABLE {$SB}");
+$db->query("INSERT INTO {$SB} (attivo, stato, data_scadenza) VALUES
+    (1, 'in_corso', '{$future}'),
+    (1, 'in_corso', '{$future}')");
+$before = $db->query("SELECT id, data_scadenza FROM {$SB} ORDER BY id")->fetch_all(MYSQLI_ASSOC);
+
+// A conflict discovered after an earlier row was tentatively changed must
+// restore the entire batch, never leave a partial extension behind.
+$db->begin_transaction();
+$firstId = (int) $before[0]['id'];
+$tentative = (new DateTimeImmutable($future))->modify('+7 days')->format('Y-m-d');
+$db->query("UPDATE {$SB} SET data_scadenza = '{$tentative}' WHERE id = {$firstId}");
+$db->rollback();
+$after = $db->query("SELECT id, data_scadenza FROM {$SB} ORDER BY id")->fetch_all(MYSQLI_ASSOC);
+$check($after === $before, 'a later conflict rolls back every earlier extension');
+
+$controller = (string) file_get_contents($root . '/app/Controllers/PrestitiController.php');
+$bulkStart = strpos($controller, 'public function bulkExtend(');
+$renewStart = strpos($controller, 'public function renew(', $bulkStart === false ? 0 : $bulkStart);
+$bulkSource = ($bulkStart !== false && $renewStart !== false)
+    ? substr($controller, $bulkStart, $renewStart - $bulkStart)
+    : '';
+$bookLockPos = strpos($bulkSource, "SELECT id FROM libri WHERE id = ? FOR UPDATE");
+$loanLockPos = strpos($bulkSource, "ORDER BY id\n                  FOR UPDATE");
+$check($bookLockPos !== false && $loanLockPos !== false && $bookLockPos < $loanLockPos, 'bulk path locks books before loans in deterministic order');
+$check(str_contains($bulkSource, 'hasFreeCapacity(') && str_contains($bulkSource, 'excludePrestitoId: $loanId'), 'every proposed window passes through canonical CapacityService');
+$check(str_contains($bulkSource, 'copia_id = ? AND id <> ?'), 'bulk path rejects overlap on the assigned physical copy');
+$check(str_contains($bulkSource, '?error=bulk_extend_conflict') && str_contains($bulkSource, '$db->rollback();'), 'capacity/copy conflict has a dedicated all-or-nothing response');
+$check(!str_contains($bulkSource, 'DATE_ADD(data_scadenza'), 'unsafe set-based extension is absent');
 
 $cleanup();
 
