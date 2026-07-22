@@ -554,6 +554,30 @@ final class OpenApiController
                 ],
             ],
 
+            '/catalog/languages' => [
+                'get' => [
+                    'tags'        => ['catalog'],
+                    'summary'     => 'Catalogue languages',
+                    'description' => 'Distinct language values present in the catalogue, each with a book count, for building the app language filter from real data rather than a hardcoded list (#282).',
+                    'operationId' => 'getCatalogLanguages',
+                    'security'    => [['bearerAuth' => []]],
+                    'responses'   => [
+                        '200' => ['description' => 'Languages.', 'content' => ['application/json' => ['schema' => [
+                            'allOf' => [['$ref' => '#/components/schemas/Envelope']],
+                            'properties' => ['data' => ['type' => 'array', 'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'language' => ['type' => 'string'],
+                                    'count'    => ['type' => 'integer'],
+                                ],
+                            ]]],
+                        ]]]],
+                        '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+            ],
+
             '/me/loans' => [
                 'get' => [
                     'tags'        => ['loans'],

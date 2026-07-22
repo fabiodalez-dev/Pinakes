@@ -365,6 +365,69 @@ final class CatalogController
         }
     }
 
+    // ─── GET /catalog/languages ──────────────────────────────────────────────
+
+    /**
+     * Distinct language values actually present in the (non-deleted) catalogue,
+     * each with its book count. `libri.lingua` is unnormalized free text, so a
+     * hardcoded language list in the app cannot match it (e.g. the app sends
+     * "German" while the row says "Deutsch"): filtering by language then returns
+     * nothing, which is exactly issue #282. The app should populate its language
+     * filter from THIS endpoint — the real collection values — the same way it
+     * already sources genres / authors / publishers. Read-only, ETag-cached.
+     */
+    public function languages(
+        ServerRequestInterface $request,
+        ResponseInterface $response
+    ): ResponseInterface {
+        try {
+            $rows = [];
+            // Static query, no user input; soft-delete honoured per CLAUDE.md rule 2.
+            $res = $this->db->query(
+                "SELECT TRIM(lingua) AS language, COUNT(*) AS count
+                   FROM libri
+                  WHERE deleted_at IS NULL AND lingua IS NOT NULL AND TRIM(lingua) <> ''
+                  GROUP BY TRIM(lingua)
+                  ORDER BY count DESC, language ASC"
+            );
+            if ($res !== false) {
+                while ($r = $res->fetch_assoc()) {
+                    $rows[] = [
+                        'language' => (string) $r['language'],
+                        'count'    => (int) $r['count'],
+                    ];
+                }
+            }
+
+            $etag = $this->computeLanguagesEtag($rows);
+            if ($this->notModified($request, $etag)) {
+                return $this->notModifiedResponse($response, $etag);
+            }
+
+            $response = ResponseEnvelope::success($response, $rows, ['count' => count($rows)], 200);
+
+            return $response
+                ->withHeader('ETag', $etag)
+                ->withHeader('Cache-Control', 'private, max-age=0, must-revalidate');
+        } catch (\Throwable $e) {
+            SecureLogger::error('[MobileApi] catalog languages failed: ' . $e->getMessage());
+            return ResponseEnvelope::error($response, 'internal_error', __('Lingue non disponibili.'), 500);
+        }
+    }
+
+    /**
+     * @param list<array{language: string, count: int}> $rows
+     */
+    private function computeLanguagesEtag(array $rows): string
+    {
+        $seed = '';
+        foreach ($rows as $r) {
+            $seed .= $r['language'] . ':' . $r['count'] . '|';
+        }
+
+        return '"' . sha1('languages:' . $seed) . '"';
+    }
+
     // ─── Filters ─────────────────────────────────────────────────────────────
 
     /**
@@ -460,7 +523,10 @@ final class CatalogController
 
         $language = isset($params['language']) ? trim((string) $params['language']) : '';
         if ($language !== '') {
-            $conditions[] = 'l.lingua = ?';
+            // libri.lingua is unnormalized free text (#282): tolerate case /
+            // surrounding whitespace so a value taken from /catalog/languages
+            // matches regardless of how the client echoes it back.
+            $conditions[] = 'LOWER(TRIM(l.lingua)) = LOWER(TRIM(?))';
             $bind[]  = $language;
             $types  .= 's';
         }
