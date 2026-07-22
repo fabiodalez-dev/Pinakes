@@ -31,7 +31,7 @@ const EXT_TITLE_2 = `External Book Alt ${RUN}`;
 const EXT_AUTHOR_1 = `Jane External ${RUN}`;
 const EXT_AUTHOR_2 = `Janet External ${RUN}`;
 const EXT_PUBLISHER = `External Press ${RUN}`;
-const AUTO_ISBN = `978${String(Date.now()).slice(-10)}`;
+const AUTO_ISBN = makeIsbn13(`978${String(Date.now()).slice(-9)}`);
 const MEMBER_EMAIL = `e2e-bc-uwe-${RUN}@example.test`;
 
 test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME || (!DB_HOST && !DB_SOCKET), 'E2E credentials not configured');
@@ -59,6 +59,16 @@ function dbQuery(sql) {
 }
 function sqlStr(s) { return "'" + String(s).replace(/'/g, "''") + "'"; }
 
+function makeIsbn13(firstTwelveDigits) {
+  const digits = String(firstTwelveDigits).replace(/\D/g, '').slice(0, 12);
+  if (digits.length !== 12) throw new Error('ISBN-13 seed must contain 12 digits');
+  let sum = 0;
+  for (let i = 0; i < digits.length; i++) {
+    sum += Number(digits[i]) * (i % 2 === 0 ? 1 : 3);
+  }
+  return digits + String((10 - (sum % 10)) % 10);
+}
+
 async function loginAsAdmin(page) {
   await page.goto(`${BASE}/accedi`);
   const emailField = page.locator('input[name="email"]');
@@ -68,6 +78,31 @@ async function loginAsAdmin(page) {
     await page.locator('button[type="submit"]').click();
     await page.waitForURL(u => !u.toString().includes('/accedi'), { timeout: 15000 });
   }
+}
+
+async function submitBookForm(page) {
+  const submit = page.locator('#bookForm button[type="submit"], button[type="submit"]').first();
+  await submit.scrollIntoViewIfNeeded();
+  await submit.click();
+  const confirm = page.locator('.swal2-confirm:visible');
+  if (await confirm.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await confirm.click();
+  }
+  await page.waitForFunction(
+    () => !window.location.pathname.endsWith('/admin/books/create')
+      && !window.location.pathname.includes('/admin/books/edit/'),
+    null,
+    { timeout: 30000 }
+  );
+  await page.waitForLoadState('domcontentloaded');
+}
+
+async function createCatalogueBook(page, title, isbn13) {
+  await page.goto(`${BASE}/admin/books/create`);
+  await page.waitForLoadState('domcontentloaded');
+  await page.locator('input[name="titolo"]').fill(title);
+  await page.locator('input[name="isbn13"]').fill(isbn13);
+  await submitBookForm(page);
 }
 
 /** Future datetime as the datetime-local input wants it (local wall clock). */
@@ -102,6 +137,9 @@ test.describe.serial('Book Club — Uwe feedback', () => {
       expect(resp.ok(), 'plugin activation request should succeed').toBeTruthy();
       await expect.poll(() => dbQuery(`SELECT is_active FROM plugins WHERE id=${bcId}`), { timeout: 8000 }).toBe('1');
     }
+    expect(dbQuery(
+      `SELECT COUNT(*) FROM plugin_hooks WHERE plugin_id=${bcId} AND hook_name='book.save.after' AND callback_method='onCatalogueBookSaved' AND is_active=1`
+    ), 'active Book Club installs must receive the catalogue-save hook').toBe('1');
 
     // Create a club through the real admin form; the creator becomes its owner.
     await page.goto(`${BASE}/admin/book-club/new`);
@@ -284,22 +322,38 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo IN (${sqlStr(EXT_TITLE)}, ${sqlStr(EXT_TITLE_2)})`),
       'opening a poll with external books must not create catalog rows').toBe('0');
 
-    // Reproduce Uwe's failure exactly: the manager later records the purchase
-    // through the normal catalogue side, then revisits the club. The GET must
-    // link the proposal by exact ISBN without requiring the Acquire button and
-    // without duplicating the catalogue row.
-    dbQuery(`INSERT INTO libri (titolo, isbn13) VALUES (${sqlStr(EXT_TITLE_2)}, ${sqlStr(AUTO_ISBN)})`);
+    // Reproduce Uwe's flow through the real catalogue UI. book.save.after must
+    // link the exact ISBN immediately; no Book Club GET is needed.
+    await createCatalogueBook(page, EXT_TITLE_2, AUTO_ISBN);
     const manuallyAddedLibroId = Number(dbQuery(`SELECT id FROM libri WHERE isbn13=${sqlStr(AUTO_ISBN)} LIMIT 1`) || '0');
     expect(manuallyAddedLibroId).toBeGreaterThan(0);
-    dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${manuallyAddedLibroId}, ${sqlStr(`LIB-${manuallyAddedLibroId}`)}, 'disponibile')`);
-    await page.goto(`${BASE}/book-club/${slug}`);
-    await page.waitForLoadState('networkidle');
     await expect.poll(() => dbQuery(
       `SELECT CONCAT(IFNULL(libro_id,'NULL'),'|',IFNULL(external_book_id,'NULL')) FROM bookclub_books WHERE id=${second.clubBookId}`
     )).toBe(`${manuallyAddedLibroId}|NULL`);
     expect(dbQuery(`SELECT acquired_libro_id FROM bookclub_external_books WHERE id=${second.extBookId}`)).toBe(String(manuallyAddedLibroId));
     expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE isbn13=${sqlStr(AUTO_ISBN)}`),
-      'automatic reconciliation must not duplicate the manually added catalogue row').toBe('1');
+      'hook reconciliation must not duplicate the manually added catalogue row').toBe('1');
+
+    // Prove the page render itself is read-only: simulate an import that
+    // bypassed book.save.after, visit the GET view, and confirm no link occurs.
+    // A normal catalogue update then fires the hook and repairs it.
+    dbQuery(`UPDATE bookclub_books SET libro_id=NULL, external_book_id=${second.extBookId} WHERE id=${second.clubBookId}`);
+    dbQuery(`UPDATE bookclub_external_books SET acquired_libro_id=NULL WHERE id=${second.extBookId}`);
+    await page.goto(`${BASE}/book-club/${slug}`);
+    await page.waitForLoadState('networkidle');
+    expect(dbQuery(
+      `SELECT CONCAT(IFNULL(libro_id,'NULL'),'|',IFNULL(external_book_id,'NULL')) FROM bookclub_books WHERE id=${second.clubBookId}`
+    ), 'club GET must not reconcile catalogue data').toBe(`NULL|${second.extBookId}`);
+
+    await page.goto(`${BASE}/admin/books/edit/${manuallyAddedLibroId}`);
+    await page.waitForLoadState('domcontentloaded');
+    await submitBookForm(page);
+    await expect.poll(() => dbQuery(
+      `SELECT CONCAT(IFNULL(libro_id,'NULL'),'|',IFNULL(external_book_id,'NULL')) FROM bookclub_books WHERE id=${second.clubBookId}`
+    )).toBe(`${manuallyAddedLibroId}|NULL`);
+
+    await page.goto(`${BASE}/book-club/${slug}`);
+    await page.waitForLoadState('domcontentloaded');
 
     // Acquire it into the catalogue (manager action) — the one moment it enters libri.
     await page.locator(`form[action*="/books/${first.clubBookId}/acquire"] button`).click();
@@ -335,14 +389,23 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo=${sqlStr(EXT_TITLE_2)}`),
       'the automatically reconciled poll option has exactly one catalogue row').toBe('1');
 
-    // The main club page must also lazily close expired polls (cron is not a
-    // correctness dependency) and expose them in its explicit history.
+    // Expired polls are normally closed by full maintenance. GET is read-only;
+    // the first rejected vote POST is the immediate fallback and performs the
+    // same idempotent close before redirecting to the history.
     const pollId = Number(dbQuery(`SELECT id FROM bookclub_polls WHERE club_id=${clubId} AND title=${sqlStr(pollTitle)} LIMIT 1`) || '0');
     expect(pollId).toBeGreaterThan(0);
     dbQuery(`UPDATE bookclub_polls SET closes_at=DATE_SUB(NOW(), INTERVAL 1 MINUTE), status='open' WHERE id=${pollId}`);
     await page.goto(`${BASE}/book-club/${slug}`);
     await page.waitForLoadState('networkidle');
+    expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id=${pollId}`), 'club GET must not close a poll').toBe('open');
+    await page.goto(`${BASE}/book-club/${slug}/polls/${pollId}`);
+    await page.waitForLoadState('domcontentloaded');
+    expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id=${pollId}`), 'poll GET must not close a poll').toBe('open');
+    await page.locator(`form[action$="/polls/${pollId}/vote"] button[type="submit"]`).click();
+    await page.waitForLoadState('networkidle');
     expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id=${pollId}`)).toBe('closed');
+    await page.goto(`${BASE}/book-club/${slug}`);
+    await page.waitForLoadState('domcontentloaded');
     const closedHistory = page.locator('details:has-text("Votazioni chiuse")');
     await closedHistory.locator('summary').click();
     await expect(closedHistory.locator(`a[href$="/polls/${pollId}"]`)).toBeVisible();

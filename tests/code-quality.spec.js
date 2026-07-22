@@ -311,10 +311,11 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
 
     test('10. API endpoints documented in README.md exist in PHP code', () => {
         const readme    = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf-8');
-        const phpSources = [
+        const phpFiles = [
             ...glob('app',            '.php', ['vendor']),
             ...glob('storage/plugins', '.php'),
-        ].map(f => fs.readFileSync(f, 'utf-8')).join('\n');
+        ].map(f => fs.readFileSync(f, 'utf-8'));
+        const phpSources = phpFiles.join('\n');
 
         const DOC_RE   = /`GET (\/(?:api|resync|oai|openurl|archives)[^\s`]+)/g;
         const violations = [];
@@ -330,7 +331,20 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             // `{}` to align with the PHP-side normalisation above.
             const pathOnly = m[1].split('?')[0].split('#')[0];
             const search = pathOnly.replace(/\/$/, '').replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
-            if (!normalizedRouteSources.includes(search)) violations.push(m[1]);
+            let found = normalizedRouteSources.includes(search);
+
+            // Slim plugins commonly register `/api/v1` once with group(), then
+            // declare child routes as `/auth/...`. Require the group and the
+            // GET child literal to occur in the SAME PHP file so a documented
+            // API path cannot be satisfied accidentally by unrelated strings.
+            if (!found && search.startsWith('/api/v1/')) {
+                const child = search.slice('/api/v1'.length);
+                const escapedChild = child.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const groupRe = /->group\(\s*(['"])\/api\/v1\1/;
+                const getRe = new RegExp(`->get\\(\\s*(['"])${escapedChild}\\1`);
+                found = phpFiles.some(source => groupRe.test(source) && getRe.test(source));
+            }
+            if (!found) violations.push(m[1]);
         }
         expect(violations,
             `Endpoints documented in README but no matching route found in PHP:\n${violations.map(v => '  GET ' + v).join('\n')}`

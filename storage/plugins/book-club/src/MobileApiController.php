@@ -114,9 +114,6 @@ class MobileApiController extends BaseController
         if ($club === null) {
             return $error !== null ? $error($response) : $this->fail($response, 'not_found', __('Club non trovato.'), 404);
         }
-        // Lazy-close expired polls before reading, mirroring the web pages:
-        // the app must never see status='open' on a poll vote() would 409.
-        (new PollController($this->db, $this->repo))->closeExpiredForClub((int) $club['id']);
         $userId = (int) $this->userId();
         $membership = $this->membership($club);
         $isMember = $membership !== null && $membership['status'] === 'active';
@@ -220,16 +217,12 @@ class MobileApiController extends BaseController
     public function dashboard(ServerRequestInterface $request, ResponseInterface $response): ResponseInterface
     {
         $userId = (int) $this->userId();
-        $pollController = new PollController($this->db, $this->repo);
         $cards = [];
         foreach ($this->repo->listClubsForUser($userId) as $clubRow) {
             $club = $this->repo->clubById((int) $clubRow['id']);
             if ($club === null || !Registry::clubEnabled($club, $this->module)) {
                 continue;
             }
-            // open_polls must not include deadline-passed polls (lazy close,
-            // one cheap SELECT per club — same guarantee as the club pages).
-            $pollController->closeExpiredForClub((int) $club['id']);
             $snapshot = $this->repo->clubSnapshot($club);
             $cards[] = [
                 'club' => [
@@ -368,7 +361,11 @@ class MobileApiController extends BaseController
         if ($poll === null || (int) $poll['club_id'] !== (int) $club['id']) {
             return $this->fail($response, 'not_found', __('Club non trovato.'), 404);
         }
-        if ($poll['status'] !== 'open' || ($poll['closes_at'] !== null && strtotime((string) $poll['closes_at']) <= time())) {
+        if ($poll['status'] === 'open' && $this->repo->pollDeadlinePassed($pollId)) {
+            (new PollController($this->db, $this->repo))->closeExpiredPollById($pollId);
+            return $this->fail($response, 'poll_closed', __('La votazione è chiusa.'), 409);
+        }
+        if ($poll['status'] !== 'open') {
             return $this->fail($response, 'poll_closed', __('La votazione è chiusa.'), 409);
         }
         $mode = (string) ($poll['mode'] ?? 'simple');

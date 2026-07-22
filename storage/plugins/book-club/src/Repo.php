@@ -902,8 +902,9 @@ class Repo
     /**
      * Reconcile external proposals after their book has been entered manually
      * in the catalogue. This never creates catalogue data: it only links an
-     * exact normalized ISBN-10/ISBN-13 match, and is therefore safe to run when
-     * a manager opens the club page. Returns the number of proposals linked.
+     * exact normalized ISBN-10/ISBN-13 match. The transaction and row locks
+     * make it safe to call from hooks, maintenance, and explicit POST actions.
+     * Returns the number of proposals linked.
      */
     public function reconcileExternalBooksWithCatalogue(int $clubId): int
     {
@@ -947,6 +948,85 @@ class Repo
             SecureLogger::error('[BookClub] automatic external reconciliation rolled back: ' . $e->getMessage());
             return 0;
         }
+    }
+
+    /**
+     * Targeted reconciliation for the core `book.save.after` hook. Only clubs
+     * with an unresolved external proposal matching the saved book's ISBN are
+     * swept; the regular per-club transaction rechecks the catalogue row and
+     * protects every mutation with locks.
+     */
+    public function reconcileExternalBooksForCatalogueBook(int $libroId): int
+    {
+        if ($libroId <= 0) {
+            return 0;
+        }
+
+        $book = $this->row(
+            'SELECT isbn13, isbn10 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+            'i',
+            [$libroId]
+        );
+        if ($book === null) {
+            return 0;
+        }
+
+        [$bookIsbn13] = $this->normalizedIsbnParts(
+            isset($book['isbn13']) ? (string) $book['isbn13'] : null
+        );
+        [, $bookIsbn10] = $this->normalizedIsbnParts(
+            isset($book['isbn10']) ? (string) $book['isbn10'] : null
+        );
+        if ($bookIsbn13 === null && $bookIsbn10 === null) {
+            return 0;
+        }
+
+        $clubIds = [];
+        foreach ($this->rows(
+            "SELECT DISTINCT cb.club_id, ext.isbn
+               FROM bookclub_books cb
+               JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
+              WHERE cb.external_book_id IS NOT NULL
+                AND ext.acquired_libro_id IS NULL
+                AND ext.isbn IS NOT NULL
+                AND TRIM(ext.isbn) <> ''"
+        ) as $candidate) {
+            [$candidateIsbn13, $candidateIsbn10] = $this->normalizedIsbnParts((string) $candidate['isbn']);
+            if (($bookIsbn13 !== null && $candidateIsbn13 === $bookIsbn13)
+                || ($bookIsbn10 !== null && $candidateIsbn10 === $bookIsbn10)) {
+                $clubIds[(int) $candidate['club_id']] = true;
+            }
+        }
+
+        $reconciled = 0;
+        foreach (array_keys($clubIds) as $clubId) {
+            $reconciled += $this->reconcileExternalBooksWithCatalogue((int) $clubId);
+        }
+        return $reconciled;
+    }
+
+    /**
+     * Maintenance backfill for catalogue imports and integrations that bypass
+     * the normal book-save hook. Clubs are processed in separate transactions
+     * so one conflicting proposal cannot roll back the whole scheduled sweep.
+     */
+    public function reconcileAllExternalBooksWithCatalogue(): int
+    {
+        $clubIds = $this->rows(
+            "SELECT DISTINCT cb.club_id
+               FROM bookclub_books cb
+               JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
+              WHERE cb.external_book_id IS NOT NULL
+                AND ext.acquired_libro_id IS NULL
+                AND ext.isbn IS NOT NULL
+                AND TRIM(ext.isbn) <> ''"
+        );
+
+        $reconciled = 0;
+        foreach ($clubIds as $row) {
+            $reconciled += $this->reconcileExternalBooksWithCatalogue((int) $row['club_id']);
+        }
+        return $reconciled;
     }
 
     /**
@@ -1381,21 +1461,19 @@ class Repo
     }
 
     /**
-     * Expired-but-still-open polls of ONE club — the per-club lazy-close
-     * sweep the read paths (club page, mobile detail, dashboards) run so
-     * correctness never depends on the maintenance cron.
-     *
-     * @return list<array<string, mixed>>
+     * Use the database clock for deadline checks. PHP and MySQL may run in
+     * different timezones on shared hosting, while closes_at is persisted and
+     * compared consistently by MySQL throughout the maintenance path.
      */
-    public function expiredOpenPollsForClub(int $clubId): array
+    public function pollDeadlinePassed(int $pollId): bool
     {
-        return $this->rows(
-            "SELECT * FROM bookclub_polls
-              WHERE club_id = ? AND status = 'open'
-                AND closes_at IS NOT NULL AND closes_at <= NOW()",
+        return $this->row(
+            "SELECT id FROM bookclub_polls
+              WHERE id = ? AND closes_at IS NOT NULL AND closes_at <= NOW()
+              LIMIT 1",
             'i',
-            [$clubId]
-        );
+            [$pollId]
+        ) !== null;
     }
 
     // ------------------------------------------------------------------

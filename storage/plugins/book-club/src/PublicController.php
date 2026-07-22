@@ -40,17 +40,6 @@ class PublicController extends BaseController
         $canManage = $this->canManage($club);
         $isMember = $membership !== null && $membership['status'] === 'active';
 
-        // Keep the public list consistent with the ballot endpoint and the
-        // mobile API even when the maintenance cron has not run yet.
-        (new PollController($this->db, $this->repo))->closeExpiredForClub((int) $club['id']);
-
-        // A manager may have entered an externally proposed book through the
-        // normal catalogue flow since the previous visit. Link exact ISBN
-        // matches before rendering; this is idempotent and never creates books.
-        if ($canManage) {
-            $this->repo->reconcileExternalBooksWithCatalogue((int) $club['id']);
-        }
-
         $books = $this->repo->clubBooks((int) $club['id']);
         // Proposals awaiting moderation are manager-only.
         if (!$canManage) {
@@ -707,12 +696,8 @@ class PublicController extends BaseController
     {
         $userId = (int) $this->userId();
         $clubs = $this->repo->listClubsForUser($userId);
-        $pollController = new PollController($this->db, $this->repo);
         $cards = [];
         foreach ($clubs as $club) {
-            // Lazy-close expired polls so the "votazioni aperte" column never
-            // lists a poll whose ballots would be rejected.
-            $pollController->closeExpiredForClub((int) $club['id']);
             $cards[] = [
                 'club' => $club,
                 'snapshot' => $this->repo->clubSnapshot($club),

@@ -6,8 +6,9 @@ declare(strict_types=1);
  *
  *  A. External-book reconciliation — when a proposed external book is already
  *     in the catalogue (same ISBN, because the manager bought it and added it
- *     manually), the manager's next club visit links it automatically. The
- *     explicit "Add to catalogue" fallback also reuses an existing match.
+ *     manually), `book.save.after` links it immediately. Scheduled maintenance
+ *     backfills import paths that bypass the hook. The explicit "Add to
+ *     catalogue" fallback also reuses an existing match.
  *     Edge cases: isbn13/isbn10, idempotency, no match, a duplicate club entry,
  *     no-ISBN create, and an ISBN still owned by a SOFT-DELETED row.
  *
@@ -64,7 +65,8 @@ $db->set_charset('utf8mb4');
 // install/upgrade the bundled plugin schema before seeding Book Club rows,
 // exactly as the real plugin lifecycle does. The operation is idempotent, so
 // local databases where the plugin is already active are left intact.
-$schema = (new BookClubPlugin($db, new HookManager($db)))->ensureSchema();
+$plugin = new BookClubPlugin($db, new HookManager($db));
+$schema = $plugin->ensureSchema();
 if ($schema['failed'] !== []) {
     fwrite(STDERR, 'FAIL: Book Club test schema could not be prepared: ' . implode(', ', $schema['failed']) . "\n");
     exit(1);
@@ -99,6 +101,7 @@ try {
     $isbn10 = (string) random_int(100000000, 999999999) . 'X'; // 9 digits + X
     $externalIsbn10 = substr($isbn10, 0, 3) . '-' . substr($isbn10, 3, 3) . '-' . strtolower(substr($isbn10, 6));
     $autoIsbn13 = '9783333' . random_int(100000, 999999);
+    $backfillIsbn13 = '9784444' . random_int(100000, 999999);
     $delIsbn13 = '9781111' . random_int(100000, 999999);
 
     $q("INSERT INTO libri (titolo, isbn13) VALUES ('{$TOKEN} Cat13', '{$isbn13}')");
@@ -107,6 +110,8 @@ try {
     $catLibro10 = (int) $db->insert_id; $createdLibri[] = $catLibro10;
     $q("INSERT INTO libri (titolo, isbn13) VALUES ('{$TOKEN} CatAuto', '{$autoIsbn13}')");
     $catLibroAuto = (int) $db->insert_id; $createdLibri[] = $catLibroAuto;
+    $q("INSERT INTO libri (titolo, isbn13) VALUES ('{$TOKEN} CatBackfill', '{$backfillIsbn13}')");
+    $catLibroBackfill = (int) $db->insert_id; $createdLibri[] = $catLibroBackfill;
     // A soft-deleted catalogue book whose isbn13 is nulled on delete (per the
     // soft-delete rule) — seed it deleted WITH the isbn kept to prove we still
     // don't reconcile against deleted_at != NULL rows.
@@ -124,40 +129,46 @@ try {
 
     echo "A. automatic and explicit external reconciliation (#138 bug)\n";
 
-    // A1: the manager-view reconciliation path links an existing ISBN and is
-    // idempotent on subsequent page loads.
+    // A1: the catalogue-save hook links an existing ISBN immediately and is
+    // idempotent if the same save notification is delivered again.
     [$cbAuto, $extAuto] = $seedExternal("{$TOKEN} Prop Auto", $autoIsbn13);
     $libriBeforeAuto = (int) $scalar('SELECT COUNT(*) FROM libri');
-    $autoCount = $repo->reconcileExternalBooksWithCatalogue($clubId);
-    $check($autoCount === 1, 'A1 automatic pass reconciles exactly one matching external proposal');
-    $check((int) $scalar("SELECT libro_id FROM bookclub_books WHERE id={$cbAuto}") === $catLibroAuto, 'A2 automatic pass points the proposal to the existing catalogue book');
-    $check($scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cbAuto}") === null, 'A3 automatic pass clears external_book_id');
-    $check((int) $scalar("SELECT acquired_libro_id FROM bookclub_external_books WHERE id={$extAuto}") === $catLibroAuto, 'A4 automatic pass stamps the external record');
-    $check((int) $scalar('SELECT COUNT(*) FROM libri') === $libriBeforeAuto, 'A5 automatic pass creates no catalogue rows');
-    $check($repo->reconcileExternalBooksWithCatalogue($clubId) === 0, 'A6 automatic pass is idempotent');
+    $plugin->onCatalogueBookSaved($catLibroAuto);
+    $check((int) $scalar("SELECT libro_id FROM bookclub_books WHERE id={$cbAuto}") === $catLibroAuto, 'A1 book.save.after points the proposal to the existing catalogue book');
+    $check($scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cbAuto}") === null, 'A2 book.save.after clears external_book_id');
+    $check((int) $scalar("SELECT acquired_libro_id FROM bookclub_external_books WHERE id={$extAuto}") === $catLibroAuto, 'A3 book.save.after stamps the external record');
+    $check((int) $scalar('SELECT COUNT(*) FROM libri') === $libriBeforeAuto, 'A4 book.save.after creates no catalogue rows');
+    $check($repo->reconcileExternalBooksForCatalogueBook($catLibroAuto) === 0, 'A5 book.save.after reconciliation is idempotent');
+
+    // A6: scheduled maintenance catches catalogue imports that did not fire
+    // book.save.after, without relying on a manager opening a GET page.
+    [$cbBackfill, $extBackfill] = $seedExternal("{$TOKEN} Prop Backfill", $backfillIsbn13);
+    $check($repo->reconcileAllExternalBooksWithCatalogue() === 1, 'A6 maintenance backfill reconciles a hook-bypassing import');
+    $check((int) $scalar("SELECT libro_id FROM bookclub_books WHERE id={$cbBackfill}") === $catLibroBackfill, 'A7 maintenance backfill points to the existing catalogue book');
+    $check((int) $scalar("SELECT acquired_libro_id FROM bookclub_external_books WHERE id={$extBackfill}") === $catLibroBackfill, 'A8 maintenance backfill stamps the external record');
 
     // Explicit fallback: isbn13 matches an existing catalogue book → link, no new libri row.
     [$cb1, $ext1] = $seedExternal("{$TOKEN} Prop A1", $isbn13);
     $libriBefore = (int) $scalar('SELECT COUNT(*) FROM libri');
     $res1 = $repo->acquireExternalBook($cb1);
     $libriAfter = (int) $scalar('SELECT COUNT(*) FROM libri');
-    $check($res1 === $catLibro13, 'A7 explicit isbn13 match returns the EXISTING catalogue libro id (no duplicate)');
-    $check($libriAfter === $libriBefore, 'A8 explicit isbn13 match inserts no new libri row');
-    $check((int) $scalar("SELECT libro_id FROM bookclub_books WHERE id={$cb1}") === $catLibro13, 'A9 explicit acquisition repoints the club book');
-    $check($scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cb1}") === null, 'A10 explicit acquisition clears external_book_id');
-    $check((int) $scalar("SELECT acquired_libro_id FROM bookclub_external_books WHERE id={$ext1}") === $catLibro13, 'A11 explicit acquisition stamps the external record');
+    $check($res1 === $catLibro13, 'A9 explicit isbn13 match returns the EXISTING catalogue libro id (no duplicate)');
+    $check($libriAfter === $libriBefore, 'A10 explicit isbn13 match inserts no new libri row');
+    $check((int) $scalar("SELECT libro_id FROM bookclub_books WHERE id={$cb1}") === $catLibro13, 'A11 explicit acquisition repoints the club book');
+    $check($scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cb1}") === null, 'A12 explicit acquisition clears external_book_id');
+    $check((int) $scalar("SELECT acquired_libro_id FROM bookclub_external_books WHERE id={$ext1}") === $catLibro13, 'A13 explicit acquisition stamps the external record');
 
     // A2: isbn10 match → link.
     [$cb2] = $seedExternal("{$TOKEN} Prop A2", $externalIsbn10);
     $res2 = $repo->acquireExternalBook($cb2);
-    $check($res2 === $catLibro10, 'A12 formatted isbn10 with lowercase x matches the normalized catalogue ISBN');
+    $check($res2 === $catLibro10, 'A14 formatted isbn10 with lowercase x matches the normalized catalogue ISBN');
 
     // A3: no ISBN → creates a NEW libri row.
     [$cb3] = $seedExternal("{$TOKEN} Prop A3 NoIsbn", null);
     $res3 = $repo->acquireExternalBook($cb3);
-    $check(is_int($res3) && $res3 > 0 && !in_array($res3, [$catLibro13, $catLibro10, $catLibroAuto, $delLibro], true), 'A13 no-ISBN proposal creates a NEW libro');
+    $check(is_int($res3) && $res3 > 0 && !in_array($res3, [$catLibro13, $catLibro10, $catLibroAuto, $catLibroBackfill, $delLibro], true), 'A15 no-ISBN proposal creates a NEW libro');
     if (is_int($res3)) { $createdLibri[] = $res3; }
-    $check((int) $scalar("SELECT COUNT(*) FROM copie WHERE libro_id={$res3}") === 1, 'A14 created libro gets one physical copy');
+    $check((int) $scalar("SELECT COUNT(*) FROM copie WHERE libro_id={$res3}") === 1, 'A16 created libro gets one physical copy');
 
     // A4 (edge): the reconcile query's `deleted_at IS NULL` guard. This
     // intentionally inconsistent fixture keeps its ISBN after soft deletion;
@@ -166,20 +177,20 @@ try {
     // row. The external proposal must remain untouched for a manager to repair.
     [$cb4] = $seedExternal("{$TOKEN} Prop A4 Deleted", $delIsbn13);
     $res4 = $repo->acquireExternalBook($cb4);
-    $check($res4 === null, 'A15 refuses an ISBN still owned by a soft-deleted book');
-    $check((int) $scalar("SELECT external_book_id IS NOT NULL FROM bookclub_books WHERE id={$cb4}") === 1, 'A16 failed acquisition leaves the external proposal intact');
+    $check($res4 === null, 'A17 refuses an ISBN still owned by a soft-deleted book');
+    $check((int) $scalar("SELECT external_book_id IS NOT NULL FROM bookclub_books WHERE id={$cb4}") === 1, 'A18 failed acquisition leaves the external proposal intact');
 
     // A5 (edge): ISBN matches nothing → creates new.
     [$cb5] = $seedExternal("{$TOKEN} Prop A5", '9782222' . random_int(100000, 999999));
     $res5 = $repo->acquireExternalBook($cb5);
-    $check(is_int($res5) && !in_array($res5, [$catLibro13, $catLibro10, $catLibroAuto, $delLibro], true), 'A17 non-matching ISBN creates a new libro');
+    $check(is_int($res5) && !in_array($res5, [$catLibro13, $catLibro10, $catLibroAuto, $catLibroBackfill, $delLibro], true), 'A19 non-matching ISBN creates a new libro');
     if (is_int($res5)) { $createdLibri[] = $res5; }
 
     // If the same catalogue book is already a distinct row in this club, do
     // not merge ids: either may own polls, votes or reading history.
     [$cbDuplicate, $extDuplicate] = $seedExternal("{$TOKEN} Prop Duplicate", $isbn10);
-    $check($repo->reconcileExternalBooksWithCatalogue($clubId) === 0, 'A18 automatic pass refuses an ambiguous same-club duplicate');
-    $check((int) $scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cbDuplicate}") === $extDuplicate, 'A19 ambiguous proposal remains external with its history intact');
+    $check($repo->reconcileExternalBooksWithCatalogue($clubId) === 0, 'A20 automatic pass refuses an ambiguous same-club duplicate');
+    $check((int) $scalar("SELECT external_book_id FROM bookclub_books WHERE id={$cbDuplicate}") === $extDuplicate, 'A21 ambiguous proposal remains external with its history intact');
 
     echo "B. neverChosenProposals — proposed-but-not-chosen archive (#138 feature)\n";
 
@@ -244,8 +255,19 @@ try {
     $check(str_contains($clubView, "__('Votazioni chiuse')") && str_contains($clubView, '$closedPolls'), 'C1 club page exposes an explicit closed-poll history');
     $check(str_contains($pollsView, "__('Votazioni chiuse')") && str_contains($pollsView, '$closedPolls'), 'C2 dedicated polls page exposes closed polls separately from active polls');
     $publicController = (string) file_get_contents($root . '/storage/plugins/book-club/src/PublicController.php');
-    $check(str_contains($publicController, 'if ($canManage)') && str_contains($publicController, 'reconcileExternalBooksWithCatalogue'), 'C3 manager club view runs automatic exact-ISBN reconciliation before rendering');
-    $check(str_contains($publicController, 'closeExpiredForClub'), 'C4 club view closes expired polls before rendering its open/closed sections');
+    $mobileController = (string) file_get_contents($root . '/storage/plugins/book-club/src/MobileApiController.php');
+    $pollController = (string) file_get_contents($root . '/storage/plugins/book-club/src/PollController.php');
+    $pluginSource = (string) file_get_contents($root . '/storage/plugins/book-club/BookClubPlugin.php');
+    $check(!str_contains($publicController, 'reconcileExternalBooksWithCatalogue')
+        && !str_contains($publicController, 'closeExpiredForClub'), 'C3 public club GETs contain no reconciliation or poll-close writes');
+    $check(!str_contains($mobileController, 'closeExpiredForClub')
+        && !str_contains($pollController, 'closeExpiredForClub'), 'C4 web and mobile poll GETs contain no lazy-close writes');
+    $check(str_contains($pluginSource, "registerHookInDb('book.save.after', 'onCatalogueBookSaved', 10)")
+        && str_contains($pluginSource, 'reconcileExternalBooksForCatalogueBook($bookId)'), 'C5 book.save.after is the event-driven reconciliation path');
+    $check(str_contains($pluginSource, 'reconcileAllExternalBooksWithCatalogue()')
+        && str_contains($pluginSource, 'closeExpiredPolls()'), 'C6 scheduled maintenance backfills reconciliation and closes expired polls');
+    $check(str_contains($pollController, 'first attempted ballot performs the same idempotent close')
+        && str_contains($pollController, '$this->resolvePoll($poll, true);'), 'C7 expired vote POST is the immediate poll-close fallback');
 } finally {
     // ── Cleanup (FK-safe) ────────────────────────────────────────────────────
     $db->query("DELETE FROM bookclub_poll_options WHERE poll_id IN (SELECT id FROM bookclub_polls WHERE club_id IN (SELECT id FROM bookclub_clubs WHERE slug LIKE '{$TOKEN}-%'))");
