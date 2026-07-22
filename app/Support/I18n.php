@@ -34,6 +34,7 @@ final class I18n
         'it_IT' => 'Italiano',
         'en_US' => 'English',
         'de_DE' => 'Deutsch',
+        'da_DK' => 'Dansk',
     ];
 
     /**

@@ -39,6 +39,7 @@ function normalizeInstallerLocale(string $locale): string {
         'en', 'en_us' => 'en_US',
         'de', 'de_de' => 'de_DE',
         'fr', 'fr_fr' => 'fr_FR',
+        'da', 'da_dk' => 'da_DK',
         default => 'it_IT',
     };
 }
@@ -410,6 +411,7 @@ function renderHeader($currentStep, $stepTitle) {
         'en_US' => 'en',
         'de_DE' => 'de',
         'fr_FR' => 'fr',
+        'da_DK' => 'da',
         default => 'it',
     };
     $versionFile = dirname(__DIR__) . '/version.json';
