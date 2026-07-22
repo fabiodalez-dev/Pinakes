@@ -17,6 +17,7 @@ use Psr\Http\Message\ServerRequestInterface;
  *   GET /api/v1/catalog/search          — filtered, cursor-paginated search.
  *   GET /api/v1/catalog/books/{id}      — full book detail + personal history.
  *   GET /api/v1/catalog/genres          — genre cascade tree for the filter UI.
+ *   GET /api/v1/catalog/languages       — real catalogue language values + counts.
  *
  * Design notes:
  *   - Soft-delete is non-negotiable: EVERY query on `libri` carries
@@ -384,10 +385,10 @@ final class CatalogController
             $rows = [];
             // Static query, no user input; soft-delete honoured per CLAUDE.md rule 2.
             $res = $this->db->query(
-                "SELECT TRIM(lingua) AS language, COUNT(*) AS count
+                "SELECT MIN(TRIM(lingua)) AS language, COUNT(*) AS count
                    FROM libri
                   WHERE deleted_at IS NULL AND lingua IS NOT NULL AND TRIM(lingua) <> ''
-                  GROUP BY TRIM(lingua)
+                  GROUP BY LOWER(TRIM(lingua))
                   ORDER BY count DESC, language ASC"
             );
             if ($res !== false) {
