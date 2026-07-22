@@ -37,6 +37,22 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ---
 
+## What's New in v0.7.41
+
+### Features
+- **Danish language (da_DK)** ([#279](https://github.com/fabiodalez-dev/Pinakes/issues/279)) — Danish is now a fully selectable interface language, contributed by [@HansUwe52](https://github.com/HansUwe52). Ships the complete UI catalogue (`locale/da_DK.json`, full key parity with the Italian source), route slugs (`locale/routes_da_DK.json`), and the fresh-install seed in Danish (`installer/database/data_da_DK.sql`: 181 genres, 22 email templates, CMS pages, settings). `da_DK` is wired into the installer language step, the email/route fallback chains, and the bundled-locale updater path. Emails fall back to English when a Danish template is missing.
+
+### Fixes
+- **Danish installer seed selection** ([#279](https://github.com/fabiodalez-dev/Pinakes/issues/279)) — the installer's locale maps only knew `it/en/de/fr`, so a Danish install silently seeded the Italian catalogue (genres + emails). All four maps in `Installer.php`, plus `PrivateModeMiddleware` and the `Updater` bundled-locale list, now include `da_DK`. Restored dropped content in the Danish `loan_pickup_ready` email and added the missing `fr_FR` entry to the `I18n` fallback map.
+
+### Database Changes
+- `migrate_0.7.41.sql` — registers the `da_DK` row in the `languages` table on existing installs (idempotent upsert), so Danish appears in the language UI after upgrading.
+
+### Upgrade Notes
+- Back up your database before updating (the in-app updater does this automatically).
+
+---
+
 ## What's New in v0.7.40
 
 ### Features
