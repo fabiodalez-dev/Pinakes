@@ -6577,5 +6577,17 @@
   "Genere e sottogeneri eliminati con successo!": "Genre et sous-genres supprimés avec succès !",
   "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "Cette action supprime définitivement le genre et tous ses sous-genres. Les livres associés seront dissociés de ces genres.",
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Voulez-vous vraiment supprimer ce genre et tous ses sous-genres ? Les livres associés seront dissociés de ces genres.",
-  "Elimina genere e sottogeneri": "Supprimer le genre et les sous-genres"
+  "Elimina genere e sottogeneri": "Supprimer le genre et les sous-genres",
+  "Seleziona tutti i prestiti estendibili": "Sélectionner tous les prêts prolongeables",
+  "Estendi di": "Prolonger de",
+  "Estendi prestiti selezionati": "Prolonger les prêts sélectionnés",
+  "%d prestiti selezionati": "%d prêts sélectionnés",
+  "Estendere i prestiti selezionati?": "Prolonger les prêts sélectionnés ?",
+  "%n prestiti verranno estesi di %d giorni.": "%n prêts seront prolongés de %d jours.",
+  "Prestiti estesi": "Prêts prolongés",
+  "Nessun prestito esteso": "Aucun prêt prolongé",
+  "%n prestiti estesi di %d giorni.": "%n prêts prolongés de %d jours.",
+  "Selezione o numero di giorni non validi.": "Sélection ou nombre de jours invalide.",
+  "Estensione non riuscita, riprova.": "La prolongation a échoué, veuillez réessayer.",
+  "Estendi": "Prolonger"
 }

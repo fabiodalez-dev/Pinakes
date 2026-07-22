@@ -396,9 +396,10 @@ $isItalian = str_starts_with($currentLocale, 'it');
       // Initialize visibility on page load
       updateConsegnaImmediataVisibility(dataPrestitoEl.value);
 
-      // Get locale for flatpickr
-      const appLocale = document.documentElement.lang?.startsWith('it') ? 'it' : 'en';
-      const isItalian = appLocale === 'it';
+      // Get locale for flatpickr (all shipped UI languages, not just it/en — #281)
+      const _lang = (document.documentElement.lang || '').slice(0, 2).toLowerCase();
+      const appLocale = ['it', 'en', 'de', 'fr', 'da'].indexOf(_lang) !== -1 ? _lang : 'en';
+      const isItalian = appLocale !== 'en'; // day-first display for every European language
       const localeObj = window.flatpickrLocales ? window.flatpickrLocales[appLocale] : null;
 
       // Initialize flatpickr for data_prestito

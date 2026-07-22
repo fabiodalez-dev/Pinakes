@@ -767,6 +767,28 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
             }
 
+            // #281: LoanRepository::update() deliberately never touches lifecycle
+            // columns, and the in_corso -> in_ritardo transition set by the
+            // maintenance/integrity jobs is one-way — nothing reverts it. So
+            // extending an overdue loan's due date left stato='in_ritardo' stale
+            // and the loan kept showing "Overdue". Recompute stato here against
+            // the new due date (app timezone, same clock as MaintenanceService),
+            // scoped to the physically-out states so 'prenotato'/'da_ritirare'
+            // are never affected. When the loan returns to in_corso (extended
+            // into the future) also clear the reminder flags so the new window
+            // triggers fresh warning/overdue emails.
+            $today = \App\Support\DateHelper::today();
+            $recalcStato = $db->prepare(
+                "UPDATE prestiti
+                    SET stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
+                        warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
+                        overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
+                  WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
+            );
+            $recalcStato->bind_param('sssi', $today, $today, $today, $id);
+            $recalcStato->execute();
+            $recalcStato->close();
+
             // Ricalcola la disponibilità (M6c): spostare le date di un 'prenotato'
             // attraverso oggi cambia l'occupazione corrente e lascerebbe
             // copie_disponibili/libri.stato stantii fino al prossimo evento.
@@ -1246,6 +1268,67 @@ class PrestitiController
                 ->withHeader('Location', url('/admin/loans/details/' . $id) . '?error=pdf_failed')
                 ->withStatus(302);
         }
+    }
+
+    /**
+     * #281: bulk-extend the due date of several active out-loans at once.
+     * Deliberately mirrors the manual Edit-Loan semantics — NOT renew(), which
+     * refuses overdue loans and enforces the renewal limit. Uwe's request is
+     * precisely to extend loans that are already overdue, so each selected loan
+     * that is active and physically out (in_corso / in_ritardo) has its
+     * data_scadenza pushed forward by N days and its stato recomputed against
+     * the new date; an overdue loan extended into the future stops showing
+     * "Overdue" and its reminder flags reset so the new window notifies afresh.
+     */
+    public function bulkExtend(Request $request, Response $response, mysqli $db): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware.
+
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', (array) ($data['ids'] ?? [])),
+            static fn (int $i): bool => $i > 0
+        )));
+        $days = (int) ($data['days'] ?? 0);
+
+        $backUrl = url('/admin/loans');
+        if ($ids === [] || $days < 1 || $days > 365) {
+            return $response->withHeader('Location', $backUrl . '?error=bulk_extend_invalid')->withStatus(302);
+        }
+
+        $today = \App\Support\DateHelper::today();
+        $db->begin_transaction();
+        try {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+            // MySQL evaluates single-table SET assignments left to right, so the
+            // CASE branches see the NEW (already-extended) data_scadenza. Scope
+            // to physically-out states so prenotato / da_ritirare are untouched.
+            $sql = "UPDATE prestiti
+                       SET data_scadenza = DATE_ADD(data_scadenza, INTERVAL ? DAY),
+                           stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
+                           warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
+                           overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
+                     WHERE id IN ($placeholders)
+                       AND attivo = 1
+                       AND stato IN ('in_corso', 'in_ritardo')";
+            $stmt = $db->prepare($sql);
+            $types = 'isss' . str_repeat('i', count($ids));
+            $params = array_merge([$days, $today, $today, $today], $ids);
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $extended = $stmt->affected_rows;
+            $stmt->close();
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
+            SecureLogger::error('Bulk loan extend failed: ' . $e->getMessage());
+            return $response->withHeader('Location', $backUrl . '?error=bulk_extend_failed')->withStatus(302);
+        }
+
+        return $response->withHeader('Location', $backUrl . '?bulk_extended=' . (int) $extended . '&days=' . $days)->withStatus(302);
     }
 
     public function renew(Request $request, Response $response, mysqli $db, int $id): Response

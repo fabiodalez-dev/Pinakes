@@ -1860,6 +1860,15 @@ return function (App $app): void {
         $db = $app->getContainer()->get('db');
         return $controller->renew($request, $response, $db, (int) $args['id']);
     })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
+    // #281: extend the due date of several selected active loans at once.
+    $app->post('/admin/loans/bulk-extend', function ($request, $response) use ($app) {
+        if (\App\Support\ConfigStore::isCatalogueMode()) {
+            return $response->withHeader('Location', '/admin/dashboard')->withStatus(302);
+        }
+        $controller = new PrestitiController();
+        $db = $app->getContainer()->get('db');
+        return $controller->bulkExtend($request, $response, $db);
+    })->add(new CsrfMiddleware())->add(new AdminAuthMiddleware());
     // Return a loan by scanning/typing the physical copy code (numero_inventario)
     $app->post('/admin/loans/return-by-code', function ($request, $response) use ($app) {
         if (\App\Support\ConfigStore::isCatalogueMode()) {

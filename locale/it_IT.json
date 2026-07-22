@@ -6577,5 +6577,17 @@
   "Genere e sottogeneri eliminati con successo!": "Genere e sottogeneri eliminati con successo!",
   "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.": "Questa azione elimina il genere e tutti i suoi sottogeneri in modo permanente. I libri associati verranno scollegati da questi generi.",
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.",
-  "Elimina genere e sottogeneri": "Elimina genere e sottogeneri"
+  "Elimina genere e sottogeneri": "Elimina genere e sottogeneri",
+  "Seleziona tutti i prestiti estendibili": "Seleziona tutti i prestiti estendibili",
+  "Estendi di": "Estendi di",
+  "Estendi prestiti selezionati": "Estendi prestiti selezionati",
+  "%d prestiti selezionati": "%d prestiti selezionati",
+  "Estendere i prestiti selezionati?": "Estendere i prestiti selezionati?",
+  "%n prestiti verranno estesi di %d giorni.": "%n prestiti verranno estesi di %d giorni.",
+  "Prestiti estesi": "Prestiti estesi",
+  "Nessun prestito esteso": "Nessun prestito esteso",
+  "%n prestiti estesi di %d giorni.": "%n prestiti estesi di %d giorni.",
+  "Selezione o numero di giorni non validi.": "Selezione o numero di giorni non validi.",
+  "Estensione non riuscita, riprova.": "Estensione non riuscita, riprova.",
+  "Estendi": "Estendi"
 }

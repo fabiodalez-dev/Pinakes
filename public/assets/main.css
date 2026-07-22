@@ -3793,6 +3793,9 @@ select {
 .visible {
   visibility: visible;
 }
+.invisible {
+  visibility: hidden;
+}
 .static {
   position: static;
 }
@@ -4337,6 +4340,9 @@ select {
 .min-w-0 {
   min-width: 0px;
 }
+.min-w-\[10rem\] {
+  min-width: 10rem;
+}
 .min-w-\[150px\] {
   min-width: 150px;
 }
@@ -4567,6 +4573,9 @@ select {
 .gap-y-1 {
   row-gap: 0.25rem;
 }
+.gap-y-2 {
+  row-gap: 0.5rem;
+}
 .gap-y-3 {
   row-gap: 0.75rem;
 }
@@ -4684,6 +4693,9 @@ select {
 }
 .text-nowrap {
   text-wrap: nowrap;
+}
+.break-words {
+  overflow-wrap: break-word;
 }
 .break-all {
   word-break: break-all;

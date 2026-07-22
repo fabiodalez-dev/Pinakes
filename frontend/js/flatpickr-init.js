@@ -12,26 +12,21 @@
    * @returns {string} Locale code ('it' or 'en')
    */
   function detectAppLocale() {
-    // Check HTML lang attribute
-    const htmlLang = document.documentElement.lang || '';
-    if (htmlLang.startsWith('it')) return 'it';
-    if (htmlLang.startsWith('en')) return 'en';
-
-    // Check meta tag
+    // Locales registered in vendor.js window.flatpickrLocales. English is
+    // flatpickr's built-in default. Previously only 'it'/'en' were recognized
+    // and everything else fell through to Italian (#281): a German/French/
+    // Danish install got an Italian calendar. Now every shipped UI language is
+    // mapped, and the fallback is the neutral English rather than Italian.
+    const SUPPORTED = ['it', 'en', 'de', 'fr', 'da'];
+    const pick = (raw) => {
+      const p = (raw || '').slice(0, 2).toLowerCase();
+      return SUPPORTED.indexOf(p) !== -1 ? p : null;
+    };
     const metaLocale = document.querySelector('meta[name="locale"]');
-    if (metaLocale) {
-      const locale = metaLocale.getAttribute('content') || '';
-      if (locale.startsWith('it')) return 'it';
-      if (locale.startsWith('en')) return 'en';
-    }
-
-    // Check body data attribute (set by PHP)
-    const bodyLocale = document.body?.dataset?.locale || '';
-    if (bodyLocale.startsWith('it')) return 'it';
-    if (bodyLocale.startsWith('en')) return 'en';
-
-    // Default to Italian
-    return 'it';
+    return pick(document.documentElement.lang)
+      || pick(metaLocale ? metaLocale.getAttribute('content') : '')
+      || pick(document.body && document.body.dataset ? document.body.dataset.locale : '')
+      || 'en';
   }
 
   /**
@@ -49,7 +44,9 @@
 
     // Detect current locale
     const appLocale = detectAppLocale();
-    const isItalian = appLocale === 'it';
+    // Day-first date display for every European UI language we ship; only
+    // English uses the month-first m/d/Y convention.
+    const dayFirst = appLocale !== 'en';
 
     // Get locale object from global window.flatpickrLocales
     const localeObj = window.flatpickrLocales ? window.flatpickrLocales[appLocale] : null;
@@ -66,7 +63,7 @@
       const config = {
         dateFormat: 'Y-m-d',           // ISO format for backend
         altInput: true,                // Show formatted date to user
-        altFormat: isItalian ? 'd/m/Y' : 'm/d/Y',  // Locale-aware format
+        altFormat: dayFirst ? 'd/m/Y' : 'm/d/Y',  // Locale-aware format
         allowInput: !readonly,         // Allow manual input if not readonly
         clickOpens: !disabled,         // Allow opening if not disabled
         defaultDate: existingValue || null,
