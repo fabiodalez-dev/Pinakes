@@ -972,9 +972,13 @@ class Repo
             if ($ownsTx) {
                 $this->db->rollback();
                 $this->ownsReconcileTx = false;
+                SecureLogger::error('[BookClub] automatic external reconciliation rolled back: ' . $e->getMessage());
+                return 0;
             }
-            SecureLogger::error('[BookClub] automatic external reconciliation rolled back: ' . $e->getMessage());
-            return 0;
+            // Nested call reusing a caller's transaction: propagate so the owner
+            // rolls back instead of committing partial state (swallowing here and
+            // returning 0 would hide the failure from the transaction owner).
+            throw $e;
         }
     }
 
@@ -1108,42 +1112,7 @@ class Repo
                 // authors and publisher, so create nothing new.
                 $libroId = $existingId;
             } else {
-                $publisherId = $this->findOrCreatePublisher(isset($row['editore']) ? (string) $row['editore'] : null);
-
-                // Only `titolo` is mandatory in `libri`; everything else is optional.
-                $inserted = $publisherId !== null
-                    ? $this->exec(
-                        'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id) VALUES (?, ?, ?, ?, ?, ?)',
-                        'sisssi',
-                        [$titolo, $anno, $isbn13, $isbn10, $cover, $publisherId]
-                    )
-                    : $this->exec(
-                        'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url) VALUES (?, ?, ?, ?, ?)',
-                        'sisss',
-                        [$titolo, $anno, $isbn13, $isbn10, $cover]
-                    );
-                if (!$inserted) {
-                    throw new \RuntimeException('catalog insert failed');
-                }
-                $libroId = (int) $this->db->insert_id;
-                $this->attachExternalAuthors($libroId, isset($row['autori']) ? (string) $row['autori'] : null);
-                $this->attachPrimaryPublisher($libroId, $publisherId);
-                SearchIndexBuilder::rebuild($this->db, $libroId);
-
-                // Give the acquired book one physical copy, matching how the normal
-                // catalogue-creation flow (LibriController) seeds copies. `libri`
-                // defaults copie_totali/copie_disponibili to 1, so WITHOUT a matching
-                // `copie` row the book would claim one available copy but have none
-                // to lend — and the per-copy features (labels, loan/return by code)
-                // would find nothing. Inventory number LIB-{id}, same as a single
-                // manually-created copy; the whole thing is inside this transaction.
-                if (!$this->exec(
-                    "INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (?, ?, 'disponibile')",
-                    'is',
-                    [$libroId, 'LIB-' . $libroId]
-                )) {
-                    throw new \RuntimeException('catalog copy creation failed');
-                }
+                $libroId = $this->createCatalogueBookFromExternal($row, $titolo, $anno, $isbn13, $isbn10, $cover);
             }
 
             if (!$this->linkExternalBookToCatalogue((int) $row['club_id'], $clubBookId, $extId, $libroId)) {
@@ -1163,6 +1132,63 @@ class Repo
             SecureLogger::error('[BookClub] external acquisition rolled back: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Create the real `libri` row (+ publisher, authors, search index, one
+     * physical copy) for an acquired external proposal. Runs INSIDE
+     * acquireExternalBook's transaction — it never commits/rolls back — and
+     * throws on any failure so the caller's catch rolls the whole acquisition
+     * back. Extracted from acquireExternalBook to keep its complexity in check.
+     *
+     * @param array<string, mixed> $row the joined bookclub_books + external row
+     */
+    private function createCatalogueBookFromExternal(
+        array $row,
+        string $titolo,
+        ?int $anno,
+        ?string $isbn13,
+        ?string $isbn10,
+        ?string $cover
+    ): int {
+        $publisherId = $this->findOrCreatePublisher(isset($row['editore']) ? (string) $row['editore'] : null);
+
+        // Only `titolo` is mandatory in `libri`; everything else is optional.
+        $inserted = $publisherId !== null
+            ? $this->exec(
+                'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id) VALUES (?, ?, ?, ?, ?, ?)',
+                'sisssi',
+                [$titolo, $anno, $isbn13, $isbn10, $cover, $publisherId]
+            )
+            : $this->exec(
+                'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url) VALUES (?, ?, ?, ?, ?)',
+                'sisss',
+                [$titolo, $anno, $isbn13, $isbn10, $cover]
+            );
+        if (!$inserted) {
+            throw new \RuntimeException('catalog insert failed');
+        }
+        $libroId = (int) $this->db->insert_id;
+        $this->attachExternalAuthors($libroId, isset($row['autori']) ? (string) $row['autori'] : null);
+        $this->attachPrimaryPublisher($libroId, $publisherId);
+        SearchIndexBuilder::rebuild($this->db, $libroId);
+
+        // Give the acquired book one physical copy, matching how the normal
+        // catalogue-creation flow (LibriController) seeds copies. `libri`
+        // defaults copie_totali/copie_disponibili to 1, so WITHOUT a matching
+        // `copie` row the book would claim one available copy but have none
+        // to lend — and the per-copy features (labels, loan/return by code)
+        // would find nothing. Inventory number LIB-{id}, same as a single
+        // manually-created copy; the whole thing is inside this transaction.
+        if (!$this->exec(
+            "INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (?, ?, 'disponibile')",
+            'is',
+            [$libroId, 'LIB-' . $libroId]
+        )) {
+            throw new \RuntimeException('catalog copy creation failed');
+        }
+
+        return $libroId;
     }
 
     public function changeBookState(int $clubBookId, string $fromState, string $toState, ?int $changedBy): bool
