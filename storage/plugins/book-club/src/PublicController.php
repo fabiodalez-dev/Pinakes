@@ -504,10 +504,15 @@ class PublicController extends BaseController
             $this->flash('error', __('Questo libro è già in catalogo.'));
             return $this->redirect($response, '/book-club/' . $slug);
         }
-        $libroId = $this->repo->acquireExternalBook($bookId);
-        $this->flash($libroId !== null ? 'success' : 'error', $libroId !== null
-            ? __('Libro acquisito e aggiunto al catalogo.')
-            : __('Acquisizione non riuscita, riprova.'));
+        $acquireReason = null;
+        $libroId = $this->repo->acquireExternalBook($bookId, $acquireReason);
+        if ($libroId !== null) {
+            $this->flash('success', __('Libro acquisito e aggiunto al catalogo.'));
+        } elseif ($acquireReason === 'already_linked') {
+            $this->flash('error', __('Questo libro è già collegato a un\'altra proposta di questo club: non è stato acquisito di nuovo.'));
+        } else {
+            $this->flash('error', __('Acquisizione non riuscita, riprova.'));
+        }
         return $this->redirect($response, '/book-club/' . $slug);
     }
 

@@ -25,6 +25,13 @@ declare(strict_types=1);
 $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 $slug = (string) $club['slug'];
 $csrf = \App\Support\Csrf::ensureToken();
+// A poll whose deadline (MySQL clock) has passed but whose status is still
+// 'open' in the DB is shown as ended (an "ended" badge, past-tense deadline)
+// so members know it is over — but the ballot stays reachable so the first
+// vote POST still closes it (the intentional cron-free fallback), and any such
+// attempt is answered with a clear "deadline passed" message. This is
+// read-only: the display never writes; the authoritative close is the POST.
+$deadlinePassed = $poll['status'] === 'open' && !empty($poll['deadline_passed']);
 $isOpen = $poll['status'] === 'open';
 $mode = (string) ($poll['mode'] ?? 'simple');
 $round = max(1, (int) ($poll['round'] ?? 1));
@@ -122,7 +129,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
             · <?= $e(sprintf(__('quorum %d%% dei membri attivi'), (int) $poll['quorum_pct'])) ?>
           <?php endif; ?>
           <?php if (!empty($poll['closes_at'])): ?>
-            · <?= $isOpen ? $e(__('scade il')) : $e(__('scaduta il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
+            · <?= ($isOpen && !$deadlinePassed) ? $e(__('scade il')) : $e(__('scaduta il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
           <?php endif; ?>
         </div>
         <?php if ($mode === 'weighted'): ?>
@@ -140,9 +147,13 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
           </div>
         <?php endif; ?>
       </div>
-      <span class="bc-badge <?= $isOpen ? 'bc-badge-open' : 'bc-badge-closed' ?>">
-        <?= $isOpen ? $e(__('Aperta')) : $e(__('Chiusa')) ?>
-      </span>
+      <?php if ($deadlinePassed): ?>
+        <span class="bc-badge bc-badge-warn"><?= $e(__('Votazione terminata')) ?></span>
+      <?php else: ?>
+        <span class="bc-badge <?= $isOpen ? 'bc-badge-open' : 'bc-badge-closed' ?>">
+          <?= $isOpen ? $e(__('Aperta')) : $e(__('Chiusa')) ?>
+        </span>
+      <?php endif; ?>
     </div>
 
     <?php if (!$isOpen && $poll['winner_club_book_id'] !== null): ?>
@@ -281,7 +292,7 @@ $showScores = in_array($mode, ['stars', 'ranking', 'weighted'], true);
       <?php endif; ?>
     </form>
 
-    <?php if ($isOpen && $canClose): ?>
+    <?php if (($isOpen || $deadlinePassed) && $canClose): ?>
       <?php
         $isRoundClose = $mode === 'elimination' && $activeCount > 2;
         $confirmMsg = $isRoundClose

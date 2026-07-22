@@ -153,6 +153,10 @@ class MobileApiController extends BaseController
                 'id' => (int) $poll['id'],
                 'title' => (string) $poll['title'],
                 'mode' => (string) $poll['mode'],
+                // Persisted state only (read-only GET contract, intentional): an
+                // expired-but-open poll stays 'open' here; the app's vote attempt
+                // is answered with a 409 poll_closed once the deadline has passed
+                // (MobileApiController::vote closes it then).
                 'status' => (string) $poll['status'],
                 'closes_at' => self::isoUtc($poll['closes_at']),
                 'votes_per_member' => (int) $poll['votes_per_member'],

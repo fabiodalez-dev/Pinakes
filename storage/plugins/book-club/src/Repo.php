@@ -24,6 +24,18 @@ class Repo
 
     private mysqli $db;
 
+    /**
+     * Guards reconcileExternalBooksWithCatalogue() against opening a nested
+     * transaction on the same connection: mysqli's begin_transaction()
+     * implicitly commits any transaction already in progress. MySQL exposes no
+     * portable "am I in a transaction?" flag (@@in_transaction is MariaDB-only),
+     * so we track ownership ourselves. Callers on OTHER components must still
+     * never invoke reconcile while holding their own transaction — the hook
+     * dispatch sites (LibriController, the import controllers) fire it outside
+     * any transaction for exactly this reason.
+     */
+    private bool $ownsReconcileTx = false;
+
     public function __construct(mysqli $db)
     {
         $this->db = $db;
@@ -835,11 +847,15 @@ class Repo
         if ($isbn13 === null && $isbn10 === null) {
             return null;
         }
+        // ORDER BY id keeps the pick deterministic when the core catalogue
+        // legitimately holds more than one active book with the same ISBN
+        // (homonym editions): always link to the oldest matching row.
         $row = $this->row(
             'SELECT id FROM libri
               WHERE deleted_at IS NULL
                 AND ((isbn13 IS NOT NULL AND isbn13 = ?)
                   OR (isbn10 IS NOT NULL AND isbn10 = ?))
+              ORDER BY id ASC
               LIMIT 1
               FOR UPDATE',
             'ss',
@@ -908,7 +924,13 @@ class Repo
      */
     public function reconcileExternalBooksWithCatalogue(int $clubId): int
     {
-        $this->db->begin_transaction();
+        // Reuse an in-flight reconcile transaction instead of nesting a new one
+        // (begin_transaction() would implicitly commit the outer one).
+        $ownsTx = !$this->ownsReconcileTx;
+        if ($ownsTx) {
+            $this->db->begin_transaction();
+            $this->ownsReconcileTx = true;
+        }
         try {
             $candidates = $this->rows(
                 "SELECT cb.id AS club_book_id, cb.external_book_id, ext.isbn
@@ -941,10 +963,16 @@ class Repo
                 }
             }
 
-            $this->db->commit();
+            if ($ownsTx) {
+                $this->db->commit();
+                $this->ownsReconcileTx = false;
+            }
             return $reconciled;
         } catch (\Throwable $e) {
-            $this->db->rollback();
+            if ($ownsTx) {
+                $this->db->rollback();
+                $this->ownsReconcileTx = false;
+            }
             SecureLogger::error('[BookClub] automatic external reconciliation rolled back: ' . $e->getMessage());
             return 0;
         }
@@ -959,6 +987,17 @@ class Repo
     public function reconcileExternalBooksForCatalogueBook(int $libroId): int
     {
         if ($libroId <= 0) {
+            return 0;
+        }
+
+        // Cheap guard: this fires on EVERY catalogue save (via book.save.after).
+        // When no club has an outstanding external proposal to reconcile — the
+        // common case — skip the book lookup and the candidate scan entirely.
+        if ($this->row(
+            "SELECT 1 FROM bookclub_external_books
+              WHERE acquired_libro_id IS NULL AND isbn IS NOT NULL AND TRIM(isbn) <> ''
+              LIMIT 1"
+        ) === null) {
             return 0;
         }
 
@@ -1035,8 +1074,9 @@ class Repo
      * library), repoint the club-book to it, and stamp the external row.
      * Returns the new libro_id, or null if the club-book is not external / fails.
      */
-    public function acquireExternalBook(int $clubBookId): ?int
+    public function acquireExternalBook(int $clubBookId, ?string &$reason = null): ?int
     {
+        $reason = null;
         $this->db->begin_transaction();
         try {
             $row = $this->row(
@@ -1107,7 +1147,13 @@ class Repo
             }
 
             if (!$this->linkExternalBookToCatalogue((int) $row['club_id'], $clubBookId, $extId, $libroId)) {
-                throw new \RuntimeException('catalog acquisition repoint failed');
+                // Refuse-to-merge: this club already has another proposal linked
+                // to the same catalogue book. Not a retryable failure — signal
+                // the specific reason so the caller can tell the manager instead
+                // of showing a generic error.
+                $reason = 'already_linked';
+                $this->db->rollback();
+                return null;
             }
 
             $this->db->commit();
@@ -1259,7 +1305,13 @@ class Repo
     /** @return array<string, mixed>|null */
     public function poll(int $pollId): ?array
     {
-        return $this->row('SELECT * FROM bookclub_polls WHERE id = ?', 'i', [$pollId]);
+        return $this->row(
+            "SELECT *,
+                    (status = 'open' AND closes_at IS NOT NULL AND closes_at <= NOW()) AS deadline_passed
+               FROM bookclub_polls WHERE id = ?",
+            'i',
+            [$pollId]
+        );
     }
 
     /** @return list<array<string, mixed>> */
@@ -1267,7 +1319,8 @@ class Repo
     {
         return $this->rows(
             "SELECT p.*,
-                    (SELECT COUNT(DISTINCT v.user_id) FROM bookclub_votes v WHERE v.poll_id = p.id) AS voter_count
+                    (SELECT COUNT(DISTINCT v.user_id) FROM bookclub_votes v WHERE v.poll_id = p.id) AS voter_count,
+                    (p.status = 'open' AND p.closes_at IS NOT NULL AND p.closes_at <= NOW()) AS deadline_passed
                FROM bookclub_polls p
               WHERE p.club_id = ?
               ORDER BY FIELD(p.status,'open','closed'), p.created_at DESC",
@@ -1681,7 +1734,10 @@ class Repo
             );
         }
         $openPolls = $this->rows(
-            "SELECT id, title, closes_at FROM bookclub_polls WHERE club_id = ? AND status = 'open' ORDER BY created_at DESC",
+            "SELECT id, title, closes_at FROM bookclub_polls
+              WHERE club_id = ? AND status = 'open'
+                AND (closes_at IS NULL OR closes_at > NOW())
+              ORDER BY created_at DESC",
             'i',
             [(int) $club['id']]
         );

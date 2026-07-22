@@ -405,6 +405,10 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     await page.goto(`${BASE}/book-club/${slug}/polls/${pollId}`);
     await page.waitForLoadState('domcontentloaded');
     expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id=${pollId}`), 'poll GET must not close a poll').toBe('open');
+    // #280 self-review: an expired-but-still-open poll is shown as ended
+    // (read-only display, no DB write) instead of a votable "Aperta" poll —
+    // the ballot stays so the first vote POST can still perform the close.
+    await expect(page.locator('.bc-badge:has-text("Votazione terminata")').first()).toBeVisible();
     await page.locator(`form[action$="/polls/${pollId}/vote"] button[type="submit"]`).click();
     await page.waitForLoadState('networkidle');
     expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id=${pollId}`)).toBe('closed');

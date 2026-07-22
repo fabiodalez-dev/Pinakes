@@ -466,6 +466,14 @@ class LibraryThingImportController
                         $importData['updated']++;
                     }
 
+                    // Plugin hook: after book save. Fired OUTSIDE the per-row
+                    // transaction (just committed) — listeners like the book-club
+                    // external-proposal reconciler open their own transaction, and
+                    // nesting begin_transaction() would implicitly commit. Mirrors
+                    // LibriController so a LibraryThing-imported book that matches
+                    // an outstanding club proposal is reconciled at import time.
+                    \App\Support\Hooks::do('book.save.after', [$bookId, $parsedData]);
+
                     // NOTE: Cover download disabled during import to avoid timeout on shared hosting
                     // Users can download covers later via the standard enrichment system
                     // if (!empty($parsedData['isbn13']) || !empty($parsedData['isbn10'])) {

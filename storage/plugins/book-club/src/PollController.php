@@ -304,7 +304,7 @@ class PollController extends BaseController
         // is rejected. GET routes remain read-only.
         if ($poll['status'] === 'open' && $this->repo->pollDeadlinePassed($pollId)) {
             $this->closeExpiredPollById($pollId);
-            $this->flash('error', __('La votazione è chiusa.'));
+            $this->flash('error', __('La scadenza della votazione è passata: la votazione è stata chiusa e il tuo voto non è stato registrato.'));
             return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
         }
         if ($poll['status'] !== 'open') {

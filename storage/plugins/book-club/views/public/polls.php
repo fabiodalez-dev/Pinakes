@@ -105,11 +105,15 @@ $modeHelp = [
             <?php endif; ?>
             · <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
             <?php if (!empty($poll['closes_at'])): ?>
-              · <?= $e(__('scade il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
+              · <?= !empty($poll['deadline_passed']) ? $e(__('scaduta il')) : $e(__('scade il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
             <?php endif; ?>
           </div>
         </div>
-        <span class="bc-badge bc-badge-open"><?= $e(__('Aperta')) ?></span>
+        <?php if (!empty($poll['deadline_passed'])): ?>
+          <span class="bc-badge bc-badge-warn"><?= $e(__('Votazione terminata')) ?></span>
+        <?php else: ?>
+          <span class="bc-badge bc-badge-open"><?= $e(__('Aperta')) ?></span>
+        <?php endif; ?>
       </div>
     <?php endforeach; ?>
 

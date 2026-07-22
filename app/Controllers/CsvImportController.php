@@ -396,6 +396,15 @@ class CsvImportController
                     $importData['updated']++;
                 }
 
+                // Plugin hook: after book save. Fired OUTSIDE the per-row
+                // transaction (it just committed) because listeners such as the
+                // book-club external-proposal reconciler open their own
+                // transaction — nesting begin_transaction() would implicitly
+                // commit. Mirrors LibriController's create/edit dispatch so an
+                // imported book that matches an outstanding club proposal is
+                // reconciled at import time, not only on the next maintenance run.
+                \App\Support\Hooks::do('book.save.after', [$bookId, $parsedData]);
+
                 // Scraping (if enabled and ISBN exists)
                 if ($enableScraping && !empty($parsedData['isbn13'])) {
                     try {
