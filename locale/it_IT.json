@@ -6588,5 +6588,19 @@
   "ultima": "ultima",
   "Non in catalogo": "Non in catalogo",
   "Votazioni chiuse": "Votazioni chiuse",
-  "mai votata": "mai votata"
+  "mai votata": "mai votata",
+  "Seleziona tutti i prestiti estendibili": "Seleziona tutti i prestiti estendibili",
+  "Estendi di": "Estendi di",
+  "Estendi prestiti selezionati": "Estendi prestiti selezionati",
+  "%d prestiti selezionati": "%d prestiti selezionati",
+  "Estendere i prestiti selezionati?": "Estendere i prestiti selezionati?",
+  "%n prestiti verranno estesi di %d giorni.": "%n prestiti verranno estesi di %d giorni.",
+  "Prestiti estesi": "Prestiti estesi",
+  "Nessun prestito esteso": "Nessun prestito esteso",
+  "%n prestiti estesi di %d giorni.": "%n prestiti estesi di %d giorni.",
+  "Selezione o numero di giorni non validi.": "Selezione o numero di giorni non validi.",
+  "Estensione non riuscita, riprova.": "Estensione non riuscita, riprova.",
+  "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.": "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.",
+  "Estendi": "Estendi",
+  "Lingue non disponibili.": "Lingue non disponibili."
 }

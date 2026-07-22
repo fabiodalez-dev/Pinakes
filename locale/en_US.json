@@ -6588,5 +6588,19 @@
   "ultima": "last",
   "Non in catalogo": "Not in catalog",
   "Votazioni chiuse": "Closed polls",
-  "mai votata": "not yet voted on"
+  "mai votata": "not yet voted on",
+  "Seleziona tutti i prestiti estendibili": "Select all extendable loans",
+  "Estendi di": "Extend by",
+  "Estendi prestiti selezionati": "Extend selected loans",
+  "%d prestiti selezionati": "%d loans selected",
+  "Estendere i prestiti selezionati?": "Extend the selected loans?",
+  "%n prestiti verranno estesi di %d giorni.": "%n loans will be extended by %d days.",
+  "Prestiti estesi": "Loans extended",
+  "Nessun prestito esteso": "No loan extended",
+  "%n prestiti estesi di %d giorni.": "%n loans extended by %d days.",
+  "Selezione o numero di giorni non validi.": "Invalid selection or number of days.",
+  "Estensione non riuscita, riprova.": "Extension failed, please try again.",
+  "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.": "Extension cancelled: at least one loan would conflict with another loan or reservation.",
+  "Estendi": "Extend",
+  "Lingue non disponibili.": "Languages are unavailable."
 }

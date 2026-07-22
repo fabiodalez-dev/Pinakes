@@ -6588,5 +6588,19 @@
   "ultima": "zuletzt",
   "Non in catalogo": "Nicht im Katalog",
   "Votazioni chiuse": "Geschlossene Abstimmungen",
-  "mai votata": "noch nicht abgestimmt"
+  "mai votata": "noch nicht abgestimmt",
+  "Seleziona tutti i prestiti estendibili": "Alle verlängerbaren Ausleihen auswählen",
+  "Estendi di": "Verlängern um",
+  "Estendi prestiti selezionati": "Ausgewählte Ausleihen verlängern",
+  "%d prestiti selezionati": "%d Ausleihen ausgewählt",
+  "Estendere i prestiti selezionati?": "Ausgewählte Ausleihen verlängern?",
+  "%n prestiti verranno estesi di %d giorni.": "%n Ausleihen werden um %d Tage verlängert.",
+  "Prestiti estesi": "Ausleihen verlängert",
+  "Nessun prestito esteso": "Keine Ausleihe verlängert",
+  "%n prestiti estesi di %d giorni.": "%n Ausleihen um %d Tage verlängert.",
+  "Selezione o numero di giorni non validi.": "Ungültige Auswahl oder Anzahl der Tage.",
+  "Estensione non riuscita, riprova.": "Verlängerung fehlgeschlagen, bitte erneut versuchen.",
+  "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.": "Verlängerung abgebrochen: Mindestens eine Ausleihe würde mit einer anderen Ausleihe oder Reservierung in Konflikt geraten.",
+  "Estendi": "Verlängern",
+  "Lingue non disponibili.": "Sprachen sind nicht verfügbar."
 }
