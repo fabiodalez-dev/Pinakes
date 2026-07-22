@@ -32,7 +32,7 @@ if (isset($_GET['reset'])) {
     session_start(); // Start a fresh session
 }
 
-// Normalize locale to canonical form (it_IT, en_US, de_DE)
+// Normalize locale to canonical form (it_IT, en_US, de_DE, fr_FR, da_DK)
 function normalizeInstallerLocale(string $locale): string {
     $locale = str_replace('-', '_', strtolower($locale));
     return match($locale) {

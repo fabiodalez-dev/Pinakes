@@ -8,7 +8,7 @@
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['language'])) {
     $selectedLanguage = $_POST['language'];
 
-    // Validate language — use canonical locale codes (it_IT, en_US, de_DE, fr_FR)
+    // Validate language — use canonical locale codes (it_IT, en_US, de_DE, fr_FR, da_DK)
     $allowedLanguages = ['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'];
     if (!in_array($selectedLanguage, $allowedLanguages, true)) {
         $selectedLanguage = 'it_IT'; // Fallback to Italian
@@ -43,12 +43,13 @@ renderHeader(0, 'Selezione Lingua');
 <div style="text-align: center; padding: 40px 20px;">
     <div style="font-size: 64px; margin-bottom: 30px;">🌍</div>
 
-    <h2 class="step-title">Seleziona la Lingua / Select Language / Sprache wählen / Choisir la Langue</h2>
+    <h2 class="step-title">Seleziona la Lingua / Select Language / Sprache wählen / Choisir la Langue / Vælg Sprog</h2>
     <p class="step-description" style="max-width: 600px; margin: 0 auto 40px;">
         Scegli la lingua per l'installazione e per l'applicazione.<br>
         Choose the language for installation and application.<br>
         Wählen Sie die Sprache für die Installation und die Anwendung.<br>
-        Choisissez la langue pour l'installation et l'application.
+        Choisissez la langue pour l'installation et l'application.<br>
+        Vælg sproget til installationen og applikationen.
     </p>
 
     <form method="POST" action="index.php?step=0" style="max-width: 500px; margin: 0 auto;">

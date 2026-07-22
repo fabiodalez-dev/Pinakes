@@ -218,7 +218,7 @@ class Installer {
         // Get locale from session first (most reliable), fallback to .env
         $locale = $_SESSION['app_locale'] ?? ($this->config['APP_LOCALE'] ?? 'it');
 
-        // Convert locale code to full form (supports it, it_IT, en, en_US, de, de_DE, fr, fr_FR)
+        // Convert locale code to full form (supports it, it_IT, en, en_US, de, de_DE, fr, fr_FR, da, da_DK)
         $localeMap = [
             'it' => 'it_IT',
             'it_it' => 'it_IT',

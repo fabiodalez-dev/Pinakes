@@ -184,7 +184,11 @@ return [
 <div style="background-color: #f0f9ff; padding: 20px; border-radius: 10px; border-left: 4px solid #3b82f6; margin: 20px 0;">
     <h3 style="color: #1e40af; margin: 0 0 10px 0;">{{libro_titolo}}</h3>
     <p style="margin: 5px 0;"><strong>Lånperiode:</strong> {{data_inizio}} - {{data_fine}}</p>
-    <p style="margin: 5px 0;"><strong>Afhentningsfrist:</strong> {{scadenza_ritiro}}</p>
+    <p style="margin: 5px 0;"><strong>Varighed:</strong> {{giorni_prestito}} dage</p>
+</div>
+<div style="background-color: #fef3c7; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #f59e0b;">
+    <p><strong>⏰ Afhentningsfrist: {{scadenza_ritiro}}</strong></p>
+    <p>Afhent bogen inden denne dato, ellers annulleres lånet automatisk.</p>
 </div>
 <div style="background-color: #ecfdf5; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #10b981;">
     <p><strong>📦 Sådan afhenter du</strong></p>
