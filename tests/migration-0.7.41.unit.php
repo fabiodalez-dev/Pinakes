@@ -112,7 +112,14 @@ try {
     $check($row !== null, 'da_DK row inserted by migration');
     $check($row !== null && $row['native_name'] === 'Dansk', 'native_name = Dansk');
     $check($row !== null && (int) $row['is_active'] === 1, 'da_DK is active');
-    $check($row !== null && (int) $row['total_keys'] === 6579 && (int) $row['translated_keys'] === 6579, 'key counts = 6579/6579');
+    $locale = json_decode((string) file_get_contents($root . '/locale/da_DK.json'), true, 512, JSON_THROW_ON_ERROR);
+    $expectedKeys = count($locale);
+    $check(
+        $row !== null
+        && (int) $row['total_keys'] === $expectedKeys
+        && (int) $row['translated_keys'] === $expectedKeys,
+        "key counts match locale/da_DK.json ({$expectedKeys}/{$expectedKeys})"
+    );
     $check($row !== null && (float) $row['completion_percentage'] === 100.00, 'completion_percentage = 100.00');
     $check($row !== null && $row['translation_file'] === 'locale/da_DK.json', 'translation_file = locale/da_DK.json');
 

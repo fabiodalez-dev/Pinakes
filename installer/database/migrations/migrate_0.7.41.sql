@@ -10,14 +10,14 @@
 -- refreshes the metadata / re-activates the language.
 --
 -- total_keys/translated_keys mirror the shipped locale/da_DK.json key count
--- (6579 keys, exact parity with locale/it_IT.json).
+-- (6604 keys, exact parity with locale/it_IT.json).
 --
 -- See CLAUDE.md "Migration file version MUST be ≤ release version": this file
 -- runs only once version.json reaches 0.7.41 (updater compares
 -- migrationVersion <= toVersion).
 
 INSERT INTO `languages` (`code`, `name`, `native_name`, `flag_emoji`, `is_default`, `is_active`, `translation_file`, `total_keys`, `translated_keys`, `completion_percentage`, `created_at`, `updated_at`)
-VALUES ('da_DK', 'Danish', 'Dansk', '🇩🇰', 0, 1, 'locale/da_DK.json', 6579, 6579, 100.00, NOW(), NOW())
+VALUES ('da_DK', 'Danish', 'Dansk', '🇩🇰', 0, 1, 'locale/da_DK.json', 6604, 6604, 100.00, NOW(), NOW())
 ON DUPLICATE KEY UPDATE
     is_active = 1,
     name = VALUES(name),

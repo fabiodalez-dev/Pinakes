@@ -1248,8 +1248,8 @@ class ArchivesPlugin
         $app->get('/archive', $publicIndex);
         $app->get('/archive/{slug:[a-z0-9-]+}-{id:[0-9]+}', $publicShow);
         $app->get('/archive/{id:[0-9]+}', $publicShow);
-        // FIX F029: include fr_FR so the localised /archives route registers for French installs.
-        foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR'] as $locale) {
+        // Register every bundled locale so localized archive routes are reachable.
+        foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'] as $locale) {
             $base = $publicRouteFor($locale);
             if (!empty($base) && $base !== '/archive') {
                 $app->get($base, $publicIndex);

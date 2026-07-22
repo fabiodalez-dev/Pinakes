@@ -311,15 +311,77 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
 
     test('10. API endpoints documented in README.md exist in PHP code', () => {
         const readme    = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf-8');
-        const phpSources = [
+        const phpFiles = [
             ...glob('app',            '.php', ['vendor']),
             ...glob('storage/plugins', '.php'),
-        ].map(f => fs.readFileSync(f, 'utf-8')).join('\n');
+        ].map(f => fs.readFileSync(f, 'utf-8'));
+        const phpSources = phpFiles.join('\n');
 
         const DOC_RE   = /`GET (\/(?:api|resync|oai|openurl|archives)[^\s`]+)/g;
         const violations = [];
         const normalizedPhpSources = phpSources.replace(/\{([^}:]+):[^}]+\}/g, '{$1}');
         const normalizedRouteSources = normalizedPhpSources.replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+
+        // Return only the lexical body of each /api/v1 group callback. Looking
+        // for a group and a child route anywhere in the same file is too weak:
+        // an unrelated top-level GET later in that file would be a false pass.
+        const apiV1GroupBodies = source => {
+            const bodies = [];
+            const groupRe = /->group\(\s*(['"])\/api\/v1\1\s*,\s*function\b[^{]*\{/g;
+            let groupMatch;
+            while ((groupMatch = groupRe.exec(source)) !== null) {
+                const open = groupRe.lastIndex - 1;
+                let depth = 0;
+                let quote = null;
+                let escaped = false;
+                let lineComment = false;
+                let blockComment = false;
+                for (let i = open; i < source.length; i++) {
+                    const ch = source[i];
+                    const next = source[i + 1] ?? '';
+                    if (lineComment) {
+                        if (ch === '\n') lineComment = false;
+                        continue;
+                    }
+                    if (blockComment) {
+                        if (ch === '*' && next === '/') { blockComment = false; i++; }
+                        continue;
+                    }
+                    if (quote !== null) {
+                        if (escaped) { escaped = false; continue; }
+                        if (ch === '\\') { escaped = true; continue; }
+                        if (ch === quote) quote = null;
+                        continue;
+                    }
+                    if (ch === '/' && next === '/') { lineComment = true; i++; continue; }
+                    if (ch === '#') { lineComment = true; continue; }
+                    if (ch === '/' && next === '*') { blockComment = true; i++; continue; }
+                    if (ch === "'" || ch === '"' || ch === '`') { quote = ch; continue; }
+                    if (ch === '{') depth++;
+                    if (ch === '}' && --depth === 0) {
+                        bodies.push(source.slice(open + 1, i));
+                        groupRe.lastIndex = i + 1;
+                        break;
+                    }
+                }
+            }
+            return bodies;
+        };
+        const groupedGetExists = (source, child) => {
+            const escapedChild = child.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const getRe = new RegExp(`->get\\(\\s*(['"])${escapedChild}\\1`);
+            return apiV1GroupBodies(source).some(body => {
+                const normalized = body
+                    .replace(/\{([^}:]+):[^}]+\}/g, '{$1}')
+                    .replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+                return getRe.test(normalized);
+            });
+        };
+        const falsePositiveFixture = "$app->group('/api/v1', function ($g) {}); $app->get('/auth/registration-fields', $handler);";
+        expect(groupedGetExists(falsePositiveFixture, '/auth/registration-fields'),
+            'a top-level GET outside the /api/v1 callback must not satisfy the route check'
+        ).toBe(false);
+
         let m;
         while ((m = DOC_RE.exec(readme)) !== null) {
             // Strip the query string + hash before matching against the PHP
@@ -330,7 +392,24 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             // `{}` to align with the PHP-side normalisation above.
             const pathOnly = m[1].split('?')[0].split('#')[0];
             const search = pathOnly.replace(/\/$/, '').replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
-            if (!normalizedRouteSources.includes(search)) violations.push(m[1]);
+            let found = normalizedRouteSources.includes(search);
+
+            // Slim plugins commonly register `/api/v1` once with group(), then
+            // declare child routes as `/auth/...`. Require the GET child literal
+            // inside that exact group's callback so unrelated routes elsewhere
+            // in the same PHP file cannot satisfy a documented API path.
+            if (search.startsWith('/api/v1/')) {
+                const child = search.slice('/api/v1'.length);
+                const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const directGetRe = new RegExp(`->get\\(\\s*(['"])${escapedSearch}\\1`);
+                found = phpFiles.some(source => {
+                    const normalized = source
+                        .replace(/\{([^}:]+):[^}]+\}/g, '{$1}')
+                        .replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+                    return directGetRe.test(normalized) || groupedGetExists(source, child);
+                });
+            }
+            if (!found) violations.push(m[1]);
         }
         expect(violations,
             `Endpoints documented in README but no matching route found in PHP:\n${violations.map(v => '  GET ' + v).join('\n')}`
