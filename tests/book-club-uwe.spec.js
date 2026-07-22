@@ -31,6 +31,7 @@ const EXT_TITLE_2 = `External Book Alt ${RUN}`;
 const EXT_AUTHOR_1 = `Jane External ${RUN}`;
 const EXT_AUTHOR_2 = `Janet External ${RUN}`;
 const EXT_PUBLISHER = `External Press ${RUN}`;
+const AUTO_ISBN = `978${String(Date.now()).slice(-10)}`;
 const MEMBER_EMAIL = `e2e-bc-uwe-${RUN}@example.test`;
 
 test.skip(!ADMIN_EMAIL || !ADMIN_PASS || !DB_USER || !DB_PASS || !DB_NAME || (!DB_HOST && !DB_SOCKET), 'E2E credentials not configured');
@@ -228,7 +229,7 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo=${sqlStr(EXT_TITLE)}`)).toBe('0');
     expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo=${sqlStr(EXT_TITLE_2)}`)).toBe('0');
 
-    async function proposeExternal(title, author, publisher = '') {
+    async function proposeExternal(title, author, publisher = '', isbn = '') {
       await page.goto(`${BASE}/book-club/${slug}`);
       await page.waitForLoadState('domcontentloaded');
       const ext = page.locator('details.bc-external-propose');
@@ -237,6 +238,9 @@ test.describe.serial('Book Club — Uwe feedback', () => {
       await ext.locator('input[name="ext_autori"]').fill(author);
       if (publisher !== '') {
         await ext.locator('input[name="ext_editore"]').fill(publisher);
+      }
+      if (isbn !== '') {
+        await ext.locator('input[name="ext_isbn"]').fill(isbn);
       }
       await ext.locator('button:has-text("Proponi libro esterno")').click();
       await page.waitForLoadState('networkidle');
@@ -258,7 +262,7 @@ test.describe.serial('Book Club — Uwe feedback', () => {
 
     // They land in the plugin tables, NOT in libri (the whole point of ①).
     const first = await proposeExternal(EXT_TITLE, `${EXT_AUTHOR_1}; ${EXT_AUTHOR_2}`, EXT_PUBLISHER);
-    const second = await proposeExternal(EXT_TITLE_2, 'John External');
+    const second = await proposeExternal(EXT_TITLE_2, 'John External', '', AUTO_ISBN);
 
     // It renders with the "Proposta esterna" badge.
     await expect(page.locator('.bc-badge', { hasText: 'esterna' }).first()).toBeVisible();
@@ -280,9 +284,24 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo IN (${sqlStr(EXT_TITLE)}, ${sqlStr(EXT_TITLE_2)})`),
       'opening a poll with external books must not create catalog rows').toBe('0');
 
-    // Acquire it into the catalogue (manager action) — the one moment it enters libri.
+    // Reproduce Uwe's failure exactly: the manager later records the purchase
+    // through the normal catalogue side, then revisits the club. The GET must
+    // link the proposal by exact ISBN without requiring the Acquire button and
+    // without duplicating the catalogue row.
+    dbQuery(`INSERT INTO libri (titolo, isbn13) VALUES (${sqlStr(EXT_TITLE_2)}, ${sqlStr(AUTO_ISBN)})`);
+    const manuallyAddedLibroId = Number(dbQuery(`SELECT id FROM libri WHERE isbn13=${sqlStr(AUTO_ISBN)} LIMIT 1`) || '0');
+    expect(manuallyAddedLibroId).toBeGreaterThan(0);
+    dbQuery(`INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (${manuallyAddedLibroId}, ${sqlStr(`LIB-${manuallyAddedLibroId}`)}, 'disponibile')`);
     await page.goto(`${BASE}/book-club/${slug}`);
-    await page.waitForLoadState('domcontentloaded');
+    await page.waitForLoadState('networkidle');
+    await expect.poll(() => dbQuery(
+      `SELECT CONCAT(IFNULL(libro_id,'NULL'),'|',IFNULL(external_book_id,'NULL')) FROM bookclub_books WHERE id=${second.clubBookId}`
+    )).toBe(`${manuallyAddedLibroId}|NULL`);
+    expect(dbQuery(`SELECT acquired_libro_id FROM bookclub_external_books WHERE id=${second.extBookId}`)).toBe(String(manuallyAddedLibroId));
+    expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE isbn13=${sqlStr(AUTO_ISBN)}`),
+      'automatic reconciliation must not duplicate the manually added catalogue row').toBe('1');
+
+    // Acquire it into the catalogue (manager action) — the one moment it enters libri.
     await page.locator(`form[action*="/books/${first.clubBookId}/acquire"] button`).click();
     await page.waitForLoadState('networkidle');
 
@@ -314,7 +333,19 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     expect(searchIndex).toContain(EXT_AUTHOR_1);
     expect(searchIndex).toContain(EXT_PUBLISHER);
     expect(dbQuery(`SELECT COUNT(*) FROM libri WHERE titolo=${sqlStr(EXT_TITLE_2)}`),
-      'the other external poll option is still not a catalog book').toBe('0');
+      'the automatically reconciled poll option has exactly one catalogue row').toBe('1');
+
+    // The main club page must also lazily close expired polls (cron is not a
+    // correctness dependency) and expose them in its explicit history.
+    const pollId = Number(dbQuery(`SELECT id FROM bookclub_polls WHERE club_id=${clubId} AND title=${sqlStr(pollTitle)} LIMIT 1`) || '0');
+    expect(pollId).toBeGreaterThan(0);
+    dbQuery(`UPDATE bookclub_polls SET closes_at=DATE_SUB(NOW(), INTERVAL 1 MINUTE), status='open' WHERE id=${pollId}`);
+    await page.goto(`${BASE}/book-club/${slug}`);
+    await page.waitForLoadState('networkidle');
+    expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id=${pollId}`)).toBe('closed');
+    const closedHistory = page.locator('details:has-text("Votazioni chiuse")');
+    await closedHistory.locator('summary').click();
+    await expect(closedHistory.locator(`a[href$="/polls/${pollId}"]`)).toBeVisible();
   });
 
   test('⑥ Uwe #138 follow-up: heading, proposed-by, remove, PDF, and next-meeting card fields', async () => {

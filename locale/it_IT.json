@@ -6579,9 +6579,11 @@
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.",
   "Elimina genere e sottogeneri": "Elimina genere e sottogeneri",
   "Proposte non selezionate": "Proposte non selezionate",
-  "Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.": "Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.",
+  "Proposte ancora in attesa di essere scelte. La lista include i libri mai votati e quelli che non hanno mai vinto una votazione chiusa.": "Proposte ancora in attesa di essere scelte. La lista include i libri mai votati e quelli che non hanno mai vinto una votazione chiusa.",
   "votazione": "votazione",
   "votazioni": "votazioni",
   "ultima": "ultima",
-  "Non in catalogo": "Non in catalogo"
+  "Non in catalogo": "Non in catalogo",
+  "Votazioni chiuse": "Votazioni chiuse",
+  "mai votata": "mai votata"
 }

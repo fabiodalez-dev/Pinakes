@@ -6579,9 +6579,11 @@
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Are you sure you want to delete this genre and all of its subgenres? Associated books will be unlinked from these genres.",
   "Elimina genere e sottogeneri": "Delete genre and subgenres",
   "Proposte non selezionate": "Proposals not selected",
-  "Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.": "Books that were on the ballot in a closed poll but were never chosen.",
+  "Proposte ancora in attesa di essere scelte. La lista include i libri mai votati e quelli che non hanno mai vinto una votazione chiusa.": "Proposals still awaiting selection. The list includes books not yet voted on and books that have never won a closed poll.",
   "votazione": "poll",
   "votazioni": "polls",
   "ultima": "last",
-  "Non in catalogo": "Not in catalogue"
+  "Non in catalogo": "Not in catalogue",
+  "Votazioni chiuse": "Closed polls",
+  "mai votata": "not yet voted on"
 }

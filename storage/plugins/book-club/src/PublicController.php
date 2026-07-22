@@ -40,6 +40,17 @@ class PublicController extends BaseController
         $canManage = $this->canManage($club);
         $isMember = $membership !== null && $membership['status'] === 'active';
 
+        // Keep the public list consistent with the ballot endpoint and the
+        // mobile API even when the maintenance cron has not run yet.
+        (new PollController($this->db, $this->repo))->closeExpiredForClub((int) $club['id']);
+
+        // A manager may have entered an externally proposed book through the
+        // normal catalogue flow since the previous visit. Link exact ISBN
+        // matches before rendering; this is idempotent and never creates books.
+        if ($canManage) {
+            $this->repo->reconcileExternalBooksWithCatalogue((int) $club['id']);
+        }
+
         $books = $this->repo->clubBooks((int) $club['id']);
         // Proposals awaiting moderation are manager-only.
         if (!$canManage) {

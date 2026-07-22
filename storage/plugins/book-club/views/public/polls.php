@@ -8,6 +8,7 @@
  * @var array<string, mixed> $club
  * @var list<array<string, mixed>> $polls
  * @var list<array<string, mixed>> $eligible  proposals usable as options
+ * @var list<array<string, mixed>> $neverChosen
  * @var bool $isMember
  * @var bool $canManage  club managers (kept for non-creation UI)
  * @var bool|null $canCreate  granular polls.create permission → creation form
@@ -19,6 +20,14 @@ $e = static fn(mixed $v): string => htmlspecialchars((string) $v, ENT_QUOTES, 'U
 $slug = (string) $club['slug'];
 $csrf = \App\Support\Csrf::ensureToken();
 $canCreate = $canCreate ?? $canManage;
+$openPolls = array_values(array_filter(
+    $polls,
+    static fn(array $poll): bool => ($poll['status'] ?? '') === 'open'
+));
+$closedPolls = array_values(array_filter(
+    $polls,
+    static fn(array $poll): bool => ($poll['status'] ?? '') === 'closed'
+));
 $modeLabels = [
     'simple'      => __('Voto singolo'),
     'multi'       => __('Preferenza multipla'),
@@ -79,10 +88,10 @@ $modeHelp = [
       <i class="fas fa-vote-yea"></i>
       <h1><?= $e(__('Votazioni')) ?></h1>
     </div>
-    <?php if (empty($polls)): ?>
-      <p class="bc-muted mb-0"><?= $e(__('Nessuna votazione al momento.')) ?></p>
+    <?php if ($openPolls === []): ?>
+      <p class="bc-muted mb-0"><?= $e(__('Nessuna votazione aperta.')) ?></p>
     <?php endif; ?>
-    <?php foreach ($polls as $poll): ?>
+    <?php foreach ($openPolls as $poll): ?>
       <div class="bc-list-item align-items-center">
         <div>
           <a class="fw-semibold text-decoration-none" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
@@ -96,15 +105,38 @@ $modeHelp = [
             <?php endif; ?>
             · <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
             <?php if (!empty($poll['closes_at'])): ?>
-              · <?= $poll['status'] === 'open' ? $e(__('scade il')) : $e(__('scaduta il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
+              · <?= $e(__('scade il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
             <?php endif; ?>
           </div>
         </div>
-        <span class="bc-badge <?= $poll['status'] === 'open' ? 'bc-badge-open' : 'bc-badge-closed' ?>">
-          <?= $poll['status'] === 'open' ? $e(__('Aperta')) : $e(__('Chiusa')) ?>
-        </span>
+        <span class="bc-badge bc-badge-open"><?= $e(__('Aperta')) ?></span>
       </div>
     <?php endforeach; ?>
+
+    <?php if ($closedPolls !== []): ?>
+      <details class="mt-4 pt-3 border-top" open>
+        <summary class="bc-summary"><?= $e(__('Votazioni chiuse')) ?> (<?= count($closedPolls) ?>)</summary>
+        <div class="mt-2">
+          <?php foreach ($closedPolls as $poll): ?>
+            <div class="bc-list-item align-items-center">
+              <div>
+                <a class="fw-semibold text-decoration-none" style="color: var(--primary-color)" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+                <div class="bc-muted small mt-1">
+                  <?= $e($modeLabels[(string) $poll['mode']] ?? (string) $poll['mode']) ?>
+                  · <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
+                  <?php if (!empty($poll['closed_at'])): ?>
+                    · <?= $e(__('Chiusa')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closed_at']))) ?>
+                  <?php elseif (!empty($poll['closes_at'])): ?>
+                    · <?= $e(__('scaduta il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
+                  <?php endif; ?>
+                </div>
+              </div>
+              <span class="bc-badge bc-badge-closed"><?= $e(__('Chiusa')) ?></span>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </details>
+    <?php endif; ?>
   </div>
 
   <?php if (!empty($neverChosen)): ?>
@@ -113,7 +145,7 @@ $modeHelp = [
         <i class="fas fa-clock-rotate-left"></i>
         <h2><?= $e(__('Proposte non selezionate')) ?></h2>
       </div>
-      <p class="bc-muted mb-4"><?= $e(__('Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.')) ?></p>
+      <p class="bc-muted mb-4"><?= $e(__('Proposte ancora in attesa di essere scelte. La lista include i libri mai votati e quelli che non hanno mai vinto una votazione chiusa.')) ?></p>
       <?php foreach ($neverChosen as $prop): ?>
         <div class="bc-list-item align-items-center">
           <div>
@@ -122,12 +154,16 @@ $modeHelp = [
               <span class="bc-muted small">· <?= $e((string) $prop['autori']) ?></span>
             <?php endif; ?>
             <div class="bc-muted small mt-1">
-              <?= (int) $prop['times_in_poll'] ?> <?= $e((int) $prop['times_in_poll'] === 1 ? __('votazione') : __('votazioni')) ?>
+              <?php if ((int) $prop['times_in_poll'] === 0): ?>
+                <?= $e(__('mai votata')) ?>
+              <?php else: ?>
+                <?= (int) $prop['times_in_poll'] ?> <?= $e((int) $prop['times_in_poll'] === 1 ? __('votazione') : __('votazioni')) ?>
+              <?php endif; ?>
               <?php if (!empty($prop['last_poll_at'])): ?>
                 · <?= $e(__('ultima')) ?> <?= $e(date('d/m/Y', (int) strtotime((string) $prop['last_poll_at']))) ?>
               <?php endif; ?>
               <?php if (!empty($prop['is_external'])): ?>
-                · <span class="bc-badge bc-badge-closed"><?= $e(__('Non in catalogo')) ?></span>
+                · <span class="bc-badge bc-badge-warn" title="<?= $e(__('Questo libro non è ancora nel catalogo della biblioteca.')) ?>"><i class="fas fa-book-medical me-1"></i><?= $e(__('Non in catalogo')) ?></span>
               <?php endif; ?>
             </div>
           </div>

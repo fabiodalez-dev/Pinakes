@@ -136,13 +136,14 @@ class PollController extends BaseController
         $this->closeExpiredForClub((int) $club['id']);
         $books = $this->repo->clubBooks((int) $club['id']);
         $eligible = $this->repo->pollEligibleBooks($club, $books);
+        $entryState = Repo::entryStateKey($this->repo->workflowStates($club));
         return $this->renderPublic($response, 'public/polls', [
             'club' => $club,
             'polls' => $this->repo->clubPolls((int) $club['id']),
             'eligible' => $eligible,
-            // Books that lost every poll they were in (#138) — the "proposed but
-            // never chosen" archive members asked to browse.
-            'neverChosen' => $this->repo->neverChosenProposals((int) $club['id']),
+            // Proposals still awaiting selection, including pre-Pinakes history
+            // entered without fabricating old polls (#138).
+            'neverChosen' => $this->repo->neverChosenProposals((int) $club['id'], $entryState),
             'isMember' => $this->isActiveMember($club),
             'canManage' => $this->canManage($club),
             'canCreate' => $this->can($club, 'polls.create'),

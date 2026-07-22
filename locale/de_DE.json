@@ -6579,9 +6579,11 @@
   "Sei sicuro di voler eliminare questo genere e tutti i suoi sottogeneri? I libri associati verranno scollegati da questi generi.": "Sind Sie sicher, dass Sie dieses Genre und alle seine Untergenres löschen möchten? Zugeordnete Bücher werden von diesen Genres getrennt.",
   "Elimina genere e sottogeneri": "Genre und Untergenres löschen",
   "Proposte non selezionate": "Nicht ausgewählte Vorschläge",
-  "Libri che sono stati candidati in una votazione chiusa ma non sono mai stati scelti.": "Bücher, die in einer geschlossenen Abstimmung zur Wahl standen, aber nie ausgewählt wurden.",
+  "Proposte ancora in attesa di essere scelte. La lista include i libri mai votati e quelli che non hanno mai vinto una votazione chiusa.": "Vorschläge, die noch auf eine Auswahl warten. Dazu gehören Bücher, über die noch nie abgestimmt wurde, und Bücher, die noch nie eine abgeschlossene Abstimmung gewonnen haben.",
   "votazione": "Abstimmung",
   "votazioni": "Abstimmungen",
   "ultima": "zuletzt",
-  "Non in catalogo": "Nicht im Katalog"
+  "Non in catalogo": "Nicht im Katalog",
+  "Votazioni chiuse": "Geschlossene Abstimmungen",
+  "mai votata": "noch nicht abgestimmt"
 }

@@ -31,6 +31,14 @@ foreach ($books as $book) {
     $booksByState[(string) $book['state']][] = $book;
 }
 $pendingProposals = $booksByState[\App\Plugins\BookClub\BookClubPlugin::STATE_PENDING] ?? [];
+$openPolls = array_values(array_filter(
+    $polls,
+    static fn(array $poll): bool => ($poll['status'] ?? '') === 'open'
+));
+$closedPolls = array_values(array_filter(
+    $polls,
+    static fn(array $poll): bool => ($poll['status'] ?? '') === 'closed'
+));
 // Members always get the tokenized feed URL: the token proves membership
 // and unlocks the members-only fields (e.g. video-conference links) that
 // the anonymous public-club feed omits.
@@ -369,25 +377,47 @@ $kindLabels = ['in_person' => __('In presenza'), 'online' => __('Online'), 'hybr
           <i class="fas fa-vote-yea"></i>
           <h2><?= $e(__('Votazioni')) ?></h2>
         </div>
-        <?php if (empty($polls)): ?>
-          <p class="bc-muted mb-0"><?= $e(__('Nessuna votazione al momento.')) ?></p>
+        <?php if ($openPolls === []): ?>
+          <p class="bc-muted mb-0"><?= $e(__('Nessuna votazione aperta.')) ?></p>
         <?php endif; ?>
-        <?php foreach ($polls as $poll): ?>
+        <?php foreach ($openPolls as $poll): ?>
           <div class="bc-list-item align-items-center">
             <div>
               <a class="bc-link" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
               <div class="bc-muted small mt-1">
                 <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
                 <?php if (!empty($poll['closes_at'])): ?>
-                  · <?= $poll['status'] === 'open' ? $e(__('scade il')) : $e(__('scaduta il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
+                  · <?= $e(__('scade il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
                 <?php endif; ?>
               </div>
             </div>
-            <span class="bc-badge <?= $poll['status'] === 'open' ? 'bc-badge-open' : 'bc-badge-closed' ?>">
-              <?= $poll['status'] === 'open' ? $e(__('Aperta')) : $e(__('Chiusa')) ?>
-            </span>
+            <span class="bc-badge bc-badge-open"><?= $e(__('Aperta')) ?></span>
           </div>
         <?php endforeach; ?>
+
+        <?php if ($closedPolls !== []): ?>
+          <details class="mt-4 pt-3 border-top">
+            <summary class="bc-summary"><?= $e(__('Votazioni chiuse')) ?> (<?= count($closedPolls) ?>)</summary>
+            <div class="mt-2">
+              <?php foreach ($closedPolls as $poll): ?>
+                <div class="bc-list-item align-items-center">
+                  <div>
+                    <a class="bc-link" href="<?= $e(url('/book-club/' . $slug . '/polls/' . (int) $poll['id'])) ?>"><?= $e($poll['title']) ?></a>
+                    <div class="bc-muted small mt-1">
+                      <?= (int) $poll['voter_count'] ?> <?= $e(__('votanti')) ?>
+                      <?php if (!empty($poll['closed_at'])): ?>
+                        · <?= $e(__('Chiusa')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closed_at']))) ?>
+                      <?php elseif (!empty($poll['closes_at'])): ?>
+                        · <?= $e(__('scaduta il')) ?> <?= $e(date('d/m/Y H:i', (int) strtotime((string) $poll['closes_at']))) ?>
+                      <?php endif; ?>
+                    </div>
+                  </div>
+                  <span class="bc-badge bc-badge-closed"><?= $e(__('Chiusa')) ?></span>
+                </div>
+              <?php endforeach; ?>
+            </div>
+          </details>
+        <?php endif; ?>
 
         <?php if ($canManage): ?>
           <?php

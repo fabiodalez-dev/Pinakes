@@ -826,6 +826,130 @@ class Repo
     }
 
     /**
+     * Resolve an active catalogue row by its normalized ISBN. The row lock is
+     * important: once acquisition decides to reuse a book, a concurrent soft
+     * delete must not turn that link into an immediately hidden club entry.
+     */
+    private function activeCatalogueBookIdByIsbn(?string $isbn13, ?string $isbn10): ?int
+    {
+        if ($isbn13 === null && $isbn10 === null) {
+            return null;
+        }
+        $row = $this->row(
+            'SELECT id FROM libri
+              WHERE deleted_at IS NULL
+                AND ((isbn13 IS NOT NULL AND isbn13 = ?)
+                  OR (isbn10 IS NOT NULL AND isbn10 = ?))
+              LIMIT 1
+              FOR UPDATE',
+            'ss',
+            [$isbn13, $isbn10]
+        );
+        return $row !== null ? (int) $row['id'] : null;
+    }
+
+    /** @return array{0:?string,1:?string} */
+    private function normalizedIsbnParts(?string $isbn): array
+    {
+        $digits = $isbn !== null
+            ? strtoupper((string) preg_replace('/[^0-9Xx]/', '', $isbn))
+            : '';
+        return [
+            strlen($digits) === 13 ? $digits : null,
+            strlen($digits) === 10 ? $digits : null,
+        ];
+    }
+
+    /**
+     * Repoint one external club-book to an existing catalogue book. Callers
+     * hold a transaction and the external rows' locks. Refuse to merge two
+     * club-book records: poll options, votes and reading history may already
+     * refer to either id, so silently choosing one would lose information.
+     */
+    private function linkExternalBookToCatalogue(int $clubId, int $clubBookId, int $externalId, int $libroId): bool
+    {
+        $duplicate = $this->row(
+            'SELECT id FROM bookclub_books
+              WHERE club_id = ? AND libro_id = ? AND id <> ?
+              LIMIT 1
+              FOR UPDATE',
+            'iii',
+            [$clubId, $libroId, $clubBookId]
+        );
+        if ($duplicate !== null) {
+            return false;
+        }
+
+        $bookRows = $this->execAffected(
+            'UPDATE bookclub_books SET libro_id = ?, external_book_id = NULL WHERE id = ? AND external_book_id = ?',
+            'iii',
+            [$libroId, $clubBookId, $externalId]
+        );
+        if ($bookRows !== 1) {
+            throw new \RuntimeException('catalog acquisition club-book repoint failed');
+        }
+        $externalRows = $this->execAffected(
+            'UPDATE bookclub_external_books SET acquired_libro_id = ? WHERE id = ? AND acquired_libro_id IS NULL',
+            'ii',
+            [$libroId, $externalId]
+        );
+        if ($externalRows !== 1) {
+            throw new \RuntimeException('catalog acquisition external stamp failed');
+        }
+        return true;
+    }
+
+    /**
+     * Reconcile external proposals after their book has been entered manually
+     * in the catalogue. This never creates catalogue data: it only links an
+     * exact normalized ISBN-10/ISBN-13 match, and is therefore safe to run when
+     * a manager opens the club page. Returns the number of proposals linked.
+     */
+    public function reconcileExternalBooksWithCatalogue(int $clubId): int
+    {
+        $this->db->begin_transaction();
+        try {
+            $candidates = $this->rows(
+                "SELECT cb.id AS club_book_id, cb.external_book_id, ext.isbn
+                   FROM bookclub_books cb
+                   JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
+                  WHERE cb.club_id = ?
+                    AND cb.external_book_id IS NOT NULL
+                    AND ext.acquired_libro_id IS NULL
+                    AND ext.isbn IS NOT NULL
+                    AND TRIM(ext.isbn) <> ''
+                  FOR UPDATE",
+                'i',
+                [$clubId]
+            );
+
+            $reconciled = 0;
+            foreach ($candidates as $candidate) {
+                [$isbn13, $isbn10] = $this->normalizedIsbnParts((string) $candidate['isbn']);
+                $libroId = $this->activeCatalogueBookIdByIsbn($isbn13, $isbn10);
+                if ($libroId === null) {
+                    continue;
+                }
+                if ($this->linkExternalBookToCatalogue(
+                    $clubId,
+                    (int) $candidate['club_book_id'],
+                    (int) $candidate['external_book_id'],
+                    $libroId
+                )) {
+                    $reconciled++;
+                }
+            }
+
+            $this->db->commit();
+            return $reconciled;
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            SecureLogger::error('[BookClub] automatic external reconciliation rolled back: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
      * Acquire an external proposal into the catalogue: create the real `libri`
      * row from its metadata (this is the ONLY moment the book enters the
      * library), repoint the club-book to it, and stamp the external row.
@@ -836,7 +960,7 @@ class Repo
         $this->db->begin_transaction();
         try {
             $row = $this->row(
-                'SELECT cb.external_book_id, ext.titolo, ext.autori, ext.isbn, ext.anno, ext.editore, ext.copertina_url
+                'SELECT cb.club_id, cb.external_book_id, ext.titolo, ext.autori, ext.isbn, ext.anno, ext.editore, ext.copertina_url
                    FROM bookclub_books cb
                    JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
                   WHERE cb.id = ? AND cb.external_book_id IS NOT NULL
@@ -851,32 +975,13 @@ class Repo
             $extId  = (int) $row['external_book_id'];
             $titolo = (string) $row['titolo'];
             $anno   = ($row['anno'] !== null && $row['anno'] !== '') ? (int) $row['anno'] : null;
-            $digits = $row['isbn'] !== null ? preg_replace('/[^0-9Xx]/', '', (string) $row['isbn']) : '';
-            $isbn13 = strlen((string) $digits) === 13 ? (string) $digits : null;
-            $isbn10 = strlen((string) $digits) === 10 ? (string) $digits : null;
+            [$isbn13, $isbn10] = $this->normalizedIsbnParts(
+                $row['isbn'] !== null ? (string) $row['isbn'] : null
+            );
             $cover  = ($row['copertina_url'] !== null && $row['copertina_url'] !== '') ? substr((string) $row['copertina_url'], 0, 255) : null;
-            // Reconcile-on-acquire (#138). If this book is ALREADY in the
-            // catalogue — the manager bought the proposed book and added it
-            // manually with the same ISBN — link the club entry to that existing
-            // row instead of inserting a duplicate. Without this, the INSERT
-            // below hits the UNIQUE isbn13/isbn10 key, the whole transaction
-            // rolls back, and the user just sees "Acquisition failed, please try
-            // again." with the proposal stuck as external forever. Matching an
-            // existing row IS the "status changes once it's in the catalogue"
-            // behaviour the user expects — one click links it.
-            $existingId = null;
-            if ($isbn13 !== null || $isbn10 !== null) {
-                $existing = $this->row(
-                    'SELECT id FROM libri
-                       WHERE deleted_at IS NULL
-                         AND ( (isbn13 IS NOT NULL AND isbn13 = ?)
-                            OR (isbn10 IS NOT NULL AND isbn10 = ?) )
-                       LIMIT 1',
-                    'ss',
-                    [$isbn13, $isbn10]
-                );
-                $existingId = $existing !== null ? (int) $existing['id'] : null;
-            }
+            // If the manager already entered the purchase in Pinakes, reuse the
+            // active ISBN match instead of violating libri's unique ISBN keys.
+            $existingId = $this->activeCatalogueBookIdByIsbn($isbn13, $isbn10);
 
             if ($existingId !== null) {
                 // Link to the existing catalogue row: it already has its copies,
@@ -921,17 +1026,7 @@ class Repo
                 }
             }
 
-            $bookRows = $this->execAffected(
-                'UPDATE bookclub_books SET libro_id = ?, external_book_id = NULL WHERE id = ? AND external_book_id = ?',
-                'iii',
-                [$libroId, $clubBookId, $extId]
-            );
-            $externalRows = $this->execAffected(
-                'UPDATE bookclub_external_books SET acquired_libro_id = ? WHERE id = ? AND acquired_libro_id IS NULL',
-                'ii',
-                [$libroId, $extId]
-            );
-            if ($bookRows !== 1 || $externalRows !== 1) {
+            if (!$this->linkExternalBookToCatalogue((int) $row['club_id'], $clubBookId, $extId, $libroId)) {
                 throw new \RuntimeException('catalog acquisition repoint failed');
             }
 
@@ -1102,19 +1197,19 @@ class Repo
     }
 
     /**
-     * Books that were on the ballot in a CLOSED poll but were never the winner
-     * of any closed poll (#138, Uwe's "proposed but not chosen" archive — a
-     * club with years of history accumulates a long list). Grouped per book
-     * with how many closed polls it appeared in and when it last did. A book
-     * that lost early polls but eventually won is excluded (it was chosen).
+     * Proposals still in the workflow entry state that never won a closed poll.
+     * This includes both recorded poll losers and older/pre-Pinakes proposals
+     * entered without a synthetic poll. Open-poll books are normally in the
+     * voting state and therefore stay out until their poll closes.
      *
      * @return list<array<string, mixed>>
      */
-    public function neverChosenProposals(int $clubId): array
+    public function neverChosenProposals(int $clubId, string $entryState): array
     {
         return $this->rows(
             "SELECT cb.id AS club_book_id,
                     cb.state,
+                    cb.created_at AS proposed_at,
                     COALESCE(l.titolo, ext.titolo) AS titolo,
                     COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
                     (cb.external_book_id IS NOT NULL) AS is_external,
@@ -1128,20 +1223,26 @@ class Repo
                     ) AS autori,
                     COUNT(DISTINCT p.id) AS times_in_poll,
                     MAX(COALESCE(p.closed_at, p.closes_at, p.created_at)) AS last_poll_at
-               FROM bookclub_poll_options o
-               JOIN bookclub_polls p ON p.id = o.poll_id AND p.club_id = ? AND p.status = 'closed'
-               JOIN bookclub_books cb ON cb.id = o.club_book_id
+               FROM bookclub_books cb
+               LEFT JOIN bookclub_poll_options o ON o.club_book_id = cb.id
+               LEFT JOIN bookclub_polls p ON p.id = o.poll_id AND p.club_id = ? AND p.status = 'closed'
                LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
                LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
-              WHERE cb.id NOT IN (
+              WHERE cb.club_id = ?
+                AND cb.state = ?
+                AND (l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)
+                AND cb.id NOT IN (
                     SELECT winner_club_book_id
                       FROM bookclub_polls
                      WHERE club_id = ? AND status = 'closed' AND winner_club_book_id IS NOT NULL
                     )
-              GROUP BY cb.id, cb.state, titolo, copertina_url, is_external, cb.libro_id, autori
-              ORDER BY last_poll_at DESC",
-            'ii',
-            [$clubId, $clubId]
+              GROUP BY cb.id, cb.state, cb.created_at, titolo, copertina_url, is_external, cb.libro_id, autori
+              ORDER BY COALESCE(
+                    MAX(COALESCE(p.closed_at, p.closes_at, p.created_at)),
+                    cb.created_at
+              ) DESC",
+            'iisi',
+            [$clubId, $clubId, $entryState, $clubId]
         );
     }
 
