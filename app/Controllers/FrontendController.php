@@ -581,12 +581,28 @@ class FrontendController
         // Get hierarchical genre display for correct sidebar rendering
         $genre_display = $this->getDisplayGenres($filter_options['generi'], (int)($filters['genere_id'] ?? 0));
 
+        // Available-books count (same filter set, restricted to loanable copies)
+        // so the home hero "Disponibili" stat can show a real number instead of
+        // a placeholder emoji. Reuses the same bound params as the total count.
+        $available_books = 0;
+        $available_stmt = $db->prepare("SELECT COUNT(DISTINCT l.id) as total " . $base_query . " AND l.copie_disponibili > 0");
+        if ($available_stmt !== false) {
+            if (!empty($query_params)) {
+                $available_stmt->bind_param($param_types, ...$query_params);
+            }
+            $available_stmt->execute();
+            $available_row = $available_stmt->get_result()->fetch_assoc();
+            $available_books = (int) ($available_row['total'] ?? 0);
+            $available_stmt->close();
+        }
+
         $data = [
             'html' => $html,
             'pagination' => [
                 'current_page' => $page,
                 'total_pages' => $total_pages,
                 'total_books' => $total_books,
+                'available_books' => $available_books,
                 'start' => $offset + 1,
                 'end' => min($offset + $limit, $total_books)
             ],
@@ -1967,7 +1983,10 @@ private function getFilterOptions(mysqli $db, array $filters = []): array
     private function getRelatedBooks(mysqli $db, int $book_id, array $book, array $authors, array $seriesBooks = []): array
     {
         $related_books = [];
-        $limit = 3;
+        // Fetch a superset so the book page can show as many related books as
+        // fit the viewport width (the grid shows one row and hides the overflow
+        // on narrower screens) instead of a fixed 3. #279-adjacent UX request.
+        $limit = 6;
         $allCreatorsSelect = "
             (SELECT GROUP_CONCAT(DISTINCT " . \App\Support\AuthorName::displaySql('a_all') . "
                      ORDER BY (la_all.ruolo = 'principale') DESC,

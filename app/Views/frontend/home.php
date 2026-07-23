@@ -915,12 +915,14 @@ function loadStats() {
         .then(response => response.json())
         .then(data => {
             totalBooksEl.textContent = data.pagination.total_books;
-            availableBooksEl.textContent = '\uD83D\uDCDA';
+            // Real available-books count from the API (falls back to the total
+            // if the field is missing on an older backend).
+            availableBooksEl.textContent = (data.pagination.available_books ?? data.pagination.total_books);
         })
         .catch(error => {
             console.error('Error loading stats:', error);
-            totalBooksEl.textContent = '\uD83D\uDCDA';
-            availableBooksEl.textContent = '\u2713';
+            totalBooksEl.textContent = '\u2014';
+            availableBooksEl.textContent = '\u2014';
         });
 }
 

@@ -1478,9 +1478,30 @@ $additional_css = "
        plain wrapper div (not the Bootstrap .row) so it doesn't fight .row's
        negative gutter margins — no !important needed. */
     .related-books-wrap {
-        max-width: 960px;
+        /* Widened from the old ~3-card (960px) cap so wide screens can show up
+           to 6 related books in one row; the grid below decides how many
+           actually fit at any given width. */
+        max-width: 1320px;
         margin-left: auto;
         margin-right: auto;
+    }
+
+    /* Responsive related-books grid: one row of as many cards as fit the
+       viewport (≈6 desktop, 4 laptop, 3 tablet, 2 phone), overflow hidden — so
+       the COUNT shown adapts to screen size instead of being a fixed 3.
+       grid-auto-rows:0 + overflow:hidden collapse every row after the first. */
+    .related-books-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        gap: 1.5rem;
+        justify-content: center;
+        grid-template-rows: auto;
+        grid-auto-rows: 0;
+        overflow: hidden;
+    }
+
+    .related-book-cell {
+        min-width: 0;
     }
 
     .related-book-card {
@@ -2346,9 +2367,9 @@ ob_start();
             <?= __("Potrebbero interessarti") ?>
         </h2>
         <div class="related-books-wrap">
-        <div class="row g-4 justify-content-center">
+        <div class="related-books-grid">
             <?php foreach($related_books as $related): ?>
-            <div class="col-12 col-sm-6 col-lg-4">
+            <div class="related-book-cell">
                 <div class="related-book-card">
                     <div class="related-book-image-container">
                         <?php
@@ -2409,7 +2430,7 @@ ob_start();
                 </div>
             </div>
             <?php endforeach; ?>
-        </div><!-- /.row -->
+        </div><!-- /.related-books-grid -->
         </div><!-- /.related-books-wrap -->
     </div>
 </section>
