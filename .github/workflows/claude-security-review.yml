@@ -24,8 +24,12 @@ jobs:
     steps:
       - name: Check for API key
         id: gate
+        env:
+          # Pass the secret through env (not inline in the script) — best practice
+          # so its value is never expanded into the command line.
+          API_KEY: ${{ secrets.CLAUDE_API_KEY }}
         run: |
-          if [ -n "${{ secrets.CLAUDE_API_KEY }}" ]; then
+          if [ -n "$API_KEY" ]; then
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=false" >> "$GITHUB_OUTPUT"
@@ -38,7 +42,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 2
 
-      - uses: anthropics/claude-code-security-review@main
+      # Pinned to a full commit SHA (supply-chain hardening) rather than the
+      # mutable @main ref — this action runs with the CLAUDE_API_KEY secret and
+      # pull-request write, so a moved tag/branch must not silently change what
+      # executes. SHA is main @ 2026-07-23 (the action publishes no release tags).
+      - uses: anthropics/claude-code-security-review@0c6a49f1fa56a1d472575da86a94dbc1edb78eda
         if: steps.gate.outputs.enabled == 'true'
         with:
           comment-pr: true
