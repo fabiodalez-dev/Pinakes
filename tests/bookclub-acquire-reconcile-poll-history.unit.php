@@ -97,12 +97,32 @@ try {
     $clubId = (int) $db->insert_id;
 
     // Existing catalogue books the external proposals will reconcile against.
-    $isbn13 = '9780000' . random_int(100000, 999999); // 13 digits
-    $isbn10 = (string) random_int(100000000, 999999999) . 'X'; // 9 digits + X
+    // Fixtures must be checksum-VALID: reconcile now rejects malformed codes
+    // (normalizedIsbnParts validates the ISBN checksum), so a synthetic ISBN
+    // needs a correct check digit or it would never match.
+    $mkIsbn13 = static function (string $base12): string {
+        $base12 = substr(str_pad($base12, 12, '0'), 0, 12);
+        $sum = 0;
+        for ($i = 0; $i < 12; $i++) {
+            $sum += (int) $base12[$i] * (($i % 2) === 0 ? 1 : 3);
+        }
+        return $base12 . ((10 - ($sum % 10)) % 10);
+    };
+    $rand5 = static fn(): string => str_pad((string) random_int(0, 99999), 5, '0', STR_PAD_LEFT);
+    $isbn13 = $mkIsbn13('9780000' . $rand5());
+    // A valid ISBN-10 whose check digit is 'X' — exercises the lowercase-x path.
+    do {
+        $base9 = str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT);
+        $sum = 0;
+        for ($i = 0; $i < 9; $i++) {
+            $sum += (int) $base9[$i] * (10 - $i);
+        }
+    } while ((11 - ($sum % 11)) % 11 !== 10);
+    $isbn10 = $base9 . 'X'; // 9 digits + valid X check char
     $externalIsbn10 = substr($isbn10, 0, 3) . '-' . substr($isbn10, 3, 3) . '-' . strtolower(substr($isbn10, 6));
-    $autoIsbn13 = '9783333' . random_int(100000, 999999);
-    $backfillIsbn13 = '9784444' . random_int(100000, 999999);
-    $delIsbn13 = '9781111' . random_int(100000, 999999);
+    $autoIsbn13 = $mkIsbn13('9783333' . $rand5());
+    $backfillIsbn13 = $mkIsbn13('9784444' . $rand5());
+    $delIsbn13 = $mkIsbn13('9781111' . $rand5());
 
     $q("INSERT INTO libri (titolo, isbn13) VALUES ('{$TOKEN} Cat13', '{$isbn13}')");
     $catLibro13 = (int) $db->insert_id; $createdLibri[] = $catLibro13;

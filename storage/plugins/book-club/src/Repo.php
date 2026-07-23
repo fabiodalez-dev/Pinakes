@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\BookClub;
 
+use App\Support\IsbnFormatter;
 use App\Support\SearchIndexBuilder;
 use App\Support\SecureLogger;
 use mysqli;
@@ -870,9 +871,12 @@ class Repo
         $digits = $isbn !== null
             ? strtoupper((string) preg_replace('/[^0-9Xx]/', '', $isbn))
             : '';
+        // Only keep a part whose checksum is valid. A 13/10-length run of
+        // otherwise-arbitrary digits must never become a reconcile match key,
+        // or two unrelated books sharing a malformed code would get linked.
         return [
-            strlen($digits) === 13 ? $digits : null,
-            strlen($digits) === 10 ? $digits : null,
+            (strlen($digits) === 13 && IsbnFormatter::isValidIsbn13($digits)) ? $digits : null,
+            (strlen($digits) === 10 && IsbnFormatter::isValidIsbn10($digits)) ? $digits : null,
         ];
     }
 

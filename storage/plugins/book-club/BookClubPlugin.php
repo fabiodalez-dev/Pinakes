@@ -457,6 +457,22 @@ class BookClubPlugin
             if (!$probe("SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookclub_books' AND CONSTRAINT_NAME = 'fk_bcbooks_external' AND CONSTRAINT_TYPE = 'FOREIGN KEY'")) {
                 $db->query("ALTER TABLE bookclub_books ADD CONSTRAINT fk_bcbooks_external FOREIGN KEY (external_book_id) REFERENCES bookclub_external_books (id) ON DELETE CASCADE");
             }
+            // 4. Self-heal the (club_id, libro_id) unique key. It has shipped in
+            //    CREATE TABLE since the plugin's first version, so a real install
+            //    always has it; this only re-adds it if it was somehow dropped.
+            //    We REFUSE to dedupe: dropping a bookclub_books row cascades into
+            //    its polls, votes, discussions and reading history (the same
+            //    reason linkExternalBookToCatalogue never merges two club-books),
+            //    so on the impossible-in-practice case of existing duplicates we
+            //    leave the rows intact and log instead of destroying data.
+            if (!$probe("SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookclub_books' AND INDEX_NAME = 'uq_bcbooks'")) {
+                $hasDupes = $probe("SELECT 1 FROM (SELECT 1 FROM bookclub_books WHERE libro_id IS NOT NULL GROUP BY club_id, libro_id HAVING COUNT(*) > 1 LIMIT 1) d");
+                if ($hasDupes) {
+                    SecureLogger::error('[BookClub] cannot add uq_bcbooks: duplicate (club_id, libro_id) rows exist; leaving them intact to preserve poll/vote/discussion history — deduplicate manually');
+                } else {
+                    $db->query("ALTER TABLE bookclub_books ADD UNIQUE KEY uq_bcbooks (club_id, libro_id)");
+                }
+            }
         } catch (\Throwable $e) {
             SecureLogger::error('[BookClub] external-book schema upgrade failed: ' . $e->getMessage());
         }
