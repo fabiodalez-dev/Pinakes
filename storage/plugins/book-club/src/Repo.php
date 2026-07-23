@@ -1073,10 +1073,15 @@ class Repo
     }
 
     /**
-     * Acquire an external proposal into the catalogue: create the real `libri`
-     * row from its metadata (this is the ONLY moment the book enters the
-     * library), repoint the club-book to it, and stamp the external row.
-     * Returns the new libro_id, or null if the club-book is not external / fails.
+     * Acquire an external proposal into the catalogue. If a non-deleted
+     * catalogue book already has the same normalized ISBN (the manager entered
+     * the purchase manually), reuse it instead of violating libri's unique ISBN
+     * keys; otherwise create the real `libri` row from the proposal's metadata.
+     * Either way, repoint the club-book to that libro_id and stamp the external
+     * row. Returns the new/reused libro_id, or null on failure. On a refuse-to-
+     * merge (this club already links another proposal to that book) it returns
+     * null and sets $reason='already_linked' so the caller can show a specific
+     * message rather than a generic error.
      */
     public function acquireExternalBook(int $clubBookId, ?string &$reason = null): ?int
     {

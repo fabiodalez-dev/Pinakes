@@ -472,7 +472,16 @@ class LibraryThingImportController
                     // nesting begin_transaction() would implicitly commit. Mirrors
                     // LibriController so a LibraryThing-imported book that matches
                     // an outstanding club proposal is reconciled at import time.
-                    \App\Support\Hooks::do('book.save.after', [$bookId, $parsedData]);
+                    // Isolated in its own try/catch: the row is already committed
+                    // and counted, so a throwing listener must NOT reach the
+                    // per-row catch below (which would rollback — a no-op here —
+                    // and additionally record the committed row as a failed
+                    // import, double-counting it).
+                    try {
+                        \App\Support\Hooks::do('book.save.after', [$bookId, $parsedData]);
+                    } catch (\Throwable $hookError) {
+                        \App\Support\SecureLogger::warning('[LibraryThingImport] book.save.after listener failed (row already committed)', ['book_id' => $bookId, 'error' => $hookError->getMessage()]);
+                    }
 
                     // NOTE: Cover download disabled during import to avoid timeout on shared hosting
                     // Users can download covers later via the standard enrichment system

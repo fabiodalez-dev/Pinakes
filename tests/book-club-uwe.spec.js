@@ -402,6 +402,9 @@ test.describe.serial('Book Club — Uwe feedback', () => {
     await page.goto(`${BASE}/book-club/${slug}`);
     await page.waitForLoadState('networkidle');
     expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id=${pollId}`), 'club GET must not close a poll').toBe('open');
+    // The club home page (show.php) must also show the expired-but-open poll as
+    // ended, consistent with the poll list and detail pages (read-only display).
+    await expect(page.locator('.bc-badge:has-text("Votazione terminata")').first()).toBeVisible();
     await page.goto(`${BASE}/book-club/${slug}/polls/${pollId}`);
     await page.waitForLoadState('domcontentloaded');
     expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id=${pollId}`), 'poll GET must not close a poll').toBe('open');

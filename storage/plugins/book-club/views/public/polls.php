@@ -61,6 +61,7 @@ $modeHelp = [
   .bc-badge-open{background:rgba(16,185,129,.12);color:var(--success-color)}
   .bc-badge-closed{background:var(--accent-color);color:var(--text-light)}
   .bc-badge-warn{background:rgba(245,158,11,.14);color:#92400e}
+  .bc-summary{color:var(--primary-color);font-weight:600;font-size:.9rem;cursor:pointer}
   .bc-muted{color:var(--text-light);font-size:.85rem}
   .bc-hero{background:var(--primary-color);color:#fff;border-radius:22px;padding:clamp(1.75rem,4vw,2.5rem);margin-bottom:2rem}
   .bc-hero h1{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;letter-spacing:-.03em;margin:0 0 .5rem;color:#fff}
