@@ -1,0 +1,46 @@
+name: Security Review (AI)
+
+# AI-powered security review of pull-request changes.
+# Requires the repository secret CLAUDE_API_KEY (enabled for both the API and
+# Code usage). Until that secret is set the job logs a notice and skips, so it
+# never shows a red X on PRs.
+
+permissions:
+  pull-requests: write   # leave PR review comments
+  contents: read
+
+on:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: AI security review
+    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - name: Check for API key
+        id: gate
+        run: |
+          if [ -n "${{ secrets.CLAUDE_API_KEY }}" ]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::CLAUDE_API_KEY secret not set — skipping AI security review."
+          fi
+
+      - uses: actions/checkout@v6
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 2
+
+      - uses: anthropics/claude-code-security-review@main
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          comment-pr: true
+          claude-api-key: ${{ secrets.CLAUDE_API_KEY }}
+          exclude-directories: 'vendor,node_modules,public/assets'
