@@ -321,6 +321,9 @@ $applicationToday = \App\Support\DateHelper::today();
             <table id="prestiti-table" class="min-w-full text-sm">
                 <thead class="bg-slate-50 text-slate-600">
                     <tr>
+                        <th scope="col" class="px-4 py-3 text-center font-medium w-10">
+                            <input type="checkbox" id="loans-select-all" class="w-4 h-4 rounded border-gray-300 cursor-pointer" title="<?= __('Seleziona tutti i prestiti estendibili') ?>">
+                        </th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Libro') ?></th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Utente') ?></th>
                         <th scope="col" class="px-6 py-3 text-left font-medium"><?= __('Date') ?></th>
@@ -333,14 +336,18 @@ $applicationToday = \App\Support\DateHelper::today();
                 <tbody class="divide-y divide-slate-200">
                     <?php if (empty($prestiti)): ?>
                         <tr>
-                            <td colspan="7" class="text-center py-10 text-gray-500">
+                            <td colspan="8" class="text-center py-10 text-gray-500">
                                 <i class="fas fa-folder-open fa-2x mb-2"></i>
                                 <p><?= __("Nessun prestito trovato.") ?></p>
                             </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($prestiti as $prestito): ?>
+                            <?php $ssrExtendable = (int)($prestito['attivo'] ?? 0) === 1 && in_array((string)($prestito['stato'] ?? ''), ['in_corso', 'in_ritardo'], true); ?>
                             <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="px-4 py-4 text-center align-middle">
+                                    <?php if ($ssrExtendable): ?><input type="checkbox" class="loan-select w-4 h-4 rounded border-gray-300 cursor-pointer" data-id="<?= (int)$prestito['id'] ?>"><?php endif; ?>
+                                </td>
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="font-semibold text-gray-900"><?php echo htmlspecialchars($prestito['libro_titolo'] ?? 'N/D'); ?></div>
                                     <div class="text-gray-500"><?= __("ID Prestito:") ?> <?php echo $prestito['id']; ?></div>
@@ -396,6 +403,32 @@ $applicationToday = \App\Support\DateHelper::today();
   </div>
 </div>
 
+<!-- #281: bulk-extend action bar — appears when at least one extendable loan is selected -->
+<div id="loans-bulk-bar" class="hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 shadow-lg z-40">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
+    <span id="loans-bulk-count" class="text-sm font-medium text-gray-700"></span>
+    <div class="flex items-center gap-2 ml-auto">
+      <label for="loans-bulk-days" class="text-sm text-gray-600"><?= __('Estendi di') ?></label>
+      <input type="number" id="loans-bulk-days" min="1" max="365" value="14"
+             class="w-20 px-2 py-1.5 border border-gray-300 rounded-lg text-sm text-center">
+      <span class="text-sm text-gray-600"><?= __('giorni') ?></span>
+      <button id="loans-bulk-extend" type="button"
+              class="px-4 py-2 bg-gray-800 text-white hover:bg-black rounded-lg transition-colors text-sm">
+        <i class="fas fa-calendar-plus mr-1"></i><?= __('Estendi prestiti selezionati') ?>
+      </button>
+      <button id="loans-bulk-clear" type="button"
+              class="px-3 py-2 bg-white text-gray-600 hover:bg-gray-50 border border-gray-300 rounded-lg transition-colors text-sm">
+        <?= __('Annulla') ?>
+      </button>
+    </div>
+  </div>
+  <form id="loans-bulk-form" method="post" action="<?= htmlspecialchars(url('/admin/loans/bulk-extend'), ENT_QUOTES, 'UTF-8') ?>" class="hidden">
+    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8') ?>">
+    <input type="hidden" name="days" id="loans-bulk-form-days" value="">
+    <div id="loans-bulk-form-ids"></div>
+  </form>
+</div>
+
 <style>
 .dt-search {
     margin-left: 1rem;
@@ -447,6 +480,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         },
         columns: [
+            {
+                // #281 bulk-extend: a selection checkbox, only for loans that can
+                // actually be extended (active + physically out).
+                data: null,
+                orderable: false,
+                className: 'text-center align-middle',
+                render: function(data, type, row) {
+                    const extendable = parseInt(row.attivo) === 1 && (row.stato === 'in_corso' || row.stato === 'in_ritardo');
+                    if (!extendable) return '';
+                    return `<input type="checkbox" class="loan-select w-4 h-4 rounded border-gray-300 cursor-pointer" data-id="${parseInt(row.id) || 0}">`;
+                }
+            },
             {
                 data: 'libro',
                 render: function(data, type, row) {
@@ -576,6 +621,141 @@ document.addEventListener('DOMContentLoaded', function() {
             table.ajax.reload();
         });
     });
+
+    // #281 bulk-extend: cross-page selection of extendable loans + a "extend by
+    // N days" action. Selection persists across DataTables draws via a Set and
+    // is re-applied on each redraw; the action posts a real form (CSRF field) so
+    // the redirect + flash handling mirrors the other loan actions.
+    (function() {
+        const selected = new Set();
+        const bar = document.getElementById('loans-bulk-bar');
+        const countEl = document.getElementById('loans-bulk-count');
+        const selectAll = document.getElementById('loans-select-all');
+        const daysInput = document.getElementById('loans-bulk-days');
+        const t = (typeof window.__ === 'function') ? window.__ : (s => s);
+
+        function refreshBar() {
+            if (selected.size > 0) {
+                bar.classList.remove('hidden');
+                countEl.textContent = t('%d prestiti selezionati').replace('%d', selected.size);
+            } else {
+                bar.classList.add('hidden');
+            }
+            const boxes = document.querySelectorAll('.loan-select');
+            if (selectAll) {
+                selectAll.checked = boxes.length > 0 && Array.from(boxes).every(b => b.checked);
+            }
+        }
+
+        function applyChecked() {
+            document.querySelectorAll('.loan-select').forEach(b => {
+                const id = parseInt(b.getAttribute('data-id')) || 0;
+                b.checked = selected.has(id);
+            });
+            refreshBar();
+        }
+        if (typeof table !== 'undefined' && table.on) {
+            table.on('draw', applyChecked);
+        }
+
+        document.addEventListener('change', function(e) {
+            const el = e.target;
+            if (el && el.classList && el.classList.contains('loan-select')) {
+                const id = parseInt(el.getAttribute('data-id')) || 0;
+                if (id > 0) { el.checked ? selected.add(id) : selected.delete(id); }
+                refreshBar();
+            }
+        });
+
+        if (selectAll) {
+            selectAll.addEventListener('change', function() {
+                document.querySelectorAll('.loan-select').forEach(b => {
+                    const id = parseInt(b.getAttribute('data-id')) || 0;
+                    b.checked = selectAll.checked;
+                    if (id > 0) { selectAll.checked ? selected.add(id) : selected.delete(id); }
+                });
+                refreshBar();
+            });
+        }
+
+        const clearBtn = document.getElementById('loans-bulk-clear');
+        if (clearBtn) clearBtn.addEventListener('click', function() {
+            selected.clear();
+            document.querySelectorAll('.loan-select').forEach(b => b.checked = false);
+            if (selectAll) selectAll.checked = false;
+            refreshBar();
+        });
+
+        const extendBtn = document.getElementById('loans-bulk-extend');
+        if (extendBtn) extendBtn.addEventListener('click', function() {
+            const days = parseInt(daysInput.value) || 0;
+            if (selected.size === 0) return; // bar is hidden without a selection
+            if (days < 1 || days > 365) {
+                // A typed-in out-of-range value (or a cleared field -> 0) must
+                // not silently no-op: say what's wrong and refocus the input.
+                const invalidMsg = t('Inserisci un numero di giorni valido (1-365).');
+                if (window.Swal) {
+                    Swal.fire({ title: t('Valore non valido'), text: invalidMsg, icon: 'error' })
+                        .then(() => { daysInput.focus(); daysInput.select(); });
+                } else {
+                    alert(invalidMsg);
+                    daysInput.focus(); daysInput.select();
+                }
+                return;
+            }
+            const submit = function() {
+                document.getElementById('loans-bulk-form-days').value = String(days);
+                const wrap = document.getElementById('loans-bulk-form-ids');
+                wrap.innerHTML = '';
+                selected.forEach(id => {
+                    const inp = document.createElement('input');
+                    inp.type = 'hidden'; inp.name = 'ids[]'; inp.value = String(id);
+                    wrap.appendChild(inp);
+                });
+                document.getElementById('loans-bulk-form').submit();
+            };
+            if (window.Swal) {
+                Swal.fire({
+                    title: t('Estendere i prestiti selezionati?'),
+                    text: t(selected.size === 1 ? '%s prestito verrà esteso di %d giorni.' : '%s prestiti verranno estesi di %d giorni.').replace('%s', selected.size).replace('%d', days),
+                    icon: 'question', showCancelButton: true,
+                    confirmButtonText: t('Estendi'), cancelButtonText: t('Annulla')
+                }).then(r => { if (r.isConfirmed) submit(); });
+            } else {
+                submit();
+            }
+        });
+
+        // Surface the bulk-extend outcome after the redirect back to the list.
+        (function() {
+            const params = new URLSearchParams(window.location.search);
+            const extended = params.get('bulk_extended');
+            const err = params.get('error');
+            if (window.Swal && extended !== null) {
+                const n = parseInt(extended) || 0;
+                const d = parseInt(params.get('days')) || 0;
+                Swal.fire({
+                    icon: n > 0 ? 'success' : 'info',
+                    title: n > 0 ? t('Prestiti estesi') : t('Nessun prestito esteso'),
+                    text: t(n === 1 ? '%s prestito esteso di %d giorni.' : '%s prestiti estesi di %d giorni.').replace('%s', n).replace('%d', d),
+                    timer: 3500, showConfirmButton: false
+                });
+            } else if (window.Swal && ['bulk_extend_invalid', 'bulk_extend_conflict', 'bulk_extend_failed'].includes(err)) {
+                let message = t('Estensione non riuscita, riprova.');
+                if (err === 'bulk_extend_invalid') {
+                    message = t('Selezione o numero di giorni non validi.');
+                } else if (err === 'bulk_extend_conflict') {
+                    message = t('Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.');
+                }
+                Swal.fire({
+                    icon: 'error', title: t('Errore'),
+                    text: message
+                });
+            }
+        })();
+
+        applyChecked();
+    })();
 
     // Pending loan requests widget - Approve/Reject buttons
     document.querySelectorAll('.approve-btn').forEach(button => {

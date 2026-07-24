@@ -767,6 +767,37 @@ class PrestitiController
                 return $response->withHeader('Location', url('/admin/loans') . '?error=loan_update_failed')->withStatus(302);
             }
 
+            // #281: LoanRepository::update() deliberately never touches lifecycle
+            // columns, and the in_corso -> in_ritardo transition set by the
+            // maintenance/integrity jobs is one-way — nothing reverts it. So
+            // extending an overdue loan's due date left stato='in_ritardo' stale
+            // and the loan kept showing "Overdue". Recompute stato here against
+            // the new due date (app timezone, same clock as MaintenanceService),
+            // scoped to the physically-out states so 'prenotato'/'da_ritirare'
+            // are never affected. When the loan returns to in_corso (extended
+            // into the future) also clear the reminder flags so the new window
+            // triggers fresh warning/overdue emails.
+            // Guard: only recompute when the DUE DATE actually changed. Editing an
+            // unrelated field (e.g. only utente_id, or only data_prestito) on a
+            // non-overdue in_corso loan must NOT reset warning_sent/overdue_
+            // notification_sent to 0 — that would re-arm duplicate 'due soon'
+            // emails. A data_prestito-only edit does not affect the overdue clock,
+            // so it is intentionally excluded from this guard (do not reuse the
+            // combined data_prestito||data_scadenza condition above).
+            if ($newScadenza !== (string) $current['data_scadenza']) {
+                $today = \App\Support\DateHelper::today();
+                $recalcStato = $db->prepare(
+                    "UPDATE prestiti
+                        SET stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
+                            warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
+                            overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
+                      WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
+                );
+                $recalcStato->bind_param('sssi', $today, $today, $today, $id);
+                $recalcStato->execute();
+                $recalcStato->close();
+            }
+
             // Ricalcola la disponibilità (M6c): spostare le date di un 'prenotato'
             // attraverso oggi cambia l'occupazione corrente e lascerebbe
             // copie_disponibili/libri.stato stantii fino al prossimo evento.
@@ -1246,6 +1277,215 @@ class PrestitiController
                 ->withHeader('Location', url('/admin/loans/details/' . $id) . '?error=pdf_failed')
                 ->withStatus(302);
         }
+    }
+
+    /**
+     * #281: bulk-extend the due date of several active out-loans at once.
+     * Deliberately mirrors the manual Edit-Loan semantics — NOT renew(), which
+     * refuses overdue loans and enforces the renewal limit. Uwe's request is
+     * precisely to extend loans that are already overdue, so each selected loan
+     * that is active and physically out (in_corso / in_ritardo) has its
+     * data_scadenza pushed forward by N days and its stato recomputed against
+     * the new date; an overdue loan extended into the future stops showing
+     * "Overdue" and its reminder flags reset so the new window notifies afresh.
+     */
+    /**
+     * Upper bound on a single bulk-extend batch. Caps how many libri/prestiti
+     * rows are held under FOR UPDATE for the whole transaction, so a runaway
+     * "select all" can't block concurrent loans/returns/reservations.
+     */
+    private const BULK_EXTEND_MAX_LOANS = 500;
+
+    public function bulkExtend(Request $request, Response $response, mysqli $db): Response
+    {
+        if ($guard = $this->guardStaffAccess($response)) {
+            return $guard;
+        }
+        $data = (array) $request->getParsedBody();
+        // CSRF validated by CsrfMiddleware.
+
+        $ids = array_values(array_unique(array_filter(
+            array_map('intval', (array) ($data['ids'] ?? [])),
+            static fn (int $i): bool => $i > 0
+        )));
+        $days = (int) ($data['days'] ?? 0);
+
+        $backUrl = url('/admin/loans');
+        if ($ids === [] || count($ids) > self::BULK_EXTEND_MAX_LOANS || $days < 1 || $days > 365) {
+            return $response->withHeader('Location', $backUrl . '?error=bulk_extend_invalid')->withStatus(302);
+        }
+
+        $today = \App\Support\DateHelper::today();
+        $db->begin_transaction();
+        try {
+            $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+            // Discover the books first without taking loan locks, then lock every
+            // book in deterministic order. This preserves the application-wide
+            // canonical lock order (libri -> prestiti) and serializes capacity
+            // decisions with loan/reservation/copy mutations for the same title.
+            $bookScan = $db->prepare("SELECT id, libro_id FROM prestiti WHERE id IN ($placeholders)");
+            $bookScan->bind_param(str_repeat('i', count($ids)), ...$ids);
+            $bookScan->execute();
+            $bookResult = $bookScan->get_result();
+            $expectedBookByLoan = [];
+            $bookIds = [];
+            while ($row = $bookResult->fetch_assoc()) {
+                $loanId = (int) $row['id'];
+                $bookId = (int) $row['libro_id'];
+                $expectedBookByLoan[$loanId] = $bookId;
+                $bookIds[$bookId] = $bookId;
+            }
+            $bookScan->close();
+            sort($bookIds, SORT_NUMERIC);
+
+            $lockBook = $db->prepare('SELECT id FROM libri WHERE id = ? FOR UPDATE');
+            foreach ($bookIds as $bookId) {
+                $lockBook->bind_param('i', $bookId);
+                $lockBook->execute();
+                $lockBook->get_result();
+            }
+            $lockBook->close();
+
+            // Re-read and lock the eligible rows after their books are locked.
+            // Rows closed or moved out of an extendable state meanwhile are
+            // intentionally ignored, matching the previous bulk semantics.
+            $lockLoans = $db->prepare(
+                "SELECT id, libro_id, copia_id, data_prestito, data_scadenza
+                   FROM prestiti
+                  WHERE id IN ($placeholders)
+                    AND attivo = 1
+                    AND stato IN ('in_corso', 'in_ritardo')
+                  ORDER BY id
+                  FOR UPDATE"
+            );
+            $lockLoans->bind_param(str_repeat('i', count($ids)), ...$ids);
+            $lockLoans->execute();
+            $loanResult = $lockLoans->get_result();
+            $loans = [];
+            while ($row = $loanResult->fetch_assoc()) {
+                $loans[] = $row;
+            }
+            $lockLoans->close();
+
+            $capacity = new \App\Services\CapacityService($db);
+            $copyOverlap = $db->prepare(
+                "SELECT 1 FROM prestiti
+                  WHERE copia_id = ? AND id <> ?
+                    AND data_prestito <= ?
+                    AND (stato = 'in_ritardo' OR data_scadenza >= ?)
+                    AND ((attivo = 1 AND stato IN ('prenotato','da_ritirare','in_corso','in_ritardo'))
+                         OR (attivo = 0 AND stato = 'pendente' AND copia_id IS NOT NULL))
+                  LIMIT 1"
+            );
+            $update = $db->prepare(
+                "UPDATE prestiti
+                    SET data_scadenza = ?,
+                        stato = CASE WHEN ? < ? THEN 'in_ritardo' ELSE 'in_corso' END,
+                        warning_sent = CASE WHEN ? < ? THEN warning_sent ELSE 0 END,
+                        overdue_notification_sent = CASE WHEN ? < ? THEN overdue_notification_sent ELSE 0 END
+                  WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
+            );
+
+            $extended = 0;
+            foreach ($loans as $loan) {
+                // null == a capacity/copy conflict: roll the WHOLE batch back so
+                // no partial extension is committed (same all-or-nothing contract
+                // the tests pin). A thrown error is handled by the outer catch.
+                $applied = $this->applyBulkLoanExtension(
+                    $loan,
+                    $days,
+                    $today,
+                    $capacity,
+                    $copyOverlap,
+                    $update,
+                    $expectedBookByLoan
+                );
+                if ($applied === null) {
+                    $copyOverlap->close();
+                    $update->close();
+                    $db->rollback();
+                    return $response->withHeader('Location', $backUrl . '?error=bulk_extend_conflict')->withStatus(302);
+                }
+                $extended += $applied;
+            }
+            $copyOverlap->close();
+            $update->close();
+            $db->commit();
+        } catch (\Throwable $e) {
+            $db->rollback();
+            SecureLogger::error('Bulk loan extend failed: ' . $e->getMessage());
+            return $response->withHeader('Location', $backUrl . '?error=bulk_extend_failed')->withStatus(302);
+        }
+
+        return $response->withHeader('Location', $backUrl . '?bulk_extended=' . (int) $extended . '&days=' . $days)->withStatus(302);
+    }
+
+    /**
+     * Apply one loan's extension inside bulkExtend()'s transaction.
+     *
+     * @param array<string, mixed>       $loan               locked prestiti row
+     * @param array<int, int>            $expectedBookByLoan loan id -> book id snapshot taken before locking
+     * @return int|null  affected row count (0/1), or null on a capacity/copy conflict (caller rolls back)
+     */
+    private function applyBulkLoanExtension(
+        array $loan,
+        int $days,
+        string $today,
+        \App\Services\CapacityService $capacity,
+        \mysqli_stmt $copyOverlap,
+        \mysqli_stmt $update,
+        array $expectedBookByLoan
+    ): ?int {
+        $loanId = (int) $loan['id'];
+        $bookId = (int) $loan['libro_id'];
+        if (($expectedBookByLoan[$loanId] ?? null) !== $bookId) {
+            throw new \RuntimeException('Loan book changed during bulk extension');
+        }
+
+        $dueDate = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) $loan['data_scadenza']);
+        if ($dueDate === false) {
+            throw new \RuntimeException('Invalid due date during bulk extension');
+        }
+        // Extend from the LATER of today and the current due date. A loan that is
+        // already overdue therefore extends from today, so adding N days lands it
+        // in the future and clears the "Overdue" status — instead of staying
+        // overdue when N is smaller than the overdue gap. A loan not yet due keeps
+        // extending from its due date.
+        $todayDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $today);
+        $base = ($todayDate !== false && $todayDate > $dueDate) ? $todayDate : $dueDate;
+        $newDueDate = $base->modify('+' . $days . ' days')->format('Y-m-d');
+        $loanStart = (string) $loan['data_prestito'];
+
+        // Apply each accepted extension immediately inside the transaction, so the
+        // next capacity check sees all earlier proposed extensions too.
+        if (!$capacity->hasFreeCapacity($bookId, $loanStart, $newDueDate, excludePrestitoId: $loanId)) {
+            return null;
+        }
+
+        $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+        if ($copyId !== null) {
+            $copyOverlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $loanStart);
+            $copyOverlap->execute();
+            if ((bool) $copyOverlap->get_result()->fetch_row()) {
+                return null;
+            }
+        }
+
+        $update->bind_param(
+            'sssssssi',
+            $newDueDate,
+            $newDueDate,
+            $today,
+            $newDueDate,
+            $today,
+            $newDueDate,
+            $today,
+            $loanId
+        );
+        $update->execute();
+
+        return max(0, $update->affected_rows);
     }
 
     public function renew(Request $request, Response $response, mysqli $db, int $id): Response

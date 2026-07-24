@@ -26,6 +26,61 @@ const ROOT = path.resolve(__dirname, '..');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Normalize Slim route placeholders so a documented `GET /x/{id}` and a code
+ * route `->get('/x/{id:\d+}', ...)` compare equal: first drop any inline regex
+ * constraint ({name:regex} -> {name}), then collapse every placeholder to {}.
+ *
+ * Both patterns require an identifier-like placeholder name. A broad
+ * `[^}:]+` would also swallow whole PHP blocks that happen to contain no
+ * colon (`if ($x) { $app->get('/api/v1/foo', $h); }` -> `if ($x) {}`),
+ * silently deleting routes from the normalized sources.
+ */
+function stripRoutePlaceholders(source) {
+    return source
+        .replace(/\{([A-Za-z_][A-Za-z0-9_]*):[^}]+\}/g, '{$1}')
+        .replace(/\{[A-Za-z_][A-Za-z0-9_]*\}/g, '{}');
+}
+
+/**
+ * Remove PHP comments (`//`, `#`, `/* … *​/`) while preserving string
+ * literals — string-aware so `'https://…'` is never truncated. Route
+ * regexes must only ever match real code: without this, a commented-out
+ * `$app->get('/api/v1/foo', …)` would still satisfy the route checks.
+ */
+function stripPhpComments(source) {
+    let out = '';
+    let quote = null;
+    let escaped = false;
+    let lineComment = false;
+    let blockComment = false;
+    for (let i = 0; i < source.length; i++) {
+        const ch = source[i];
+        const next = source[i + 1] ?? '';
+        if (lineComment) {
+            if (ch === '\n') { lineComment = false; out += ch; }
+            continue;
+        }
+        if (blockComment) {
+            if (ch === '*' && next === '/') { blockComment = false; i++; }
+            continue;
+        }
+        if (quote !== null) {
+            out += ch;
+            if (escaped) { escaped = false; continue; }
+            if (ch === '\\') { escaped = true; continue; }
+            if (ch === quote) quote = null;
+            continue;
+        }
+        if (ch === '/' && next === '/') { lineComment = true; i++; continue; }
+        if (ch === '#') { lineComment = true; continue; }
+        if (ch === '/' && next === '*') { blockComment = true; i++; continue; }
+        if (ch === "'" || ch === '"' || ch === '`') { quote = ch; out += ch; continue; }
+        out += ch;
+    }
+    return out;
+}
+
 /** Walk dir recursively, return absolute paths matching ext. */
 function glob(relDir, ext, excludeSegments = []) {
     const results = [];
@@ -311,16 +366,17 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
 
     test('10. API endpoints documented in README.md exist in PHP code', () => {
         const readme    = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf-8');
+        // Comments are stripped up front (string-aware) so a commented-out
+        // route registration can never satisfy any of the checks below.
         const phpFiles = [
             ...glob('app',            '.php', ['vendor']),
             ...glob('storage/plugins', '.php'),
-        ].map(f => fs.readFileSync(f, 'utf-8'));
+        ].map(f => stripPhpComments(fs.readFileSync(f, 'utf-8')));
         const phpSources = phpFiles.join('\n');
 
         const DOC_RE   = /`GET (\/(?:api|resync|oai|openurl|archives)[^\s`]+)/g;
         const violations = [];
-        const normalizedPhpSources = phpSources.replace(/\{([^}:]+):[^}]+\}/g, '{$1}');
-        const normalizedRouteSources = normalizedPhpSources.replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+        const normalizedRouteSources = stripRoutePlaceholders(phpSources);
 
         // Return only the lexical body of each /api/v1 group callback. Looking
         // for a group and a child route anywhere in the same file is too weak:
@@ -371,9 +427,7 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             const escapedChild = child.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const getRe = new RegExp(`->get\\(\\s*(['"])${escapedChild}\\1`);
             return apiV1GroupBodies(source).some(body => {
-                const normalized = body
-                    .replace(/\{([^}:]+):[^}]+\}/g, '{$1}')
-                    .replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+                const normalized = stripRoutePlaceholders(body);
                 return getRe.test(normalized);
             });
         };
@@ -381,6 +435,16 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
         expect(groupedGetExists(falsePositiveFixture, '/auth/registration-fields'),
             'a top-level GET outside the /api/v1 callback must not satisfy the route check'
         ).toBe(false);
+        // Self-test the normalization + comment stripping the checks rely on.
+        expect(stripRoutePlaceholders("if ($enabled) {\n    $app->get('/api/v1/foo', $handler);\n}"),
+            'placeholder normalization must never collapse a PHP block'
+        ).toContain('/api/v1/foo');
+        expect(stripRoutePlaceholders("'/books/{id:\\d+}/copies/{copyId}'"),
+            'constrained and plain placeholders both collapse to {}'
+        ).toBe("'/books/{}/copies/{}'");
+        expect(stripPhpComments("// $app->get('/api/v1/ghost', $h);\n$app->get('/api/v1/real', $h); # tail\n/* $app->get('/api/v1/block', $h); */ $u = 'https://example.com/x';"),
+            'commented-out routes are removed, real code and string URLs survive'
+        ).toBe("\n$app->get('/api/v1/real', $h); \n $u = 'https://example.com/x';");
 
         let m;
         while ((m = DOC_RE.exec(readme)) !== null) {
@@ -391,7 +455,7 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             // trailing slash and normalise `{name:regex}` placeholders to
             // `{}` to align with the PHP-side normalisation above.
             const pathOnly = m[1].split('?')[0].split('#')[0];
-            const search = pathOnly.replace(/\/$/, '').replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+            const search = stripRoutePlaceholders(pathOnly.replace(/\/$/, ''));
             let found = normalizedRouteSources.includes(search);
 
             // Slim plugins commonly register `/api/v1` once with group(), then
@@ -403,9 +467,7 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
                 const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const directGetRe = new RegExp(`->get\\(\\s*(['"])${escapedSearch}\\1`);
                 found = phpFiles.some(source => {
-                    const normalized = source
-                        .replace(/\{([^}:]+):[^}]+\}/g, '{$1}')
-                        .replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+                    const normalized = stripRoutePlaceholders(source);
                     return directGetRe.test(normalized) || groupedGetExists(source, child);
                 });
             }

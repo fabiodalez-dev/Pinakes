@@ -5,6 +5,9 @@ import flatpickr from 'flatpickr';
 import 'flatpickr/dist/flatpickr.min.css';
 import { Italian } from 'flatpickr/dist/l10n/it.js';
 import { english } from 'flatpickr/dist/l10n/default.js';
+import { German } from 'flatpickr/dist/l10n/de.js';
+import { French } from 'flatpickr/dist/l10n/fr.js';
+import { Danish } from 'flatpickr/dist/l10n/da.js';
 import 'sweetalert2/dist/sweetalert2.min.css';
 
 // Uppy - file upload library (all self-hosted, no CDN)
@@ -73,9 +76,12 @@ window.DOMPurify = DOMPurify;
 window.flatpickr = flatpickr;
 window.flatpickrLocales = {
   it: Italian,
-  en: english
+  en: english,
+  de: German,
+  fr: French,
+  da: Danish
 };
-flatpickr.localize(Italian); // Set Italian as default locale
+flatpickr.localize(english); // Neutral default; flatpickr-init.js sets the real locale per input from the app UI language
 
 // DataTables global setup
 window.DataTable = DataTable;
