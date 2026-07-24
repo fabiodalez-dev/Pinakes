@@ -107,6 +107,26 @@ $id3 = (int) $db->insert_id;
 $recalc($id3);
 $check($row($id3)['stato'] === 'da_ritirare', 'da_ritirare loan untouched by recompute');
 
+// #281 regression: editing an unrelated field (e.g. only utente_id or only
+// data_prestito) leaves data_scadenza unchanged. The controller now guards the
+// recompute on `$newScadenza !== (string) $current['data_scadenza']`, so the
+// UPDATE must be SKIPPED — a non-overdue in_corso loan keeps warning_sent=1 and
+// its reminder flags are NOT re-armed. This mirrors the guarded controller path.
+$db->query("INSERT INTO {$SB} (attivo, stato, data_scadenza, warning_sent, overdue_notification_sent)
+            VALUES (1, 'in_corso', '{$future}', 1, 1)");
+$id4 = (int) $db->insert_id;
+$recalcGuarded = static function (int $id, string $newScadenza) use ($db, $SB, $today, $recalc): void {
+    $current = $db->query("SELECT data_scadenza FROM {$SB} WHERE id={$id}")->fetch_assoc();
+    // Same guard as PrestitiController::update(): recompute ONLY on due-date change.
+    if ($newScadenza !== (string) $current['data_scadenza']) {
+        $recalc($id);
+    }
+};
+$recalcGuarded($id4, $future); // due date unchanged -> guard skips the UPDATE
+$r = $row($id4);
+$check($r['stato'] === 'in_corso', 'unchanged due date: in_corso loan stays in_corso');
+$check((int) $r['warning_sent'] === 1 && (int) $r['overdue_notification_sent'] === 1, 'unchanged due date: reminder flags preserved (guard skips recompute)');
+
 // ── Area 3: bulk extend (mirrors PrestitiController::bulkExtend) ─────────────
 echo "B. Bulk extend by N days with scoping\n";
 $db->query("TRUNCATE TABLE {$SB}");

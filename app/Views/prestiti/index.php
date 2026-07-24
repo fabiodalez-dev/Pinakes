@@ -704,7 +704,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (window.Swal) {
                 Swal.fire({
                     title: t('Estendere i prestiti selezionati?'),
-                    text: t('%s prestiti verranno estesi di %d giorni.').replace('%s', selected.size).replace('%d', days),
+                    text: t(selected.size === 1 ? '%s prestito verrà esteso di %d giorni.' : '%s prestiti verranno estesi di %d giorni.').replace('%s', selected.size).replace('%d', days),
                     icon: 'question', showCancelButton: true,
                     confirmButtonText: t('Estendi'), cancelButtonText: t('Annulla')
                 }).then(r => { if (r.isConfirmed) submit(); });
@@ -724,7 +724,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 Swal.fire({
                     icon: n > 0 ? 'success' : 'info',
                     title: n > 0 ? t('Prestiti estesi') : t('Nessun prestito esteso'),
-                    text: t('%s prestiti estesi di %d giorni.').replace('%s', n).replace('%d', d),
+                    text: t(n === 1 ? '%s prestito esteso di %d giorni.' : '%s prestiti estesi di %d giorni.').replace('%s', n).replace('%d', d),
                     timer: 3500, showConfirmButton: false
                 });
             } else if (window.Swal && ['bulk_extend_invalid', 'bulk_extend_conflict', 'bulk_extend_failed'].includes(err)) {

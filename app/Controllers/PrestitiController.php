@@ -777,17 +777,26 @@ class PrestitiController
             // are never affected. When the loan returns to in_corso (extended
             // into the future) also clear the reminder flags so the new window
             // triggers fresh warning/overdue emails.
-            $today = \App\Support\DateHelper::today();
-            $recalcStato = $db->prepare(
-                "UPDATE prestiti
-                    SET stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
-                        warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
-                        overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
-                  WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
-            );
-            $recalcStato->bind_param('sssi', $today, $today, $today, $id);
-            $recalcStato->execute();
-            $recalcStato->close();
+            // Guard: only recompute when the DUE DATE actually changed. Editing an
+            // unrelated field (e.g. only utente_id, or only data_prestito) on a
+            // non-overdue in_corso loan must NOT reset warning_sent/overdue_
+            // notification_sent to 0 — that would re-arm duplicate 'due soon'
+            // emails. A data_prestito-only edit does not affect the overdue clock,
+            // so it is intentionally excluded from this guard (do not reuse the
+            // combined data_prestito||data_scadenza condition above).
+            if ($newScadenza !== (string) $current['data_scadenza']) {
+                $today = \App\Support\DateHelper::today();
+                $recalcStato = $db->prepare(
+                    "UPDATE prestiti
+                        SET stato = CASE WHEN data_scadenza < ? THEN 'in_ritardo' ELSE 'in_corso' END,
+                            warning_sent = CASE WHEN data_scadenza < ? THEN warning_sent ELSE 0 END,
+                            overdue_notification_sent = CASE WHEN data_scadenza < ? THEN overdue_notification_sent ELSE 0 END
+                      WHERE id = ? AND attivo = 1 AND stato IN ('in_corso', 'in_ritardo')"
+                );
+                $recalcStato->bind_param('sssi', $today, $today, $today, $id);
+                $recalcStato->execute();
+                $recalcStato->close();
+            }
 
             // Ricalcola la disponibilità (M6c): spostare le date di un 'prenotato'
             // attraverso oggi cambia l'occupazione corrente e lascerebbe
