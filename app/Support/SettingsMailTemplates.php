@@ -527,7 +527,7 @@ HTML,
             return [];
         }
         // Map short and full codes to the locale files we ship.
-        $map = ['en' => 'en_US', 'de' => 'de_DE', 'fr' => 'fr_FR', 'en_US' => 'en_US', 'de_DE' => 'de_DE', 'fr_FR' => 'fr_FR'];
+        $map = ['en' => 'en_US', 'de' => 'de_DE', 'fr' => 'fr_FR', 'da' => 'da_DK', 'en_US' => 'en_US', 'de_DE' => 'de_DE', 'fr_FR' => 'fr_FR', 'da_DK' => 'da_DK'];
         $key = $map[$locale] ?? ($map[substr($locale, 0, 2)] ?? null);
         if ($key === null) {
             return [];

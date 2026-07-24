@@ -157,6 +157,7 @@ const ENDPOINTS = [
     { name: 'GET /catalog/books/{bookId}',       method: 'GET',    path: '/catalog/books/{bookId}',       auth: true,  kind: 'etag' },
     { name: 'GET /catalog/books/{bookId}/availability', method: 'GET', path: '/catalog/books/{bookId}/availability', auth: true, kind: 'safeGet' },
     { name: 'GET /catalog/genres',               method: 'GET',    path: '/catalog/genres',               auth: true,  kind: 'etag' },
+    { name: 'GET /catalog/languages',            method: 'GET',    path: '/catalog/languages',            auth: true,  kind: 'etag' },
     { name: 'GET /me/loans',                     method: 'GET',    path: '/me/loans',                     auth: true,  kind: 'safeGet' },
     { name: 'GET /me/reservations',              method: 'GET',    path: '/me/reservations',              auth: true,  kind: 'safeGet' },
     { name: 'POST /reservations',                method: 'POST',   path: '/reservations',                 auth: true,  kind: 'conflict2',

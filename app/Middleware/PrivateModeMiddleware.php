@@ -32,7 +32,7 @@ class PrivateModeMiddleware implements MiddlewareInterface
     ];
 
     /** Locales whose route variants are all registered in web.php. */
-    private const LOCALES = ['it_IT', 'en_US', 'de_DE', 'fr_FR'];
+    private const LOCALES = ['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'];
 
     /**
      * Path prefixes always allowed (assets, installer, infra endpoints).

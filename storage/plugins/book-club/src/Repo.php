@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Plugins\BookClub;
 
+use App\Support\IsbnFormatter;
 use App\Support\SearchIndexBuilder;
 use App\Support\SecureLogger;
 use mysqli;
@@ -23,6 +24,18 @@ class Repo
     private const PUBLISHER_LOCK_TIMEOUT_SECONDS = 10;
 
     private mysqli $db;
+
+    /**
+     * Guards reconcileExternalBooksWithCatalogue() against opening a nested
+     * transaction on the same connection: mysqli's begin_transaction()
+     * implicitly commits any transaction already in progress. MySQL exposes no
+     * portable "am I in a transaction?" flag (@@in_transaction is MariaDB-only),
+     * so we track ownership ourselves. Callers on OTHER components must still
+     * never invoke reconcile while holding their own transaction — the hook
+     * dispatch sites (LibriController, the import controllers) fire it outside
+     * any transaction for exactly this reason.
+     */
+    private bool $ownsReconcileTx = false;
 
     public function __construct(mysqli $db)
     {
@@ -826,17 +839,261 @@ class Repo
     }
 
     /**
-     * Acquire an external proposal into the catalogue: create the real `libri`
-     * row from its metadata (this is the ONLY moment the book enters the
-     * library), repoint the club-book to it, and stamp the external row.
-     * Returns the new libro_id, or null if the club-book is not external / fails.
+     * Resolve an active catalogue row by its normalized ISBN. The row lock is
+     * important: once acquisition decides to reuse a book, a concurrent soft
+     * delete must not turn that link into an immediately hidden club entry.
      */
-    public function acquireExternalBook(int $clubBookId): ?int
+    private function activeCatalogueBookIdByIsbn(?string $isbn13, ?string $isbn10): ?int
     {
+        if ($isbn13 === null && $isbn10 === null) {
+            return null;
+        }
+        // ORDER BY id keeps the pick deterministic when the core catalogue
+        // legitimately holds more than one active book with the same ISBN
+        // (homonym editions): always link to the oldest matching row.
+        $row = $this->row(
+            'SELECT id FROM libri
+              WHERE deleted_at IS NULL
+                AND ((isbn13 IS NOT NULL AND isbn13 = ?)
+                  OR (isbn10 IS NOT NULL AND isbn10 = ?))
+              ORDER BY id ASC
+              LIMIT 1
+              FOR UPDATE',
+            'ss',
+            [$isbn13, $isbn10]
+        );
+        return $row !== null ? (int) $row['id'] : null;
+    }
+
+    /** @return array{0:?string,1:?string} */
+    private function normalizedIsbnParts(?string $isbn): array
+    {
+        $digits = $isbn !== null
+            ? strtoupper((string) preg_replace('/[^0-9Xx]/', '', $isbn))
+            : '';
+        // Only keep a part whose checksum is valid. A 13/10-length run of
+        // otherwise-arbitrary digits must never become a reconcile match key,
+        // or two unrelated books sharing a malformed code would get linked.
+        return [
+            (strlen($digits) === 13 && IsbnFormatter::isValidIsbn13($digits)) ? $digits : null,
+            (strlen($digits) === 10 && IsbnFormatter::isValidIsbn10($digits)) ? $digits : null,
+        ];
+    }
+
+    /**
+     * Repoint one external club-book to an existing catalogue book. Callers
+     * hold a transaction and the external rows' locks. Refuse to merge two
+     * club-book records: poll options, votes and reading history may already
+     * refer to either id, so silently choosing one would lose information.
+     */
+    private function linkExternalBookToCatalogue(int $clubId, int $clubBookId, int $externalId, int $libroId): bool
+    {
+        $duplicate = $this->row(
+            'SELECT id FROM bookclub_books
+              WHERE club_id = ? AND libro_id = ? AND id <> ?
+              LIMIT 1
+              FOR UPDATE',
+            'iii',
+            [$clubId, $libroId, $clubBookId]
+        );
+        if ($duplicate !== null) {
+            return false;
+        }
+
+        $bookRows = $this->execAffected(
+            'UPDATE bookclub_books SET libro_id = ?, external_book_id = NULL WHERE id = ? AND external_book_id = ?',
+            'iii',
+            [$libroId, $clubBookId, $externalId]
+        );
+        if ($bookRows !== 1) {
+            throw new \RuntimeException('catalog acquisition club-book repoint failed');
+        }
+        $externalRows = $this->execAffected(
+            'UPDATE bookclub_external_books SET acquired_libro_id = ? WHERE id = ? AND acquired_libro_id IS NULL',
+            'ii',
+            [$libroId, $externalId]
+        );
+        if ($externalRows !== 1) {
+            throw new \RuntimeException('catalog acquisition external stamp failed');
+        }
+        return true;
+    }
+
+    /**
+     * Reconcile external proposals after their book has been entered manually
+     * in the catalogue. This never creates catalogue data: it only links an
+     * exact normalized ISBN-10/ISBN-13 match. The transaction and row locks
+     * make it safe to call from hooks, maintenance, and explicit POST actions.
+     * Returns the number of proposals linked.
+     */
+    public function reconcileExternalBooksWithCatalogue(int $clubId): int
+    {
+        // Reuse an in-flight reconcile transaction instead of nesting a new one
+        // (begin_transaction() would implicitly commit the outer one).
+        $ownsTx = !$this->ownsReconcileTx;
+        if ($ownsTx) {
+            $this->db->begin_transaction();
+            $this->ownsReconcileTx = true;
+        }
+        try {
+            $candidates = $this->rows(
+                "SELECT cb.id AS club_book_id, cb.external_book_id, ext.isbn
+                   FROM bookclub_books cb
+                   JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
+                  WHERE cb.club_id = ?
+                    AND cb.external_book_id IS NOT NULL
+                    AND ext.acquired_libro_id IS NULL
+                    AND ext.isbn IS NOT NULL
+                    AND TRIM(ext.isbn) <> ''
+                  FOR UPDATE",
+                'i',
+                [$clubId]
+            );
+
+            $reconciled = 0;
+            foreach ($candidates as $candidate) {
+                [$isbn13, $isbn10] = $this->normalizedIsbnParts((string) $candidate['isbn']);
+                $libroId = $this->activeCatalogueBookIdByIsbn($isbn13, $isbn10);
+                if ($libroId === null) {
+                    continue;
+                }
+                if ($this->linkExternalBookToCatalogue(
+                    $clubId,
+                    (int) $candidate['club_book_id'],
+                    (int) $candidate['external_book_id'],
+                    $libroId
+                )) {
+                    $reconciled++;
+                }
+            }
+
+            if ($ownsTx) {
+                $this->db->commit();
+                $this->ownsReconcileTx = false;
+            }
+            return $reconciled;
+        } catch (\Throwable $e) {
+            if ($ownsTx) {
+                $this->db->rollback();
+                $this->ownsReconcileTx = false;
+                SecureLogger::error('[BookClub] automatic external reconciliation rolled back: ' . $e->getMessage());
+                return 0;
+            }
+            // Nested call reusing a caller's transaction: propagate so the owner
+            // rolls back instead of committing partial state (swallowing here and
+            // returning 0 would hide the failure from the transaction owner).
+            throw $e;
+        }
+    }
+
+    /**
+     * Targeted reconciliation for the core `book.save.after` hook. Only clubs
+     * with an unresolved external proposal matching the saved book's ISBN are
+     * swept; the regular per-club transaction rechecks the catalogue row and
+     * protects every mutation with locks.
+     */
+    public function reconcileExternalBooksForCatalogueBook(int $libroId): int
+    {
+        if ($libroId <= 0) {
+            return 0;
+        }
+
+        // Cheap guard: this fires on EVERY catalogue save (via book.save.after).
+        // When no club has an outstanding external proposal to reconcile — the
+        // common case — skip the book lookup and the candidate scan entirely.
+        if ($this->row(
+            "SELECT 1 FROM bookclub_external_books
+              WHERE acquired_libro_id IS NULL AND isbn IS NOT NULL AND TRIM(isbn) <> ''
+              LIMIT 1"
+        ) === null) {
+            return 0;
+        }
+
+        $book = $this->row(
+            'SELECT isbn13, isbn10 FROM libri WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+            'i',
+            [$libroId]
+        );
+        if ($book === null) {
+            return 0;
+        }
+
+        [$bookIsbn13] = $this->normalizedIsbnParts(
+            isset($book['isbn13']) ? (string) $book['isbn13'] : null
+        );
+        [, $bookIsbn10] = $this->normalizedIsbnParts(
+            isset($book['isbn10']) ? (string) $book['isbn10'] : null
+        );
+        if ($bookIsbn13 === null && $bookIsbn10 === null) {
+            return 0;
+        }
+
+        $clubIds = [];
+        foreach ($this->rows(
+            "SELECT DISTINCT cb.club_id, ext.isbn
+               FROM bookclub_books cb
+               JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
+              WHERE cb.external_book_id IS NOT NULL
+                AND ext.acquired_libro_id IS NULL
+                AND ext.isbn IS NOT NULL
+                AND TRIM(ext.isbn) <> ''"
+        ) as $candidate) {
+            [$candidateIsbn13, $candidateIsbn10] = $this->normalizedIsbnParts((string) $candidate['isbn']);
+            if (($bookIsbn13 !== null && $candidateIsbn13 === $bookIsbn13)
+                || ($bookIsbn10 !== null && $candidateIsbn10 === $bookIsbn10)) {
+                $clubIds[(int) $candidate['club_id']] = true;
+            }
+        }
+
+        $reconciled = 0;
+        foreach (array_keys($clubIds) as $clubId) {
+            $reconciled += $this->reconcileExternalBooksWithCatalogue((int) $clubId);
+        }
+        return $reconciled;
+    }
+
+    /**
+     * Maintenance backfill for catalogue imports and integrations that bypass
+     * the normal book-save hook. Clubs are processed in separate transactions
+     * so one conflicting proposal cannot roll back the whole scheduled sweep.
+     */
+    public function reconcileAllExternalBooksWithCatalogue(): int
+    {
+        $clubIds = $this->rows(
+            "SELECT DISTINCT cb.club_id
+               FROM bookclub_books cb
+               JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
+              WHERE cb.external_book_id IS NOT NULL
+                AND ext.acquired_libro_id IS NULL
+                AND ext.isbn IS NOT NULL
+                AND TRIM(ext.isbn) <> ''"
+        );
+
+        $reconciled = 0;
+        foreach ($clubIds as $row) {
+            $reconciled += $this->reconcileExternalBooksWithCatalogue((int) $row['club_id']);
+        }
+        return $reconciled;
+    }
+
+    /**
+     * Acquire an external proposal into the catalogue. If a non-deleted
+     * catalogue book already has the same normalized ISBN (the manager entered
+     * the purchase manually), reuse it instead of violating libri's unique ISBN
+     * keys; otherwise create the real `libri` row from the proposal's metadata.
+     * Either way, repoint the club-book to that libro_id and stamp the external
+     * row. Returns the new/reused libro_id, or null on failure. On a refuse-to-
+     * merge (this club already links another proposal to that book) it returns
+     * null and sets $reason='already_linked' so the caller can show a specific
+     * message rather than a generic error.
+     */
+    public function acquireExternalBook(int $clubBookId, ?string &$reason = null): ?int
+    {
+        $reason = null;
         $this->db->begin_transaction();
         try {
             $row = $this->row(
-                'SELECT cb.external_book_id, ext.titolo, ext.autori, ext.isbn, ext.anno, ext.editore, ext.copertina_url
+                'SELECT cb.club_id, cb.external_book_id, ext.titolo, ext.autori, ext.isbn, ext.anno, ext.editore, ext.copertina_url
                    FROM bookclub_books cb
                    JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
                   WHERE cb.id = ? AND cb.external_book_id IS NOT NULL
@@ -851,59 +1108,30 @@ class Repo
             $extId  = (int) $row['external_book_id'];
             $titolo = (string) $row['titolo'];
             $anno   = ($row['anno'] !== null && $row['anno'] !== '') ? (int) $row['anno'] : null;
-            $digits = $row['isbn'] !== null ? preg_replace('/[^0-9Xx]/', '', (string) $row['isbn']) : '';
-            $isbn13 = strlen((string) $digits) === 13 ? (string) $digits : null;
-            $isbn10 = strlen((string) $digits) === 10 ? (string) $digits : null;
+            [$isbn13, $isbn10] = $this->normalizedIsbnParts(
+                $row['isbn'] !== null ? (string) $row['isbn'] : null
+            );
             $cover  = ($row['copertina_url'] !== null && $row['copertina_url'] !== '') ? substr((string) $row['copertina_url'], 0, 255) : null;
-            $publisherId = $this->findOrCreatePublisher(isset($row['editore']) ? (string) $row['editore'] : null);
+            // If the manager already entered the purchase in Pinakes, reuse the
+            // active ISBN match instead of violating libri's unique ISBN keys.
+            $existingId = $this->activeCatalogueBookIdByIsbn($isbn13, $isbn10);
 
-            // Only `titolo` is mandatory in `libri`; everything else is optional.
-            $inserted = $publisherId !== null
-                ? $this->exec(
-                    'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id) VALUES (?, ?, ?, ?, ?, ?)',
-                    'sisssi',
-                    [$titolo, $anno, $isbn13, $isbn10, $cover, $publisherId]
-                )
-                : $this->exec(
-                    'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url) VALUES (?, ?, ?, ?, ?)',
-                    'sisss',
-                    [$titolo, $anno, $isbn13, $isbn10, $cover]
-                );
-            if (!$inserted) {
-                throw new \RuntimeException('catalog insert failed');
-            }
-            $libroId = (int) $this->db->insert_id;
-            $this->attachExternalAuthors($libroId, isset($row['autori']) ? (string) $row['autori'] : null);
-            $this->attachPrimaryPublisher($libroId, $publisherId);
-            SearchIndexBuilder::rebuild($this->db, $libroId);
-
-            // Give the acquired book one physical copy, matching how the normal
-            // catalogue-creation flow (LibriController) seeds copies. `libri`
-            // defaults copie_totali/copie_disponibili to 1, so WITHOUT a matching
-            // `copie` row the book would claim one available copy but have none
-            // to lend — and the per-copy features (labels, loan/return by code)
-            // would find nothing. Inventory number LIB-{id}, same as a single
-            // manually-created copy; the whole thing is inside this transaction.
-            if (!$this->exec(
-                "INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (?, ?, 'disponibile')",
-                'is',
-                [$libroId, 'LIB-' . $libroId]
-            )) {
-                throw new \RuntimeException('catalog copy creation failed');
+            if ($existingId !== null) {
+                // Link to the existing catalogue row: it already has its copies,
+                // authors and publisher, so create nothing new.
+                $libroId = $existingId;
+            } else {
+                $libroId = $this->createCatalogueBookFromExternal($row, $titolo, $anno, $isbn13, $isbn10, $cover);
             }
 
-            $bookRows = $this->execAffected(
-                'UPDATE bookclub_books SET libro_id = ?, external_book_id = NULL WHERE id = ? AND external_book_id = ?',
-                'iii',
-                [$libroId, $clubBookId, $extId]
-            );
-            $externalRows = $this->execAffected(
-                'UPDATE bookclub_external_books SET acquired_libro_id = ? WHERE id = ? AND acquired_libro_id IS NULL',
-                'ii',
-                [$libroId, $extId]
-            );
-            if ($bookRows !== 1 || $externalRows !== 1) {
-                throw new \RuntimeException('catalog acquisition repoint failed');
+            if (!$this->linkExternalBookToCatalogue((int) $row['club_id'], $clubBookId, $extId, $libroId)) {
+                // Refuse-to-merge: this club already has another proposal linked
+                // to the same catalogue book. Not a retryable failure — signal
+                // the specific reason so the caller can tell the manager instead
+                // of showing a generic error.
+                $reason = 'already_linked';
+                $this->db->rollback();
+                return null;
             }
 
             $this->db->commit();
@@ -913,6 +1141,63 @@ class Repo
             SecureLogger::error('[BookClub] external acquisition rolled back: ' . $e->getMessage());
             return null;
         }
+    }
+
+    /**
+     * Create the real `libri` row (+ publisher, authors, search index, one
+     * physical copy) for an acquired external proposal. Runs INSIDE
+     * acquireExternalBook's transaction — it never commits/rolls back — and
+     * throws on any failure so the caller's catch rolls the whole acquisition
+     * back. Extracted from acquireExternalBook to keep its complexity in check.
+     *
+     * @param array<string, mixed> $row the joined bookclub_books + external row
+     */
+    private function createCatalogueBookFromExternal(
+        array $row,
+        string $titolo,
+        ?int $anno,
+        ?string $isbn13,
+        ?string $isbn10,
+        ?string $cover
+    ): int {
+        $publisherId = $this->findOrCreatePublisher(isset($row['editore']) ? (string) $row['editore'] : null);
+
+        // Only `titolo` is mandatory in `libri`; everything else is optional.
+        $inserted = $publisherId !== null
+            ? $this->exec(
+                'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url, editore_id) VALUES (?, ?, ?, ?, ?, ?)',
+                'sisssi',
+                [$titolo, $anno, $isbn13, $isbn10, $cover, $publisherId]
+            )
+            : $this->exec(
+                'INSERT INTO libri (titolo, anno_pubblicazione, isbn13, isbn10, copertina_url) VALUES (?, ?, ?, ?, ?)',
+                'sisss',
+                [$titolo, $anno, $isbn13, $isbn10, $cover]
+            );
+        if (!$inserted) {
+            throw new \RuntimeException('catalog insert failed');
+        }
+        $libroId = (int) $this->db->insert_id;
+        $this->attachExternalAuthors($libroId, isset($row['autori']) ? (string) $row['autori'] : null);
+        $this->attachPrimaryPublisher($libroId, $publisherId);
+        SearchIndexBuilder::rebuild($this->db, $libroId);
+
+        // Give the acquired book one physical copy, matching how the normal
+        // catalogue-creation flow (LibriController) seeds copies. `libri`
+        // defaults copie_totali/copie_disponibili to 1, so WITHOUT a matching
+        // `copie` row the book would claim one available copy but have none
+        // to lend — and the per-copy features (labels, loan/return by code)
+        // would find nothing. Inventory number LIB-{id}, same as a single
+        // manually-created copy; the whole thing is inside this transaction.
+        if (!$this->exec(
+            "INSERT INTO copie (libro_id, numero_inventario, stato) VALUES (?, ?, 'disponibile')",
+            'is',
+            [$libroId, 'LIB-' . $libroId]
+        )) {
+            throw new \RuntimeException('catalog copy creation failed');
+        }
+
+        return $libroId;
     }
 
     public function changeBookState(int $clubBookId, string $fromState, string $toState, ?int $changedBy): bool
@@ -1055,7 +1340,13 @@ class Repo
     /** @return array<string, mixed>|null */
     public function poll(int $pollId): ?array
     {
-        return $this->row('SELECT * FROM bookclub_polls WHERE id = ?', 'i', [$pollId]);
+        return $this->row(
+            "SELECT *,
+                    (status = 'open' AND closes_at IS NOT NULL AND closes_at <= NOW()) AS deadline_passed
+               FROM bookclub_polls WHERE id = ?",
+            'i',
+            [$pollId]
+        );
     }
 
     /** @return list<array<string, mixed>> */
@@ -1063,12 +1354,63 @@ class Repo
     {
         return $this->rows(
             "SELECT p.*,
-                    (SELECT COUNT(DISTINCT v.user_id) FROM bookclub_votes v WHERE v.poll_id = p.id) AS voter_count
+                    (SELECT COUNT(DISTINCT v.user_id) FROM bookclub_votes v WHERE v.poll_id = p.id) AS voter_count,
+                    (p.status = 'open' AND p.closes_at IS NOT NULL AND p.closes_at <= NOW()) AS deadline_passed
                FROM bookclub_polls p
               WHERE p.club_id = ?
               ORDER BY FIELD(p.status,'open','closed'), p.created_at DESC",
             'i',
             [$clubId]
+        );
+    }
+
+    /**
+     * Proposals still in the workflow entry state that never won a closed poll.
+     * This includes both recorded poll losers and older/pre-Pinakes proposals
+     * entered without a synthetic poll. Open-poll books are normally in the
+     * voting state and therefore stay out until their poll closes.
+     *
+     * @return list<array<string, mixed>>
+     */
+    public function neverChosenProposals(int $clubId, string $entryState): array
+    {
+        return $this->rows(
+            "SELECT cb.id AS club_book_id,
+                    cb.state,
+                    cb.created_at AS proposed_at,
+                    COALESCE(l.titolo, ext.titolo) AS titolo,
+                    COALESCE(l.copertina_url, ext.copertina_url) AS copertina_url,
+                    (cb.external_book_id IS NOT NULL) AS is_external,
+                    cb.libro_id,
+                    COALESCE(
+                        (SELECT GROUP_CONCAT(" . \App\Support\AuthorName::DISPLAY_SQL_A . " SEPARATOR ', ')
+                           FROM libri_autori la JOIN autori a ON a.id = la.autore_id
+                          WHERE la.libro_id = l.id
+                            AND la.ruolo IN ('principale', 'co-autore')),
+                        ext.autori
+                    ) AS autori,
+                    COUNT(DISTINCT p.id) AS times_in_poll,
+                    MAX(COALESCE(p.closed_at, p.closes_at, p.created_at)) AS last_poll_at
+               FROM bookclub_books cb
+               LEFT JOIN bookclub_poll_options o ON o.club_book_id = cb.id
+               LEFT JOIN bookclub_polls p ON p.id = o.poll_id AND p.club_id = ? AND p.status = 'closed'
+               LEFT JOIN libri l ON l.id = cb.libro_id AND l.deleted_at IS NULL
+               LEFT JOIN bookclub_external_books ext ON ext.id = cb.external_book_id
+              WHERE cb.club_id = ?
+                AND cb.state = ?
+                AND (l.id IS NOT NULL OR cb.external_book_id IS NOT NULL)
+                AND cb.id NOT IN (
+                    SELECT winner_club_book_id
+                      FROM bookclub_polls
+                     WHERE club_id = ? AND status = 'closed' AND winner_club_book_id IS NOT NULL
+                    )
+              GROUP BY cb.id, cb.state, cb.created_at, titolo, copertina_url, is_external, cb.libro_id, autori
+              ORDER BY COALESCE(
+                    MAX(COALESCE(p.closed_at, p.closes_at, p.created_at)),
+                    cb.created_at
+              ) DESC",
+            'iisi',
+            [$clubId, $clubId, $entryState, $clubId]
         );
     }
 
@@ -1207,21 +1549,19 @@ class Repo
     }
 
     /**
-     * Expired-but-still-open polls of ONE club — the per-club lazy-close
-     * sweep the read paths (club page, mobile detail, dashboards) run so
-     * correctness never depends on the maintenance cron.
-     *
-     * @return list<array<string, mixed>>
+     * Use the database clock for deadline checks. PHP and MySQL may run in
+     * different timezones on shared hosting, while closes_at is persisted and
+     * compared consistently by MySQL throughout the maintenance path.
      */
-    public function expiredOpenPollsForClub(int $clubId): array
+    public function pollDeadlinePassed(int $pollId): bool
     {
-        return $this->rows(
-            "SELECT * FROM bookclub_polls
-              WHERE club_id = ? AND status = 'open'
-                AND closes_at IS NOT NULL AND closes_at <= NOW()",
+        return $this->row(
+            "SELECT id FROM bookclub_polls
+              WHERE id = ? AND closes_at IS NOT NULL AND closes_at <= NOW()
+              LIMIT 1",
             'i',
-            [$clubId]
-        );
+            [$pollId]
+        ) !== null;
     }
 
     // ------------------------------------------------------------------
@@ -1429,7 +1769,10 @@ class Repo
             );
         }
         $openPolls = $this->rows(
-            "SELECT id, title, closes_at FROM bookclub_polls WHERE club_id = ? AND status = 'open' ORDER BY created_at DESC",
+            "SELECT id, title, closes_at FROM bookclub_polls
+              WHERE club_id = ? AND status = 'open'
+                AND (closes_at IS NULL OR closes_at > NOW())
+              ORDER BY created_at DESC",
             'i',
             [(int) $club['id']]
         );

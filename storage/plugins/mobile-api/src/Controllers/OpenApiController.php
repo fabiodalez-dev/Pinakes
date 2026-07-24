@@ -451,9 +451,9 @@ final class OpenApiController
                         ['name' => 'author',    'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Filter by author name'],
                         ['name' => 'publisher', 'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Filter by publisher name'],
                         ['name' => 'genre',     'in' => 'query', 'schema' => ['type' => 'integer'], 'description' => 'Filter by genre ID (cascade: any level)'],
-                        ['name' => 'language',  'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Filter by ISO 639-1 language code'],
+                        ['name' => 'language',  'in' => 'query', 'schema' => ['type' => 'string', 'example' => 'Italiano'], 'description' => 'Filter by catalogue language value (free text as returned by GET /catalog/languages; matched case- and whitespace-insensitively).'],
                         ['name' => 'available', 'in' => 'query', 'schema' => ['type' => 'boolean'], 'description' => 'If true, return only books with at least one loanable copy'],
-                        ['name' => 'sort',      'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['newest', 'oldest', 'title_asc', 'title_desc'], 'default' => 'newest'], 'description' => 'Sort order: newest, oldest, title_asc, or title_desc'],
+                        ['name' => 'sort',      'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['newest', 'oldest', 'title_asc', 'title_desc', 'author_asc', 'author_desc'], 'default' => 'newest'], 'description' => 'Sort order: newest, oldest, title_asc, title_desc, author_asc, or author_desc'],
                         ['name' => 'cursor',    'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Opaque pagination cursor from meta.next_cursor'],
                         ['name' => 'limit',     'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50, 'default' => 20], 'description' => 'Page size (max 50)'],
                     ],
@@ -548,6 +548,31 @@ final class OpenApiController
                             'allOf' => [['$ref' => '#/components/schemas/Envelope']],
                             'properties' => ['data' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/GenreNode']]],
                         ]]]],
+                        '401' => ['$ref' => '#/components/responses/Unauthorized'],
+                        '500' => ['$ref' => '#/components/responses/InternalError'],
+                    ],
+                ],
+            ],
+
+            '/catalog/languages' => [
+                'get' => [
+                    'tags'        => ['catalog'],
+                    'summary'     => 'Catalogue languages',
+                    'description' => 'Distinct language values present in the catalogue, each with a book count, for building the app language filter from real data rather than a hardcoded list (#282).',
+                    'operationId' => 'getCatalogLanguages',
+                    'security'    => [['bearerAuth' => []]],
+                    'responses'   => [
+                        '200' => ['description' => 'Languages.', 'content' => ['application/json' => ['schema' => [
+                            'allOf' => [['$ref' => '#/components/schemas/Envelope']],
+                            'properties' => ['data' => ['type' => 'array', 'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'language' => ['type' => 'string'],
+                                    'count'    => ['type' => 'integer'],
+                                ],
+                            ]]],
+                        ]]]],
+                        '304' => ['description' => 'Not Modified (ETag / If-None-Match honored).'],
                         '401' => ['$ref' => '#/components/responses/Unauthorized'],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
                     ],

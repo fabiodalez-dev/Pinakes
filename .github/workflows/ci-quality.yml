@@ -51,7 +51,7 @@ jobs:
           --health-retries=5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -62,9 +62,9 @@ jobs:
           github-token: ''
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       # ── Dependency CVE scanning ───────────────────────────────────────────
       - name: composer audit (known CVEs)

@@ -911,16 +911,23 @@ function loadStats() {
     // Only load stats if elements exist
     if (!totalBooksEl || !availableBooksEl) return;
 
-    fetch(API_CATALOG_ROUTE)
+    // Ask the catalog API for the available-books aggregate. The endpoint only
+    // computes that extra COUNT when with_stats=1 is present, so the live
+    // search/filter path (which omits the flag) never pays for it.
+    const statsUrl = API_CATALOG_ROUTE + (API_CATALOG_ROUTE.indexOf('?') === -1 ? '?' : '&') + 'with_stats=1';
+
+    fetch(statsUrl)
         .then(response => response.json())
         .then(data => {
             totalBooksEl.textContent = data.pagination.total_books;
-            availableBooksEl.textContent = '\uD83D\uDCDA';
+            // Real available-books count from the API (falls back to the total
+            // if the field is missing on an older backend).
+            availableBooksEl.textContent = (data.pagination.available_books ?? data.pagination.total_books);
         })
         .catch(error => {
             console.error('Error loading stats:', error);
-            totalBooksEl.textContent = '\uD83D\uDCDA';
-            availableBooksEl.textContent = '\u2713';
+            totalBooksEl.textContent = '\u2014';
+            availableBooksEl.textContent = '\u2014';
         });
 }
 

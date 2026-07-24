@@ -8,9 +8,9 @@
  *
  *   Gate      : mobile_api.enabled=0 → POST /auth/login|register|forgot-password
  *               all answer 403 app_access_disabled; enabled=1 → login issues a token
- *   Lazy close: a poll whose closes_at is in the past is reported closed by
- *               GET /api/v1/bookclub/clubs/{slug}, with the winner advanced
- *               in the workflow (voting → selected) and the loser reset
+ *   Poll close : an expired poll remains unchanged on the read-only club GET;
+ *               the first vote POST closes it, advances the winner in the
+ *               workflow (voting → selected), and resets the loser
  *   ISO dates : review created_at/updated_at (GET /me/reviews) and device
  *               created_at/last_used_at (GET /me/devices) match
  *               ^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$
@@ -196,8 +196,8 @@ const SLUG = 'e2e-bookclub-fixes';
 
 /**
  * Club + membership + two proposals + an EXPIRED open poll where book A got
- * the only vote. The bridge's lazy close must resolve it on first read:
- * winner voting → selected, loser voting → proposed (default workflow).
+ * the only vote. The mobile vote POST fallback resolves it without making the
+ * club-detail GET mutate state: winner voting → selected, loser → proposed.
  */
 function seedClubWithExpiredPoll(userId) {
     dbExec(`DELETE FROM bookclub_clubs WHERE slug = '${SLUG}'`); // cascades to books/polls/members
@@ -242,8 +242,8 @@ function seedClubWithExpiredPoll(userId) {
     dbExec(
         // closes_at seeded in UTC with a margin wider than any TZ offset: the app's
         // web connection runs SET time_zone='+00:00' (RememberMeService), while this
-        // CLI seed runs in the server's system TZ — NOW()-1h was still in the future
-        // in UTC on non-UTC hosts, so the lazy close never saw the poll as expired.
+        // CLI seed runs in the server's system TZ. The wide margin keeps the
+        // database-clock deadline assertion deterministic on non-UTC hosts.
         `INSERT INTO bookclub_polls (club_id, title, mode, votes_per_member, anonymity, closes_at, status, created_by)
          VALUES (${clubId}, 'E2E expired poll', 'simple', 1, 'public', DATE_SUB(UTC_TIMESTAMP(), INTERVAL 26 HOUR), 'open', ${userId})`
     );
@@ -256,7 +256,7 @@ function seedClubWithExpiredPoll(userId) {
     ), 10);
     dbExec(`INSERT INTO bookclub_votes (poll_id, option_id, user_id, value) VALUES (${pollId}, ${optA}, ${userId}, 1)`);
 
-    return { clubId, pollId, cbA, cbB, bookA };
+    return { clubId, pollId, cbA, cbB, bookA, optA };
 }
 
 // ─── Request helpers ──────────────────────────────────────────────────────────
@@ -278,8 +278,8 @@ test.describe.serial('Mobile API contract fixes — E2E', () => {
     let token = '';
     /** @type {number} */
     let userId = 0;
-    /** @type {{clubId: number, pollId: number, cbA: number, cbB: number, bookA: number}} */
-    let seed = { clubId: 0, pollId: 0, cbA: 0, cbB: 0, bookA: 0 };
+    /** @type {{clubId: number, pollId: number, cbA: number, cbB: number, bookA: number, optA: number}} */
+    let seed = { clubId: 0, pollId: 0, cbA: 0, cbB: 0, bookA: 0, optA: 0 };
 
     test.beforeAll(async ({ browser }) => {
         await ensurePlugins(browser);
@@ -336,9 +336,9 @@ test.describe.serial('Mobile API contract fixes — E2E', () => {
         token = body.data.token;
     });
 
-    // ── 2. Lazy close of expired polls on the mobile read path ───────────────
+    // ── 2. Read-only GET + expired-vote POST fallback ────────────────────────
 
-    test('expired poll is closed (with winner transition) by GET /bookclub/clubs/{slug}', async ({ request }) => {
+    test('club GET is read-only; expired vote POST closes the poll with winner transition', async ({ request }) => {
         const res = await request.get(`${API}/bookclub/clubs/${SLUG}`, { headers: authHeaders(token) });
         expect(res.status()).toBe(200);
         const body = await res.json();
@@ -346,12 +346,33 @@ test.describe.serial('Mobile API contract fixes — E2E', () => {
 
         const poll = body.data.polls.find((p) => p.id === seed.pollId);
         expect(poll, 'seeded poll must be listed').toBeTruthy();
-        expect(poll.status).toBe('closed');
+        expect(poll.status).toBe('open');
+
+        // The GET only reports persisted state: no status or workflow writes.
+        let winner = body.data.books.find((b) => b.id === seed.cbA);
+        let loser  = body.data.books.find((b) => b.id === seed.cbB);
+        expect(winner.state).toBe('voting');
+        expect(loser.state).toBe('voting');
+        expect(dbQuery(`SELECT status FROM bookclub_polls WHERE id = ${seed.pollId}`)).toBe('open');
+
+        // The first mutating request after the deadline rejects the ballot but
+        // first performs the same idempotent close as scheduled maintenance.
+        const vote = await request.post(
+            `${API}/bookclub/clubs/${SLUG}/polls/${seed.pollId}/vote`,
+            { headers: authHeaders(token), data: { options: [seed.optA] } }
+        );
+        expect(vote.status()).toBe(409);
+        expect((await vote.json()).error.code).toBe('poll_closed');
+
+        const after = await request.get(`${API}/bookclub/clubs/${SLUG}`, { headers: authHeaders(token) });
+        expect(after.status()).toBe(200);
+        const afterBody = await after.json();
+        expect(afterBody.data.polls.find((p) => p.id === seed.pollId).status).toBe('closed');
 
         // Winner advanced one workflow step past 'voting' (default: selected);
         // the loser fell back to the entry state.
-        const winner = body.data.books.find((b) => b.id === seed.cbA);
-        const loser  = body.data.books.find((b) => b.id === seed.cbB);
+        winner = afterBody.data.books.find((b) => b.id === seed.cbA);
+        loser  = afterBody.data.books.find((b) => b.id === seed.cbB);
         expect(winner.state).toBe('selected');
         expect(loser.state).toBe('proposed');
 

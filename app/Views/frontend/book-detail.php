@@ -1478,9 +1478,65 @@ $additional_css = "
        plain wrapper div (not the Bootstrap .row) so it doesn't fight .row's
        negative gutter margins — no !important needed. */
     .related-books-wrap {
-        max-width: 960px;
+        /* Widened from the old ~3-card (960px) cap so wide screens can show up
+           to 6 related books in one row; the grid below decides how many
+           actually fit at any given width. */
+        max-width: 1320px;
         margin-left: auto;
         margin-right: auto;
+    }
+
+    /* Responsive related-books grid: one row of as many cards as fit the
+       viewport (≈6 desktop, 4 laptop, 3 tablet, 2 phone), overflow hidden — so
+       the COUNT shown adapts to screen size instead of being a fixed 3.
+       grid-auto-rows:0 + overflow:hidden collapse every row after the first. */
+    .related-books-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+        /* row-gap:0 so the zero-height clipped rows don't add trailing
+           whitespace below the single visible row (F002). Horizontal spacing
+           between cards in the visible row is preserved via column-gap. */
+        column-gap: 1.5rem;
+        row-gap: 0;
+        justify-content: center;
+        grid-template-rows: auto;
+        grid-auto-rows: 0;
+        overflow: hidden;
+    }
+
+    .related-book-cell {
+        min-width: 0;
+    }
+
+    /* Narrow phones (~360-390px): the grid collapses to a single visible column
+       so only one related book shows. Switch to a horizontal snap-scroll strip
+       instead, so all related books are reachable by swiping. The 80% flex-basis
+       leaves a ~20% peek of the next card as the scroll affordance (F003). */
+    @media (max-width: 480px) {
+        .related-books-grid {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            /* neutralize the desktop grid props so they don't interfere */
+            grid-template-columns: none;
+            grid-template-rows: none;
+            grid-auto-rows: auto;
+            column-gap: 1rem;
+            row-gap: 0;
+            /* hide the scrollbar aesthetically while keeping scrollability */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .related-books-grid::-webkit-scrollbar {
+            display: none;
+        }
+        .related-book-cell {
+            flex: 0 0 80%;
+            scroll-snap-align: start;
+        }
     }
 
     .related-book-card {
@@ -2346,9 +2402,9 @@ ob_start();
             <?= __("Potrebbero interessarti") ?>
         </h2>
         <div class="related-books-wrap">
-        <div class="row g-4 justify-content-center">
+        <div class="related-books-grid">
             <?php foreach($related_books as $related): ?>
-            <div class="col-12 col-sm-6 col-lg-4">
+            <div class="related-book-cell">
                 <div class="related-book-card">
                     <div class="related-book-image-container">
                         <?php
@@ -2409,10 +2465,77 @@ ob_start();
                 </div>
             </div>
             <?php endforeach; ?>
-        </div><!-- /.row -->
+        </div><!-- /.related-books-grid -->
+        <noscript>
+            <style>
+                /* With JS off the inert script can't clip cards, so show them all
+                   stacked — matching what assistive tech can reach. row-gap is
+                   restored here because the base rule sets it to 0 for the
+                   JS-driven single-row layout (F005). */
+                .related-books-grid {
+                    overflow: visible !important;
+                    grid-auto-rows: auto !important;
+                    row-gap: 1.5rem !important;
+                }
+            </style>
+        </noscript>
         </div><!-- /.related-books-wrap -->
     </div>
 </section>
+<script>
+// Accessibility: the grid clips every row after the first with overflow:hidden
+// + grid-auto-rows:0, but clipped cards stay in the DOM. Take them out of the
+// tab order and the accessibility tree so keyboard/screen-reader users can't
+// reach cards they cannot see. A clipped cell sits below the first row, so its
+// offsetTop is greater than the first row's. Recomputed on resize. `inert` does
+// not change layout, so reading offsetTop stays accurate without oscillation.
+(function () {
+  var grid = document.querySelector('.related-books-grid');
+  if (!grid) { return; }
+  var cells = Array.prototype.slice.call(grid.querySelectorAll('.related-book-cell'));
+  if (!cells.length) { return; }
+  function sync() {
+    // Phone scroll mode (F003): the @media(max-width:480px) rule turns the grid
+    // into a horizontal snap-scroll strip (overflow-x:auto), where every card is
+    // reachable by swiping — nothing is clipped. Clear any inert/aria-hidden/
+    // tabindex the desktop path may have set and bail out. The desktop clip mode
+    // uses overflow:hidden (overflow-x:hidden), so overflowX==='auto' unambiguously
+    // means scroll mode.
+    if (window.getComputedStyle(grid).overflowX === 'auto') {
+      cells.forEach(function (c) {
+        c.removeAttribute('inert');
+        c.removeAttribute('aria-hidden');
+        Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) {
+          a.removeAttribute('tabindex');
+        });
+      });
+      return;
+    }
+    var firstTop = Math.min.apply(null, cells.map(function (c) { return c.offsetTop; }));
+    cells.forEach(function (c) {
+      var clipped = c.offsetTop > firstTop + 1;
+      if (clipped) {
+        c.setAttribute('inert', '');
+        c.setAttribute('aria-hidden', 'true');
+      } else {
+        c.removeAttribute('inert');
+        c.removeAttribute('aria-hidden');
+      }
+      // Fallback for browsers without `inert`: keep the links off the tab order.
+      Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) {
+        if (clipped) { a.setAttribute('tabindex', '-1'); }
+        else { a.removeAttribute('tabindex'); }
+      });
+    });
+  }
+  sync();
+  var t;
+  window.addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(sync, 150);
+  });
+})();
+</script>
 <?php endif; ?>
 
 <?php

@@ -46,7 +46,7 @@ jobs:
       E2E_INSTALL_ROOT: ${{ github.workspace }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # ── Apache2 + mod_php ───────────────────────────────────────────────────
       # Install Apache before setup-php adds external package sources; the app
