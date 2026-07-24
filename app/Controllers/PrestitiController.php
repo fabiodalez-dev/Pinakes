@@ -1280,6 +1280,13 @@ class PrestitiController
      * the new date; an overdue loan extended into the future stops showing
      * "Overdue" and its reminder flags reset so the new window notifies afresh.
      */
+    /**
+     * Upper bound on a single bulk-extend batch. Caps how many libri/prestiti
+     * rows are held under FOR UPDATE for the whole transaction, so a runaway
+     * "select all" can't block concurrent loans/returns/reservations.
+     */
+    private const BULK_EXTEND_MAX_LOANS = 500;
+
     public function bulkExtend(Request $request, Response $response, mysqli $db): Response
     {
         if ($guard = $this->guardStaffAccess($response)) {
@@ -1295,7 +1302,7 @@ class PrestitiController
         $days = (int) ($data['days'] ?? 0);
 
         $backUrl = url('/admin/loans');
-        if ($ids === [] || $days < 1 || $days > 365) {
+        if ($ids === [] || count($ids) > self::BULK_EXTEND_MAX_LOANS || $days < 1 || $days > 365) {
             return $response->withHeader('Location', $backUrl . '?error=bulk_extend_invalid')->withStatus(302);
         }
 
@@ -1373,62 +1380,25 @@ class PrestitiController
 
             $extended = 0;
             foreach ($loans as $loan) {
-                $loanId = (int) $loan['id'];
-                $bookId = (int) $loan['libro_id'];
-                if (($expectedBookByLoan[$loanId] ?? null) !== $bookId) {
-                    throw new \RuntimeException('Loan book changed during bulk extension');
-                }
-
-                $dueDate = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) $loan['data_scadenza']);
-                if ($dueDate === false) {
-                    throw new \RuntimeException('Invalid due date during bulk extension');
-                }
-                // Extend from the LATER of today and the current due date. A loan
-                // that is already overdue therefore extends from today, so adding
-                // N days lands it in the future and clears the "Overdue" status —
-                // instead of staying overdue when N is smaller than the overdue
-                // gap. A loan not yet due keeps extending from its due date.
-                $todayDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $today);
-                $base = ($todayDate !== false && $todayDate > $dueDate) ? $todayDate : $dueDate;
-                $newDueDate = $base->modify('+' . $days . ' days')->format('Y-m-d');
-                $loanStart = (string) $loan['data_prestito'];
-
-                // Apply each accepted extension immediately inside this transaction:
-                // the next capacity check therefore sees all earlier proposed
-                // extensions too. A single conflict rolls the entire batch back.
-                if (!$capacity->hasFreeCapacity($bookId, $loanStart, $newDueDate, excludePrestitoId: $loanId)) {
+                // null == a capacity/copy conflict: roll the WHOLE batch back so
+                // no partial extension is committed (same all-or-nothing contract
+                // the tests pin). A thrown error is handled by the outer catch.
+                $applied = $this->applyBulkLoanExtension(
+                    $loan,
+                    $days,
+                    $today,
+                    $capacity,
+                    $copyOverlap,
+                    $update,
+                    $expectedBookByLoan
+                );
+                if ($applied === null) {
                     $copyOverlap->close();
                     $update->close();
                     $db->rollback();
                     return $response->withHeader('Location', $backUrl . '?error=bulk_extend_conflict')->withStatus(302);
                 }
-
-                $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
-                if ($copyId !== null) {
-                    $copyOverlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $loanStart);
-                    $copyOverlap->execute();
-                    $hasCopyOverlap = (bool) $copyOverlap->get_result()->fetch_row();
-                    if ($hasCopyOverlap) {
-                        $copyOverlap->close();
-                        $update->close();
-                        $db->rollback();
-                        return $response->withHeader('Location', $backUrl . '?error=bulk_extend_conflict')->withStatus(302);
-                    }
-                }
-
-                $update->bind_param(
-                    'sssssssi',
-                    $newDueDate,
-                    $newDueDate,
-                    $today,
-                    $newDueDate,
-                    $today,
-                    $newDueDate,
-                    $today,
-                    $loanId
-                );
-                $update->execute();
-                $extended += max(0, $update->affected_rows);
+                $extended += $applied;
             }
             $copyOverlap->close();
             $update->close();
@@ -1440,6 +1410,73 @@ class PrestitiController
         }
 
         return $response->withHeader('Location', $backUrl . '?bulk_extended=' . (int) $extended . '&days=' . $days)->withStatus(302);
+    }
+
+    /**
+     * Apply one loan's extension inside bulkExtend()'s transaction.
+     *
+     * @param array<string, mixed>       $loan               locked prestiti row
+     * @param array<int, int>            $expectedBookByLoan loan id -> book id snapshot taken before locking
+     * @return int|null  affected row count (0/1), or null on a capacity/copy conflict (caller rolls back)
+     */
+    private function applyBulkLoanExtension(
+        array $loan,
+        int $days,
+        string $today,
+        \App\Services\CapacityService $capacity,
+        \mysqli_stmt $copyOverlap,
+        \mysqli_stmt $update,
+        array $expectedBookByLoan
+    ): ?int {
+        $loanId = (int) $loan['id'];
+        $bookId = (int) $loan['libro_id'];
+        if (($expectedBookByLoan[$loanId] ?? null) !== $bookId) {
+            throw new \RuntimeException('Loan book changed during bulk extension');
+        }
+
+        $dueDate = \DateTimeImmutable::createFromFormat('!Y-m-d', (string) $loan['data_scadenza']);
+        if ($dueDate === false) {
+            throw new \RuntimeException('Invalid due date during bulk extension');
+        }
+        // Extend from the LATER of today and the current due date. A loan that is
+        // already overdue therefore extends from today, so adding N days lands it
+        // in the future and clears the "Overdue" status — instead of staying
+        // overdue when N is smaller than the overdue gap. A loan not yet due keeps
+        // extending from its due date.
+        $todayDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $today);
+        $base = ($todayDate !== false && $todayDate > $dueDate) ? $todayDate : $dueDate;
+        $newDueDate = $base->modify('+' . $days . ' days')->format('Y-m-d');
+        $loanStart = (string) $loan['data_prestito'];
+
+        // Apply each accepted extension immediately inside the transaction, so the
+        // next capacity check sees all earlier proposed extensions too.
+        if (!$capacity->hasFreeCapacity($bookId, $loanStart, $newDueDate, excludePrestitoId: $loanId)) {
+            return null;
+        }
+
+        $copyId = $loan['copia_id'] !== null ? (int) $loan['copia_id'] : null;
+        if ($copyId !== null) {
+            $copyOverlap->bind_param('iiss', $copyId, $loanId, $newDueDate, $loanStart);
+            $copyOverlap->execute();
+            if ((bool) $copyOverlap->get_result()->fetch_row()) {
+                return null;
+            }
+        }
+
+        $update->bind_param(
+            'sssssssi',
+            $newDueDate,
+            $newDueDate,
+            $today,
+            $newDueDate,
+            $today,
+            $newDueDate,
+            $today,
+            $loanId
+        );
+        $update->execute();
+
+        return max(0, $update->affected_rows);
     }
 
     public function renew(Request $request, Response $response, mysqli $db, int $id): Response
