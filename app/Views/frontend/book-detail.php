@@ -1493,7 +1493,11 @@ $additional_css = "
     .related-books-grid {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-        gap: 1.5rem;
+        /* row-gap:0 so the zero-height clipped rows don't add trailing
+           whitespace below the single visible row (F002). Horizontal spacing
+           between cards in the visible row is preserved via column-gap. */
+        column-gap: 1.5rem;
+        row-gap: 0;
         justify-content: center;
         grid-template-rows: auto;
         grid-auto-rows: 0;
@@ -1502,6 +1506,37 @@ $additional_css = "
 
     .related-book-cell {
         min-width: 0;
+    }
+
+    /* Narrow phones (~360-390px): the grid collapses to a single visible column
+       so only one related book shows. Switch to a horizontal snap-scroll strip
+       instead, so all related books are reachable by swiping. The 80% flex-basis
+       leaves a ~20% peek of the next card as the scroll affordance (F003). */
+    @media (max-width: 480px) {
+        .related-books-grid {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            overflow-y: hidden;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            /* neutralize the desktop grid props so they don't interfere */
+            grid-template-columns: none;
+            grid-template-rows: none;
+            grid-auto-rows: auto;
+            column-gap: 1rem;
+            row-gap: 0;
+            /* hide the scrollbar aesthetically while keeping scrollability */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+        .related-books-grid::-webkit-scrollbar {
+            display: none;
+        }
+        .related-book-cell {
+            flex: 0 0 80%;
+            scroll-snap-align: start;
+        }
     }
 
     .related-book-card {
@@ -2431,6 +2466,19 @@ ob_start();
             </div>
             <?php endforeach; ?>
         </div><!-- /.related-books-grid -->
+        <noscript>
+            <style>
+                /* With JS off the inert script can't clip cards, so show them all
+                   stacked — matching what assistive tech can reach. row-gap is
+                   restored here because the base rule sets it to 0 for the
+                   JS-driven single-row layout (F005). */
+                .related-books-grid {
+                    overflow: visible !important;
+                    grid-auto-rows: auto !important;
+                    row-gap: 1.5rem !important;
+                }
+            </style>
+        </noscript>
         </div><!-- /.related-books-wrap -->
     </div>
 </section>
@@ -2447,6 +2495,22 @@ ob_start();
   var cells = Array.prototype.slice.call(grid.querySelectorAll('.related-book-cell'));
   if (!cells.length) { return; }
   function sync() {
+    // Phone scroll mode (F003): the @media(max-width:480px) rule turns the grid
+    // into a horizontal snap-scroll strip (overflow-x:auto), where every card is
+    // reachable by swiping — nothing is clipped. Clear any inert/aria-hidden/
+    // tabindex the desktop path may have set and bail out. The desktop clip mode
+    // uses overflow:hidden (overflow-x:hidden), so overflowX==='auto' unambiguously
+    // means scroll mode.
+    if (window.getComputedStyle(grid).overflowX === 'auto') {
+      cells.forEach(function (c) {
+        c.removeAttribute('inert');
+        c.removeAttribute('aria-hidden');
+        Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) {
+          a.removeAttribute('tabindex');
+        });
+      });
+      return;
+    }
     var firstTop = Math.min.apply(null, cells.map(function (c) { return c.offsetTop; }));
     cells.forEach(function (c) {
       var clipped = c.offsetTop > firstTop + 1;

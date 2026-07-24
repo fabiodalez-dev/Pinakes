@@ -584,29 +584,41 @@ class FrontendController
         // Available-books count (same filter set, restricted to loanable copies)
         // so the home hero "Disponibili" stat can show a real number instead of
         // a placeholder emoji. Reuses the same bound params as the total count.
-        // On any query failure it stays null (never a misleading 0): the field
-        // is emitted as null and the home JS falls back to total_books, while
+        //
+        // FIX F001: this adds a sixth aggregate scan (5 LEFT JOINs) on top of the
+        // total-count and books queries, yet ONLY the home hero consumes it (a
+        // single loadStats() fetch). The live catalog search/filter path — which
+        // hits this endpoint on every keystroke — used to pay for it and throw
+        // the value away. Gate it behind an explicit `with_stats=1` flag so the
+        // aggregate runs only when the caller actually needs the number.
+        //
+        // When the flag is absent the field stays null; home.php's JS falls back
+        // to total_books, but only the search path (which never requests stats)
+        // ever sees that fallback. When the flag IS passed the value is the real
+        // count, or null only on a genuine DB failure (never a misleading 0):
         // the failure is logged instead of silently masked.
         $available_books = null;
-        $available_stmt = $db->prepare("SELECT COUNT(DISTINCT l.id) as total " . $base_query . " AND l.copie_disponibili > 0");
-        if ($available_stmt === false) {
-            \App\Support\SecureLogger::error('Available-books count prepare failed', ['db_error' => $db->error]);
-        } else {
-            if (!empty($query_params)) {
-                $available_stmt->bind_param($param_types, ...$query_params);
-            }
-            if (!$available_stmt->execute()) {
-                \App\Support\SecureLogger::error('Available-books count execute failed', ['db_error' => $available_stmt->error]);
+        if (($params['with_stats'] ?? '') === '1') {
+            $available_stmt = $db->prepare("SELECT COUNT(DISTINCT l.id) as total " . $base_query . " AND l.copie_disponibili > 0");
+            if ($available_stmt === false) {
+                \App\Support\SecureLogger::error('Available-books count prepare failed', ['db_error' => $db->error]);
             } else {
-                $available_result = $available_stmt->get_result();
-                if ($available_result === false) {
-                    \App\Support\SecureLogger::error('Available-books count get_result failed', ['db_error' => $available_stmt->error]);
-                } else {
-                    $available_row = $available_result->fetch_assoc();
-                    $available_books = (int) ($available_row['total'] ?? 0);
+                if (!empty($query_params)) {
+                    $available_stmt->bind_param($param_types, ...$query_params);
                 }
+                if (!$available_stmt->execute()) {
+                    \App\Support\SecureLogger::error('Available-books count execute failed', ['db_error' => $available_stmt->error]);
+                } else {
+                    $available_result = $available_stmt->get_result();
+                    if ($available_result === false) {
+                        \App\Support\SecureLogger::error('Available-books count get_result failed', ['db_error' => $available_stmt->error]);
+                    } else {
+                        $available_row = $available_result->fetch_assoc();
+                        $available_books = (int) ($available_row['total'] ?? 0);
+                    }
+                }
+                $available_stmt->close();
             }
-            $available_stmt->close();
         }
 
         $data = [
