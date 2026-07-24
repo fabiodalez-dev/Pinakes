@@ -52,10 +52,18 @@ $languageVariant = strtolower($language);
 
 $cleanup = static function () use ($db, $titlePrefix): void {
     $like = $titlePrefix . '%';
-    $stmt = $db->prepare('DELETE FROM libri WHERE titolo LIKE ?');
-    $stmt->bind_param('s', $like);
-    $stmt->execute();
-    $stmt->close();
+    // libri first — libri_autori cascades on the FK — then the facet rows we
+    // seeded for the combination tests (autori/editori/generi), which are only
+    // deletable once no libro references them.
+    foreach (['DELETE FROM libri WHERE titolo LIKE ?',
+              'DELETE FROM autori WHERE nome LIKE ?',
+              'DELETE FROM editori WHERE nome LIKE ?',
+              'DELETE FROM generi WHERE nome LIKE ?'] as $sql) {
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param('s', $like);
+        $stmt->execute();
+        $stmt->close();
+    }
 };
 $cleanup();
 set_exception_handler(static function (Throwable $e) use ($cleanup, $db): void {
@@ -146,6 +154,86 @@ foreach (['it_IT', 'en_US', 'de_DE', 'fr_FR'] as $locale) {
     );
     $check(isset($catalogue['Lingue non disponibili.']) && trim((string) $catalogue['Lingue non disponibili.']) !== '', "{$locale} contains the endpoint error translation");
 }
+
+// Helper: run /catalog/search with the given query params, return the id list.
+$searchIds = static function (array $query) use ($controller, $requestFactory, $responseFactory): array {
+    $req = $requestFactory
+        ->createServerRequest('GET', '/api/v1/catalog/search')
+        ->withQueryParams($query + ['limit' => 50]);
+    $resp = $controller->search($req, $responseFactory->createResponse());
+    if ($resp->getStatusCode() !== 200) {
+        throw new RuntimeException('search returned ' . $resp->getStatusCode());
+    }
+    $body = json_decode((string) $resp->getBody(), true, 512, JSON_THROW_ON_ERROR);
+    return array_map('intval', array_column(is_array($body['data'] ?? null) ? $body['data'] : [], 'id'));
+};
+
+echo "D. Combined filters + language (the #282 regression)\n";
+// Seed a genre, publisher and author, then a book carrying ALL of them plus the
+// test language, and a decoy that shares the facets but has a DIFFERENT language
+// (must be excluded once the language clause is ANDed in).
+$db->query("INSERT INTO generi (nome) VALUES ('" . $db->real_escape_string($titlePrefix . '_G') . "')");
+$genreId = (int) $db->insert_id;
+$db->query("INSERT INTO editori (nome) VALUES ('" . $db->real_escape_string($titlePrefix . '_P') . "')");
+$publisherId = (int) $db->insert_id;
+$db->query("INSERT INTO autori (nome) VALUES ('" . $db->real_escape_string($titlePrefix . '_Auth') . "')");
+$authorId = (int) $db->insert_id;
+
+$insertRichBook = static function (string $suffix, string $bookLanguage, int $genreId, int $publisherId, ?int $authorId) use ($db, $titlePrefix): int {
+    $title = $titlePrefix . '_' . $suffix;
+    $stmt = $db->prepare(
+        "INSERT INTO libri (titolo, lingua, genere_id, editore_id, stato, copie_totali, copie_disponibili)
+         VALUES (?, ?, ?, ?, 'non_disponibile', 0, 0)"
+    );
+    $stmt->bind_param('ssii', $title, $bookLanguage, $genreId, $publisherId);
+    $stmt->execute();
+    $id = (int) $db->insert_id;
+    $stmt->close();
+    if ($authorId !== null) {
+        $link = $db->prepare("INSERT INTO libri_autori (libro_id, autore_id, ruolo, ordine_credito) VALUES (?, ?, 'principale', 1)");
+        $link->bind_param('ii', $id, $authorId);
+        $link->execute();
+        $link->close();
+    }
+    return $id;
+};
+
+$comboMatch = $insertRichBook('combo_match', $language, $genreId, $publisherId, $authorId);
+$comboOtherLang = $insertRichBook('combo_otherlang', 'ZzOther' . $run, $genreId, $publisherId, $authorId);
+
+$byGenreLang = $searchIds(['genre' => $genreId, 'language' => $language]);
+$check(in_array($comboMatch, $byGenreLang, true), 'genre + language returns the matching book');
+$check(!in_array($comboOtherLang, $byGenreLang, true), 'genre + language excludes the same-genre book in another language');
+
+$byAuthorLang = $searchIds(['author' => (string) $authorId, 'language' => $language]);
+$check(in_array($comboMatch, $byAuthorLang, true), 'author + language returns the matching book');
+$check(!in_array($comboOtherLang, $byAuthorLang, true), 'author + language excludes the same-author book in another language');
+
+$byPublisherLang = $searchIds(['publisher' => (string) $publisherId, 'language' => $language]);
+$check(in_array($comboMatch, $byPublisherLang, true), 'publisher + language returns the matching book');
+$check(!in_array($comboOtherLang, $byPublisherLang, true), 'publisher + language excludes the same-publisher book in another language');
+
+echo "E. Author sort (issue #282 requirement 1), NULL-safe pagination\n";
+$sortLang = 'ZzSort' . $run;
+$db->query("INSERT INTO autori (nome) VALUES ('" . $db->real_escape_string($titlePrefix . '_A_first') . "')");
+$authorA = (int) $db->insert_id;
+$db->query("INSERT INTO autori (nome) VALUES ('" . $db->real_escape_string($titlePrefix . '_Z_last') . "')");
+$authorZ = (int) $db->insert_id;
+$bookA = $insertRichBook('sortA', $sortLang, $genreId, $publisherId, $authorA);
+$bookZ = $insertRichBook('sortZ', $sortLang, $genreId, $publisherId, $authorZ);
+$bookNoAuthor = $insertRichBook('sortNone', $sortLang, $genreId, $publisherId, null);
+
+$asc = $searchIds(['language' => $sortLang, 'sort' => 'author_asc']);
+$posA = array_search($bookA, $asc, true);
+$posZ = array_search($bookZ, $asc, true);
+$check($posA !== false && $posZ !== false && $posA < $posZ, 'author_asc orders A-author before Z-author');
+$check(in_array($bookNoAuthor, $asc, true), 'author_asc keeps the authorless book (COALESCE NULL-safety)');
+
+$desc = $searchIds(['language' => $sortLang, 'sort' => 'author_desc']);
+$posAd = array_search($bookA, $desc, true);
+$posZd = array_search($bookZ, $desc, true);
+$check($posAd !== false && $posZd !== false && $posZd < $posAd, 'author_desc orders Z-author before A-author');
+$check(in_array($bookNoAuthor, $desc, true), 'author_desc keeps the authorless book (COALESCE NULL-safety)');
 
 $cleanup();
 $db->close();

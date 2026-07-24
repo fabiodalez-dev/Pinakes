@@ -453,7 +453,7 @@ final class OpenApiController
                         ['name' => 'genre',     'in' => 'query', 'schema' => ['type' => 'integer'], 'description' => 'Filter by genre ID (cascade: any level)'],
                         ['name' => 'language',  'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Filter by ISO 639-1 language code'],
                         ['name' => 'available', 'in' => 'query', 'schema' => ['type' => 'boolean'], 'description' => 'If true, return only books with at least one loanable copy'],
-                        ['name' => 'sort',      'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['newest', 'oldest', 'title_asc', 'title_desc'], 'default' => 'newest'], 'description' => 'Sort order: newest, oldest, title_asc, or title_desc'],
+                        ['name' => 'sort',      'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['newest', 'oldest', 'title_asc', 'title_desc', 'author_asc', 'author_desc'], 'default' => 'newest'], 'description' => 'Sort order: newest, oldest, title_asc, title_desc, author_asc, or author_desc'],
                         ['name' => 'cursor',    'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Opaque pagination cursor from meta.next_cursor'],
                         ['name' => 'limit',     'in' => 'query', 'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 50, 'default' => 20], 'description' => 'Page size (max 50)'],
                     ],

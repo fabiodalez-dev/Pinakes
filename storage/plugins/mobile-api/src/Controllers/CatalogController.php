@@ -1102,6 +1102,22 @@ final class CatalogController
             case 'title_desc':
                 return ['key' => 'title_desc', 'col' => 'l.titolo', 'dir' => 'DESC',
                         'order' => 'l.titolo DESC, l.id DESC', 'field' => 'titolo'];
+            case 'author_asc':
+            case 'author_desc':
+                // Sort by the primary-author display name (issue #282). The
+                // sort value is the SAME correlated subquery that populates the
+                // `autore` result column, so it matches what the app shows.
+                // COALESCE(..., '') keeps books with no author sorting as an
+                // empty string on BOTH sides of the keyset comparison — a raw
+                // NULL sort column would make `NULL {cmp} ?` false and silently
+                // drop authorless books from every page after the first.
+                $authorSortSql = \App\Support\AuthorName::displaySql('a');
+                $authorExpr = "COALESCE((SELECT {$authorSortSql} FROM libri_autori la JOIN autori a ON la.autore_id = a.id "
+                    . "WHERE la.libro_id = l.id AND la.ruolo IN ('principale', 'co-autore') "
+                    . "ORDER BY (la.ruolo = 'principale') DESC, la.ordine_credito, la.autore_id LIMIT 1), '')";
+                $dir = $sort === 'author_desc' ? 'DESC' : 'ASC';
+                return ['key' => $sort, 'col' => $authorExpr, 'dir' => $dir,
+                        'order' => "{$authorExpr} {$dir}, l.id {$dir}", 'field' => 'autore'];
             case 'newest':
             default:
                 return ['key' => 'newest', 'col' => 'l.id', 'dir' => 'DESC',
