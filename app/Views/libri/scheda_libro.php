@@ -240,14 +240,14 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   $genreParts[] = [$id, $name];
               };
               $addGenrePart((int)($libro['radice_id'] ?? 0), $libro['radice_nome'] ?? null);
-              $addGenrePart((int)($libro['genere_id_cascade'] ?? $libro['genere_id'] ?? 0), $libro['genere_nome'] ?? null);
-              $addGenrePart((int)($libro['sottogenere_id_cascade'] ?? $libro['sottogenere_id'] ?? 0), $libro['sottogenere_nome'] ?? null);
+              $addGenrePart((int)($libro['resolved_genere_id'] ?? $libro['genere_id'] ?? 0), $libro['genere_nome'] ?? null);
+              $addGenrePart((int)($libro['resolved_sottogenere_id'] ?? $libro['sottogenere_id'] ?? 0), $libro['sottogenere_nome'] ?? null);
             ?>
             <?php if (!empty($genreParts)): ?>
               <?php foreach ($genreParts as $i => $gp): ?>
                 <?php if ($i > 0): ?> <span class="text-gray-400">→</span> <?php endif; ?>
                 <a href="<?= htmlspecialchars(url('/admin/books?genere=' . $gp[0]), ENT_QUOTES, 'UTF-8') ?>"
-                   class="text-gray-900 hover:text-gray-600 hover:underline font-semibold"><?= App\Support\HtmlHelper::e($gp[1]) ?></a>
+                   class="text-gray-900 hover:text-gray-600 hover:underline font-semibold"><?= htmlspecialchars((string) $gp[1], ENT_QUOTES, 'UTF-8') ?></a>
               <?php endforeach; ?>
             <?php else: ?>
               <span class="text-gray-500"><?= __('Non specificato') ?></span>
