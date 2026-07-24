@@ -2434,6 +2434,44 @@ ob_start();
         </div><!-- /.related-books-wrap -->
     </div>
 </section>
+<script>
+// Accessibility: the grid clips every row after the first with overflow:hidden
+// + grid-auto-rows:0, but clipped cards stay in the DOM. Take them out of the
+// tab order and the accessibility tree so keyboard/screen-reader users can't
+// reach cards they cannot see. A clipped cell sits below the first row, so its
+// offsetTop is greater than the first row's. Recomputed on resize. `inert` does
+// not change layout, so reading offsetTop stays accurate without oscillation.
+(function () {
+  var grid = document.querySelector('.related-books-grid');
+  if (!grid) { return; }
+  var cells = Array.prototype.slice.call(grid.querySelectorAll('.related-book-cell'));
+  if (!cells.length) { return; }
+  function sync() {
+    var firstTop = Math.min.apply(null, cells.map(function (c) { return c.offsetTop; }));
+    cells.forEach(function (c) {
+      var clipped = c.offsetTop > firstTop + 1;
+      if (clipped) {
+        c.setAttribute('inert', '');
+        c.setAttribute('aria-hidden', 'true');
+      } else {
+        c.removeAttribute('inert');
+        c.removeAttribute('aria-hidden');
+      }
+      // Fallback for browsers without `inert`: keep the links off the tab order.
+      Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) {
+        if (clipped) { a.setAttribute('tabindex', '-1'); }
+        else { a.removeAttribute('tabindex'); }
+      });
+    });
+  }
+  sync();
+  var t;
+  window.addEventListener('resize', function () {
+    clearTimeout(t);
+    t = setTimeout(sync, 150);
+  });
+})();
+</script>
 <?php endif; ?>
 
 <?php
