@@ -340,7 +340,8 @@ INSERT INTO `languages` (`code`, `name`, `native_name`, `flag_emoji`, `is_defaul
 ('it_IT', 'Italian', 'Italiano', '🇮🇹', 0, 1, NULL, 493, 493, 100.00),
 ('en_US', 'English', 'English', '🇬🇧', 0, 1, 'locale/en_US.json', 4653, 4653, 100.00),
 ('de_DE', 'German', 'Deutsch', '🇩🇪', 1, 1, 'locale/de_DE.json', 4653, 4653, 100.00),
-('fr_FR', 'French', 'Français', '🇫🇷', 0, 1, 'locale/fr_FR.json', 4993, 4993, 100.00)
+('fr_FR', 'French', 'Français', '🇫🇷', 0, 1, 'locale/fr_FR.json', 4993, 4993, 100.00),
+('da_DK', 'Danish', 'Dansk', '🇩🇰', 0, 1, 'locale/da_DK.json', 6579, 6579, 100.00)
 ON DUPLICATE KEY UPDATE name = VALUES(name), native_name = VALUES(native_name), flag_emoji = VALUES(flag_emoji), translation_file = VALUES(translation_file), total_keys = VALUES(total_keys), translated_keys = VALUES(translated_keys), completion_percentage = VALUES(completion_percentage), is_active = VALUES(is_active), is_default = VALUES(is_default);
 
 -- Home Content (German)

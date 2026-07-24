@@ -32,12 +32,14 @@ class Installer {
             $normalizedLocale = 'de_DE';
         } elseif ($normalizedLocale === 'fr' || $normalizedLocale === 'fr_fr') {
             $normalizedLocale = 'fr_FR';
+        } elseif ($normalizedLocale === 'da' || $normalizedLocale === 'da_dk') {
+            $normalizedLocale = 'da_DK';
         } elseif ($normalizedLocale === 'it' || $normalizedLocale === 'it_it') {
             $normalizedLocale = 'it_IT';
         }
 
         // Fallback safety
-        if (!in_array($normalizedLocale, ['it_IT', 'en_US', 'de_DE', 'fr_FR'], true)) {
+        if (!in_array($normalizedLocale, ['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'], true)) {
             $normalizedLocale = 'it_IT';
         }
 
@@ -216,7 +218,7 @@ class Installer {
         // Get locale from session first (most reliable), fallback to .env
         $locale = $_SESSION['app_locale'] ?? ($this->config['APP_LOCALE'] ?? 'it');
 
-        // Convert locale code to full form (supports it, it_IT, en, en_US, de, de_DE, fr, fr_FR)
+        // Convert locale code to full form (supports it, it_IT, en, en_US, de, de_DE, fr, fr_FR, da, da_DK)
         $localeMap = [
             'it' => 'it_IT',
             'it_it' => 'it_IT',
@@ -226,6 +228,8 @@ class Installer {
             'de_de' => 'de_DE',
             'fr' => 'fr_FR',
             'fr_fr' => 'fr_FR',
+            'da' => 'da_DK',
+            'da_dk' => 'da_DK',
         ];
         $normalizedLocale = strtolower(str_replace('-', '_', $locale));
         $fullLocale = $localeMap[$normalizedLocale] ?? 'it_IT';
@@ -804,6 +808,7 @@ class Installer {
             'en' => 'en_US', 'en_us' => 'en_US',
             'de' => 'de_DE', 'de_de' => 'de_DE',
             'fr' => 'fr_FR', 'fr_fr' => 'fr_FR',
+            'da' => 'da_DK', 'da_dk' => 'da_DK',
         ];
         $supportedLocales = array_values(array_unique(array_values($localeMap)));
         $normalized = strtolower(str_replace('-', '_', $rawLocale));
@@ -1251,6 +1256,9 @@ HTACCESS;
         }
         if ($locale === 'fr' || $locale === 'fr_fr') {
             return 'fr_FR';
+        }
+        if ($locale === 'da' || $locale === 'da_dk') {
+            return 'da_DK';
         }
         if ($locale === 'it' || $locale === 'it_it') {
             return 'it_IT';

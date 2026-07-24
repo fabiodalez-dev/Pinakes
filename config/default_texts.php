@@ -97,4 +97,36 @@ return [
             'cookie_marketing_description' => 'Ces cookies sont utilisés pour diffuser des publicités personnalisées.',
         ],
     ],
+    'da_DK' => [
+        'app' => [
+            'footer_description' => 'Dit Pinakes-system til at katalogisere, administrere og dele din bogsamling.',
+        ],
+        'contacts' => [
+            'page_title' => 'Kontakt os',
+            'page_content' => '<p>Kontakt os for yderligere oplysninger.</p>',
+            'privacy_text' => 'Dine data er beskyttet i henhold til vores privatlivspolitik.',
+        ],
+        'privacy' => [
+            'page_title' => 'Privatlivspolitik',
+            'page_content' => '<p>Dit privatliv er vigtigt for os.</p>',
+            'cookie_banner_language' => 'da',
+            'cookie_banner_country' => 'DK',
+            'cookie_policy_content' => '<p>Denne side forklarer, hvordan vi bruger cookies på vores websted.</p>',
+        ],
+        'cookie_banner' => [
+            'banner_description' => '<p>Vi bruger cookies til at forbedre din oplevelse. Ved at fortsætte med at besøge dette websted accepterer du vores brug af cookies.</p>',
+            'accept_all_text' => 'Accepter alle',
+            'reject_non_essential_text' => 'Afvis ikke-nødvendige',
+            'save_selected_text' => 'Accepter valgte',
+            'preferences_button_text' => 'Præferencer',
+            'preferences_title' => 'Tilpas dine cookiepræferencer',
+            'preferences_description' => '<p>Vi respekterer din ret til privatliv. Du kan vælge ikke at tillade visse typer cookies. Dine præferencer vil gælde for hele webstedet.</p>',
+            'cookie_essential_name' => 'Nødvendige cookies',
+            'cookie_essential_description' => 'Disse cookies er nødvendige for, at webstedet kan fungere, og kan ikke deaktiveres.',
+            'cookie_analytics_name' => 'Analytiske cookies',
+            'cookie_analytics_description' => 'Disse cookies hjælper os med at forstå, hvordan besøgende interagerer med webstedet.',
+            'cookie_marketing_name' => 'Marketingcookies',
+            'cookie_marketing_description' => 'Disse cookies bruges til at levere personlige annoncer.',
+        ],
+    ],
 ];

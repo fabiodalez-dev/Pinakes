@@ -2807,7 +2807,7 @@ class Updater
         if (preg_match('#^locale/(?:routes_)?([a-z]{2}_[A-Z]{2})\.json$#', $path, $matches) !== 1) {
             return false;
         }
-        return !in_array($matches[1], ['it_IT', 'en_US', 'de_DE', 'fr_FR'], true);
+        return !in_array($matches[1], ['it_IT', 'en_US', 'de_DE', 'fr_FR', 'da_DK'], true);
     }
 
     /**

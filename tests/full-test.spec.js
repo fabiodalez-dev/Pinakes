@@ -3224,7 +3224,7 @@ test.describe.serial('Phase 20: Cleanup', () => {
 // Simulates an admin upgrading to this version and switching the app language.
 // Verifies: fr_FR LibraryThing strings (our i18n fix), en_US and de_DE render
 // without errors, and it_IT is always restored as the default at the end.
-// All 4 languages are pre-seeded by the installer — no language creation needed.
+// All 5 languages (incl. da_DK) are pre-seeded by the installer — no language creation needed.
 // ════════════════════════════════════════════════════════════════════════════
 test.describe.serial('Phase 21: Language Switch', () => {
   /** @type {import('@playwright/test').BrowserContext} */
