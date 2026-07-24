@@ -2918,8 +2918,12 @@ test.describe.serial('Phase 18: Issue Regressions', () => {
     // 1) Admin book detail page
     await page.goto(`${BASE}/admin/books/${bookId}`);
     await page.waitForLoadState('domcontentloaded');
-    const genreText = await page.locator('[data-testid="genre-display"]').textContent();
+    const genreDisplay = page.locator('[data-testid="genre-display"]');
+    const genreText = await genreDisplay.textContent();
     expect(genreText).toContain(childName);
+    await expect(genreDisplay.locator('a')).toHaveCount(2);
+    await expect(genreDisplay.locator('a').nth(0)).toHaveAttribute('href', new RegExp(`/admin/books\\?genere=${rootId}$`));
+    await expect(genreDisplay.locator('a').nth(1)).toHaveAttribute('href', new RegExp(`/admin/books\\?genere=${childId}$`));
 
     // 2) Frontend (public) book detail page — uses different query path
     await page.goto(`${BASE}/libro/${bookId}`);
