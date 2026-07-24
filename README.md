@@ -39,11 +39,24 @@ Pinakes is a self-hosted, full-featured ILS for schools, municipalities, and pri
 
 ## What's New in v0.7.41
 
+A maintenance release bundling seven merged pull requests: a new interface
+language, bulk loan extension, mobile catalogue improvements, a responsive
+book-detail fix, and a batch of reviewed bug fixes.
+
 ### Features
 - **Danish language (da_DK)** ([#279](https://github.com/fabiodalez-dev/Pinakes/issues/279)) — Danish is now a fully selectable interface language, contributed by [@HansUwe52](https://github.com/HansUwe52). Ships the complete UI catalogue (`locale/da_DK.json`, full key parity with the Italian source), route slugs (`locale/routes_da_DK.json`), and the fresh-install seed in Danish (`installer/database/data_da_DK.sql`: 181 genres, 22 email templates, CMS pages, settings). `da_DK` is wired into the installer language step, the email/route fallback chains, and the bundled-locale updater path. Emails fall back to English when a Danish template is missing.
+- **Bulk loan extension** ([#281](https://github.com/fabiodalez-dev/Pinakes/issues/281)) — the admin loans list gains a select-all-extendable checkbox column and a bulk "extend by N days" action. Each extension runs from `max(today, current due date)`, is capacity-checked against other loans and reservations, and the whole batch rolls back atomically if any single loan would conflict. Capped at 500 loans per batch to bound the transaction.
+- **Mobile catalogue language filter** ([#282](https://github.com/fabiodalez-dev/Pinakes/issues/282)) — the mobile API exposes `GET /catalog/languages` (real catalogue language values + counts) and accepts a free-text `language` filter on `/catalog/search`, matched case- and whitespace-insensitively. The mobile author sort now matches the web catalogue (principal-author surname, authorless titles last in both directions).
 
 ### Fixes
 - **Danish installer seed selection** ([#279](https://github.com/fabiodalez-dev/Pinakes/issues/279)) — the installer's locale maps only knew `it/en/de/fr`, so a Danish install silently seeded the Italian catalogue (genres + emails). All four maps in `Installer.php`, plus `PrivateModeMiddleware` and the `Updater` bundled-locale list, now include `da_DK`. Restored dropped content in the Danish `loan_pickup_ready` email and added the missing `fr_FR` entry to the `I18n` fallback map.
+- **Book Club external books** ([#138](https://github.com/fabiodalez-dev/Pinakes/issues/138)) — "Add to catalogue" no longer fails when a club's external book shares an ISBN already in the catalogue; acquisition reconciles against the existing record instead of hitting the unique constraint.
+- **Home "Available" count and responsive related books** ([#288](https://github.com/fabiodalez-dev/Pinakes/pull/288)) — the available-copies count on the home page is now gated behind `?with_stats=1` so the live catalogue search no longer pays a discarded aggregate on every keystroke; on narrow phones the related-books strip becomes a horizontal scroll-snap carousel (previously only one card was visible), with a `<noscript>` fallback that shows all cards stacked.
+- **Loan-list column sorting** ([#281](https://github.com/fabiodalez-dev/Pinakes/issues/281)) — clicking a column header on the loans table sorted the wrong column after the bulk-select checkbox was added; the server column map is realigned. Editing an unrelated loan field no longer re-arms already-sent due-date reminder emails.
+- **PHP 8.5 compatibility** ([#289](https://github.com/fabiodalez-dev/Pinakes/pull/289)) — removed a `ReflectionProperty::setAccessible()` call that is a no-op since PHP 8.1 and emits a deprecation notice on PHP 8.5.
+
+### Internal
+- **Genre resolution keys renamed** ([#286](https://github.com/fabiodalez-dev/Pinakes/issues/286), [#290](https://github.com/fabiodalez-dev/Pinakes/pull/290)) — the computed per-request genre keys were renamed to a clearer `resolved_*` convention (behaviour-preserving; no schema or API change).
 
 ### Database Changes
 - `migrate_0.7.41.sql` — registers the `da_DK` row in the `languages` table on existing installs (idempotent upsert), so Danish appears in the language UI after upgrading.
