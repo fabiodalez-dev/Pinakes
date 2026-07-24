@@ -1690,6 +1690,12 @@ class BookRepository
      * then maps IDs to the correct cascade levels so the edit form can
      * pre-populate all three dropdowns.
      *
+     * Adds COMPUTED, request-only keys prefixed `resolved_` — `resolved_genere_id`
+     * and `resolved_sottogenere_id` — that hold the depth-correct ids for the
+     * three dropdown slots. They are NOT columns on `libri` (which stores only
+     * `genere_id`/`sottogenere_id`); the `resolved_` prefix marks them as a
+     * derived view of the stored ids, not duplicates (see discussion #286).
+     *
      * @param array<string, mixed> $row Book row (modified in place)
      */
     private function resolveGenreHierarchy(array &$row): void
@@ -1735,9 +1741,9 @@ class BookRepository
             $row['radice_id'] = 0;
             $row['radice_nome'] = null;
             $row['genere_nome'] = null;
-            $row['genere_id_cascade'] = 0;
+            $row['resolved_genere_id'] = 0;
             $row['sottogenere_nome'] = null;
-            $row['sottogenere_id_cascade'] = 0;
+            $row['resolved_sottogenere_id'] = 0;
             return;
         }
 
@@ -1776,43 +1782,43 @@ class BookRepository
                     // L2 + deepest descendant
                     $deepest = end($subChain);
                     $row['genere_nome'] = $subChain[0]['nome'];
-                    $row['genere_id_cascade'] = (int)$subChain[0]['id'];
+                    $row['resolved_genere_id'] = (int)$subChain[0]['id'];
                     $row['sottogenere_nome'] = $deepest['nome'];
-                    $row['sottogenere_id_cascade'] = (int)$deepest['id'];
+                    $row['resolved_sottogenere_id'] = (int)$deepest['id'];
                 } elseif (count($subChain) === 1) {
                     // Direct child of root → L2 only
                     $row['genere_nome'] = $subChain[0]['nome'];
-                    $row['genere_id_cascade'] = (int)$subChain[0]['id'];
+                    $row['resolved_genere_id'] = (int)$subChain[0]['id'];
                     $row['sottogenere_nome'] = null;
-                    $row['sottogenere_id_cascade'] = 0;
+                    $row['resolved_sottogenere_id'] = 0;
                 } else {
                     $row['genere_nome'] = null;
-                    $row['genere_id_cascade'] = 0;
+                    $row['resolved_genere_id'] = 0;
                     $row['sottogenere_nome'] = null;
-                    $row['sottogenere_id_cascade'] = 0;
+                    $row['resolved_sottogenere_id'] = 0;
                 }
             } else {
                 $row['genere_nome'] = null;
-                $row['genere_id_cascade'] = 0;
+                $row['resolved_genere_id'] = 0;
                 $row['sottogenere_nome'] = null;
-                $row['sottogenere_id_cascade'] = 0;
+                $row['resolved_sottogenere_id'] = 0;
             }
         } elseif ($chainLen === 2) {
             // genere_id points to L2 genre — standard case
             $row['radice_id'] = $chain[0]['id'];
             $row['radice_nome'] = $chain[0]['nome'];
             $row['genere_nome'] = $chain[1]['nome'];
-            $row['genere_id_cascade'] = $chain[1]['id'];
-            $row['sottogenere_id_cascade'] = $sottogenereId;
+            $row['resolved_genere_id'] = $chain[1]['id'];
+            $row['resolved_sottogenere_id'] = $sottogenereId;
         } else {
             // genere_id points to L3+ — stored at a deeper level
             // Map: root=chain[0], genre=chain[1], sotto=genere_id
             $row['radice_id'] = $chain[0]['id'];
             $row['radice_nome'] = $chain[0]['nome'];
             $row['genere_nome'] = $chain[1]['nome'];
-            $row['genere_id_cascade'] = $chain[1]['id'];
+            $row['resolved_genere_id'] = $chain[1]['id'];
             $row['sottogenere_nome'] = $chain[$chainLen - 1]['nome'];
-            $row['sottogenere_id_cascade'] = $chain[$chainLen - 1]['id'];
+            $row['resolved_sottogenere_id'] = $chain[$chainLen - 1]['id'];
         }
     }
 
