@@ -6598,7 +6598,7 @@
   "%s prestito verrà esteso di %d giorni.": "%s loan will be extended by %d days.",
   "Inserisci un numero di giorni valido (1-365).": "Enter a valid number of days (1-365).",
   "Prestiti estesi": "Loans extended",
-  "Nessun prestito esteso": "No loan extended",
+  "Nessun prestito esteso": "No loans extended",
   "%s prestiti estesi di %d giorni.": "%s loans extended by %d days.",
   "%s prestito esteso di %d giorni.": "%s loan extended by %d days.",
   "Selezione o numero di giorni non validi.": "Invalid selection or number of days.",
