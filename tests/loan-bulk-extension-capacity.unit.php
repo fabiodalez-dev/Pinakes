@@ -231,6 +231,13 @@ $callBulk([$notDueLoan], 14);
 $check($dueDate($notDueLoan) === $today->modify('+16 days')->format('Y-m-d'), 'not-yet-due loan still extends from its own due date');
 $check($loanState($notDueLoan) === 'in_corso', 'not-yet-due loan stays in_corso');
 
+// ── Area 5: batch size cap (issue #281 hardening) ───────────────────────────
+echo "E. Oversized batch is rejected before opening a transaction\n";
+// 501 ids > BULK_EXTEND_MAX_LOANS (500). The ids need not exist: the cap is
+// checked during input validation, before any lock/transaction.
+$capResponse = $callBulk(range(1, 501), 14);
+$check(str_contains($capResponse->getHeaderLine('Location'), 'error=bulk_extend_invalid'), 'a batch over the 500-loan cap is rejected as invalid');
+
 $cleanup();
 $db->close();
 echo "\n{$pass} PASS, 0 FAIL\n";

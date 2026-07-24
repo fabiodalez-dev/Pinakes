@@ -26,6 +26,17 @@ const ROOT = path.resolve(__dirname, '..');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+/**
+ * Normalize Slim route placeholders so a documented `GET /x/{id}` and a code
+ * route `->get('/x/{id:\d+}', ...)` compare equal: first drop any inline regex
+ * constraint ({name:regex} -> {name}), then collapse every placeholder to {}.
+ */
+function stripRoutePlaceholders(source) {
+    return source
+        .replace(/\{([^}:]+):[^}]+\}/g, '{$1}')
+        .replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+}
+
 /** Walk dir recursively, return absolute paths matching ext. */
 function glob(relDir, ext, excludeSegments = []) {
     const results = [];
@@ -319,8 +330,7 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
 
         const DOC_RE   = /`GET (\/(?:api|resync|oai|openurl|archives)[^\s`]+)/g;
         const violations = [];
-        const normalizedPhpSources = phpSources.replace(/\{([^}:]+):[^}]+\}/g, '{$1}');
-        const normalizedRouteSources = normalizedPhpSources.replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+        const normalizedRouteSources = stripRoutePlaceholders(phpSources);
 
         // Return only the lexical body of each /api/v1 group callback. Looking
         // for a group and a child route anywhere in the same file is too weak:
@@ -371,9 +381,7 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
             const escapedChild = child.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const getRe = new RegExp(`->get\\(\\s*(['"])${escapedChild}\\1`);
             return apiV1GroupBodies(source).some(body => {
-                const normalized = body
-                    .replace(/\{([^}:]+):[^}]+\}/g, '{$1}')
-                    .replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+                const normalized = stripRoutePlaceholders(body);
                 return getRe.test(normalized);
             });
         };
@@ -403,9 +411,7 @@ test.describe.serial('Code Quality — 15 static analysis tests', () => {
                 const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                 const directGetRe = new RegExp(`->get\\(\\s*(['"])${escapedSearch}\\1`);
                 found = phpFiles.some(source => {
-                    const normalized = source
-                        .replace(/\{([^}:]+):[^}]+\}/g, '{$1}')
-                        .replace(/\{[^}:]+(?::[^}]+)?\}/g, '{}');
+                    const normalized = stripRoutePlaceholders(source);
                     return directGetRe.test(normalized) || groupedGetExists(source, child);
                 });
             }
