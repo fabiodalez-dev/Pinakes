@@ -1720,7 +1720,8 @@ class PluginManager
             try {
                 $reflection = new \ReflectionClass($pluginInstance);
                 $instanceProperty = $reflection->getProperty('instance');
-                $instanceProperty->setAccessible(true);
+                // No setAccessible(): it is a no-op since PHP 8.1 and emits a
+                // deprecation notice under PHP 8.5 that pollutes page output.
                 $wrappedInstance = $instanceProperty->getValue($pluginInstance);
 
                 if (is_object($wrappedInstance) && method_exists($wrappedInstance, $method)) {
