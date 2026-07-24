@@ -226,14 +226,18 @@ $bookNoAuthor = $insertRichBook('sortNone', $sortLang, $genreId, $publisherId, n
 $asc = $searchIds(['language' => $sortLang, 'sort' => 'author_asc']);
 $posA = array_search($bookA, $asc, true);
 $posZ = array_search($bookZ, $asc, true);
-$check($posA !== false && $posZ !== false && $posA < $posZ, 'author_asc orders A-author before Z-author');
-$check(in_array($bookNoAuthor, $asc, true), 'author_asc keeps the authorless book (COALESCE NULL-safety)');
+$posNoneAsc = array_search($bookNoAuthor, $asc, true);
+$check($posA !== false && $posZ !== false && $posA < $posZ, 'author_asc orders A-author before Z-author (by surname)');
+// Authorless titles sort LAST in BOTH directions (leading `(surname IS NULL) ASC`
+// term that never flips with the direction), matching the web catalog.
+$check($posNoneAsc !== false && $posNoneAsc === count($asc) - 1, 'author_asc sorts the authorless book LAST');
 
 $desc = $searchIds(['language' => $sortLang, 'sort' => 'author_desc']);
 $posAd = array_search($bookA, $desc, true);
 $posZd = array_search($bookZ, $desc, true);
-$check($posAd !== false && $posZd !== false && $posZd < $posAd, 'author_desc orders Z-author before A-author');
-$check(in_array($bookNoAuthor, $desc, true), 'author_desc keeps the authorless book (COALESCE NULL-safety)');
+$posNoneDesc = array_search($bookNoAuthor, $desc, true);
+$check($posAd !== false && $posZd !== false && $posZd < $posAd, 'author_desc orders Z-author before A-author (by surname)');
+$check($posNoneDesc !== false && $posNoneDesc === count($desc) - 1, 'author_desc sorts the authorless book LAST');
 
 $cleanup();
 $db->close();

@@ -451,7 +451,7 @@ final class OpenApiController
                         ['name' => 'author',    'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Filter by author name'],
                         ['name' => 'publisher', 'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Filter by publisher name'],
                         ['name' => 'genre',     'in' => 'query', 'schema' => ['type' => 'integer'], 'description' => 'Filter by genre ID (cascade: any level)'],
-                        ['name' => 'language',  'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Filter by ISO 639-1 language code'],
+                        ['name' => 'language',  'in' => 'query', 'schema' => ['type' => 'string', 'example' => 'Italiano'], 'description' => 'Filter by catalogue language value (free text as returned by GET /catalog/languages; matched case- and whitespace-insensitively).'],
                         ['name' => 'available', 'in' => 'query', 'schema' => ['type' => 'boolean'], 'description' => 'If true, return only books with at least one loanable copy'],
                         ['name' => 'sort',      'in' => 'query', 'schema' => ['type' => 'string', 'enum' => ['newest', 'oldest', 'title_asc', 'title_desc', 'author_asc', 'author_desc'], 'default' => 'newest'], 'description' => 'Sort order: newest, oldest, title_asc, title_desc, author_asc, or author_desc'],
                         ['name' => 'cursor',    'in' => 'query', 'schema' => ['type' => 'string'], 'description' => 'Opaque pagination cursor from meta.next_cursor'],

@@ -79,7 +79,21 @@ final class CatalogController
                 && isset($cursor['last_id']) && is_numeric($cursor['last_id'])
                 && array_key_exists('last_val', $cursor)
             ) {
-                $anchor = ['id' => (int) $cursor['last_id'], 'val' => $cursor['last_val']];
+                if (($sort['composite'] ?? false) === true) {
+                    // Author sorts carry an extra null-group flag (`last_nf`) that
+                    // drives the 3-term keyset comparator over (nf, surname, id). A
+                    // pre-fix cursor minted without it cannot be paged safely, so it
+                    // is ignored and the request restarts from the first page.
+                    if (isset($cursor['last_nf']) && is_numeric($cursor['last_nf'])) {
+                        $anchor = [
+                            'id'  => (int) $cursor['last_id'],
+                            'val' => $cursor['last_val'],
+                            'nf'  => (int) $cursor['last_nf'],
+                        ];
+                    }
+                } else {
+                    $anchor = ['id' => (int) $cursor['last_id'], 'val' => $cursor['last_val']];
+                }
             }
 
             [$conditions, $bindParams, $bindTypes] = $this->buildFilters($params);
@@ -88,7 +102,29 @@ final class CatalogController
             // is skipped or repeated across pages. Null anchor == first page.
             if ($anchor !== null) {
                 $cmp = $sort['dir'] === 'ASC' ? '>' : '<';
-                if ($sort['col'] === 'l.id') {
+                if (($sort['composite'] ?? false) === true) {
+                    // Author sorts order by (surname IS NULL) ASC, surname {dir},
+                    // id {dir} so authorless titles stay LAST in BOTH directions.
+                    // A single-column keyset comparator cannot express that, so
+                    // walk the 3-term lexicographic tuple (nf, scol, id):
+                    //   (nf > ?) OR (nf = ? AND scol {cmp} ?) OR (nf = ? AND scol = ? AND id {cmp} ?)
+                    // The null-group comparator is ALWAYS '>' (the leading
+                    // `(col IS NULL) ASC` term never flips with direction), while
+                    // scol and id follow the chosen direction.
+                    $col  = $sort['col'];
+                    $nf   = "({$col} IS NULL)";
+                    $scol = "COALESCE({$col}, '')";
+                    $nfVal = (int) ($anchor['nf'] ?? 0);
+                    $conditions[]  = "({$nf} > ? OR ({$nf} = ? AND {$scol} {$cmp} ?)"
+                        . " OR ({$nf} = ? AND {$scol} = ? AND l.id {$cmp} ?))";
+                    $bindParams[]  = $nfVal;
+                    $bindParams[]  = $nfVal;
+                    $bindParams[]  = (string) $anchor['val'];
+                    $bindParams[]  = $nfVal;
+                    $bindParams[]  = (string) $anchor['val'];
+                    $bindParams[]  = $anchor['id'];
+                    $bindTypes    .= 'iisisi';
+                } elseif ($sort['col'] === 'l.id') {
                     $conditions[]  = "l.id {$cmp} ?";
                     $bindParams[]  = $anchor['id'];
                     $bindTypes    .= 'i';
@@ -110,6 +146,11 @@ final class CatalogController
             // second COUNT round-trip.
             $fetch = $limit + 1;
             $authorDisplaySql = \App\Support\AuthorName::displaySql('a');
+            // Principal-author SURNAME, matching the web catalog's `autore_cognome`
+            // column (FrontendController). It keys the author_asc/author_desc keyset
+            // sort; `autore` above stays the display name mapListItem returns, so the
+            // two are never conflated. Distinct subquery aliases (la2) avoid clashes.
+            $authorSurnameSql = \App\Support\AuthorName::preferredSql('a');
 
             $sql = "
                 SELECT
@@ -119,6 +160,9 @@ final class CatalogController
                     (SELECT {$authorDisplaySql} FROM libri_autori la JOIN autori a ON la.autore_id = a.id
                      WHERE la.libro_id = l.id AND la.ruolo IN ('principale', 'co-autore')
                      ORDER BY (la.ruolo = 'principale') DESC, la.ordine_credito, la.autore_id LIMIT 1) AS autore,
+                    (SELECT SUBSTRING_INDEX({$authorSurnameSql}, ' ', -1) FROM libri_autori la2 JOIN autori a ON la2.autore_id = a.id
+                     WHERE la2.libro_id = l.id AND la2.ruolo = 'principale'
+                     ORDER BY la2.ordine_credito, la2.autore_id LIMIT 1) AS autore_cognome,
                     e.nome AS editore,
                     g.nome AS genere
                 FROM libri l
@@ -166,11 +210,18 @@ final class CatalogController
                 $lastVal = $sort['col'] === 'l.id'
                     ? (int) $last['id']
                     : (string) ($last[$sort['field']] ?? '');
-                $nextCursor = CursorCodec::encode([
+                $payload = [
                     'sort'     => $sort['key'],
                     'last_id'  => (int) $last['id'],
                     'last_val' => $lastVal,
-                ]);
+                ];
+                if (($sort['composite'] ?? false) === true) {
+                    // Mint the null-group flag alongside the surname so the next
+                    // page resumes on the correct side of the authorless-last
+                    // boundary (mirrors the `(surname IS NULL) ASC` ORDER BY term).
+                    $payload['last_nf'] = ($last[$sort['field']] ?? null) === null ? 1 : 0;
+                }
+                $nextCursor = CursorCodec::encode($payload);
             }
 
             $meta = [
@@ -1090,12 +1141,20 @@ final class CatalogController
      * Resolve the `sort` query param to a keyset-safe spec. Mirrors the web
      * catalog's options. `col`/`dir` drive the keyset anchor; `order` is the full
      * ORDER BY (tie-broken on the unique id); `field` is the result-row key whose
-     * value seeds the next cursor. Author sorts (author_asc/desc) key off the
-     * primary-author display name via a correlated subquery — keyset-safe but
-     * not index-backed, so they are heavier than the column-based sorts on a
-     * large unfiltered catalogue.
+     * value seeds the next cursor.
      *
-     * @return array{key:string, col:string, dir:string, order:string, field:string}
+     * Author sorts (author_asc/desc) key off the primary-author SURNAME
+     * (`SUBSTRING_INDEX(preferredSql, ' ', -1)`, ruolo='principale') — the SAME
+     * key the web catalog sorts on (FrontendController::buildOrderBy /
+     * `autore_cognome`), so app and web agree. Authorless titles sort LAST in
+     * BOTH directions via a leading `(surname IS NULL) ASC` term that never flips
+     * with `dir`. These sorts set `composite => true`: the keyset then walks the
+     * 3-term (nf, surname, id) tuple instead of the single-column comparator, and
+     * the cursor additionally carries the null-group flag (`last_nf`). Keyset-safe
+     * but not index-backed, so heavier than the column-based sorts on a large
+     * unfiltered catalogue.
+     *
+     * @return array{key:string, col:string, dir:string, order:string, field:string, composite?:bool}
      */
     private function sortSpec(?string $sort): array
     {
@@ -1111,26 +1170,27 @@ final class CatalogController
                         'order' => 'l.titolo DESC, l.id DESC', 'field' => 'titolo'];
             case 'author_asc':
             case 'author_desc':
-                // Sort by the primary-author display name (issue #282). The
-                // sort value is the SAME correlated subquery that populates the
-                // `autore` result column, so it matches what the app shows.
-                // COALESCE(..., '') keeps books with no author sorting as an
-                // empty string on BOTH sides of the keyset comparison — a raw
-                // NULL sort column would make `NULL {cmp} ?` false and silently
-                // drop authorless books from every page after the first.
-                $authorSortSql = \App\Support\AuthorName::displaySql('a');
-                $authorExpr = "COALESCE((SELECT {$authorSortSql} FROM libri_autori la JOIN autori a ON la.autore_id = a.id "
-                    . "WHERE la.libro_id = l.id AND la.ruolo IN ('principale', 'co-autore') "
-                    . "ORDER BY (la.ruolo = 'principale') DESC, la.ordine_credito, la.autore_id LIMIT 1), '')";
+                // Sort by the primary-author SURNAME (issue #282), the SAME key the
+                // web catalog uses (FrontendController's `autore_cognome`), so app
+                // and web agree. `col` is the raw, NULL-able surname subquery — the
+                // keyset needs the full expression because the SELECT alias
+                // `autore_cognome` is not visible in the WHERE clause. Authorless
+                // titles sort LAST in BOTH directions via a leading
+                // `(surname IS NULL) ASC` term that never flips with `dir`;
+                // COALESCE(surname, '') then orders the present surnames. The
+                // 3-term keyset comparator lives in search()'s anchor builder,
+                // switched on by `composite => true`.
+                $authorSurnameSql = \App\Support\AuthorName::preferredSql('a');
+                $surnameExpr = "(SELECT SUBSTRING_INDEX({$authorSurnameSql}, ' ', -1) "
+                    . "FROM libri_autori la2 JOIN autori a ON la2.autore_id = a.id "
+                    . "WHERE la2.libro_id = l.id AND la2.ruolo = 'principale' "
+                    . "ORDER BY la2.ordine_credito, la2.autore_id LIMIT 1)";
                 $dir = $sort === 'author_desc' ? 'DESC' : 'ASC';
-                // ORDER BY reuses the SELECT alias `autore` (which search() emits
-                // from this same subquery), COALESCE-wrapped to match the keyset's
-                // NULL handling, so the subquery is evaluated once per row for the
-                // ordering instead of a second time. The keyset anchor still needs
-                // the full expression in `col`, because a SELECT alias is not
-                // visible in the WHERE clause.
-                return ['key' => $sort, 'col' => $authorExpr, 'dir' => $dir,
-                        'order' => "COALESCE(autore, '') {$dir}, l.id {$dir}", 'field' => 'autore'];
+                // ORDER BY reuses the SELECT alias `autore_cognome` (emitted from
+                // this same subquery) so it is evaluated once per row for ordering.
+                return ['key' => $sort, 'col' => $surnameExpr, 'dir' => $dir,
+                        'order' => "(autore_cognome IS NULL) ASC, COALESCE(autore_cognome, '') {$dir}, l.id {$dir}",
+                        'field' => 'autore_cognome', 'composite' => true];
             case 'newest':
             default:
                 return ['key' => 'newest', 'col' => 'l.id', 'dir' => 'DESC',
