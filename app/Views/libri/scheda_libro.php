@@ -223,20 +223,25 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
             <span class="font-medium"><?= __("Genere:") ?></span>
             <?php
               $genreParts = [];
-              if (!empty($libro['radice_id'])) {
-                  $genreParts[] = [(int)$libro['radice_id'], (string)$libro['radice_nome']];
-              }
-              if (!empty($libro['genere_id'])) {
-                  $genName = (string)$libro['genere_nome'];
-                  if (strpos($genName, ' - ') !== false) {
-                      $parts = explode(' - ', $genName);
-                      $genName = end($parts);
+              $addGenrePart = static function (int $id, ?string $name) use (&$genreParts): void {
+                  $name = trim((string)$name);
+                  if ($id <= 0 || $name === '') {
+                      return;
                   }
-                  $genreParts[] = [(int)$libro['genere_id'], $genName];
-              }
-              if (!empty($libro['sottogenere_id'])) {
-                  $genreParts[] = [(int)$libro['sottogenere_id'], (string)$libro['sottogenere_nome']];
-              }
+                  if (strpos($name, ' - ') !== false) {
+                      $parts = explode(' - ', $name);
+                      $name = trim((string)end($parts));
+                  }
+                  foreach ($genreParts as $part) {
+                      if ((int)$part[0] === $id) {
+                          return;
+                      }
+                  }
+                  $genreParts[] = [$id, $name];
+              };
+              $addGenrePart((int)($libro['radice_id'] ?? 0), $libro['radice_nome'] ?? null);
+              $addGenrePart((int)($libro['genere_id_cascade'] ?? $libro['genere_id'] ?? 0), $libro['genere_nome'] ?? null);
+              $addGenrePart((int)($libro['sottogenere_id_cascade'] ?? $libro['sottogenere_id'] ?? 0), $libro['sottogenere_nome'] ?? null);
             ?>
             <?php if (!empty($genreParts)): ?>
               <?php foreach ($genreParts as $i => $gp): ?>
