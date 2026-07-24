@@ -31,8 +31,10 @@ $check(
     'due-today in-app notification has accurate wording'
 );
 $check(
-    preg_match("/3\s*=>\s*'p\\.data_scadenza'/", $api) === 1
-        && preg_match("/4\s*=>\s*'p\\.stato'/", $api) === 1,
+    // Column indices are shifted +1 since #281 added the bulk-select checkbox
+    // as DataTables column 0 (see PrestitiApiController columnMap).
+    preg_match("/4\s*=>\s*'p\\.data_scadenza'/", $api) === 1
+        && preg_match("/5\s*=>\s*'p\\.stato'/", $api) === 1,
     'DataTables due-date and status columns map to their real SQL fields'
 );
 $check(
