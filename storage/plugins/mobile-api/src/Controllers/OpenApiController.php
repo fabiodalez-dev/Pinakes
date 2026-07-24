@@ -572,6 +572,7 @@ final class OpenApiController
                                 ],
                             ]]],
                         ]]]],
+                        '304' => ['description' => 'Not Modified (ETag / If-None-Match honored).'],
                         '401' => ['$ref' => '#/components/responses/Unauthorized'],
                         '500' => ['$ref' => '#/components/responses/InternalError'],
                     ],

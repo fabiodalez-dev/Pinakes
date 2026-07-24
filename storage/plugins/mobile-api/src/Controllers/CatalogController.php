@@ -391,13 +391,18 @@ final class CatalogController
                   GROUP BY LOWER(TRIM(lingua))
                   ORDER BY count DESC, language ASC"
             );
-            if ($res !== false) {
-                while ($r = $res->fetch_assoc()) {
-                    $rows[] = [
-                        'language' => (string) $r['language'],
-                        'count'    => (int) $r['count'],
-                    ];
-                }
+            if ($res === false) {
+                // A query failure must not masquerade as "no languages" (200 with
+                // an empty list). Log and 500, mirroring search()'s prepare-failure
+                // handling.
+                SecureLogger::error('[MobileApi] catalog languages query failed: ' . $this->db->error);
+                return ResponseEnvelope::error($response, 'internal_error', __('Lingue non disponibili.'), 500);
+            }
+            while ($r = $res->fetch_assoc()) {
+                $rows[] = [
+                    'language' => (string) $r['language'],
+                    'count'    => (int) $r['count'],
+                ];
             }
 
             $etag = $this->computeLanguagesEtag($rows);
@@ -1085,8 +1090,10 @@ final class CatalogController
      * Resolve the `sort` query param to a keyset-safe spec. Mirrors the web
      * catalog's options. `col`/`dir` drive the keyset anchor; `order` is the full
      * ORDER BY (tie-broken on the unique id); `field` is the result-row key whose
-     * value seeds the next cursor. Author sorts are intentionally omitted for now
-     * (the principal author is a per-row subquery, not keyset-friendly).
+     * value seeds the next cursor. Author sorts (author_asc/desc) key off the
+     * primary-author display name via a correlated subquery — keyset-safe but
+     * not index-backed, so they are heavier than the column-based sorts on a
+     * large unfiltered catalogue.
      *
      * @return array{key:string, col:string, dir:string, order:string, field:string}
      */
@@ -1116,8 +1123,14 @@ final class CatalogController
                     . "WHERE la.libro_id = l.id AND la.ruolo IN ('principale', 'co-autore') "
                     . "ORDER BY (la.ruolo = 'principale') DESC, la.ordine_credito, la.autore_id LIMIT 1), '')";
                 $dir = $sort === 'author_desc' ? 'DESC' : 'ASC';
+                // ORDER BY reuses the SELECT alias `autore` (which search() emits
+                // from this same subquery), COALESCE-wrapped to match the keyset's
+                // NULL handling, so the subquery is evaluated once per row for the
+                // ordering instead of a second time. The keyset anchor still needs
+                // the full expression in `col`, because a SELECT alias is not
+                // visible in the WHERE clause.
                 return ['key' => $sort, 'col' => $authorExpr, 'dir' => $dir,
-                        'order' => "{$authorExpr} {$dir}, l.id {$dir}", 'field' => 'autore'];
+                        'order' => "COALESCE(autore, '') {$dir}, l.id {$dir}", 'field' => 'autore'];
             case 'newest':
             default:
                 return ['key' => 'newest', 'col' => 'l.id', 'dir' => 'DESC',
