@@ -6596,6 +6596,7 @@
   "Estendere i prestiti selezionati?": "Estendere i prestiti selezionati?",
   "%s prestiti verranno estesi di %d giorni.": "%s prestiti verranno estesi di %d giorni.",
   "%s prestito verrà esteso di %d giorni.": "%s prestito verrà esteso di %d giorni.",
+  "Inserisci un numero di giorni valido (1-365).": "Inserisci un numero di giorni valido (1-365).",
   "Prestiti estesi": "Prestiti estesi",
   "Nessun prestito esteso": "Nessun prestito esteso",
   "%s prestiti estesi di %d giorni.": "%s prestiti estesi di %d giorni.",

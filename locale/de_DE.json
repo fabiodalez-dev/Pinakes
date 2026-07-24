@@ -6596,6 +6596,7 @@
   "Estendere i prestiti selezionati?": "Ausgewählte Ausleihen verlängern?",
   "%s prestiti verranno estesi di %d giorni.": "%s Ausleihen werden um %d Tage verlängert.",
   "%s prestito verrà esteso di %d giorni.": "%s Ausleihe wird um %d Tage verlängert.",
+  "Inserisci un numero di giorni valido (1-365).": "Gib eine gültige Anzahl von Tagen ein (1-365).",
   "Prestiti estesi": "Ausleihen verlängert",
   "Nessun prestito esteso": "Keine Ausleihe verlängert",
   "%s prestiti estesi di %d giorni.": "%s Ausleihen um %d Tage verlängert.",

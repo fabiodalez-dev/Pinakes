@@ -6596,6 +6596,7 @@
   "Estendere i prestiti selezionati?": "Prolonger les prêts sélectionnés ?",
   "%s prestiti verranno estesi di %d giorni.": "%s prêts seront prolongés de %d jours.",
   "%s prestito verrà esteso di %d giorni.": "%s prêt sera prolongé de %d jours.",
+  "Inserisci un numero di giorni valido (1-365).": "Saisissez un nombre de jours valide (1-365).",
   "Prestiti estesi": "Prêts prolongés",
   "Nessun prestito esteso": "Aucun prêt prolongé",
   "%s prestiti estesi di %d giorni.": "%s prêts prolongés de %d jours.",

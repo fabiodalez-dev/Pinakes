@@ -689,7 +689,20 @@ document.addEventListener('DOMContentLoaded', function() {
         const extendBtn = document.getElementById('loans-bulk-extend');
         if (extendBtn) extendBtn.addEventListener('click', function() {
             const days = parseInt(daysInput.value) || 0;
-            if (selected.size === 0 || days < 1 || days > 365) return;
+            if (selected.size === 0) return; // bar is hidden without a selection
+            if (days < 1 || days > 365) {
+                // A typed-in out-of-range value (or a cleared field -> 0) must
+                // not silently no-op: say what's wrong and refocus the input.
+                const invalidMsg = t('Inserisci un numero di giorni valido (1-365).');
+                if (window.Swal) {
+                    Swal.fire({ title: t('Valore non valido'), text: invalidMsg, icon: 'error' })
+                        .then(() => { daysInput.focus(); daysInput.select(); });
+                } else {
+                    alert(invalidMsg);
+                    daysInput.focus(); daysInput.select();
+                }
+                return;
+            }
             const submit = function() {
                 document.getElementById('loans-bulk-form-days').value = String(days);
                 const wrap = document.getElementById('loans-bulk-form-ids');

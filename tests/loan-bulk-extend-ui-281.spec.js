@@ -123,6 +123,38 @@ test('bulk-extend UI extends a selected overdue loan and clears its overdue stat
   expect(dbQuery(`SELECT data_scadenza FROM prestiti WHERE id=${loanId}`)).toBe(isoOffset(14));
 });
 
+test('bulk-extend with an invalid days value shows a visible error, not a silent no-op', async ({ page }) => {
+  expect(loanId).toBeGreaterThan(0);
+  await loginAsAdmin(page);
+  await page.goto(`${BASE}/admin/loans`);
+  await page.waitForLoadState('networkidle');
+
+  const search = page.locator('input[type="search"]').first();
+  if (await search.isVisible({ timeout: 3000 }).catch(() => false)) {
+    await search.fill(`${TAG} Book`);
+    await page.waitForTimeout(600);
+  }
+  const checkbox = page.locator(`.loan-select[data-id="${loanId}"]`);
+  await expect(checkbox).toBeVisible({ timeout: 8000 });
+  await checkbox.check();
+  await expect(page.locator('#loans-bulk-bar')).toBeVisible();
+
+  // Type an out-of-range value (spinner min/max only guards the arrows) and
+  // click: the pre-fix code silently returned; now an error dialog must show.
+  await page.fill('#loans-bulk-days', '0');
+  const urlBefore = page.url();
+  await page.locator('#loans-bulk-extend').click();
+
+  const errorIcon = page.locator('.swal2-icon-error, .swal2-icon.swal2-error');
+  await expect(errorIcon.first(), 'invalid days must surface a visible error dialog').toBeVisible({ timeout: 5000 });
+  await expect(page.locator('.swal2-html-container')).toContainText('1-365');
+  await page.locator('.swal2-confirm').click();
+
+  // No submit happened: same URL, no bulk_extended outcome param.
+  expect(page.url()).toBe(urlBefore);
+  expect(page.url()).not.toContain('bulk_extended');
+});
+
 test('Edit Loan date picker follows the app locale (not hardcoded Italian)', async ({ page }) => {
   await loginAsAdmin(page);
   await page.goto(`${BASE}/admin/loans/${loanId}/edit`);
