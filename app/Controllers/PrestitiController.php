@@ -1383,7 +1383,14 @@ class PrestitiController
                 if ($dueDate === false) {
                     throw new \RuntimeException('Invalid due date during bulk extension');
                 }
-                $newDueDate = $dueDate->modify('+' . $days . ' days')->format('Y-m-d');
+                // Extend from the LATER of today and the current due date. A loan
+                // that is already overdue therefore extends from today, so adding
+                // N days lands it in the future and clears the "Overdue" status —
+                // instead of staying overdue when N is smaller than the overdue
+                // gap. A loan not yet due keeps extending from its due date.
+                $todayDate = \DateTimeImmutable::createFromFormat('!Y-m-d', $today);
+                $base = ($todayDate !== false && $todayDate > $dueDate) ? $todayDate : $dueDate;
+                $newDueDate = $base->modify('+' . $days . ' days')->format('Y-m-d');
                 $loanStart = (string) $loan['data_prestito'];
 
                 // Apply each accepted extension immediately inside this transaction:

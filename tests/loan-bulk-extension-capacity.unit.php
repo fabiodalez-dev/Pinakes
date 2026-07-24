@@ -198,6 +198,39 @@ $response = $callBulk([$currentLoan], 10);
 $check(str_contains($response->getHeaderLine('Location'), 'error=bulk_extend_conflict'), 'same-copy future schedule blocks the extension despite spare book capacity');
 $check($dueDate($currentLoan) === $due, 'copy conflict leaves the original due date unchanged');
 
+// ── Area 4: overdue loans clear "Overdue" when extended (issue #281 gap) ─────
+echo "D. Extending an overdue loan clears the overdue status\n";
+$loanState = static function (int $loanId) use ($db): string {
+    $stmt = $db->prepare('SELECT stato FROM prestiti WHERE id = ?');
+    $stmt->bind_param('i', $loanId);
+    $stmt->execute();
+    $v = (string) ($stmt->get_result()->fetch_assoc()['stato'] ?? '');
+    $stmt->close();
+    return $v;
+};
+
+// Deeply overdue: due 40 days ago, extended by only 14. It must extend from
+// TODAY (today+14, in the future) and become in_corso — not stay in_ritardo
+// because 14 < the 40-day overdue gap.
+[$odBook, $odCopies] = $makeBook(1);
+$odUser = $makeUser();
+$odStart = $today->modify('-50 days')->format('Y-m-d');
+$odDue = $today->modify('-40 days')->format('Y-m-d');
+$overdueLoan = $makeLoan($odBook, $odCopies[0], $odUser, $odStart, $odDue, 'in_ritardo');
+$callBulk([$overdueLoan], 14);
+$check($dueDate($overdueLoan) === $today->modify('+14 days')->format('Y-m-d'), 'overdue loan extends from today, not its stale past due date');
+$check($loanState($overdueLoan) === 'in_corso', 'overdue loan returns to in_corso once extended into the future');
+
+// Control: a loan not yet due keeps extending from its own due date.
+[$fdBook, $fdCopies] = $makeBook(1);
+$fdUser = $makeUser();
+$fdStart = $today->modify('-2 days')->format('Y-m-d');
+$fdDue = $today->modify('+2 days')->format('Y-m-d');
+$notDueLoan = $makeLoan($fdBook, $fdCopies[0], $fdUser, $fdStart, $fdDue, 'in_corso');
+$callBulk([$notDueLoan], 14);
+$check($dueDate($notDueLoan) === $today->modify('+16 days')->format('Y-m-d'), 'not-yet-due loan still extends from its own due date');
+$check($loanState($notDueLoan) === 'in_corso', 'not-yet-due loan stays in_corso');
+
 $cleanup();
 $db->close();
 echo "\n{$pass} PASS, 0 FAIL\n";
