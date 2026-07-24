@@ -2,7 +2,7 @@
   "name": "mobile-api",
   "display_name": "Mobile API",
   "description": "API REST/JSON versionata (/api/v1) per l'app companion mobile di Pinakes: discovery, autenticazione a token per dispositivo, ricerca catalogo, prestiti/prenotazioni, wishlist, profilo, messaggi e notifiche push. Disattivata per default finché non viene abilitata.",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "author": "Fabiodalez",
   "author_url": "",
   "plugin_url": "",
@@ -22,5 +22,6 @@
     ],
     "optional": true,
     "status": "stable"
-  }
+  },
+  "changelog": "v1.4.1: endpoint GET /api/v1/catalog/languages che restituisce i valori di lingua reali del catalogo (con conteggi) per popolare il filtro lingua dell'app dai dati veri invece che da una lista fissa (#282); il filtro lingua della ricerca ora e' case/space-insensitive. "
 }

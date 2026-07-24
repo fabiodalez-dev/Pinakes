@@ -539,6 +539,14 @@ class MobileApiPlugin
                 return (new CatalogController($db))->genres($request, $response);
             })->add($quotaMw())->add($authMw());
 
+            // #282: real catalogue language values for the app's language filter.
+            $group->get('/catalog/languages', function (
+                ServerRequestInterface $request,
+                ResponseInterface $response
+            ) use ($db): ResponseInterface {
+                return (new CatalogController($db))->languages($request, $response);
+            })->add($quotaMw())->add($authMw());
+
             // ── User actions (loans / reservations / wishlist / profile / msg) ──
             // Every handler is bearer-authenticated and strictly scoped to the
             // token-resolved user; loan/reservation overlap + availability reuse
