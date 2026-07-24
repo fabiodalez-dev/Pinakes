@@ -396,6 +396,23 @@ class CsvImportController
                     $importData['updated']++;
                 }
 
+                // Plugin hook: after book save. Fired OUTSIDE the per-row
+                // transaction (it just committed) because listeners such as the
+                // book-club external-proposal reconciler open their own
+                // transaction — nesting begin_transaction() would implicitly
+                // commit. Mirrors LibriController's create/edit dispatch so an
+                // imported book that matches an outstanding club proposal is
+                // reconciled at import time, not only on the next maintenance run.
+                // Isolated in its own try/catch: the row is already committed and
+                // counted, so a throwing listener must NOT reach the per-row catch
+                // below (which would rollback — a no-op here — and additionally
+                // record the committed row as a failed import, double-counting it).
+                try {
+                    \App\Support\Hooks::do('book.save.after', [$bookId, $parsedData]);
+                } catch (\Throwable $hookError) {
+                    \App\Support\SecureLogger::warning('[CsvImport] book.save.after listener failed (row already committed)', ['book_id' => $bookId, 'error' => $hookError->getMessage()]);
+                }
+
                 // Scraping (if enabled and ISBN exists)
                 if ($enableScraping && !empty($parsedData['isbn13'])) {
                     try {

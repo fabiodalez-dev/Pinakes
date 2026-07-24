@@ -101,6 +101,9 @@ class BookClubPlugin
             // reminders — drives poll auto-close + meeting reminders even on
             // installs whose only "cron" is the on-admin-login fallback.
             $this->registerHookInDb('maintenance.after_run', 'onMaintenanceTick', 10);
+            // Reconcile an external proposal as soon as its exact ISBN is
+            // entered through the normal catalogue create/update flow.
+            $this->registerHookInDb('book.save.after', 'onCatalogueBookSaved', 10);
             // Public quotes of the quotes module on the core book detail page.
             $this->registerHookInDb('book.frontend.details', 'renderBookQuotes', 10);
             // Documents the /api/v1/bookclub bridge inside mobile-api's
@@ -453,6 +456,22 @@ class BookClubPlugin
             }
             if (!$probe("SELECT 1 FROM information_schema.TABLE_CONSTRAINTS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookclub_books' AND CONSTRAINT_NAME = 'fk_bcbooks_external' AND CONSTRAINT_TYPE = 'FOREIGN KEY'")) {
                 $db->query("ALTER TABLE bookclub_books ADD CONSTRAINT fk_bcbooks_external FOREIGN KEY (external_book_id) REFERENCES bookclub_external_books (id) ON DELETE CASCADE");
+            }
+            // 4. Self-heal the (club_id, libro_id) unique key. It has shipped in
+            //    CREATE TABLE since the plugin's first version, so a real install
+            //    always has it; this only re-adds it if it was somehow dropped.
+            //    We REFUSE to dedupe: dropping a bookclub_books row cascades into
+            //    its polls, votes, discussions and reading history (the same
+            //    reason linkExternalBookToCatalogue never merges two club-books),
+            //    so on the impossible-in-practice case of existing duplicates we
+            //    leave the rows intact and log instead of destroying data.
+            if (!$probe("SELECT 1 FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'bookclub_books' AND INDEX_NAME = 'uq_bcbooks'")) {
+                $hasDupes = $probe("SELECT 1 FROM (SELECT 1 FROM bookclub_books WHERE libro_id IS NOT NULL GROUP BY club_id, libro_id HAVING COUNT(*) > 1 LIMIT 1) d");
+                if ($hasDupes) {
+                    SecureLogger::error('[BookClub] cannot add uq_bcbooks: duplicate (club_id, libro_id) rows exist; leaving them intact to preserve poll/vote/discussion history — deduplicate manually');
+                } else {
+                    $db->query("ALTER TABLE bookclub_books ADD UNIQUE KEY uq_bcbooks (club_id, libro_id)");
+                }
             }
         } catch (\Throwable $e) {
             SecureLogger::error('[BookClub] external-book schema upgrade failed: ' . $e->getMessage());
@@ -827,27 +846,57 @@ class BookClubPlugin
     }
 
     // ------------------------------------------------------------------
-    // Automation (hook: maintenance.after_run)
+    // Automation (hooks: book.save.after, maintenance.after_run)
     // ------------------------------------------------------------------
+
+    /**
+     * Event-driven primary path: a core catalogue save can satisfy an external
+     * club proposal immediately, without waiting for a page render or cron.
+     * Failures are isolated so an optional plugin can never abort the core
+     * catalogue save that triggered the hook.
+     *
+     * @param array<string, mixed> $_fields
+     */
+    public function onCatalogueBookSaved(int $bookId, array $_fields = []): void
+    {
+        if ($bookId <= 0) {
+            return;
+        }
+        try {
+            (new Repo($this->db))->reconcileExternalBooksForCatalogueBook($bookId);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] catalogue-save reconciliation failed: ' . $e->getMessage());
+        }
+    }
 
     /**
      * Scheduled sweep, invoked by MaintenanceService::runAll() (system cron
      * or the on-admin-login fallback):
-     *  1. close every open poll whose deadline has passed (winner advances
+     *  1. reconcile external proposals created by import paths that bypassed
+     *     the normal book-save hook;
+     *  2. close every open poll whose deadline has passed (winner advances
      *     in the workflow, losers return to the entry state);
-     *  2. email a reminder for meetings starting within the next 24 hours.
-     * Both steps are idempotent (status flip / reminder_sent_at stamp).
+     *  3. email a reminder for meetings starting within the next 24 hours.
+     * Every step is idempotent (link/state flip/reminder_sent_at stamp).
      */
     public function onMaintenanceTick(): void
     {
+        $repo = new Repo($this->db);
         try {
-            $repo = new Repo($this->db);
-            $polls = new PollController($this->db, $repo);
-            $polls->closeExpiredPolls();
+            $repo->reconcileAllExternalBooksWithCatalogue();
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] maintenance reconciliation failed: ' . $e->getMessage());
+        }
+        try {
+            (new PollController($this->db, $repo))->closeExpiredPolls();
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] maintenance poll close failed: ' . $e->getMessage());
+        }
+        try {
             (new MeetingController($this->db, $repo))->sendDueReminders();
         } catch (\Throwable $e) {
             // Never let the plugin break the shared maintenance pass.
-            SecureLogger::error('[BookClub] onMaintenanceTick failed: ' . $e->getMessage());
+            SecureLogger::error('[BookClub] maintenance meeting reminders failed: ' . $e->getMessage());
         }
         foreach (Modules\Registry::all($this->db) as $module) {
             try {

@@ -37,7 +37,8 @@ Opzionali (opt-in per club): **seasons** (stagioni con archivio storico),
   moderazione opzionale e limite di proposte aperte per membro.
 - **Votazioni**: voto singolo o **preferenza multipla (N voti a testa)** — il
   caso d'uso originale della #138 —, voto pubblico o segreto, scadenza con
-  **chiusura automatica** (cron o lazy alla visualizzazione), spareggio
+  **chiusura automatica** (manutenzione pianificata, fallback al login admin
+  e chiusura idempotente al primo tentativo di voto scaduto), spareggio
   deterministico a favore della proposta più antica, transizione automatica
   del vincitore nel workflow e ritorno dei perdenti allo stato iniziale.
 - **Incontri** in presenza/online/ibridi con ordine del giorno, verbale, posti
@@ -65,8 +66,10 @@ views/admin/*, views/public/*
 ```
 
 Hook core consumati: `app.routes.register`, `admin.menu.render`,
+`book.save.after` (riconcilia subito le proposte esterne per ISBN),
 `maintenance.after_run` (fired da `MaintenanceService::runAll()` — cron di
-sistema o fallback al login admin).
+sistema o fallback al login admin; chiude le votazioni scadute e recupera
+eventuali import che hanno bypassato l'hook di salvataggio).
 
 Hook esposti: `bookclub.club.created`, `bookclub.member.joined`,
 `bookclub.member.left`, `bookclub.book.proposed`,

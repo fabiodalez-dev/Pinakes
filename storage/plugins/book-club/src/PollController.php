@@ -72,13 +72,6 @@ class PollController extends BaseController
         if ($poll === null || (int) $poll['club_id'] !== (int) $club['id']) {
             return $this->notFound($response);
         }
-        // Lazy close: correctness does not depend on the cron. Elimination
-        // polls resolve their rounds repeatedly until a winner emerges.
-        if ($poll['status'] === 'open' && $poll['closes_at'] !== null && strtotime((string) $poll['closes_at']) <= time()) {
-            $this->resolvePoll($poll, true);
-            $poll = $this->repo->poll($pollId) ?? $poll;
-        }
-
         $userId = $this->userId();
         $mode = (string) ($poll['mode'] ?? 'simple');
         $round = $this->displayRound($poll);
@@ -131,15 +124,16 @@ class PollController extends BaseController
         if ($club === null || !$this->canView($club) || !$this->advancedVotingEnabled($club)) {
             return $this->notFound($response);
         }
-        // Same lazy-close guarantee as show(): the list must never present
-        // a deadline-passed poll as open while vote() rejects its ballots.
-        $this->closeExpiredForClub((int) $club['id']);
         $books = $this->repo->clubBooks((int) $club['id']);
         $eligible = $this->repo->pollEligibleBooks($club, $books);
+        $entryState = Repo::entryStateKey($this->repo->workflowStates($club));
         return $this->renderPublic($response, 'public/polls', [
             'club' => $club,
             'polls' => $this->repo->clubPolls((int) $club['id']),
             'eligible' => $eligible,
+            // Proposals still awaiting selection, including pre-Pinakes history
+            // entered without fabricating old polls (#138).
+            'neverChosen' => $this->repo->neverChosenProposals((int) $club['id'], $entryState),
             'isMember' => $this->isActiveMember($club),
             'canManage' => $this->canManage($club),
             'canCreate' => $this->can($club, 'polls.create'),
@@ -305,7 +299,15 @@ class PollController extends BaseController
         if ($poll === null || (int) $poll['club_id'] !== (int) $club['id']) {
             return $this->notFound($response);
         }
-        if ($poll['status'] !== 'open' || ($poll['closes_at'] !== null && strtotime((string) $poll['closes_at']) <= time())) {
+        // POST fallback: if the scheduled maintenance has not run yet, the
+        // first attempted ballot performs the same idempotent close before it
+        // is rejected. GET routes remain read-only.
+        if ($poll['status'] === 'open' && $this->repo->pollDeadlinePassed($pollId)) {
+            $this->closeExpiredPollById($pollId);
+            $this->flash('error', __('La scadenza della votazione è passata: la votazione è stata chiusa e il tuo voto non è stato registrato.'));
+            return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
+        }
+        if ($poll['status'] !== 'open') {
             $this->flash('error', __('La votazione è chiusa.'));
             return $this->redirect($response, '/book-club/' . $slug . '/polls/' . $pollId);
         }
@@ -477,21 +479,22 @@ class PollController extends BaseController
     }
 
     /**
-     * Per-club lazy close, the same guarantee show() gives for a single
-     * poll ("correctness does not depend on the cron") extended to the
-     * list/read paths: club page poll list, mobile club detail and the
-     * dashboards. Only touches polls with status='open' AND closes_at in
-     * the past, so the close side effects (tally, winner transition,
-     * bookclub.poll.closed hook) run exactly once.
+     * Close one due poll from a mutating fallback path (web/mobile vote POST).
+     * The persisted status and the database clock are checked again so a
+     * concurrent maintenance pass remains harmless.
      */
-    public function closeExpiredForClub(int $clubId): void
+    public function closeExpiredPollById(int $pollId): void
     {
-        foreach ($this->repo->expiredOpenPollsForClub($clubId) as $poll) {
-            try {
-                $this->resolvePoll($poll, true);
-            } catch (\Throwable $e) {
-                SecureLogger::error('[BookClub] lazy close failed for poll ' . $poll['id'] . ': ' . $e->getMessage());
-            }
+        $poll = $this->repo->poll($pollId);
+        if ($poll === null
+            || $poll['status'] !== 'open'
+            || !$this->repo->pollDeadlinePassed($pollId)) {
+            return;
+        }
+        try {
+            $this->resolvePoll($poll, true);
+        } catch (\Throwable $e) {
+            SecureLogger::error('[BookClub] on-demand close failed for poll ' . $pollId . ': ' . $e->getMessage());
         }
     }
 
