@@ -435,6 +435,14 @@ class RememberMeService
      */
     private function getClientIP(): ?string
     {
+        // Security scan F6 (CWE-807): this IP is written to the security audit
+        // log and the session-management UI. Only trust client-supplied
+        // forwarding headers when the direct peer is a configured trusted proxy;
+        // otherwise a client can forge the audit IP by setting X-Forwarded-For.
+        if (!HtmlHelper::isRemoteAddrTrustedProxy()) {
+            return $_SERVER['REMOTE_ADDR'] ?? null;
+        }
+
         // Check various headers that might contain the real IP (behind proxy/load balancer)
         $headers = [
             'HTTP_X_FORWARDED_FOR',

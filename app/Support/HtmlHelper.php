@@ -185,7 +185,7 @@ class HtmlHelper
      *
      * @return bool True when REMOTE_ADDR is in the trusted-proxy list
      */
-    private static function isRemoteAddrTrustedProxy(): bool
+    public static function isRemoteAddrTrustedProxy(): bool
     {
         $trustedRaw = $_ENV['TRUSTED_PROXIES'] ?? getenv('TRUSTED_PROXIES');
         $trustedEnv = is_string($trustedRaw) ? $trustedRaw : '';

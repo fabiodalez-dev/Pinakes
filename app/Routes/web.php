@@ -2809,12 +2809,35 @@ return function (App $app): void {
             }
         }
 
+        // Security scan F5 (CWE-918): the DNS check above (gethostbynamel /
+        // dns_get_record) and curl's own resolution are two SEPARATE lookups —
+        // a rebinding attacker can answer "public IP" to the first and
+        // "127.0.0.1" to curl's, so validating the hostname is not enough. Pin
+        // curl to the exact IPs we just validated as public via CURLOPT_RESOLVE
+        // so it never re-resolves. All entries in $ips / $aaaaRecords already
+        // passed the NO_PRIV_RANGE|NO_RES_RANGE filter above.
+        $port = isset($parts['port']) ? (int) $parts['port'] : 443;
+        $validatedIps = $ips;
+        foreach ($aaaaRecords as $record) {
+            if (!empty($record['ipv6'])) {
+                $validatedIps[] = $record['ipv6'];
+            }
+        }
+        if ($validatedIps === []) {
+            return $response->withStatus(403);
+        }
+        $resolveEntry = $host . ':' . $port . ':' . implode(',', $validatedIps);
+
         // Fetch image with secure settings
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_MAXREDIRS => 3,
+            // F5: never follow redirects — a 3xx to an internal host would be
+            // fetched by curl BEFORE any post-hoc URL re-validation could run,
+            // and the response body would already have been read. Reject 3xx.
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_RESOLVE => [$resolveEntry],
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
             CURLOPT_TIMEOUT => 10,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_SSL_VERIFYPEER => true,
@@ -2827,59 +2850,12 @@ return function (App $app): void {
 
         $img = curl_exec($ch);
         $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $finalUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
         curl_close($ch);
 
+        // A 3xx means the origin tried to redirect us (potentially to an
+        // internal target); with FOLLOWLOCATION off we simply refuse it.
         if ($img === false || $httpCode !== 200) {
             return $response->withStatus(404);
-        }
-
-        // Re-validate final URL after redirects to prevent SSRF via redirect
-        if ($finalUrl && $finalUrl !== $url) {
-            $finalParts = parse_url($finalUrl);
-            if (!$finalParts || !isset($finalParts['scheme'], $finalParts['host'])) {
-                return $response->withStatus(403);
-            }
-
-            // Ensure redirect stayed on HTTPS
-            if (strtolower($finalParts['scheme']) !== 'https') {
-                return $response->withStatus(403);
-            }
-
-            $finalHost = strtolower($finalParts['host']);
-
-            // Check if redirect went to private network
-            if (in_array($finalHost, $blockedHosts, true)) {
-                return $response->withStatus(403);
-            }
-
-            foreach ($privatePatterns as $pattern) {
-                if (preg_match($pattern, $finalHost)) {
-                    return $response->withStatus(403);
-                }
-            }
-
-            // DNS resolution check for redirect target
-            $finalIps = @gethostbynamel($finalHost) ?: [];
-            $finalAAAA = @dns_get_record($finalHost, DNS_AAAA) ?: [];
-
-            if (!$finalIps && !$finalAAAA) {
-                return $response->withStatus(403);
-            }
-
-            // Validate redirect target resolves to public IPs only
-            foreach ($finalIps as $ip) {
-                if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-                    return $response->withStatus(403);
-                }
-            }
-
-            foreach ($finalAAAA as $record) {
-                $ipv6 = $record['ipv6'] ?? null;
-                if ($ipv6 && filter_var($ipv6, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-                    return $response->withStatus(403);
-                }
-            }
         }
 
         // Validate it's actually an image
