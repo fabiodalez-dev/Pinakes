@@ -102,7 +102,10 @@ class PasswordController
                     $emailService = new EmailService($db);
                     $emailService->sendEmail($email, $subject, $html, $name);
                 } catch (\Throwable $e) {
-                    error_log('EmailService failed, falling back to Mailer: ' . $e->getMessage());
+                    // Use SecureLogger (not error_log): the PHPMailer exception
+                    // message can embed the recipient address, and SecureLogger
+                    // applies the centralised redaction/retention.
+                    \App\Support\SecureLogger::error('EmailService failed, falling back to Mailer', ['error' => $e->getMessage()]);
                     Mailer::send($email, $subject, $html);
                 }
             }

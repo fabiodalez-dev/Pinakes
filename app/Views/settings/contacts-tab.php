@@ -144,7 +144,7 @@ use App\Support\HtmlHelper;
           <input type="password" autocomplete="off"
                  id="recaptcha_secret_key"
                  name="recaptcha_secret_key"
-                 value="<?php echo HtmlHelper::e($recaptchaSecret); ?>"
+                 value="<?php echo htmlspecialchars((string) $recaptchaSecret, ENT_QUOTES, 'UTF-8'); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono" />
           <?php else: ?>
           <input type="password" autocomplete="off" disabled

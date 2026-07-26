@@ -2698,10 +2698,29 @@ return function (App $app): void {
             ];
         }
 
+        // Anti-DNS-rebinding: the DNS check above and curl's own resolution are
+        // two separate lookups — pin curl to the exact IPs already validated as
+        // public so it can't be steered to an internal address on the second
+        // lookup (same fix as /api/plugins/proxy-image; a whitelisted host that
+        // is compromised could otherwise resolve internally). Entries in $ips /
+        // $aaaaRecords already passed the NO_PRIV_RANGE|NO_RES_RANGE filter.
+        // Scheme is guaranteed 'https' here (enforced with a 403 above).
+        $coverPort = isset($parts['port']) ? (int) $parts['port'] : 443;
+        $coverIps = $ips;
+        foreach ($aaaaRecords as $record) {
+            if (!empty($record['ipv6'])) {
+                $coverIps[] = $record['ipv6'];
+            }
+        }
+        if ($coverIps === []) {
+            return $response->withStatus(403);
+        }
+
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_RESOLVE => [$host . ':' . $coverPort . ':' . implode(',', $coverIps)],
             CURLOPT_TIMEOUT => 10,
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_SSL_VERIFYPEER => true,

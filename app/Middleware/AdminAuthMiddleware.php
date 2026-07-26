@@ -155,6 +155,19 @@ class AdminAuthMiddleware implements MiddlewareInterface
             && (($row['stato'] ?? '') === 'attivo')
             && in_array($row['tipo_utente'] ?? null, self::ALLOWED_ROLES, true);
 
+        // Propagate the fresh DB role/status into the session snapshot. This
+        // middleware admits BOTH admin and staff, so a demoted admin (admin →
+        // staff) still passes the set-membership check above; without writing
+        // the current role back, every downstream inline `tipo_utente ===
+        // 'admin'` guard (update install/perform, saveToken, reCAPTCHA secret)
+        // would keep reading the stale login-time 'admin' and grant the
+        // destructive operation. Realigning the session closes that gap.
+        if ($valid) {
+            // $valid implies $row is an array with these keys.
+            $_SESSION['user']['tipo_utente'] = $row['tipo_utente'];
+            $_SESSION['user']['stato'] = $row['stato'];
+        }
+
         self::$revalidationCache[$userId] = $valid;
         return $valid;
     }
