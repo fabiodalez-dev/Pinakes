@@ -657,6 +657,13 @@ class UpdateController
      */
     public function saveToken(Request $request, Response $response, mysqli $db): Response
     {
+        // Persists the GitHub token used by the update-download chain → admin-only
+        // (AdminAuthMiddleware also lets staff through, so re-check here, like the
+        // other update actions).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
         $data = (array) $request->getParsedBody();
         $csrfToken = $data['csrf_token'] ?? '';
 

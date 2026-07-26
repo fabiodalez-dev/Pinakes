@@ -655,6 +655,17 @@ class SettingsController
             'notification_email' => trim(strip_tags((string) ($data['notification_email'] ?? ''))),
         ];
 
+        // F11 follow-up: the reCAPTCHA secret is admin-only. Its input is
+        // rendered disabled for staff (so it isn't submitted), which means a
+        // staff save would otherwise persist an empty string and silently wipe
+        // the admin-configured secret — disabling spam protection on the public
+        // contact form (fail-open). Drop the key entirely for non-admins so
+        // neither a normal save nor a forged POST can overwrite it; the stored
+        // value is preserved. Admins keep full edit (including clearing it).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            unset($settings['recaptcha_secret_key']);
+        }
+
         // Validate and sanitize Maps embed code (Google Maps or OpenStreetMap)
         if (!empty($settings['google_maps_embed'])) {
             $embedCode = trim($settings['google_maps_embed']);
