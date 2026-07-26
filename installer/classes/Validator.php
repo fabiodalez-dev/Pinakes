@@ -116,7 +116,15 @@ class Validator {
             return true;
 
         } catch (PDOException $e) {
-            $this->errors['connection'] = __("Connessione al database fallita") . ": " . $e->getMessage();
+            // Security scan F4 (CWE-918): the raw PDO error is an error-based
+            // oracle. On the unauthenticated /installer test-connection path it
+            // lets a caller tell "connection refused" from "MySQL handshake"
+            // from "timeout" for any attacker-chosen host:port/socket, turning
+            // the installer into an internal port scanner. Keep the detail in
+            // the server log for legitimate install debugging, but return only a
+            // generic, non-oracle message to the client.
+            error_log('[Installer] DB connection test failed: ' . $e->getMessage());
+            $this->errors['connection'] = __("Connessione al database fallita. Verifica host, porta, nome utente e password.");
             return false;
         }
     }

@@ -48,7 +48,13 @@ class PrivateModeMiddleware implements MiddlewareInterface
         '/assets/', '/css/', '/js/', '/img/', '/images/', '/fonts/',
         '/uploads/settings/',
         '/installer', '/language/', '/health', '/favicon', '/robots.txt',
-        '/sitemap', '/feed.xml', '/llms.txt', '/.well-known/',
+        '/.well-known/',
+        // Security scan F3 (CWE-862): /feed.xml, /sitemap(.xml) and /llms.txt
+        // are content-bearing — they leak book titles, authors, descriptions and
+        // enumerate every catalog URL to unauthenticated visitors. In private
+        // mode the whole catalog must be behind the login wall, so they are NOT
+        // allow-listed here (they stay fully public when private mode is off,
+        // since isAllowed() only runs once advanced.private_mode === '1').
     ];
 
     /**

@@ -99,6 +99,16 @@ class LanguagesController
             $errors[] = __("Il nome nativo è obbligatorio (es. Italiano, English)");
         }
 
+        // Bail on an invalid locale code BEFORE reaching the upload handler:
+        // the code becomes part of the target file path, so an invalid code
+        // must never be used to build/write a translation file (path traversal).
+        if (empty($data['code']) || !I18n::isValidLocaleCode($data['code'])) {
+            $_SESSION['flash_error'] = implode('<br>', $errors);
+            return $response
+                ->withHeader('Location', '/admin/languages/create')
+                ->withStatus(302);
+        }
+
         // Handle translation file upload
         $translationFile = null;
         if (isset($_FILES['translation_json']) && $_FILES['translation_json']['error'] === UPLOAD_ERR_OK) {
@@ -559,6 +569,13 @@ class LanguagesController
             return ['success' => false, 'error' => __("Errore nel caricamento del file JSON")];
         }
 
+        // The locale code becomes part of the target file path — reject any
+        // code that is not a strict xx_YY locale BEFORE touching the filesystem
+        // (prevents arbitrary .json write via "../" traversal).
+        if (!I18n::isValidLocaleCode($code)) {
+            return ['success' => false, 'error' => __("Codice lingua non valido")];
+        }
+
         $extension = strtolower(pathinfo($uploadedFile['name'] ?? '', PATHINFO_EXTENSION));
         $mimeType = strtolower($uploadedFile['type'] ?? '');
 
@@ -579,6 +596,17 @@ class LanguagesController
 
         $sanitized = $this->sanitizeTranslations($decoded);
         $targetPath = $this->getLocaleFilePath($code);
+
+        // Defense in depth: the resolved file must live directly inside the
+        // locale directory. realpath() can't resolve a not-yet-created file, so
+        // validate the DIRNAME against the locale base and the basename shape.
+        $localeDir = realpath(__DIR__ . '/../../../locale');
+        $targetDir = realpath(dirname($targetPath));
+        if ($localeDir === false || $targetDir === false
+            || $targetDir !== $localeDir
+            || basename($targetPath) !== $code . '.json') {
+            return ['success' => false, 'error' => __("Percorso file non valido")];
+        }
 
         if ($backupExisting && file_exists($targetPath)) {
             copy($targetPath, $targetPath . '.backup.' . time());

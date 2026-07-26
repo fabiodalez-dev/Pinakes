@@ -132,11 +132,27 @@ use App\Support\HtmlHelper;
 
         <div>
           <label for="recaptcha_secret_key" class="block text-sm font-medium text-gray-700"><?= __("Secret Key") ?></label>
+          <?php
+            // Security scan F11 (CWE-522): the reCAPTCHA secret must never reach
+            // 'staff'. Only admins get the real value in an editable field; for
+            // everyone else the field is masked AND disabled (disabled inputs are
+            // not submitted), so the value neither leaks nor gets wiped on save.
+            $isAdmin = $isAdmin ?? (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
+            $recaptchaSecret = (string) ($contactSettings['recaptcha_secret_key'] ?? '');
+          ?>
+          <?php if (!empty($isAdmin)): ?>
           <input type="password" autocomplete="off"
                  id="recaptcha_secret_key"
                  name="recaptcha_secret_key"
-                 value="<?php echo HtmlHelper::e($contactSettings['recaptcha_secret_key'] ?? ''); ?>"
+                 value="<?php echo htmlspecialchars((string) $recaptchaSecret, ENT_QUOTES, 'UTF-8'); ?>"
                  class="mt-1 block w-full rounded-xl border-gray-300 focus:border-gray-500 focus:ring-gray-500 text-sm py-3 px-4 font-mono" />
+          <?php else: ?>
+          <input type="password" autocomplete="off" disabled
+                 id="recaptcha_secret_key"
+                 value="<?php echo $recaptchaSecret !== '' ? '••••••••••••' : ''; ?>"
+                 placeholder="<?= htmlspecialchars(__('Solo gli amministratori possono modificare questa chiave.'), ENT_QUOTES, 'UTF-8') ?>"
+                 class="mt-1 block w-full rounded-xl border-gray-300 bg-gray-100 text-gray-400 text-sm py-3 px-4 font-mono cursor-not-allowed" />
+          <?php endif; ?>
         </div>
 
         <p class="text-xs text-gray-500">

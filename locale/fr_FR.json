@@ -6605,5 +6605,9 @@
   "Estensione non riuscita, riprova.": "La prolongation a échoué, veuillez réessayer.",
   "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.": "Prolongation annulée : au moins un prêt entrerait en conflit avec un autre prêt ou une réservation.",
   "Estendi": "Prolonger",
-  "Lingue non disponibili.": "Les langues ne sont pas disponibles."
+  "Lingue non disponibili.": "Les langues ne sont pas disponibles.",
+  "Authorization header:": "En-tête Authorization :",
+  "Percorso file non valido": "Chemin de fichier invalide",
+  "Solo gli amministratori possono modificare questa chiave.": "Seuls les administrateurs peuvent modifier cette clé.",
+  "Solo gli amministratori possono visualizzare e gestire le API key.": "Seuls les administrateurs peuvent voir et gérer les clés API."
 }

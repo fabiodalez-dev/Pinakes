@@ -1747,7 +1747,11 @@ class PrestitiController
             return null;
         }
 
-        if (str_starts_with($trimmed, '//')) {
+        // Reject protocol-relative (`//host`) and backslash-authority (`/\host`,
+        // which browsers normalise to `//host`) targets — a second char of `/`
+        // or `\` after the leading slash is an open-redirect vector. Aligned
+        // with AuthController/LanguageController sanitizers (findings F4/F10).
+        if (preg_match('#^/[\\\\/]#', $trimmed)) {
             return null;
         }
 

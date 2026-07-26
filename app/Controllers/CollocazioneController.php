@@ -405,7 +405,7 @@ class CollocazioneController
 
         // Generate CSV output
         $output = fopen('php://temp', 'r+');
-        $writer = Csv::writerToStream($output, ';');
+        $writer = Csv::writerToStream($output, ';', "'");
         $writer->insertAll($csv);
         rewind($output);
         $csvContent = stream_get_contents($output);

@@ -46,6 +46,12 @@ class SettingsController
         $queryParams = $request->getQueryParams();
         $activeTab = $queryParams['tab'] ?? 'general';
 
+        // Security scan F11 (CWE-522): the settings page is reachable by 'staff'
+        // (AdminAuthMiddleware admits them), but the advanced/contacts tabs echo
+        // admin secrets (API keys, reCAPTCHA secret) verbatim. Only real admins
+        // may see those values; the partials gate secret output on $isAdmin.
+        $isAdmin = (($_SESSION['user']['tipo_utente'] ?? '') === 'admin');
+
         ob_start();
         $data = compact(
             'appSettings',
@@ -60,7 +66,8 @@ class SettingsController
             'contactMessages',
             'activeTab',
             'db',
-            'cookieBannerTexts'
+            'cookieBannerTexts',
+            'isAdmin'
         );
         require __DIR__ . '/../Views/settings/index.php';
         $content = ob_get_clean();
@@ -647,6 +654,17 @@ class SettingsController
             'recaptcha_secret_key' => trim(strip_tags((string) ($data['recaptcha_secret_key'] ?? ''))),
             'notification_email' => trim(strip_tags((string) ($data['notification_email'] ?? ''))),
         ];
+
+        // F11 follow-up: the reCAPTCHA secret is admin-only. Its input is
+        // rendered disabled for staff (so it isn't submitted), which means a
+        // staff save would otherwise persist an empty string and silently wipe
+        // the admin-configured secret — disabling spam protection on the public
+        // contact form (fail-open). Drop the key entirely for non-admins so
+        // neither a normal save nor a forged POST can overwrite it; the stored
+        // value is preserved. Admins keep full edit (including clearing it).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            unset($settings['recaptcha_secret_key']);
+        }
 
         // Validate and sanitize Maps embed code (Google Maps or OpenStreetMap)
         if (!empty($settings['google_maps_embed'])) {

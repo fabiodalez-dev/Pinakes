@@ -33,6 +33,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $installer->loadEnvConfig();
             $pdo = $installer->getDatabaseConnection();
 
+            // Security scan F2 (CWE-312): encrypt the SMTP password at rest with
+            // the SAME AES-256-GCM scheme the running app uses
+            // (App\Support\SettingsEncryption), so a DB-only read (dump, backup,
+            // SQLi elsewhere) cannot recover the plaintext credential. The
+            // installer has no composer autoloader, so the scheme is inlined
+            // here; SettingsEncryption::decrypt() reads it back transparently
+            // (prefix "ENC:", key = sha256(PLUGIN_ENCRYPTION_KEY, raw), payload =
+            // iv[12] | tag[16] | ciphertext). If no key is available we ABORT
+            // rather than silently persist the password in cleartext.
+            $smtpPasswordStored = $smtpPassword;
+            if ($smtpPassword !== '') {
+                $encKeyRaw = $_ENV['PLUGIN_ENCRYPTION_KEY'] ?? getenv('PLUGIN_ENCRYPTION_KEY') ?: '';
+                if ($encKeyRaw === '' || $encKeyRaw === false) {
+                    $encKeyRaw = $_ENV['APP_KEY'] ?? getenv('APP_KEY') ?: '';
+                }
+                if ($encKeyRaw === '' || $encKeyRaw === false) {
+                    throw new Exception(__("Chiave di cifratura non disponibile: impossibile salvare la password SMTP in modo sicuro."));
+                }
+                $encKey = hash('sha256', (string)$encKeyRaw, true);
+                $iv = random_bytes(12);
+                $tag = '';
+                $cipher = openssl_encrypt($smtpPassword, 'aes-256-gcm', $encKey, OPENSSL_RAW_DATA, $iv, $tag);
+                if ($cipher === false) {
+                    throw new Exception(__("Cifratura della password SMTP fallita."));
+                }
+                $smtpPasswordStored = 'ENC:' . base64_encode($iv . $tag . $cipher);
+            }
+
             // CRITICAL FIX: Save email settings directly to database
             // During installation, ConfigStore doesn't work because config/settings.php doesn't exist yet
             // We save directly to the settings table using PDO
@@ -45,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ['email', 'smtp_host', $smtpHost],
                 ['email', 'smtp_port', (string)$smtpPort],
                 ['email', 'smtp_username', $smtpUsername],
-                ['email', 'smtp_password', $smtpPassword],
+                ['email', 'smtp_password', $smtpPasswordStored],
                 ['email', 'smtp_security', $smtpEncryption],
             ];
 

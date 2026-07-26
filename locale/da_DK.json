@@ -6605,5 +6605,9 @@
   "Estensione non riuscita, riprova.": "Forlængelsen mislykkedes. Prøv igen.",
   "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.": "Forlængelsen blev annulleret: Mindst ét lån ville være i konflikt med et andet lån eller en reservation.",
   "Estendi": "Forlæng",
-  "Lingue non disponibili.": "Sprog er ikke tilgængelige."
+  "Lingue non disponibili.": "Sprog er ikke tilgængelige.",
+  "Authorization header:": "Authorization-header:",
+  "Percorso file non valido": "Ugyldig filsti",
+  "Solo gli amministratori possono modificare questa chiave.": "Kun administratorer kan redigere denne nøgle.",
+  "Solo gli amministratori possono visualizzare e gestire le API key.": "Kun administratorer kan se og administrere API-nøgler."
 }

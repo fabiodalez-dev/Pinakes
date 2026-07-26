@@ -3,6 +3,10 @@ use App\Support\ConfigStore;
 
 // Variables passed from controller
 $libro = $libro ?? [];
+// Security: borrower PII (loan history, active-loan/per-copy borrower) is gated
+// on this flag. Default to false so a code path that includes this view without
+// setting it can never leak PII to a non-admin/staff viewer (finding F2).
+$isAdminOrStaff = $isAdminOrStaff ?? false;
 $isCatalogueMode = ConfigStore::isCatalogueMode();
 // i18n-2 (refactor): centralised label map; see App\Support\SeriesLabels.
 $seriesTypeLabels = \App\Support\SeriesLabels::types();
@@ -280,6 +284,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           </h3>
         </div>
         <div class="card-body space-y-3 text-sm text-gray-700">
+          <?php if ($isAdminOrStaff): ?>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Utente") ?></span>
             <span class="text-right">
@@ -287,6 +292,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
               <span class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_email'] ?? ''); ?></span>
             </span>
           </div>
+          <?php endif; ?>
           <div class="flex items-center justify-between">
             <span class="font-medium"><?= __("Dal") ?></span>
             <span><?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_prestito'] ?? '', false, '/')); ?></span>
@@ -1019,7 +1025,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
                   <?php endif; ?>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
-                  <?php if (!empty($copia['utente_nome'])): ?>
+                  <?php if ($isAdminOrStaff && !empty($copia['utente_nome'])): ?>
                     <div class="text-gray-900">
                       <?php echo App\Support\HtmlHelper::e($copia['utente_nome'] . ' ' . $copia['utente_cognome']); ?>
                     </div>
@@ -1183,7 +1189,7 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
   </div>
   <?php endif; ?>
 
-  <?php if (!empty($loanHistory) && count($loanHistory) > 0 && !$isCatalogueMode): ?>
+  <?php if ($isAdminOrStaff && !empty($loanHistory) && count($loanHistory) > 0 && !$isCatalogueMode): ?>
   <div class="mt-6">
     <div class="card">
       <div class="card-header">
@@ -1782,11 +1788,13 @@ $btnDanger  = 'inline-flex items-center gap-2 rounded-lg border-2 border-red-300
           <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(App\Support\Csrf::ensureToken(), ENT_QUOTES, 'UTF-8'); ?>">
           <input type="hidden" name="redirect_to" value="<?php echo htmlspecialchars($bookPath ?? url('/admin/books/' . (int)($libro['id'] ?? 0)), ENT_QUOTES, 'UTF-8'); ?>">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-700">
+            <?php if ($isAdminOrStaff): ?>
             <div>
               <div class="text-xs text-gray-500 uppercase"><?= __("Utente") ?></div>
               <div class="font-medium"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_nome'] ?? __('Sconosciuto')); ?></div>
               <div class="text-xs text-gray-500"><?php echo App\Support\HtmlHelper::e($activeLoan['utente_email'] ?? ''); ?></div>
             </div>
+            <?php endif; ?>
             <div>
               <div class="text-xs text-gray-500 uppercase"><?= __("Prestito") ?></div>
               <div class="font-medium"><?= __("Dal") ?> <?php echo App\Support\HtmlHelper::e(format_date($activeLoan['data_prestito'] ?? '', false, '/')); ?></div>

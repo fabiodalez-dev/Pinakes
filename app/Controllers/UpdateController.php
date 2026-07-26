@@ -72,8 +72,11 @@ class UpdateController
      */
     public function performUpdate(Request $request, Response $response, mysqli $db): Response
     {
-        // Admin-only access check removed
-
+        // Applies a downloaded release over the app → admin-only (AdminAuthMiddleware
+        // also lets staff through, so re-check here, like createBackup/restoreBackup).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
 
         // Verify CSRF token
         $data = (array) $request->getParsedBody();
@@ -492,6 +495,12 @@ class UpdateController
      */
     public function uploadUpdate(Request $request, Response $response, mysqli $db): Response
     {
+        // Accepts an uploaded update ZIP → admin-only (AdminAuthMiddleware also lets
+        // staff through, so re-check here, like createBackup/restoreBackup).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
         // Verify CSRF token
         $data = (array) $request->getParsedBody();
         $csrfToken = $data['csrf_token'] ?? '';
@@ -579,6 +588,12 @@ class UpdateController
      */
     public function installManualUpdate(Request $request, Response $response, mysqli $db): Response
     {
+        // Applies an uploaded update ZIP over the app → admin-only (AdminAuthMiddleware
+        // also lets staff through, so re-check here, like createBackup/restoreBackup).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
         // Verify CSRF token
         $data = (array) $request->getParsedBody();
         $csrfToken = $data['csrf_token'] ?? '';
@@ -642,6 +657,13 @@ class UpdateController
      */
     public function saveToken(Request $request, Response $response, mysqli $db): Response
     {
+        // Persists the GitHub token used by the update-download chain → admin-only
+        // (AdminAuthMiddleware also lets staff through, so re-check here, like the
+        // other update actions).
+        if (($_SESSION['user']['tipo_utente'] ?? '') !== 'admin') {
+            return $this->jsonResponse($response, ['error' => __('Operazione riservata agli amministratori')], 403);
+        }
+
         $data = (array) $request->getParsedBody();
         $csrfToken = $data['csrf_token'] ?? '';
 

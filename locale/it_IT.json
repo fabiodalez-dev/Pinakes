@@ -6605,5 +6605,9 @@
   "Estensione non riuscita, riprova.": "Estensione non riuscita, riprova.",
   "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.": "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.",
   "Estendi": "Estendi",
-  "Lingue non disponibili.": "Lingue non disponibili."
+  "Lingue non disponibili.": "Lingue non disponibili.",
+  "Authorization header:": "Authorization header:",
+  "Percorso file non valido": "Percorso file non valido",
+  "Solo gli amministratori possono modificare questa chiave.": "Solo gli amministratori possono modificare questa chiave.",
+  "Solo gli amministratori possono visualizzare e gestire le API key.": "Solo gli amministratori possono visualizzare e gestire le API key."
 }

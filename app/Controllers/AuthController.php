@@ -92,7 +92,15 @@ class AuthController
             // security measure. By always running password_verify() even for non-existent users,
             // attackers cannot enumerate valid emails by measuring response times.
             // See OWASP: https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html
-            $dummyHash = '$2y$12$PXZb520pM93TmNGnoJy2TuhssLxu4XversvqtKZ4B7xrm0sAldZE6'; // @codingStandardsIgnoreLine
+            //
+            // The dummy MUST use the SAME algorithm+cost as real passwords
+            // (PASSWORD_DEFAULT), otherwise password_verify() against it takes a
+            // measurably different time than against a real hash and leaks
+            // account existence via timing (CWE-208). Computed once per process.
+            static $dummyHash = null;
+            if ($dummyHash === null) {
+                $dummyHash = password_hash('', PASSWORD_DEFAULT);
+            }
             $hashToCheck = (string) ($row['password'] ?? $dummyHash);
 
             // Plugin hook: Custom login validation (e.g., reCAPTCHA, 2FA)
@@ -175,9 +183,11 @@ class AuthController
 
                 return $response->withHeader('Location', $redirectUrl)->withStatus(302);
             }
-
-            // Ensure hash verification still happens when credentials invalid
-            password_verify($password, $dummyHash);
+            // NOTE: exactly ONE password_verify() runs above on every path — the
+            // real hash on a hit, $dummyHash on a miss — so both paths do
+            // identical work. Do NOT add a second password_verify() here: it
+            // would make the miss/wrong-password path slower than a valid-hash
+            // check and reintroduce the timing oracle (CWE-208).
         }
 
         // Failed: redirect back with invalid credentials error
@@ -220,7 +230,13 @@ class AuthController
         if ($clean === '' || !str_starts_with($clean, '/')) {
             return null;
         }
-        if (str_starts_with($clean, '//')) {
+        // Reject protocol-relative ('//') and backslash-authority ('/\') forms:
+        // a browser normalises the '\' to '/', turning '/\evil.com' into
+        // '//evil.com' → a cross-origin open redirect (CWE-601). Query params
+        // are already URL-decoded here, so a '%5C' payload arrives as a raw '\'
+        // and is caught too. This is the single choke point for the post-login
+        // redirect (both loginForm() and login() route return_url through here).
+        if (preg_match('#^/[\\\\/]#', $clean)) {
             return null;
         }
         return $clean;

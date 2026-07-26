@@ -84,7 +84,20 @@ class RateLimitMiddleware implements MiddlewareInterface
     private function getClientIP(Request $request): string
     {
         $serverParams = $request->getServerParams();
-        
+        $remoteAddr = $serverParams['REMOTE_ADDR'] ?? 'unknown';
+
+        // Security scan F1 (CWE-807): client-controlled forwarding headers are
+        // the rate-limiter's identity, and the limiter is the ONLY brute-force
+        // control on login/forgot-password/reset (no per-account lockout). Only
+        // honor those headers when the direct peer (REMOTE_ADDR) is a configured
+        // trusted reverse proxy — otherwise an unauthenticated client rotates
+        // X-Forwarded-For to mint an unlimited number of fresh buckets and
+        // defeats the throttle entirely. Default (Apache-direct, TRUSTED_PROXIES
+        // unset) → always key on the real peer address.
+        if (!\App\Support\HtmlHelper::isRemoteAddrTrustedProxy()) {
+            return $remoteAddr;
+        }
+
         // Check various headers that might contain the real IP
         $headers = [
             'X-Forwarded-For',
@@ -108,7 +121,7 @@ class RateLimitMiddleware implements MiddlewareInterface
         }
 
         // Fallback to REMOTE_ADDR
-        return $serverParams['REMOTE_ADDR'] ?? 'unknown';
+        return $remoteAddr;
     }
 
     /**

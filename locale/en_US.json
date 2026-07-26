@@ -6605,5 +6605,9 @@
   "Estensione non riuscita, riprova.": "Extension failed, please try again.",
   "Estensione annullata: almeno un prestito entrerebbe in conflitto con un altro prestito o una prenotazione.": "Extension cancelled: at least one loan would conflict with another loan or reservation.",
   "Estendi": "Extend",
-  "Lingue non disponibili.": "Languages are unavailable."
+  "Lingue non disponibili.": "Languages are unavailable.",
+  "Authorization header:": "Authorization header:",
+  "Percorso file non valido": "Invalid file path",
+  "Solo gli amministratori possono modificare questa chiave.": "Only administrators can edit this key.",
+  "Solo gli amministratori possono visualizzare e gestire le API key.": "Only administrators can view and manage API keys."
 }
