@@ -480,18 +480,12 @@ document.addEventListener('DOMContentLoaded', function() {
           normalizedFile = file.data;
         } else if (file.data instanceof Blob) {
           normalizedFile = new File([file.data], file.name, { type: file.type });
-        } else if (file.preview) {
-          fetch(file.preview)
-            .then(res => res.blob())
-            .then(blob => {
-              const fetchedFile = new File([blob], file.name, { type: file.type });
-              dataTransfer.items.add(fetchedFile);
-              fileInput.files = dataTransfer.files;
-              updatePreview(fetchedFile);
-            })
-            .catch(err => console.error('Error loading preview blob:', err));
-          return;
         }
+        // No fetch(file.preview) fallback: file.preview can be a blob: URL,
+        // and fetching it violates a strict connect-src CSP (the #292 bug
+        // class). The File/Blob branches above cover every case UppyDragDrop
+        // produces; a non-Blob file.data (only from a remote-source Uppy
+        // plugin, none used here) leaves normalizedFile null and fails closed.
 
         if (normalizedFile) {
           dataTransfer.items.add(normalizedFile);

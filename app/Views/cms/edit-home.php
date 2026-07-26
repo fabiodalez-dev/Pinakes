@@ -739,17 +739,15 @@ document.addEventListener('DOMContentLoaded', function() {
             if (file.data instanceof File) {
                 dataTransfer.items.add(file.data);
                 fileInput.files = dataTransfer.files;
-            } else if (file.preview) {
-                fetch(file.preview)
-                    .then(res => res.blob())
-                    .then(blob => {
-                        const newFile = new File([blob], file.name, { type: file.type });
-                        dataTransfer.items.add(newFile);
-                        fileInput.files = dataTransfer.files;
-                    })
-                    .catch(err => {
-                        console.error('Error converting file:', err);
-                    });
+            } else if (file.data instanceof Blob) {
+                // file.data is a Blob but not a File — wrap it directly. No
+                // fetch(file.preview): file.preview can be a blob: URL, and
+                // fetching it violates a strict connect-src CSP (the #292 bug
+                // class). With only UppyDragDrop in use, file.data is always a
+                // File/Blob; a non-Blob file.data (only from a remote-source
+                // Uppy plugin, none used here) fails closed instead.
+                dataTransfer.items.add(new File([file.data], file.name, { type: file.type }));
+                fileInput.files = dataTransfer.files;
             }
         });
 

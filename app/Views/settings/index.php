@@ -1170,22 +1170,12 @@ $activeTab = $activeTab ?? 'general';
             if (logoFileInput) {
               logoFileInput.files = dataTransfer.files;
             }
-          } else if (file.preview) {
-            fetch(file.preview)
-              .then(res => res.blob())
-              .then(blob => {
-                const newFile = new File([blob], file.name, { type: file.type });
-                dataTransfer.items.add(newFile);
-                if (logoFileInput) {
-                  logoFileInput.files = dataTransfer.files;
-                }
-              })
-              .catch(() => {
-                if (logoFileInput) {
-                  logoFileInput.value = '';
-                }
-              });
           }
+          // No fetch(file.preview) fallback: file.preview can be a blob: URL,
+          // and fetching it violates a strict connect-src CSP (the #292 bug
+          // class). The File/Blob branches above cover every case UppyDragDrop
+          // produces; a non-Blob file.data (only from a remote-source Uppy
+          // plugin, none used here) fails closed rather than doing a blob: fetch.
 
           if (previewSrc) {
             currentLogoPreviewSrc = previewSrc;
